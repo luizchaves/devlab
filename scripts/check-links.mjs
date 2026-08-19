@@ -39,10 +39,17 @@ function listHtmlFiles(dir) {
 
 const htmlFiles = listHtmlFiles(distDir);
 
-/** URL pública de uma página, sempre terminando em barra. */
+/** URL pública de uma página. `index.html` vira diretorio; outros `.html` preservam o nome. */
 function pageUrl(file) {
-  const segments = relative(distDir, dirname(file)).split(sep).filter(Boolean);
-  return `${base}/${segments.length ? `${segments.join('/')}/` : ''}`;
+  const segments = relative(distDir, file).split(sep).filter(Boolean);
+  const fileName = segments.at(-1);
+
+  if (fileName === 'index.html') {
+    const dirSegments = segments.slice(0, -1);
+    return `${base}/${dirSegments.length ? `${dirSegments.join('/')}/` : ''}`;
+  }
+
+  return `${base}/${segments.join('/')}`;
 }
 
 // Índice de âncoras por página, para validar fragmentos (#secao).

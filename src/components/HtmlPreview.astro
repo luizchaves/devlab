@@ -6,15 +6,27 @@
  * <HtmlPreview path="examples/html-basics/listas.html" height="18rem" />
  * ```
  *
- * O arquivo e lido em build time (mesma infraestrutura do `<SourceCode>`) e
- * injetado em um iframe totalmente isolado (`sandbox=""`): sem scripts, sem
- * formularios, sem navegacao. O preview mostra a renderizacao padrao do
- * navegador, que e justamente o que se quer ensinar em HTML.
+ * O arquivo e lido em build time (mesma infraestrutura do `<SourceCode>`) e,
+ * por padrao, injetado em um iframe totalmente isolado (`sandbox=""`): sem
+ * scripts, sem formularios, sem navegacao. O preview mostra a renderizacao
+ * padrao do navegador, que e justamente o que se quer ensinar em HTML.
  *
  * Como `srcdoc` nao resolve caminhos relativos, as imagens locais suportadas
  * sao embutidas como `data:` URI.
+ *
+ * Para exemplos que precisam de uma URL real, como links por fragmento, use
+ * `serveFromPublic`. Nesse modo o diretorio do exemplo e publicado em
+ * `public/` e o iframe usa `src`.
  */
-import { loadSource, readAssetDataUri, resolveRelative } from '../lib/source-files';
+import { cpSync, mkdirSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
+import { withBase } from '../lib/site';
+import {
+  loadSource,
+  normalizeSourcePath,
+  readAssetDataUri,
+  resolveRelative,
+} from '../lib/source-files';
 
 interface Props {
   /** Caminho do arquivo, relativo a raiz do projeto. */
@@ -23,11 +35,58 @@ interface Props {
   height?: string | undefined;
   /** Rotulo do quadro. Padrao: nome do arquivo. */
   label?: string | undefined;
+  /** Usa arquivo publico real em vez de `srcdoc`, para navegacao por links. */
+  serveFromPublic?: boolean | undefined;
 }
 
-const { path, height = '20rem', label } = Astro.props;
+const { path, height = '20rem', label, serveFromPublic = false } = Astro.props;
 
 const source = loadSource({ path });
+const normalizedPath = normalizeSourcePath(path);
+
+const projectRoot = process.cwd();
+
+function publicExampleRoot(filePath: string): string {
+  const segments = filePath.split('/');
+
+  if (segments[0] === 'examples' && segments[1]) {
+    return segments.slice(0, 2).join('/');
+  }
+
+  if (segments[0] === 'src' && segments[1] === 'examples' && segments[2]) {
+    return segments.slice(0, 3).join('/');
+  }
+
+  return dirname(filePath);
+}
+
+function shouldCopyPublicPreviewEntry(sourcePath: string, rootPath: string): boolean {
+  const parts = relative(rootPath, sourcePath).split(sep).filter(Boolean);
+  const blockedDirs = new Set(['node_modules', 'dist', 'build', 'generated', '.prisma', '.git']);
+
+  if (parts.some((part) => blockedDirs.has(part))) return false;
+  if (parts.some((part) => part.startsWith('.env'))) return false;
+  if (/\.(?:db|db-journal|sqlite|sqlite3)$/i.test(sourcePath)) return false;
+
+  return true;
+}
+
+function publishPublicPreview(filePath: string): string {
+  const root = publicExampleRoot(filePath);
+  const sourceRoot = join(projectRoot, root);
+  const publicRoot = join(projectRoot, 'public', root);
+
+  mkdirSync(publicRoot, { recursive: true });
+  cpSync(sourceRoot, publicRoot, {
+    recursive: true,
+    force: true,
+    filter: (sourcePath) => shouldCopyPublicPreviewEntry(sourcePath, sourceRoot),
+  });
+
+  return withBase(`/${filePath}`);
+}
+
+const publicPreviewSrc = serveFromPublic ? publishPublicPreview(normalizedPath) : undefined;
 
 // Embute as imagens locais: em `srcdoc` o caminho relativo nao tem base.
 const html = source.code.replace(
@@ -51,11 +110,25 @@ const html = source.code.replace(
     {label ?? source.fileName}
   </figcaption>
 
-  <iframe
-    class="block w-full border-0 bg-white"
-    style={`height: ${height}`}
-    title={`Renderização de ${label ?? source.fileName}`}
-    sandbox=""
-    loading="lazy"
-    srcdoc={html}></iframe>
+  {
+    publicPreviewSrc ? (
+      <iframe
+        class="block w-full border-0 bg-white"
+        style={`height: ${height}`}
+        title={`Renderização de ${label ?? source.fileName}`}
+        sandbox=""
+        loading="lazy"
+        src={publicPreviewSrc}
+      />
+    ) : (
+      <iframe
+        class="block w-full border-0 bg-white"
+        style={`height: ${height}`}
+        title={`Renderização de ${label ?? source.fileName}`}
+        sandbox=""
+        loading="lazy"
+        srcdoc={html}
+      />
+    )
+  }
 </figure>
