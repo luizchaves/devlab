@@ -1,0 +1,76 @@
+name: Deploy no GitHub Pages
+
+on:
+  # Publica a cada push na branch principal.
+  push:
+    branches: [main]
+  # Permite disparar manualmente pela aba Actions.
+  workflow_dispatch:
+
+# Permissões exigidas pelo deploy do GitHub Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Uma publicação por vez; não cancela a que já está em andamento.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Configurar GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar tipos
+        run: pnpm run check
+
+      - name: Build
+        # `configure-pages` expõe a URL final do site; derivamos `site` e `base`
+        # dela para que o build funcione em qualquer usuário/repositório sem
+        # editar o `site.config.mjs`.
+        run: |
+          SITE_URL="$(node -p "new URL('${{ steps.pages.outputs.base_url }}').origin")"
+          BASE_PATH="$(node -p "new URL('${{ steps.pages.outputs.base_url }}').pathname")"
+          echo "site=$SITE_URL base=$BASE_PATH"
+          SITE_URL="$SITE_URL" BASE_PATH="$BASE_PATH" pnpm run build
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          REPO_BRANCH: ${{ github.ref_name }}
+
+      - name: Enviar artefato
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
