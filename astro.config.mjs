@@ -18,7 +18,7 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [
     starlight({
-      title: 'Classroom',
+      title: 'DevLab',
       tagline: 'Material das disciplinas de programação',
       description:
         'Portal de disciplinas de programação: JavaScript, Node.js, Express.js, banco de dados e projetos práticos.',
@@ -35,6 +35,11 @@ export default defineConfig({
       pagination: true,
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       customCss: ['./src/styles/global.css'],
+      components: {
+        Header: './src/components/Header.astro',
+        Sidebar: './src/components/Sidebar.astro',
+        SiteTitle: './src/components/SiteTitle.astro',
+      },
       // As opcoes do Expressive Code ficam em `ec.config.mjs` (veja o arquivo).
       sidebar: [
         {
