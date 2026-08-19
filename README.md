@@ -90,6 +90,7 @@ Três decisões sustentam a estrutura:
 ├── .github/workflows/          CI e deploy no GitHub Pages
 │
 ├── examples/                   projetos reais e executáveis
+│   ├── html-basics/
 │   ├── express-basic/
 │   ├── express-router/
 │   ├── express-mvc/
@@ -103,6 +104,7 @@ Três decisões sustentam a estrutura:
     │   └── courses/
     │       └── cstrc-jp-dw/    disciplina Desenvolvimento Web
     │           ├── index.mdx
+    │           ├── html/
     │           ├── javascript/
     │           ├── node/
     │           ├── express/
@@ -111,6 +113,7 @@ Três decisões sustentam a estrutura:
     │
     ├── components/
     │   ├── SourceCode.astro         código a partir de um arquivo real
+    │   ├── HtmlPreview.astro        renderização de um arquivo HTML real
     │   ├── CodeTabs.astro           vários arquivos em abas
     │   ├── FileTree.astro           árvore de arquivos escrita como texto
     │   ├── PackageManagerTabs.astro npm / pnpm / yarn
@@ -147,10 +150,11 @@ O site sobe em `http://localhost:4321/classroom/` (o caminho inclui o `base`).
 | `pnpm build`       | Gera o site estático em `dist/`                  |
 | `pnpm preview`     | Serve o `dist/` localmente                       |
 | `pnpm check`       | Validação de tipos (`astro check`)               |
+| `pnpm check:links` | Valida os links internos do `dist/`              |
 | `pnpm lint`        | Lint e checagem de formatação (Biome)            |
 | `pnpm lint:fix`    | Corrige o que for automaticamente corrigível     |
 | `pnpm format`      | Formata os arquivos                              |
-| `pnpm validate`    | `lint` + `check` + `build`                       |
+| `pnpm validate`    | `lint` + `check` + `build` + `check:links`       |
 
 Os projetos de `examples/` **não** fazem parte deste workspace: cada um tem as
 próprias dependências e é instalado separadamente. Assim o build da documentação (e o
@@ -162,7 +166,14 @@ pnpm install
 pnpm dev
 ```
 
-O `express-prisma` tem dois passos a mais:
+O `html-basics` não tem dependências — é só abrir os arquivos no navegador:
+
+```bash
+cd examples/html-basics
+open index.html
+```
+
+Já o `express-prisma` tem dois passos a mais:
 
 ```bash
 cd examples/express-prisma
@@ -259,8 +270,14 @@ Convenções adotadas:
 - Os campos extras `course` e `project` no frontmatter são opcionais e existem para
   listagens futuras (definidos em `src/content.config.ts`).
 
-> **Verificando os links.** Depois de `pnpm build`, vale conferir que nada quebrou —
-> o site é estático, então um link errado só aparece em produção.
+> **Verificando os links.** `pnpm check:links` percorre o `dist/`, resolve cada link
+> interno contra a URL real da página e falha se o destino — página, arquivo ou
+> âncora — não existir. Roda no `pnpm validate` e nos dois workflows do CI.
+>
+> O plugin `starlight-links-validator` não serve aqui: ele **ignora** links relativos
+> (`errorOnRelativeLinks: false`) ou os rejeita por serem relativos (`true`), e este
+> projeto usa links relativos justamente para sobreviver ao `base`. Só validaria algo
+> se o `base` fosse escrito à mão em cada link do conteúdo.
 
 ## Quando usar `.mdx`
 
@@ -361,6 +378,38 @@ e `src/examples/`, com `node_modules/`, `dist/`, `.env` e binários excluídos. 
 acesso ao filesystem no navegador nem possibilidade de traversal (`../../`) — um
 caminho fora dos diretórios autorizados falha o build com mensagem explícita. Funciona
 igual em `pnpm dev` e `pnpm build`, inclusive na publicação estática.
+
+### `<HtmlPreview>`
+
+Mostra como o navegador renderiza um arquivo HTML real — o par indispensável do
+`<SourceCode>` nas aulas de HTML e CSS.
+
+```mdx
+<HtmlPreview path="examples/html-basics/listas.html" height="18rem" />
+```
+
+| Prop     | Descrição                                            |
+| -------- | ---------------------------------------------------- |
+| `path`   | **Obrigatória.** Mesmo contrato do `<SourceCode>`     |
+| `height` | Altura do quadro (padrão `20rem`)                     |
+| `label`  | Rótulo do quadro (padrão: nome do arquivo)            |
+
+O arquivo é lido em build time e injetado em um iframe com `sandbox=""`: sem scripts,
+sem formulários, sem navegação. Como `srcdoc` não tem base para caminhos relativos,
+as imagens locais em formato de texto (`.svg`) são embutidas como `data:` URI.
+
+Combina bem com abas, para alternar entre marcação e resultado:
+
+```mdx
+<Tabs syncKey="html-basics">
+  <TabItem label="Código">
+    <SourceCode path="examples/html-basics/listas.html" title="listas.html" showLineNumbers />
+  </TabItem>
+  <TabItem label="Resultado">
+    <HtmlPreview path="examples/html-basics/listas.html" />
+  </TabItem>
+</Tabs>
+```
 
 ### `<CodeTabs>`
 

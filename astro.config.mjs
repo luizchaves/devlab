@@ -42,6 +42,11 @@ export default defineConfig({
           items: [
             { label: 'Introdução', link: '/courses/cstrc-jp-dw/' },
             {
+              label: 'HTML',
+              collapsed: false,
+              items: [{ label: 'Introdução', link: '/courses/cstrc-jp-dw/html/' }],
+            },
+            {
               label: 'JavaScript',
               collapsed: false,
               items: [

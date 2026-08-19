@@ -7,8 +7,9 @@ sidebar:
   order: 1
 ---
 
-JavaScript é a linguagem que usaremos tanto no navegador quanto no servidor. Esta
-aula revisa a sintaxe moderna (ES2015+) que aparece em todo o restante da disciplina.
+Se o [HTML](../html/) descreve *o que* a página contém, o JavaScript descreve *o que
+ela faz*. Esta aula revisa a sintaxe moderna (ES2015+) que aparece em todo o restante
+da disciplina — tanto no navegador quanto no servidor.
 
 ## Declaração de variáveis
 

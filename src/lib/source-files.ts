@@ -27,7 +27,7 @@ const rawSources = import.meta.glob(
     '!/**/.env.local',
     '!/**/.env.development',
     '!/**/.env.production',
-    '!/**/*.{png,jpg,jpeg,gif,webp,avif,ico,svg,pdf,zip,gz,woff,woff2,ttf,otf,eot,db,db-journal,sqlite,sqlite3,node,wasm}',
+    '!/**/*.{png,jpg,jpeg,gif,webp,avif,ico,pdf,zip,gz,woff,woff2,ttf,otf,eot,db,db-journal,sqlite,sqlite3,node,wasm}',
   ],
   { query: '?raw', import: 'default', eager: true }
 ) as Record<string, string>;
@@ -116,6 +116,7 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   prisma: 'prisma',
   sh: 'bash',
   sql: 'sql',
+  svg: 'xml',
   toml: 'toml',
   ts: 'ts',
   tsx: 'tsx',
@@ -327,4 +328,40 @@ export function loadSource(options: LoadSourceOptions): LoadedSource {
     firstLineNumber,
     isPartial,
   };
+}
+
+/** Extensoes de imagem em texto que podem virar `data:` URI no `<HtmlPreview>`. */
+const DATA_URI_MIME: Record<string, string> = {
+  svg: 'image/svg+xml',
+};
+
+/**
+ * Le um arquivo autorizado e devolve um `data:` URI, ou `undefined` se o tipo
+ * nao for suportado. Usado para embutir imagens no preview em `srcdoc`, onde
+ * caminhos relativos nao resolvem.
+ */
+export function readAssetDataUri(path: string): string | undefined {
+  const normalized = normalizeSourcePath(path);
+  const extension = normalized.split('.').pop()?.toLowerCase() ?? '';
+  const mime = DATA_URI_MIME[extension];
+
+  if (!mime) return undefined;
+
+  const content = rawSources[`/${normalized}`];
+  if (content === undefined) return undefined;
+
+  return `data:${mime};base64,${Buffer.from(content, 'utf-8').toString('base64')}`;
+}
+
+/** Resolve um caminho relativo (`../img/logo.svg`) a partir de um arquivo. */
+export function resolveRelative(fromFile: string, relative: string): string {
+  const segments = normalizeSourcePath(fromFile).split('/').slice(0, -1);
+
+  for (const part of relative.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') segments.pop();
+    else segments.push(part);
+  }
+
+  return segments.join('/');
 }
