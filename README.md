@@ -1,4 +1,4 @@
-# Classroom
+# DevLab
 
 Portal de publicação das páginas de disciplinas de programação, construído com
 **Astro + Starlight**, com foco em conteúdo escrito em Markdown e código que existe
@@ -142,7 +142,7 @@ pnpm install
 pnpm dev
 ```
 
-O site sobe em `http://localhost:4321/classroom/` (o caminho inclui o `base`).
+O site sobe em `http://localhost:4321/devlab/` (o caminho inclui o `base`).
 
 | Comando            | O que faz                                        |
 | ------------------ | ------------------------------------------------ |
@@ -273,6 +273,11 @@ Convenções adotadas:
 > **Verificando os links.** `pnpm check:links` percorre o `dist/`, resolve cada link
 > interno contra a URL real da página e falha se o destino — página, arquivo ou
 > âncora — não existir. Roda no `pnpm validate` e nos dois workflows do CI.
+>
+> Nos workflows, `scripts/github-pages-env.mjs` deriva `SITE_URL`, `BASE_PATH`,
+> `REPO_URL` e `REPO_BRANCH` a partir do repositório atual e exporta esses valores
+> para todos os steps. Assim o build e a validação usam o mesmo caminho base mesmo
+> se o repositório for renomeado.
 >
 > O plugin `starlight-links-validator` não serve aqui: ele **ignora** links relativos
 > (`errorOnRelativeLinks: false`) ou os rejeita por serem relativos (`true`), e este
@@ -679,28 +684,34 @@ site: 'https://<usuario>.github.io',
 base: '/<repositorio>',
 ```
 
-Esses valores ficam em [`site.config.mjs`](site.config.mjs), lido tanto pelo
-`astro.config.mjs` quanto pelos componentes:
+Esses valores ficam em [`site.config.mjs`](site.config.mjs), lido pelo
+`astro.config.mjs`, pelos componentes e pelo validador de links. O arquivo respeita
+variáveis de ambiente e, quando elas não existem, deriva o `base` do nome do
+repositório no GitHub Actions ou do `name` em `package.json` no uso local:
 
 ```js
-export const SITE_URL = process.env.SITE_URL ?? 'https://lucachaves.github.io';
-export const BASE_PATH = process.env.BASE_PATH ?? '/classroom';
-export const REPO_URL = process.env.REPO_URL ?? 'https://github.com/lucachaves/classroom';
-export const REPO_BRANCH = process.env.REPO_BRANCH ?? 'main';
+export const SITE_URL = process.env.SITE_URL ?? `https://${repositoryOwner}.github.io`;
+export const BASE_PATH = normalizeBasePath(process.env.BASE_PATH ?? defaultBasePath);
+export const REPO_URL =
+  process.env.REPO_URL ?? `${githubServerUrl}/${repositoryOwner}/${repositoryName}`;
+export const REPO_BRANCH =
+  process.env.REPO_BRANCH || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || 'main';
 ```
 
-Para publicar em outro lugar, edite o arquivo:
+Para publicar em outro lugar, defina variáveis de ambiente ou ajuste os defaults do
+arquivo:
 
 | Destino                                    | `SITE_URL`                       | `BASE_PATH`      |
 | ------------------------------------------ | -------------------------------- | ---------------- |
-| `https://ana.github.io/classroom/`         | `https://ana.github.io`          | `/classroom`     |
+| `https://ana.github.io/devlab/`            | `https://ana.github.io`          | `/devlab`        |
 | `https://ana.github.io/disciplinas/`       | `https://ana.github.io`          | `/disciplinas`   |
 | `https://ana.github.io/` (repo `ana.github.io`) | `https://ana.github.io`     | `/`              |
 | Domínio próprio                            | `https://exemplo.com`            | `/`              |
 
-No CI não é preciso editar nada: o workflow deriva `SITE_URL` e `BASE_PATH` da URL
-que o `actions/configure-pages` informa, e aponta `REPO_URL` para o próprio
-repositório. A edição do `site.config.mjs` só afeta builds locais e serve como padrão.
+No CI não é preciso editar nada: o workflow roda `scripts/github-pages-env.mjs`,
+deriva `SITE_URL` e `BASE_PATH` a partir de `GITHUB_REPOSITORY` e aponta `REPO_URL`
+para o próprio repositório. A edição do `site.config.mjs` só afeta builds locais e
+serve como padrão.
 
 Ao mudar o `base`, o `pnpm dev` também passa a servir no novo caminho
 (`http://localhost:4321/<base>/`).
