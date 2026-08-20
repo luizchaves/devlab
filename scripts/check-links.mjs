@@ -39,6 +39,11 @@ function listHtmlFiles(dir) {
 
 const htmlFiles = listHtmlFiles(distDir);
 
+/** Remove exemplos de codigo renderizados, que podem conter `href` apenas como texto. */
+function stripCodeFragments(html) {
+  return html.replace(/<pre\b[\s\S]*?<\/pre>/gi, '').replace(/<code\b[\s\S]*?<\/code>/gi, '');
+}
+
 /** URL pública de uma página. `index.html` vira diretorio; outros `.html` preservam o nome. */
 function pageUrl(file) {
   const segments = relative(distDir, file).split(sep).filter(Boolean);
@@ -83,8 +88,9 @@ let checked = 0;
 for (const file of htmlFiles) {
   const from = pageUrl(file);
   const html = readFileSync(file, 'utf-8');
+  const htmlWithoutCode = stripCodeFragments(html);
 
-  for (const match of html.matchAll(/\shref="([^"]+)"/g)) {
+  for (const match of htmlWithoutCode.matchAll(/\shref="([^"]+)"/g)) {
     const href = match[1];
     if (/^(?:https?:|mailto:|tel:|data:|javascript:)/i.test(href)) continue;
 

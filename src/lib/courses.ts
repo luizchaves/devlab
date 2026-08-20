@@ -1,6 +1,7 @@
 const courses = {
   'cstrc-jp-dw': {
     title: 'Desenvolvimento Web',
+    shortTitle: 'DW',
     href: '/courses/cstrc-jp-dw/',
   },
 } as const;

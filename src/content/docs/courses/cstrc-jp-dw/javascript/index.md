@@ -1,9 +1,9 @@
 ---
-title: JavaScript — Introdução
+title: Introdução ao JavaScript
 description: Sintaxe moderna de JavaScript usada ao longo da disciplina.
 course: cstrc-jp-dw
 sidebar:
-  label: Introdução
+  label: Introdução ao JavaScript
   order: 1
 ---
 

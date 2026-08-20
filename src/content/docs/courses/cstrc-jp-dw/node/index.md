@@ -1,9 +1,9 @@
 ---
-title: Node.js — Introdução
+title: Introdução ao Node.js
 description: O runtime que executa JavaScript fora do navegador.
 course: cstrc-jp-dw
 sidebar:
-  label: Introdução
+  label: Introdução ao Node.js
   order: 1
 ---
 

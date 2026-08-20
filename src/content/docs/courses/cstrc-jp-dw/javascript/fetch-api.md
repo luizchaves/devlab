@@ -90,4 +90,4 @@ usuário criado e por fim o remova — imprimindo o status de cada etapa.
 
 ## Próxima aula
 
-[Node.js → Introdução](../../node/) — executando JavaScript no servidor.
+[Introdução ao Node.js](../../node/) — executando JavaScript no servidor.

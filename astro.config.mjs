@@ -45,17 +45,22 @@ export default defineConfig({
         {
           label: 'Desenvolvimento Web',
           items: [
-            { label: 'Introdução', link: '/courses/cstrc-jp-dw/' },
+            { label: 'Introdução à disciplina', link: '/courses/cstrc-jp-dw/' },
             {
               label: 'HTML',
               collapsed: false,
-              items: [{ label: 'Introdução', link: '/courses/cstrc-jp-dw/html/' }],
+              items: [{ label: 'Introdução ao HTML', link: '/courses/cstrc-jp-dw/html/' }],
+            },
+            {
+              label: 'CSS',
+              collapsed: false,
+              items: [{ label: 'Introdução ao CSS', link: '/courses/cstrc-jp-dw/css/' }],
             },
             {
               label: 'JavaScript',
               collapsed: false,
               items: [
-                { label: 'Introdução', link: '/courses/cstrc-jp-dw/javascript/' },
+                { label: 'Introdução ao JavaScript', link: '/courses/cstrc-jp-dw/javascript/' },
                 { label: 'Modules', link: '/courses/cstrc-jp-dw/javascript/modules/' },
                 { label: 'Async/Await', link: '/courses/cstrc-jp-dw/javascript/async-await/' },
                 { label: 'Fetch API', link: '/courses/cstrc-jp-dw/javascript/fetch-api/' },
@@ -65,7 +70,7 @@ export default defineConfig({
               label: 'Node.js',
               collapsed: false,
               items: [
-                { label: 'Introdução', link: '/courses/cstrc-jp-dw/node/' },
+                { label: 'Introdução ao Node.js', link: '/courses/cstrc-jp-dw/node/' },
                 { label: 'npm', link: '/courses/cstrc-jp-dw/node/npm/' },
                 { label: 'Modules', link: '/courses/cstrc-jp-dw/node/modules/' },
               ],
@@ -74,7 +79,7 @@ export default defineConfig({
               label: 'Express.js',
               collapsed: false,
               items: [
-                { label: 'Introdução', link: '/courses/cstrc-jp-dw/express/' },
+                { label: 'Introdução ao Express.js', link: '/courses/cstrc-jp-dw/express/' },
                 { label: 'Routes', link: '/courses/cstrc-jp-dw/express/routes/' },
                 { label: 'Controllers', link: '/courses/cstrc-jp-dw/express/controllers/' },
                 { label: 'Middleware', link: '/courses/cstrc-jp-dw/express/middleware/' },
