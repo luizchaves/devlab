@@ -1,9 +1,9 @@
 ---
-title: Introdução ao JavaScript
+title: "JavaScript: Fundamentos"
 description: Sintaxe moderna de JavaScript usada ao longo da disciplina.
 course: cstrc-jp-dw
 sidebar:
-  label: Introdução ao JavaScript
+  label: Fundamentos
   order: 1
 ---
 

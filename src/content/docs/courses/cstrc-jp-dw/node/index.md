@@ -1,9 +1,9 @@
 ---
-title: Introdução ao Node.js
+title: "Node.js: Fundamentos"
 description: O runtime que executa JavaScript fora do navegador.
 course: cstrc-jp-dw
 sidebar:
-  label: Introdução ao Node.js
+  label: Fundamentos
   order: 1
 ---
 
