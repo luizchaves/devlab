@@ -64,6 +64,8 @@ const controlsMarkup = `<div class="mindmap-level-controls" aria-label="Níveis 
   <span>Níveis</span>
   <button type="button" data-mindmap-level="2" aria-pressed="true">2</button>
   <button type="button" data-mindmap-level="3" aria-pressed="false">3</button>
+  <button type="button" data-mindmap-level="4" aria-pressed="false">4</button>
+  <button type="button" data-mindmap-level="0" aria-pressed="false">Todos</button>
 </div>`;
 
 const controlsScript = `<script>
@@ -81,9 +83,11 @@ const controlsScript = `<script>
   async function applyLevel(level) {
     if (!window.mm || !window.__mindmapSourceData) return;
 
+    const expandLevel = level === 0 ? 99 : level;
+
     await window.mm.setData(clone(window.__mindmapSourceData), {
       ...(window.__mindmapSourceOptions || {}),
-      initialExpandLevel: level,
+      initialExpandLevel: expandLevel,
     });
     await window.mm.fit();
     setActive(level);

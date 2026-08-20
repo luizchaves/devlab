@@ -34,7 +34,7 @@ for (const slideFile of slideFiles) {
 
   mkdirSync(dirname(outputFile), { recursive: true });
 
-  const result = spawnSync('marp', [slideFile, '-o', outputFile], {
+  const result = spawnSync('marp', ['--no-stdin', slideFile, '-o', outputFile], {
     shell: process.platform === 'win32',
     stdio: 'inherit',
   });
