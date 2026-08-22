@@ -25,6 +25,8 @@ markmap:
 - Benchmarking
   - Análise de ferramentas de mercado (Grafana, Zabbix, Webmin)
   - Inspiração em projetos anteriores (`dw-cstrc-jp`)
+- Definição de Escopo
+  - Referência de boa prática ([Estudo de Caso no Medium](https://medium.com/@nativasconcelos/conectando-estabelecimentos-de-beleza-a-clientes-durante-a-quarentena-com-seguran%C3%A7a-ebf0584b1de1))
 
 ### Identidade e Repositório
 

@@ -51,6 +51,7 @@ O projeto final é uma atividade **obrigatória** desenvolvida em etapas ao long
   * Gerenciamento de serviços (DNS, DHCP, Firewall, Samba, NFS);
   * Análise e consolidação de arquivos de log;
   * Agendamentos de tarefas (`cron`) ou IoT/Roteamento.
+* **Definição de Escopo:** Exemplo em [Estudo de Caso no Medium](https://medium.com/@nativasconcelos/conectando-estabelecimentos-de-beleza-a-clientes-durante-a-quarentena-com-seguran%C3%A7a-ebf0584b1de1).
 
 ---
 
