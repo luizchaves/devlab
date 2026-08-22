@@ -1,5 +1,5 @@
 ---
-title: Express.js — Controllers
+title: Express.js: Controllers
 description: Separando a lógica das rotas em controllers.
 course: cstrc-jp-dw
 sidebar:
@@ -8,8 +8,8 @@ sidebar:
 ---
 
 Um **controller** é a função que responde a uma requisição. Tirá-la de dentro do
-router deixa o arquivo de rotas com uma única responsabilidade: dizer *quais
-caminhos existem*.
+router deixa o arquivo de rotas com uma única responsabilidade: dizer _quais
+caminhos existem_.
 
 ## O problema
 
@@ -68,13 +68,13 @@ export function show(req, res) {
 
 Usar sempre os mesmos nomes torna qualquer controller previsível:
 
-| Função    | Método HTTP | Caminho      | Ação                |
-| --------- | ----------- | ------------ | ------------------- |
-| `index`   | GET         | `/users`     | Lista todos         |
-| `show`    | GET         | `/users/:id` | Busca um            |
-| `store`   | POST        | `/users`     | Cria                |
-| `update`  | PUT         | `/users/:id` | Atualiza            |
-| `destroy` | DELETE      | `/users/:id` | Remove              |
+| Função    | Método HTTP | Caminho      | Ação        |
+| --------- | ----------- | ------------ | ----------- |
+| `index`   | GET         | `/users`     | Lista todos |
+| `show`    | GET         | `/users/:id` | Busca um    |
+| `store`   | POST        | `/users`     | Cria        |
+| `update`  | PUT         | `/users/:id` | Atualiza    |
+| `destroy` | DELETE      | `/users/:id` | Remove      |
 
 ## O que um controller deve (e não deve) fazer
 

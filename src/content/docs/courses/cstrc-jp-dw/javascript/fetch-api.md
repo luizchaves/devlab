@@ -1,5 +1,5 @@
 ---
-title: JavaScript — Fetch API
+title: JavaScript: Fetch API
 description: Consumindo APIs HTTP com fetch, tanto no navegador quanto no Node.js.
 course: cstrc-jp-dw
 sidebar:

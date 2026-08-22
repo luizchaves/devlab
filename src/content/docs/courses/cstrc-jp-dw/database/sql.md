@@ -1,5 +1,5 @@
 ---
-title: Banco de Dados — SQL
+title: Banco de Dados: SQL
 description: Modelagem relacional e as consultas SQL usadas na disciplina.
 course: cstrc-jp-dw
 sidebar:

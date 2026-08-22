@@ -1,5 +1,5 @@
 ---
-title: Express.js — Middleware
+title: Express.js: Middleware
 description: A cadeia de middlewares do Express, incluindo o tratamento de erros.
 course: cstrc-jp-dw
 sidebar:
@@ -101,19 +101,21 @@ sobrou:
 
 ```js title="src/middlewares/error-handler.js"
 export function notFound(req, res, next) {
-  next(new HttpError(404, `Rota não encontrada: ${req.method} ${req.originalUrl}`));
+  next(
+    new HttpError(404, `Rota não encontrada: ${req.method} ${req.originalUrl}`),
+  );
 }
 ```
 
 ## Middlewares embutidos e de terceiros
 
-| Middleware               | Para que serve                          |
-| ------------------------ | --------------------------------------- |
-| `express.json()`         | Interpreta corpo JSON                   |
-| `express.urlencoded()`   | Interpreta formulários HTML             |
-| `express.static('public')` | Serve arquivos estáticos              |
-| `cors()`                 | Libera requisições de outras origens    |
-| `helmet()`               | Cabeçalhos de segurança                 |
+| Middleware                 | Para que serve                       |
+| -------------------------- | ------------------------------------ |
+| `express.json()`           | Interpreta corpo JSON                |
+| `express.urlencoded()`     | Interpreta formulários HTML          |
+| `express.static('public')` | Serve arquivos estáticos             |
+| `cors()`                   | Libera requisições de outras origens |
+| `helmet()`                 | Cabeçalhos de segurança              |
 
 ## Exercício
 
