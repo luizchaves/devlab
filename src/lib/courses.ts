@@ -4,6 +4,16 @@ const courses = {
     shortTitle: 'DW',
     href: '/courses/cstrc-jp-dw/',
   },
+  'csbes-jp-pw2': {
+    title: 'Programação para Web 2',
+    shortTitle: 'PW2',
+    href: '/courses/csbes-jp-pw2/',
+  },
+  'ctii-jp-lp2': {
+    title: 'Linguagem de Programação II',
+    shortTitle: 'LP2',
+    href: '/courses/ctii-jp-lp2/',
+  },
 } as const;
 
 export type CourseId = keyof typeof courses;

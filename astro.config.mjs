@@ -48,60 +48,147 @@ export default defineConfig({
           items: [
             { label: 'Visão geral', link: '/courses/cstrc-jp-dw/' },
             {
+              label: 'Projeto',
+              link: '/courses/cstrc-jp-dw/project/',
+            },
+            {
               label: 'HTML',
-              collapsed: false,
-              items: [{ label: 'Fundamentos', link: '/courses/cstrc-jp-dw/html/' }],
+              collapsed: true,
+              items: [
+                {
+                  label: 'Importância da Web',
+                  link: '/courses/cstrc-jp-dw/html/web-importance/',
+                },
+                {
+                  label: 'Linguagens de Marcação',
+                  link: '/courses/cstrc-jp-dw/html/markup-languages/',
+                },
+                { label: 'Fundamentos de HTML', link: '/courses/cstrc-jp-dw/html/html/' },
+                { label: 'Formulários HTML', link: '/courses/cstrc-jp-dw/html/forms/' },
+              ],
             },
             {
               label: 'CSS',
-              collapsed: false,
-              items: [{ label: 'Fundamentos', link: '/courses/cstrc-jp-dw/css/' }],
+              collapsed: true,
+              items: [
+                { label: 'Fundamentos de CSS', link: '/courses/cstrc-jp-dw/css/css/' },
+                {
+                  label: 'Pacotes',
+                  collapsed: true,
+                  items: [
+                    {
+                      label: 'Bootstrap',
+                      link: '/courses/cstrc-jp-dw/packages/bootstrap/',
+                    },
+                    {
+                      label: 'Tailwind CSS',
+                      link: '/courses/cstrc-jp-dw/packages/tailwind-css/',
+                    },
+                  ],
+                },
+                { label: 'Formulários com CSS', link: '/courses/cstrc-jp-dw/css/forms/' },
+
+              ],
             },
             {
               label: 'JavaScript',
-              collapsed: false,
+              collapsed: true,
               items: [
-                { label: 'Fundamentos', link: '/courses/cstrc-jp-dw/javascript/' },
+                { label: 'ECMAScript', link: '/courses/cstrc-jp-dw/javascript/ecmascript/' },
+                { label: 'Variáveis', link: '/courses/cstrc-jp-dw/javascript/variables/' },
+                {
+                  label: 'Expressões e Operadores',
+                  link: '/courses/cstrc-jp-dw/javascript/expressions-operators/',
+                },
+                {
+                  label: 'Decisão e Repetição',
+                  link: '/courses/cstrc-jp-dw/javascript/control-flow/',
+                },
+                { label: 'Funções', link: '/courses/cstrc-jp-dw/javascript/functions/' },
                 { label: 'Modules', link: '/courses/cstrc-jp-dw/javascript/modules/' },
+                { label: 'Arrays', link: '/courses/cstrc-jp-dw/javascript/arrays/' },
+                { label: 'Strings', link: '/courses/cstrc-jp-dw/javascript/strings/' },
+                { label: 'Objetos', link: '/courses/cstrc-jp-dw/javascript/objects/' },
+                { label: 'Date', link: '/courses/cstrc-jp-dw/javascript/date/' },
+                { label: 'RegExp', link: '/courses/cstrc-jp-dw/javascript/regexp/' },
+                { label: 'Promises', link: '/courses/cstrc-jp-dw/javascript/promises/' },
                 { label: 'Async/Await', link: '/courses/cstrc-jp-dw/javascript/async-await/' },
+              ],
+            },
+            {
+              label: 'Browser e Ferramentas',
+              collapsed: true,
+              items: [
+                {
+                  label: 'Objetos do Navegador',
+                  link: '/courses/cstrc-jp-dw/browser/browser-objects/',
+                },
+                {
+                  label: 'Elementos Dinâmicos',
+                  link: '/courses/cstrc-jp-dw/browser/dynamic-elements/',
+                },
+                { label: 'Vite', link: '/courses/cstrc-jp-dw/packages/vite/' },
+                { label: 'Eventos', link: '/courses/cstrc-jp-dw/browser/events/' },
+                { label: 'DOM API', link: '/courses/cstrc-jp-dw/browser/dom-api/' },
+                { label: 'Local Storage', link: '/courses/cstrc-jp-dw/browser/local-storage/' },
+                { label: 'JSON Server', link: '/courses/cstrc-jp-dw/packages/json-server/' },
                 { label: 'Fetch API', link: '/courses/cstrc-jp-dw/javascript/fetch-api/' },
+                { label: 'Chart.js', link: '/courses/cstrc-jp-dw/packages/chartjs/' },
               ],
             },
             {
-              label: 'Node.js',
-              collapsed: false,
+              label: 'Servidor e Banco de Dados',
+              collapsed: true,
               items: [
-                { label: 'Fundamentos', link: '/courses/cstrc-jp-dw/node/' },
+                { label: 'Node.js HTTP', link: '/courses/cstrc-jp-dw/node/http/' },
+                { label: 'Express.js', link: '/courses/cstrc-jp-dw/express/express/' },
+                {
+                  label: 'Chamada de Sistema',
+                  link: '/courses/cstrc-jp-dw/express/system-call/',
+                },
+                {
+                  label: 'Construção de API',
+                  link: '/courses/cstrc-jp-dw/express/api-construction/',
+                },
+                { label: 'MVC', link: '/courses/cstrc-jp-dw/express/mvc/' },
+                { label: 'SGBD', link: '/courses/cstrc-jp-dw/database/dbms/' },
+                { label: 'SQL', link: '/courses/cstrc-jp-dw/database/sql/' },
+                { label: 'SQL com Node.js', link: '/courses/cstrc-jp-dw/database/sql-node/' },
+                { label: 'Prisma', link: '/courses/cstrc-jp-dw/database/prisma/' },
+                {
+                  label: 'Relações com Prisma',
+                  link: '/courses/cstrc-jp-dw/database/prisma-relations/',
+                },
+                {
+                  label: 'Cadastro de Usuário',
+                  link: '/courses/cstrc-jp-dw/express/user-registration/',
+                },
+                { label: 'Autenticação', link: '/courses/cstrc-jp-dw/express/authentication/' },
+              ],
+            },
+            {
+              label: 'Complementares',
+              collapsed: true,
+              items: [
+                { label: 'CSS Box Model', link: '/courses/cstrc-jp-dw/css/box-model/' },
+                { label: 'JavaScript: Fundamentos', link: '/courses/cstrc-jp-dw/javascript/javascript/' },
+
+                { label: 'Browser APIs', link: '/courses/cstrc-jp-dw/browser/browser/' },
+
+                { label: 'Pacotes', link: '/courses/cstrc-jp-dw/packages/packages/' },
+
+                { label: 'Node.js', link: '/courses/cstrc-jp-dw/node/node/' },
                 { label: 'npm', link: '/courses/cstrc-jp-dw/node/npm/' },
-                { label: 'Modules', link: '/courses/cstrc-jp-dw/node/modules/' },
-              ],
-            },
-            {
-              label: 'Express.js',
-              collapsed: false,
-              items: [
-                { label: 'Fundamentos', link: '/courses/cstrc-jp-dw/express/' },
-                { label: 'Routes', link: '/courses/cstrc-jp-dw/express/routes/' },
+                { label: 'Node.js Modules', link: '/courses/cstrc-jp-dw/node/modules/' },
+
+                { label: 'Express Routes', link: '/courses/cstrc-jp-dw/express/routes/' },
                 { label: 'Controllers', link: '/courses/cstrc-jp-dw/express/controllers/' },
                 { label: 'Middleware', link: '/courses/cstrc-jp-dw/express/middleware/' },
-                { label: 'MVC', link: '/courses/cstrc-jp-dw/express/mvc/' },
-                { label: 'REST API', link: '/courses/cstrc-jp-dw/express/rest-api/' },
-              ],
-            },
-            {
-              label: 'Banco de Dados',
-              collapsed: false,
-              items: [
-                { label: 'SQL', link: '/courses/cstrc-jp-dw/database/sql/' },
-                { label: 'Prisma', link: '/courses/cstrc-jp-dw/database/prisma/' },
+                { label: 'Express REST API', link: '/courses/cstrc-jp-dw/express/rest-api/' },
+
                 { label: 'CRUD', link: '/courses/cstrc-jp-dw/database/crud/' },
-              ],
-            },
-            {
-              label: 'Projetos',
-              collapsed: false,
-              items: [
-                { label: 'Visão geral', link: '/courses/cstrc-jp-dw/projects/' },
+
+                { label: 'Projetos', link: '/courses/cstrc-jp-dw/projects/projects/' },
                 { label: 'Hello Express', link: '/courses/cstrc-jp-dw/projects/hello-express/' },
                 { label: 'Express Router', link: '/courses/cstrc-jp-dw/projects/express-router/' },
                 { label: 'Express MVC', link: '/courses/cstrc-jp-dw/projects/express-mvc/' },
@@ -109,6 +196,167 @@ export default defineConfig({
                   label: 'Express + Prisma',
                   link: '/courses/cstrc-jp-dw/projects/express-prisma/',
                 },
+                {
+                  label: 'Invest App Bootstrap',
+                  link: '/courses/cstrc-jp-dw/projects/invest-app-bootstrap/',
+                },
+                { label: 'Extra', link: '/courses/cstrc-jp-dw/extra/extra/' },
+                { label: 'Exercícios', link: '/courses/cstrc-jp-dw/extra/exercises/' },
+                { label: 'Próximos Passos', link: '/courses/cstrc-jp-dw/extra/next-steps/' },
+              ],
+            },
+          ],
+        },
+        {
+          label: 'Programação para Web 2',
+          items: [
+            { label: 'Visão geral', link: '/courses/csbes-jp-pw2/' },
+            { label: 'Projeto', link: '/courses/csbes-jp-pw2/project/' },
+            {
+              label: 'JavaScript',
+              collapsed: false,
+              items: [
+                { label: 'ECMAScript', link: '/courses/csbes-jp-pw2/ecma/introduction/introduction/' },
+                { label: 'Variáveis', link: '/courses/csbes-jp-pw2/ecma/variable/variable/' },
+                {
+                  label: 'Expressões e Operadores',
+                  link: '/courses/csbes-jp-pw2/ecma/expression-and-operator/expression-and-operator/',
+                },
+                {
+                  label: 'Decisão e Repetição',
+                  link: '/courses/csbes-jp-pw2/ecma/statements/statements/',
+                },
+                { label: 'Funções', link: '/courses/csbes-jp-pw2/ecma/function/function/' },
+                { label: 'Modules', link: '/courses/csbes-jp-pw2/ecma/modules/modules/' },
+                { label: 'Arrays', link: '/courses/csbes-jp-pw2/ecma/array/array/' },
+                { label: 'Strings', link: '/courses/csbes-jp-pw2/ecma/string/string/' },
+                { label: 'Objetos', link: '/courses/csbes-jp-pw2/ecma/object/object/' },
+                { label: 'Promises', link: '/courses/csbes-jp-pw2/ecma/promise/promise/' },
+                { label: 'RegExp', link: '/courses/csbes-jp-pw2/ecma/regexp/regexp/' },
+                { label: 'Date', link: '/courses/csbes-jp-pw2/ecma/date/date/' },
+              ],
+            },
+            {
+              label: 'Browser, APIs e Pacotes',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Objetos do Navegador',
+                  link: '/courses/csbes-jp-pw2/w3c/browser-objects/browser-objects/',
+                },
+                {
+                  label: 'Elementos Dinâmicos',
+                  link: '/courses/csbes-jp-pw2/w3c/dynamic-elements/dynamic-elements/',
+                },
+                { label: 'Vite', link: '/courses/csbes-jp-pw2/package/vite/vite/' },
+                { label: 'Eventos', link: '/courses/csbes-jp-pw2/w3c/event-handling/event-handling/' },
+                { label: 'DOM API', link: '/courses/csbes-jp-pw2/w3c/dom-api/dom-api/' },
+                { label: 'Local Storage', link: '/courses/csbes-jp-pw2/w3c/local-storage/local-storage/' },
+                { label: 'REST API', link: '/courses/csbes-jp-pw2/api/rest/rest/' },
+                { label: 'GraphQL', link: '/courses/csbes-jp-pw2/api/graphql/graphql/' },
+                { label: 'Supabase API', link: '/courses/csbes-jp-pw2/package/supabase-api/supabase-api/' },
+                { label: 'Consumo do Supabase', link: '/courses/csbes-jp-pw2/package/http-client/http-client/' },
+                { label: 'Fetch API', link: '/courses/csbes-jp-pw2/w3c/fetch-api/fetch-api/' },
+                { label: 'Axios', link: '/courses/csbes-jp-pw2/package/axios/axios/' },
+                { label: 'JSON Server', link: '/courses/csbes-jp-pw2/package/json-server/json-server/' },
+                {
+                  label: 'Supabase Client',
+                  link: '/courses/csbes-jp-pw2/package/supabase-client/supabase-client/',
+                },
+                {
+                  label: 'Supabase Auth',
+                  link: '/courses/csbes-jp-pw2/package/supabase-auth/supabase-auth/',
+                },
+                {
+                  label: 'Firebase Firestore',
+                  link: '/courses/csbes-jp-pw2/package/firebase-firestore/firebase-firestore/',
+                },
+                {
+                  label: 'Firebase Auth',
+                  link: '/courses/csbes-jp-pw2/package/firebase-auth/firebase-auth/',
+                },
+              ],
+            },
+            {
+              label: 'React',
+              collapsed: false,
+              items: [
+                { label: 'ReactJS', link: '/courses/csbes-jp-pw2/react/introduction/introduction/' },
+                { label: 'React Hooks', link: '/courses/csbes-jp-pw2/react/hooks/hooks/' },
+                {
+                  label: 'Supabase Auth',
+                  link: '/courses/csbes-jp-pw2/react/supabase-auth/supabase-auth/',
+                },
+                {
+                  label: 'Firebase Auth',
+                  link: '/courses/csbes-jp-pw2/react/firebase-auth/firebase-auth/',
+                },
+                { label: 'React Style', link: '/courses/csbes-jp-pw2/react/style/style/' },
+              ],
+            },
+            {
+              label: 'Extras',
+              collapsed: false,
+              items: [
+                { label: 'Próximos Passos', link: '/courses/csbes-jp-pw2/extra/next-steps/next-steps/' },
+                { label: 'Exercícios', link: '/courses/csbes-jp-pw2/extra/exercises/exercises/' },
+              ],
+            },
+          ],
+        },
+        {
+          label: 'Linguagem de Programação II',
+          items: [
+            { label: 'Visão geral', link: '/courses/ctii-jp-lp2/' },
+            {
+              label: 'JavaScript e Node.js',
+              collapsed: false,
+              items: [
+                { label: 'JavaScript', link: '/courses/ctii-jp-lp2/javascript/introduction/introduction/' },
+                {
+                  label: 'JavaScript no Front-end',
+                  link: '/courses/ctii-jp-lp2/javascript/frontend/frontend/',
+                },
+                { label: 'Node.js HTTP', link: '/courses/ctii-jp-lp2/nodejs/http/http/' },
+              ],
+            },
+            {
+              label: 'Express.js',
+              collapsed: false,
+              items: [
+                { label: 'Express.js', link: '/courses/ctii-jp-lp2/expressjs/introduction/introduction/' },
+                {
+                  label: 'Construção de API',
+                  link: '/courses/ctii-jp-lp2/expressjs/api/api/',
+                },
+                { label: 'MVC', link: '/courses/ctii-jp-lp2/expressjs/mvc/mvc/' },
+              ],
+            },
+            {
+              label: 'Dados e Autenticação',
+              collapsed: false,
+              items: [
+                { label: 'SQL com Node.js', link: '/courses/ctii-jp-lp2/expressjs/db-simple/db-simple/' },
+                { label: 'Prisma', link: '/courses/ctii-jp-lp2/expressjs/prismajs-simple/prismajs-simple/' },
+                {
+                  label: 'Relações com Prisma',
+                  link: '/courses/ctii-jp-lp2/expressjs/prismajs-relation/prismajs-relation/',
+                },
+                {
+                  label: 'Cadastro de Usuário',
+                  link: '/courses/ctii-jp-lp2/expressjs/prismajs-user/prismajs-user/',
+                },
+                { label: 'Autenticação', link: '/courses/ctii-jp-lp2/expressjs/auth/auth/' },
+              ],
+            },
+            {
+              label: 'Recursos da Aplicação',
+              collapsed: false,
+              items: [
+                { label: 'Validação', link: '/courses/ctii-jp-lp2/expressjs/validation/validation/' },
+                { label: 'E-mail', link: '/courses/ctii-jp-lp2/expressjs/email/email/' },
+                { label: 'Upload de Arquivo', link: '/courses/ctii-jp-lp2/expressjs/upload-file/upload-file/' },
+                { label: 'Testes', link: '/courses/ctii-jp-lp2/expressjs/test/test/' },
               ],
             },
           ],

@@ -90,4 +90,4 @@ usando exports nomeados e um `index.js` que apenas orquestra as chamadas.
 
 ## Próxima aula
 
-[Express.js: Fundamentos](../../express/) — o primeiro servidor com Express.
+[Express.js: Fundamentos](../../express/express/) — o primeiro servidor com Express.
