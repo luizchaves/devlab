@@ -48,8 +48,13 @@ export default defineConfig({
           items: [
             { label: 'Visão geral', link: '/courses/cstrc-jp-dw/' },
             {
-              label: 'Projeto',
-              link: '/courses/cstrc-jp-dw/project/',
+              label: 'Avaliações',
+              collapsed: true,
+              items: [
+                { label: 'Projeto', link: '/courses/cstrc-jp-dw/project/' },
+                { label: 'Exercícios', link: '/courses/cstrc-jp-dw/extra/exercises/' },
+                { label: 'Quizzes', link: '/courses/cstrc-jp-dw/extra/quizzes/' },
+              ],
             },
             {
               label: 'HTML',
