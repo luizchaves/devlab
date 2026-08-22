@@ -287,12 +287,14 @@ console.log(operation(1, 2)); // 2 (chama a segunda versão!)
 
 ---
 
-## Case Sensitivity e Closures
+## Case Sensitivity
 
-### Case Sensitivity
 Nomes de funções diferenciam maiúsculas de minúsculas (`sumLower` != `SumLower`).
 
-### Closures
+---
+
+## Closures
+
 Uma *closure* ocorre quando uma função interna lembra e acessa o escopo da função pai, mesmo após o encerramento da execução externa:
 
 ```js

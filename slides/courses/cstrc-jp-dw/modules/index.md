@@ -39,7 +39,7 @@ Um módulo é um arquivo JavaScript isolado.
 
 ---
 
-## O Que Acontece Sem Módulos?
+## O Que Acontece Sem Módulos? (Código)
 
 Declarar uma função em `lib.js` e tentar usá-la em `main.js` sem exportar/importar:
 
@@ -52,6 +52,10 @@ function sum(a, b) { return a + b; }
 // main.js
 console.log(sum(2, 1));
 ```
+
+---
+
+## O Que Acontece Sem Módulos? (Resultado)
 
 Execução no terminal (`node main.js`):
 
@@ -185,7 +189,7 @@ Em ESM no Node.js, a extensão `.js` nos caminhos relativos é **obrigatória**.
 
 ---
 
-## ES Modules (ESM): Exportação Padrão (*Default Export*)
+## ES Modules (ESM): Exportação Padrão (`export default`)
 
 Um módulo pode ter no máximo **um** `export default`:
 
@@ -197,6 +201,10 @@ export default class Calculator {
   }
 }
 ```
+
+---
+
+## ES Modules (ESM): Importando Exportação Padrão
 
 Importando um *default export* (sem chaves `{}` e com nome livre):
 
@@ -224,6 +232,10 @@ export default {
   subtract,
 };
 ```
+
+---
+
+## ES Modules (ESM): Importando Default e Named Exports
 
 Importando ambos na mesma instrução:
 
@@ -301,7 +313,11 @@ Configuração inicial do `package.json` para ES Modules:
 }
 ```
 
-Instalação de pacotes no terminal:
+---
+
+## Instalação de Pacotes com npm
+
+Instalação no terminal:
 
 ```bash
 npm install mathjs
@@ -311,24 +327,6 @@ Efeitos da instalação:
 - Atualiza `"dependencies"` no `package.json`.
 - Cria/atualiza o `package-lock.json` (trava de versões exatas).
 - Baixa o código para a pasta `node_modules/`.
-
----
-
-## Cuidados com `node_modules` e `.gitignore`
-
-A pasta `node_modules/` **nunca** deve ser enviada ao Git:
-
-```txt
-# .gitignore
-node_modules/
-```
-
-- A pasta pode conter milhares de arquivos e ser muito pesada.
-- Qualquer pessoa que clonar o repositório pode recriar a pasta executando:
-
-```bash
-npm install
-```
 
 ---
 
@@ -368,15 +366,21 @@ export default { findAll, findById };
 
 ---
 
-## Desafio: Import Dinâmico Condicional
+## Desafio: Módulo `advanced-math.js`
 
-Crie um módulo `advanced-math.js` e carregue-o sob demanda:
+Crie um módulo `advanced-math.js`:
 
 ```js
 // advanced-math.js
 export function power(base, exp) { return base ** exp; }
 export function squareRoot(val) { return Math.sqrt(val); }
 ```
+
+---
+
+## Desafio: Import Dinâmico Condicional (`main.js`)
+
+Carregue o módulo sob demanda usando `await import()`:
 
 ```js
 // main.js

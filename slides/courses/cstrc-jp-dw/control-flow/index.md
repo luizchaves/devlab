@@ -52,8 +52,12 @@ if (positiveNumber > 0) {
 }
 ```
 
+---
+
+## Uso de Chaves `{...}` em `if`
+
 - **Sempre prefira usar chaves `{...}`**:
-  Sem chaves, apenas a primeira linha seguinte fica condicionada.
+  Sem chaves, apenas a primeira linha seguinte fica condicionada ao `if`.
 
 ```js
 if (number > 0)
@@ -63,7 +67,7 @@ console.log("Fim da checagem"); // Sempre executa!
 
 ---
 
-## Armadilha: Atribuição vs Comparação
+## Armadilha: Atribuição em Condições
 
 Usar `=` dentro da condição atribui o valor e retorna esse valor (que é avaliado como *truthy* se diferente de zero):
 
@@ -74,6 +78,16 @@ let value = 0;
 if (value = 10) {
   console.log("Entrou!", value); // Executa incorretamente!
 }
+```
+
+---
+
+## Comparação Estrita com `===`
+
+Sempre utilize comparações estritas (`===`) para evitar atribuições ou coerções acidentais:
+
+```js
+let value = 0;
 
 // CORRETO: Comparação estrita com ===
 if (value === 10) {
@@ -149,11 +163,16 @@ switch (option) {
 }
 ```
 
-- A palavra-chave `break` é **essencial** para evitar que o código continue executando nos casos seguintes (*fall-through*).
+---
+
+## Múltiplas Opções: O Papel do `break`
+
+- A palavra-chave `break` é **essencial** para interromper a execução e evitar que o código continue nos casos seguintes (*fall-through*).
+- O bloco `default` é opcional e executa caso nenhum `case` seja atendido.
 
 ---
 
-## `switch`: Agrupamento de Casos (*Fall-through* Proposital)
+## `switch`: Agrupamento de Casos
 
 O *fall-through* pode ser usado intencionalmente para agrupar múltiplos casos que compartilham o mesmo código:
 
@@ -315,9 +334,9 @@ console.log(numbers);
 
 ---
 
-## Executando Código no Terminal
+## Executando Código: `statement.js`
 
-Crie um arquivo `statement.js` e execute com o Node.js:
+Crie um arquivo `statement.js` com o exemplo de decisão:
 
 ```js
 // statement.js
@@ -332,7 +351,11 @@ if (grade >= 90) {
 }
 ```
 
-Comando no terminal:
+---
+
+## Executando Código no Terminal
+
+Execute o arquivo usando o comando Node.js no terminal:
 
 ```bash
 node statement.js
@@ -359,7 +382,7 @@ if (grade >= 90) {
 
 ---
 
-## Desafio: Relatório de Operadores (`operator-report.js`)
+## Desafio: Relatório de Operadores — Part 1 (`switch`)
 
 ```js
 const operator = "*";
@@ -376,7 +399,13 @@ switch (operator) {
   default:
     console.log("invalid");
 }
+```
 
+---
+
+## Desafio: Relatório de Operadores — Part 2 (`loop`)
+
+```js
 for (let i = 1; i <= 10; i++) {
   if (i === 5) continue;
   if (i === 9) break;

@@ -43,6 +43,10 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
 - **Padronização**: Para evitar incompatibilidade entre navegadores, a Ecma International criou o padrão **ECMA-262** (ECMAScript).
 - **TC39**: Comitê que gerencia a evolução contínua da linguagem (Edição ECMAScript 2026).
 
+---
+
+## Origem e Padronização: Arquitetura
+
 ```txt
 ┌─────────────────────────────────────────────────────────────┐
 │                        ECMAScript                           │
@@ -91,7 +95,7 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
 
 ---
 
-## Executando JavaScript no Terminal
+## Executando JavaScript no Terminal: Runtimes
 
 ### Node.js
 ```bash
@@ -108,17 +112,23 @@ deno run main.js
 bun run main.js
 ```
 
-### REPL (Modo Interativo)
-Basta digitar `node`, `deno` ou `bun` no terminal para abrir um prompt e testar código ao vivo.
+---
+
+## Executando JavaScript no Terminal: REPL
+
+### Modo Interativo (REPL)
+Basta digitar `node`, `deno` ou `bun` no terminal sem argumentos para abrir o prompt interativo e testar expressões ao vivo.
 
 ---
 
-## Executando JavaScript no Navegador
+## Executando JavaScript no Navegador: Console
 
-### 1. Console do DevTools
 Abra o navegador (<kbd>F12</kbd> ou <kbd>Ctrl+Shift+I</kbd>), acesse a aba **Console** e digite expressões diretamente.
 
-### 2. Tag `<script>` em arquivo HTML
+---
+
+## Executando JavaScript no Navegador: Tag `<script>`
+
 ```html
 <!DOCTYPE html>
 <html lang="pt-BR">

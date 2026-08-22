@@ -28,9 +28,8 @@ Compreender o uso de expressões e a atuação dos operadores em JavaScript:
 
 ---
 
-## Expressões vs. Statements
+## Expressões (*Expressions*)
 
-### Expressão
 Combinação de código que **produz um valor**:
 
 ```js
@@ -39,15 +38,18 @@ age >= 18 // true
 condition ? "Adulto" : "Menor" // "Adulto"
 ```
 
-### Statement
-Instrução que **organiza a execução** do programa (não produz valor diretamente):
+*Uma expressão pode ser usada em qualquer lugar onde um valor é esperado.*
+
+---
+
+## Instruções (*Statements*)
+
+Instrução de código que **organiza a execução** do programa (não produz valor diretamente):
 
 ```js
 if (true) { console.log("OK"); }
 let count = 0;
 ```
-
-*Uma expressão pode ser usada em qualquer lugar onde um valor é esperado.*
 
 ---
 
@@ -88,9 +90,8 @@ console.log(20 - 10 - 5); // 5 ((20 - 10) - 5)
 
 ---
 
-## Operadores Aritméticos e Unários
+## Operadores Aritméticos
 
-### Operadores Aritméticos
 Adição (`+`), Subtração (`-`), Multiplicação (`*`), Divisão (`/`), Resto (`%`), Exponenciação (`**`).
 
 ```js
@@ -100,7 +101,10 @@ console.log(7 % 3); // 1 (resto)
 console.log(2 ** 3); // 8 (2 elevado a 3)
 ```
 
-### Operadores Unários
+---
+
+## Operadores Unários
+
 Atuam em um único operando: `+` (coerção para número), `-` (inversão de sinal), `!` (negação booleana), `typeof`.
 
 ```js
@@ -129,9 +133,8 @@ console.log(count);   // 2
 
 ---
 
-## Operadores Relacionais e de Igualdade
+## Operadores Relacionais
 
-### Relacionais
 `>`, `<`, `>=`, `<=`. Comparação entre strings é lexicográfica:
 
 ```js
@@ -140,7 +143,10 @@ console.log("2" > "10");   // true (comparação de texto por caractere '2' > '1
 console.log("2" > 10);     // false ("2" convertido para number 2)
 ```
 
-### Igualdade Ampla (`==`) vs Estrita (`===`)
+---
+
+## Igualdade Ampla (`==`) vs Estrita (`===`)
+
 - **`==` / `!=`**: Realizam **coerção automática de tipo** (evite usar).
 - **`===` / `!==`**: Comparam **valor e tipo** (sem coerção).
 
@@ -225,7 +231,7 @@ console.log(5 << 1);// 10 (multiplica por 2)
 
 ---
 
-## Atribuições Combinadas e Lógicas
+## Atribuições Combinadas
 
 Atribuição simples (`=`) e combinada com operações aritméticas (`+=`, `-=`, `*=`, `/=`, `%=`, `**=`):
 
@@ -234,7 +240,10 @@ let x = 10;
 x += 5; // x = x + 5 (15)
 ```
 
-### Atribuição Lógica (ES2021)
+---
+
+## Atribuições Lógicas (ES2021)
+
 - **`&&=`**: Atribui apenas se o valor atual for *truthy*.
 - **`||=`**: Atribui apenas se o valor atual for *falsy*.
 - **`??=`**: Atribui apenas se o valor atual for `null` ou `undefined`.

@@ -237,7 +237,7 @@ Instruções CSS que começam com `@`.
 
 ---
 
-## Media queries
+## Media queries: Sintaxe
 
 Aplicam regras CSS apenas quando condições de ambiente são atendidas.
 
@@ -255,7 +255,14 @@ h1 {
 }
 ```
 
-Outros usos: largura de tela (`min-width`), orientação e preferência de cor (`prefers-color-scheme: dark`).
+---
+
+## Media queries: Tipos de Condições
+
+Condições comuns de ambiente:
+- Largura de tela (`min-width: 768px`, `max-width: 1024px`)
+- Orientação (`orientation: landscape`)
+- Preferência de tema (`prefers-color-scheme: dark`)
 
 ---
 

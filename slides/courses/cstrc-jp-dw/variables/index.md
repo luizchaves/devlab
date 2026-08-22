@@ -28,21 +28,28 @@ Compreender a representação de dados e declaração de variáveis em JavaScrip
 
 ---
 
-## Tipos de Dados em JavaScript
+## Tipos de Dados Primitivos em JavaScript
 
 A regra de ouro: **O tipo está no valor, não na variável**.
 
-| Categoria | Tipo | Exemplos |
+| Tipo | Descrição | Exemplos |
 | --- | --- | --- |
-| **Primitivo** | `undefined` | `undefined` |
-| **Primitivo** | `null` | `null` |
-| **Primitivo** | `boolean` | `true`, `false` |
-| **Primitivo** | `number` | `42`, `3.14`, `0b1111`, `0xf`, `15_000` |
-| **Primitivo** | `bigint` | `42n`, `9007199254740991n` |
-| **Primitivo** | `string` | `"Alice"`, `'DW'`, `` `Olá, ${name}` `` |
-| **Primitivo** | `symbol` | `Symbol("id")` |
-| **Objeto** | `object` | `{ id: 1010 }`, `[1, 2, 3]`, `new Date()`, `/dw/i` |
-| **Objeto Especial**| `function` | `function sum(a, b) { return a + b; }` |
+| `undefined` | Ausência de valor por falta de inicialização | `undefined` |
+| `null` | Ausência intencional de valor | `null` |
+| `boolean` | Valor lógico | `true`, `false` |
+| `number` | Número de ponto flutuante (IEEE 754) | `42`, `3.14`, `15_000` |
+| `bigint` | Inteiro de precisão arbitrária | `42n`, `9007199254740991n` |
+| `string` | Sequência de caracteres | `"Alice"`, `'DW'`, `` `Olá` `` |
+| `symbol` | Identificador único e imutável | `Symbol("id")` |
+
+---
+
+## Tipos Objeto em JavaScript
+
+| Tipo | Descrição | Exemplos |
+| --- | --- | --- |
+| `object` | Coleção de chave/valor ou estruturas complexas | `{ id: 1010 }`, `[1, 2, 3]`, `new Date()`, `/dw/i` |
+| `function` | Objeto especial executável com escopo | `function sum(a, b) { return a + b; }` |
 
 ---
 
@@ -187,22 +194,33 @@ var varVariable = 10;
 
 ---
 
-## Comportamento de `var` vs `let` em Laços
+## Comportamento de `var` em Laços
 
-`let` cria uma nova associação por iteração no laço `for`. Já `var` compartilha a mesma variável no escopo da função:
+`var` compartilha uma única variável no escopo da função para todas as iterações:
 
 ```js
 const callbacksWithVar = [];
-const callbacksWithLet = [];
 
 for (var i = 0; i < 3; i++) {
   callbacksWithVar.push(() => i);
 }
+
+console.log(callbacksWithVar.map(cb => cb())); // [3, 3, 3]
+```
+
+---
+
+## Comportamento de `let` em Laços
+
+`let` cria uma nova associação (*binding*) para cada iteração do laço `for`:
+
+```js
+const callbacksWithLet = [];
+
 for (let j = 0; j < 3; j++) {
   callbacksWithLet.push(() => j);
 }
 
-console.log(callbacksWithVar.map(cb => cb())); // [3, 3, 3]
 console.log(callbacksWithLet.map(cb => cb())); // [0, 1, 2]
 ```
 

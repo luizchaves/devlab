@@ -47,11 +47,15 @@ Compreender a arquitetura e os fundamentos da Web:
 
 ---
 
-## Origem no CERN
+## Origem no CERN (1989-1990)
 
 - **1989**: Tim Berners-Lee propõe um sistema de hipertexto no CERN (laboratório europeu de física de partículas) para resolver o problema da informação fragmentada entre cientistas.
-- **1990**: Projeto **WorldWideWeb** ganha forma com Robert Cailliau.
+- **1990**: Projeto **WorldWideWeb** ganha forma com colaboração de Robert Cailliau.
 - **Primeiro Servidor e Site**: Hospedado em [`info.cern.ch`](https://info.cern.ch/), explicando como navegar e criar servidores Web.
+
+---
+
+## Origem no CERN: Do Problema à Solução
 
 ```txt
 ┌─────────────────────────────────────────────────────────────┐
@@ -64,7 +68,7 @@ Compreender a arquitetura e os fundamentos da Web:
 ┌─────────────────────────────────────────────────────────────┐
 │               WorldWideWeb (Hypertext Project)              │
 │       Navegador + Servidor + URL + HTTP + HTML (1990)       │
-└─────────────────────────────────────────────────────────────┘
+└──────────────────────────────┴──────────────────────────────┘
 ```
 
 ---
