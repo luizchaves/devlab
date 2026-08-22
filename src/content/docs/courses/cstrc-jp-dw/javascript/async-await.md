@@ -1,5 +1,5 @@
 ---
-title: JavaScript: Async/Await
+title: "JavaScript: Async/Await"
 description: Promises, async/await e tratamento de erros em código assíncrono.
 course: cstrc-jp-dw
 sidebar:

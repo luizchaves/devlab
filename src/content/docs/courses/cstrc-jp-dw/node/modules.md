@@ -1,5 +1,5 @@
 ---
-title: Node.js: Modules
+title: "Node.js: Modules"
 description: CommonJS e ES Modules no Node.js, e como organizar os arquivos de um projeto.
 course: cstrc-jp-dw
 sidebar:
