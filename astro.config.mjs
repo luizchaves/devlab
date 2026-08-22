@@ -109,7 +109,7 @@ export default defineConfig({
                       link: '/courses/cstrc-jp-dw/javascript/control-flow/',
                     },
                     { label: 'Funções', link: '/courses/cstrc-jp-dw/javascript/functions/' },
-                    { label: 'Modules', link: '/courses/cstrc-jp-dw/javascript/modules/' },
+                    { label: 'Módulos', link: '/courses/cstrc-jp-dw/javascript/modules/' },
                     { label: 'Arrays', link: '/courses/cstrc-jp-dw/javascript/arrays/' },
                     { label: 'Strings', link: '/courses/cstrc-jp-dw/javascript/strings/' },
                     { label: 'Objetos', link: '/courses/cstrc-jp-dw/javascript/objects/' },

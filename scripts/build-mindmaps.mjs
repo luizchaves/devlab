@@ -149,7 +149,9 @@ if (mindmapFiles.length === 0) {
 }
 
 for (const mindmapFile of mindmapFiles) {
-  const rel = relative(mindmapsDir, mindmapFile).replace(/\.md$/, '.html');
+  const rel = mindmapFile.endsWith('/index.md')
+    ? relative(mindmapsDir, mindmapFile).replace(/\.md$/, '.html')
+    : relative(mindmapsDir, mindmapFile).replace(/\.md$/, '/index.html');
   const outputFile = join(outputDir, rel);
 
   mkdirSync(dirname(outputFile), { recursive: true });

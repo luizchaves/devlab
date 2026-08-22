@@ -4,8 +4,8 @@ description: CommonJS e ES Modules no Node.js, e como organizar os arquivos de u
 course: cstrc-jp-dw
 ---
 
-Materiais: [slides da aula](../../../../slides/courses/cstrc-jp-dw/modules/) e
-[mapa mental](../../../../mindmaps/courses/cstrc-jp-dw/modules/)
+Materiais: [slides da aula](../../../../slides/courses/cstrc-jp-dw/javascript/modules/) e
+[mapa mental](../../../../mindmaps/courses/cstrc-jp-dw/javascript/modules/)
 
 O Node.js entende dois sistemas de módulos. Saber diferenciá-los evita a maior parte
 dos erros de importação que aparecem no começo.

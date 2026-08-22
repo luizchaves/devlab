@@ -29,7 +29,9 @@ if (slideFiles.length === 0) {
 }
 
 for (const slideFile of slideFiles) {
-  const rel = relative(slidesDir, slideFile).replace(/\.md$/, '.html');
+  const rel = slideFile.endsWith('/index.md')
+    ? relative(slidesDir, slideFile).replace(/\.md$/, '.html')
+    : relative(slidesDir, slideFile).replace(/\.md$/, '/index.html');
   const outputFile = join(outputDir, rel);
 
   mkdirSync(dirname(outputFile), { recursive: true });
