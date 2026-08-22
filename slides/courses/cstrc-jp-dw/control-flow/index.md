@@ -27,13 +27,20 @@ Compreender o controle da ordem de execução em programas JavaScript:
 
 ---
 
-## Visão Geral das Estruturas de Controle
+## Visão Geral: Estruturas de Decisão
 
 | Categoria | Estruturas | Uso Principal |
 | --- | --- | --- |
 | **Decisão simples** | `if`, `else` | Executar um bloco ou outro com base em condição |
 | **Decisão em cadeia** | `if`, `else if`, `else` | Testar faixas de valores ou prioridades |
 | **Múltiplas opções** | `switch`, `case`, `default` | Comparar um valor contra casos conhecidos |
+
+---
+
+## Visão Geral: Estruturas de Repetição
+
+| Categoria | Estruturas | Uso Principal |
+| --- | --- | --- |
 | **Repetição por condição** | `while`, `do...while` | Repetir enquanto uma regra for verdadeira |
 | **Repetição por contador** | `for` | Percorrer sequências controladas por índice |
 | **Controle de iteração** | `break`, `continue`, `label` | Interromper laço ou pular a iteração atual |
