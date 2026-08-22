@@ -2,9 +2,6 @@
 title: "Node.js: Modules"
 description: CommonJS e ES Modules no Node.js, e como organizar os arquivos de um projeto.
 course: cstrc-jp-dw
-sidebar:
-  label: Modules
-  order: 3
 ---
 
 O Node.js entende dois sistemas de módulos. Saber diferenciá-los evita a maior parte

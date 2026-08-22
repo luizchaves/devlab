@@ -2,9 +2,6 @@
 title: "JavaScript: Async/Await"
 description: Promises, async/await e tratamento de erros em código assíncrono.
 course: cstrc-jp-dw
-sidebar:
-  label: Async/Await
-  order: 3
 ---
 
 Operações de entrada e saída — ler um arquivo, consultar um banco, chamar uma API —

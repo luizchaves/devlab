@@ -2,9 +2,6 @@
 title: "JavaScript: Fundamentos"
 description: Sintaxe moderna de JavaScript usada ao longo da disciplina.
 course: cstrc-jp-dw
-sidebar:
-  label: Fundamentos
-  order: 1
 ---
 
 Se o [HTML](../../html/html/) descreve *o que* a página contém, o JavaScript descreve *o que

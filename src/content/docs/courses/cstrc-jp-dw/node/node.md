@@ -2,9 +2,6 @@
 title: "Node.js: Fundamentos"
 description: O runtime que executa JavaScript fora do navegador.
 course: cstrc-jp-dw
-sidebar:
-  label: Fundamentos
-  order: 1
 ---
 
 Node.js é um runtime que executa JavaScript fora do navegador. Em vez de DOM e

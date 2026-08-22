@@ -2,9 +2,6 @@
 title: "Express.js: Controllers"
 description: Separando a lógica das rotas em controllers.
 course: cstrc-jp-dw
-sidebar:
-  label: Controllers
-  order: 3
 ---
 
 Um **controller** é a função que responde a uma requisição. Tirá-la de dentro do

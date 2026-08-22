@@ -2,9 +2,6 @@
 title: "JavaScript: Fetch API"
 description: Consumindo APIs HTTP com fetch, tanto no navegador quanto no Node.js.
 course: cstrc-jp-dw
-sidebar:
-  label: Fetch API
-  order: 4
 ---
 
 `fetch` é a função padrão para requisições HTTP. Ela existe no navegador e, desde a

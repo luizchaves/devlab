@@ -2,9 +2,6 @@
 title: "Express.js: Middleware"
 description: A cadeia de middlewares do Express, incluindo o tratamento de erros.
 course: cstrc-jp-dw
-sidebar:
-  label: Middleware
-  order: 4
 ---
 
 Um middleware é uma função que recebe `(req, res, next)` e roda **entre** a chegada da

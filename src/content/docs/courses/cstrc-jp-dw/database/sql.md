@@ -2,9 +2,6 @@
 title: "Banco de Dados: SQL"
 description: Modelagem relacional e as consultas SQL usadas na disciplina.
 course: cstrc-jp-dw
-sidebar:
-  label: SQL
-  order: 1
 ---
 
 Até aqui os dados viviam num array — some tudo quando o servidor reinicia. Um banco
