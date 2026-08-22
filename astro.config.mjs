@@ -95,49 +95,61 @@ export default defineConfig({
               collapsed: true,
               items: [
                 { label: 'ECMAScript', link: '/courses/cstrc-jp-dw/javascript/ecmascript/' },
-                { label: 'Variáveis', link: '/courses/cstrc-jp-dw/javascript/variables/' },
                 {
-                  label: 'Expressões e Operadores',
-                  link: '/courses/cstrc-jp-dw/javascript/expressions-operators/',
+                  label: 'Sintaxe',
+                  collapsed: true,
+                  items: [
+                    { label: 'Variáveis', link: '/courses/cstrc-jp-dw/javascript/variables/' },
+                    {
+                      label: 'Expressões e Operadores',
+                      link: '/courses/cstrc-jp-dw/javascript/expressions-operators/',
+                    },
+                    {
+                      label: 'Decisão e Repetição',
+                      link: '/courses/cstrc-jp-dw/javascript/control-flow/',
+                    },
+                    { label: 'Funções', link: '/courses/cstrc-jp-dw/javascript/functions/' },
+                    { label: 'Modules', link: '/courses/cstrc-jp-dw/javascript/modules/' },
+                    { label: 'Arrays', link: '/courses/cstrc-jp-dw/javascript/arrays/' },
+                    { label: 'Strings', link: '/courses/cstrc-jp-dw/javascript/strings/' },
+                    { label: 'Objetos', link: '/courses/cstrc-jp-dw/javascript/objects/' },
+                    { label: 'Date', link: '/courses/cstrc-jp-dw/javascript/date/' },
+                    { label: 'RegExp', link: '/courses/cstrc-jp-dw/javascript/regexp/' },
+                    { label: 'Promises', link: '/courses/cstrc-jp-dw/javascript/promises/' },
+                    { label: 'Async/Await', link: '/courses/cstrc-jp-dw/javascript/async-await/' },
+                  ],
                 },
                 {
-                  label: 'Decisão e Repetição',
-                  link: '/courses/cstrc-jp-dw/javascript/control-flow/',
+                  label: 'Web APIs',
+                  collapsed: true,
+                  items: [
+                    {
+                      label: 'Objetos do Navegador',
+                      link: '/courses/cstrc-jp-dw/browser/browser-objects/',
+                    },
+                    {
+                      label: 'Elementos Dinâmicos',
+                      link: '/courses/cstrc-jp-dw/browser/dynamic-elements/',
+                    },
+                    { label: 'Eventos', link: '/courses/cstrc-jp-dw/browser/events/' },
+                    { label: 'DOM API', link: '/courses/cstrc-jp-dw/browser/dom-api/' },
+                    { label: 'Local Storage', link: '/courses/cstrc-jp-dw/browser/local-storage/' },
+                    { label: 'Fetch API', link: '/courses/cstrc-jp-dw/javascript/fetch-api/' },
+                  ],
                 },
-                { label: 'Funções', link: '/courses/cstrc-jp-dw/javascript/functions/' },
-                { label: 'Modules', link: '/courses/cstrc-jp-dw/javascript/modules/' },
-                { label: 'Arrays', link: '/courses/cstrc-jp-dw/javascript/arrays/' },
-                { label: 'Strings', link: '/courses/cstrc-jp-dw/javascript/strings/' },
-                { label: 'Objetos', link: '/courses/cstrc-jp-dw/javascript/objects/' },
-                { label: 'Date', link: '/courses/cstrc-jp-dw/javascript/date/' },
-                { label: 'RegExp', link: '/courses/cstrc-jp-dw/javascript/regexp/' },
-                { label: 'Promises', link: '/courses/cstrc-jp-dw/javascript/promises/' },
-                { label: 'Async/Await', link: '/courses/cstrc-jp-dw/javascript/async-await/' },
+                {
+                  label: 'Packages',
+                  collapsed: true,
+                  items: [
+                    { label: 'Vite', link: '/courses/cstrc-jp-dw/packages/vite/' },
+                    { label: 'JSON Server', link: '/courses/cstrc-jp-dw/packages/json-server/' },
+                    { label: 'Chart.js', link: '/courses/cstrc-jp-dw/packages/chartjs/' },
+                  ],
+                },
               ],
             },
             {
-              label: 'Browser e Ferramentas',
-              collapsed: true,
-              items: [
-                {
-                  label: 'Objetos do Navegador',
-                  link: '/courses/cstrc-jp-dw/browser/browser-objects/',
-                },
-                {
-                  label: 'Elementos Dinâmicos',
-                  link: '/courses/cstrc-jp-dw/browser/dynamic-elements/',
-                },
-                { label: 'Vite', link: '/courses/cstrc-jp-dw/packages/vite/' },
-                { label: 'Eventos', link: '/courses/cstrc-jp-dw/browser/events/' },
-                { label: 'DOM API', link: '/courses/cstrc-jp-dw/browser/dom-api/' },
-                { label: 'Local Storage', link: '/courses/cstrc-jp-dw/browser/local-storage/' },
-                { label: 'JSON Server', link: '/courses/cstrc-jp-dw/packages/json-server/' },
-                { label: 'Fetch API', link: '/courses/cstrc-jp-dw/javascript/fetch-api/' },
-                { label: 'Chart.js', link: '/courses/cstrc-jp-dw/packages/chartjs/' },
-              ],
-            },
-            {
-              label: 'Servidor e Banco de Dados',
+              label: 'Node.js e Express.js',
               collapsed: true,
               items: [
                 { label: 'Node.js HTTP', link: '/courses/cstrc-jp-dw/node/http/' },
@@ -151,8 +163,6 @@ export default defineConfig({
                   link: '/courses/cstrc-jp-dw/express/api-construction/',
                 },
                 { label: 'MVC', link: '/courses/cstrc-jp-dw/express/mvc/' },
-                { label: 'SGBD', link: '/courses/cstrc-jp-dw/database/dbms/' },
-                { label: 'SQL', link: '/courses/cstrc-jp-dw/database/sql/' },
                 { label: 'SQL com Node.js', link: '/courses/cstrc-jp-dw/database/sql-node/' },
                 { label: 'Prisma', link: '/courses/cstrc-jp-dw/database/prisma/' },
                 {
@@ -167,44 +177,52 @@ export default defineConfig({
               ],
             },
             {
-              label: 'Complementares',
+              label: 'Banco de Dados',
               collapsed: true,
               items: [
-                { label: 'CSS Box Model', link: '/courses/cstrc-jp-dw/css/box-model/' },
-                { label: 'JavaScript: Fundamentos', link: '/courses/cstrc-jp-dw/javascript/javascript/' },
-
-                { label: 'Browser APIs', link: '/courses/cstrc-jp-dw/browser/browser/' },
-
-                { label: 'Pacotes', link: '/courses/cstrc-jp-dw/packages/packages/' },
-
-                { label: 'Node.js', link: '/courses/cstrc-jp-dw/node/node/' },
-                { label: 'npm', link: '/courses/cstrc-jp-dw/node/npm/' },
-                { label: 'Node.js Modules', link: '/courses/cstrc-jp-dw/node/modules/' },
-
-                { label: 'Express Routes', link: '/courses/cstrc-jp-dw/express/routes/' },
-                { label: 'Controllers', link: '/courses/cstrc-jp-dw/express/controllers/' },
-                { label: 'Middleware', link: '/courses/cstrc-jp-dw/express/middleware/' },
-                { label: 'Express REST API', link: '/courses/cstrc-jp-dw/express/rest-api/' },
-
-                { label: 'CRUD', link: '/courses/cstrc-jp-dw/database/crud/' },
-
-                { label: 'Projetos', link: '/courses/cstrc-jp-dw/projects/projects/' },
-                { label: 'Hello Express', link: '/courses/cstrc-jp-dw/projects/hello-express/' },
-                { label: 'Express Router', link: '/courses/cstrc-jp-dw/projects/express-router/' },
-                { label: 'Express MVC', link: '/courses/cstrc-jp-dw/projects/express-mvc/' },
-                {
-                  label: 'Express + Prisma',
-                  link: '/courses/cstrc-jp-dw/projects/express-prisma/',
-                },
-                {
-                  label: 'Invest App Bootstrap',
-                  link: '/courses/cstrc-jp-dw/projects/invest-app-bootstrap/',
-                },
-                { label: 'Extra', link: '/courses/cstrc-jp-dw/extra/extra/' },
-                { label: 'Exercícios', link: '/courses/cstrc-jp-dw/extra/exercises/' },
-                { label: 'Próximos Passos', link: '/courses/cstrc-jp-dw/extra/next-steps/' },
+                { label: 'SGBD', link: '/courses/cstrc-jp-dw/database/dbms/' },
+                { label: 'SQL', link: '/courses/cstrc-jp-dw/database/sql/' },
               ],
             },
+            // {
+            //   label: 'Complementares',
+            //   collapsed: true,
+            //   items: [
+            //     { label: 'CSS Box Model', link: '/courses/cstrc-jp-dw/css/box-model/' },
+            //     { label: 'JavaScript: Fundamentos', link: '/courses/cstrc-jp-dw/javascript/javascript/' },
+
+            //     { label: 'Browser APIs', link: '/courses/cstrc-jp-dw/browser/browser/' },
+
+            //     { label: 'Pacotes', link: '/courses/cstrc-jp-dw/packages/packages/' },
+
+            //     { label: 'Node.js', link: '/courses/cstrc-jp-dw/node/node/' },
+            //     { label: 'npm', link: '/courses/cstrc-jp-dw/node/npm/' },
+            //     { label: 'Node.js Modules', link: '/courses/cstrc-jp-dw/node/modules/' },
+
+            //     { label: 'Express Routes', link: '/courses/cstrc-jp-dw/express/routes/' },
+            //     { label: 'Controllers', link: '/courses/cstrc-jp-dw/express/controllers/' },
+            //     { label: 'Middleware', link: '/courses/cstrc-jp-dw/express/middleware/' },
+            //     { label: 'Express REST API', link: '/courses/cstrc-jp-dw/express/rest-api/' },
+
+            //     { label: 'CRUD', link: '/courses/cstrc-jp-dw/database/crud/' },
+
+            //     { label: 'Projetos', link: '/courses/cstrc-jp-dw/projects/projects/' },
+            //     { label: 'Hello Express', link: '/courses/cstrc-jp-dw/projects/hello-express/' },
+            //     { label: 'Express Router', link: '/courses/cstrc-jp-dw/projects/express-router/' },
+            //     { label: 'Express MVC', link: '/courses/cstrc-jp-dw/projects/express-mvc/' },
+            //     {
+            //       label: 'Express + Prisma',
+            //       link: '/courses/cstrc-jp-dw/projects/express-prisma/',
+            //     },
+            //     {
+            //       label: 'Invest App Bootstrap',
+            //       link: '/courses/cstrc-jp-dw/projects/invest-app-bootstrap/',
+            //     },
+            //     { label: 'Extra', link: '/courses/cstrc-jp-dw/extra/extra/' },
+            //     { label: 'Exercícios', link: '/courses/cstrc-jp-dw/extra/exercises/' },
+            //     { label: 'Próximos Passos', link: '/courses/cstrc-jp-dw/extra/next-steps/' },
+            //   ],
+            // },
           ],
         },
         {
