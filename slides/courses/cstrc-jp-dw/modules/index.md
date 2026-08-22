@@ -39,6 +39,31 @@ Um módulo é um arquivo JavaScript isolado.
 
 ---
 
+## O Que Acontece Sem Módulos?
+
+Declarar uma função em `lib.js` e tentar usá-la em `main.js` sem exportar/importar:
+
+```js
+// lib.js
+function sum(a, b) { return a + b; }
+```
+
+```js
+// main.js
+console.log(sum(2, 1));
+```
+
+Execução no terminal (`node main.js`):
+
+```txt
+ReferenceError: sum is not defined
+    at Object.<anonymous> (main.js:1:13)
+```
+
+Cada arquivo tem escopo isolado: `sum` **não é visível** em `main.js`.
+
+---
+
 ## Sistemas de Módulos em JavaScript
 
 | Característica | CommonJS (CJS) | ES Modules (ESM) |

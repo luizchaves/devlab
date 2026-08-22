@@ -11,6 +11,7 @@ markmap:
 
 - Arquivo JavaScript isolado
 - Escopo privado por padrão (variáveis, funções, classes)
+- Sem exportar/importar: `ReferenceError: sum is not defined`
 - Acesso externo apenas via exportação explícita
 
 ## Sistemas de Módulos
