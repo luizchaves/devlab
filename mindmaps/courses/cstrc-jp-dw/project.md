@@ -44,7 +44,7 @@ markmap:
 - Arquivo individual de pessoa: `src/content/people/nome-sobrenome-id.yml`
   - GitHub, LinkedIn e foto de perfil (`avatar.github` / `githubUC`)
 - Arquivo de projeto: `src/content/projects/titulo-do-projeto.yml`
-  - `repository`, `homepage` (GitHub Pages) e `preview` (imagem 16:9 `<500KB` no próprio repo)
+  - Convenção de commit: prefixo `content:` (ex: `content: add student joao-silva and project netmonitor`)
 - Cuidado: **não enviar o código-fonte** da aplicação no PR para `ifpb/projects`
 
 ### Apresentação do Pitch (5 Minutos)
@@ -53,9 +53,10 @@ markmap:
 - Treinamento prévio para respeitar o tempo de 5 minutos
 - Roteiro do Pitch:
   1. Problema e Objetivo
-  2. Lista de Funcionalidades (*Features*)
+  2. Lista de Funcionalidades (_Features_)
   3. Benchmarking de mercado
   4. Telas estáticas e fluxo de navegação
+  5. Reflexão: Conversão de mock data para dados reais
 
 ## Etapa 2: Projeto 1.1 — Front-end (100 pts)
 

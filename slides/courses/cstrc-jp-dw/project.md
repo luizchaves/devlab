@@ -84,6 +84,7 @@ A apresentação da proposta é feita enviando um **Pull Request** para o reposi
 2. **Cadastro dos Alunos:** Arquivo `src/content/people/nome-sobrenome-matricula.yml` para **cada estudante** (com foto no GitHub e perfil do LinkedIn).
 3. **Cadastro do Projeto:** Um arquivo `src/content/projects/titulo-do-projeto.yml` por equipe.
 4. **Endereços (`addresses`):** `repository` (mínimo), `homepage` (GitHub Pages) e `preview` (imagem 16:9 leve, `<500KB`, armazenada no próprio repo).
+5. **Commit & PR:** Prefixo `content:` (ex: `content: add student joao-silva and project netmonitor`).
 
 ---
 
@@ -98,6 +99,7 @@ Apresentação oral em sala com duração de **5 minutos**:
   2. Lista das Principais Funcionalidades (*Features*)
   3. Benchmarking de Sistemas de Mercado
   4. Esboço da Interface e Navegação entre Telas
+  5. Reflexão: Conversão de Dados Fictícios em Dados Reais
 
 ---
 
