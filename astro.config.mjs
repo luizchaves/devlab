@@ -234,7 +234,18 @@ export default defineConfig({
           label: 'Programação para Web 2',
           items: [
             { label: 'Visão geral', link: '/courses/csbes-jp-pw2/' },
-            { label: 'Projeto', link: '/courses/csbes-jp-pw2/project/' },
+            {
+              label: 'Avaliações',
+              collapsed: true,
+              items: [
+                { label: 'Projeto', link: '/courses/csbes-jp-pw2/project/' },
+                {
+                  label: 'Exercícios',
+                  link: '/courses/csbes-jp-pw2/extra/exercises/exercises/',
+                },
+                { label: 'Quizzes', link: '/courses/csbes-jp-pw2/extra/quizzes/quizzes/' },
+              ],
+            },
             {
               label: 'JavaScript',
               collapsed: false,
@@ -322,7 +333,6 @@ export default defineConfig({
               collapsed: false,
               items: [
                 { label: 'Próximos Passos', link: '/courses/csbes-jp-pw2/extra/next-steps/next-steps/' },
-                { label: 'Exercícios', link: '/courses/csbes-jp-pw2/extra/exercises/exercises/' },
               ],
             },
           ],
