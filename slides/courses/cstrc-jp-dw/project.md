@@ -73,7 +73,7 @@ O projeto final é uma atividade **obrigatória** desenvolvida em etapas ao long
 * **Estrutura de Pastas Recomendada:**
   * `docs/`: pasta de documentação, requisitos e *features*;
   * `docs/prototypes/` (ou `docs/design/`): artes, esboços e prints de tela.
-* **Conteúdo do README.md:** Proposta, equipe, *features* e estratégia para obtenção de dados reais (hipóteses técnicas).
+* **Conteúdo do README.md:** Problema e proposta, benchmarking, equipe, *features*, protótipos e estratégia para dados reais (hipóteses técnicas).
 
 ---
 
@@ -84,7 +84,7 @@ A apresentação da proposta é feita enviando um **Pull Request** para o reposi
 1. **Fork & Clone:** Criar cópia pessoal do `ifpb/projects`.
 2. **Cadastro dos Alunos:** Arquivo `src/content/people/nome-sobrenome-matricula.yml` para **cada estudante** (com foto no GitHub e perfil do LinkedIn).
 3. **Cadastro do Projeto:** Um arquivo `src/content/projects/titulo-do-projeto.yml` por equipe.
-4. **Endereços (`addresses`):** `repository` (mínimo), `homepage` (GitHub Pages) e `preview` (imagem 16:9 leve, `<500KB`, armazenada no próprio repo).
+4. **Endereços (`addresses`):** `repository` (mínimo), `homepage` (GitHub Pages), `preview` (imagem 16:9) e `workflow` (Kanban no GitHub Projects).
 5. **Commit & PR:** Prefixo `content:` (ex: `content: add student joao-silva and project netmonitor`).
 
 ---

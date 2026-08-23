@@ -37,7 +37,7 @@ markmap:
   - Telas estáticas em HTML/CSS com dados fictícios
   - Página de índice (`index.html`) mapeando todas as telas
   - Estrutura de pastas: `docs/` (documentação) e `docs/prototypes/` (ou `docs/design/`)
-  - README.md com proposta, equipe, *features* e estratégia para dados reais (hipóteses técnicas)
+  - README.md com problema e proposta, benchmarking, equipe, *features*, protótipos e estratégia para dados reais (hipóteses técnicas)
 
 ### Cadastro no `ifpb/projects`
 
@@ -45,6 +45,7 @@ markmap:
 - Arquivo individual de pessoa: `src/content/people/nome-sobrenome-id.yml`
   - GitHub, LinkedIn e foto de perfil (`avatar.github` / `githubUC`)
 - Arquivo de projeto: `src/content/projects/titulo-do-projeto.yml`
+  - Endereços recomendados: `repository`, `homepage`, `preview`, `workflow` (GitHub Projects) e `design`
   - Convenção de commit: prefixo `content:` (ex: `content: add student joao-silva and project netmonitor`)
 - Cuidado: **não enviar o código-fonte** da aplicação no PR para `ifpb/projects`
 
