@@ -71,8 +71,9 @@ O projeto final é uma atividade **obrigatória** desenvolvida em etapas ao long
 * **Página de Índice (`index.html`):** Criar um menu inicial mapeando e linkando todas as telas `.html` criadas.
 * **Dados Fictícios:** Utilizar *mock data* (não é necessário ter código funcional ou API nesta fase).
 * **Estrutura de Pastas Recomendada:**
-  * `prototypes/`: artes, esboços e prints de tela;
-  * `docs/`: detalhamento de requisitos e *features*.
+  * `docs/`: pasta de documentação, requisitos e *features*;
+  * `docs/prototypes/` (ou `docs/design/`): artes, esboços e prints de tela.
+* **Conteúdo do README.md:** Proposta, equipe, *features* e estratégia para obtenção de dados reais (hipóteses técnicas).
 
 ---
 

@@ -36,7 +36,8 @@ markmap:
   - Tópicos obrigatórios: `ifpb` e `ifpb-cstrc-jp-dw`
   - Telas estáticas em HTML/CSS com dados fictícios
   - Página de índice (`index.html`) mapeando todas as telas
-  - Estrutura de pastas: `prototypes/` e `docs/`
+  - Estrutura de pastas: `docs/` (documentação) e `docs/prototypes/` (ou `docs/design/`)
+  - README.md com proposta, equipe, *features* e estratégia para dados reais (hipóteses técnicas)
 
 ### Cadastro no `ifpb/projects`
 
