@@ -261,7 +261,7 @@ export default defineConfig({
                   link: '/courses/csbes-jp-pw2/ecma/statements/statements/',
                 },
                 { label: 'Funções', link: '/courses/csbes-jp-pw2/ecma/function/function/' },
-                { label: 'Modules', link: '/courses/csbes-jp-pw2/ecma/modules/modules/' },
+                { label: 'Módulos', link: '/courses/csbes-jp-pw2/ecma/modules/modules/' },
                 { label: 'Arrays', link: '/courses/csbes-jp-pw2/ecma/array/array/' },
                 { label: 'Strings', link: '/courses/csbes-jp-pw2/ecma/string/string/' },
                 { label: 'Objetos', link: '/courses/csbes-jp-pw2/ecma/object/object/' },
