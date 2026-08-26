@@ -4,7 +4,7 @@ description: Sintaxe moderna de JavaScript usada ao longo da disciplina.
 course: cstrc-jp-dw
 ---
 
-Se o [HTML](../../html/html/) descreve *o que* a página contém, o JavaScript descreve *o que
+Se o [HTML](../html/) descreve *o que* a página contém, o JavaScript descreve *o que
 ela faz*. Esta aula revisa a sintaxe moderna (ES2015+) que aparece em todo o restante
 da disciplina — tanto no navegador quanto no servidor.
 
@@ -91,4 +91,4 @@ Crie um arquivo `exercicio.js` com um array de produtos (`id`, `nome`, `preco`) 
 
 ## Próxima aula
 
-[Modules](../modules/) — como dividir o código em arquivos.
+[Modules](./modules/) — como dividir o código em arquivos.

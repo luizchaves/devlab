@@ -87,4 +87,4 @@ usuário criado e por fim o remova — imprimindo o status de cada etapa.
 
 ## Próxima aula
 
-[Node.js: Fundamentos](../../node/node/) — executando JavaScript no servidor.
+[Node.js: Fundamentos](../../node/) — executando JavaScript no servidor.

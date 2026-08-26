@@ -73,7 +73,7 @@ servidor.listen(3000);
 ```
 
 Repare que rotas, parsing de JSON e status precisam ser tratados na mão. O
-[Express](../../express/express/) existe para eliminar essa repetição.
+[Express](../express/) existe para eliminar essa repetição.
 
 ## Variáveis de ambiente
 
@@ -94,4 +94,4 @@ grave o resultado em `adultos.json`, usando `node:fs/promises`.
 
 ## Próxima aula
 
-[npm](../npm/) — instalando e gerenciando dependências.
+[npm](./npm/) — instalando e gerenciando dependências.

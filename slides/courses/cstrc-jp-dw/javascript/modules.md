@@ -3,84 +3,89 @@ marp: true
 theme: default
 paginate: true
 lang: pt-BR
-title: "JavaScript: Módulos"
-description: "Slides completos da aula de Módulos (ES Modules e CommonJS)."
+title: "JavaScript: Módulos (ESM e CommonJS)"
+description: "Slides completos da aula de Módulos em JavaScript (CommonJS, ES Modules, export/import, default/named exports, npm e dynamic import)."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Módulos
 
-Sistemas de módulos, ES Modules (`import`/`export`), CommonJS (`require`/`module.exports`), namespace imports, dynamic imports e resolução no Node.js.
+Organização de código em arquivos independentes, escopo de módulo, CommonJS (`require`/`module.exports`) vs. ES Modules (`import`/`export`), exportações nomeadas e padrão, npm e importações dinâmicas.
 
 ---
 
 ## Objetivo
 
-Compreender o conceito de modularização em JavaScript:
+Compreender o uso de módulos em JavaScript:
 
-- Diferenciar **CommonJS** (`require`/`module.exports`) de **ES Modules** (`import`/`export`).
-- Dominar exportações e importações **nomeadas** e **default**.
-- Utilizar *aliases* (`as`), *namespace imports* (`import * as`) e *dynamic imports* (`await import()`).
-- Entender especificadores relativos versus pacotes npm (`package.json`, `node_modules`).
-
----
-
-## Por que Modularizar?
-
-Um módulo é um arquivo JavaScript isolado.
-
-- Por padrão, tudo declarado (variáveis, funções, classes) é **privado** ao seu próprio escopo.
-- Só fica acessível para outros arquivos quando é explicitamente **exportado**.
-- Benefícios:
-  - Evita poluição do escopo global.
-  - Facilita a manutenção e reutilização de código.
-  - Permite organizar projetos em múltiplos arquivos desacoplados.
+- Entender os benefícios da modularização e do encapsulamento.
+- Identificar as diferenças históricas e práticas entre **CommonJS** e **ES Modules**.
+- Utilizar exportações nomeadas (*named exports*) e padrão (*default export*).
+- Renomear importações com *aliases* (`as`) e agrupar com *namespace* (`* as`).
+- Compreender a resolução de especificadores de módulos e gerenciamento com **npm**.
+- Aplicar importações dinâmicas (*Dynamic Imports*) com `import()`.
 
 ---
 
-## O Que Acontece Sem Módulos? (Código)
+## O Que É Um Módulo?
 
-Declarar uma função em `lib.js` e tentar usá-la em `main.js` sem exportar/importar:
+Um **Módulo** é um arquivo JavaScript independente que encapsula seu próprio código, ocultando detalhes de implementação e expondo apenas o que for explicitamente **exportado**.
 
-```js
-// lib.js
-function sum(a, b) { return a + b; }
-```
-
-```js
-// main.js
-console.log(sum(2, 1));
-```
+### Benefícios
+- **Encapsulamento**: Variáveis não poluem o escopo global.
+- **Reutilização**: Módulos podem ser importados por diferentes partes do sistema.
+- **Manutenibilidade**: Código organizado em responsabilidades bem definidas.
 
 ---
 
-## O Que Acontece Sem Módulos? (Resultado)
-
-Execução no terminal (`node main.js`):
-
-```txt
-ReferenceError: sum is not defined
-    at Object.<anonymous> (main.js:1:13)
-```
-
-Cada arquivo tem escopo isolado: `sum` **não é visível** em `main.js`.
-
----
-
-## Sistemas de Módulos em JavaScript
+## CommonJS (CJS) vs. ES Modules (ESM)
 
 | Característica | CommonJS (CJS) | ES Modules (ESM) |
 | --- | --- | --- |
-| **Padrão** | Legado do Node.js | Oficial da linguagem (ES6+) |
-| **Sintaxe de Importação** | `require('...')` | `import ... from '...'` |
-| **Sintaxe de Exportação** | `module.exports = ...` | `export ...` / `export default` |
-| **Carregamento** | Síncrono em tempo de execução | Estático, assíncrono e analisável |
-| **Ambientes** | Node.js antigo / scripts CJS | Navegadores modernos e Node.js |
+| **Ambiente** | Padrão histórico do Node.js | Padrão nativo dos Navegadores e JS moderno |
+| **Sintaxe** | `require()` e `module.exports` | `import` e `export` |
+| **Carregamento** | Síncrono | Assíncrono |
+| **Strict Mode** | Opcional | Ativo por padrão em todos os módulos |
 
 ---
 
-## CommonJS (CJS): Exportação Padrão
+## Modos de Módulo no Node.js
+
+Por padrão, o Node.js trata arquivos `.js` como **CommonJS**.
+
+Para habilitar **ES Modules (ESM)** no Node.js, você pode:
+
+1. Usar a extensão `.mjs` nos arquivos.
+2. Adicionar `"type": "module"` no arquivo `package.json`:
+
+```json
+{
+  "name": "meu-projeto",
+  "type": "module"
+}
+```
+
+---
+
+## Estrutura dos Exemplos
+
+Os exemplos a seguir estão disponíveis em `examples/javascript/modules/`:
+
+```text
+examples/javascript/modules/
+├── cjs-default/       # CommonJS: Exportação Padrão
+├── cjs-named/         # CommonJS: Múltiplas Exportações
+├── esm-default/       # ESM: Exportação Padrão
+├── esm-named/         # ESM: Exportações Nomeadas
+├── esm-combined/      # ESM: Exportações Combinadas
+├── esm-dynamic/       # ESM: Importação Dinâmica
+└── package.json
+```
+
+---
+
+## CommonJS (CJS): Exportação Padrão (`lib.js`)
 
 Exportando um único valor principal (*default export*):
 
@@ -93,7 +98,11 @@ function sum(a, b) {
 module.exports = sum;
 ```
 
-Importando com `require()`:
+---
+
+## CommonJS (CJS): Importação Padrão (`main.js`)
+
+Importando o valor exportado com a função `require()`:
 
 ```js
 // cjs-default/main.js
@@ -104,7 +113,7 @@ console.log(add(2, 1)); // 3
 
 ---
 
-## CommonJS (CJS): Múltiplas Exportações
+## CommonJS (CJS): Múltiplas Exportações (`lib.js`)
 
 Atribuindo um objeto ao `module.exports`:
 
@@ -117,19 +126,23 @@ const multiply = (a, b) => a * b;
 module.exports = { sum, subtract, multiply };
 ```
 
-Importando com desestruturação:
+---
+
+## CommonJS (CJS): Importação Nomeada (`main.js`)
+
+Importando os membros desejados através de desestruturação:
 
 ```js
 // cjs-named/main.js
 const { sum, subtract, multiply } = require('./lib.js');
 
-console.log(sum(2, 1)); // 3
+console.log(sum(2, 1));      // 3
 console.log(subtract(2, 1)); // 1
 ```
 
 ---
 
-## ES Modules (ESM): Exportações Nomeadas
+## ES Modules (ESM): Exportações Nomeadas (`lib.js`)
 
 Em ESM, um arquivo pode conter **múltiplas** exportações nomeadas (*named exports*):
 
@@ -150,7 +163,7 @@ Cada exportação precisa ter um nome único no módulo.
 
 ---
 
-## ES Modules (ESM): Importações Nomeadas e Aliases
+## ES Modules (ESM): Importações Nomeadas (`main.js`)
 
 Extraindo elementos específicos entre chaves `{ ... }`:
 
@@ -158,17 +171,41 @@ Extraindo elementos específicos entre chaves `{ ... }`:
 // esm-named/main.js
 import { sum, subtract, multiply } from './lib.js';
 
-console.log(sum(2, 1)); // 3
+console.log(sum(2, 1));      // 3
 console.log(subtract(2, 1)); // 1
+console.log(multiply(2, 1)); // 2
 ```
 
-Criando um *alias* (nome local alternativo) com `as`:
+---
+
+## ES Modules (ESM): Aliases com `as`
+
+Renomeando importações para evitar conflitos de nomes no arquivo local:
 
 ```js
-import { sum as add } from './lib.js';
+// esm-named/main.js
+import { sum as add, subtract as sub } from './lib.js';
 
-console.log(add(2, 1)); // 3
+console.log(add(10, 5)); // 15
+console.log(sub(10, 5)); // 5
 ```
+
+---
+
+## ES Modules (ESM): Importando Tudo com `* as`
+
+Agrupa todas as exportações nomeadas em um único objeto *namespace*:
+
+```js
+// esm-named/main.js
+import * as MathOps from './lib.js';
+
+console.log(MathOps.sum(3, 4));      // 7
+console.log(MathOps.multiply(3, 4)); // 12
+```
+
+- O objeto gerado (`MathOps`) é **imutável (read-only)**.
+- Reatribuir `MathOps.sum = null` lança erro em runtime (`TypeError`).
 
 ---
 
@@ -185,13 +222,13 @@ export function sum(a, b) { return a + b; }
 import { add } from './lib.js';
 ```
 
-Em ESM no Node.js, a extensão `.js` nos caminhos relativos é **obrigatória**.
+> Em ESM no Node.js, a extensão `.js` nos caminhos relativos é **obrigatória**.
 
 ---
 
 ## ES Modules (ESM): Exportação Padrão (`export default`)
 
-Um módulo pode ter no máximo **um** `export default`:
+Cada módulo ESM pode ter no máximo **uma** exportação padrão:
 
 ```js
 // esm-default/calculator.js
@@ -204,9 +241,9 @@ export default class Calculator {
 
 ---
 
-## ES Modules (ESM): Importando Exportação Padrão
+## ES Modules (ESM): Importação Padrão (`main.js`)
 
-Importando um *default export* (sem chaves `{}` e com nome livre):
+Importando um *default export* sem chaves `{}` e podendo escolher qualquer nome local:
 
 ```js
 // esm-default/main.js
@@ -220,7 +257,7 @@ console.log(calc.sum(2, 1)); // 3
 
 ## ES Modules (ESM): Combinando Default e Named Exports
 
-É possível combinar um *default export* com *named exports* no mesmo arquivo:
+É possível combinar uma exportação padrão com exportações nomeadas no mesmo módulo:
 
 ```js
 // esm-mixed/lib.js
@@ -235,7 +272,7 @@ export default {
 
 ---
 
-## ES Modules (ESM): Importando Default e Named Exports
+## Importando Default e Named Exports Juntos
 
 Importando ambos na mesma instrução:
 
@@ -243,46 +280,43 @@ Importando ambos na mesma instrução:
 // esm-mixed/main.js
 import MathLib, { sum as add } from './lib.js';
 
-console.log(add(2, 1)); // 3
+console.log(add(2, 1));              // 3
 console.log(MathLib.subtract(2, 1)); // 1
 ```
 
 ---
 
-## Namespace Imports (`import * as`)
+## Exportando Re-exportações (Barrels)
 
-Agrupa **todas** as exportações nomeadas de um módulo em um único objeto:
+Podemos re-exportar membros de outros módulos para criar um ponto único de entrada (*Barrel File*):
 
 ```js
-// esm-namespace/main.js
-import * as MathLib from './lib.js';
-
-console.log(MathLib.sum(2, 1)); // 3
-console.log(MathLib.subtract(2, 1)); // 1
+// index.js (Barrel file)
+export { sum, subtract } from './math.js';
+export { formatDate } from './date.js';
+export { default as User } from './user.js';
 ```
-
-- O objeto gerado (`MathLib`) é **imutável (read-only)**.
-- Qualquer tentativa de reatribuir `MathLib.sum = null` lança um erro em runtime (`TypeError`).
 
 ---
 
 ## Dynamic Imports (`import()`)
 
-Importação condicional em tempo de execução:
-
-- Instruções `import` estáticas só podem ficar no nível superior (*top-level*).
-- Para carregar módulos sob demanda, usa-se a função `import('caminho.js')`, que retorna uma `Promise`:
+A instrução `import()` permite carregar módulos sob demanda e de forma assíncrona (retorna uma `Promise`):
 
 ```js
+// esm-dynamic/main.js
 const enableAdvancedMath = true;
 
 if (enableAdvancedMath) {
   const { power, squareRoot } = await import('./advanced-math.js');
-
-  console.log(power(2, 8)); // 256
+  console.log(power(2, 8));    // 256
   console.log(squareRoot(16)); // 4
 }
 ```
+
+### Casos de Uso
+- *Code Splitting* em aplicações web.
+- Carregamento de módulos pesados apenas quando necessários.
 
 ---
 
@@ -303,7 +337,7 @@ O caminho passado no `import` ou `require` determina onde o Node.js busca o arqu
 
 ## Gerenciamento de Dependências com npm
 
-Configuração inicial do `package.json` para ES Modules:
+Configuração inicial do `package.json` para projetos ES Modules:
 
 ```json
 {
@@ -313,24 +347,19 @@ Configuração inicial do `package.json` para ES Modules:
 }
 ```
 
----
-
-## Instalação de Pacotes com npm
-
-Instalação no terminal:
+Instalação de bibliotecas de terceiros no terminal:
 
 ```bash
 npm install mathjs
 ```
 
-Efeitos da instalação:
 - Atualiza `"dependencies"` no `package.json`.
-- Cria/atualiza o `package-lock.json` (trava de versões exatas).
+- Cria/atualiza o `package-lock.json` (trava versões exatas).
 - Baixa o código para a pasta `node_modules/`.
 
 ---
 
-## Passo a Passo: Criando e Executando um Projeto Modular
+## Passo a Passo: Projeto Modular com npm
 
 1. Crie o `package.json` com `"type": "module"`.
 2. Instale dependências necessárias (`npm install mathjs`).
@@ -344,7 +373,23 @@ node index.js
 
 ---
 
-## Exercício Prático: Serviço de Produtos
+## Executando os Exemplos no Terminal
+
+Navegue até a pasta do exemplo e execute com Node.js:
+
+```bash
+cd examples/javascript/modules
+
+# Executando exemplo ES Modules
+node esm-named/main.js
+
+# Executando exemplo CommonJS
+node cjs-named/main.js
+```
+
+---
+
+## Exercício Prático: Módulo `product-service.js`
 
 Crie um arquivo `product-service.js` contendo um array privado e exporte:
 - `findAll()` e `findById(id)` como exportações nomeadas.
@@ -366,7 +411,7 @@ export default { findAll, findById };
 
 ---
 
-## Desafio: Módulo `advanced-math.js`
+## Desafio: Import Dinâmico Condicional (`main.js`)
 
 Crie um módulo `advanced-math.js`:
 
@@ -376,11 +421,7 @@ export function power(base, exp) { return base ** exp; }
 export function squareRoot(val) { return Math.sqrt(val); }
 ```
 
----
-
-## Desafio: Import Dinâmico Condicional (`main.js`)
-
-Carregue o módulo sob demanda usando `await import()`:
+E um arquivo `main.js` que o carregue dinamicamente usando `await import()`:
 
 ```js
 // main.js
@@ -388,7 +429,7 @@ const enableAdvancedMath = true;
 
 if (enableAdvancedMath) {
   const { power, squareRoot } = await import('./advanced-math.js');
-  console.log(power(2, 8)); // 256
+  console.log(power(2, 8));    // 256
   console.log(squareRoot(16)); // 4
 }
 ```
