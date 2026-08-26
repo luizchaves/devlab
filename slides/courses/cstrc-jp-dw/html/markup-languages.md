@@ -2,6 +2,10 @@
 marp: true
 theme: default
 paginate: true
+style: |
+  section::after {
+    content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+  }
 lang: pt-BR
 title: "Linguagens de Marcação"
 description: "Slides completos da aula de linguagens de marcação (Markdown, LaTeX, XML, HTML)."

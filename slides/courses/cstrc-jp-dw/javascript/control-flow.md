@@ -2,6 +2,10 @@
 marp: true
 theme: default
 paginate: true
+style: |
+  section::after {
+    content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+  }
 lang: pt-BR
 title: "JavaScript: Decisão e Repetição"
 description: "Slides completos da aula de controle de fluxo, decisão e repetição em JavaScript."

@@ -2,6 +2,10 @@
 marp: true
 theme: default
 paginate: true
+style: |
+  section::after {
+    content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+  }
 lang: pt-BR
 title: "CSS: Fundamentos"
 description: "Slides da aula de introdução e fundamentos do CSS."

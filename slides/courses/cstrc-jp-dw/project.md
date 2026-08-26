@@ -2,6 +2,10 @@
 marp: true
 theme: default
 paginate: true
+style: |
+  section::after {
+    content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+  }
 lang: pt-BR
 title: "Especificação do Projeto da Disciplina"
 description: "Slides da especificação do projeto final da disciplina de Desenvolvimento Web."

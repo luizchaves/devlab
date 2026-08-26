@@ -2,6 +2,10 @@
 marp: true
 theme: default
 paginate: true
+style: |
+  section::after {
+    content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+  }
 lang: pt-BR
 title: "A Importância da Web"
 description: "Slides completos da aula de introdução à história, arquitetura e tripé da Web."
