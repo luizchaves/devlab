@@ -196,15 +196,14 @@ const first = stack.shift(); // Remove do início ("z") -> stack: ['a', 'b']
 
 ## Método Mutador: `splice()`
 
-Insere, remove ou substitui elementos em qualquer posição: `splice(início, quantidadeRemover, ...itensAdicionar)`
+Sintaxe: `splice(início, quantidadeRemover, ...itensAdicionar)`
 
 ```js
-const items = [1, 2, 5];
+const months = ["Jan", "Mar", "Abr", "Jun"];
 
-// Inserindo 3 e 4 no índice 2 sem remover ninguém (0)
-items.splice(2, 0, 3, 4);
-
-console.log(items); // [1, 2, 3, 4, 5]
+months.splice(1, 0, "Fev");  // 1. Inserção:     ['Jan', 'Fev', 'Mar', 'Abr', 'Jun']
+months.splice(4, 1, "Maio"); // 2. Substituição:  ['Jan', 'Fev', 'Mar', 'Abr', 'Maio']
+months.splice(1, 2);         // 3. Apenas remoção: ['Jan', 'Abr', 'Maio']
 ```
 
 ---
