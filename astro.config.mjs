@@ -332,7 +332,8 @@ export default defineConfig({
               label: 'Guias e Referências',
               collapsed: true,
               items: [
-                { label: 'ECMAScript', link: '/courses/csbes-jp-pw2/extra/cheat-sheet/' },
+                { label: 'Versões do ECMAScript', link: '/courses/csbes-jp-pw2/extra/ecmascript-versions/' },
+                { label: 'Assinaturas ECMAScript', link: '/courses/csbes-jp-pw2/extra/cheat-sheet/' },
               ],
             },
             {
