@@ -329,6 +329,13 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Guias e Referências',
+              collapsed: true,
+              items: [
+                { label: 'ECMAScript', link: '/courses/csbes-jp-pw2/extra/cheat-sheet/' },
+              ],
+            },
+            {
               label: 'Extras',
               collapsed: false,
               items: [
