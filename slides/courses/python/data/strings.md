@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Strings"
 description: "Slides da aula de strings em Python: criação, imutabilidade, fatiamento, métodos, f-strings, mini-linguagem de formatação e Unicode."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de strings em Python: criação, imutabilidade, fat
 
 Criação, imutabilidade, índices e fatiamento, métodos de texto, f-strings e Unicode.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Dominar o tipo mais manipulado em qualquer programa:
 - Aplicar métodos de busca, limpeza, divisão e junção.
 - Formatar valores com **f-strings** e a mini-linguagem de formato.
 
+
 ---
+
 
 ## Criação
 
@@ -47,7 +53,9 @@ print(str(42), str([1, 2]))   # conversão para texto
 - Aspas simples e duplas são equivalentes.
 - Três aspas preservam quebras de linha.
 
+
 ---
+
 
 ## Escapes e Strings Cruas
 
@@ -65,7 +73,9 @@ print(r"Caminho: C:\Users\ana")    # string crua: nada é interpretado
 
 *Padrões de regex sempre em string crua: `r"\d+"`.*
 
+
 ---
+
 
 ## Imutabilidade
 
@@ -80,7 +90,9 @@ changed = "P" + text[1:]     # cria nova string
 - Nenhum método altera a string original: todos devolvem **novo objeto**.
 - Por isso strings servem como chave de dicionário e elemento de conjunto.
 
+
 ---
+
 
 ## Concatenação Eficiente
 
@@ -95,7 +107,9 @@ for part in parts:
 
 *Muitos pedaços? Acumule em lista e finalize com `"".join(lista)`.*
 
+
 ---
+
 
 ## Índices e Fatiamento
 
@@ -112,7 +126,9 @@ print(text[100:])          # '' — fatia fora do limite não dá erro
 
 *`texto[10]` levanta `IndexError`; `texto[10:20]` devolve `""`.*
 
+
 ---
+
 
 ## Fatias Úteis
 
@@ -124,7 +140,9 @@ print(text[100:])          # '' — fatia fora do limite não dá erro
 | `s[::-1]` | Inverter (palíndromos) |
 | `s[::n]` | Amostragem |
 
+
 ---
+
 
 ## Caixa e Limpeza
 
@@ -139,7 +157,9 @@ print("Straße".casefold())    # 'strasse' — comparação ciente de Unicode
 
 *Normalize a entrada antes de comparar: evita a maioria dos bugs de validação.*
 
+
 ---
+
 
 ## Busca e Verificação
 
@@ -156,7 +176,9 @@ print("Straße".casefold())    # 'strasse' — comparação ciente de Unicode
 print(path.endswith((".csv", ".tsv")))
 ```
 
+
 ---
+
 
 ## Divisão e Junção
 
@@ -170,7 +192,9 @@ print(" | ".join(["ana", "bia"]))
 
 *`split()` sem argumento é diferente de `split(" ")`.*
 
+
 ---
+
 
 ## Substituição e Preenchimento
 
@@ -182,7 +206,9 @@ print(" menu ".center(20, "="))
 print("arquivo.txt".removesuffix(".txt"))
 ```
 
+
 ---
+
 
 ## f-strings
 
@@ -197,7 +223,9 @@ print(f"{width=}")             # depuração: width=3
 - Avalia expressões dentro do literal (PEP 498, Python 3.6+).
 - Mais rápida e mais curta que `%` e `.format()`.
 
+
 ---
+
 
 ## Mini-linguagem de Formato
 
@@ -214,7 +242,9 @@ print(f"{width=}")             # depuração: width=3
 print(f"{name:<12}{price:>12,.2f}")
 ```
 
+
 ---
+
 
 ## Texto e Bytes
 
@@ -230,7 +260,9 @@ print(encoded.decode("utf-8"))   # 'Café'
 - `str`: caracteres Unicode. `bytes`: octetos.
 - A conversão é sempre explícita e exige uma codificação.
 
+
 ---
+
 
 ## Exercício
 
@@ -242,7 +274,9 @@ Crie `slug.py` que transforme títulos em identificadores de URL:
 4. Elimine hífens duplicados e das bordas;
 5. Mostre original e slug com os comprimentos alinhados.
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -262,13 +296,19 @@ while "--" in slug:
 print(f"{'Slug:':<12}{slug.strip('-'):<40}{len(slug):>4}")
 ```
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Strings são **imutáveis**: todo método devolve um novo objeto.
 - Concatenar em laço é caro; use `"".join(lista)`.
 - Índice inválido levanta `IndexError`, mas fatia fora do limite devolve `""`.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `strip`, `lower` e `casefold` normalizam a entrada antes de comparar.
 - `split()` e `join()` fazem a ponte entre texto e lista.
 - **f-strings** interpolam expressões e formatam com `:.2f`, `:>10`, `:%` e `=`.

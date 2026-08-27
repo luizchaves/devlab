@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Arquivos, JSON e CSV"
 description: "Slides da aula de arquivos em Python: modos de abertura, codificação, leitura e escrita, pathlib, serialização JSON e planilhas CSV."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de arquivos em Python: modos de abertura, codifica�
 
 Persistência em disco: `open`, `with`, `pathlib`, serialização JSON e leitura de planilhas.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Ler e gravar dados fora da memória:
 - Serializar e desserializar estruturas com **JSON**.
 - Ler e gravar planilhas com o módulo **`csv`**.
 
+
 ---
+
 
 ## Abrindo com `with`
 
@@ -45,7 +51,9 @@ print(file.closed)   # True
 
 *O `with` fecha o arquivo mesmo se ocorrer exceção.*
 
+
 ---
+
 
 ## Modos de Abertura
 
@@ -59,7 +67,9 @@ print(file.closed)   # True
 
 *`"w"` trunca o arquivo antes da primeira escrita.*
 
+
 ---
+
 
 ## Codificação
 
@@ -74,7 +84,9 @@ except UnicodeDecodeError as error:
 
 *Sempre informe `encoding`: o padrão varia por sistema operacional.*
 
+
 ---
+
 
 ## Leitura
 
@@ -92,7 +104,9 @@ with open("times.txt", encoding="utf-8") as file:
 
 *Arquivos grandes: itere sobre o objeto arquivo, memória constante.*
 
+
 ---
+
 
 ## Escrita
 
@@ -108,7 +122,9 @@ with open("boletim.csv", "a", encoding="utf-8") as file:
 
 *`write()` não adiciona `\n`: inclua explicitamente.*
 
+
 ---
+
 
 ## `pathlib`
 
@@ -125,7 +141,9 @@ print(report.exists(), report.stat().st_size)
 
 *O operador `/` monta caminhos de forma portável.*
 
+
 ---
+
 
 ## Busca de Arquivos
 
@@ -144,7 +162,9 @@ target.unlink(missing_ok=True)   # remove
 | `mkdir(parents=True)` | Cria diretórios |
 | `read_text` / `write_text` | Leitura e escrita diretas |
 
+
 ---
+
 
 ## JSON: Tipos
 
@@ -157,7 +177,9 @@ target.unlink(missing_ok=True)   # remove
 | `True` / `False` | `true` / `false` |
 | `None` | `null` |
 
+
 ---
+
 
 ## JSON: Escrita e Leitura
 
@@ -175,7 +197,9 @@ with open("curso.json", encoding="utf-8") as file:
 
 *`ensure_ascii=False` preserva acentos legíveis no arquivo.*
 
+
 ---
+
 
 ## CSV: `reader` e `writer`
 
@@ -194,7 +218,9 @@ with open("estoque.csv", encoding="utf-8", newline="") as file:
 
 *`newline=""` é obrigatório: evita linhas em branco no Windows.*
 
+
 ---
+
 
 ## CSV: `DictReader` e `DictWriter`
 
@@ -211,7 +237,9 @@ with open("estoque.csv", encoding="utf-8", newline="") as file:
 
 *Todo valor lido de CSV é `str`: a conversão é responsabilidade do seu código.*
 
+
 ---
+
 
 ## Exercício
 
@@ -223,9 +251,10 @@ Crie `notes.py` mantendo anotações em JSON:
 4. Trate `json.JSONDecodeError` quando o arquivo estiver corrompido;
 5. Exiba as anotações em tabela, marcando as concluídas.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 def load():
@@ -237,6 +266,13 @@ def load():
         print("arquivo corrompido; recomeçando")
         return []
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
 
 def save(notes):
     DATABASE.write_text(json.dumps(notes, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -244,11 +280,16 @@ def save(notes):
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `with open(...)` garante o fechamento do arquivo, mesmo com exceção.
 - `"w"` apaga o conteúdo; `"a"` anexa; `"x"` falha se o arquivo já existir.
 - Informe **sempre** `encoding="utf-8"`.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Iterar sobre o arquivo lê linha a linha com memória constante.
 - `pathlib` monta caminhos com `/` e traz `glob`, `mkdir`, `read_text` e `write_text`.
 - `json.dump`/`load` para arquivos, `dumps`/`loads` para strings; CSV pede `newline=""`.

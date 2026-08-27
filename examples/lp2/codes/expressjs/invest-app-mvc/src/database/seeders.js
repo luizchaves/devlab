@@ -1,5 +1,5 @@
-import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import Investment from '../models/Investment.js';
 
 async function up() {

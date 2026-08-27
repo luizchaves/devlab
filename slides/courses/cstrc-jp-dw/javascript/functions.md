@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "JavaScript: Funções"
 description: "Slides completos da aula de Funções em JavaScript."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides completos da aula de Funções em JavaScript."
 
 Declaração, expressões, *arrow functions*, parâmetros, callbacks, *hoisting*, *closures* e operador `this`.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Compreender os fundamentos e comportamentos avançados das funções em JavaScri
 - Trabalhar com funções de primeira classe e *callbacks*.
 - Reconhecer *hoisting*, ausência de sobrecarga, *closures* e o `this` léxico.
 
+
+
 ---
+
+
 
 ## O que são Funções?
 
@@ -40,7 +52,11 @@ Funções são os blocos de construção fundamentais em JavaScript:
 - Criam abstrações e isolam a lógica da aplicação.
 - Podem ser armazenadas em variáveis, passadas como parâmetros e retornadas por outras funções.
 
+
+
 ---
+
+
 
 ## Formas de Declaração
 
@@ -59,7 +75,11 @@ console.log(addition(1, 2, 3)); // 3 (extra ignorado)
 - Possui nome obrigatório na declaração.
 - Sofre *hoisting* completo (pode ser chamada antes de sua linha).
 
+
+
 ---
+
+
 
 ## Formas de Declaração
 
@@ -78,9 +98,11 @@ console.log(subtraction(2, 1)); // 1
 
 - Não sofre *hoisting* de inicialização quando declarada com `const` ou `let`.
 
+
+
 ---
 
-## Formas de Declaração
+## Formas de Declaração (Parte 1)
 
 ### 3. Arrow Functions (Notação `=>`)
 
@@ -94,12 +116,21 @@ const multiplication = (param1, param2) => {
 const division = (param1, param2) => param1 / param2;
 const double = (number) => number * 2;
 
+```
+
+---
+
+## Formas de Declaração (Parte 2)
+
+```js
 console.log(multiplication(2, 3)); // 6
 console.log(division(6, 2)); // 3
 console.log(double(5)); // 10
 ```
 
 ---
+
+
 
 ## Arrow Functions: Retorno Implícito
 
@@ -115,9 +146,11 @@ console.log(createObject("Fulano")); // { name: 'Fulano' }
 console.log(wrongCreateObject("Fulano")); // undefined
 ```
 
+
+
 ---
 
-## Operador `this` em Arrow Functions
+## Operador `this` em Arrow Functions (Parte 1)
 
 Arrow Functions possuem **`this` léxico**: herdam o `this` do escopo onde foram criadas.
 
@@ -130,6 +163,13 @@ const calculator = {
   arrowDouble: (number) => number * this.factor, // this global (undefined)
 };
 
+```
+
+---
+
+## Operador `this` em Arrow Functions (Parte 2)
+
+```js
 console.log(calculator.regularDouble(5)); // 10
 console.log(calculator.arrowDouble(5)); // NaN
 ```
@@ -137,6 +177,8 @@ console.log(calculator.arrowDouble(5)); // NaN
 - **Regra**: Evite usar *arrow functions* como métodos diretos de objetos.
 
 ---
+
+
 
 ## Retorno e Controle de Fluxo
 
@@ -154,7 +196,11 @@ console.log(result); // undefined
 - O `return` interrompe a execução imediatamente.
 - **Guard Clause** (retorno antecipado) evita ninhos profundos de `if/else`.
 
+
+
 ---
+
+
 
 ## Retorno Antecipado (Guard Clause)
 
@@ -173,7 +219,11 @@ console.log(checkAge(20)); // "Maior de idade"
 
 O código fica plano, legível e mais fácil de manter.
 
+
+
 ---
+
+
 
 ## Parâmetros Padrão (*Default Parameters*)
 
@@ -190,7 +240,11 @@ console.log(greetingMessage(undefined)); // "Hello, visitante"
 console.log(greetingMessage(null)); // "Hello, null" (null NÃO aciona padrão)
 ```
 
+
+
 ---
+
+
 
 ## Parâmetros Rest (*Rest Parameters*)
 
@@ -209,7 +263,11 @@ console.log(sumAll(1, 2, 3, 4)); // 10
 - Deve ser o **último** parâmetro da assinatura.
 - Substitui com vantagens o objeto legado `arguments`.
 
+
+
 ---
+
+
 
 ## Desestruturação em Parâmetros
 
@@ -227,7 +285,11 @@ console.log(createUser()); // "anonymous / true"
 
 - **Dica**: Forneça sempre o fallback `= {}` para evitar `TypeError` caso nenhum argumento seja passado.
 
+
+
 ---
+
+
 
 ## Callbacks e Funções de Primeira Classe
 
@@ -248,9 +310,11 @@ console.log(calc(2, 1, (x, y) => x * y)); // 2
 
 - **Atenção**: Passe a referência da função (`sum`), e **não** sua invocação (`sum()`).
 
+
+
 ---
 
-## Hoisting de Funções
+## Hoisting de Funções (Parte 1)
 
 Mecanismo que move declarações para o topo do escopo antes da execução.
 
@@ -261,6 +325,10 @@ console.log(sum(2, 3)); // 5 (funciona por causa do hoisting)
 function sum(a, b) { return a + b; }
 ```
 
+---
+
+## Hoisting de Funções (Parte 2)
+
 - **Function Expression (`const`/`let`)**: Permanece na *Temporal Dead Zone* (TDZ).
 
 ```js
@@ -270,6 +338,8 @@ const sub = (a, b) => a - b;
 ```
 
 ---
+
+
 
 ## Redefinição de Funções (Sem Sobrecarga)
 
@@ -289,15 +359,22 @@ function operation(param) {
 console.log(operation(1, 2)); // 2 (chama a segunda versão!)
 ```
 
+
+
 ---
+
+
 
 ## Case Sensitivity
 
 Nomes de funções diferenciam maiúsculas de minúsculas (`sumLower` != `SumLower`).
 
+
+
 ---
 
-## Closures
+
+## Closures (Parte 1)
 
 Uma *closure* ocorre quando uma função interna lembra e acessa o escopo da função pai, mesmo após o encerramento da execução externa:
 
@@ -310,12 +387,24 @@ function createCounter() {
   };
 }
 
+```
+
+
+---
+
+
+## Closures (Parte 2)
+
+```js
 const counter = createCounter();
 console.log(counter()); // 1
 console.log(counter()); // 2
 ```
 
+
 ---
+
+
 
 ## Exercício Prático: Calculadora
 
@@ -334,13 +423,23 @@ console.log(formatResult("Soma", calculate(sum, 10, 20, 30))); // "Soma: 60"
 console.log(formatResult("Multiplicação", calculate(multiply, 2, 3, 4))); // "Multiplicação: 24"
 ```
 
+
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Use **Function Declaration** quando precisar de hoisting e `this` dinâmico.
 - Use **Arrow Functions** para sintaxe curta, callbacks e `this` léxico.
 - Lembre-se: `({ obj })` para retorno implícito de objetos em Arrow Functions.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Use **Rest Parameters** (`...rest`) em vez do objeto legado `arguments`.
 - Passe referências de funções para **callbacks**, nunca invocações acidentais `func()`.
 - Utilize **Closures** para manter estado privado e encapsulado.

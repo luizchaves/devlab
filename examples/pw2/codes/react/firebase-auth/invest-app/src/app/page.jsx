@@ -1,23 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import InvestmentCard from '@/components/InvestmentCard';
-import { useInvestment } from '@/contexts/InvestmentContext';
 import InvestmentForm from '@/components/InvestmentForm';
 import Modal from '@/components/Modal';
 import ProtectedPage from '@/components/ProtectedPage';
+import { useInvestment } from '@/contexts/InvestmentContext';
 import { useUserAuth } from '@/contexts/UserAuthContext';
 
 export default function Home() {
-  const {
-    investments,
-    loadInvestments,
-    isShowValues,
-    toggleShowValues,
-    handleCreateInvestment,
-  } = useInvestment();
+  const { investments, loadInvestments, isShowValues, toggleShowValues, handleCreateInvestment } =
+    useInvestment();
   const { user } = useUserAuth();
 
   useEffect(() => {

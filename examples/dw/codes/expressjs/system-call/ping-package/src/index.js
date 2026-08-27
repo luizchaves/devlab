@@ -27,9 +27,7 @@ app.post('/ping', async (req, res) => {
     const pingResult = await ping.promise.probe(host);
 
     if (
-      ['Name or service not known', 'Unknown host'].some((msg) =>
-        pingResult.output.includes(msg)
-      )
+      ['Name or service not known', 'Unknown host'].some((msg) => pingResult.output.includes(msg))
     ) {
       throw new Error('Unknown host');
     }

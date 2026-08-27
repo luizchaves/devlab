@@ -31,9 +31,7 @@ router.get('/investments', (req, res) => {
   const { name } = req.query;
 
   if (name) {
-    const filteredInvestments = investments.filter((investment) =>
-      investment.name.includes(name)
-    );
+    const filteredInvestments = investments.filter((investment) => investment.name.includes(name));
 
     return res.json(filteredInvestments);
   }

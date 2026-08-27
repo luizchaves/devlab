@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Classes e Objetos"
 description: "Slides da aula de orientação a objetos em Python: classes, atributos, métodos, propriedades, métodos especiais, herança e dataclasses."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de orientação a objetos em Python: classes, atrib
 
 Estado e comportamento juntos: `__init__`, propriedades, métodos especiais, herança e `dataclasses`.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,9 +33,10 @@ Modelar entidades do domínio com classes:
 - Implementar **métodos especiais** (`__str__`, `__eq__`, `__len__`).
 - Aplicar **herança** com `super()` e decidir entre herança e composição.
 
+
 ---
 
-## Primeira Classe
+## Primeira Classe (Parte 1)
 
 ```python
 class Product:
@@ -42,6 +47,13 @@ class Product:
         self.price = price
         self.stock = stock
 
+```
+
+---
+
+## Primeira Classe (Parte 2)
+
+```python
     def total_value(self):
         return self.price * self.stock
 
@@ -51,6 +63,7 @@ print(keyboard.total_value())   # 3499.0
 ```
 
 ---
+
 
 ## `self`
 
@@ -63,7 +76,9 @@ Product.total_value(keyboard)
 - `self` é o **primeiro parâmetro** dos métodos de instância, preenchido automaticamente.
 - É convenção, não palavra reservada — mas ninguém usa outro nome.
 
+
 ---
+
 
 ## Atributo de Classe x de Instância
 
@@ -79,7 +94,9 @@ class Account:
 
 *Objeto mutável como atributo de classe (`tags = []`) é compartilhado por todas as instâncias — inicialize dentro de `__init__`.*
 
+
 ---
+
 
 ## Tipos de Método
 
@@ -95,7 +112,9 @@ def from_fahrenheit(cls, value):
     return cls((value - 32) * 5 / 9)
 ```
 
+
 ---
+
 
 ## Visibilidade
 
@@ -107,9 +126,10 @@ def from_fahrenheit(cls, value):
 
 *Python não tem `private`: o controle é por convenção.*
 
+
 ---
 
-## `@property`
+## `@property` (Parte 1)
 
 ```python
 class Product:
@@ -123,6 +143,13 @@ class Product:
             raise ValueError("preço não pode ser negativo")
         self._price = value
 
+```
+
+---
+
+## `@property` (Parte 2)
+
+```python
     @property
     def price_with_tax(self):     # somente leitura
         return round(self._price * 1.1, 2)
@@ -131,6 +158,7 @@ class Product:
 *Comece com atributo simples; promova a `property` quando surgir a necessidade.*
 
 ---
+
 
 ## `__str__` e `__repr__`
 
@@ -149,7 +177,9 @@ def __str__(self):
 
 *Se for implementar só um, implemente `__repr__`.*
 
+
 ---
+
 
 ## Métodos Especiais
 
@@ -163,7 +193,9 @@ def __str__(self):
 | `__add__` | `obj + outro` |
 | `__call__` | `obj()` |
 
+
 ---
+
 
 ## Herança
 
@@ -180,7 +212,9 @@ class CardPayment(Payment):
 
 *Polimorfismo: cada subclasse responde à sua maneira ao mesmo método.*
 
+
 ---
+
 
 ## Herança x Composição
 
@@ -194,7 +228,9 @@ class Order:
 - Hierarquias profundas escondem a origem dos métodos e acoplam classes.
 - Na dúvida, componha.
 
+
 ---
+
 
 ## `dataclasses`
 
@@ -212,7 +248,9 @@ class Product:
 - Gera `__init__`, `__repr__` e `__eq__` automaticamente.
 - `frozen=True` torna imutável e hasheável; `slots=True` economiza memória.
 
+
 ---
+
 
 ## Duck Typing
 
@@ -225,7 +263,9 @@ def run_export(exporter, data):
 - Não é preciso herança comum: basta responder aos mesmos métodos.
 - `isinstance()` tem lugar nas **fronteiras** (validação de entrada), não no domínio.
 
+
 ---
+
 
 ## Exercício
 
@@ -237,9 +277,10 @@ Crie `bank.py` modelando contas:
 4. `__str__` e `__eq__` (mesmo titular);
 5. `SavingsAccount` com `apply_interest()` usando `super()`.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 class Account:
@@ -250,6 +291,13 @@ class Account:
     def balance(self):
         return self._balance
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
     def withdraw(self, value):
         if value > self._balance:
             raise ValueError("saldo insuficiente")
@@ -260,11 +308,16 @@ class Account:
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - A classe é o molde; a instância guarda os dados próprios em `self`.
 - Atributos de classe são compartilhados — inicialize coleções em `__init__`.
 - `@property` adiciona validação e cálculo sem mudar a interface pública.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `__str__` é para quem lê a saída; `__repr__`, para quem desenvolve.
 - `super()` reaproveita a superclasse; prefira **composição** a hierarquias profundas.
 - `@dataclass` elimina o código repetitivo das classes de dados.

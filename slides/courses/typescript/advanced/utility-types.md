@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Utility Types"
 description: "Slides da aula de utility types: Partial, Pick, Omit, Record, Exclude, Extract, ReturnType, Awaited e composição de tipos derivados."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de utility types: Partial, Pick, Omit, Record, Excl
 
 Derivar tipos a partir de outros, com uma única fonte da verdade.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Evitar manter quatro versões do mesmo tipo em sincronia:
 - **Compor** utilitários entre si.
 - Reconhecer o limite de legibilidade.
 
+
 ---
+
 
 ## Objeto
 
@@ -42,7 +48,9 @@ Evitar manter quatro versões do mesmo tipo em sincronia:
 | `Omit<T, K>` | Todas **menos** as listadas |
 | `Record<K, V>` | Objeto com chaves `K` e valores `V` |
 
+
 ---
+
 
 ## Projeções de um Tipo
 
@@ -57,7 +65,9 @@ function updateUser(id: string, changes: Partial<Omit<User, "id" | "createdAt">>
 
 *`Omit` envelhece melhor que `Pick`: campos novos entram automaticamente.*
 
+
 ---
+
 
 ## `Record` e Exaustividade
 
@@ -75,7 +85,9 @@ const colors: Record<Level, string> = {
 
 *Valor novo na união faz todos os mapas falharem — como o `never` no `switch`.*
 
+
 ---
+
 
 ## União
 
@@ -90,7 +102,9 @@ type Visible = Exclude<Status, "removido">;
 type Name = NonNullable<string | null | undefined>;   // string
 ```
 
+
 ---
+
 
 ## Função e Promise
 
@@ -106,7 +120,9 @@ function retry(...args: SessionArgs): Session {
 
 *O `typeof` aqui é o do espaço de tipos: consulta o tipo de um valor existente.*
 
+
 ---
+
 
 ## String
 
@@ -122,7 +138,9 @@ const handlers: Record<HandlerName, () => void> = {
 };
 ```
 
+
 ---
+
 
 ## Compondo
 
@@ -137,7 +155,9 @@ type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 *Acima de dois ou três níveis, dê um nome ao tipo intermediário.*
 
+
 ---
+
 
 ## Exercício
 
@@ -149,7 +169,9 @@ Crie `src/api-types.ts`:
 4. `ArticleSummary` somente leitura com três campos;
 5. `ApiResult<T>` como união discriminada.
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -165,13 +187,19 @@ function create(input: CreateArticle): ApiResult<Article> {
 }
 ```
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Utility types derivam tipos: uma fonte da verdade, várias projeções.
 - `Omit` resiste melhor a campos novos do que `Pick`.
 - `Record<Uniao, V>` obriga a cobrir todas as chaves — exaustividade em mapas.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `Exclude` e `Extract` filtram uniões; `NonNullable` remove nulos.
 - `ReturnType`, `Parameters` e `Awaited` extraem tipos de funções existentes.
 - Composição é poderosa até virar ilegível: nomeie tipos intermediários.

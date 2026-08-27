@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "JavaScript: Expressões e Operadores"
 description: "Slides completos da aula de expressões, precedência, associatividade e operadores em JavaScript."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,20 +21,33 @@ description: "Slides completos da aula de expressões, precedência, associativi
 
 Expressões, *statements*, precedência, associatividade, operadores aritméticos, relacionais, lógicos, *bitwise*, atribuição e acesso a propriedades.
 
+
+
 ---
 
-## Objetivo
+
+## Objetivo (Parte 1)
 
 Compreender o uso de expressões e a atuação dos operadores em JavaScript:
 
 - Diferenciar **expressões** (que geram valores) de ***statements*** (instruções de fluxo).
 - Entender **precedência** e **associatividade** para forçar a ordem correta com parênteses `()`.
 - Dominar operadores aritméticos, unários, incremento/decremento (`++`/`--`) e resto (`%`).
+
+
+---
+
+
+## Objetivo (Parte 2)
+
 - Utilizar operadores relacionais (`>`, `<`) e de igualdade estrita (`===` vs `==`).
 - Aplicar avaliação de curto-circuito (`&&`, `||`), *Nullish Coalescing* (`??`) e operador ternário (`? :`).
 - Conhecer operadores *bitwise*, atribuições lógicas (`&&=`, `||=`, `??=`) e acesso seguro com *Optional Chaining* (`?.`).
 
+
 ---
+
+
 
 ## Expressões (*Expressions*)
 
@@ -44,7 +61,11 @@ condition ? "Adulto" : "Menor" // "Adulto"
 
 *Uma expressão pode ser usada em qualquer lugar onde um valor é esperado.*
 
+
+
 ---
+
+
 
 ## Instruções (*Statements*)
 
@@ -55,7 +76,11 @@ if (true) { console.log("OK"); }
 let count = 0;
 ```
 
+
+
 ---
+
+
 
 ## Ponto e Vírgula e ASI
 
@@ -73,7 +98,11 @@ const total = 10;
 (function show() { console.log(total); })();
 ```
 
+
+
 ---
+
+
 
 ## Precedência e Associatividade
 
@@ -92,7 +121,11 @@ console.log((20 - 10) * 2); // 20 (20 - 10 = 10, depois 10 * 2)
 console.log(20 - 10 - 5); // 5 ((20 - 10) - 5)
 ```
 
+
+
 ---
+
+
 
 ## Operadores Aritméticos
 
@@ -105,7 +138,11 @@ console.log(7 % 3); // 1 (resto)
 console.log(2 ** 3); // 8 (2 elevado a 3)
 ```
 
+
+
 ---
+
+
 
 ## Operadores Unários
 
@@ -116,7 +153,11 @@ console.log(+"5"); // 5 (number)
 console.log(!!"texto"); // true (boolean)
 ```
 
+
+
 ---
+
+
 
 ## Incremento e Decremento (`++` e `--`)
 
@@ -135,7 +176,11 @@ console.log(++count); // 2 (incrementa para 2, retorna 2)
 console.log(count);   // 2
 ```
 
+
+
 ---
+
+
 
 ## Operadores Relacionais
 
@@ -147,7 +192,11 @@ console.log("2" > "10");   // true (comparação de texto por caractere '2' > '1
 console.log("2" > 10);     // false ("2" convertido para number 2)
 ```
 
+
+
 ---
+
+
 
 ## Igualdade Ampla (`==`) vs Estrita (`===`)
 
@@ -159,7 +208,11 @@ console.log(1 == "1");  // true (coerção)
 console.log(1 === "1"); // false (tipos diferentes: number vs string)
 ```
 
+
+
 ---
+
+
 
 ## Operadores Lógicos e Curto-Circuito
 
@@ -176,7 +229,11 @@ console.log("" || "Visitante");  // "Visitante" (primeiro truthy)
 console.log("Ana" || "Visitante");// "Ana"
 ```
 
+
+
 ---
+
+
 
 ## Operador Nullish Coalescing (`??`)
 
@@ -194,9 +251,11 @@ console.log(name ?? "Anônimo"); // "Anônimo"
 
 - Excelente para fornecer valores padrão mantendo `0`, `""` e `false` válidos.
 
+
+
 ---
 
-## Operador Ternário (`condição ? a : b`)
+## Operador Ternário (`condição ? a : b`) (Parte 1)
 
 Único operador que recebe três operandos. É uma **expressão** e pode ser atribuído a variáveis:
 
@@ -206,6 +265,10 @@ const status = age >= 18 ? "Adulto" : "Menor";
 
 console.log(status); // "Adulto"
 ```
+
+---
+
+## Operador Ternário (`condição ? a : b`) (Parte 2)
 
 Aninhamento de ternários:
 
@@ -217,6 +280,8 @@ console.log(result); // "B"
 ```
 
 ---
+
+
 
 ## Operadores Bitwise (Bits a Bit)
 
@@ -233,7 +298,11 @@ console.log(~5);    // -6 (-(5 + 1))
 console.log(5 << 1);// 10 (multiplica por 2)
 ```
 
+
+
 ---
+
+
 
 ## Atribuições Combinadas
 
@@ -244,7 +313,11 @@ let x = 10;
 x += 5; // x = x + 5 (15)
 ```
 
+
+
 ---
+
+
 
 ## Atribuições Lógicas (ES2021)
 
@@ -257,9 +330,11 @@ let user = null;
 user ??= "Visitante"; // user vira "Visitante"
 ```
 
+
+
 ---
 
-## Acesso a Propriedades e Operadores Especiais
+## Acesso a Propriedades e Operadores Especiais (Parte 1)
 
 ### Acesso por Ponto (`.`) e Colchetes (`[]`)
 ```js
@@ -268,7 +343,9 @@ console.log(person.name);     // "Ana"
 console.log(person["name"]); // "Ana"
 ```
 
-### Encadeamento Opcional (*Optional Chaining* `?.`)
+---
+
+## Acesso a Propriedades e Operadores Especiais (Parte 2)
 Evita erros ao acessar propriedades de objetos `null` ou `undefined`:
 
 ```js
@@ -278,7 +355,7 @@ console.log(user.address?.street); // undefined (em vez de TypeError!)
 
 ---
 
-## Operadores `in` e `instanceof`
+## Operadores `in` e `instanceof` (Parte 1)
 
 - **`in`**: Verifica se uma propriedade existe em um objeto (ou chave em um protótipo):
 
@@ -287,6 +364,10 @@ const car = { brand: "Ford" };
 console.log("brand" in car); // true
 console.log("year" in car);  // false
 ```
+
+---
+
+## Operadores `in` e `instanceof` (Parte 2)
 
 - **`instanceof`**: Verifica se um objeto foi criado por uma determinada função construtora/classe:
 
@@ -297,6 +378,8 @@ console.log(date instanceof Object); // true
 ```
 
 ---
+
+
 
 ## Exercício Prático: Avaliador de Expressões
 
@@ -316,13 +399,23 @@ const obj = null;
 console.log(obj?.property); // undefined
 ```
 
+
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - **Expressões** produzem valor; ***statements*** controlam o fluxo.
 - Use **`===`** e **`!==`** para evitar coerção implícita de tipo indesejada.
 - Lembre-se do **curto-circuito** (`&&`, `||`) e do **Nullish Coalescing** (`??`) para valores padrão.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Diferencie **`count++`** (retorna antes) de **`++count`** (incrementa antes).
 - Use parênteses **`()`** para forçar a precedência desejada e deixar a intenção clara.
 - Utilize **`?.`** para acesso seguro a propriedades sem estourar `TypeError`.

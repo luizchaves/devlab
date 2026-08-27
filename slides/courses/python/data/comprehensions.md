@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Compreensões e Geradores"
 description: "Slides da aula de compreensões e geradores em Python: list/dict/set comprehensions, expressões geradoras, iteradores, yield e itertools."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de compreensões e geradores em Python: list/dict/s
 
 Construção declarativa de coleções, avaliação sob demanda, protocolo de iteração e `yield`.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Transformar e filtrar dados sem laços manuais:
 - Explicar o protocolo de iteração (`iter` / `next`).
 - Criar funções geradoras com `yield` e usar `itertools`.
 
+
 ---
+
 
 ## Do Laço à Compreensão
 
@@ -47,7 +53,9 @@ squares = [number ** 2 for number in numbers]
 [ expressão  for item in iterável  if condição ]
 ```
 
+
 ---
+
 
 ## Filtrar x Transformar
 
@@ -59,7 +67,9 @@ labels = ["par" if n % 2 == 0 else "ímpar" for n in numbers]  # transforma
 - `if` no **final**: filtra itens.
 - `if/else` **antes** do `for`: faz parte da expressão, mantém todos os itens.
 
+
 ---
+
 
 ## Aninhamento e Limite
 
@@ -71,7 +81,9 @@ transposed = [[row[i] for row in matrix] for i in range(3)]
 
 *Se a compreensão precisa de comentário para ser entendida, escreva o `for` tradicional.*
 
+
 ---
+
 
 ## Dict e Set Comprehension
 
@@ -85,7 +97,9 @@ approved = {name: score for name, score in scores.items() if score >= 7}
 
 *Chaves repetidas sobrescrevem: o último item vence.*
 
+
 ---
+
 
 ## Expressões Geradoras
 
@@ -101,7 +115,9 @@ print(sys.getsizeof(squares_gen))    # ~200 bytes
 print(sum(n ** 2 for n in range(1000)))   # parênteses extras dispensados
 ```
 
+
 ---
+
 
 ## Lista x Gerador
 
@@ -118,7 +134,9 @@ print(list(values))   # [0, 1, 2]
 print(list(values))   # [] — esgotado
 ```
 
+
 ---
+
 
 ## Protocolo de Iteração
 
@@ -134,7 +152,9 @@ print(next(iterator))   # StopIteration
 - **Iterador**: implementa `__iter__` e `__next__`, e guarda a posição.
 - O `for` faz exatamente isso, capturando `StopIteration`.
 
+
 ---
+
 
 ## Funções Geradoras
 
@@ -150,9 +170,10 @@ def read_lines(text):
 - `yield` **pausa** a função preservando o estado local.
 - `return` encerra; `yield` suspende e retoma na próxima solicitação.
 
+
 ---
 
-## Pipelines Sob Demanda
+## Pipelines Sob Demanda (Parte 1)
 
 ```python
 import itertools
@@ -162,6 +183,13 @@ def counter(start=0):
         yield start
         start += 1
 
+```
+
+---
+
+## Pipelines Sob Demanda (Parte 2)
+
+```python
 def only_even(values):
     for value in values:
         if value % 2 == 0:
@@ -175,6 +203,7 @@ print(list(itertools.islice(pipeline, 5)))   # [2, 4, 6, 8, 10]
 
 ---
 
+
 ## `itertools`
 
 | Função | Produz |
@@ -186,7 +215,9 @@ print(list(itertools.islice(pipeline, 5)))   # [2, 4, 6, 8, 10]
 | `groupby(it, key)` | Agrupamento de consecutivos |
 | `combinations` | Combinações sem repetição |
 
+
 ---
+
 
 ## Exercício
 
@@ -198,7 +229,9 @@ Crie `students.py` processando notas com compreensões:
 4. Monte um conjunto com todas as notas distintas;
 5. Calcule a média geral com expressão geradora.
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -214,13 +247,19 @@ distinct = {grade for values in GRADES.values() for grade in values}
 class_average = sum(averages.values()) / len(averages)
 ```
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Compreensões descrevem **o que** a coleção contém, não o passo a passo.
 - `if` no final filtra; `if/else` antes do `for` transforma.
 - Parênteses no lugar de colchetes produzem um **gerador**: memória constante, passagem única.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `iter()` e `next()` são o protocolo por trás de todo `for`.
 - `yield` pausa a função preservando o estado — ideal para arquivos e fluxos grandes.
 - `itertools` traz contadores, fatias, concatenação e agrupamento prontos.

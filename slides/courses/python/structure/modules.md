@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "Python: Módulos e Pacotes"
 description: "Slides da aula de módulos e pacotes em Python: formas de import, módulos próprios, __name__, resolução de caminhos, pacotes e biblioteca padrão."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de módulos e pacotes em Python: formas de import, 
 
 Importação, módulos próprios, `__name__`, resolução de caminhos, pacotes e biblioteca padrão.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Dividir o programa em arquivos com responsabilidades claras:
 - Descrever como o interpretador **encontra** um módulo.
 - Reconhecer os módulos mais úteis da **biblioteca padrão**.
 
+
+
 ---
+
+
 
 ## O Que É um Módulo
 
@@ -44,7 +56,11 @@ print(math.__name__)    # math
 - Qualquer arquivo `.py` é um módulo.
 - Ao importar, o arquivo é executado **uma única vez** e guardado em `sys.modules`.
 
+
+
 ---
+
+
 
 ## Formas de Importar
 
@@ -61,7 +77,11 @@ from pathlib import Path
 from datetime import datetime as dt
 ```
 
+
+
 ---
+
+
 
 ## Por Que Evitar `import *`
 
@@ -70,7 +90,11 @@ from datetime import datetime as dt
 - Pode **sobrescrever** nomes existentes silenciosamente.
 - Ferramentas de lint sinalizam e a PEP 8 desaconselha.
 
+
+
 ---
+
+
 
 ## Ordem dos Imports (PEP 8)
 
@@ -88,9 +112,12 @@ from app.models import User
 
 *Três blocos separados por linha em branco, em ordem alfabética dentro de cada um.*
 
+
+
 ---
 
-## Módulo Próprio
+
+## Módulo Próprio (Parte 1)
 
 ```python
 # calculator.py
@@ -103,6 +130,12 @@ def add(a, b):
     return a + b
 ```
 
+
+---
+
+
+## Módulo Próprio (Parte 2)
+
 ```python
 # main.py
 import calculator
@@ -111,7 +144,10 @@ from calculator import add
 print(add(2, 3), calculator.TAX_RATE)
 ```
 
+
 ---
+
+
 
 ## `__name__` e Execução Direta
 
@@ -131,7 +167,11 @@ if __name__ == "__main__":
 
 *Todo módulo deve poder ser importado sem efeitos colaterais.*
 
+
+
 ---
+
+
 
 ## Resolução de Módulos
 
@@ -146,7 +186,11 @@ import calculator
                                           não achou ─┴─▶ ModuleNotFoundError
 ```
 
+
+
 ---
+
+
 
 ## Armadilha do Nome
 
@@ -159,9 +203,12 @@ import random   # importa o SEU arquivo, não a biblioteca padrão
 - O diretório do script vem **antes** das bibliotecas em `sys.path`.
 - Sintoma clássico: `AttributeError` inexplicável logo após um import.
 
+
+
 ---
 
-## Pacotes
+
+## Pacotes (Parte 1)
 
 ```txt
 app/
@@ -174,6 +221,12 @@ app/
     └── pricing.py
 ```
 
+
+---
+
+
+## Pacotes (Parte 2)
+
 ```python
 # app/__init__.py
 from app.models.product import Product
@@ -181,7 +234,10 @@ from app.models.product import Product
 __all__ = ["Product"]
 ```
 
+
 ---
+
+
 
 ## Imports Absolutos x Relativos
 
@@ -192,7 +248,11 @@ __all__ = ["Product"]
 
 *Import relativo em arquivo executado direto levanta `ImportError`: rode com `uv run -m app.services.pricing`.*
 
+
+
 ---
+
+
 
 ## Biblioteca Padrão
 
@@ -207,7 +267,11 @@ __all__ = ["Product"]
 | `argparse` | CLI |
 | `unittest` | Testes |
 
+
+
 ---
+
+
 
 ## Importações Circulares
 
@@ -222,7 +286,11 @@ Três saídas:
 2. Mover o import para **dentro da função**;
 3. Repensar as responsabilidades — o ciclo indica acoplamento excessivo.
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -234,9 +302,11 @@ Crie um pacote `finance/` com três módulos:
 4. `__init__.py` — reexporte as funções e defina `__all__`;
 5. `main.py` importa apenas do pacote.
 
+
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 # finance/__init__.py
@@ -247,6 +317,10 @@ from finance.report import build
 __all__ = ["build", "compound", "convert", "simple", "to_brl"]
 ```
 
+---
+
+## Solução do Exercício (Parte 2)
+
 ```python
 # main.py
 from finance import build, to_brl
@@ -256,11 +330,19 @@ print(build(2500, 0.008, 24))
 
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Todo arquivo `.py` é um módulo, executado **uma vez** e guardado em `sys.modules`.
 - Prefira `import modulo` ou `from modulo import nome`; evite `import *`.
 - `if __name__ == "__main__":` separa execução direta de importação.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - O interpretador busca em `sys.path`: diretório do script, `PYTHONPATH`, `site-packages`.
 - Nunca nomeie um arquivo como um módulo da biblioteca padrão.
 - Pacotes agrupam módulos com `__init__.py`; prefira **imports absolutos**.

@@ -10,9 +10,7 @@ function InvestmentCard(investment) {
       </div>
       <div class="card-body">
         <span>Valor:</span>
-        <span class="investment-value">${formatCurrency(
-          investment.value
-        )}</span>
+        <span class="investment-value">${formatCurrency(investment.value)}</span>
       </div>
     </div>
   </div>`;
@@ -21,10 +19,7 @@ function InvestmentCard(investment) {
 function createInvestmentCard(investment) {
   const investmentContainer = document.querySelector(`#investment-grid`);
 
-  investmentContainer.insertAdjacentHTML(
-    'beforeend',
-    InvestmentCard(investment)
-  );
+  investmentContainer.insertAdjacentHTML('beforeend', InvestmentCard(investment));
 }
 
 async function loadInvestmentCards() {

@@ -1,5 +1,5 @@
 export function validate(schema) {
-  return function (req, res, next) {
+  return (req, res, next) => {
     try {
       schema.parse({
         body: req.body,

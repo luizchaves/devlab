@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Manipulação de Tipos"
 description: "Slides da aula de manipulação de tipos: keyof, tipos mapeados, condicionais, infer, template literal types e limites de complexidade."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de manipulação de tipos: keyof, tipos mapeados, c
 
 `keyof`, tipos mapeados, condicionais, `infer` e template literals.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Escrever os recursos que constroem os utility types:
 - Montar **template literal types**.
 - Reconhecer quando a complexidade deixou de compensar.
 
+
 ---
+
 
 ## Operadores de Consulta
 
@@ -42,7 +48,9 @@ const LEVELS = ["debug", "info"] as const;
 type Level = (typeof LEVELS)[number];  // "debug" | "info"
 ```
 
+
 ---
+
 
 ## Tipos Mapeados
 
@@ -61,7 +69,9 @@ type Getters<T> = {
 | `?` / `-?` | Adiciona / remove opcional |
 | `readonly` / `-readonly` | Adiciona / remove somente leitura |
 
+
 ---
+
 
 ## Renomeando com `as`
 
@@ -76,7 +86,9 @@ type OnlyStrings<T> = {
 };
 ```
 
+
 ---
+
 
 ## Tipos Condicionais
 
@@ -89,7 +101,9 @@ type MyNonNullable<T> = T extends null | undefined ? never : T;
 
 *É um `if` avaliado pelo compilador, no espaço dos tipos.*
 
+
 ---
+
 
 ## Distributividade
 
@@ -104,7 +118,9 @@ type B = ToArrayNonDist<string | number>;   // (string | number)[]
 
 *`Exclude` só funciona porque distribui: cada membro é testado isoladamente.*
 
+
 ---
+
 
 ## `infer`
 
@@ -116,7 +132,9 @@ type Head<T> = T extends [infer H, ...unknown[]] ? H : never;
 type Unwrap<T> = T extends Promise<infer U> ? Unwrap<U> : T;   // recursivo
 ```
 
+
 ---
+
 
 ## Template Literal Types
 
@@ -132,7 +150,9 @@ type ResourceOf<T> = T extends `${string} /${infer R}` ? R : never;
 
 *Combinações explodem rápido: 10 × 20 já são 200 membros.*
 
+
 ---
+
 
 ## Quando Parar
 
@@ -143,7 +163,9 @@ type ResourceOf<T> = T extends `${string} /${infer R}` ? R : never;
 | O ganho supera a manutenção? | Duplique um tipo simples |
 | A mensagem de erro é compreensível? | Nomeie intermediários |
 
+
 ---
+
 
 ## Exercício
 
@@ -155,7 +177,9 @@ Crie `src/form-types.ts`:
 4. `FieldNames<T>` com template literal (`"field:name"`…);
 5. `Handlers<T>` gerando `onNameChange`, `onAgeChange`…
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -171,13 +195,19 @@ type Handlers<T> = {
 };
 ```
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `keyof`, `T[K]` e `typeof` extraem informação de tipos e valores existentes.
 - Tipo mapeado percorre chaves; `-?` e `-readonly` removem modificadores.
 - `as` renomeia chaves, e mapear para `never` as remove.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Condicionais **distribuem** sobre uniões quando o tipo testado é um parâmetro nu.
 - `infer` captura partes do tipo dentro de um condicional.
 - Complexidade cobra manutenção: pare quando a legibilidade cair.

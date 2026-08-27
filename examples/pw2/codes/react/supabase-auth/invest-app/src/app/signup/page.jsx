@@ -1,7 +1,7 @@
 'use client';
 
-import { useUserAuth } from '@/contexts/UserAuthContext';
 import { useState } from 'react';
+import { useUserAuth } from '@/contexts/UserAuthContext';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -44,10 +44,7 @@ export default function Signup() {
       )}
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium leading-6 text-gray-900 mb-2"
-          >
+          <label htmlFor="email" className="block text-sm font-medium leading-6 text-gray-900 mb-2">
             Email
           </label>
           <input

@@ -1,7 +1,7 @@
-import { describe, it, before } from 'node:test';
 import assert from 'node:assert';
-import request from 'supertest';
+import { before, describe, it } from 'node:test';
 import crypto from 'crypto';
+import request from 'supertest';
 import app from './index.js';
 
 let categoryPos;
@@ -69,9 +69,7 @@ describe('Invest App', () => {
 
       it('should not create a new user without email', async () => {
         const { name, password } = validUser;
-        const response = await request(app)
-          .post('/api/users')
-          .send({ name, password });
+        const response = await request(app).post('/api/users').send({ name, password });
         assert.strictEqual(response.statusCode, 400);
       });
     });
@@ -100,9 +98,7 @@ describe('Invest App', () => {
       });
 
       it('should not login an invalid user', async () => {
-        const response = await request(app)
-          .post('/api/signin')
-          .send(invalidUser);
+        const response = await request(app).post('/api/signin').send(invalidUser);
         assert.strictEqual(response.statusCode, 401);
       });
     });
@@ -145,9 +141,7 @@ describe('Invest App', () => {
         categoryPos = response.body;
         newInvestment.categoryId = categoryPos.id;
 
-        response = await request(app)
-          .post('/api/investments')
-          .send(newInvestment);
+        response = await request(app).post('/api/investments').send(newInvestment);
         assert.strictEqual(response.statusCode, 401);
       });
 
@@ -209,9 +203,7 @@ describe('Invest App', () => {
 
     describe('GET /investments/:investmentId', () => {
       it('should not show a investment by id without login', async () => {
-        const response = await request(app).get(
-          `/api/investments/${createdInvestment.id}`
-        );
+        const response = await request(app).get(`/api/investments/${createdInvestment.id}`);
         assert.strictEqual(response.statusCode, 401);
       });
 
@@ -295,9 +287,7 @@ describe('Invest App', () => {
 
     describe('DELETE /investments/:investmentId', () => {
       it('should not remove a investment without login', async () => {
-        const response = await request(app).delete(
-          `/api/investments/${createdInvestment.id}`
-        );
+        const response = await request(app).delete(`/api/investments/${createdInvestment.id}`);
 
         assert.strictEqual(response.statusCode, 401);
       });

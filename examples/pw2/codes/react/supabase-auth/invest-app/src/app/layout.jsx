@@ -1,7 +1,7 @@
 import { Inter } from 'next/font/google';
+import NavBar from '@/components/NavBar';
 import { InvestmentProvider } from '@/contexts/InvestmentContext';
 import { UserAuthContextProvider } from '@/contexts/UserAuthContext';
-import NavBar from '@/components/NavBar';
 
 import './globals.css';
 

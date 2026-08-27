@@ -51,9 +51,7 @@ export function UserAuthContextProvider({ children }) {
   }, []);
 
   return (
-    <UserAuthContext.Provider
-      value={{ user, logIn, signUp, logOut, googleSignIn }}
-    >
+    <UserAuthContext.Provider value={{ user, logIn, signUp, logOut, googleSignIn }}>
       {loading ? <div>Loading...</div> : children}
     </UserAuthContext.Provider>
   );

@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Objetos e Interfaces"
 description: "Slides da aula de objetos: interface versus type, opcionais e readonly, index signatures, extensão, tipagem estrutural e excess property checks."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de objetos: interface versus type, opcionais e read
 
 `interface` versus `type`, modificadores, extensão, tipagem estrutural e literais.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Modelar a forma dos dados do domínio:
 - Explicar a **tipagem estrutural**.
 - Entender a verificação extra dos **literais de objeto**.
 
+
 ---
+
 
 ## interface x type
 
@@ -44,7 +50,9 @@ Modelar a forma dos dados do domínio:
 
 *Regra prática: `interface` para objetos e contratos; `type` para o resto.*
 
+
 ---
+
 
 ## Modificadores
 
@@ -59,7 +67,9 @@ interface Config {
 
 *`readonly` é **raso**: `readonly items: string[]` não impede `items.push()`.*
 
+
 ---
+
 
 ## Estendendo e Compondo
 
@@ -76,7 +86,9 @@ type ArticleType = Entity & { title: string };
 - `extends` acrescenta campos a uma interface.
 - Interseção `&` funde tipos — inclusive vários de uma vez.
 
+
 ---
+
 
 ## Tipagem Estrutural
 
@@ -92,7 +104,9 @@ distance(new Vector(6, 8));   // classes também são estruturais
 
 *Compatibilidade pela **forma**, não pelo nome. Não é preciso declarar `implements`.*
 
+
 ---
+
 
 ## Excess Property Checks
 
@@ -108,9 +122,10 @@ const b: Options = raw;
 - Literais "frescos" recebem verificação **extra**, para pegar erro de digitação.
 - Variáveis passam só pela compatibilidade estrutural.
 
+
 ---
 
-## Aceitando Extras de Propósito
+## Aceitando Extras de Propósito (Parte 1)
 
 ```ts
 // 1. Index signature
@@ -119,6 +134,13 @@ interface OpenOptions {
   [key: string]: unknown;
 }
 
+```
+
+---
+
+## Aceitando Extras de Propósito (Parte 2)
+
+```ts
 // 2. Variável intermediária
 const options = { debug: true, extra: 1 };
 const used: OpenOptions = options;
@@ -128,6 +150,7 @@ const forced = { debug: true } as OpenOptions;
 ```
 
 ---
+
 
 ## Reaproveitando Partes
 
@@ -140,7 +163,9 @@ type PublicCustomer = Omit<Customer, "id">;
 
 *Uma fonte da verdade, várias projeções — o tema de Utility Types.*
 
+
 ---
+
 
 ## Exercício
 
@@ -152,9 +177,10 @@ Crie `src/catalog.ts`:
 4. `summary(course)` usando optional chaining e `??`;
 5. Demonstre um erro de excess property check.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```ts
 interface Course extends Metadata {
@@ -164,6 +190,13 @@ interface Course extends Metadata {
   instructor?: Instructor;
 }
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```ts
 function summary(course: Course): string {
   const owner = course.instructor?.name ?? "a definir";
   return `${course.title.padEnd(22)}${String(course.hours).padStart(3)}h  ${owner}`;
@@ -175,11 +208,16 @@ function summary(course: Course): string {
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `interface` faz *declaration merging*; `type` faz uniões, tuplas e tipos derivados.
 - `?` inclui `undefined`; `readonly` impede reatribuição — mas é **raso**.
 - Index signature descreve chaves dinâmicas.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - A compatibilidade é **estrutural**: quem tem a forma é aceito.
 - Literais de objeto recebem verificação extra contra propriedades desconhecidas.
 - `keyof` e `T["campo"]` reaproveitam partes de um tipo sem duplicar.

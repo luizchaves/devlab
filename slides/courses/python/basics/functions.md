@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Funções"
 description: "Slides da aula de funções em Python: parâmetros, valores padrão, *args e **kwargs, retorno múltiplo, escopo LEGB, closures, lambda e decoradores."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de funções em Python: parâmetros, valores padrã
 
 Definição, parâmetros, retorno, escopo LEGB, closures, funções como valores e decoradores.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Empacotar comportamento em blocos reutilizáveis:
 - Explicar a regra de escopo **LEGB** e criar **closures**.
 - Usar funções como valores: `lambda`, ordem superior e **decoradores**.
 
+
 ---
+
 
 ## Anatomia de uma Função
 
@@ -46,7 +52,9 @@ print(apply_discount(price=200, percentage=0.1))
 - `def` cria o objeto função; o corpo só roda na chamada.
 - Sem `return`, a função devolve `None` implicitamente.
 
+
 ---
+
 
 ## Parâmetros e Argumentos
 
@@ -62,7 +70,9 @@ register("Caio", active=True, email="c@dev.dev")       # misto
 - **Parâmetro**: nome na definição. **Argumento**: valor na chamada.
 - Booleano na chamada pede nome: `active=True` documenta sem custo.
 
+
 ---
+
 
 ## Valores Padrão
 
@@ -77,7 +87,9 @@ connect("db.dev", timeout=5)
 - Parâmetros opcionais vêm **depois** dos obrigatórios.
 - O padrão é avaliado **uma única vez**, na definição.
 
+
 ---
+
 
 ## Armadilha do Padrão Mutável
 
@@ -96,7 +108,9 @@ def add_item(item, items=None):   # correção
     return items
 ```
 
+
 ---
+
 
 ## `*args` e `**kwargs`
 
@@ -115,7 +129,9 @@ Na chamada, os mesmos operadores **desempacotam**:
 create_user(*["Ana", "ana@dev.dev"], **{"role": "admin"})
 ```
 
+
 ---
+
 
 ## `/` e `*` na Assinatura
 
@@ -131,7 +147,9 @@ def transfer(source, target, /, amount, *, confirm=False):
 
 *Evita chamadas ilegíveis como `transfer(a, b, 100, True)`.*
 
+
 ---
+
 
 ## Retorno Múltiplo
 
@@ -146,13 +164,18 @@ print(statistics([1, 2, 3]))   # (1, 3, 2.0) — é uma tupla
 
 *Guard clause: trate os casos de saída no início e mantenha o corpo principal sem aninhamento.*
 
+
 ---
 
-## Escopo LEGB
+## Escopo LEGB (Parte 1)
 
 ```txt
 Local  ──▶  Enclosing  ──▶  Global  ──▶  Built-in  ──▶  NameError
 ```
+
+---
+
+## Escopo LEGB (Parte 2)
 
 ```python
 value = "global"
@@ -169,7 +192,7 @@ def outer():
 
 ---
 
-## `global` e `nonlocal`
+## `global` e `nonlocal` (Parte 1)
 
 ```python
 counter = 0
@@ -179,6 +202,13 @@ def increment():
     counter += 1
 
 
+```
+
+---
+
+## `global` e `nonlocal` (Parte 2)
+
+```python
 def make_accumulator():
     total = 0
     def add(value):
@@ -191,6 +221,7 @@ def make_accumulator():
 *`global` é sinal de alerta: prefira parâmetros e retorno.*
 
 ---
+
 
 ## Closures
 
@@ -208,7 +239,9 @@ print(double(10), triple(10))   # 20 30
 
 - A função interna continua enxergando `factor` depois que `multiplier` terminou.
 
+
 ---
+
 
 ## Funções São Valores
 
@@ -224,9 +257,10 @@ print(operations["soma"](6, 7))
 - `lambda`: função anônima de **uma expressão**, ideal como argumento curto.
 - A PEP 8 desaconselha `nome = lambda ...`: nesse caso, use `def`.
 
+
 ---
 
-## Decoradores
+## Decoradores (Parte 1)
 
 ```python
 import functools, time
@@ -240,6 +274,13 @@ def timed(function):
         return result
     return wrapper
 
+```
+
+---
+
+## Decoradores (Parte 2)
+
+```python
 
 @timed
 def total_squares(limit):
@@ -249,6 +290,7 @@ def total_squares(limit):
 *`@timed` equivale a `total_squares = timed(total_squares)`.*
 
 ---
+
 
 ## Exercício
 
@@ -260,9 +302,10 @@ Crie `text_tools.py` com funções utilitárias:
 4. `apply_to_all(texts, *functions)` — aplica todas as funções a cada texto;
 5. Documente com docstring e use anotações de tipo.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 def normalize(text: str) -> str:
@@ -274,6 +317,13 @@ def initials(full_name: str, separator: str = ".") -> str:
     """Devolve as iniciais de cada parte do nome."""
     return separator.join(part[0].upper() for part in full_name.split())
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
 
 def word_count(text: str, *, ignore: set[str] | None = None) -> int:
     """Conta palavras, descartando as listadas em ignore."""
@@ -283,11 +333,16 @@ def word_count(text: str, *, ignore: set[str] | None = None) -> int:
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `def` define; os parênteses chamam. Sem `return`, a função devolve `None`.
 - Valor padrão é avaliado **uma vez**: nunca use lista ou dicionário como padrão.
 - `*args` vira tupla, `**kwargs` vira dicionário — e os mesmos operadores desempacotam na chamada.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Retorno múltiplo é uma **tupla** desempacotada na atribuição.
 - Nomes são resolvidos por **LEGB**; `global` e `nonlocal` mudam o escopo de atribuição.
 - Funções são valores: podem ser passadas, devolvidas e decoradas com `@`.

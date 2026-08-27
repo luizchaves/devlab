@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Generics"
 description: "Slides da aula de generics: parâmetros de tipo, restrições com extends, valores padrão, inferência, keyof e classes genéricas."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de generics: parâmetros de tipo, restrições com 
 
 Parâmetros de tipo, restrições, inferência e estruturas de dados reutilizáveis.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Reutilizar código sem perder a informação de tipo:
 - Aproveitar a **inferência** a partir dos argumentos.
 - Reconhecer quando um generic **não** se justifica.
 
+
 ---
+
 
 ## O Problema
 
@@ -46,7 +52,9 @@ function first<T>(items: T[]): T | undefined {
 }
 ```
 
+
 ---
+
 
 ## Inferência
 
@@ -60,7 +68,9 @@ const pairResult = pair("ana", 32);   // [string, number]
 - Quase nunca é preciso passar o tipo explicitamente.
 - Só quando não há argumento de onde inferir: `first<string>([])`.
 
+
 ---
+
 
 ## Restrições
 
@@ -74,7 +84,9 @@ longest("banana", "kiwi");    // ok
 // longest(10, 20);           // erro: number não tem length
 ```
 
+
 ---
+
 
 ## `keyof` em Generics
 
@@ -90,7 +102,9 @@ const userAge = getProperty(user, "age");     // number
 
 *O retorno `T[K]` devolve exatamente o tipo daquela propriedade.*
 
+
 ---
+
 
 ## Restrições Comuns
 
@@ -102,7 +116,9 @@ const userAge = getProperty(user, "age");     // number
 | `T extends unknown[]` | Um array |
 | `T extends (...args: never[]) => unknown` | Uma função |
 
+
 ---
+
 
 ## Valores Padrão
 
@@ -116,7 +132,9 @@ const generic: ApiResponse = { status: 200, data: {} };
 const typed: ApiResponse<string[]> = { status: 200, data: ["a"] };
 ```
 
+
 ---
+
 
 ## Interfaces e Classes
 
@@ -133,7 +151,9 @@ class Stack<T> {
 }
 ```
 
+
 ---
+
 
 ## Quando Não Usar
 
@@ -147,7 +167,9 @@ function logValue(value: unknown): void { console.log(value); }
 
 *Generic existe para **conectar** posições: entrada com saída, chave com valor.*
 
+
 ---
+
 
 ## Convenções de Nome
 
@@ -159,7 +181,9 @@ function logValue(value: unknown): void { console.log(value); }
 | `E` | Erro ou elemento |
 | `TItem`, `TResult` | Nomes descritivos em API pública |
 
+
 ---
+
 
 ## Exercício
 
@@ -171,9 +195,10 @@ Crie `src/cache.ts`:
 4. `getOrSet(key, factory, ttlMs?)`;
 5. Comprove que dois caches de tipos diferentes não se misturam.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```ts
 export class Cache<K extends string | number, V> {
@@ -183,6 +208,13 @@ export class Cache<K extends string | number, V> {
     this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
   }
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```ts
   get(key: K): V | undefined {
     const entry = this.store.get(key);
     if (!entry) return undefined;
@@ -194,11 +226,16 @@ export class Cache<K extends string | number, V> {
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Generics preservam o tipo, ao contrário de `any`, e evitam duplicação.
 - A inferência resolve a maioria das chamadas — anote só quando faltar argumento.
 - `extends` estabelece o mínimo exigido de `T`.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `K extends keyof T` com retorno `T[K]` tipa acessos genéricos com precisão.
 - Parâmetros de tipo aceitam valor padrão, como parâmetros de função.
 - `T` usado uma única vez é sinal de generic desnecessário.

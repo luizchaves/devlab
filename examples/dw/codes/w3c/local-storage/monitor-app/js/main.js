@@ -3,9 +3,9 @@ import 'iconify-icon';
 
 import HostForm from './components/HostForm';
 import Modal from './components/Modal';
+import { hosts } from './data/seed';
 import Hosts from './lib/hosts';
 import Storage from './services/storage';
-import { hosts } from './data/seed';
 
 import 'bootstrap/dist/css/bootstrap.css';
 

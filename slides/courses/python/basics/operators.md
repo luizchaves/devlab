@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Expressões e Operadores"
 description: "Slides da aula de expressões e operadores em Python: aritméticos, comparação, lógicos, identidade, associação, bit a bit e precedência."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de expressões e operadores em Python: aritméticos
 
 Aritmética, comparação encadeada, operadores lógicos, identidade, associação, bits e precedência.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Combinar valores com previsibilidade:
 - Distinguir `is` (identidade) de `in` (associação).
 - Prever resultados pela tabela de **precedência**.
 
+
 ---
+
 
 ## Operadores Aritméticos
 
@@ -43,7 +49,9 @@ Combinar valores com previsibilidade:
 
 *`/` sempre devolve `float`: `6 / 2` é `3.0`, não `3`.*
 
+
 ---
+
 
 ## Divisão e Resto
 
@@ -58,7 +66,9 @@ minutes, secs = divmod(rest, 60)
 print(f"{hours:02d}:{minutes:02d}:{secs:02d}")   # 01:02:05
 ```
 
+
 ---
+
 
 ## `+` e `*` em Sequências
 
@@ -72,7 +82,9 @@ print("-" * 30)         # separador visual
 print("Total: " + str(10))   # tipagem forte exige conversão
 ```
 
+
 ---
+
 
 ## Atribuição Aumentada
 
@@ -85,7 +97,9 @@ print("Total: " + str(10))   # tipagem forte exige conversão
 
 *Não existe `++` nem `--` em Python: use `x += 1`.*
 
+
 ---
+
 
 ## Comparação
 
@@ -98,7 +112,9 @@ print([1, 2] < [1, 3])  # True — elemento a elemento
 - `==` `!=` `<` `>` `<=` `>=` produzem sempre `True` ou `False`.
 - Funcionam com números, strings, listas e tuplas.
 
+
 ---
+
 
 ## Comparação Encadeada
 
@@ -112,7 +128,9 @@ print(age >= 18 and age < 65)  # equivalente, mais verboso
 - Sintaxe rara entre linguagens, herdada da notação matemática.
 - Também aplica **curto-circuito**: se a primeira comparação falha, a segunda não é avaliada.
 
+
 ---
+
 
 ## Operadores Lógicos
 
@@ -128,7 +146,9 @@ print(0 and "texto")      # 0
 print("" or "padrão")     # 'padrão'
 ```
 
+
 ---
+
 
 ## Curto-circuito
 
@@ -144,7 +164,9 @@ name = user.name if user is not None else "visitante"
 
 *Cuidado: `quantidade = informado or 10` troca `0` por `10`, porque `0` é falsy.*
 
+
 ---
+
 
 ## Identidade e Associação
 
@@ -159,7 +181,9 @@ value = None
 print(value is None)             # identidade
 ```
 
+
 ---
+
 
 ## Operadores Bit a Bit
 
@@ -176,7 +200,9 @@ print({1, 2} | {2, 3})       # {1, 2, 3} — também opera conjuntos
 print({"a": 1} | {"b": 2})   # união de dicionários (3.9+)
 ```
 
+
 ---
+
 
 ## Precedência
 
@@ -190,7 +216,9 @@ print({"a": 1} | {"b": 2})   # união de dicionários (3.9+)
 | 6 | comparação, `in`, `is` |
 | 7 | `not` → `and` → `or` |
 
+
 ---
+
 
 ## Casos Que Confundem
 
@@ -205,7 +233,9 @@ print(True or False and False)   # True — and antes de or
 
 *Na dúvida, use parênteses: custam dois caracteres e eliminam ambiguidade.*
 
+
 ---
+
 
 ## Condicional e Walrus
 
@@ -218,7 +248,9 @@ if (words := text.split()) and len(words) > 1:
     print(f"{len(words)} palavras")
 ```
 
+
 ---
+
 
 ## Exercício
 
@@ -230,9 +262,10 @@ Crie `calculator.py` aplicando todos os grupos de operadores:
 4. Verifique com comparação encadeada se o segundo está entre 1 e 100;
 5. Evite divisão por zero usando curto-circuito.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 first = int(input("Primeiro: "))
@@ -240,6 +273,13 @@ second = int(input("Segundo: "))
 
 print(first + second, first - second, first * second)
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
 if second != 0:
     print(first / second, first // second, first % second)
     print(divmod(first, second))
@@ -252,11 +292,16 @@ print(f"Entre 1 e 100? {1 <= second <= 100}")
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `/` devolve `float`; `//` é divisão de **piso** e `%` acompanha o sinal do divisor.
 - `+` e `*` também concatenam e repetem sequências — mas nunca misturam tipos.
 - Comparações podem ser **encadeadas** e avaliam cada operando uma única vez.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `and` e `or` devolvem **operandos** e aplicam **curto-circuito**.
 - `is` compara identidade; `in` testa pertencimento (chaves, em dicionários).
 - `**` associa à direita e tem precedência sobre o menos unário: `-2 ** 2` é `-4`.

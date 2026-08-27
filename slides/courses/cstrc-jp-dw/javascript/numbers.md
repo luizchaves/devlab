@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "JavaScript: Number e Math"
 description: "Slides completos da aula de Number e Math em JavaScript (ponto flutuante IEEE 754, métodos de Number, funções de Math e formatação com Intl.NumberFormat)."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,20 +21,33 @@ description: "Slides completos da aula de Number e Math em JavaScript (ponto flu
 
 Representação numérica, limites de precisão IEEE 754, métodos do objeto `Number`, constantes e funções do objeto estático `Math` e formatação internacional com `Intl.NumberFormat`.
 
+
+
 ---
 
-## Objetivo
+
+## Objetivo (Parte 1)
 
 Compreender a manipulação e formatação de números em JavaScript:
 
 - Entender a representação de números em **ponto flutuante IEEE 754 de 64 bits**.
 - Reconhecer os limites de segurança (`MAX_SAFE_INTEGER`) e a imprecisão decimal (`0.1 + 0.2`).
 - Identificar valores numéricos especiais: `NaN`, `Infinity` e `-Infinity`.
+
+
+---
+
+
+## Objetivo (Parte 2)
+
 - Utilizar conversões explícitas com `Number()`, `parseInt()` e `parseFloat()`.
 - Aplicar funções do objeto estático `Math` (arredondamentos, raízes, potências e aleatoriedade).
 - Formatar moedas, porcentagens e grandes números com `Intl.NumberFormat`.
 
+
 ---
+
+
 
 ## Representação Numérica (IEEE 754)
 
@@ -49,7 +66,11 @@ console.log(binary === integer); // true
 
 - Não existe separação entre o tipo `int` e `float`; todos são `number`.
 
+
+
 ---
+
+
 
 ## Imprecisão de Ponto Flutuante
 
@@ -66,7 +87,11 @@ console.log(diff < Number.EPSILON); // true
 
 - Para comparações seguras de flutuantes, utilize `Number.EPSILON`.
 
+
+
 ---
+
+
 
 ## Valores Especiais (`NaN`, `Infinity`)
 
@@ -84,7 +109,11 @@ console.log(NaN === NaN); // false
 console.log(Number.isNaN(NaN)); // true
 ```
 
+
+
 ---
+
+
 
 ## Conversão Numérica
 
@@ -102,9 +131,11 @@ console.log(parseFloat("42.5px")); // 42.5
 console.log(parseInt("1010", 2)); // 10
 ```
 
+
+
 ---
 
-## O Objeto Estático `Math`
+## O Objeto Estático `Math` (Parte 1)
 
 Funções de arredondamento e operações essenciais:
 
@@ -115,6 +146,13 @@ console.log(Math.ceil(3.1));  // 4 (para cima)
 console.log(Math.round(3.5)); // 4 (mais próximo)
 console.log(Math.trunc(3.9)); // 3 (descarta decimal)
 
+```
+
+---
+
+## O Objeto Estático `Math` (Parte 2)
+
+```js
 // Mínimo, Máximo e Aleatório
 console.log(Math.min(10, 5, 20)); // 5
 console.log(Math.max(10, 5, 20)); // 20
@@ -123,7 +161,8 @@ console.log(Math.random());       // Valor entre [0, 1)
 
 ---
 
-## Formatação Internacional (`Intl.NumberFormat`)
+
+## Formatação Internacional (`Intl.NumberFormat`) (Parte 1)
 
 Formatação de moedas e porcentagens por localidade:
 
@@ -137,6 +176,15 @@ const formatterBRL = new Intl.NumberFormat("pt-BR", {
 });
 console.log(formatterBRL.format(price)); // "R$ 1.250,50"
 
+```
+
+
+---
+
+
+## Formatação Internacional (`Intl.NumberFormat`) (Parte 2)
+
+```js
 // Porcentagem (%)
 const percentFormatter = new Intl.NumberFormat("pt-BR", {
   style: "percent",

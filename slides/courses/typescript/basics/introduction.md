@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Introdução"
 description: "Slides da aula de introdução ao TypeScript: superset, compilador, apagamento de tipos, instalação, tsconfig e ecossistema."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de introdução ao TypeScript: superset, compilador
 
 Superset do JavaScript, papel do compilador, apagamento de tipos, primeiro projeto e ecossistema.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Estabelecer o modelo mental antes da sintaxe:
 - Instalar o TypeScript e configurar o `tsconfig.json` mínimo.
 - Conhecer o ecossistema de tipos (`@types`, DefinitelyTyped).
 
+
 ---
+
 
 ## O Que É TypeScript
 
@@ -41,9 +47,10 @@ Estabelecer o modelo mental antes da sintaxe:
 
 Criado pela Microsoft em 2012. Quem sabe JavaScript já sabe 90% de TypeScript.
 
+
 ---
 
-## O Mesmo Código, Com e Sem Tipos
+## O Mesmo Código, Com e Sem Tipos (Parte 1)
 
 ```ts
 // JavaScript: erro só aparece ao executar
@@ -54,6 +61,13 @@ function greet(user) {
 // TypeScript: erro aparece no editor
 interface User { name: string; age: number }
 
+```
+
+---
+
+## O Mesmo Código, Com e Sem Tipos (Parte 2)
+
+```ts
 function greetTyped(user: User): string {
   return `Olá, ${user.name}`;
 }
@@ -63,6 +77,7 @@ function greetTyped(user: User): string {
 ```
 
 ---
+
 
 ## Apagamento de Tipos
 
@@ -75,7 +90,9 @@ app.ts ──▶ tsc ──┬──▶ verificação (erros no editor e na CI)
 - Custo zero em tempo de execução.
 - E, pela mesma razão, nenhuma validação de dados externos.
 
+
 ---
+
 
 ## O Que Ele Detecta
 
@@ -88,7 +105,9 @@ app.ts ──▶ tsc ──┬──▶ verificação (erros no editor e na CI)
 
 *O compilador acredita no que você afirma: `as Tipo` não verifica nada.*
 
+
 ---
+
 
 ## Instalando
 
@@ -101,9 +120,10 @@ pnpm exec tsc --init
 - Sempre **por projeto**, nunca global.
 - Assim cada projeto fixa a própria versão, e editor, terminal e CI concordam.
 
+
 ---
 
-## tsconfig.json Mínimo
+## tsconfig.json Mínimo (Parte 1)
 
 ```json
 {
@@ -112,6 +132,13 @@ pnpm exec tsc --init
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "rootDir": "src",
+```
+
+---
+
+## tsconfig.json Mínimo (Parte 2)
+
+```json
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
@@ -123,6 +150,7 @@ pnpm exec tsc --init
 
 ---
 
+
 ## `strict` Não É Opcional
 
 - Sem ele, o compilador aceita `null` em qualquer lugar.
@@ -130,7 +158,9 @@ pnpm exec tsc --init
 - Em projeto novo: ligue desde o primeiro dia.
 - Em migração: ligue por etapas.
 
+
 ---
+
 
 ## Ecossistema de Tipos
 
@@ -145,7 +175,9 @@ pnpm add -D @types/express @types/node
 | Existe `@types/nome` | Instale como dev dependency |
 | Não existe tipo algum | Declare em um `.d.ts` |
 
+
 ---
+
 
 ## O Que Sobrevive à Compilação
 
@@ -159,7 +191,9 @@ class Marker {}                 // vira classe JS
 - `interface` e `type` só existem para o compilador.
 - `enum` e `class` geram código real.
 
+
 ---
+
 
 ## Executando
 
@@ -170,7 +204,9 @@ pnpm exec tsc --watch    # verifica continuamente
 node dist/main.js
 ```
 
+
 ---
+
 
 ## Exercício
 
@@ -182,9 +218,10 @@ Monte o projeto `agenda-ts/`:
 4. Escreva `format(contact: Contact): string` alinhando as colunas;
 5. Rode `tsc --noEmit`, compile e execute.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```ts
 interface Contact {
@@ -193,6 +230,13 @@ interface Contact {
   phone?: string;
 }
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```ts
 function format(contact: Contact): string {
   const phone = contact.phone ?? "-";
   return `${contact.name.padEnd(14)}${contact.email.padEnd(22)}${phone}`;
@@ -203,11 +247,16 @@ contacts.forEach((contact) => console.log(format(contact)));
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - TypeScript é **superset tipado** do JavaScript, compilado para JavaScript comum.
 - Os tipos são **apagados** na emissão: custo zero em runtime, e nenhuma validação de entrada.
 - Ele detecta erros de contrato, não erros de lógica nem falhas de execução.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Instale **por projeto** e ligue `strict` desde o início.
 - `interface` e `type` desaparecem; `enum` e `class` geram código.
 - `tsc --noEmit` é o comando de verificação usado na CI.

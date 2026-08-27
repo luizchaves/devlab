@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "A Importância da Web"
 description: "Slides completos da aula de introdução à história, arquitetura e tripé da Web."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,20 +19,27 @@ description: "Slides completos da aula de introdução à história, arquitetura
 
 Origem, tripé fundamental (URL, HTTP, HTML), modelo cliente/servidor, arquitetura *stateless*, cache e padrões abertos.
 
+
 ---
 
-## Objetivo
+## Objetivo (Parte 1)
 
 Compreender a arquitetura e os fundamentos da Web:
 
 - Entender a origem da Web no CERN (Tim Berners-Lee, 1989/1990).
 - Diferenciar a **Internet** (infraestrutura de rede) da **Web** (serviço de hipertexto).
 - Dominar o **Tripé da Web**: URL (endereçamento), HTTP (comunicação) e HTML (estruturação).
+
+---
+
+## Objetivo (Parte 2)
+
 - Reconhecer os papéis de **Clientes** e **Servidores HTTP**.
 - Explicar como a natureza *stateless* do HTTP, caches e CDNs permitem a escala da Web.
 - Compreender a relevância dos **Padrões Abertos** (W3C).
 
 ---
+
 
 ## Por Que a Web Importa?
 
@@ -38,7 +47,9 @@ Compreender a arquitetura e os fundamentos da Web:
 - **Conectividade por Links**: Permite interligar documentos mantidos por pessoas e organizações diferentes em todo o mundo.
 - **Padrões Abertos**: Garantem a interoperabilidade entre navegadores, servidores e sistemas operacionais.
 
+
 ---
+
 
 ## Web vs. Internet
 
@@ -49,7 +60,9 @@ Compreender a arquitetura e os fundamentos da Web:
 
 *Outros serviços que usam a Internet (mas não são Web): E-mail (SMTP/IMAP), chamadas de voz/vídeo, jogos online, conexões SSH, sistemas de mensageria.*
 
+
 ---
+
 
 ## Origem no CERN (1989-1990)
 
@@ -57,9 +70,10 @@ Compreender a arquitetura e os fundamentos da Web:
 - **1990**: Projeto **WorldWideWeb** ganha forma com colaboração de Robert Cailliau.
 - **Primeiro Servidor e Site**: Hospedado em [`info.cern.ch`](https://info.cern.ch/), explicando como navegar e criar servidores Web.
 
+
 ---
 
-## Origem no CERN: Do Problema à Solução
+## Origem no CERN: Do Problema à Solução (Parte 1)
 
 ```txt
 ┌─────────────────────────────────────────────────────────────┐
@@ -67,6 +81,13 @@ Compreender a arquitetura e os fundamentos da Web:
 │   Pesquisadores, documentos e sistemas fragmentados sem    │
 │            um padrão simples para interconexão.             │
 └──────────────────────────────┬──────────────────────────────┘
+```
+
+---
+
+## Origem no CERN: Do Problema à Solução (Parte 2)
+
+```txt
                                │ Solução
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -76,6 +97,7 @@ Compreender a arquitetura e os fundamentos da Web:
 ```
 
 ---
+
 
 ## O Tripé da Web
 
@@ -87,7 +109,9 @@ Para carregar uma página na Web, três elementos trabalham em conjunto:
 | **HTTP** (*Hypertext Transfer Protocol*) | Define o protocolo de **comunicação** cliente/servidor | Requests (`GET`) e Responses (`200 OK`) |
 | **HTML** (*Hypertext Markup Language*) | Define a **estrutura** e conteúdo do documento | `<h1>Título</h1>`, `<a href="...">` |
 
+
 ---
+
 
 ## Modelo Cliente / Servidor
 
@@ -103,7 +127,9 @@ A Web opera no modelo de requisição e resposta (*request-response*):
 └──────────────┘         2. HTTP Response (200 OK + HTML)         └──────────────┘
 ```
 
+
 ---
+
 
 ## HTTP: Um Protocolo Stateless
 
@@ -115,7 +141,9 @@ A Web opera no modelo de requisição e resposta (*request-response*):
 - **Escalabilidade**: Vários servidores independentes podem responder pelo mesmo site atrás de um balanceador de carga (*load balancer*).
 - **Facilidade de Cache**: CDNs e proxies podem armazenar e reutilizar respostas para milhares de usuários simultâneos.
 
+
 ---
+
 
 ## O Poder do Hipertexto e dos Links
 
@@ -123,7 +151,9 @@ A Web opera no modelo de requisição e resposta (*request-response*):
 - Um link pode apontar para recursos no **mesmo servidor** ou em **servidores de domínios externos** (`ifpb.edu.br` ➔ `w3.org`).
 - O navegador resolve o novo endereço IP via DNS, realiza a requisição HTTP para o novo servidor e apresenta a nova página transparente para o usuário.
 
+
 ---
+
 
 ## Padrões Abertos e o W3C
 
@@ -133,7 +163,9 @@ A Web opera no modelo de requisição e resposta (*request-response*):
   - **Acessibilidade**: Permite que leitores de tela e tecnologias assistivas entendam o conteúdo.
   - **Longevidade**: Documentos criados há décadas continuam acessíveis hoje.
 
+
 ---
+
 
 ## Resumo da Aula
 

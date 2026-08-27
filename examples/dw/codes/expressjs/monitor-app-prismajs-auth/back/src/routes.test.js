@@ -54,9 +54,7 @@ describe('Moniotr App', () => {
       it('should not create a new user without email', async () => {
         const { name, password } = validUser;
 
-        const response = await request(app)
-          .post('/users')
-          .send({ name, password });
+        const response = await request(app).post('/users').send({ name, password });
 
         expect(response.statusCode).toBe(400);
       });
@@ -175,9 +173,7 @@ describe('Moniotr App', () => {
           .get('/hosts')
           .set('Authorization', 'bearer ' + token);
 
-        const hasValidHost = response.body.some(
-          (host) => host.address === createdHost.address
-        );
+        const hasValidHost = response.body.some((host) => host.address === createdHost.address);
 
         expect(hasValidHost).toBeTruthy();
       });
@@ -227,9 +223,7 @@ describe('Moniotr App', () => {
 
     describe('PUT /hosts/:hostId', () => {
       it('should not update a host without login', async () => {
-        const response = await request(app)
-          .put(`/hosts/${createdHost.id}`)
-          .send(updatedHost);
+        const response = await request(app).put(`/hosts/${createdHost.id}`).send(updatedHost);
 
         expect(response.statusCode).toBe(401);
       });
@@ -252,9 +246,7 @@ describe('Moniotr App', () => {
           .get('/hosts')
           .set('Authorization', 'bearer ' + token);
 
-        const hasValidHost = response.body.some(
-          (host) => host.address === updatedHost.address
-        );
+        const hasValidHost = response.body.some((host) => host.address === updatedHost.address);
 
         expect(hasValidHost).toBeTruthy();
       });
@@ -375,9 +367,7 @@ describe('Moniotr App', () => {
 
     describe('GET /hosts/:hostId/pings', () => {
       it('should not show a ping by hostId without login', async () => {
-        const response = await request(app).get(
-          `/hosts/${createdHost.id}/pings`
-        );
+        const response = await request(app).get(`/hosts/${createdHost.id}/pings`);
 
         expect(response.statusCode).toBe(401);
       });
@@ -415,9 +405,7 @@ describe('Moniotr App', () => {
 
     describe('GET /tags/:tagName/hosts', () => {
       it('should not show hosts by tagName without login', async () => {
-        const response = await request(app).get(
-          `/tags/${createdHost.id}/hosts`
-        );
+        const response = await request(app).get(`/tags/${createdHost.id}/hosts`);
 
         expect(response.statusCode).toBe(401);
       });

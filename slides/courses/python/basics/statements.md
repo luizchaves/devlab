@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "Python: Decisão e Repetição"
 description: "Slides da aula de estruturas de controle em Python: indentação, if/elif/else, match/case, for, while, break, continue e else de laço."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de estruturas de controle em Python: indentação, 
 
 Indentação como sintaxe, `if`/`elif`/`else`, `match`/`case`, `for`, `while` e controle de fluxo.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Escolher caminhos e repetir trabalho com clareza:
 - Percorrer iteráveis com `for`, `range`, `enumerate` e `zip`.
 - Repetir por condição com `while` e controlar o fluxo com `break`, `continue` e `else`.
 
+
+
 ---
+
+
 
 ## Blocos e Indentação
 
@@ -46,15 +58,24 @@ print("Fim da checagem")     # fora do bloco
 - Bloco vazio precisa de `pass`.
 - Recuo errado não é estilo: é `IndentationError` ou mudança de comportamento.
 
+
+
 ---
 
-## `if`, `elif`, `else`
+## `if`, `elif`, `else` (Parte 1)
 
 ```python
 if score >= 90:
     grade = "A"
 elif score >= 80:
     grade = "B"
+```
+
+---
+
+## `if`, `elif`, `else` (Parte 2)
+
+```python
 elif score >= 70:
     grade = "C"
 else:
@@ -65,6 +86,8 @@ else:
 - A ordem importa: comece pela condição mais restritiva.
 
 ---
+
+
 
 ## Testes Idiomáticos
 
@@ -81,9 +104,12 @@ if 18 <= age < 65 and has_ticket:
 
 *Cláusula de guarda: trate os casos de saída no início e retorne cedo, em vez de aninhar `if`.*
 
+
+
 ---
 
-## `match` e `case`
+
+## `match` e `case` (Parte 1)
 
 ```python
 match command.split():
@@ -91,6 +117,15 @@ match command.split():
         return "encerrando"
     case ["abrir", filename]:
         return f"abrindo {filename}"
+```
+
+
+---
+
+
+## `match` e `case` (Parte 2)
+
+```python
     case ["mover", x, y]:
         return f"movendo para ({x}, {y})"
     case ["ajuda", *topics] if topics:
@@ -99,7 +134,10 @@ match command.split():
         return "comando desconhecido"
 ```
 
+
 ---
+
+
 
 ## Padrões Disponíveis
 
@@ -114,7 +152,11 @@ match command.split():
 | `case x if x > 10:` | Padrão com guarda |
 | `case _:` | Qualquer valor |
 
+
+
 ---
+
+
 
 ## Armadilha do `match`
 
@@ -129,7 +171,11 @@ match value:
 - `case NOME:` **captura**, não compara com a variável existente.
 - Para comparar, use nome qualificado (`case Status.OK:`) ou guarda (`case v if v == status:`).
 
+
+
 ---
+
+
 
 ## Laço `for`
 
@@ -146,7 +192,11 @@ for key, value in {"id": 1, "name": "Ana"}.items():
 
 *Não existe `for (i = 0; i < n; i++)`: o `for` percorre iteráveis.*
 
+
+
 ---
+
+
 
 ## `range`
 
@@ -160,7 +210,11 @@ print(list(range(5, 0, -1)))   # [5, 4, 3, 2, 1]
 - O limite superior é **exclusivo**.
 - `range` gera os valores sob demanda, sem criar a lista inteira.
 
+
+
 ---
+
+
 
 ## `enumerate` e `zip`
 
@@ -174,7 +228,11 @@ for language, year in zip(languages, years):
 
 *Evite `for i in range(len(items))`: use `enumerate` quando precisar do índice.*
 
+
+
 ---
+
+
 
 ## Laço `while`
 
@@ -191,7 +249,11 @@ print(total)   # 15
 - Indicado quando o número de repetições **não** é conhecido antes.
 - Faltou atualizar a variável de controle? Laço infinito (<kbd>Ctrl</kbd>+<kbd>C</kbd> interrompe).
 
+
+
 ---
+
+
 
 ## `break`, `continue`, `pass`
 
@@ -210,7 +272,11 @@ for number in range(1, 10):
 | `continue` | Vai para a próxima iteração |
 | `pass` | Não faz nada (bloco vazio) |
 
+
+
 ---
+
+
 
 ## `for ... else`
 
@@ -226,7 +292,11 @@ else:
 - O `else` executa quando o laço termina **sem** `break`.
 - Substitui o padrão de criar uma variável `found = False`.
 
+
+
 ---
+
+
 
 ## Laços Aninhados
 
@@ -240,7 +310,11 @@ for i in range(1, 4):
 - `break` interrompe apenas o laço **mais interno**.
 - Para sair dos dois, extraia para uma função e use `return`.
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -252,9 +326,12 @@ Crie `menu.py`, um menu de terminal que roda até o usuário sair:
 4. Na opção "somar", leia números até a entrada vazia;
 5. Na opção "listar", percorra uma lista com `enumerate`.
 
+
+
 ---
 
-## Solução do Exercício
+
+## Solução do Exercício (Parte 1)
 
 ```python
 while True:
@@ -265,6 +342,15 @@ while True:
         case "1":
             sum_numbers()
         case "2":
+```
+
+
+---
+
+
+## Solução do Exercício (Parte 2)
+
+```python
             list_items()
         case "3":
             countdown()
@@ -275,13 +361,22 @@ while True:
             print("Opção inválida.")
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - A **indentação** delimita blocos: 4 espaços, sem misturar tabs.
 - Em `if`/`elif`/`else`, apenas o primeiro bloco verdadeiro executa.
 - `match`/`case` (3.10+) compara **e** desestrutura sequências, dicionários e objetos.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - `case NOME:` captura o valor — não compara com uma variável existente.
 - `for` percorre iteráveis; `range` tem fim exclusivo e `enumerate` fornece o índice.
 - `for ... else` executa o `else` quando **nenhum** `break` aconteceu.

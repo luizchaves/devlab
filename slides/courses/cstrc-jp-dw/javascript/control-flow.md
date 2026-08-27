@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "JavaScript: Decisão e Repetição"
 description: "Slides completos da aula de controle de fluxo, decisão e repetição em JavaScript."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides completos da aula de controle de fluxo, decisão e repetiç
 
 Estruturas de decisão (`if`, `else`, `switch`), repetição (`while`, `do...while`, `for`), interrupções (`break`, `continue`), *labels* e laços aninhados.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Compreender o controle da ordem de execução em programas JavaScript:
 - Reconhecer armadilhas comuns: *truthy/falsy*, atribuição acidental (`=`), *fall-through* no `switch` e laços infinitos.
 - Construir laços aninhados e séries numéricas crescentes e decrescentes.
 
+
+
 ---
+
+
 
 ## Visão Geral: Estruturas de Decisão
 
@@ -39,7 +51,11 @@ Compreender o controle da ordem de execução em programas JavaScript:
 | **Decisão em cadeia** | `if`, `else if`, `else` | Testar faixas de valores ou prioridades |
 | **Múltiplas opções** | `switch`, `case`, `default` | Comparar um valor contra casos conhecidos |
 
+
+
 ---
+
+
 
 ## Visão Geral: Estruturas de Repetição
 
@@ -49,7 +65,11 @@ Compreender o controle da ordem de execução em programas JavaScript:
 | **Repetição por contador** | `for` | Percorrer sequências controladas por índice |
 | **Controle de iteração** | `break`, `continue`, `label` | Interromper laço ou pular a iteração atual |
 
+
+
 ---
+
+
 
 ## Estruturas de Decisão: `if`
 
@@ -63,7 +83,11 @@ if (positiveNumber > 0) {
 }
 ```
 
+
+
 ---
+
+
 
 ## Uso de Chaves `{...}` em `if`
 
@@ -76,7 +100,11 @@ if (number > 0)
 console.log("Fim da checagem"); // Sempre executa!
 ```
 
+
+
 ---
+
+
 
 ## Armadilha: Atribuição em Condições
 
@@ -91,7 +119,11 @@ if (value = 10) {
 }
 ```
 
+
+
 ---
+
+
 
 ## Comparação Estrita com `===`
 
@@ -108,9 +140,12 @@ if (value === 10) {
 }
 ```
 
+
+
 ---
 
-## Valores Truthy e Falsy
+
+## Valores Truthy e Falsy (Parte 1)
 
 Em JavaScript, condições testam se um valor é *truthy* ou *falsy*.
 
@@ -124,6 +159,15 @@ if (list) {
   console.log("Array vazio é TRUTHY!"); // Executa!
 }
 
+```
+
+
+---
+
+
+## Valores Truthy e Falsy (Parte 2)
+
+```js
 if (list.length) {
   console.log("Tem itens");
 } else {
@@ -131,13 +175,21 @@ if (list.length) {
 }
 ```
 
+
 ---
 
-## Decisão em Cadeia: `if`, `else if`, `else`
+
+## Decisão em Cadeia: `if`, `else if`, `else` (Parte 1)
 
 Permite testar múltiplas alternativas sequencialmente.
 
 - Organize as condições da **mais específica** para a **mais geral**:
+
+
+---
+
+
+## Decisão em Cadeia: `if`, `else if`, `else` (Parte 2)
 
 ```js
 const grade = 95;
@@ -153,9 +205,11 @@ if (grade >= 90) {
 
 Se a ordem fosse invertida (`grade >= 60` primeiro), a nota `95` cairia na condição geral e nunca atingiria o prêmio de distinção!
 
+
 ---
 
-## Múltiplas Opções: `switch`
+
+## Múltiplas Opções: `switch` (Parte 1)
 
 Avalia uma expressão e compara o resultado contra blocos `case`:
 
@@ -166,6 +220,15 @@ switch (option) {
   case 1:
     console.log("Opção 1 selecionada");
     break;
+```
+
+
+---
+
+
+## Múltiplas Opções: `switch` (Parte 2)
+
+```js
   case 2:
     console.log("Opção 2 selecionada"); // Executa
     break;
@@ -174,16 +237,22 @@ switch (option) {
 }
 ```
 
+
 ---
+
+
 
 ## Múltiplas Opções: O Papel do `break`
 
 - A palavra-chave `break` é **essencial** para interromper a execução e evitar que o código continue nos casos seguintes (*fall-through*).
 - O bloco `default` é opcional e executa caso nenhum `case` seja atendido.
 
+
+
 ---
 
-## `switch`: Agrupamento de Casos
+
+## `switch`: Agrupamento de Casos (Parte 1)
 
 O *fall-through* pode ser usado intencionalmente para agrupar múltiplos casos que compartilham o mesmo código:
 
@@ -195,6 +264,15 @@ switch (operator) {
   case "-":
     console.log("Operador aditivo");
     break;
+```
+
+
+---
+
+
+## `switch`: Agrupamento de Casos (Parte 2)
+
+```js
   case "*":
   case "/":
     console.log("Operador multiplicativo");
@@ -204,7 +282,10 @@ switch (operator) {
 }
 ```
 
+
 ---
+
+
 
 ## Repetição por Condição: `while`
 
@@ -221,7 +302,11 @@ while (count <= 5) {
 
 - **Atenção**: Sempre garanta que a condição de parada será atingida para evitar laços infinitos!
 
+
+
 ---
+
+
 
 ## Repetição Garantida: `do...while`
 
@@ -238,9 +323,12 @@ do {
 
 Útil em situações onde a primeira interação precisa acontecer antes de validar a regra (ex: leitura de dados ou menus interativos).
 
+
+
 ---
 
-## Repetição por Contador: `for`
+
+## Repetição por Contador: `for` (Parte 1)
 
 Concentra inicialização, condição de parada e incremento em uma única linha no cabeçalho:
 
@@ -249,6 +337,12 @@ for (let i = 1; i <= 5; i++) {
   console.log(i); // 1, 2, 3, 4, 5
 }
 ```
+
+
+---
+
+
+## Repetição por Contador: `for` (Parte 2)
 
 Acumulando somatórios com o laço `for`:
 
@@ -262,7 +356,10 @@ for (let i = 1; i <= 10; i++) {
 console.log(total); // 55
 ```
 
+
 ---
+
+
 
 ## Controle de Iteração: `break` e `continue`
 
@@ -280,9 +377,11 @@ for (let i = 1; i <= 5; i++) {
 
 *Se o terminal travar em um laço infinito, interrompa com <kbd>Ctrl</kbd> + <kbd>C</kbd>.*
 
+
+
 ---
 
-## Laços Aninhados
+## Laços Aninhados (Parte 1)
 
 Laços colocados dentro de outros laços são usados para percorrer matrizes, tabelas e gerar combinações:
 
@@ -295,6 +394,13 @@ for (let ten = 0; ten <= 2; ten++) {
   }
 }
 
+```
+
+---
+
+## Laços Aninhados (Parte 2)
+
+```js
 console.log(output.trim());
 // Output: "00 01 02 10 11 12 20 21 22"
 ```
@@ -302,6 +408,8 @@ console.log(output.trim());
 Para cada iteração do laço externo (`ten`), o laço interno (`unit`) executa completamente.
 
 ---
+
+
 
 ## Controle de Laços Externos: `labels`
 
@@ -320,9 +428,12 @@ for (let i = 1; i <= 3; i++) {
 
 *Nota: Use labels com moderação, pois podem dificultar a leitura do código.*
 
+
+
 ---
 
-## Exemplo Prático: Séries Numéricas Formatadas
+
+## Exemplo Prático: Séries Numéricas Formatadas (Parte 1)
 
 Gerando uma sequência formatada de `00` a `99` com quebra de linha por dezena:
 
@@ -334,6 +445,15 @@ for (let ten = 0; ten < 10; ten++) {
     numbers += `${ten}${unit}`;
     if (unit === 9 && ten !== 9) {
       numbers += ",\n";
+```
+
+
+---
+
+
+## Exemplo Prático: Séries Numéricas Formatadas (Parte 2)
+
+```js
     } else if (unit !== 9) {
       numbers += ", ";
     }
@@ -343,9 +463,10 @@ for (let ten = 0; ten < 10; ten++) {
 console.log(numbers);
 ```
 
+
 ---
 
-## Executando Código: `statement.js`
+## Executando Código: `statement.js` (Parte 1)
 
 Crie um arquivo `statement.js` com o exemplo de decisão:
 
@@ -353,6 +474,13 @@ Crie um arquivo `statement.js` com o exemplo de decisão:
 // statement.js
 const grade = 95;
 
+```
+
+---
+
+## Executando Código: `statement.js` (Parte 2)
+
+```js
 if (grade >= 90) {
   console.log("Approved with distinction");
 } else if (grade >= 60) {
@@ -364,6 +492,8 @@ if (grade >= 90) {
 
 ---
 
+
+
 ## Executando Código no Terminal
 
 Execute o arquivo usando o comando Node.js no terminal:
@@ -372,13 +502,22 @@ Execute o arquivo usando o comando Node.js no terminal:
 node statement.js
 ```
 
+
+
 ---
 
-## Exercício Prático: Status de Nota (`grade-status.js`)
+## Exercício Prático: Status de Nota (`grade-status.js`) (Parte 1)
 
 ```js
 const grade = 95;
 
+```
+
+---
+
+## Exercício Prático: Status de Nota (`grade-status.js`) (Parte 2)
+
+```js
 if (grade >= 90) {
   console.log("Approved with distinction");
 } else if (grade >= 60) {
@@ -393,7 +532,8 @@ if (grade >= 90) {
 
 ---
 
-## Desafio: Relatório de Operadores — Part 1 (`switch`)
+
+## Desafio: Relatório de Operadores — Part 1 (`switch`) (Parte 1)
 
 ```js
 const operator = "*";
@@ -403,6 +543,15 @@ switch (operator) {
   case "-":
     console.log("additive operator");
     break;
+```
+
+
+---
+
+
+## Desafio: Relatório de Operadores — Part 1 (`switch`) (Parte 2)
+
+```js
   case "*":
   case "/":
     console.log("multiplicative operator");
@@ -412,7 +561,10 @@ switch (operator) {
 }
 ```
 
+
 ---
+
+
 
 ## Desafio: Relatório de Operadores — Part 2 (`loop`)
 
@@ -424,13 +576,23 @@ for (let i = 1; i <= 10; i++) {
 }
 ```
 
+
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Use `if/else` para condições booleanas e `switch` para comparar um valor contra casos discretos.
 - Lembre-se de usar `===` em vez de `=` em condições.
 - Cuidado com *truthy* e *falsy*: Arrays vazios `[]` são *truthy*; use `.length` para checar se há elementos.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Use `while` quando a repetição depender de uma condição e `for` quando houver contador/limite conhecido.
 - Use `break` para encerrar laços e `continue` para pular para a próxima iteração.
 - Utilize laços aninhados para gerar matrizes e combinações numéricas.

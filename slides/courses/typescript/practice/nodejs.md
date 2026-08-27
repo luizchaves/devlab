@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "TypeScript no Node.js"
 description: "Slides da aula de TypeScript no back-end: estrutura em camadas, Express tipado, variáveis de ambiente, validação em runtime e erros tipados."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de TypeScript no back-end: estrutura em camadas, Ex
 
 Uma API tipada de ponta a ponta — e os limites onde o compilador não alcança.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Aplicar tudo em um projeto real:
 - Tipar **variáveis de ambiente**.
 - Modelar **erros** com união discriminada.
 
+
+
 ---
+
+
 
 ## Estrutura
 
@@ -46,9 +58,12 @@ src/
 
 *Dependências apontam para o domínio, nunca o contrário.*
 
+
+
 ---
 
-## Configuração
+
+## Configuração (Parte 1)
 
 ```json
 {
@@ -62,14 +77,21 @@ src/
 }
 ```
 
+
+---
+
+
+## Configuração (Parte 2)
+
 ```bash
 pnpm add express
 pnpm add -D typescript tsx tsup vitest @types/node @types/express
 ```
 
+
 ---
 
-## Variáveis de Ambiente
+## Variáveis de Ambiente (Parte 1)
 
 ```ts
 function required(name: string): string {
@@ -78,6 +100,13 @@ function required(name: string): string {
   return value;
 }
 
+```
+
+---
+
+## Variáveis de Ambiente (Parte 2)
+
+```ts
 export const env = {
   port: Number(process.env.PORT ?? 3000),
   databaseUrl: required("DATABASE_URL"),
@@ -88,7 +117,8 @@ export const env = {
 
 ---
 
-## Erros Tipados
+
+## Erros Tipados (Parte 1)
 
 ```ts
 export type DomainError =
@@ -96,6 +126,15 @@ export type DomainError =
   | { kind: "conflict"; field: string; value: string }
   | { kind: "validation"; issues: string[] };
 
+```
+
+
+---
+
+
+## Erros Tipados (Parte 2)
+
+```ts
 get status(): number {
   switch (this.detail.kind) {
     case "not_found": return 404;
@@ -105,7 +144,10 @@ get status(): number {
 }
 ```
 
+
 ---
+
+
 
 ## Validação em Runtime
 
@@ -124,7 +166,11 @@ export function parseCreateCourse(body: unknown): CreateCourseInput {
 
 *Anotar `request.body` é uma promessa que ninguém verifica.*
 
+
+
 ---
+
+
 
 ## Express Tipado
 
@@ -142,7 +188,11 @@ router.get("/:slug", async (request: Request<SlugParams>, response, next) => {
 
 *`Request<Params, ResBody, ReqBody, Query>` — nesta ordem.*
 
+
+
 ---
+
+
 
 ## Middleware de Erro
 
@@ -158,9 +208,12 @@ export const errorHandler: ErrorRequestHandler = (error, _req, response, _next) 
 
 *O Express identifica pelo número de parâmetros: **quatro**.*
 
+
+
 ---
 
-## Testes Tipados
+
+## Testes Tipados (Parte 1)
 
 ```ts
 const input: CreateCourseInput = {
@@ -170,6 +223,15 @@ const input: CreateCourseInput = {
   level: "intermediário",
 };
 
+```
+
+
+---
+
+
+## Testes Tipados (Parte 2)
+
+```ts
 it("recusa slug duplicado", async () => {
   await service.create(input);
   await expect(service.create(input)).rejects.toThrowError(AppError);
@@ -178,7 +240,10 @@ it("recusa slug duplicado", async () => {
 
 *Objeto de exemplo tipado deixa de compilar quando o domínio muda.*
 
+
 ---
+
+
 
 ## Exercício
 
@@ -190,9 +255,12 @@ Estenda a API com o recurso `Lesson`:
 4. `404` quando o curso não existir, reaproveitando `AppError`;
 5. Derive `CreateLessonInput` com utility types.
 
+
+
 ---
 
-## Solução do Exercício
+
+## Solução do Exercício (Parte 1)
 
 ```ts
 export type CreateLessonInput = Omit<Lesson, "id">;
@@ -203,6 +271,15 @@ export class LessonService {
     private readonly courses: CourseService,
   ) {}
 
+```
+
+
+---
+
+
+## Solução do Exercício (Parte 2)
+
+```ts
   async listByCourse(slug: string): Promise<Lesson[]> {
     await this.courses.getBySlug(slug);   // lança AppError se não existir
     return this.repository.listByCourse(slug);
@@ -210,13 +287,22 @@ export class LessonService {
 }
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Camadas mantêm o domínio livre do framework — e testável sem subir o Express.
 - Toda entrada externa chega como `unknown`: valide em **runtime**.
 - `process.env` é `string | undefined`: valide uma vez, na inicialização.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Genéricos de `Request` descrevem params, corpo e query.
 - Middleware de erro é identificado pela **aridade** de quatro parâmetros.
 - Erros como união discriminada dão mapeamento exaustivo para status HTTP.

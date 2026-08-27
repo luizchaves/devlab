@@ -1,5 +1,5 @@
-import API from './services/api.js';
 import { formatCurrency } from './lib/format.js';
+import API from './services/api.js';
 
 function InvestmentCard(investment) {
   return `<div class="col" id="investment-${investment.id}">
@@ -27,9 +27,7 @@ function InvestmentCard(investment) {
       </div>
       <div class="card-body">
         <span>Valor:</span>
-        <span class="investment-value">${formatCurrency(
-          investment.value / 100
-        )}</span>
+        <span class="investment-value">${formatCurrency(investment.value / 100)}</span>
       </div>
     </div>
   </div>`;
@@ -38,10 +36,7 @@ function InvestmentCard(investment) {
 function createInvestmentCard(investment) {
   const investmentContainer = document.querySelector(`#investment-grid`);
 
-  investmentContainer.insertAdjacentHTML(
-    'beforeend',
-    InvestmentCard(investment)
-  );
+  investmentContainer.insertAdjacentHTML('beforeend', InvestmentCard(investment));
 
   loadHandleRemoveInvestment(investment.id);
 
@@ -51,8 +46,9 @@ function createInvestmentCard(investment) {
 function updateInvestmentCard({ id, name, value }) {
   document.querySelector(`#investment-${id} .investment-name`).innerText = name;
 
-  document.querySelector(`#investment-${id} .investment-value`).innerText =
-    formatCurrency(value / 100);
+  document.querySelector(`#investment-${id} .investment-value`).innerText = formatCurrency(
+    value / 100
+  );
 }
 
 async function loadInvestmentCards() {

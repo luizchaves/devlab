@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "TypeScript: Migrando de JavaScript"
 description: "Slides da aula de migração: allowJs, checkJs, JSDoc, ordem de renomeação, strict progressivo e travas contra regressão."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de migração: allowJs, checkJs, JSDoc, ordem de re
 
 Estratégia incremental: preparar, verificar, renomear, endurecer e manter.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,29 +37,47 @@ Migrar sem parar o projeto:
 - Ligar **`strict`** por etapas.
 - Impedir a **regressão** com travas na CI.
 
+
+
 ---
 
-## Cinco Fases
+
+## Cinco Fases (Parte 1)
 
 ```txt
 1. Preparar   tsc + tsconfig permissivo
 2. Verificar  checkJs + JSDoc
 3. Renomear   .js -> .ts, das folhas ao topo
+
+
+---
+
+
+## Cinco Fases (Parte 2)
+
 4. Endurecer  strict por etapas
 5. Manter     CI, lint, sem novos .js
 ```
 
 *Cada fase entrega valor sozinha: dá para parar em qualquer uma.*
 
+
 ---
 
-## Fase 1: Preparar
+## Fase 1: Preparar (Parte 1)
 
 ```json
 {
   "compilerOptions": {
     "allowJs": true,
     "checkJs": false,
+```
+
+---
+
+## Fase 1: Preparar (Parte 2)
+
+```json
     "strict": false,
     "noEmit": true
   },
@@ -64,6 +90,8 @@ Migrar sem parar o projeto:
 
 ---
 
+
+
 ## Fase 2: Verificar o JS
 
 | Marcador | Efeito |
@@ -75,9 +103,12 @@ Migrar sem parar o projeto:
 
 *`@ts-expect-error` avisa quando o erro some; `@ts-ignore` não.*
 
+
+
 ---
 
-## Tipando com JSDoc
+
+## Tipando com JSDoc (Parte 1)
 
 ```js
 /**
@@ -86,6 +117,15 @@ Migrar sem parar o projeto:
  * @property {number} hours
  */
 
+```
+
+
+---
+
+
+## Tipando com JSDoc (Parte 2)
+
+```js
 /**
  * @param {Course[]} courses
  * @returns {number}
@@ -95,7 +135,10 @@ export function totalHours(courses) {
 }
 ```
 
+
 ---
+
+
 
 ## Equivalências
 
@@ -107,7 +150,11 @@ export function totalHours(courses) {
 | `function f<T>()` | `@template T` |
 | `value as T` | `/** @type {T} */ (value)` |
 
+
+
 ---
+
+
 
 ## Fase 3: Renomear
 
@@ -121,7 +168,11 @@ export function totalHours(courses) {
 
 *Um arquivo por commit: revisão legível e reversão isolada.*
 
+
+
 ---
+
+
 
 ## Fase 4: Endurecer
 
@@ -134,7 +185,11 @@ export function totalHours(courses) {
 
 *`strictNullChecks` é a etapa que trava migrações — ligue por diretório.*
 
+
+
 ---
+
+
 
 ## Fase 5: Manter
 
@@ -145,7 +200,11 @@ export function totalHours(courses) {
 | `any` sob controle | `no-explicit-any` como aviso |
 | Progresso visível | Script de relatório |
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -157,9 +216,11 @@ Migre um módulo seguindo as fases:
 4. Renomeie para `.ts` e converta o JSDoc;
 5. Ligue `noImplicitAny` e depois `strictNullChecks`.
 
+
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```js
 // Fase 2
@@ -169,6 +230,10 @@ Migre um módulo seguindo as fases:
 export function add(item) { … }
 ```
 
+---
+
+## Solução do Exercício (Parte 2)
+
 ```ts
 // Fase 3
 export interface Item { sku: string; quantity: number }
@@ -177,11 +242,19 @@ export function add(item: Item): Item[] { … }
 
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - A migração é incremental porque `.js` e `.ts` convivem via `allowJs`.
 - Comece permissivo: rigor no dia 1 costuma matar a migração.
 - `// @ts-check` + JSDoc encontram erros reais **sem** renomear nada.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Renomeie das folhas para a raiz, um arquivo por commit.
 - `strictNullChecks` é a etapa cara — ligue por diretório.
 - Sem trava na CI, a base volta a acumular `.js` e `any`.

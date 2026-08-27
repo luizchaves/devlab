@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "TypeScript: Classes"
 description: "Slides da aula de classes: modificadores de acesso, propriedades de parâmetro, acessadores, implements, abstract e campos privados."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de classes: modificadores de acesso, propriedades d
 
 Modificadores, propriedades de parâmetro, `implements`, `abstract` e campos `#`.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,9 +37,12 @@ Usar a construção que existe nos dois mundos — tipo e runtime:
 - Implementar interfaces e criar classes **abstratas**.
 - Diferenciar `private` de campos privados `#`.
 
+
+
 ---
 
-## Classe Tipada
+
+## Classe Tipada (Parte 1)
 
 ```ts
 class Course {
@@ -42,6 +53,15 @@ class Course {
     this.title = title;
   }
 
+```
+
+
+---
+
+
+## Classe Tipada (Parte 2)
+
+```ts
   describe(): string {
     return `${this.title} (${this.hours}h)`;
   }
@@ -50,7 +70,10 @@ class Course {
 
 *Sob `strict`, declarar sem inicializar é erro: `Property has no initializer`.*
 
+
 ---
+
+
 
 ## Modificadores
 
@@ -63,9 +86,12 @@ class Course {
 
 *Todos valem apenas em **tempo de compilação**.*
 
+
+
 ---
 
-## Propriedades de Parâmetro
+
+## Propriedades de Parâmetro (Parte 1)
 
 ```ts
 // Longo
@@ -74,6 +100,15 @@ class Verbose {
   constructor(url: string) { this.url = url; }
 }
 
+```
+
+
+---
+
+
+## Propriedades de Parâmetro (Parte 2)
+
+```ts
 // Curto: idêntico
 class Concise {
   constructor(
@@ -85,9 +120,10 @@ class Concise {
 
 *O modificador é obrigatório para o atalho funcionar.*
 
+
 ---
 
-## Acessadores
+## Acessadores (Parte 1)
 
 ```ts
 class Product {
@@ -95,6 +131,13 @@ class Product {
 
   get price(): number { return this.#price; }
 
+```
+
+---
+
+## Acessadores (Parte 2)
+
+```ts
   set price(value: number) {
     if (value < 0) throw new RangeError("preço negativo");
     this.#price = value;
@@ -108,6 +151,8 @@ class Product {
 
 ---
 
+
+
 ## `implements`
 
 ```ts
@@ -120,7 +165,11 @@ class InMemoryRepo implements Repository<Course> {
 - Apenas **verifica**: não herda nada.
 - A compatibilidade continua estrutural — `implements` só antecipa o erro.
 
+
+
 ---
+
+
 
 ## Classes Abstratas
 
@@ -138,7 +187,11 @@ abstract class Notification {
 // new Notification("x");   // erro: Cannot create an instance
 ```
 
+
+
 ---
+
+
 
 ## interface x abstract class
 
@@ -150,7 +203,11 @@ abstract class Notification {
 | Tem estado | Não | Sim |
 | Custo no bundle | Zero | Código real |
 
+
+
 ---
+
+
 
 ## `private` x `#`
 
@@ -166,7 +223,11 @@ Object.keys(token);         // ['legacy'] — o # nem aparece
 
 *Prefira `#` em código novo: a privacidade vale depois da compilação.*
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -178,9 +239,12 @@ Crie `src/shapes.ts`:
 4. Valide medidas lançando `RangeError`;
 5. Use um campo `#` e um membro `static` de contagem.
 
+
+
 ---
 
-## Solução do Exercício
+
+## Solução do Exercício (Parte 1)
 
 ```ts
 abstract class Shape implements Measurable {
@@ -190,6 +254,15 @@ abstract class Shape implements Measurable {
     Shape.created += 1;
   }
 
+```
+
+
+---
+
+
+## Solução do Exercício (Parte 2)
+
+```ts
   abstract area(): number;
   abstract perimeter(): number;
 
@@ -199,13 +272,22 @@ abstract class Shape implements Measurable {
 }
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Classes geram código **e** definem tipo — existem nos dois mundos.
 - Propriedades de parâmetro eliminam a repetição do construtor.
 - `private` e `protected` são verificações de compilação, apagadas na emissão.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - `#campo` é privacidade real, garantida pelo runtime.
 - `implements` só verifica; a compatibilidade continua estrutural.
 - Classe abstrata compartilha implementação; interface, apenas forma.

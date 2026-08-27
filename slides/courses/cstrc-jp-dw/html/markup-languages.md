@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Linguagens de Marcação"
 description: "Slides completos da aula de linguagens de marcação (Markdown, LaTeX, XML, HTML)."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides completos da aula de linguagens de marcação (Markdown, La
 
 Conceitos, significado vs. apresentação, comparativo entre Markdown, LaTeX, XML e HTML.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Compreender o conceito e o papel das Linguagens de Marcação:
 - Explorar formatos baseados em marcação além de texto corrido (SVG, MathML, KML, EPUB).
 - Separar adequadamente a estrutura semântica da apresentação visual.
 
+
 ---
+
 
 ## O Problema do Texto Puro
 
@@ -44,7 +50,9 @@ Lorem ipsum dolor sit amet consectetur...
 - Para um programa/computador, é apenas uma sequência genérica de caracteres sem hierarquia.
 - **A marcação resolve isso**: ela transforma intenção em sintaxe explícita interpretável por máquinas.
 
+
 ---
+
 
 ## Marcação != Apresentação Visual
 
@@ -55,7 +63,9 @@ Lorem ipsum dolor sit amet consectetur...
 
 *HTML cuida da estrutura e do significado; o CSS ou a ferramenta de renderização cuidam da apresentação.*
 
+
 ---
+
 
 ## Mesmo Conteúdo em Marcações Diferentes
 
@@ -66,7 +76,9 @@ Lorem ipsum dolor sit amet consectetur...
 | **XML / ODT** | Troca de dados e documentos de escritório | Editor XML / LibreOffice | `<text:h>Título</text:h>` |
 | **HTML** | Páginas Web | Navegador Web | `<h1>Título</h1>` |
 
+
 ---
+
 
 ## Comparativo de Sintaxe
 
@@ -77,11 +89,16 @@ Lorem ipsum dolor sit amet consectetur...
 | **Ênfase** | `_texto_` / `*texto*` | `\emph{texto}` | `<text:span>` (itálico) | `<em>` |
 | **Importância** | `**texto**` / `__texto__` | `\textbf{texto}` | `<text:span>` (negrito) | `<strong>` |
 
+
 ---
 
-## O Caso do HTML
+## O Caso do HTML (Parte 1)
 
 No HTML, a marcação é feita utilizando **tags** e **elementos**:
+
+---
+
+## O Caso do HTML (Parte 2)
 
 ```html
 <h1>Lorem ipsum</h1>
@@ -99,6 +116,7 @@ No HTML, a marcação é feita utilizando **tags** e **elementos**:
 
 ---
 
+
 ## Formatos baseados em Marcação além de Texto
 
 A marcação não é usada apenas para documentos de texto corrido:
@@ -109,7 +127,9 @@ A marcação não é usada apenas para documentos de texto corrido:
 - **EPUB**: Formato de livro digital que empacota arquivos HTML, CSS e metadados.
 - **DOCX / ODT**: Documentos de escritório que são arquivos zipados contendo XMLs internamente.
 
+
 ---
+
 
 ## Como Pensar em Marcação
 
@@ -118,7 +138,9 @@ A marcação não é usada apenas para documentos de texto corrido:
 3. **Use o interpretador adequado**: Navegador, compilador LaTeX, visualizador de Markdown.
 4. **Separe estrutura de estilo**: Primeiro marque com precisão semântica; depois estilize com CSS.
 
+
 ---
+
 
 ## Resumo da Aula
 

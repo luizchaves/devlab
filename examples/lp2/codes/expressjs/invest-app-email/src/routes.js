@@ -1,16 +1,14 @@
+import bcrypt from 'bcrypt';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
 import { z } from 'zod';
 
 import { isAuthenticated } from './middleware/auth.js';
 import { validate } from './middleware/validate.js';
-
-import SendMail from './services/SendMail.js';
-
 import Category from './models/Category.js';
 import Investment from './models/Investment.js';
 import User from './models/User.js';
+import SendMail from './services/SendMail.js';
 
 class HTTPError extends Error {
   constructor(message, code) {
@@ -41,9 +39,7 @@ router.post(
       const investment = req.body;
 
       if (investment.createdAt) {
-        investment.createdAt = new Date(
-          investment.createdAt + 'T00:00:00-03:00'
-        ).toISOString();
+        investment.createdAt = new Date(investment.createdAt + 'T00:00:00-03:00').toISOString();
       }
 
       const userId = req.userId;
@@ -140,9 +136,7 @@ router.put(
       const investment = req.body;
 
       if (investment.createdAt) {
-        investment.createdAt = new Date(
-          investment.createdAt + 'T00:00:00-03:00'
-        ).toISOString();
+        investment.createdAt = new Date(investment.createdAt + 'T00:00:00-03:00').toISOString();
       }
 
       const id = req.params.id;
@@ -242,11 +236,7 @@ router.post(
 
       res.status(201).json(newUser);
     } catch (error) {
-      if (
-        error.message.includes(
-          'Unique constraint failed on the fields: (`email`)'
-        )
-      ) {
+      if (error.message.includes('Unique constraint failed on the fields: (`email`)')) {
         throw new HTTPError('Email already exists', 400);
       }
 

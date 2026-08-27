@@ -1,10 +1,7 @@
 import { supabase } from './supabase';
 
 async function create(resource, data) {
-  const { data: createdData, error } = await supabase
-    .from(resource)
-    .insert(data)
-    .select('*');
+  const { data: createdData, error } = await supabase.from(resource).insert(data).select('*');
 
   if (error) {
     throw error;
@@ -15,10 +12,7 @@ async function create(resource, data) {
 
 async function read(resource, filter) {
   const { data, error } = filter
-    ? await supabase
-        .from(resource)
-        .select('*')
-        .eq(Object.keys(filter)[0], Object.values(filter)[0])
+    ? await supabase.from(resource).select('*').eq(Object.keys(filter)[0], Object.values(filter)[0])
     : await supabase.from(resource).select('*');
 
   if (error) {

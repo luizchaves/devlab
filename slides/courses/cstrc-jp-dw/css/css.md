@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "CSS: Fundamentos"
 description: "Slides da aula de introdução e fundamentos do CSS."
+
+
 ---
+
+
 
 <!--
 Conversão para HTML:
@@ -22,7 +26,11 @@ pnpm run build:slides
 
 Sintaxe, formas de aplicar estilos, seletores, cascata, especificidade e propriedades essenciais.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -36,7 +44,11 @@ Ao final, você deve conseguir:
 * utilizar variáveis CSS e media queries
 * evitar conflitos de estilo inspecionando pelo DevTools
 
+
+
 ---
+
+
 
 ## O que é CSS?
 
@@ -49,7 +61,11 @@ Ela descreve como elementos HTML são renderizados em tela, papel ou outros meio
 * HTML = conteúdo e estrutura
 * CSS = aparência e layout
 
+
+
 ---
+
+
 
 ## Separação de responsabilidades
 
@@ -60,7 +76,11 @@ Hoje elas são **obsoletas**.
 * HTML: diz o que o conteúdo *é*
 * CSS: define como o conteúdo *aparece*
 
+
+
 ---
+
+
 
 ## Sintaxe do CSS
 
@@ -77,7 +97,11 @@ h1 {
 * Declaração: `propriedade: valor;`
 * Exemplo: `color: blue;`
 
+
+
 ---
+
+
 
 ## Comentários em CSS
 
@@ -92,7 +116,11 @@ O navegador ignora seu conteúdo.
 }
 ```
 
+
+
 ---
+
+
 
 ## Como o CSS entra na página
 
@@ -104,7 +132,11 @@ Três formas principais de aplicar CSS:
 | Interno | Tag `<style>` no `<head>` | Protótipos e páginas únicas |
 | Externo | Arquivo `.css` via `<link>` | Projetos reais e produção |
 
+
+
 ---
+
+
 
 ## CSS Externo (Recomendado)
 
@@ -116,7 +148,11 @@ Carregado no `<head>` do documento HTML:
 
 Facilita a manutenção, reutilização de código entre páginas e organização.
 
+
+
 ---
+
+
 
 ## Cascata, especificidade e herança
 
@@ -127,7 +163,11 @@ Quando várias regras disputam o mesmo elemento, o navegador decide o vencedor c
 3. **Ordem**: se equivalentes, a última regra declarada vence
 4. **Herança**: algumas propriedades (ex.: `color`, `font-family`) passam para elementos filhos
 
+
+
 ---
+
+
 
 ## Contêineres genéricos: `div` e `span`
 
@@ -138,7 +178,11 @@ Usados para agrupar conteúdo quando não há tag semântica específica.
 
 Aplicações de propriedades herdáveis em um `<div>` pai são repassadas a todos os seus filhos.
 
+
+
 ---
+
+
 
 ## Propriedades e valores
 
@@ -151,7 +195,11 @@ Propriedades alteram aspectos específicos do elemento:
 | Caixa | `width`, `max-width`, `border`, `border-radius` | `40rem`, `1px solid #ccc` |
 | Fundo | `background-color` | `#f8fafc`, `#dbeafe` |
 
+
+
 ---
+
+
 
 ## Propriedades Abreviadas (Shorthand)
 
@@ -170,7 +218,11 @@ font-family: Times;
 
 Outros exemplos: `margin`, `padding`, `border`, `background`.
 
+
+
 ---
+
+
 
 ## Cores no CSS
 
@@ -180,9 +232,11 @@ Outros exemplos: `margin`, `padding`, `border`, `background`.
 * **`hsl()`**: `hsl(221 83% 53%)` (matiz, saturação, luminosidade)
 * **`oklch()`**: percepção de brilho uniforme e cores modernas
 
+
+
 ---
 
-## Variáveis CSS (Custom Properties)
+## Variáveis CSS (Custom Properties) (Parte 1)
 
 Iniciam com `--` e são acessadas com `var()`.
 
@@ -192,6 +246,13 @@ Iniciam com `--` e são acessadas com `var()`.
   --espaco: 1rem;
 }
 
+```
+
+---
+
+## Variáveis CSS (Custom Properties) (Parte 2)
+
+```css
 .botao {
   color: var(--cor-destaque);
   padding: var(--espaco);
@@ -201,6 +262,8 @@ Iniciam com `--` e são acessadas com `var()`.
 Muito utilizadas na implementação de temas claro e escuro (*Light / Dark mode*).
 
 ---
+
+
 
 ## Tipos de seletores
 
@@ -212,7 +275,11 @@ Muito utilizadas na implementação de temas claro e escuro (*Light / Dark mode*
 | `.cartao p` | Descendente | Parágrafos dentro de `.cartao` |
 | `.botao:hover` | Pseudo-classe | Estado do elemento no ponteiro |
 
+
+
 ---
+
+
 
 ## Classes utilitárias
 
@@ -223,7 +290,11 @@ Essa abordagem de reutilização é a base de frameworks CSS populares como:
 * [Bootstrap](https://getbootstrap.com/)
 * [Tailwind CSS](https://tailwindcss.com/)
 
+
+
 ---
+
+
 
 ## At-rules (`@`)
 
@@ -239,9 +310,12 @@ Instruções CSS que começam com `@`.
 * Outros exemplos: `@import`, `@keyframes`, `@supports`, `@media`
 * O Google Fonts gera regras `@font-face` automaticamente via `<link>` ou `@import`.
 
+
+
 ---
 
-## Media queries: Sintaxe
+
+## Media queries: Sintaxe (Parte 1)
 
 Aplicam regras CSS apenas quando condições de ambiente são atendidas.
 
@@ -251,6 +325,15 @@ h1 {
   color: #f00;
 }
 
+```
+
+
+---
+
+
+## Media queries: Sintaxe (Parte 2)
+
+```css
 @media print {
   h1 {
     text-align: left;
@@ -259,7 +342,10 @@ h1 {
 }
 ```
 
+
 ---
+
+
 
 ## Media queries: Tipos de Condições
 
@@ -268,7 +354,11 @@ Condições comuns de ambiente:
 - Orientação (`orientation: landscape`)
 - Preferência de tema (`prefers-color-scheme: dark`)
 
+
+
 ---
+
+
 
 ## Executando e inspecionando
 
@@ -278,7 +368,11 @@ No navegador:
 * Na aba **Elements** / **Styles**, inspecione regras aplicadas e canceladas
 * Veja propriedades calculadas na aba **Computed**
 
+
+
 ---
+
+
 
 ## Revisão
 
@@ -287,7 +381,11 @@ No navegador:
 * O que é uma propriedade shorthand?
 * Para que servem variáveis CSS e media queries?
 
+
+
 ---
+
+
 
 ## Referências
 

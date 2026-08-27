@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Narrowing"
 description: "Slides da aula de narrowing: análise de fluxo, typeof, in, instanceof, type predicates, funções de asserção e exaustividade com never."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de narrowing: análise de fluxo, typeof, in, instan
 
 Análise de fluxo, `typeof`, `in`, `instanceof`, type predicates e exaustividade.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Convencer o compilador de qual variação está em uso:
 - Garantir **exaustividade** com `never`.
 - Tratar `null` e `undefined` sob `strictNullChecks`.
 
+
 ---
+
 
 ## Análise de Fluxo
 
@@ -44,7 +50,9 @@ function describe(value: string | number): string {
 
 *O compilador lê o mesmo `if` que você escreveria de qualquer forma.*
 
+
 ---
+
 
 ## `typeof` e a Armadilha do `null`
 
@@ -62,7 +70,9 @@ if (typeof value === "object") {
 if (value !== null) { … }   // forma correta
 ```
 
+
 ---
+
 
 ## Veracidade e Igualdade
 
@@ -75,7 +85,9 @@ if (value == null) { … }  // null E undefined — único uso legítimo de ==
 
 *Cuidado: `if (!quantidade)` troca `0` por padrão sem querer.*
 
+
 ---
+
 
 ## `in` e `instanceof`
 
@@ -92,7 +104,9 @@ if (value instanceof Date) {
 - `in`: presença de propriedade — funciona com interfaces.
 - `instanceof`: cadeia de protótipos — **só com classes**.
 
+
 ---
+
 
 ## Type Predicates
 
@@ -110,7 +124,9 @@ const clean: string[] = values.filter(isNotNull);
 
 *O compilador **acredita** no predicate: ele merece teste.*
 
+
 ---
+
 
 ## Funções de Asserção
 
@@ -128,7 +144,9 @@ input.trim();   // a partir daqui é string
 | `value is T` | dentro do `if` | segue o `else` |
 | `asserts value is T` | do ponto em diante | lança exceção |
 
+
 ---
+
 
 ## Uniões Discriminadas
 
@@ -145,7 +163,9 @@ switch (result.status) {
 
 *Acessar `result.data` no ramo do erro é erro de compilação.*
 
+
 ---
+
 
 ## Exaustividade
 
@@ -159,7 +179,9 @@ default: {
 - Ao acrescentar uma variação, o compilador aponta **todos** os `switch` incompletos.
 - Refatoração deixa de depender de memória.
 
+
 ---
+
 
 ## `null`, `undefined` e Operadores
 
@@ -171,7 +193,9 @@ return value ?? "não informado";       // nullish coalescing
 - `||` substitui qualquer *falsy* — troca `0` e `""` por engano.
 - `??` só entra em ação com `null` e `undefined`.
 
+
 ---
+
 
 ## Exercício
 
@@ -183,9 +207,10 @@ Crie `src/form.ts` sem nenhuma asserção `as`:
 4. Type predicate `isTextField(field): field is Field & { value: string }`;
 5. Use o predicate em um `filter`.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```ts
 function format(field: Field): string {
@@ -197,6 +222,13 @@ function format(field: Field): string {
   return value.trim() || "(em branco)";
 }
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```ts
 function isTextField(field: Field): field is Field & { value: string } {
   return typeof field.value === "string";
 }
@@ -206,11 +238,16 @@ const texts = fields.filter(isTextField);
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - O compilador acompanha o fluxo e sabe, em cada linha, o que a variável pode ser.
 - `typeof null === "object"`: combine sempre com `value !== null`.
 - `if (!value)` captura `0` e `""` — compare explicitamente quando importarem.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `in` funciona com interfaces; `instanceof` só com classes.
 - `value is T` estreita dentro do `if`; `asserts value is T`, dali em diante.
 - União discriminada + `never` no `default` dá refatoração verificada.

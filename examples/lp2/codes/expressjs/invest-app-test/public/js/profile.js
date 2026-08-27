@@ -1,5 +1,5 @@
-import API from './services/api.js';
 import Auth from './lib/auth.js';
+import API from './services/api.js';
 
 const form = document.querySelector('form');
 

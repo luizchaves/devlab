@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Variáveis e Tipos de Dados"
 description: "Slides da aula de variáveis e tipos em Python: atribuição, referências, tipos numéricos, booleanos, None, mutabilidade e conversão."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de variáveis e tipos em Python: atribuição, refe
 
 Atribuição, nomes, modelo de referências, tipos embutidos, mutabilidade, conversão e anotações de tipo.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Entender como Python guarda valores e quais tipos estão sempre disponíveis:
 - Reconhecer `int`, `float`, `bool`, `str` e `None`.
 - Converter tipos explicitamente e identificar valores *truthy* e *falsy*.
 
+
 ---
+
 
 ## Atribuição
 
@@ -46,7 +52,9 @@ attempts = attempts + 1
 - Sem declaração prévia, sem `let`, `var` ou tipo obrigatório.
 - O nome é apenas um **rótulo** ligado a um objeto na memória.
 
+
 ---
+
 
 ## Convenções de Nomes (PEP 8)
 
@@ -59,7 +67,9 @@ attempts = attempts + 1
 
 *Python não tem `const`: MAIÚSCULAS comunicam intenção, não impedem a reatribuição.*
 
+
 ---
+
 
 ## Nomes São Referências
 
@@ -75,7 +85,9 @@ b = [9, 9]      # agora b aponta para outro objeto
 print(a is b)   # False
 ```
 
+
 ---
+
 
 ## `is` versus `==`
 
@@ -93,7 +105,9 @@ value = None
 print(value is None)   # uso idiomático de is
 ```
 
+
 ---
+
 
 ## Mutável x Imutável
 
@@ -110,7 +124,9 @@ numbers = [1, 2]
 numbers.append(3)           # altera o próprio objeto
 ```
 
+
 ---
+
 
 ## Tipos Numéricos
 
@@ -126,7 +142,9 @@ print(7 / 2, 7 // 2, 7 % 2)       # 3.5 3 1
 - `float`: IEEE 754, dupla precisão.
 - `complex`: `3 + 4j`, raro fora de aplicações científicas.
 
+
 ---
+
 
 ## Precisão de Ponto Flutuante
 
@@ -140,7 +158,9 @@ print(Decimal("0.1") + Decimal("0.2"))   # 0.3
 
 *Nunca use `float` para dinheiro: prefira `Decimal` (com literais em string) ou inteiros em centavos.*
 
+
 ---
+
 
 ## Booleanos, `None` e Truthy
 
@@ -156,7 +176,9 @@ print(True + True)              # 2 — bool é subtipo de int
 print(bool(""), bool("texto"))  # False True
 ```
 
+
 ---
+
 
 ## `None` Não É Zero
 
@@ -171,7 +193,9 @@ print(result, type(result))   # None <class 'NoneType'>
 - `None` é o único valor de `NoneType` e representa **ausência de valor**.
 - Teste com `if value is None:` — `if not value:` também captura `0` e `""`.
 
+
 ---
+
 
 ## Conversão de Tipos
 
@@ -191,7 +215,9 @@ print(str(42) + " anos")
 | `bool(x)` | Booleano |
 | `list(x)` | Lista a partir de iterável |
 
+
 ---
+
 
 ## Atribuições Especiais
 
@@ -208,7 +234,9 @@ if (size := len("DevLab")) > 3:   # operador morsa
     print(size)
 ```
 
+
 ---
+
 
 ## Anotações de Tipo
 
@@ -225,7 +253,9 @@ def total(price: float, quantity: int = 1) -> float:
 - Documentam a intenção e alimentam `mypy`, `pyright` e o editor.
 - **Não** são verificadas em tempo de execução: `age: int = "vinte"` executa normalmente.
 
+
 ---
+
 
 ## Exercício
 
@@ -237,7 +267,9 @@ Crie `product.py` praticando tipos e conversões:
 4. Exiba os valores com f-string e duas casas decimais;
 5. Teste `bool()` com cinco valores diferentes.
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -255,13 +287,19 @@ print(f"Total:    R$ {total:.2f} (desconto de {DISCOUNT:.0%})")
 print(bool(0), bool(""), bool([]), bool(None), bool(quantity))
 ```
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Variáveis são **nomes ligados a objetos**; a atribuição nunca copia o valor.
 - `==` compara conteúdo, `is` compara identidade — use `is` só com `None`, `True` e `False`.
 - Tipos **imutáveis** (`str`, `int`, `tuple`) devolvem novos objetos a cada operação.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `int` tem precisão arbitrária; `float` segue IEEE 754 e **não** serve para dinheiro.
 - A tipagem é forte: conversões com `int()`, `float()` e `str()` são sempre explícitas.
 - Anotações de tipo documentam a intenção, mas não são verificadas em execução.

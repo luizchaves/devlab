@@ -1,6 +1,6 @@
+import bcrypt from 'bcrypt';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
 
 import { isAuthenticated } from './middleware/auth.js';
 
@@ -22,9 +22,7 @@ router.post('/investments', isAuthenticated, async (req, res) => {
     const investment = req.body;
 
     if (investment.createdAt) {
-      investment.createdAt = new Date(
-        investment.createdAt + 'T00:00:00-03:00'
-      ).toISOString();
+      investment.createdAt = new Date(investment.createdAt + 'T00:00:00-03:00').toISOString();
     }
 
     const userId = req.userId;
@@ -80,9 +78,7 @@ router.put('/investments/:id', isAuthenticated, async (req, res) => {
     const investment = req.body;
 
     if (investment.createdAt) {
-      investment.createdAt = new Date(
-        investment.createdAt + 'T00:00:00-03:00'
-      ).toISOString();
+      investment.createdAt = new Date(investment.createdAt + 'T00:00:00-03:00').toISOString();
     }
 
     const id = req.params.id;

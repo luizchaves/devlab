@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "HTML: Introdução"
 description: "Slides da aula de introdução ao HTML."
+
 ---
+
 
 <!--
 Conversão para HTML:
@@ -22,7 +24,9 @@ pnpm run build:slides
 
 Sintaxe, estrutura de documento e elementos essenciais para conteúdo web.
 
+
 ---
+
 
 ## Objetivo
 
@@ -35,7 +39,9 @@ Ao final, você deve conseguir:
 * usar atributos comuns com segurança
 * criar texto, listas, links, imagens e tabelas
 
+
 ---
+
 
 ## O que é HTML?
 
@@ -45,20 +51,27 @@ HTML é uma linguagem de **marcação**.
 
 Ela não executa lógica. Ela descreve o que cada parte do conteúdo é.
 
+
 ---
 
-## Marcação
+## Marcação (Parte 1)
 
 HTML informa ao navegador:
 
 * isto é um título
 * isto é um parágrafo
 * isto é uma lista
+
+---
+
+## Marcação (Parte 2)
+
 * isto é um link
 * isto é uma imagem
 * isto é uma tabela
 
 ---
+
 
 ## Elemento
 
@@ -74,7 +87,9 @@ Partes:
 * conteúdo: `Lorem ipsum dolor.`
 * tag de fechamento: `</p>`
 
+
 ---
+
 
 ## Elementos vazios
 
@@ -87,7 +102,9 @@ Alguns elementos não envolvem conteúdo e não têm tag de fechamento.
 <hr />
 ```
 
+
 ---
+
 
 ## Aninhamento
 
@@ -101,7 +118,9 @@ A ordem de fechamento importa.
 <p>Um texto <strong>importante</strong></p>
 ```
 
+
 ---
+
 
 ## Semântica
 
@@ -116,7 +135,9 @@ Escolha a tag pelo significado, não pela aparência.
 
 `<b>` apenas destaca visualmente.
 
+
 ---
+
 
 ## Atributos
 
@@ -132,7 +153,9 @@ Formato:
 nome="valor"
 ```
 
+
 ---
+
 
 ## Atributos comuns
 
@@ -144,7 +167,9 @@ nome="valor"
 | `<meta>` | `name`, `content`, `charset` |
 | `<th>` | `scope`, `colspan`, `rowspan` |
 
+
 ---
+
 
 ## Entidades
 
@@ -160,9 +185,10 @@ Para exibi-los como texto, use entidades.
 | `"` | `&quot;` |
 | `©` | `&copy;` |
 
+
 ---
 
-## Estrutura mínima
+## Estrutura mínima (Parte 1)
 
 ```html
 <!DOCTYPE html>
@@ -171,6 +197,13 @@ Para exibi-los como texto, use entidades.
 <meta charset="UTF-8" />
 <title>Bem-vindos</title>
 </head>
+```
+
+---
+
+## Estrutura mínima (Parte 2)
+
+```html
 <body>
 <h1>Olá, turma!</h1>
 <p>Meu primeiro parágrafo</p>
@@ -180,6 +213,7 @@ Para exibi-los como texto, use entidades.
 ```
 
 ---
+
 
 ## `head` e `body`
 
@@ -194,7 +228,9 @@ Exemplos:
 
 `<body>` guarda o conteúdo renderizado na página.
 
+
 ---
+
 
 ## Elementos semânticos
 
@@ -208,7 +244,9 @@ Exemplos:
 | `<aside>` | Conteúdo complementar |
 | `<footer>` | Rodapé |
 
+
 ---
+
 
 ## Conteúdo de texto
 
@@ -224,7 +262,9 @@ Tags comuns:
 | `<blockquote>` | Citação em bloco |
 | `<code>` | Código ou texto literal |
 
+
 ---
+
 
 ## Títulos
 
@@ -238,7 +278,9 @@ Boas práticas:
 * não pule níveis apenas para mudar tamanho visual
 * use CSS para aparência
 
+
 ---
+
 
 ## Listas
 
@@ -250,7 +292,9 @@ Sempre que o conteúdo for uma sequência de itens, ele pode ser uma lista.
 | Ordenada | `<ol>`, `<li>` | Etapas ou ranking |
 | Descrição | `<dl>`, `<dt>`, `<dd>` | Termo e descrição |
 
+
 ---
+
 
 ## Menu também é lista
 
@@ -267,7 +311,9 @@ Um menu de navegação é uma lista de links.
 
 O CSS pode remover os marcadores visuais sem mudar a semântica.
 
+
 ---
+
 
 ## Links
 
@@ -281,7 +327,9 @@ O texto é o que a pessoa clica.
 
 `href` é o destino.
 
+
 ---
+
 
 ## `href`
 
@@ -296,7 +344,9 @@ O valor de `href` pode ser absoluto ou relativo.
 | `#links` | Fragmento da própria página |
 | `mailto:ana@exemplo.com` | Cliente de correio eletrônico |
 
+
 ---
+
 
 ## Fragmentos
 
@@ -313,7 +363,9 @@ Eles apontam para um elemento com `id` correspondente.
 </section>
 ```
 
+
 ---
+
 
 ## Imagens
 
@@ -330,7 +382,9 @@ Eles apontam para um elemento com `id` correspondente.
 
 `alt` descreve a função da imagem.
 
+
 ---
+
 
 ## `alt`
 
@@ -348,7 +402,9 @@ Imagem decorativa:
 <img src="img/logo.svg" alt="" />
 ```
 
+
 ---
+
 
 ## Performance de imagens
 
@@ -360,7 +416,9 @@ Use arquivos próximos ao tamanho exibido.
 
 Uma foto muito maior que o necessário desperdiça dados, memória e tempo.
 
+
 ---
+
 
 ## Vetorial e matricial
 
@@ -371,7 +429,9 @@ Uma foto muito maior que o necessário desperdiça dados, memória e tempo.
 
 SVG pode ser carregado por `<img>` ou escrito diretamente no HTML com `<svg>`.
 
+
 ---
+
 
 ## Data URI
 
@@ -386,7 +446,9 @@ SVG costuma aparecer com caracteres codificados por URL.
 />
 ```
 
+
 ---
+
 
 ## Base64
 
@@ -403,7 +465,9 @@ Data URI é útil em exemplos pequenos.
 
 Em imagens maiores, prefira arquivos reais.
 
+
 ---
+
 
 ## Tabelas
 
@@ -420,7 +484,9 @@ Use quando a informação depende do cruzamento entre linha e coluna.
 </table>
 ```
 
+
 ---
+
 
 ## Tags de tabela
 
@@ -434,7 +500,9 @@ Use quando a informação depende do cruzamento entre linha e coluna.
 | `<th>` | Célula de cabeçalho |
 | `<td>` | Célula de dados |
 
+
 ---
+
 
 ## Acessibilidade em tabela
 
@@ -444,7 +512,9 @@ Use quando a informação depende do cruzamento entre linha e coluna.
 
 Isso ajuda leitores de tela a relacionar cada dado com o cabeçalho correto.
 
+
 ---
+
 
 ## Executando
 
@@ -461,7 +531,9 @@ No Linux:
 xdg-open index.html
 ```
 
+
 ---
+
 
 ## VS Code
 
@@ -473,7 +545,9 @@ Opções úteis:
 * Format On Save para formatar ao salvar
 * Prettier ou Biome como formatadores
 
+
 ---
+
 
 ## Validação
 
@@ -485,20 +559,27 @@ Valide a marcação no W3C:
 
 https://validator.w3.org/nu/
 
+
 ---
 
-## Revisão
+## Revisão (Parte 1)
 
 Perguntas para checar entendimento:
 
 * Por que HTML é marcação e não programação?
 * Qual é a diferença entre `<strong>` e `<b>`?
 * Quando usar lista ordenada?
+
+---
+
+## Revisão (Parte 2)
+
 * Como funciona `href="#html"`?
 * Por que `alt`, `width` e `height` importam?
 * Para que serve `scope` em `<th>`?
 
 ---
+
 
 ## Referências
 

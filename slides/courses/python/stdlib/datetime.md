@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "Python: Data e Hora"
 description: "Slides da aula de datas em Python: date, time, datetime, timedelta, strftime, strptime, ISO 8601 e fuso horário com zoneinfo."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de datas em Python: date, time, datetime, timedelta
 
 `date`, `time`, `datetime` e `timedelta`, formatação, ISO 8601 e fuso horário.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Trabalhar com datas sem cair nas armadilhas clássicas:
 - Calcular diferenças e prazos.
 - Diferenciar datas **ingênuas** de **conscientes** de fuso.
 
+
+
 ---
+
+
 
 ## Os Quatro Tipos
 
@@ -46,7 +58,11 @@ from datetime import date, datetime, time, timedelta
 print(date.today(), datetime.now())
 ```
 
+
+
 ---
+
+
 
 ## Criando Valores
 
@@ -60,7 +76,11 @@ print(specific.year, specific.month, specific.day)
 print(specific.weekday())   # 0 = segunda, 6 = domingo
 ```
 
+
+
 ---
+
+
 
 ## `strftime`: Data → Texto
 
@@ -77,7 +97,11 @@ print(moment.strftime("%d/%m/%Y às %H:%M"))
 print(f"{moment:%d/%m/%Y}")     # f-string aceita os mesmos códigos
 ```
 
+
+
 ---
+
+
 
 ## `strptime`: Texto → Data
 
@@ -93,7 +117,11 @@ print(parsed.isoformat())
 
 *Ao converter entrada do usuário, trate `ValueError`.*
 
+
+
 ---
+
+
 
 ## Use ISO 8601 para Armazenar
 
@@ -103,9 +131,11 @@ print(parsed.isoformat())
 
 *Armazene em ISO, formate apenas na exibição.*
 
+
+
 ---
 
-## Aritmética com `timedelta`
+## Aritmética com `timedelta` (Parte 1)
 
 ```python
 print(today + timedelta(days=30))
@@ -114,6 +144,13 @@ print(today - timedelta(weeks=2))
 remaining = date(2026, 12, 31) - today
 print(f"faltam {remaining.days} dias")
 
+```
+
+---
+
+## Aritmética com `timedelta` (Parte 2)
+
+```python
 worked = end - start
 print(worked.total_seconds() / 3600, "horas")
 ```
@@ -125,13 +162,19 @@ print(worked.total_seconds() / 3600, "horas")
 
 ---
 
+
+
 ## `timedelta` Não Tem Meses
 
 - Meses e anos têm duração variável (28 a 31 dias).
 - `timedelta` aceita apenas dias, semanas, horas, minutos, segundos e microssegundos.
 - "Daqui a 3 meses" exige `dateutil.relativedelta` ou cálculo manual de ano/mês.
 
+
+
 ---
+
+
 
 ## Fuso Horário
 
@@ -148,7 +191,11 @@ local = utc_now.astimezone(ZoneInfo("America/Sao_Paulo"))
 
 *Misturar ingênuo com consciente levanta `TypeError`.*
 
+
+
 ---
+
+
 
 ## Regra de Ouro
 
@@ -161,7 +208,11 @@ Exibir     ──▶  astimezone(fuso do usuário)
 - `zoneinfo` está na biblioteca padrão desde o Python 3.9.
 - Ele conhece o horário de verão de cada região.
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -173,9 +224,12 @@ Crie `deadlines.py` controlando prazos:
 4. Calcule quantos dias faltam (ou passaram);
 5. Ordene por prazo e exiba com data em `dd/mm/aaaa`.
 
+
+
 ---
 
-## Solução do Exercício
+
+## Solução do Exercício (Parte 1)
 
 ```python
 def classify(deadline):
@@ -187,19 +241,37 @@ def classify(deadline):
         return "esta semana"
     return "futura"
 
+```
+
+
+---
+
+
+## Solução do Exercício (Parte 2)
+
+```python
 
 for task in sorted(tasks, key=lambda t: t["data"]):
     days = (task["data"] - today).days
     print(f"{task['titulo']:<22}{task['data']:%d/%m/%Y}{days:>8}  {classify(task['data'])}")
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - `date`, `time` e `datetime` representam instantes; `timedelta`, durações.
 - `strftime` formata (data → texto); `strptime` interpreta (texto → data).
 - ISO 8601 é o formato para **armazenar**; formatos locais só na exibição.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Subtrair duas datas produz `timedelta`; `.days` e `.total_seconds()` extraem valores.
 - `timedelta` não tem meses nem anos — duração variável.
 - Registre em UTC com `timezone.utc` e converta com `astimezone()` só ao exibir.

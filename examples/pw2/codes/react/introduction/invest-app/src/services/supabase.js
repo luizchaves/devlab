@@ -6,10 +6,7 @@ const API_URL = process.env.NEXT_PUBLIC_SUPABASE_API_URL;
 const supabase = createClient(API_URL, API_KEY);
 
 async function create(resource, data) {
-  const { data: createdData, error } = await supabase
-    .from(resource)
-    .insert(data)
-    .select('*');
+  const { data: createdData, error } = await supabase.from(resource).insert(data).select('*');
 
   if (error) {
     throw error;

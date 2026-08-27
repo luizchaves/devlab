@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Módulos e Declarações"
 description: "Slides da aula de módulos: ESM e CommonJS, import type, resolução, arquivos .d.ts, @types e declaration merging."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de módulos: ESM e CommonJS, import type, resoluç�
 
 ESM e CommonJS, `import type`, resolução de tipos e arquivos `.d.ts`.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Entender o que circula entre módulos — código **e** tipos:
 - Escrever arquivos **`.d.ts`**.
 - Tipar bibliotecas sem tipos e estender declarações.
 
+
 ---
+
 
 ## Exportando e Importando
 
@@ -46,7 +52,9 @@ import CourseService, { DEFAULT_HOURS, type Course } from "./domain.js";
 
 *A extensão `.js` não é erro: o import aponta para o arquivo **emitido**.*
 
+
 ---
+
 
 ## `import type`
 
@@ -59,7 +67,9 @@ import CourseService, { DEFAULT_HOURS, type Course } from "./domain.js";
 
 *`verbatimModuleSyntax` emite exatamente o que foi escrito.*
 
+
 ---
+
 
 ## ESM x CommonJS
 
@@ -73,7 +83,9 @@ import CourseService, { DEFAULT_HOURS, type Course } from "./domain.js";
 
 *`ERR_REQUIRE_ESM` e `ERR_MODULE_NOT_FOUND` são erros de **runtime**.*
 
+
 ---
+
 
 ## Resolução de Tipos
 
@@ -90,7 +102,9 @@ import "lodash"
 pnpm exec tsc --traceResolution | grep lodash
 ```
 
+
 ---
+
 
 ## Arquivos `.d.ts`
 
@@ -105,7 +119,9 @@ export declare function describe(course: Course): string;
 | Lib sem tipos, com comunidade | `@types/nome` |
 | Sem tipos nenhum | Escrito por você |
 
+
 ---
+
 
 ## Tipando Lib Sem Tipos
 
@@ -124,9 +140,10 @@ export {};
 
 *Sem `export {}`, o `.d.ts` vira script **global** e vaza para todo o projeto.*
 
+
 ---
 
-## Estendendo Declarações
+## Estendendo Declarações (Parte 1)
 
 ```ts
 declare module "express-serve-static-core" {
@@ -135,6 +152,13 @@ declare module "express-serve-static-core" {
   }
 }
 
+```
+
+---
+
+## Estendendo Declarações (Parte 2)
+
+```ts
 declare global {
   interface Window {
     analytics?: { track(event: string): void };
@@ -146,6 +170,7 @@ declare global {
 
 ---
 
+
 ## Exercício
 
 Crie o pacote `format-lib/`:
@@ -156,9 +181,10 @@ Crie o pacote `format-lib/`:
 4. `types/legacy-chart.d.ts` declarando um módulo fictício;
 5. Importe o módulo fictício e comprove a assinatura no editor.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```json
 {
@@ -169,6 +195,10 @@ Crie o pacote `format-lib/`:
 }
 ```
 
+---
+
+## Solução do Exercício (Parte 2)
+
 ```ts
 declare module "legacy-chart" {
   export interface ChartOptions { width: number; height: number }
@@ -178,11 +208,16 @@ declare module "legacy-chart" {
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Com `NodeNext`, o import precisa da extensão `.js` — é o arquivo emitido.
 - `import type` desaparece do JavaScript; import comum permanece.
 - O formato do módulo vem do `type` no `package.json` e das extensões `.mts`/`.cts`.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - A busca de tipos vai do pacote → `@types` → declaração local → erro TS7016.
 - `.d.ts` só contém tipos e não gera JavaScript.
 - `export {}` transforma o `.d.ts` em módulo e evita vazamento global.

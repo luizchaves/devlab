@@ -43,9 +43,7 @@ describe('Moniotr App', () => {
       it('should list the valid host', async () => {
         const response = await request(app).get('/hosts');
 
-        const hasValidHost = response.body.some(
-          (host) => host.address === createdHost.address
-        );
+        const hasValidHost = response.body.some((host) => host.address === createdHost.address);
 
         expect(hasValidHost).toBeTruthy();
       });
@@ -77,9 +75,7 @@ describe('Moniotr App', () => {
 
     describe('PUT /hosts/:hostId', () => {
       it('should update a host', async () => {
-        const response = await request(app)
-          .put(`/hosts/${createdHost.id}`)
-          .send(updatedHost);
+        const response = await request(app).put(`/hosts/${createdHost.id}`).send(updatedHost);
 
         expect(response.statusCode).toBe(200);
       });
@@ -87,19 +83,15 @@ describe('Moniotr App', () => {
       it('should list an updated host', async () => {
         const response = await request(app).get('/hosts');
 
-        const hasValidHost = response.body.some(
-          (host) => host.address === updatedHost.address
-        );
+        const hasValidHost = response.body.some((host) => host.address === updatedHost.address);
 
         expect(hasValidHost).toBeTruthy();
       });
 
       it('should not update a host without name or address', async () => {
-        const response = await request(app)
-          .put(`/hosts/${createdHost.id}`)
-          .send({
-            name: 'Cloudflare DNS',
-          });
+        const response = await request(app).put(`/hosts/${createdHost.id}`).send({
+          name: 'Cloudflare DNS',
+        });
 
         expect(response.statusCode).toBe(400);
       });

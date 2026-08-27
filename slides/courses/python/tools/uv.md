@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "Python: Ambiente e Pacotes com uv"
 description: "Slides da aula de ambiente e dependências em Python com uv: isolamento, pyproject.toml, uv.lock, execução de scripts e equivalências com venv e pip."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de ambiente e dependências em Python com uv: isola
 
 Ambientes isolados, dependências reproduzíveis, `pyproject.toml`, `uv.lock` e execução de scripts.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Preparar o projeto para crescer com dependências externas:
 - Adicionar, remover e travar dependências com **`uv.lock`**.
 - Mapear cada comando para o equivalente em `venv` e `pip`.
 
+
+
 ---
+
+
 
 ## Por Que Isolar
 
@@ -46,7 +58,11 @@ Projeto B ─┘                   Projeto B ──▶ .venv (httpx 0.24)
 
 *Em Linux e macOS, instalar no Python do sistema pode quebrar ferramentas do próprio sistema.*
 
+
+
 ---
+
+
 
 ## Instalando o uv
 
@@ -64,14 +80,20 @@ uv python pin 3.14
 - Não exige Python previamente instalado.
 - Gerencia versões do interpretador sem instalador separado.
 
+
+
 ---
 
-## Criando o Projeto
+## Criando o Projeto (Parte 1)
 
 ```bash
 uv init guia-python
 cd guia-python
 ```
+
+---
+
+## Criando o Projeto (Parte 2)
 
 ```txt
 guia-python/
@@ -85,7 +107,7 @@ guia-python/
 
 ---
 
-## `pyproject.toml`
+## `pyproject.toml` (Parte 1)
 
 ```toml
 [project]
@@ -96,6 +118,13 @@ dependencies = [
     "httpx>=0.28.1",
 ]
 
+```
+
+---
+
+## `pyproject.toml` (Parte 2)
+
+```toml
 [dependency-groups]
 dev = ["pytest>=8.4.2", "ruff>=0.14.0"]
 ```
@@ -103,6 +132,8 @@ dev = ["pytest>=8.4.2", "ruff>=0.14.0"]
 *Arquivo padrão de configuração de projetos Python (PEP 621); substitui o `setup.py`.*
 
 ---
+
+
 
 ## Comandos de Dependência
 
@@ -116,7 +147,11 @@ dev = ["pytest>=8.4.2", "ruff>=0.14.0"]
 | `uv lock --upgrade` | Recalcula versões |
 | `uv tree` | Árvore de dependências |
 
+
+
 ---
+
+
 
 ## O Arquivo de Trava
 
@@ -131,7 +166,11 @@ dev = ["pytest>=8.4.2", "ruff>=0.14.0"]
 uv sync --frozen     # instala exatamente o lock (CI e deploy)
 ```
 
+
+
 ---
+
+
 
 ## Executando
 
@@ -146,7 +185,11 @@ uvx ruff format .    # ferramenta em ambiente temporário
 
 *Não é preciso "ativar" nada: `uv run` sincroniza o ambiente antes de executar.*
 
+
+
 ---
+
+
 
 ## Script com Dependências (PEP 723)
 
@@ -164,7 +207,11 @@ print(httpx.get("https://api.github.com").status_code)
 uv run fetch.py     # cria ambiente temporário com httpx
 ```
 
+
+
 ---
+
+
 
 ## Equivalências
 
@@ -177,7 +224,11 @@ uv run fetch.py     # cria ambiente temporário com httpx
 | Reinstalar | `uv sync` | `pip install -r requirements.txt` |
 | Executar | `uv run main.py` | `python main.py` |
 
+
+
 ---
+
+
 
 ## Migrando um Projeto
 
@@ -189,7 +240,11 @@ uv lock
 
 *`pip freeze` não é lock de verdade: não separa dependências diretas das indiretas nem guarda hashes.*
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -201,9 +256,11 @@ Prepare o projeto `cotacao/`:
 4. Trate erros de rede e status HTTP;
 5. Rode `uv run ruff check .` e corrija o que for apontado.
 
+
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 import httpx
@@ -211,6 +268,13 @@ import httpx
 def fetch_quote():
     try:
         response = httpx.get(URL, timeout=10)
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
         response.raise_for_status()
     except httpx.HTTPStatusError as error:
         raise SystemExit(f"API respondeu {error.response.status_code}") from error
@@ -219,17 +283,31 @@ def fetch_quote():
     return response.json()["USDBRL"]
 ```
 
+---
+
+
+## Solução do Exercício (Parte 2)
+
 ```bash
 uv run main.py
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Cada projeto precisa do **próprio ambiente**: nunca instale no Python do sistema.
 - `uv` instala interpretador, cria ambiente, resolve dependências e executa scripts.
 - `pyproject.toml` declara o que o projeto pede; `uv.lock` grava o que foi resolvido.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Versione `pyproject.toml`, `uv.lock` e `.python-version`; ignore `.venv/`.
 - `uv run` dispensa ativação; `uvx` executa ferramentas em ambiente temporário.
 - `uv sync --frozen` é o comando de CI e de produção.

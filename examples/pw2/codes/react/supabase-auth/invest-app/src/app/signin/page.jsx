@@ -1,8 +1,8 @@
 'use client';
 
-import { useUserAuth } from '@/contexts/UserAuthContext';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useUserAuth } from '@/contexts/UserAuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -50,10 +50,7 @@ export default function Login() {
       )}
       <form onSubmit={handleLogin}>
         <div className="mb-4">
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium leading-6 text-gray-900 mb-2"
-          >
+          <label htmlFor="email" className="block text-sm font-medium leading-6 text-gray-900 mb-2">
             Email
           </label>
           <input
@@ -90,9 +87,7 @@ export default function Login() {
         </button>
 
         <div className="my-4 flex items-center before:mt-0.5 before:flex-1 before:border-t before:border-neutral-300 after:mt-0.5 after:flex-1 after:border-t after:border-neutral-300">
-          <p className="mx-4 mb-0 text-center font-semibold dark:text-neutral-200">
-            ou
-          </p>
+          <p className="mx-4 mb-0 text-center font-semibold dark:text-neutral-200">ou</p>
         </div>
 
         <button

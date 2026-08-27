@@ -35,9 +35,7 @@ async function handleSubmit(event) {
 form.email.oninput = () => {
   form.email.classList.remove('is-invalid');
 
-  const confirmationPasswordError = document.querySelector(
-    '#email + .invalid-feedback'
-  );
+  const confirmationPasswordError = document.querySelector('#email + .invalid-feedback');
 
   confirmationPasswordError.textContent = 'Informe o email do usuário.';
 };

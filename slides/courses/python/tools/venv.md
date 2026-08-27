@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: venv e pip"
 description: "Slides da aula de ambientes virtuais com venv e pip: estrutura do .venv, ativação por sistema, instalação de pacotes, requirements.txt e problemas comuns."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de ambientes virtuais com venv e pip: estrutura do 
 
 O que existe dentro de um ambiente virtual, como ativar, instalar pacotes e diagnosticar problemas.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Entender o mecanismo que o uv automatiza:
 - Gerar e consumir `requirements.txt`.
 - Diagnosticar os erros mais frequentes de ambiente.
 
+
 ---
+
 
 ## Por Que Esta Aula
 
@@ -40,7 +46,9 @@ Entender o mecanismo que o uv automatiza:
 
 *Para projetos novos, o [uv](../uv/) continua sendo o caminho recomendado.*
 
+
 ---
+
 
 ## O Que É um Ambiente Virtual
 
@@ -57,7 +65,9 @@ Entender o mecanismo que o uv automatiza:
 - Um **diretório**, não um registro global.
 - `pyvenv.cfg` é o que diferencia de uma pasta comum.
 
+
 ---
+
 
 ## Não É Portável
 
@@ -72,7 +82,9 @@ executable = /usr/local/bin/python3.14
 - Copiar `.venv/` para outra máquina não funciona.
 - O ambiente é sempre **recriado** a partir da lista de dependências.
 
+
 ---
+
 
 ## Criando
 
@@ -90,7 +102,9 @@ python3 -m venv --prompt guia-python --upgrade-deps .venv
 
 *`.venv` é a convenção que editores e ferramentas procuram.*
 
+
 ---
+
 
 ## Ativando
 
@@ -109,7 +123,9 @@ deactivate
 
 *No Debian/Ubuntu, `ensurepip is not available` significa instalar `python3-venv`.*
 
+
 ---
+
 
 ## O Que a Ativação Faz
 
@@ -123,7 +139,9 @@ Com ativação:   python  ──▶  PATH: .venv/bin       ──▶  Python do 
 - Define `VIRTUAL_ENV` e altera o prompt.
 - Vale **só na sessão atual** do terminal.
 
+
 ---
+
 
 ## Dispensando a Ativação
 
@@ -135,7 +153,9 @@ Com ativação:   python  ──▶  PATH: .venv/bin       ──▶  Python do 
 - Como o efeito é apenas o `PATH`, chamar pelo caminho tem o mesmo resultado.
 - Forma preferida em scripts, `Makefile`, contêineres e CI.
 
+
 ---
+
 
 ## Instalando com pip
 
@@ -152,7 +172,9 @@ Com ativação:   python  ──▶  PATH: .venv/bin       ──▶  Python do 
 python -m pip install --upgrade pip
 ```
 
+
 ---
+
 
 ## `python -m pip`, Sempre
 
@@ -165,15 +187,20 @@ pip install httpx               # depende do PATH
 - Resolve a maior parte dos casos de "instalei mas o import não encontra".
 - É a forma recomendada pela documentação do pip.
 
+
 ---
 
-## requirements.txt
+## requirements.txt (Parte 1)
 
 ```txt
 httpx>=0.28,<1.0
 rich>=14.0
 python-dotenv
 ```
+
+---
+
+## requirements.txt (Parte 2)
 
 ```txt
 # requirements-dev.txt
@@ -188,6 +215,7 @@ python -m pip install -r requirements.txt
 
 ---
 
+
 ## `pip freeze` Não É um Lock
 
 ```bash
@@ -199,7 +227,9 @@ python -m pip freeze > requirements.lock.txt
 - Não guarda hashes de verificação.
 - Por isso existem `uv.lock`, `pip-tools` e `poetry.lock`.
 
+
 ---
+
 
 ## Instalação Editável
 
@@ -212,7 +242,9 @@ python -m pip install -e ".[dev]"
 - Cada alteração vale imediatamente, sem reinstalar.
 - É o que permite `from meu_pacote import x` dentro de `tests/`.
 
+
 ---
+
 
 ## Problemas Frequentes
 
@@ -224,7 +256,9 @@ python -m pip install -e ".[dev]"
 | `ensurepip is not available` | `sudo apt install python3-venv` |
 | Editor não reconhece o pacote | Aponte para `.venv/bin/python` |
 
+
 ---
+
 
 ## O Diagnóstico Universal
 
@@ -239,7 +273,9 @@ python -m pip --version
 
 *Se um `pip install` pede `sudo`, o ambiente virtual está faltando.*
 
+
 ---
+
 
 ## Equivalências com uv
 
@@ -252,7 +288,9 @@ python -m pip --version
 | Restaurar | `pip install -r requirements.txt` | `uv sync` |
 | Executar | ativar e `python main.py` | `uv run main.py` |
 
+
 ---
+
 
 ## Exercício
 
@@ -264,9 +302,10 @@ Prepare `notas-venv/` sem usar uv em nenhuma etapa:
 4. Ignore `.venv/` e `__pycache__/` no `.gitignore`;
 5. Apague o `.venv/` e recrie apenas a partir do `requirements.txt`.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```bash
 python3 -m venv .venv --prompt notas
@@ -274,6 +313,13 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install rich
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```bash
 # depois de escrever requirements.txt à mão
 deactivate
 rm -rf .venv
@@ -285,11 +331,16 @@ python -c "import sys; print(sys.prefix)"
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Um ambiente virtual é um **diretório** com interpretador, `site-packages/` e `pyvenv.cfg`.
 - Ele **não é portável**: recrie a partir da lista de dependências.
 - Ativar apenas altera `PATH`, `VIRTUAL_ENV` e o prompt — e vale só naquele terminal.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `.venv/bin/python` funciona sem ativação, e é o indicado em scripts e CI.
 - Use `python -m pip` para garantir o interpretador certo.
 - `pip freeze` congela um estado; não descreve o projeto nem substitui um lock.

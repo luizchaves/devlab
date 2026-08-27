@@ -1,7 +1,5 @@
 async function read(resource, id) {
-  resource = id
-    ? `${API_URL}/${resource}?id=eq.${id}`
-    : `${API_URL}/${resource}`;
+  resource = id ? `${API_URL}/${resource}?id=eq.${id}` : `${API_URL}/${resource}`;
 
   const options = {
     headers: {

@@ -1,14 +1,6 @@
 import prisma from '../database/database.js';
 
-async function create({
-  name,
-  value,
-  interest,
-  createdAt,
-  categoryId,
-  userId,
-  broker,
-}) {
+async function create({ name, value, interest, createdAt, categoryId, userId, broker }) {
   if (name && value && interest && categoryId && userId && broker) {
     const createdInvestment = await prisma.investment.create({
       data: {
@@ -78,10 +70,7 @@ async function read(where) {
     },
   });
 
-  if (
-    investments.length === 1 &&
-    Object.keys(where).some((key) => key !== 'userId')
-  ) {
+  if (investments.length === 1 && Object.keys(where).some((key) => key !== 'userId')) {
     return investments[0];
   }
 
@@ -114,16 +103,7 @@ async function readById(id, where) {
   }
 }
 
-async function update({
-  id,
-  name,
-  value,
-  interest,
-  createdAt,
-  categoryId,
-  userId,
-  broker,
-}) {
+async function update({ id, name, value, interest, createdAt, categoryId, userId, broker }) {
   if (name && value && interest && categoryId && userId && broker && id) {
     const updatedInvestment = await prisma.investment.update({
       where: {

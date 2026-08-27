@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "TypeScript: Funções"
 description: "Slides da aula de funções em TypeScript: parâmetros, opcionais e padrão, rest, tipos de função, tipagem contextual, void versus never e sobrecargas."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de funções em TypeScript: parâmetros, opcionais 
 
 Parâmetros e retorno, opcionais e rest, tipos de função, `void` versus `never` e sobrecargas.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,15 +37,24 @@ Tornar o contrato explícito na fronteira mais importante do sistema:
 - Diferenciar `void`, `undefined` e `never`.
 - Escrever **sobrecargas** quando a assinatura varia.
 
+
+
 ---
 
-## Assinatura
+## Assinatura (Parte 1)
 
 ```ts
 function applyDiscount(price: number, percentage: number): number {
   return price * (1 - percentage);
 }
 
+```
+
+---
+
+## Assinatura (Parte 2)
+
+```ts
 // Retorno inferido como number
 function subtotal(price: number, quantity: number) {
   return price * quantity;
@@ -52,6 +69,8 @@ function subtotal(price: number, quantity: number) {
 
 ---
 
+
+
 ## Opcionais, Padrão e Rest
 
 ```ts
@@ -63,7 +82,11 @@ function sum(...values: number[]): number { … }                  // sempre arr
 - Opcional e padrão vêm **depois** dos obrigatórios.
 - `?` inclui `undefined` no tipo; valor padrão não.
 
+
+
 ---
+
+
 
 ## Armadilha do Padrão Mutável
 
@@ -77,7 +100,11 @@ function addItem(item: string, items: string[] = []) {
 - Em TypeScript o padrão é avaliado **a cada chamada** — diferente do Python.
 - Mas o mesmo objeto compartilhado aparece em `const CACHE = []` no escopo do módulo.
 
+
+
 ---
+
+
 
 ## Tipos de Função
 
@@ -94,7 +121,11 @@ interface Comparator<T> {
 }
 ```
 
+
+
 ---
+
+
 
 ## Tipagem Contextual
 
@@ -110,7 +141,11 @@ repeat(3, (index) => console.log(index));  // index é number
 
 *Anotar o parâmetro do callback é redundante quando o contexto já define o tipo.*
 
+
+
 ---
+
+
 
 ## `void`, `undefined` e `never`
 
@@ -125,7 +160,11 @@ repeat(3, (index) => console.log(index));  // index é number
 [1, 2, 3].forEach((value) => ids.push(value));   // push devolve number
 ```
 
+
+
 ---
+
+
 
 ## Sobrecargas
 
@@ -143,7 +182,11 @@ const numbers = parse("1, 2", true);  // number[]
 
 *Prefira união ou generic quando expressarem o mesmo contrato.*
 
+
+
 ---
+
+
 
 ## `this` Tipado
 
@@ -161,7 +204,11 @@ class Counter {
 
 - O parâmetro `this` é apagado e não entra na chamada.
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -173,7 +220,11 @@ Crie `src/validators.ts`:
 4. `describe(value, rules: Record<string, Validator>): string`;
 5. Anote o retorno de todas as funções exportadas.
 
+
+
 ---
+
+
 
 ## Solução do Exercício
 
@@ -191,13 +242,23 @@ export function validate(value: string, ...validators: Validator[]): boolean {
 console.log(validate("ana@devlab.dev", isEmail, minLength(5)));
 ```
 
+
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Parâmetros **sempre** precisam de anotação; o retorno costuma ser inferido.
 - Anote o retorno em funções exportadas para o erro aparecer dentro da função.
 - `?` produz `string | undefined`; valor padrão mantém o tipo original.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Tipos de função descrevem callbacks; a tipagem contextual dispensa anotações.
 - `void` significa "ignore o retorno" — diferente de `undefined`.
 - Sobrecargas descrevem variações; use união ou generic quando possível.

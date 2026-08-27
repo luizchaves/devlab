@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useState, useContext } from 'react';
-import Storage from '@/services/storage';
+import { createContext, useContext, useState } from 'react';
 import { formatDate } from '@/lib/format';
+import Storage from '@/services/storage';
 
 export const InvestmentContext = createContext({});
 
@@ -26,9 +26,7 @@ export function InvestmentProvider({ children }) {
 
   const [investmentModalData, setInvestmentModalData] = useState({});
 
-  const [investmentFormData, setInvestmentFormData] = useState(
-    initialInvestmentFormData
-  );
+  const [investmentFormData, setInvestmentFormData] = useState(initialInvestmentFormData);
 
   const [investmentFormAction, setInvestmentFormAction] = useState('');
 
@@ -59,9 +57,7 @@ export function InvestmentProvider({ children }) {
   };
 
   const updateInvestment = async (investment) => {
-    const newInvestments = investments.filter(
-      (item) => item.id !== investment.id
-    );
+    const newInvestments = investments.filter((item) => item.id !== investment.id);
 
     setInvestments([...newInvestments, investment]);
 
@@ -69,9 +65,7 @@ export function InvestmentProvider({ children }) {
   };
 
   const removeInvestment = (id) => {
-    const newInvestments = investments.filter(
-      (investment) => investment.id !== id
-    );
+    const newInvestments = investments.filter((investment) => investment.id !== id);
 
     setInvestments(newInvestments);
 

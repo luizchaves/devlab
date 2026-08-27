@@ -1,12 +1,8 @@
 import { useInvestment } from '@/contexts/InvestmentContext';
 
 export default function Modal() {
-  const {
-    isShowModal,
-    toggleShowModal,
-    handleDeleteInvestment,
-    investmentModalData,
-  } = useInvestment();
+  const { isShowModal, toggleShowModal, handleDeleteInvestment, investmentModalData } =
+    useInvestment();
 
   return (
     <>
@@ -18,9 +14,7 @@ export default function Modal() {
           ></div>
           <div className="fixed top-1/3 left-1/2 -translate-x-1/2 z-[60] overflow-x-hidden overflow-y-auto sm:max-w-lg sm:w-full sm:mx-auto flex flex-col bg-white border shadow-sm rounded-xl dark:bg-gray-800 dark:border-gray-700 dark:shadow-slate-700/[.7]">
             <div className="flex justify-between items-center py-3 px-4 border-b dark:border-gray-700">
-              <h3 className="font-bold text-gray-800 dark:text-white">
-                Remover Investimento
-              </h3>
+              <h3 className="font-bold text-gray-800 dark:text-white">Remover Investimento</h3>
               <button
                 type="button"
                 className="hs-dropdown-toggle inline-flex flex-shrink-0 justify-center items-center h-8 w-8 rounded-md text-gray-500 hover:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:ring-offset-white transition-all text-sm dark:focus:ring-gray-700 dark:focus:ring-offset-gray-800"
@@ -45,11 +39,7 @@ export default function Modal() {
             <div className="p-4 overflow-y-auto">
               <p className="mt-1 text-gray-800 dark:text-gray-400">
                 Deseja remover o investimento{' '}
-                <span className="investment-name font-semibold">
-                  {' '}
-                  {investmentModalData.name}
-                </span>
-                ?
+                <span className="investment-name font-semibold"> {investmentModalData.name}</span>?
               </p>
             </div>
             <div className="flex justify-end items-center gap-x-2 py-3 px-4 border-t dark:border-gray-700">

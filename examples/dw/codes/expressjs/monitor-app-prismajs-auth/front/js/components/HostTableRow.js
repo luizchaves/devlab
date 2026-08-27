@@ -1,8 +1,8 @@
 import { $ } from '../lib/dom';
 import Hosts from '../lib/hosts';
+import API from '../services/storage';
 import HostForm from './HostForm';
 import * as LineChart from './LineChart';
-import API from '../services/storage';
 
 export function create(host) {
   const row = `

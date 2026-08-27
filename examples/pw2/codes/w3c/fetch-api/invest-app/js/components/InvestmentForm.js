@@ -1,16 +1,8 @@
-import Investments from '../lib/investments';
 import { $ } from '../lib/dom';
 import { formatDate } from '../lib/format';
+import Investments from '../lib/investments';
 
-function setValues({
-  id,
-  name,
-  value,
-  origin,
-  category,
-  interest,
-  created_at,
-}) {
+function setValues({ id, name, value, origin, category, interest, created_at }) {
   const form = $('form');
 
   value = value / 100;
@@ -37,9 +29,7 @@ function getValues() {
 
   const value = Number(investment.value) * 100;
 
-  const created_at = new Date(
-    investment.created_at + 'T00:00:00-03:00'
-  ).toISOString();
+  const created_at = new Date(investment.created_at + 'T00:00:00-03:00').toISOString();
 
   return { ...investment, value, created_at };
 }

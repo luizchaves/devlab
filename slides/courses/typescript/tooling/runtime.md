@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Execução e Build"
 description: "Slides da aula de execução: tsc, tsx, type stripping no Node, bundlers, source maps e verificação de tipos em CI."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de execução: tsc, tsx, type stripping no Node, bu
 
 Quem remove os tipos, quando, e onde a verificação entra nesse fluxo.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Escolher o fluxo certo para cada tipo de projeto:
 - Configurar **source maps**.
 - Garantir a verificação de tipos na **CI**.
 
+
 ---
+
 
 ## Duas Etapas, Não Uma
 
@@ -44,7 +50,9 @@ código .ts ──┬──▶ tsc --noEmit ──▶ verificação (editor e CI
 | esbuild / swc / tsx | **Não** | Sim | Muito rápida |
 | Node (type stripping) | **Não** | Sim | Nativa |
 
+
 ---
+
 
 ## Transpilar Não É Verificar
 
@@ -53,7 +61,9 @@ código .ts ──┬──▶ tsc --noEmit ──▶ verificação (editor e CI
 - Por isso `tsc --noEmit` precisa existir no fluxo.
 - Lugar natural: editor (contínuo) e CI (bloqueante).
 
+
 ---
+
 
 ## Em Desenvolvimento
 
@@ -66,7 +76,9 @@ deno run src/main.ts             # verifica por padrão
 bun run src/main.ts              # só remove os tipos
 ```
 
+
 ---
+
 
 ## Scripts Típicos
 
@@ -83,7 +95,9 @@ bun run src/main.ts              # só remove os tipos
 
 *O `build` roda a verificação **antes** de empacotar.*
 
+
 ---
+
 
 ## Empacotando
 
@@ -96,7 +110,9 @@ bun run src/main.ts              # só remove os tipos
 
 *Biblioteca sem `.d.ts` publicado entrega `any` a quem consome.*
 
+
 ---
+
 
 ## Source Maps
 
@@ -111,7 +127,9 @@ node --enable-source-maps dist/main.js
 - Sem eles, o *stack trace* aponta para o bundle minificado.
 - `declarationMap` faz "ir para definição" chegar ao `.ts`.
 
+
 ---
+
 
 ## Verificação em CI
 
@@ -124,7 +142,9 @@ node --enable-source-maps dist/main.js
 
 *Editor verde não é build verde: ele só analisa os arquivos abertos.*
 
+
 ---
+
 
 ## Estratégias por Cenário
 
@@ -135,7 +155,9 @@ node --enable-source-maps dist/main.js
 | App web | `vite dev` | `vite build` | CI |
 | Biblioteca | `tsx` + `vitest` | `tsup --dts` | CI |
 
+
 ---
+
 
 ## Exercício
 
@@ -147,7 +169,9 @@ Configure `cli-ts/`:
 4. Scripts `dev`, `typecheck`, `build` e `start`;
 5. Faça o `build` rodar a verificação antes de empacotar.
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -164,13 +188,19 @@ Configure `cli-ts/`:
 
 *Com um erro de tipo: `typecheck` e `build` falham; `tsx` e `tsup` sozinhos executam.*
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Nenhum runtime executa TypeScript: alguém sempre remove os tipos.
 - Transpiladores rápidos **não verificam** — `tsc --noEmit` é obrigatório no fluxo.
 - `tsx` executa direto; `tsc && node` verifica, mas é mais lento.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Node, Deno e Bun executam `.ts`, com graus diferentes de verificação.
 - Biblioteca precisa publicar `.d.ts` além do JavaScript.
 - Source maps trazem o *stack trace* de volta ao código original.

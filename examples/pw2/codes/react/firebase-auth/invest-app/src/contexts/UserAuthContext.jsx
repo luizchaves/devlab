@@ -1,14 +1,14 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut,
   GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
+  signOut,
 } from 'firebase/auth';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 import { auth } from '@/services/firebase';
 
@@ -57,9 +57,7 @@ export function UserAuthContextProvider({ children }) {
   }, []);
 
   return (
-    <UserAuthContext.Provider
-      value={{ user, logIn, signUp, logOut, googleSignIn }}
-    >
+    <UserAuthContext.Provider value={{ user, logIn, signUp, logOut, googleSignIn }}>
       {loading ? <div>Loading...</div> : children}
     </UserAuthContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import crypto from 'crypto';
 
 function createValidUser() {
@@ -26,12 +26,8 @@ test.describe('Invest App', () => {
     await page.goto('/signup.html');
     await page.getByRole('textbox', { name: 'Nome' }).fill(validUser.name);
     await page.getByRole('textbox', { name: 'Email' }).fill(validUser.email);
-    await page
-      .getByRole('textbox', { name: 'Senha', exact: true })
-      .fill(validUser.password);
-    await page
-      .getByRole('textbox', { name: 'Confirmar Senha' })
-      .fill(validUser.password);
+    await page.getByRole('textbox', { name: 'Senha', exact: true }).fill(validUser.password);
+    await page.getByRole('textbox', { name: 'Confirmar Senha' }).fill(validUser.password);
     await page.getByRole('button', { name: 'Cadastrar' }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
 
@@ -40,9 +36,7 @@ test.describe('Invest App', () => {
     await page.getByRole('textbox', { name: 'Email' }).fill(validUser.email);
     await page.getByRole('textbox', { name: 'Senha' }).fill(validUser.password);
     await page.getByRole('button', { name: 'Entrar' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Investimentos' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Investimentos' })).toBeVisible();
 
     // Home - Add Investment
     await page.goto('/home.html');
@@ -59,9 +53,7 @@ test.describe('Invest App', () => {
 
     // Edit Investment
     await page.locator('svg').nth(1).click();
-    await page
-      .getByRole('textbox', { name: 'Nome' })
-      .fill('Tesouro Selic 2029');
+    await page.getByRole('textbox', { name: 'Nome' }).fill('Tesouro Selic 2029');
     await page.getByRole('button', { name: 'Submit' }).click();
 
     await expect(page.getByText('Tesouro Selic 2029')).toBeVisible();

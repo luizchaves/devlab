@@ -1,5 +1,5 @@
-import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+import path from 'node:path';
 import multer from 'multer';
 
 const uploadPath = path.resolve('public', 'imgs', 'profile');

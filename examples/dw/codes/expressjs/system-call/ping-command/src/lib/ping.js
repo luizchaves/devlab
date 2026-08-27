@@ -1,5 +1,5 @@
-import util from 'node:util';
 import { exec } from 'node:child_process';
+import util from 'node:util';
 
 const execAsync = util.promisify(exec);
 
@@ -21,13 +21,13 @@ export function parse(output) {
   const ping = { output };
 
   // ip
-  let regex = /\(([\d\.]+)\)/;
+  let regex = /\(([\d.]+)\)/;
   let match = output.match(regex);
   ping.ip = match[1];
 
   // packets
   ping.packets = [];
-  regex = /icmp_seq=(?<seq>\d+) ttl=(?<ttl>\d+) time=(?<time>[\d\.]+)/g;
+  regex = /icmp_seq=(?<seq>\d+) ttl=(?<ttl>\d+) time=(?<time>[\d.]+)/g;
   while ((match = regex.exec(output))) {
     const {
       groups: { seq, ttl, time },
@@ -41,8 +41,7 @@ export function parse(output) {
   }
 
   // statistics
-  regex =
-    /(?<transmitted>\d+) packets transmitted, (?<received>\d+) (packets received|received)/;
+  regex = /(?<transmitted>\d+) packets transmitted, (?<received>\d+) (packets received|received)/;
   const {
     groups: { transmitted, received },
   } = output.match(regex);

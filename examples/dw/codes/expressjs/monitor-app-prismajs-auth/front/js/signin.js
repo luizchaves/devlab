@@ -1,9 +1,9 @@
 import 'bootstrap';
 
-import { $ } from './lib/dom.js';
-import API from './services/storage.js';
-import Auth from './services/auth.js';
 import Toast from './components/Toast';
+import { $ } from './lib/dom.js';
+import Auth from './services/auth.js';
+import API from './services/storage.js';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 

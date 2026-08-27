@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Tipos Básicos"
 description: "Slides da aula de tipos básicos em TypeScript: primitivos, inferência, arrays, tuplas, any, unknown, never, literais e asserções."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de tipos básicos em TypeScript: primitivos, infer�
 
 Primitivos, inferência, arrays e tuplas, `any` versus `unknown`, tipos literais e asserções.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Descrever valores com precisão, sem ruído:
 - Diferenciar `any`, `unknown` e `never`.
 - Aplicar **tipos literais** e asserções com consciência do risco.
 
+
 ---
+
 
 ## Primitivos
 
@@ -44,7 +50,9 @@ Descrever valores com precisão, sem ruído:
 
 *Sempre minúsculo: `String` e `Number` são os objetos empacotadores, não os tipos.*
 
+
 ---
+
 
 ## Inferência
 
@@ -60,7 +68,9 @@ const values = [1, 2, 3];                // number[]
 - `const` guarda o **literal**; `let` alarga para o tipo base.
 - Anotar o que já é inferido só acrescenta ruído.
 
+
 ---
+
 
 ## Quando Anotar
 
@@ -74,7 +84,9 @@ const values = [1, 2, 3];                // number[]
 
 *Regra: anote nas fronteiras, deixe inferir no meio.*
 
+
 ---
+
 
 ## Arrays e Tuplas
 
@@ -90,7 +102,9 @@ type Command = [name: string, ...args: string[]];
 
 *A tupla fixa quantidade e tipo por posição — é o que faz `useState` funcionar.*
 
+
 ---
+
 
 ## `any` Desliga o Compilador
 
@@ -104,7 +118,9 @@ value.qualquerCoisa();   // compila; explode em runtime
 - Diz "confie em mim, não verifique".
 - **Propaga**: tudo que deriva de `any` também vira `any`.
 
+
 ---
+
 
 ## `unknown` Exige Verificação
 
@@ -124,7 +140,9 @@ if (typeof value === "object" && value !== null && "name" in value) {
 | Exige estreitar | Não | **Sim** |
 | Propaga | Sim | Não |
 
+
 ---
+
 
 ## `never` É o Impossível
 
@@ -140,7 +158,9 @@ default: {
 }
 ```
 
+
 ---
+
 
 ## Tipos Literais
 
@@ -155,7 +175,9 @@ let article: Status = "rascunho";
 - Conjunto **fechado** de valores válidos.
 - Autocompletar no editor e erro de compilação em valor inválido.
 
+
 ---
+
 
 ## Literal x enum x as const
 
@@ -171,7 +193,9 @@ const LEVELS = { Info: "INFO", Error: "ERROR" } as const;
 type Level = (typeof LEVELS)[keyof typeof LEVELS];
 ```
 
+
 ---
+
 
 ## Asserções
 
@@ -190,7 +214,9 @@ const palette = {
 | `satisfies` | Nenhum |
 | `!` non-null | **Alto** |
 
+
 ---
+
 
 ## Exercício
 
@@ -202,9 +228,10 @@ Crie `src/inventory.ts`:
 4. `summarize(items: Item[]): Summary` aplicando o desconto;
 5. Objeto de categorias com `as const`, derivando o tipo dele.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```ts
 const CATEGORIES = { Peripheral: "periferico", Video: "video" } as const;
@@ -217,6 +244,13 @@ interface Item {
   discount?: number;
 }
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```ts
 type Summary = [total: number, count: number];
 
 function summarize(list: Item[]): Summary {
@@ -227,11 +261,16 @@ function summarize(list: Item[]): Summary {
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Tipos primitivos são sempre em **minúsculas**.
 - A inferência resolve a maior parte: anote nas **fronteiras**.
 - `const` guarda o tipo **literal**; `let` alarga.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Tupla fixa quantidade e tipo por posição; `readonly` bloqueia mutação.
 - `any` desliga a verificação e propaga; `unknown` obriga a estreitar.
 - União literal é preferível a `enum`; `satisfies` verifica sem alargar.

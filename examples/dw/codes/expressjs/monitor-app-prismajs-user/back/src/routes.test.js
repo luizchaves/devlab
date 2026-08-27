@@ -66,9 +66,7 @@ describe('Moniotr App', () => {
       it('should list the valid host', async () => {
         const response = await request(app).get('/hosts');
 
-        const hasValidHost = response.body.some(
-          (host) => host.address === createdHost.address
-        );
+        const hasValidHost = response.body.some((host) => host.address === createdHost.address);
 
         expect(hasValidHost).toBeTruthy();
       });
@@ -100,9 +98,7 @@ describe('Moniotr App', () => {
 
     describe('PUT /hosts/:hostId', () => {
       it('should update a host', async () => {
-        const response = await request(app)
-          .put(`/hosts/${createdHost.id}`)
-          .send(updatedHost);
+        const response = await request(app).put(`/hosts/${createdHost.id}`).send(updatedHost);
 
         expect(response.statusCode).toBe(200);
       });
@@ -110,19 +106,15 @@ describe('Moniotr App', () => {
       it('should list an updated host', async () => {
         const response = await request(app).get('/hosts');
 
-        const hasValidHost = response.body.some(
-          (host) => host.address === updatedHost.address
-        );
+        const hasValidHost = response.body.some((host) => host.address === updatedHost.address);
 
         expect(hasValidHost).toBeTruthy();
       });
 
       it('should not update a host without name or address', async () => {
-        const response = await request(app)
-          .put(`/hosts/${createdHost.id}`)
-          .send({
-            name: 'Cloudflare DNS',
-          });
+        const response = await request(app).put(`/hosts/${createdHost.id}`).send({
+          name: 'Cloudflare DNS',
+        });
 
         expect(response.statusCode).toBe(400);
       });
@@ -158,9 +150,7 @@ describe('Moniotr App', () => {
       it('should create a ping with valid host', async () => {
         let response = await request(app).post('/hosts').send(newHost);
 
-        response = await request(app).post(
-          `/hosts/${response.body.id}/pings/3`
-        );
+        response = await request(app).post(`/hosts/${response.body.id}/pings/3`);
 
         expect(response.statusCode).toBe(200);
 
@@ -172,9 +162,7 @@ describe('Moniotr App', () => {
           .post('/hosts')
           .send({ name: 'unknown host', address: '172.16.0.1' });
 
-        response = await request(app).post(
-          `/hosts/${response.body.id}/pings/3`
-        );
+        response = await request(app).post(`/hosts/${response.body.id}/pings/3`);
 
         expect(response.statusCode).toBe(400);
       });
@@ -184,9 +172,7 @@ describe('Moniotr App', () => {
           .post('/hosts')
           .send({ name: 'unknown host', address: 'www.unknownhost.com' });
 
-        response = await request(app).post(
-          `/hosts/${response.body.id}/pings/3`
-        );
+        response = await request(app).post(`/hosts/${response.body.id}/pings/3`);
 
         expect(response.statusCode).toBe(400);
       });
@@ -194,9 +180,7 @@ describe('Moniotr App', () => {
 
     describe('GET /hosts/:hostId/pings', () => {
       it('should show a ping by hostId', async () => {
-        const response = await request(app).get(
-          `/hosts/${createdHost.id}/pings`
-        );
+        const response = await request(app).get(`/hosts/${createdHost.id}/pings`);
 
         expect(response.statusCode).toBe(200);
       });
@@ -214,9 +198,7 @@ describe('Moniotr App', () => {
 
     describe('GET /tags/:tagName/hosts', () => {
       it('should show hosts by tagName', async () => {
-        const response = await request(app).get(
-          `/tags/${createdHost.id}/hosts`
-        );
+        const response = await request(app).get(`/tags/${createdHost.id}/hosts`);
 
         expect(response.statusCode).toBe(200);
       });
@@ -250,9 +232,7 @@ describe('Moniotr App', () => {
       it('should not create a new user without email', async () => {
         const { name, password } = validUser;
 
-        const response = await request(app)
-          .post('/users')
-          .send({ name, password });
+        const response = await request(app).post('/users').send({ name, password });
 
         expect(response.statusCode).toBe(400);
       });

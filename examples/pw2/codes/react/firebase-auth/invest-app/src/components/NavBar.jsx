@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { useUserAuth } from '@/contexts/UserAuthContext';
 
 const initialMenu = [
@@ -46,10 +45,7 @@ export default function NavBar() {
   return (
     <nav className="bg-white border-gray-200 dark:bg-gray-900">
       <div className="max-w-screen-lg flex flex-wrap items-center justify-between mx-auto p-4">
-        <Link
-          href="/"
-          className="text-2xl font-semibold whitespace-nowrap dark:text-white"
-        >
+        <Link href="/" className="text-2xl font-semibold whitespace-nowrap dark:text-white">
           InvestApp
         </Link>
         <button

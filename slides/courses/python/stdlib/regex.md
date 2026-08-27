@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Expressões Regulares"
 description: "Slides da aula de expressões regulares em Python: módulo re, classes, quantificadores, âncoras, grupos nomeados, substituição e flags."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de expressões regulares em Python: módulo re, cla
 
 Módulo `re`, sintaxe de padrões, grupos nomeados, substituição, flags e quantificadores.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Descrever padrões de texto que os métodos de `str` não alcançam:
 - Controlar o comportamento com **flags**.
 - Diferenciar quantificadores **gulosos** de **preguiçosos**.
 
+
 ---
+
 
 ## Funções do Módulo
 
@@ -43,7 +49,9 @@ Descrever padrões de texto que os métodos de `str` não alcançam:
 | `re.sub(p, r, t)` | Nova string |
 | `re.split(p, t)` | Lista |
 
+
 ---
+
 
 ## Sempre String Crua
 
@@ -57,7 +65,9 @@ print(re.findall(r"\d+", "a1b22c333"))     # ['1', '22', '333']
 - Sem o prefixo `r`, o Python interpreta a barra invertida **antes** do módulo `re`.
 - Convenção universal: todo padrão em `r"..."`.
 
+
 ---
+
 
 ## O Objeto `Match`
 
@@ -72,7 +82,9 @@ print(found.span())      # (9, 19)
 
 *`re.search` devolve `None` quando não encontra: teste antes de usar `.group()`.*
 
+
 ---
+
 
 ## Classes de Caracteres
 
@@ -86,7 +98,9 @@ print(found.span())      # (9, 19)
 | `[^abc]` | Qualquer um **exceto** |
 | `[a-z0-9]` | Intervalos |
 
+
 ---
+
 
 ## Quantificadores
 
@@ -103,7 +117,9 @@ print(found.span())      # (9, 19)
 print(re.findall(r"\d{5}-?\d{3}", "CEP 58000-000"))
 ```
 
+
 ---
+
 
 ## Âncoras
 
@@ -118,7 +134,9 @@ print(re.search(r"\.csv$", "relatorio.csv"))
 | `^` / `$` | Início / fim (do texto ou da linha) |
 | `\b` / `\B` | Limite / não-limite de palavra |
 
+
 ---
+
 
 ## Grupos Nomeados
 
@@ -133,7 +151,9 @@ for match in re.finditer(PATTERN, texto):
     print(f"{data['ano']}-{data['mes']}-{data['dia']}")
 ```
 
+
 ---
+
 
 ## `findall` e Grupos
 
@@ -147,7 +167,9 @@ re.findall(r"(?:https?)://([\w.]+)", texto)    # só o domínio
 - Um grupo: só o conteúdo dele. Vários: tuplas.
 - `(?:...)` agrupa **sem** capturar.
 
+
 ---
+
 
 ## Substituição e Divisão
 
@@ -164,7 +186,9 @@ def mask(match):
 print(re.sub(r"\d{5}-\d{4}", mask, text))   # substituição por função
 ```
 
+
 ---
+
 
 ## Flags
 
@@ -179,7 +203,9 @@ print(re.sub(r"\d{5}-\d{4}", mask, text))   # substituição por função
 re.findall(r"erro", "Erro ERRO erro", re.IGNORECASE)
 ```
 
+
 ---
+
 
 ## Guloso x Preguiçoso
 
@@ -193,7 +219,9 @@ print(re.findall(r"<[^>]+>", html))  # mesma coisa, mais eficiente
 
 *Nunca use regex para analisar HTML ou JSON: use um parser.*
 
+
 ---
+
 
 ## Compilando Padrões
 
@@ -207,7 +235,9 @@ for candidate in candidates:
 - Prepara o padrão uma vez e deixa a intenção explícita no módulo.
 - Validação de e-mail por regex é sempre **aproximada**: confirme enviando mensagem.
 
+
 ---
+
 
 ## Exercício
 
@@ -219,9 +249,10 @@ Crie `validators.py` com validações por regex:
 4. `is_strong_password(value)` — 8+ caracteres com maiúscula, minúscula, dígito e símbolo;
 5. Compile os padrões no módulo e use `fullmatch`.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 PASSWORD = re.compile(
@@ -230,6 +261,13 @@ PASSWORD = re.compile(
     (?=.*[A-Z])      # maiúscula
     (?=.*\d)         # dígito
     (?=.*[^\w\s])    # símbolo
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
     .{8,}            # comprimento
     """,
     re.VERBOSE,
@@ -243,11 +281,16 @@ def is_strong_password(value):
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `search` procura em qualquer posição, `match` no início, `fullmatch` no texto inteiro.
 - Escreva padrões sempre como **string crua** (`r"\d+"`).
 - `\d`, `\w` e `\s` cobrem dígitos, caracteres de palavra e espaços.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - Grupos nomeados `(?P<nome>...)` deixam a extração legível via `groupdict()`.
 - Quantificadores são **gulosos** por padrão; `?` os torna preguiçosos.
 - `re.compile` para padrões reutilizados; nunca regex para HTML ou JSON.

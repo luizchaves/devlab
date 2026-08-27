@@ -10,7 +10,7 @@ export default function InvestmentForm() {
   } = useInvestment();
 
   const handleChange = (event) => {
-    let { name, value } = event.target;
+    const { name, value } = event.target;
 
     setInvestmentFormData({ ...investmentFormData, [name]: value });
   };
@@ -28,9 +28,7 @@ export default function InvestmentForm() {
             tabIndex={-1}
           >
             <div className="flex justify-between items-center py-3 px-4 border-b dark:border-gray-700">
-              <h3 className="font-bold text-gray-800 dark:text-white">
-                Investimento
-              </h3>
+              <h3 className="font-bold text-gray-800 dark:text-white">Investimento</h3>
               <button
                 type="button"
                 className="investment-drawer-close inline-flex flex-shrink-0 justify-center items-center h-8 w-8 rounded-md text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:ring-offset-white text-sm dark:text-gray-500 dark:hover:text-gray-400 dark:focus:ring-gray-700 dark:focus:ring-offset-gray-800"
@@ -56,10 +54,7 @@ export default function InvestmentForm() {
               <form onSubmit={(event) => handleFormSubmit(event)}>
                 <input type="hidden" id="id" name="id" />
                 <div className="mb-3">
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium mb-2 dark:text-white"
-                  >
+                  <label htmlFor="name" className="block text-sm font-medium mb-2 dark:text-white">
                     Nome
                   </label>
                   <input
@@ -73,10 +68,7 @@ export default function InvestmentForm() {
                   />
                 </div>
                 <div className="mb-3">
-                  <label
-                    htmlFor="value"
-                    className="block text-sm font-medium mb-2 dark:text-white"
-                  >
+                  <label htmlFor="value" className="block text-sm font-medium mb-2 dark:text-white">
                     Valor
                   </label>
                   <input

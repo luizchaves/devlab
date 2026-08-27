@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "TypeScript: tsconfig.json"
 description: "Slides da aula de configuração: strict e suas verificações, target, module, include e exclude, paths e composição com extends."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides da aula de configuração: strict e suas verificações, ta
 
 O que compilar, como verificar e para qual JavaScript emitir.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Dominar a dúzia de opções que muda o comportamento do projeto:
 - Delimitar arquivos com `include` e `exclude`.
 - Compor configurações com **`extends`**.
 
+
+
 ---
+
+
 
 ## Anatomia
 
@@ -45,7 +57,11 @@ pnpm exec tsc --showConfig    # configuração final resolvida
 pnpm exec tsc --listFiles     # arquivos do programa
 ```
 
+
+
 ---
+
+
 
 ## O Que `strict` Liga
 
@@ -58,7 +74,11 @@ pnpm exec tsc --listFiles     # arquivos do programa
 | `noImplicitThis` | `this` implícito |
 | `useUnknownInCatchVariables` | Erro do `catch` como `any` |
 
+
+
 ---
+
+
 
 ## Além do `strict`
 
@@ -71,7 +91,11 @@ pnpm exec tsc --listFiles     # arquivos do programa
 
 *`noUncheckedIndexedAccess` incomoda — e está certo.*
 
+
+
 ---
+
+
 
 ## target, lib e module
 
@@ -84,7 +108,11 @@ pnpm exec tsc --listFiles     # arquivos do programa
 
 *`target` converte sintaxe, **não** adiciona APIs: isso é polyfill.*
 
+
+
 ---
+
+
 
 ## Por Ambiente
 
@@ -95,7 +123,11 @@ pnpm exec tsc --listFiles     # arquivos do programa
 | Biblioteca npm | `ESNext` | `Bundler` | conforme o alvo |
 | Legado CJS | `CommonJS` | `Node10` | `ES2020` |
 
+
+
 ---
+
+
 
 ## include e exclude
 
@@ -108,7 +140,11 @@ pnpm exec tsc --listFiles     # arquivos do programa
 
 *`exclude` remove pontos de entrada — mas um arquivo excluído **importado** por um incluído entra assim mesmo.*
 
+
+
 ---
+
+
 
 ## paths
 
@@ -124,9 +160,12 @@ pnpm exec tsc --listFiles     # arquivos do programa
 - Elimina `../../../` nos imports.
 - **Não** reescreve o caminho emitido: quem executa precisa conhecer o apelido.
 
+
+
 ---
 
-## Composição com extends
+
+## Composição com extends (Parte 1)
 
 ```json
 // tsconfig.json
@@ -136,6 +175,15 @@ pnpm exec tsc --listFiles     # arquivos do programa
   "include": ["src/**/*"]
 }
 
+```
+
+
+---
+
+
+## Composição com extends (Parte 2)
+
+```json
 // tsconfig.test.json
 {
   "extends": "./tsconfig.base.json",
@@ -144,7 +192,10 @@ pnpm exec tsc --listFiles     # arquivos do programa
 }
 ```
 
+
 ---
+
+
 
 ## Emissão
 
@@ -157,7 +208,11 @@ pnpm exec tsc --listFiles     # arquivos do programa
 | `isolatedModules` | Compatibilidade com transpiladores |
 | `incremental` | Cache entre builds |
 
+
+
 ---
+
+
 
 ## Exercício
 
@@ -169,9 +224,11 @@ Configure `api-ts/` com três configurações:
 4. `paths` com `@app/*` para `src/*`;
 5. Compare a saída de `tsc --showConfig` nas duas.
 
+
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```json
 // tsconfig.base.json
@@ -180,6 +237,13 @@ Configure `api-ts/` com três configurações:
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```json
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
@@ -188,18 +252,32 @@ Configure `api-ts/` com três configurações:
 }
 ```
 
+---
+
+
+## Solução do Exercício (Parte 2)
+
 ```bash
 pnpm exec tsc --showConfig
 pnpm exec tsc --project tsconfig.test.json --showConfig
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - `strict` liga oito verificações e é o padrão de qualquer projeto novo.
 - `noUncheckedIndexedAccess` reflete o comportamento real do JavaScript.
 - `target` é sintaxe; `lib` é API; `module` é formato de módulo.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - `exclude` não impede a compilação de arquivo importado.
 - `paths` vale na compilação, não no runtime.
 - `extends` evita duplicar configuração entre app, testes e build.

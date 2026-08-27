@@ -1,9 +1,9 @@
 'use client';
 
+import { IconPencil, IconTrash } from '@tabler/icons-react';
 import Link from 'next/link';
-import { IconTrash, IconPencil } from '@tabler/icons-react';
-import { formatCurrency, formatDate } from '@/lib/format';
 import { useInvestment } from '@/contexts/InvestmentContext';
+import { formatCurrency, formatDate } from '@/lib/format';
 
 export default function InvestmentCard({
   id,
@@ -14,16 +14,13 @@ export default function InvestmentCard({
   interest,
   created_at,
 }) {
-  const { isShowValues, handleLoadModalData, handleUpdateInvestment } =
-    useInvestment();
+  const { isShowValues, handleLoadModalData, handleUpdateInvestment } = useInvestment();
 
   return (
     <div className="bg-white shadow-md rounded-lg p-4 relative">
       <div className="flex justify-between items-center">
         <Link href={`/investments/${id}`}>
-          <h3 className="investment-name text-lg font-semibold text-gray-700">
-            {name}
-          </h3>
+          <h3 className="investment-name text-lg font-semibold text-gray-700">{name}</h3>
         </Link>
         <p className="investment-value text-lg font-semibold text-gray-700">
           {isShowValues ? formatCurrency(value / 100) : 'R$ ****'}
@@ -44,9 +41,7 @@ export default function InvestmentCard({
         </p>
         <p className="text-sm text-gray-500">
           <span className="font-bold mr-1">Data:</span>
-          <span className="investment-created_at">
-            {formatDate(created_at)}
-          </span>
+          <span className="investment-created_at">{formatDate(created_at)}</span>
         </p>
       </div>
       <div className="absolute bottom-4 right-4 inline-flex">

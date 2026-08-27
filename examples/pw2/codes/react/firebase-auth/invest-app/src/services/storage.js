@@ -27,11 +27,8 @@ async function read(resource, filter) {
 
   let docs;
 
-  if (!!filter) {
-    const q = query(
-      colRef,
-      ...Object.keys(filter).map((key) => where(key, '==', filter[key]))
-    );
+  if (filter) {
+    const q = query(colRef, ...Object.keys(filter).map((key) => where(key, '==', filter[key])));
 
     docs = await getDocs(q);
   } else {

@@ -1,5 +1,5 @@
-import API from './services/api.js';
 import { formatCurrency, formatDate } from './lib/format.js';
+import API from './services/api.js';
 
 let removedHostId;
 
@@ -75,10 +75,7 @@ function InvestmentCard(investment) {
 function createInvestmentCard(investment) {
   const investmentContainer = document.querySelector(`#investment-grid`);
 
-  investmentContainer.insertAdjacentHTML(
-    'beforeend',
-    InvestmentCard(investment)
-  );
+  investmentContainer.insertAdjacentHTML('beforeend', InvestmentCard(investment));
 
   loadHandleConfirmModal(investment.id);
 
@@ -93,35 +90,23 @@ async function loadInvestmentCards() {
   }
 }
 
-function updateInvestmentCard({
-  id,
-  name,
-  value,
-  createdAt,
-  category,
-  broker,
-  interest,
-}) {
+function updateInvestmentCard({ id, name, value, createdAt, category, broker, interest }) {
   document.querySelector(`#investment-${id} .investment-name`).innerText = name;
 
-  document.querySelector(`#investment-${id} .investment-value`).innerText =
-    formatCurrency(value / 100);
+  document.querySelector(`#investment-${id} .investment-value`).innerText = formatCurrency(
+    value / 100
+  );
 
-  document.querySelector(`#investment-${id} .investment-interest`).innerText =
-    interest;
+  document.querySelector(`#investment-${id} .investment-interest`).innerText = interest;
 
-  document.querySelector(`#investment-${id} .investment-broker`).innerText =
-    broker.name;
+  document.querySelector(`#investment-${id} .investment-broker`).innerText = broker.name;
 
-  document.querySelector(`#investment-${id} .investment-created-at`).innerText =
-    createdAt;
+  document.querySelector(`#investment-${id} .investment-created-at`).innerText = createdAt;
 
-  document.querySelector(
-    `#investment-${id} .investment-category`
-  ).style.backgroundColor = category.color;
+  document.querySelector(`#investment-${id} .investment-category`).style.backgroundColor =
+    category.color;
 
-  document.querySelector(`#investment-${id} .investment-category`).innerText =
-    category.name;
+  document.querySelector(`#investment-${id} .investment-category`).innerText = category.name;
 }
 
 function loadHandleFormSubmit(type, id) {
@@ -137,10 +122,7 @@ function loadHandleFormSubmit(type, id) {
 
       createInvestmentCard(createdInvestment);
     } else if (type === 'update') {
-      const updatedInvestment = await API.update(
-        `/investments/${id}`,
-        investment
-      );
+      const updatedInvestment = await API.update(`/investments/${id}`, investment);
 
       updateInvestmentCard(updatedInvestment);
     }
@@ -177,10 +159,7 @@ function loadHandleUpdateInvestment(id) {
 
     document.querySelector('form #categoryId').value = categoryId;
 
-    document.querySelector('form #createdAt').value = formatDate(
-      createdAt,
-      'ymd'
-    );
+    document.querySelector('form #createdAt').value = formatDate(createdAt, 'ymd');
 
     document.querySelector('form #broker').value = broker.name;
 

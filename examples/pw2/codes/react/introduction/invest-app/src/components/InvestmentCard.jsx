@@ -1,18 +1,10 @@
 'use client';
 
-import Link from 'next/link';
-
 import { IconTrash } from '@tabler/icons-react';
+import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/format';
 
-export default function InvestmentCard({
-  name,
-  value,
-  origin,
-  category,
-  interest,
-  created_at,
-}) {
+export default function InvestmentCard({ name, value, origin, category, interest, created_at }) {
   const handleDeleteInvestment = (name) => {
     confirm(`Deseja remover ${name}?`);
   };
@@ -21,9 +13,7 @@ export default function InvestmentCard({
     <div className="bg-white shadow-md rounded-lg p-4 relative">
       <div className="flex justify-between items-center">
         <Link href={`/investments/${investment.id}`}>
-          <h3 className="investment-name text-lg font-semibold text-gray-700">
-            {name}
-          </h3>
+          <h3 className="investment-name text-lg font-semibold text-gray-700">{name}</h3>
         </Link>
         <p className="investment-value text-lg font-semibold text-gray-700">
           {formatCurrency(value / 100)}
@@ -44,9 +34,7 @@ export default function InvestmentCard({
         </p>
         <p className="text-sm text-gray-500">
           <span className="font-bold mr-1">Data:</span>
-          <span className="investment-created_at">
-            {formatDate(created_at)}
-          </span>
+          <span className="investment-created_at">{formatDate(created_at)}</span>
         </p>
       </div>
       <div className="absolute bottom-4 right-4 inline-flex">

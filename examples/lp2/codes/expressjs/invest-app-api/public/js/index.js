@@ -1,5 +1,5 @@
-import API from './services/api.js';
 import { formatCurrency } from './lib/format.js';
+import API from './services/api.js';
 
 let removedHostId;
 
@@ -46,10 +46,7 @@ function InvestmentCard(investment) {
 function createInvestmentCard(investment) {
   const investmentContainer = document.querySelector(`#investment-grid`);
 
-  investmentContainer.insertAdjacentHTML(
-    'beforeend',
-    InvestmentCard(investment)
-  );
+  investmentContainer.insertAdjacentHTML('beforeend', InvestmentCard(investment));
 
   loadHandleConfirmModal(investment.id);
 
@@ -67,8 +64,9 @@ async function loadInvestmentCards() {
 function updateInvestmentCard({ id, name, value }) {
   document.querySelector(`#investment-${id} .investment-name`).innerText = name;
 
-  document.querySelector(`#investment-${id} .investment-value`).innerText =
-    formatCurrency(value / 100);
+  document.querySelector(`#investment-${id} .investment-value`).innerText = formatCurrency(
+    value / 100
+  );
 }
 
 function loadHandleFormSubmit(type, id) {
@@ -86,10 +84,7 @@ function loadHandleFormSubmit(type, id) {
 
       createInvestmentCard(createdInvestment);
     } else if (type === 'update') {
-      const updatedInvestment = await API.update(
-        `/investments/${id}`,
-        investment
-      );
+      const updatedInvestment = await API.update(`/investments/${id}`, investment);
 
       updateInvestmentCard(updatedInvestment);
     }

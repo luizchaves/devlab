@@ -1,15 +1,12 @@
+import bcrypt from 'bcrypt';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-
+import { ping } from './lib/ping.js';
+import { isAuthenticated } from './middleware/auth.js';
 import Host from './models/Hosts.js';
 import Ping from './models/Pings.js';
 import Tag from './models/Tags.js';
 import User from './models/Users.js';
-
-import { ping } from './lib/ping.js';
-
-import { isAuthenticated } from './middleware/auth.js';
 
 class HttpError extends Error {
   constructor(message, code = 400) {
@@ -100,27 +97,23 @@ router.delete('/hosts/:id', isAuthenticated, async (req, res) => {
   }
 });
 
-router.post(
-  '/hosts/:hostId/pings/:count',
-  isAuthenticated,
-  async (req, res) => {
-    const { hostId, count } = req.params;
+router.post('/hosts/:hostId/pings/:count', isAuthenticated, async (req, res) => {
+  const { hostId, count } = req.params;
 
-    try {
-      const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-      const host = await Host.readById(hostId);
+    const host = await Host.readById(hostId);
 
-      const pingResult = await ping(host.address, count);
+    const pingResult = await ping(host.address, count);
 
-      const createdPing = await Ping.create({ ...pingResult, hostId, userId });
+    const createdPing = await Ping.create({ ...pingResult, hostId, userId });
 
-      return res.json(createdPing);
-    } catch (error) {
-      throw new HttpError('Unable to create a ping for a host');
-    }
+    return res.json(createdPing);
+  } catch (error) {
+    throw new HttpError('Unable to create a ping for a host');
   }
-);
+});
 
 router.get('/hosts/:hostId/pings', isAuthenticated, async (req, res) => {
   const { hostId: id } = req.params;

@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "JavaScript: Arrays"
 description: "Slides completos da aula de Arrays em JavaScript (Criação, manipulação, imutabilidade, métodos mutadores vs acessores e Higher-Order Functions)."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides completos da aula de Arrays em JavaScript (Criação, manip
 
 Criação, notação de colchetes, propriedade `length`, métodos mutadores vs acessores, desestruturação, operador *spread* e manipulação funcional com *Higher-Order Functions* (`map`, `filter`, `reduce`).
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Compreender o conceito e manipulação de Arrays em JavaScript:
 - Diferenciar **métodos mutadores** (que alteram o original) de **métodos acessores** (que retornam novo array).
 - Dominar *Higher-Order Functions*: `forEach`, `map`, `filter`, `find` e `reduce`.
 
+
+
 ---
+
+
 
 ## O Que É Um Array?
 
@@ -47,7 +59,11 @@ console.log(typeof numbers); // "object"
 console.log(Array.isArray(numbers)); // true
 ```
 
+
+
 ---
+
+
 
 ## Acesso e Modificação por Índice
 
@@ -67,7 +83,11 @@ console.log(fruits); // ['maçã', 'abacaxi', 'laranja']
 console.log(fruits[99]); // undefined
 ```
 
+
+
 ---
+
+
 
 ## O Método `.at()` e Índices Negativos
 
@@ -86,7 +106,11 @@ console.log(colors.at(-1)); // "azul" (último)
 console.log(colors.at(-2)); // "verde" (penúltimo)
 ```
 
+
+
 ---
+
+
 
 ## Removendo Elementos com `delete` (Armadilha!)
 
@@ -104,9 +128,11 @@ console.log(numbers[1]); // undefined
 
 > **Aviso:** Evite usar `delete` em arrays. Prefira métodos mutadores como `.splice()`, `.pop()` ou `.shift()`.
 
+
+
 ---
 
-## Operador Spread (`...`) em Arrays
+## Operador Spread (`...`) em Arrays (Parte 1)
 
 O operador *spread* espalha os elementos de um array em outro container:
 
@@ -118,6 +144,13 @@ const back = ["Node.js", "SQL"];
 const fullStack = [...front, "JavaScript", ...back];
 console.log(fullStack); // ['HTML', 'CSS', 'JavaScript', 'Node.js', 'SQL']
 
+```
+
+---
+
+## Operador Spread (`...`) em Arrays (Parte 2)
+
+```js
 // 2. Clonando um array (cópia rasa / shallow copy)
 const copy = [...front];
 copy.push("React");
@@ -126,7 +159,8 @@ console.log(front); // ['HTML', 'CSS'] (Original intacto!)
 
 ---
 
-## Desestruturação de Arrays (*Array Destructuring*)
+
+## Desestruturação de Arrays (*Array Destructuring*) (Parte 1)
 
 Extrai elementos de um array ordenadamente para variáveis individuais:
 
@@ -141,15 +175,26 @@ console.log(first, second); // "vermelho" "verde"
 const [, , third] = colors;
 console.log(third); // "azul"
 
+```
+
+
+---
+
+
+## Desestruturação de Arrays (*Array Destructuring*) (Parte 2)
+
+```js
 // 3. Rest operator (...) para capturar o restante dos elementos
 const [head, ...tail] = colors;
 console.log(head); // "vermelho"
 console.log(tail); // ['verde', 'azul', 'amarelo']
 ```
 
+
 ---
 
-## Iteração em Arrays: `for...of` vs `for...in`
+
+## Iteração em Arrays: `for...of` vs `for...in` (Parte 1)
 
 ```js
 const sports = ["futebol", "basquete", "vôlei"];
@@ -159,6 +204,15 @@ for (const sport of sports) {
   console.log(sport); // "futebol", "basquete", "vôlei"
 }
 
+```
+
+
+---
+
+
+## Iteração em Arrays: `for...of` vs `for...in` (Parte 2)
+
+```js
 // 2. for...in (percorre os ÍNDICES / Chaves como string)
 for (const index in sports) {
   console.log(index, typeof index); // "0" string, "1" string, ...
@@ -168,7 +222,10 @@ for (const index in sports) {
 - Prefira `for...of` para iterar diretamente sobre os valores.
 - O `for...in` percorre nomes de propriedades e pode trazer comportamentos indesejados.
 
+
 ---
+
+
 
 ## Classificação de Métodos: Mutadores vs Acessores
 
@@ -178,7 +235,11 @@ for (const index in sports) {
 | **Acessores** | Preservam o array original e retornam novo valor/array | `concat`, `slice`, `join`, `indexOf`, `includes` |
 | **HOFs** | Executam um callback para cada elemento | `map`, `filter`, `reduce`, `find`, `findIndex`, `every`, `some` |
 
+
+
 ---
+
+
 
 ## Métodos Mutadores: `push`, `pop`, `shift`, `unshift`
 
@@ -196,7 +257,11 @@ stack.unshift("z"); // Adiciona ao início -> stack: ['z', 'a', 'b']
 const first = stack.shift(); // Remove do início ("z") -> stack: ['a', 'b']
 ```
 
+
+
 ---
+
+
 
 ## Método Mutador: `splice()`
 
@@ -210,7 +275,11 @@ months.splice(4, 1, "Maio"); // 2. Substituição:  ['Jan', 'Fev', 'Mar', 'Abr',
 months.splice(1, 2);         // 3. Apenas remoção: ['Jan', 'Abr', 'Maio']
 ```
 
+
+
 ---
+
+
 
 ## A Armadilha do Método `.sort()`
 
@@ -227,9 +296,11 @@ numbers.sort((a, b) => a - b);
 console.log(numbers); // [2, 5, 10, 30, 100] -> Correto!
 ```
 
+
+
 ---
 
-## Métodos Acessores (Preservam o Original)
+## Métodos Acessores (Preservam o Original) (Parte 1)
 
 **Métodos acessores** geram novos resultados sem modificar o array original:
 
@@ -241,6 +312,13 @@ const sub = letters.slice(1, 3);
 console.log(sub);     // ['b', 'c']
 console.log(letters); // ['a', 'b', 'c', 'd'] (original intacto!)
 
+```
+
+---
+
+## Métodos Acessores (Preservam o Original) (Parte 2)
+
+```js
 // .join(separador) e .indexOf() / .includes()
 console.log(letters.join(" - "));  // "a - b - c - d"
 console.log(letters.indexOf("c")); // 2
@@ -248,6 +326,8 @@ console.log(letters.includes("z")); // false
 ```
 
 ---
+
+
 
 ## Higher-Order Functions: `forEach()` vs `map()`
 
@@ -263,7 +343,11 @@ console.log(doubled); // [2, 4, 6, 8]
 console.log(numbers); // [1, 2, 3, 4] (original preservado!)
 ```
 
+
+
 ---
+
+
 
 ## Higher-Order Functions: `filter()`
 
@@ -281,7 +365,11 @@ const activeUsers = users.filter((user) => user.active);
 console.log(activeUsers); // [{ Alice }, { Carol }]
 ```
 
+
+
 ---
+
+
 
 ## Higher-Order Functions: `find()`
 
@@ -299,7 +387,11 @@ const bob = users.find((user) => user.id === 2);
 console.log(bob); // { id: 2, name: 'Bob', active: false }
 ```
 
+
+
 ---
+
+
 
 ## Higher-Order Function: `reduce()`
 
@@ -318,9 +410,12 @@ const totalPrice = cart.reduce((total, item) => total + item.price, 0);
 console.log(`Total do carrinho: R$ ${totalPrice}`); // "Total do carrinho: R$ 1130"
 ```
 
+
+
 ---
 
-## Encadeamento de Higher-Order Functions
+
+## Encadeamento de Higher-Order Functions (Parte 1)
 
 É comum encadear `.filter()`, `.map()` e `.reduce()` para processar dados de forma funcional:
 
@@ -332,6 +427,15 @@ const sales = [
   { category: "Eletrônicos", value: 200, status: "pago" }
 ];
 
+```
+
+
+---
+
+
+## Encadeamento de Higher-Order Functions (Parte 2)
+
+```js
 // Faturamento total de vendas pagas de Eletrônicos
 const total = sales
   .filter((s) => s.category === "Eletrônicos" && s.status === "pago")
@@ -341,7 +445,10 @@ const total = sales
 console.log(total); // 500 (300 + 200)
 ```
 
+
 ---
+
+
 
 ## Exercício Prático: Catálogo de Produtos
 
@@ -359,9 +466,12 @@ Crie um script que:
 1. Filtre apenas produtos com preço maior que `100`.
 2. Formate uma lista de strings no padrão `"PRODUTO - R$ PREÇO"`.
 
+
+
 ---
 
-## Solução do Exercício
+
+## Solução do Exercício (Parte 1)
 
 ```js
 const products = [
@@ -370,6 +480,15 @@ const products = [
   { name: "Monitor", price: 900 }
 ];
 
+```
+
+
+---
+
+
+## Solução do Exercício (Parte 2)
+
+```js
 const formatted = products
   .filter((p) => p.price > 100)
   .map((p) => `${p.name.toUpperCase()} - R$ ${p.price}`);
@@ -378,13 +497,22 @@ console.log(formatted);
 // ['TECLADO - R$ 150', 'MONITOR - R$ 900']
 ```
 
+
 ---
 
-## Resumo da Aula
+
+## Resumo da Aula (Parte 1)
 
 - Arrays em JavaScript são **dinâmicos**, **heterogêneos** e do tipo `object` (verifique com `Array.isArray()`).
 - Use `.at(-1)` para acessar facilmente o último elemento com índices negativos.
 - `delete arr[i]` cria posições vazias (*empty slots*); use `.splice()` para remover reorganizando índices.
+
+
+---
+
+
+## Resumo da Aula (Parte 2)
+
 - Diferencie métodos **mutadores** (`push`, `pop`, `splice`, `sort`) de **acessores** (`slice`, `concat`, `join`).
 - Sempre passe uma função de comparação `(a, b) => a - b` ao usar `.sort()` com números.
 - Use `map`, `filter` e `reduce` para transformar, filtrar e acumular dados de forma declarativa e imutável.

@@ -16,8 +16,7 @@ async function getData(slug) {
 }
 
 export default async function Investment({ params: { slug } }) {
-  const [{ name, value, origin, category, interest, created_at }] =
-    await getData(slug);
+  const [{ name, value, origin, category, interest, created_at }] = await getData(slug);
 
   return (
     <>
@@ -41,9 +40,7 @@ export default async function Investment({ params: { slug } }) {
         </p>
         <p className="text-gray-600 flex justify-between p-1">
           <span className="font-bold mr-1">Data:</span>
-          <span className="investment-created_at">
-            {formatDate(created_at)}
-          </span>
+          <span className="investment-created_at">{formatDate(created_at)}</span>
         </p>
       </div>
     </>

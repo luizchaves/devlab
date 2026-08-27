@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Coleções"
 description: "Slides da aula de coleções em Python: listas, tuplas, dicionários e conjuntos, métodos, ordenação, cópia e critérios de escolha."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de coleções em Python: listas, tuplas, dicionári
 
 Listas, tuplas, dicionários e conjuntos: características, métodos e critérios de escolha.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Escolher e manipular a estrutura certa para cada problema:
 - Entender **cópia rasa** e **profunda**.
 - Usar operações de conjunto para união, interseção e diferença.
 
+
 ---
+
 
 ## Panorama
 
@@ -42,7 +48,9 @@ Escolher e manipular a estrutura certa para cada problema:
 
 *Dicionários preservam a ordem de inserção desde o Python 3.7; conjuntos não têm ordem.*
 
+
 ---
+
 
 ## Listas: Acesso
 
@@ -57,7 +65,9 @@ numbers[0] = 99                  # mutável
 print(len(numbers), 30 in numbers, numbers.index(30))
 ```
 
+
 ---
+
 
 ## Listas: Métodos Mutadores
 
@@ -72,7 +82,9 @@ print(len(numbers), 30 in numbers, numbers.index(30))
 
 *Todos devolvem `None`: `lista = lista.sort()` destrói a lista.*
 
+
 ---
+
 
 ## Ordenação
 
@@ -90,7 +102,9 @@ numbers.sort()                        # no lugar, devolve None
 | `lista.sort()` | Sim | `None` |
 | `sorted(lista)` | Não | Nova lista |
 
+
 ---
+
 
 ## Cópia Rasa e Profunda
 
@@ -107,7 +121,9 @@ print(shallow)   # [1, 2, [3, 4, 5]] — aninhado compartilhado
 print(deep)      # [1, 2, [3, 4]]
 ```
 
+
 ---
+
 
 ## Tuplas
 
@@ -123,7 +139,9 @@ first, *rest = (1, 2, 3, 4)
 - É a **vírgula** que define a tupla, não os parênteses.
 - Imutável: `point[0] = 99` levanta `TypeError`.
 
+
 ---
+
 
 ## Quando Usar Tupla
 
@@ -138,7 +156,9 @@ rgb = (255, 128, 0)                       # registro de tamanho fixo
 
 *Tupla com lista dentro deixa de ser hasheável: `(1, [2])` não serve como chave.*
 
+
 ---
+
 
 ## Dicionários: Leitura
 
@@ -155,7 +175,9 @@ user.setdefault("tags", []).append("admin")
 
 *Colchetes levantam `KeyError`; `get()` devolve um padrão.*
 
+
 ---
+
 
 ## Dicionários: Escrita
 
@@ -171,7 +193,9 @@ del config["timeout"]
 merged = defaults | config              # união (3.9+)
 ```
 
+
 ---
+
 
 ## Dicionários: Iteração
 
@@ -191,7 +215,9 @@ print(sum(scores.values()) / len(scores))   # média
 | `values()` | Valores |
 | `items()` | Pares `(chave, valor)` |
 
+
 ---
+
 
 ## Conjuntos
 
@@ -207,7 +233,9 @@ print(sum(scores.values()) / len(scores))   # média
 empty = set()      # {} cria um DICIONÁRIO vazio
 ```
 
+
 ---
+
 
 ## Removendo Duplicatas
 
@@ -223,9 +251,10 @@ print("bot" in banned)                 # busca muito rápida
 
 *Elementos precisam ser hasheáveis: `{[1, 2]}` levanta `TypeError`.*
 
+
 ---
 
-## Escolhendo a Coleção
+## Escolhendo a Coleção (Parte 1)
 
 ```txt
 Tem rótulo/identificador?  ──sim──▶  dict
@@ -233,6 +262,13 @@ Tem rótulo/identificador?  ──sim──▶  dict
         ▼
 Quero apenas únicos?       ──sim──▶  set
         │não
+```
+
+---
+
+## Escolhendo a Coleção (Parte 2)
+
+```txt
         ▼
 O conteúdo muda depois?    ──sim──▶  list
         │não
@@ -241,6 +277,7 @@ O conteúdo muda depois?    ──sim──▶  list
 ```
 
 ---
+
 
 ## Exercício
 
@@ -252,7 +289,9 @@ Crie `agenda.py` gerenciando contatos em memória:
 4. Liste os contatos ordenados por nome, em colunas;
 5. Reúna todas as tags em um conjunto e mostre-as ordenadas.
 
+
 ---
+
 
 ## Solução do Exercício
 
@@ -272,13 +311,19 @@ for contact in sorted(contacts.values(), key=lambda item: item["name"]):
     print(f"{contact['name']:<14}{contact['phone']:<18}{', '.join(sorted(contact['tags']))}")
 ```
 
+
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - `list` é a coleção de uso geral; `tuple` é a versão imutável e hasheável.
 - Métodos mutadores devolvem `None`: `sorted()` copia, `sort()` altera no lugar.
 - Cópia rasa duplica só o primeiro nível; use `deepcopy` para estruturas aninhadas.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `dict` associa chaves únicas a valores; `get()` evita `KeyError`.
 - `set` elimina duplicatas e oferece união, interseção e diferença.
 - `set()` cria conjunto vazio — `{}` cria dicionário.

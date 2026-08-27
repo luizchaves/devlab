@@ -1,8 +1,8 @@
 import express from 'express';
+import { ping } from './lib/ping.js';
 import Host from './models/Hosts.js';
 import Ping from './models/Pings.js';
 import Tag from './models/Tags.js';
-import { ping } from './lib/ping.js';
 
 class HttpError extends Error {
   constructor(message, code = 400) {

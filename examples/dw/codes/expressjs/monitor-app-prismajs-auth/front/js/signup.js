@@ -1,8 +1,8 @@
 import 'bootstrap';
 
+import Toast from './components/Toast';
 import { $ } from './lib/dom.js';
 import API from './services/storage.js';
-import Toast from './components/Toast';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 

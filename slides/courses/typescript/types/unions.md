@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "TypeScript: Uniões e Interseções"
 description: "Slides da aula de uniões e interseções: tipos literais, uniões discriminadas, exaustividade, composição com & e modelagem de estados."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de uniões e interseções: tipos literais, uniões
 
 Alternativas com `|`, composição com `&`, uniões discriminadas e modelagem de estados.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,7 +33,9 @@ Descrever alternativas e combinações entre formas:
 - Garantir **exaustividade** com `never`.
 - Eliminar **estados impossíveis** na modelagem.
 
+
 ---
+
 
 ## União
 
@@ -46,7 +52,9 @@ function describe(id: Id): string {
 
 *Mais valores aceitos, menos operações disponíveis — até estreitar.*
 
+
 ---
+
 
 ## Tipos Literais
 
@@ -62,7 +70,9 @@ type RoutePath = (typeof ROUTES)[RouteName];   // "/" | "/courses"
 - Conjunto fechado, com autocompletar e erro em valor inválido.
 - Substitui `status: string` mais constante em outro arquivo.
 
+
 ---
+
 
 ## Uniões Discriminadas
 
@@ -79,7 +89,9 @@ switch (payment.method) {
 }
 ```
 
+
 ---
+
 
 ## Anatomia do Padrão
 
@@ -92,7 +104,9 @@ switch (payment.method) {
 
 *Acessar `payment.key` no ramo do cartão é erro de compilação.*
 
+
 ---
+
 
 ## Exaustividade
 
@@ -109,7 +123,9 @@ error TS2322: Type '{ kind: "triangle"; … }' is not assignable to type 'never'
 
 *O compilador entrega a lista completa de pontos a atualizar.*
 
+
 ---
+
 
 ## Interseção
 
@@ -127,7 +143,9 @@ type User = Entity & {
 | `A \| B` | um **ou** outro | mais valores, menos operações |
 | `A & B` | um **e** outro | menos valores, mais operações |
 
+
 ---
+
 
 ## Interseção Impossível
 
@@ -141,7 +159,9 @@ type AB = A & B;                     // value: never
 
 *O erro não aparece na declaração — só na hora de criar o objeto.*
 
+
 ---
+
 
 ## Precedência
 
@@ -154,7 +174,9 @@ type Handler = (value: string | number) => void; // preferível
 
 *Unir tipos de função torna os parâmetros uma interseção — quase sempre indesejável.*
 
+
 ---
+
 
 ## Estados Impossíveis
 
@@ -170,7 +192,9 @@ type State =
   | { status: "failure"; error: string };
 ```
 
+
 ---
+
 
 ## Exercício
 
@@ -182,9 +206,10 @@ Crie `src/editor.ts`:
 4. Exaustividade com `never`;
 5. `type AuditedCommand = Command & { at: Date; by: string }`.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```ts
 function apply(text: string, command: Command): string {
@@ -194,6 +219,13 @@ function apply(text: string, command: Command): string {
     case "delete":
       return text.slice(0, command.position) + text.slice(command.position + command.length);
     case "undo":
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```ts
       return history.pop() ?? text;
     default: {
       const exhaustive: never = command;
@@ -205,11 +237,16 @@ function apply(text: string, command: Command): string {
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - União aceita mais valores e oferece só o que é comum, até o narrowing.
 - União literal documenta as opções válidas na própria assinatura.
 - O **discriminante** literal é o que permite estreitar objetos unidos.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `never` no `default` transforma variação nova em erro de compilação.
 - Interseção combina exigências — e produz `never` em chaves conflitantes.
 - Modelar por união elimina estados impossíveis por construção.

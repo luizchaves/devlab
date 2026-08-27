@@ -9,7 +9,9 @@ style: |
 lang: pt-BR
 title: "Python: Introdução"
 description: "Slides da aula de introdução ao Python: origem, PEPs, implementações, características, instalação com uv, REPL e execução de scripts."
+
 ---
+
 
 <!-- _class: lead -->
 
@@ -17,7 +19,9 @@ description: "Slides da aula de introdução ao Python: origem, PEPs, implementa
 
 Origem, PEPs, CPython, características da linguagem, instalação com uv, REPL e execução de scripts.
 
+
 ---
+
 
 ## Objetivo
 
@@ -29,13 +33,19 @@ Preparar o ambiente e entender o que é Python antes de escrever código:
 - Instalar o interpretador com **uv** e verificar a versão.
 - Usar o **REPL** e executar o primeiro script `.py`.
 
+
 ---
 
-## Por Que Python Importa?
+## Por Que Python Importa? (Parte 1)
 
 - **Automação**: scripts de terminal, manipulação de arquivos, integração de sistemas.
 - **Dados e IA**: `pandas`, `NumPy`, PyTorch e scikit-learn expõem API em Python.
 - **Web**: Django, Flask e FastAPI para APIs e aplicações completas.
+
+---
+
+## Por Que Python Importa? (Parte 2)
+
 - **Infraestrutura**: Ansible, AWS CLI e automação de nuvem.
 - **Ensino**: sintaxe próxima do pseudocódigo, com pouco ruído sintático.
 
@@ -43,16 +53,22 @@ Preparar o ambiente e entender o que é Python antes de escrever código:
 
 ---
 
-## Origem e Evolução
+## Origem e Evolução (Parte 1)
 
 - **1991**: Guido van Rossum publica a versão 0.9.0 no CWI (Holanda).
 - **Nome**: homenagem ao grupo de humor *Monty Python's Flying Circus*.
 - **2008**: Python 3.0 quebra a compatibilidade — `print()` vira função, texto é Unicode.
+
+---
+
+## Origem e Evolução (Parte 2)
+
 - **2020**: fim do suporte ao Python 2.7; hoje só existe Python 3.
 - **2021**: Python 3.10 traz `match`/`case`.
 - **2025**: Python 3.14, versão de referência deste guia.
 
 ---
+
 
 ## O Processo de PEPs
 
@@ -66,7 +82,9 @@ Preparar o ambiente e entender o que é Python antes de escrever código:
 
 Rode `import this` no REPL para ver a PEP 20 impressa.
 
+
 ---
+
 
 ## Linguagem x Implementação
 
@@ -77,7 +95,9 @@ Rode `import this` no REPL para ver a PEP 20 impressa.
 | **MicroPython** | C | Microcontroladores (ESP32, Pico) |
 | **Jython / IronPython** | Java / C# | Integração com JVM e .NET |
 
+
 ---
+
 
 ## Do Arquivo à Execução
 
@@ -90,7 +110,9 @@ main.py  ──▶  Compilação  ──▶  Bytecode (.pyc)  ──▶  Máquin
 - O `.pyc` é cache de bytecode, **não** um binário nativo.
 - `__pycache__/` é conteúdo derivado e deve entrar no `.gitignore`.
 
+
 ---
+
 
 ## Características da Linguagem
 
@@ -104,7 +126,9 @@ main.py  ──▶  Compilação  ──▶  Bytecode (.pyc)  ──▶  Máquin
 | **Tudo é objeto** | Números, funções e módulos têm atributos |
 | **Baterias inclusas** | JSON, HTTP, CSV, datas e testes na biblioteca padrão |
 
+
 ---
+
 
 ## Dinâmica e Forte
 
@@ -122,7 +146,9 @@ print(total)        # 2
 - **Dinâmica**: a variável muda de tipo livremente.
 - **Forte**: nenhuma conversão acontece por conta própria.
 
+
 ---
+
 
 ## Instalação com uv
 
@@ -140,7 +166,9 @@ uv run python --version
 - O uv instala o próprio interpretador: não é preciso instalar Python antes.
 - O comando fica **igual** nos três sistemas operacionais.
 
+
 ---
+
 
 ## O REPL
 
@@ -157,7 +185,9 @@ uv run python --version
 - `_` guarda o último resultado; `dir(obj)` lista atributos; `type(obj)` mostra o tipo.
 - No REPL a expressão já é impressa; em um arquivo `.py` é preciso `print()`.
 
+
 ---
+
 
 ## Estrutura de um Programa
 
@@ -180,7 +210,9 @@ if __name__ == "__main__":
     main()
 ```
 
+
 ---
+
 
 ## `if __name__ == "__main__"`
 
@@ -193,7 +225,9 @@ uv run main.py        # __name__ == "__main__"
 uv run python -c "import main"   # __name__ == "main"
 ```
 
+
 ---
+
 
 ## Executando na Prática
 
@@ -211,7 +245,9 @@ uv run python -c "print(sum(range(1, 101)))"   # 5050
 - `uv run <arquivo>` sincroniza o ambiente e executa.
 - `python3 <arquivo>` faz o mesmo quando o ambiente já está pronto.
 
+
 ---
+
 
 ## Armadilhas Comuns
 
@@ -220,7 +256,9 @@ uv run python -c "print(sum(range(1, 101)))"   # 5050
 - **Arquivo com nome de módulo padrão**: `random.py` no projeto quebra o `import random`.
 - **Esquecer `print()`**: em arquivo, a expressão é avaliada e descartada.
 
+
 ---
+
 
 ## Exercício
 
@@ -231,9 +269,10 @@ Crie `profile.py` que se apresente e mostre dados do ambiente:
 3. Mostre a versão do Python e a plataforma usando o módulo `sys`;
 4. Proteja a execução com `if __name__ == "__main__":`.
 
+
 ---
 
-## Solução do Exercício
+## Solução do Exercício (Parte 1)
 
 ```python
 import sys
@@ -246,6 +285,13 @@ def main():
     city = input("Cidade: ")
     birth_year = int(input("Ano de nascimento: "))
 
+```
+
+---
+
+## Solução do Exercício (Parte 2)
+
+```python
     print(f"{name}, de {city}, tem cerca de {CURRENT_YEAR - birth_year} anos.")
     print(f"Python {sys.version_info.major}.{sys.version_info.minor} em {sys.platform}")
 
@@ -256,11 +302,16 @@ if __name__ == "__main__":
 
 ---
 
-## Resumo da Aula
+## Resumo da Aula (Parte 1)
 
 - Python nasceu em 1991 e evolui por **PEPs**; hoje a referência é o **Python 3.14**.
 - **CPython** é a implementação padrão: compila para bytecode e executa em uma máquina virtual.
 - A linguagem é **interpretada**, de tipagem **dinâmica e forte**, com **indentação significativa**.
+
+---
+
+## Resumo da Aula (Parte 2)
+
 - `uv python install` e `uv run` resolvem instalação e execução nos três sistemas.
 - O **REPL** serve para experimentar; o arquivo `.py` precisa de `print()` para exibir.
 - `if __name__ == "__main__":` separa execução direta de importação.

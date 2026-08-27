@@ -56,22 +56,7 @@ export default defineConfig({
                 { label: 'Quizzes', link: '/courses/cstrc-jp-dw/extra/quizzes/' },
               ],
             },
-            {
-              label: 'HTML',
-              collapsed: true,
-              items: [
-                {
-                  label: 'Importância da Web',
-                  link: '/courses/cstrc-jp-dw/html/web-importance/',
-                },
-                {
-                  label: 'Linguagens de Marcação',
-                  link: '/courses/cstrc-jp-dw/html/markup-languages/',
-                },
-                { label: 'Fundamentos de HTML', link: '/courses/cstrc-jp-dw/html/' },
-                { label: 'Formulários HTML', link: '/courses/cstrc-jp-dw/html/forms/' },
-              ],
-            },
+            { label: 'HTML', link: '/courses/cstrc-jp-dw/html/' },
             {
               label: 'CSS',
               collapsed: true,
@@ -92,7 +77,6 @@ export default defineConfig({
                   ],
                 },
                 { label: 'Formulários com CSS', link: '/courses/cstrc-jp-dw/css/forms/' },
-
               ],
             },
             {
@@ -117,13 +101,19 @@ export default defineConfig({
                     { label: 'Módulos', link: '/courses/cstrc-jp-dw/javascript/modules/' },
                     { label: 'Arrays', link: '/courses/cstrc-jp-dw/javascript/arrays/' },
                     { label: 'Strings', link: '/courses/cstrc-jp-dw/javascript/strings/' },
-                    { label: 'Number e Math', link: '/courses/cstrc-jp-dw/javascript/number-math/' },
+                    {
+                      label: 'Number e Math',
+                      link: '/courses/cstrc-jp-dw/javascript/number-math/',
+                    },
                     { label: 'Date', link: '/courses/cstrc-jp-dw/javascript/date/' },
                     { label: 'RegExp', link: '/courses/cstrc-jp-dw/javascript/regexp/' },
                     { label: 'Map e Set', link: '/courses/cstrc-jp-dw/javascript/map-set/' },
                     { label: 'Objetos', link: '/courses/cstrc-jp-dw/javascript/objects/' },
                     { label: 'Promises', link: '/courses/cstrc-jp-dw/javascript/promises/' },
-                    { label: 'Tratamento de Erros', link: '/courses/cstrc-jp-dw/javascript/error-handling/' },
+                    {
+                      label: 'Tratamento de Erros',
+                      link: '/courses/cstrc-jp-dw/javascript/error-handling/',
+                    },
                     { label: 'Async/Await', link: '/courses/cstrc-jp-dw/javascript/async-await/' },
                   ],
                 },
@@ -273,7 +263,10 @@ export default defineConfig({
                 { label: 'Map e Set', link: '/courses/csbes-jp-pw2/ecma/map-set/' },
                 { label: 'Objetos', link: '/courses/csbes-jp-pw2/ecma/object/' },
                 { label: 'Promises', link: '/courses/csbes-jp-pw2/ecma/promise/' },
-                { label: 'Tratamento de Erros', link: '/courses/csbes-jp-pw2/ecma/error-handling/' },
+                {
+                  label: 'Tratamento de Erros',
+                  link: '/courses/csbes-jp-pw2/ecma/error-handling/',
+                },
               ],
             },
             {
@@ -295,7 +288,10 @@ export default defineConfig({
                 { label: 'REST API', link: '/courses/csbes-jp-pw2/api/rest/' },
                 { label: 'GraphQL', link: '/courses/csbes-jp-pw2/api/graphql/' },
                 { label: 'Supabase API', link: '/courses/csbes-jp-pw2/package/supabase-api/' },
-                { label: 'Consumo do Supabase', link: '/courses/csbes-jp-pw2/package/http-client/' },
+                {
+                  label: 'Consumo do Supabase',
+                  link: '/courses/csbes-jp-pw2/package/http-client/',
+                },
                 { label: 'Fetch API', link: '/courses/csbes-jp-pw2/w3c/fetch-api/' },
                 { label: 'Axios', link: '/courses/csbes-jp-pw2/package/axios/' },
                 { label: 'JSON Server', link: '/courses/csbes-jp-pw2/package/json-server/' },
@@ -338,8 +334,14 @@ export default defineConfig({
               label: 'Guias e Referências',
               collapsed: true,
               items: [
-                { label: 'Versões do ECMAScript', link: '/courses/csbes-jp-pw2/extra/ecmascript-versions/' },
-                { label: 'Assinaturas ECMAScript', link: '/courses/csbes-jp-pw2/extra/cheat-sheet/' },
+                {
+                  label: 'Versões do ECMAScript',
+                  link: '/courses/csbes-jp-pw2/extra/ecmascript-versions/',
+                },
+                {
+                  label: 'Assinaturas ECMAScript',
+                  link: '/courses/csbes-jp-pw2/extra/cheat-sheet/',
+                },
               ],
             },
             {
@@ -542,6 +544,46 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guia de HTML',
+          items: [
+            { label: 'Visão geral', link: '/courses/html/' },
+            {
+              label: 'Fundamentos e Conceitos',
+              collapsed: false,
+              items: [
+                { label: 'A Importância da Web', link: '/courses/html/basics/web-importance/' },
+                { label: 'Linguagens de Marcação', link: '/courses/html/basics/markup-languages/' },
+                {
+                  label: 'Sintaxe e Estrutura do Documento',
+                  link: '/courses/html/basics/syntax-structure/',
+                },
+              ],
+            },
+            {
+              label: 'Elementos e Semântica',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Elementos Semânticos e Acessibilidade',
+                  link: '/courses/html/elements/semantic-structure/',
+                },
+                { label: 'Texto, Listas e Links', link: '/courses/html/elements/text-formatting/' },
+                { label: 'Imagens e Tabelas', link: '/courses/html/elements/media-tables/' },
+              ],
+            },
+            {
+              label: 'Formulários',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Estrutura de Formulários e Controles',
+                  link: '/courses/html/forms/elements-controls/',
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: 'Guia de ECMAScript',
           items: [
             { label: 'Visão geral', link: '/courses/ecmascript/' },
@@ -549,11 +591,17 @@ export default defineConfig({
               label: 'Fundamentos',
               collapsed: false,
               items: [
-                { label: 'Introdução e Ecossistema', link: '/courses/ecmascript/basics/introduction/' },
+                {
+                  label: 'Introdução e Ecossistema',
+                  link: '/courses/ecmascript/basics/introduction/',
+                },
                 { label: 'Variáveis e Escopo', link: '/courses/ecmascript/basics/variables/' },
                 { label: 'Tipos de Dados e Coerção', link: '/courses/ecmascript/basics/types/' },
                 { label: 'Expressões e Operadores', link: '/courses/ecmascript/basics/operators/' },
-                { label: 'Estruturas de Controle', link: '/courses/ecmascript/basics/control-flow/' },
+                {
+                  label: 'Estruturas de Controle',
+                  link: '/courses/ecmascript/basics/control-flow/',
+                },
               ],
             },
             {
@@ -581,9 +629,22 @@ export default defineConfig({
               collapsed: false,
               items: [
                 { label: 'Promises e Async/Await', link: '/courses/ecmascript/async/promises/' },
-                { label: 'Expressões Regulares (RegExp)', link: '/courses/ecmascript/stdlib/regex/' },
+                {
+                  label: 'Expressões Regulares (RegExp)',
+                  link: '/courses/ecmascript/stdlib/regex/',
+                },
                 { label: 'Date e Manipulação de Datas', link: '/courses/ecmascript/stdlib/date/' },
                 { label: 'Evolução e TC39', link: '/courses/ecmascript/evolution/tc39/' },
+              ],
+            },
+            {
+              label: 'Referência',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Guia de Referência',
+                  link: '/courses/ecmascript/reference/cheat-sheet/',
+                },
               ],
             },
           ],

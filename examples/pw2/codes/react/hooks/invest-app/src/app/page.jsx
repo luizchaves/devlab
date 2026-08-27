@@ -1,20 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
+import { useEffect } from 'react';
 import InvestmentCard from '@/components/InvestmentCard';
-import { useInvestment } from '@/contexts/InvestmentContext';
 import InvestmentForm from '@/components/InvestmentForm';
 import Modal from '@/components/Modal';
+import { useInvestment } from '@/contexts/InvestmentContext';
 
 export default function Home() {
-  const {
-    investments,
-    loadInvestments,
-    isShowValues,
-    toggleShowValues,
-    handleCreateInvestment,
-  } = useInvestment();
+  const { investments, loadInvestments, isShowValues, toggleShowValues, handleCreateInvestment } =
+    useInvestment();
 
   useEffect(() => {
     loadInvestments();

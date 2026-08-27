@@ -9,7 +9,11 @@ style: |
 lang: pt-BR
 title: "JavaScript: ECMAScript"
 description: "Slides completos da aula de introdução a JavaScript, ECMAScript, Web APIs e Runtimes."
+
+
 ---
+
+
 
 <!-- _class: lead -->
 
@@ -17,7 +21,11 @@ description: "Slides completos da aula de introdução a JavaScript, ECMAScript,
 
 Origem, padronização, ecossistema, Web APIs versus Runtimes (Node.js, Deno, Bun) e execução.
 
+
+
 ---
+
+
 
 ## Objetivo
 
@@ -29,7 +37,11 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
 - Reconhecer as características fundamentais da linguagem (alto nível, tipagem dinâmica, tipagem fraca, multiparadigma, protótipos, ASI).
 - Configurar e rodar scripts no Node.js, Deno, Bun e no navegador.
 
+
+
 ---
+
+
 
 ## Por Que JavaScript Importa?
 
@@ -39,7 +51,11 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
 
 *JavaScript não substitui HTML nem CSS: HTML estrutura, CSS estiliza e JavaScript adiciona comportamento.*
 
+
+
 ---
+
+
 
 ## Origem e Padronização
 
@@ -47,7 +63,11 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
 - **Padronização**: Para evitar incompatibilidade entre navegadores, a Ecma International criou o padrão **ECMA-262** (ECMAScript).
 - **TC39**: Comitê que gerencia a evolução contínua da linguagem (Edição ECMAScript 2026).
 
+
+
 ---
+
+
 
 ## Origem e Padronização: Arquitetura
 
@@ -63,7 +83,11 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
     (ECMAScript + Web APIs/DOM)     (ECMAScript + Native APIs)
 ```
 
+
+
 ---
+
+
 
 ## JavaScript, ECMAScript e APIs
 
@@ -75,7 +99,11 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
 | **Node.js APIs** | Recursos do ambiente de servidor | `node:fs`, `node:http`, `node:path`, `process` |
 | **npm** | Gerenciador e ecossistema de pacotes | Express, Vite, Prisma, Chart.js |
 
+
+
 ---
+
+
 
 ## Onde o Código Executa?
 
@@ -86,27 +114,40 @@ Compreender o ecossistema e os fundamentos da linguagem JavaScript:
   - **Bun**: Runtime ultrarrápido com bundler, test runner e gerenciador de pacotes nativos.
 - **Ferramentas de Desenvolvimento**: Scripts de CLI, build e testes automatizados.
 
+
+
 ---
 
-## Principais Características da Linguagem
+
+## Principais Características da Linguagem (Parte 1)
 
 - **Alto nível**: Gerenciamento de memória e alocação automáticos (Garbage Collector).
 - **Tipagem dinâmica**: O tipo pertence ao **valor** e não à variável.
 - **Tipagem fraca**: Realiza coerções automáticas em algumas operações (`'5' * 2` resulta em `10`).
+
+
+---
+
+
+## Principais Características da Linguagem (Parte 2)
+
 - **Multiparadigma**: Suporta programação funcional, orientada a objetos e imperativa.
 - **Baseada em Protótipos**: Objetos herdam propriedades diretamente de outros objetos.
 - **ASI (Automatic Semicolon Insertion)**: Ponto e vírgula pode ser inserido automaticamente pelo motor.
 
+
 ---
 
-## Executando JavaScript no Terminal: Runtimes
+## Executando JavaScript no Terminal: Runtimes (Parte 1)
 
 ### Node.js
 ```bash
 node main.js
 ```
 
-### Deno
+---
+
+## Executando JavaScript no Terminal: Runtimes (Parte 2)
 ```bash
 deno run main.js
 ```
@@ -118,20 +159,29 @@ bun run main.js
 
 ---
 
+
+
 ## Executando JavaScript no Terminal: REPL
 
 ### Modo Interativo (REPL)
 Basta digitar `node`, `deno` ou `bun` no terminal sem argumentos para abrir o prompt interativo e testar expressões ao vivo.
 
+
+
 ---
+
+
 
 ## Executando JavaScript no Navegador: Console
 
 Abra o navegador (<kbd>F12</kbd> ou <kbd>Ctrl+Shift+I</kbd>), acesse a aba **Console** e digite expressões diretamente.
 
+
+
 ---
 
-## Executando JavaScript no Navegador: Tag `<script>`
+
+## Executando JavaScript no Navegador: Tag `<script>` (Parte 1)
 
 ```html
 <!DOCTYPE html>
@@ -139,6 +189,15 @@ Abra o navegador (<kbd>F12</kbd> ou <kbd>Ctrl+Shift+I</kbd>), acesse a aba **Con
   <head>
     <meta charset="UTF-8" />
     <title>Exemplo JS</title>
+```
+
+
+---
+
+
+## Executando JavaScript no Navegador: Tag `<script>` (Parte 2)
+
+```html
   </head>
   <body>
     <h1>JavaScript no Navegador</h1>
@@ -147,7 +206,10 @@ Abra o navegador (<kbd>F12</kbd> ou <kbd>Ctrl+Shift+I</kbd>), acesse a aba **Con
 </html>
 ```
 
+
 ---
+
+
 
 ## Resumo da Aula
 

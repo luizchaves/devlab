@@ -1,7 +1,7 @@
-import Investments from '../lib/investments';
-import InvestmentForm from './InvestmentForm';
 import { $ } from '../lib/dom';
 import { formatCurrency, formatDate } from '../lib/format';
+import Investments from '../lib/investments';
+import InvestmentForm from './InvestmentForm';
 
 function create(investment) {
   const card = `
@@ -79,8 +79,7 @@ function create(investment) {
   $(`#investment-${investment.id} .icon-trash`).onclick = () => {
     $(`.modal .investment-name`).innerText = investment.name;
 
-    $(`.modal .remove-investment-btn`).onclick = () =>
-      Investments.remove(investment);
+    $(`.modal .remove-investment-btn`).onclick = () => Investments.remove(investment);
   };
 }
 

@@ -1,8 +1,8 @@
-import Investments from '../lib/investments';
-import InvestmentForm from './InvestmentForm';
+import { HSOverlay } from 'preline';
 import { $ } from '../lib/dom';
 import { formatCurrency, formatDate } from '../lib/format';
-import { HSOverlay } from 'preline';
+import Investments from '../lib/investments';
+import InvestmentForm from './InvestmentForm';
 
 function create(investment) {
   const card = `
@@ -80,8 +80,7 @@ function create(investment) {
   $(`#investment-${investment.id} .icon-trash`).onclick = () => {
     $(`.modal .investment-name`).innerText = investment.name;
 
-    $(`.modal .remove-investment-btn`).onclick = () =>
-      Investments.remove(investment);
+    $(`.modal .remove-investment-btn`).onclick = () => Investments.remove(investment);
 
     HSOverlay.open('#hs-basic-modal');
   };

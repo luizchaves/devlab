@@ -2,8 +2,8 @@ import 'bootstrap';
 import 'iconify-icon';
 
 import HostForm from './components/HostForm';
-import Modal from './components/Modal';
 import * as LineChart from './components/LineChart';
+import Modal from './components/Modal';
 import Hosts from './lib/hosts';
 import Auth from './services/auth.js';
 
