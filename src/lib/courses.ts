@@ -14,6 +14,11 @@ const courses = {
     shortTitle: 'LP2',
     href: '/courses/ctii-jp-lp2/',
   },
+  python: {
+    title: 'Guia de Python',
+    shortTitle: 'Python',
+    href: '/courses/python/',
+  },
 } as const;
 
 export type CourseId = keyof typeof courses;
