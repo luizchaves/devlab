@@ -24,6 +24,11 @@ const courses = {
     shortTitle: 'TS',
     href: '/courses/typescript/',
   },
+  ecmascript: {
+    title: 'Guia de ECMAScript',
+    shortTitle: 'ECMAScript',
+    href: '/courses/ecmascript/',
+  },
 } as const;
 
 export type CourseId = keyof typeof courses;

@@ -541,6 +541,52 @@ export default defineConfig({
             },
           ],
         },
+        {
+          label: 'Guia de ECMAScript',
+          items: [
+            { label: 'Visão geral', link: '/courses/ecmascript/' },
+            {
+              label: 'Fundamentos',
+              collapsed: false,
+              items: [
+                { label: 'Introdução e Ecossistema', link: '/courses/ecmascript/basics/introduction/' },
+                { label: 'Variáveis e Escopo', link: '/courses/ecmascript/basics/variables/' },
+                { label: 'Tipos de Dados e Coerção', link: '/courses/ecmascript/basics/types/' },
+                { label: 'Expressões e Operadores', link: '/courses/ecmascript/basics/operators/' },
+                { label: 'Estruturas de Controle', link: '/courses/ecmascript/basics/control-flow/' },
+              ],
+            },
+            {
+              label: 'Estruturas de Dados',
+              collapsed: false,
+              items: [
+                { label: 'Strings e Template Literals', link: '/courses/ecmascript/data/strings/' },
+                { label: 'Numbers, BigInt e Math', link: '/courses/ecmascript/data/numbers/' },
+                { label: 'Arrays e Métodos Funcionais', link: '/courses/ecmascript/data/arrays/' },
+                { label: 'Objetos e Protótipos', link: '/courses/ecmascript/data/objects/' },
+                { label: 'Map, Set e Coleções', link: '/courses/ecmascript/data/collections/' },
+              ],
+            },
+            {
+              label: 'Organização de Código',
+              collapsed: false,
+              items: [
+                { label: 'Funções e Closures', link: '/courses/ecmascript/structure/functions/' },
+                { label: 'Tratamento de Erros', link: '/courses/ecmascript/structure/errors/' },
+                { label: 'Módulos ES (ESM)', link: '/courses/ecmascript/structure/modules/' },
+              ],
+            },
+            {
+              label: 'Assincronismo e Utilitários',
+              collapsed: false,
+              items: [
+                { label: 'Promises e Async/Await', link: '/courses/ecmascript/async/promises/' },
+                { label: 'Expressões Regulares (RegExp)', link: '/courses/ecmascript/stdlib/regex/' },
+                { label: 'Evolução e TC39', link: '/courses/ecmascript/evolution/tc39/' },
+              ],
+            },
+          ],
+        },
       ],
     }),
   ],
