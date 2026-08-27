@@ -1,0 +1,731 @@
+---
+title: "Python: Funções"
+description: "Definição de funções, parâmetros posicionais e nomeados, valores padrão, *args e **kwargs, retorno múltiplo, escopo LEGB, closures, lambda e decoradores em Python."
+course: python
+sidebar:
+  label: Funções
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/basics/functions/) e [mapa mental](../../../../mindmaps/courses/python/basics/functions/).
+
+Funções empacotam um comportamento sob um nome, recebem dados de entrada e devolvem um
+resultado. Elas evitam repetição, isolam responsabilidades e transformam um script linear em
+um programa organizado. Em Python, funções são **objetos de primeira classe**: podem ser
+guardadas em variáveis, passadas como argumento e devolvidas por outras funções.
+
+Esta aula cobre a definição, as formas de passar argumentos, o modelo de escopo e o uso de
+funções como valores.
+
+## Objetivo
+
+Definir funções com `def`, documentar com docstring, distinguir parâmetros de argumentos,
+usar valores padrão com segurança, aceitar quantidades variáveis de argumentos com `*args` e
+`**kwargs`, devolver múltiplos valores, explicar a regra de escopo LEGB, criar closures e
+funções anônimas com `lambda` e aplicar decoradores simples.
+
+## Definindo e Chamando
+
+A definição usa `def`, um nome em `snake_case`, a lista de parâmetros e um bloco indentado.
+O exemplo abaixo mostra a estrutura completa, incluindo a docstring:
+
+```python title="Anatomia de uma função"
+def apply_discount(price, percentage):
+    """Devolve o preço com o desconto percentual aplicado.
+
+    price: valor original em reais.
+    percentage: fração entre 0 e 1 (0.15 = 15%).
+    """
+    return price * (1 - percentage)
+
+
+print(apply_discount(200, 0.15))     # 170.0
+print(apply_discount(price=200, percentage=0.1))
+print(apply_discount.__doc__.splitlines()[0])
+```
+
+```txt title="Output"
+170.0
+180.0
+Devolve o preço com o desconto percentual aplicado.
+```
+
+Uma função sem `return` devolve `None` implicitamente — o que é diferente de não devolver
+nada:
+
+```python title="Retorno implícito"
+def log(message):
+    print(f"[log] {message}")
+
+
+result = log("iniciando")
+print(result)        # None
+print(type(result))  # <class 'NoneType'>
+```
+
+<Aside type="note" title="Definição não executa">
+  `def` cria o objeto função e liga a um nome; o corpo só roda quando a função é chamada com
+  parênteses. Passar `log` sem parênteses passa a função em si — é assim que callbacks
+  funcionam.
+</Aside>
+
+## Parâmetros e Argumentos
+
+**Parâmetros** são os nomes na definição; **argumentos** são os valores passados na chamada.
+Python oferece várias formas de casar uns com os outros.
+
+### Posicionais e nomeados
+
+Argumentos posicionais seguem a ordem da definição; nomeados usam o nome do parâmetro e
+podem aparecer em qualquer ordem:
+
+```python title="Ordem e clareza"
+def register(name, email, active):
+    return f"{name} <{email}> ativo={active}"
+
+
+print(register("Ana", "ana@devlab.dev", True))            # posicionais
+print(register(email="b@devlab.dev", name="Bia", active=False))  # nomeados
+print(register("Caio", active=True, email="c@devlab.dev"))       # misto
+
+# Nomeado antes de posicional é erro de sintaxe
+# register(name="Duda", "d@devlab.dev")
+```
+
+<Aside type="tip" title="Booleano na chamada pede nome">
+  `register("Ana", "ana@devlab.dev", True)` não diz o que `True` significa. Escrever
+  `active=True` documenta a chamada sem custo — e é a razão de existirem parâmetros
+  somente-nomeados.
+</Aside>
+
+### Valores padrão
+
+Parâmetros com valor padrão tornam-se opcionais e devem vir **depois** dos obrigatórios:
+
+```python title="Parâmetros opcionais"
+def connect(host, port=5432, timeout=30):
+    return f"{host}:{port} (timeout {timeout}s)"
+
+
+print(connect("localhost"))
+print(connect("db.devlab.dev", 3306))
+print(connect("db.devlab.dev", timeout=5))
+```
+
+```txt title="Output"
+localhost:5432 (timeout 30s)
+db.devlab.dev:3306 (timeout 30s)
+db.devlab.dev:5432 (timeout 5s)
+```
+
+<Aside type="caution" title="Nunca use lista ou dicionário como valor padrão">
+  O valor padrão é avaliado **uma única vez**, na definição da função. Um objeto mutável como
+  padrão é compartilhado por todas as chamadas:
+
+  ```python
+  def add_item(item, items=[]):    # ARMADILHA
+      items.append(item)
+      return items
+
+  print(add_item("a"))   # ['a']
+  print(add_item("b"))   # ['a', 'b'] — a lista persistiu!
+  ```
+
+  A correção é usar `None` como sentinela:
+
+  ```python
+  def add_item(item, items=None):
+      items = [] if items is None else items
+      items.append(item)
+      return items
+  ```
+</Aside>
+
+### Argumentos variáveis
+
+`*args` agrupa os posicionais extras em uma **tupla**; `**kwargs` agrupa os nomeados extras
+em um **dicionário**:
+
+```python title="*args e **kwargs"
+def summarize(title, *values, **options):
+    print(f"{title}: {values}")
+    print(f"opções: {options}")
+    return sum(values) * options.get("factor", 1)
+
+
+print(summarize("Vendas", 10, 20, 30, factor=2, currency="BRL"))
+```
+
+```txt title="Output"
+Vendas: (10, 20, 30)
+opções: {'factor': 2, 'currency': 'BRL'}
+120
+```
+
+O mesmo `*` e `**` funcionam na **chamada**, para desempacotar coleções em argumentos:
+
+```python title="Desempacotamento na chamada"
+def create_user(name, email, role):
+    return f"{name} ({role}) - {email}"
+
+
+data = ["Ana", "ana@devlab.dev"]
+extra = {"role": "admin"}
+
+print(create_user(*data, **extra))
+```
+
+### Somente-posicionais e somente-nomeados
+
+Dois marcadores especiais restringem como um parâmetro pode ser passado:
+
+| Marcador | Efeito |
+| :--- | :--- |
+| `/` | Tudo **antes** só pode ser passado por posição |
+| `*` | Tudo **depois** só pode ser passado por nome |
+
+```python title="Assinatura restritiva"
+def transfer(source, target, /, amount, *, confirm=False):
+    if not confirm:
+        return "operação não confirmada"
+    return f"{amount} de {source} para {target}"
+
+
+print(transfer("conta-a", "conta-b", amount=100, confirm=True))
+print(transfer("conta-a", "conta-b", 100))
+
+# transfer(source="conta-a", target="conta-b", amount=100)  # TypeError
+# transfer("conta-a", "conta-b", 100, True)                 # TypeError
+```
+
+## Retorno
+
+`return` encerra a função imediatamente e devolve um valor ao chamador.
+
+### Retorno múltiplo
+
+Python devolve vários valores empacotando-os em uma tupla, que costuma ser desempacotada na
+chamada:
+
+```python title="Vários valores de uma vez"
+def statistics(numbers):
+    return min(numbers), max(numbers), sum(numbers) / len(numbers)
+
+
+lowest, highest, average = statistics([4, 8, 15, 16, 23, 42])
+print(f"menor={lowest} maior={highest} média={average:.2f}")
+
+result = statistics([1, 2, 3])
+print(result, type(result))
+```
+
+```txt title="Output"
+menor=4 maior=42 média=18.00
+(1, 3, 2.0) <class 'tuple'>
+```
+
+### Retorno antecipado
+
+Tratar os casos de exceção logo no início mantém o corpo principal sem aninhamento — é o
+padrão conhecido como *guard clause*:
+
+```python title="Guard clause"
+def shipping_cost(weight, region):
+    if weight <= 0:
+        return 0
+    if region not in {"sul", "sudeste"}:
+        return 50
+    return 10 if weight < 5 else 25
+
+
+for case in [(0, "sul"), (3, "sul"), (8, "sudeste"), (3, "norte")]:
+    print(case, "->", shipping_cost(*case))
+```
+
+## Escopo de Nomes
+
+Python resolve nomes seguindo a regra **LEGB**: procura primeiro no escopo local, depois nos
+escopos de funções externas, então no módulo e por fim nos nomes embutidos.
+
+<Mermaid title="Ordem de busca de nomes (LEGB)">
+{`
+flowchart LR
+  L["Local<br/>dentro da função"] --> E["Enclosing<br/>função externa"]
+  E --> G["Global<br/>módulo"]
+  G --> B["Built-in<br/>len, print, sum"]
+  B --> X["NameError"]
+`}
+</Mermaid>
+
+```python title="LEGB na prática"
+value = "global"
+
+
+def outer():
+    value = "enclosing"
+
+    def inner():
+        value = "local"
+        print(value)     # local
+
+    inner()
+    print(value)         # enclosing
+
+
+outer()
+print(value)             # global
+print(len("built-in"))   # len vem do escopo embutido
+```
+
+### `global` e `nonlocal`
+
+Atribuir a um nome dentro de uma função cria uma variável **local**, mesmo que exista uma
+global com o mesmo nome. As palavras-chave abaixo mudam esse comportamento:
+
+```python title="Alterando escopos externos"
+counter = 0
+
+
+def increment():
+    global counter       # sem isto, seria UnboundLocalError
+    counter += 1
+
+
+def make_accumulator():
+    total = 0
+
+    def add(value):
+        nonlocal total   # refere-se ao total da função externa
+        total += value
+        return total
+
+    return add
+
+
+increment()
+increment()
+print(counter)           # 2
+
+accumulate = make_accumulator()
+print(accumulate(10))    # 10
+print(accumulate(5))     # 15
+```
+
+<Aside type="caution" title="global é sinal de alerta">
+  Estado global compartilhado dificulta testes e esconde dependências. Prefira receber o
+  valor por parâmetro e devolver o resultado — ou encapsular o estado em uma classe, como em
+  [Classes e Objetos](../../structure/classes/).
+</Aside>
+
+### Closures
+
+Uma *closure* é a função interna que continua enxergando as variáveis da função que a criou,
+mesmo depois que esta terminou:
+
+```python title="Fábrica de funções"
+def multiplier(factor):
+    def multiply(number):
+        return number * factor
+    return multiply
+
+
+double = multiplier(2)
+triple = multiplier(3)
+
+print(double(10), triple(10))     # 20 30
+print(double.__closure__[0].cell_contents)  # 2
+```
+
+## Funções como Valores
+
+Como qualquer objeto, funções podem ser atribuídas, passadas e guardadas em coleções.
+
+### `lambda`
+
+`lambda` cria uma função anônima de **uma única expressão**, útil como argumento curto:
+
+```python title="Funções anônimas"
+double = lambda x: x * 2        # equivalente a def double(x): return x * 2
+print(double(21))
+
+people = [("Ana", 32), ("Bia", 25), ("Caio", 41)]
+print(sorted(people, key=lambda person: person[1]))
+```
+
+```txt title="Output"
+42
+[('Bia', 25), ('Ana', 32), ('Caio', 41)]
+```
+
+<Aside type="tip" title="Atribuir lambda a nome é desnecessário">
+  A PEP 8 desaconselha `nome = lambda ...`: se a função merece um nome, use `def`, que
+  produz melhor rastreamento em erros. `lambda` brilha como argumento descartável de `sorted`,
+  `map`, `filter` ou `key`.
+</Aside>
+
+### Funções de ordem superior
+
+Funções que recebem ou devolvem outras funções são chamadas de *higher-order*:
+
+```python title="Recebendo funções como argumento"
+def apply_all(numbers, operation):
+    return [operation(number) for number in numbers]
+
+
+print(apply_all([1, 2, 3], lambda n: n ** 2))
+
+words = ["python", "go", "javascript"]
+print(sorted(words, key=len))
+print(list(map(str.upper, words)))
+print(list(filter(lambda word: len(word) > 2, words)))
+
+# Dicionário de despacho: função escolhida por chave
+operations = {
+    "soma": lambda a, b: a + b,
+    "produto": lambda a, b: a * b,
+}
+print(operations["produto"](6, 7))
+```
+
+## Decoradores
+
+Um decorador é uma função que recebe outra função e devolve uma versão modificada dela. A
+sintaxe `@decorador` aplica essa troca no momento da definição:
+
+```python title="Medindo o tempo de execução"
+import functools
+import time
+
+
+def timed(function):
+    @functools.wraps(function)          # preserva nome e docstring do original
+    def wrapper(*args, **kwargs):
+        started = time.perf_counter()
+        result = function(*args, **kwargs)
+        elapsed = (time.perf_counter() - started) * 1000
+        print(f"{function.__name__} levou {elapsed:.2f} ms")
+        return result
+    return wrapper
+
+
+@timed
+def total_squares(limit):
+    """Soma os quadrados até o limite."""
+    return sum(number ** 2 for number in range(limit))
+
+
+print(total_squares(100_000))
+print(total_squares.__name__)
+```
+
+```txt title="Output"
+total_squares levou 6.42 ms
+333328333350000
+total_squares
+```
+
+`@timed` equivale a escrever `total_squares = timed(total_squares)`. É o mecanismo por trás
+de `@property`, `@staticmethod` e das rotas de frameworks web como Flask e FastAPI.
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `functions.py`:
+
+   ```python title="functions.py"
+   def calculate(operation, *numbers, precision=2):
+       """Aplica a operação a todos os números."""
+       result = operation(*numbers)
+       return round(result, precision)
+
+
+   def add(*numbers):
+       return sum(numbers)
+
+
+   def average(*numbers):
+       return sum(numbers) / len(numbers)
+
+
+   print(calculate(add, 1, 2, 3))
+   print(calculate(average, 1, 2, 3, precision=4))
+   print(calculate(lambda a, b: a / b, 10, 3))
+
+   def counter():
+       count = 0
+
+       def increment():
+           nonlocal count
+           count += 1
+           return count
+
+       return increment
+
+   next_value = counter()
+   print(next_value(), next_value(), next_value())
+   ```
+
+2. Execute o arquivo (`python3 functions.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run functions.py
+   ```
+
+   ```txt title="Output"
+   6
+   2.0
+   3.33
+   1 2 3
+   ```
+
+3. No REPL (`uv run python`), inspecione a assinatura e a documentação:
+
+   ```txt title="Sessão interativa"
+   >>> from functions import calculate
+   >>> import inspect
+   >>> inspect.signature(calculate)
+   <Signature (operation, *numbers, precision=2)>
+   >>> calculate.__doc__
+   'Aplica a operação a todos os números.'
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `text_tools.py` com funções utilitárias de texto.
+
+1. `normalize(text)` — remove espaços das bordas e devolve em minúsculas;
+2. `initials(full_name, separator=".")` — devolve as iniciais separadas pelo caractere informado;
+3. `word_count(text, *, ignore=None)` — conta palavras, descartando as da coleção `ignore`;
+4. `apply_to_all(texts, *functions)` — aplica todas as funções recebidas a cada texto;
+5. Documente cada função com docstring e use anotações de tipo;
+6. Proteja a execução de demonstração com `if __name__ == "__main__":`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="text_tools.py"
+  def normalize(text: str) -> str:
+      """Remove espaços das bordas e converte para minúsculas."""
+      return text.strip().lower()
+
+
+  def initials(full_name: str, separator: str = ".") -> str:
+      """Devolve as iniciais de cada parte do nome."""
+      return separator.join(part[0].upper() for part in full_name.split())
+
+
+  def word_count(text: str, *, ignore: set[str] | None = None) -> int:
+      """Conta palavras, descartando as listadas em ignore."""
+      ignored = ignore or set()
+      return sum(1 for word in text.split() if word.lower() not in ignored)
+
+
+  def apply_to_all(texts: list[str], *functions) -> list[str]:
+      """Aplica, em ordem, todas as funções a cada texto."""
+      results = []
+      for text in texts:
+          value = text
+          for function in functions:
+              value = function(value)
+          results.append(value)
+      return results
+
+
+  if __name__ == "__main__":
+      print(normalize("  Guia de PYTHON  "))
+      print(initials("ada lovelace king"))
+      print(word_count("o guia de python é direto", ignore={"o", "de", "é"}))
+      print(apply_to_all(["  Um  ", " Dois "], normalize, str.title))
+  ```
+</details>
+
+## Desafio
+
+Escreva `cache.py` implementando um decorador de memoização do zero.
+
+1. Crie `@memoize` que guarde os resultados em um dicionário indexado pelos argumentos;
+2. Preserve nome e docstring da função original com `functools.wraps`;
+3. Exponha `cache_info()` na função decorada, informando acertos e falhas do cache;
+4. Aplique o decorador a uma função `fibonacci(n)` recursiva;
+5. Compare o tempo de `fibonacci(30)` com e sem cache usando `time.perf_counter()`;
+6. Explique em comentário por que argumentos precisam ser *hasheáveis*.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="cache.py"
+  import functools
+  import time
+
+
+  def memoize(function):
+      """Guarda resultados anteriores indexados pelos argumentos."""
+      storage = {}
+      stats = {"hits": 0, "misses": 0}
+
+      @functools.wraps(function)
+      def wrapper(*args):
+          if args in storage:
+              stats["hits"] += 1
+              return storage[args]
+          stats["misses"] += 1
+          storage[args] = function(*args)
+          return storage[args]
+
+      wrapper.cache_info = lambda: dict(stats, size=len(storage))
+      return wrapper
+
+
+  @memoize
+  def fibonacci(n):
+      """Enésimo número de Fibonacci."""
+      return n if n < 2 else fibonacci(n - 1) + fibonacci(n - 2)
+
+
+  def plain_fibonacci(n):
+      return n if n < 2 else plain_fibonacci(n - 1) + plain_fibonacci(n - 2)
+
+
+  for label, function in [("com cache", fibonacci), ("sem cache", plain_fibonacci)]:
+      started = time.perf_counter()
+      value = function(30)
+      elapsed = (time.perf_counter() - started) * 1000
+      print(f"{label:<10} fib(30)={value} em {elapsed:8.2f} ms")
+
+  print(fibonacci.cache_info())
+
+  # Os argumentos viram chave de dicionário: precisam ser hasheáveis
+  # (tuplas e números servem; listas e dicionários, não).
+  ```
+
+  A biblioteca padrão já traz uma versão pronta e mais completa em
+  `functools.lru_cache` e `functools.cache`.
+</details>
+
+## Perguntas de revisão
+
+### Definição e parâmetros
+
+**1. Qual a diferença entre parâmetro e argumento?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Parâmetro é o nome declarado na definição da função; argumento é o valor concreto passado
+  na chamada. Em `def add(a, b)` os parâmetros são `a` e `b`; em `add(2, 3)` os argumentos
+  são `2` e `3`.
+</details>
+
+**2. Por que usar uma lista como valor padrão é perigoso?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o valor padrão é avaliado uma única vez, quando a função é definida. A mesma lista
+  passa a ser compartilhada entre todas as chamadas, acumulando valores. A solução é usar
+  `None` como padrão e criar a lista dentro da função.
+</details>
+
+**3. O que `*args` e `**kwargs` recebem?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `*args` reúne os argumentos posicionais extras em uma tupla; `**kwargs` reúne os argumentos
+  nomeados extras em um dicionário. Na chamada, os mesmos operadores desempacotam coleções
+  em argumentos.
+</details>
+
+**4. Para que serve o `*` sozinho na lista de parâmetros?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele marca o início dos parâmetros **somente-nomeados**: tudo depois dele só pode ser
+  passado com o nome explícito. É a forma de evitar chamadas ilegíveis como
+  `transfer(a, b, 100, True)`.
+</details>
+
+### Escopo
+
+**5. O que significa a sigla LEGB?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É a ordem de busca de nomes: **L**ocal, **E**nclosing (funções externas), **G**lobal
+  (módulo) e **B**uilt-in (nomes embutidos). Se o nome não for encontrado em nenhum desses
+  escopos, o interpretador levanta `NameError`.
+</details>
+
+**6. Qual a diferença entre `global` e `nonlocal`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `global` liga o nome ao escopo do módulo; `nonlocal` liga ao escopo da função externa mais
+  próxima (usado em closures). Sem uma das duas, uma atribuição dentro da função sempre cria
+  uma variável local.
+</details>
+
+**7. O que é uma closure?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É uma função interna que mantém acesso às variáveis do escopo onde foi criada, mesmo depois
+  que a função externa terminou. É o que permite fábricas de funções, como `multiplier(2)`
+  devolvendo uma função que sempre multiplica por 2.
+</details>
+
+### Funções como valores
+
+**8. Qual a diferença entre `log` e `log()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `log` é a referência ao objeto função — pode ser passada como argumento ou guardada em uma
+  variável. `log()` **chama** a função e resulta no valor devolvido por ela.
+</details>
+
+**9. Quando usar `lambda` em vez de `def`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Apenas para funções curtas de uma única expressão usadas no lugar, como o `key` de
+  `sorted()` ou o argumento de `map()`/`filter()`. Se a função tem nome, corpo com várias
+  linhas ou precisa de docstring, use `def`.
+</details>
+
+**10. O que a sintaxe `@decorador` faz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ela substitui a função definida logo abaixo pelo resultado de `decorador(função)`. Serve
+  para adicionar comportamento (log, cache, medição, autenticação) sem alterar o corpo da
+  função original.
+</details>
+
+## Referências
+
+- [Definindo funções](https://docs.python.org/pt-br/3/tutorial/controlflow.html#defining-functions)
+- [Mais sobre definição de funções](https://docs.python.org/pt-br/3/tutorial/controlflow.html#more-on-defining-functions)
+- [Escopos e namespaces](https://docs.python.org/pt-br/3/tutorial/classes.html#python-scopes-and-namespaces)
+- [Módulo `functools`](https://docs.python.org/pt-br/3/library/functools.html)
+- [PEP 257 — Convenções de docstring](https://peps.python.org/pep-0257/)
+
+## Próxima aula
+
+Com funções no repertório, o próximo passo é dominar o tipo de dado mais manipulado em
+qualquer programa: o texto.
+
+[Strings](../../data/strings/): imutabilidade, fatiamento, métodos de busca e transformação,
+f-strings e Unicode.

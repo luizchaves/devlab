@@ -1,0 +1,697 @@
+---
+title: "Python: Módulos e Pacotes"
+description: "Importação de módulos, formas de import, criação de módulos próprios, __name__, resolução de caminhos, pacotes com __init__.py, imports relativos e biblioteca padrão."
+course: python
+sidebar:
+  label: Módulos e Pacotes
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/structure/modules/) e [mapa mental](../../../../mindmaps/courses/python/structure/modules/).
+
+Um script de 40 linhas cabe em um arquivo. Um programa real, não. **Módulos** dividem o
+código em arquivos com responsabilidades claras, e **pacotes** agrupam módulos em diretórios.
+O mesmo mecanismo dá acesso à biblioteca padrão e às bibliotecas instaladas.
+
+Esta aula mostra como importar, como escrever seus próprios módulos e como o interpretador
+encontra cada arquivo.
+
+## Objetivo
+
+Importar módulos nas diferentes formas disponíveis, criar módulos e pacotes próprios,
+explicar o papel de `__name__` e do bloco de execução, descrever como o interpretador
+resolve um nome de módulo, organizar um projeto em pacotes com imports absolutos e
+reconhecer os módulos mais úteis da biblioteca padrão.
+
+## O que é um Módulo
+
+Qualquer arquivo `.py` é um módulo. Ao importá-lo, Python executa o arquivo uma única vez e
+guarda o resultado em `sys.modules`, disponibilizando seus nomes através do objeto módulo:
+
+```python title="Importando da biblioteca padrão"
+import math
+
+print(math.pi)
+print(math.sqrt(144))
+print(type(math))
+print(math.__name__)
+```
+
+```txt title="Output"
+3.141592653589793
+12.0
+<class 'module'>
+math
+```
+
+## Formas de Importar
+
+As variações mudam o que fica disponível no espaço de nomes atual.
+
+### `import` e alias
+
+Importa o módulo inteiro; o acesso continua qualificado pelo nome:
+
+```python title="Módulo completo"
+import math
+import statistics as stats          # alias encurta o uso
+import os.path                      # submódulo
+
+print(math.floor(3.9))
+print(stats.mean([1, 2, 3, 4]))
+print(os.path.basename("/tmp/relatorio.csv"))
+```
+
+### `from ... import`
+
+Traz nomes específicos para o escopo atual, deixando a chamada mais curta:
+
+```python title="Nomes específicos"
+from math import pi, sqrt
+from datetime import datetime as dt
+from pathlib import Path
+
+print(pi, sqrt(16))
+print(dt.now().year)
+print(Path("dados") / "vendas.csv")
+```
+
+| Forma | Quando usar |
+| :--- | :--- |
+| `import modulo` | Uso esporádico; mantém a origem visível na chamada |
+| `import modulo as m` | Nome longo ou convenção da comunidade (`import pandas as pd`) |
+| `from modulo import nome` | Uso frequente de poucos nomes |
+| `from modulo import *` | Praticamente nunca |
+
+<Aside type="caution" title="Evite from modulo import *">
+  Essa forma despeja todos os nomes públicos no escopo atual, escondendo a origem de cada um
+  e podendo sobrescrever nomes existentes silenciosamente. Ferramentas de lint sinalizam o
+  uso, e a PEP 8 desaconselha explicitamente.
+</Aside>
+
+### Ordem dos imports
+
+A PEP 8 define três blocos, separados por linha em branco e em ordem alfabética dentro de
+cada um:
+
+```python title="Cabeçalho idiomático"
+# 1. Biblioteca padrão
+import json
+import os
+from pathlib import Path
+
+# 2. Bibliotecas de terceiros
+import httpx
+from rich.console import Console
+
+# 3. Módulos do próprio projeto
+from app.models import User
+from app.services import mailer
+```
+
+## Criando Módulos Próprios
+
+Um módulo é apenas um arquivo no mesmo diretório (ou no caminho de busca). A estrutura
+mínima de um projeto com dois arquivos fica assim:
+
+<FileTree>
+{`
+projeto/
+├── main.py
+└── calculator.py
+`}
+</FileTree>
+
+```python title="calculator.py"
+"""Operações aritméticas usadas pelo programa principal."""
+
+TAX_RATE = 0.1
+
+
+def add(a, b):
+    return a + b
+
+
+def apply_tax(value):
+    return value * (1 + TAX_RATE)
+
+
+def _internal_helper():
+    """O prefixo _ sinaliza uso interno; não é importado por import *."""
+    return "detalhe de implementação"
+
+
+print("calculator.py foi carregado")
+```
+
+```python title="main.py"
+import calculator
+from calculator import apply_tax
+
+print(calculator.add(2, 3))
+print(apply_tax(100))
+print(calculator.TAX_RATE)
+```
+
+```txt title="Output"
+calculator.py foi carregado
+5
+110.00000000000001
+0.1
+```
+
+Repare que a mensagem do módulo importado aparece **uma única vez**, mesmo com duas
+importações: o módulo é executado apenas na primeira vez e reaproveitado depois.
+
+## `__name__` e Execução Direta
+
+Cada módulo tem a variável `__name__`, que vale `"__main__"` quando o arquivo é executado
+diretamente e o nome do módulo quando ele é importado:
+
+```python title="calculator.py (com bloco de execução)"
+def add(a, b):
+    return a + b
+
+
+def main():
+    print("Testando o módulo:", add(2, 3))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+```bash title="Terminal"
+uv run calculator.py
+```
+
+```txt title="Output"
+Testando o módulo: 5
+```
+
+<Aside type="tip" title="Todo módulo deve poder ser importado sem efeitos colaterais">
+  Código solto no nível do módulo roda na importação. Coloque demonstrações, testes manuais e
+  chamadas de inicialização dentro de `if __name__ == "__main__":` para que importar o
+  arquivo seja sempre seguro.
+</Aside>
+
+## Resolução de Módulos
+
+Ao encontrar um `import`, o interpretador procura o módulo em uma ordem definida e para na
+primeira ocorrência.
+
+<Mermaid title="Como o interpretador encontra um módulo">
+{`
+flowchart TD
+  A["import calculator"] --> B{"Já está em<br/>sys.modules?"}
+  B -- "Sim" --> C["Reutiliza o módulo carregado"]
+  B -- "Não" --> D["Procura em sys.path"]
+  D --> E["Diretório do script"]
+  E --> F["PYTHONPATH"]
+  F --> G["Bibliotecas instaladas<br/>site-packages"]
+  G --> H{"Encontrou?"}
+  H -- "Sim" --> I["Executa e guarda em sys.modules"]
+  H -- "Não" --> J["ModuleNotFoundError"]
+`}
+</Mermaid>
+
+```python title="Inspecionando o caminho de busca"
+import sys
+import json
+
+for path in sys.path[:4]:
+    print(path or "(diretório atual)")
+
+print(len(sys.modules), "módulos carregados")
+print(json.__file__)
+```
+
+<Aside type="caution" title="Não dê a um arquivo o nome de um módulo da biblioteca padrão">
+  Criar `json.py`, `random.py` ou `email.py` no diretório do projeto faz o seu arquivo ser
+  encontrado **antes** do módulo oficial, quebrando qualquer biblioteca que dependa dele. O
+  sintoma clássico é um `AttributeError` inexplicável logo após um import.
+</Aside>
+
+## Pacotes
+
+Um pacote é um diretório que agrupa módulos. Com um arquivo `__init__.py`, ele passa a ser
+tratado como unidade importável.
+
+<FileTree>
+{`
+loja/
+├── main.py
+└── app/
+    ├── __init__.py
+    ├── models/
+    │   ├── __init__.py
+    │   ├── product.py
+    │   └── order.py
+    └── services/
+        ├── __init__.py
+        └── pricing.py
+`}
+</FileTree>
+
+```python title="app/models/product.py"
+class Product:
+    def __init__(self, name, price):
+        self.name = name
+        self.price = price
+
+    def __repr__(self):
+        return f"Product({self.name!r}, {self.price})"
+```
+
+```python title="app/__init__.py"
+"""Reexporta os nomes públicos do pacote."""
+
+from app.models.product import Product
+from app.services.pricing import apply_discount
+
+__all__ = ["Product", "apply_discount"]
+```
+
+```python title="main.py"
+from app import Product, apply_discount
+
+item = Product("Teclado", 349.9)
+print(item, apply_discount(item.price, 0.2))
+```
+
+## Imports Absolutos e Relativos
+
+Dentro de um pacote, os dois estilos convivem — mas a PEP 8 prefere o absoluto:
+
+| Estilo | Exemplo | Observação |
+| :--- | :--- | :--- |
+| Absoluto | `from app.models.product import Product` | Legível e independente de onde o módulo está |
+| Relativo | `from ..models.product import Product` | Curto, porém frágil ao mover arquivos |
+
+```python title="app/services/pricing.py"
+# Absoluto (recomendado)
+from app.models.product import Product
+
+# Relativo: um ponto = mesmo pacote, dois pontos = pacote pai
+# from ..models.product import Product
+
+
+def apply_discount(price, percentage):
+    return round(price * (1 - percentage), 2)
+```
+
+<Aside type="note" title="Imports relativos só funcionam dentro de pacotes">
+  Executar diretamente um arquivo que usa import relativo levanta
+  `ImportError: attempted relative import with no known parent package`. Nesse caso, rode
+  como módulo a partir da raiz do projeto: `uv run -m app.services.pricing`.
+</Aside>
+
+## A Biblioteca Padrão
+
+Boa parte dos problemas do dia a dia já tem solução embutida — sem instalar nada:
+
+| Módulo | Para quê |
+| :--- | :--- |
+| `pathlib` | Caminhos de arquivo orientados a objeto |
+| `json` | Serializar e ler JSON |
+| `csv` | Ler e escrever planilhas em texto |
+| `datetime` | Datas, horas e diferenças |
+| `re` | Expressões regulares |
+| `math` / `statistics` | Funções matemáticas e estatística descritiva |
+| `random` | Sorteios e amostragem |
+| `collections` | `Counter`, `defaultdict`, `deque`, `namedtuple` |
+| `itertools` / `functools` | Ferramentas de iteração e de funções |
+| `argparse` | Interfaces de linha de comando |
+| `unittest` | Testes automatizados |
+| `sqlite3` | Banco de dados embutido |
+| `urllib.request` | Requisições HTTP simples |
+
+```python title="Resolvendo com o que já vem instalado"
+from collections import Counter
+from statistics import mean, median
+
+votes = ["python", "go", "python", "rust", "python", "go"]
+counter = Counter(votes)
+
+print(counter)
+print(counter.most_common(1))
+print(mean([4, 8, 15]), median([4, 8, 15]))
+```
+
+## Importações Circulares
+
+Dois módulos que importam um ao outro provocam erro ou nomes ainda não definidos. O sintoma
+costuma ser `ImportError: cannot import name ... (most likely due to a circular import)`:
+
+```python title="Ciclo problemático"
+# user.py
+# from order import Order        # <- depende de order
+
+# order.py
+# from user import User          # <- depende de user
+```
+
+Três saídas resolvem a maioria dos casos:
+
+1. **Extrair o que é comum** para um terceiro módulo importado pelos dois;
+2. **Importar dentro da função**, adiando a resolução para o momento da chamada;
+3. **Repensar as responsabilidades** — o ciclo geralmente indica acoplamento excessivo.
+
+## Executando
+
+<Steps>
+
+1. Crie a estrutura do projeto:
+
+   <FileTree>
+   {`
+   projeto/
+   ├── main.py
+   └── utils/
+       ├── __init__.py
+       ├── text.py
+       └── numbers.py
+   `}
+   </FileTree>
+
+2. Escreva os módulos do pacote:
+
+   ```python title="utils/text.py"
+   def slugify(text):
+       return "-".join(text.strip().lower().split())
+
+
+   def initials(full_name):
+       return ".".join(part[0].upper() for part in full_name.split())
+   ```
+
+   ```python title="utils/numbers.py"
+   def average(values):
+       return sum(values) / len(values) if values else 0
+
+
+   def percentage(part, total):
+       return 0 if total == 0 else round(part / total * 100, 1)
+   ```
+
+   ```python title="utils/__init__.py"
+   from utils.numbers import average, percentage
+   from utils.text import initials, slugify
+
+   __all__ = ["average", "initials", "percentage", "slugify"]
+   ```
+
+3. Use o pacote no programa principal:
+
+   ```python title="main.py"
+   from utils import average, initials, percentage, slugify
+
+   print(slugify("  Guia de Python  "))
+   print(initials("ada lovelace king"))
+   print(average([7.5, 8.0, 9.5]))
+   print(percentage(37, 120))
+   ```
+
+4. Execute a partir da raiz do projeto:
+
+   ```bash title="Terminal"
+   uv run main.py
+   ```
+
+   ```txt title="Output"
+   guia-de-python
+   A.L.K
+   8.333333333333334
+   30.8
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um pacote `finance/` com três módulos e um programa que o utilize.
+
+1. `finance/interest.py` — funções de juros simples e compostos;
+2. `finance/currency.py` — formatação de valores em reais e conversão por taxa;
+3. `finance/report.py` — montagem de um relatório em texto usando os dois anteriores;
+4. `finance/__init__.py` — reexporte as funções públicas e defina `__all__`;
+5. Cada módulo deve ter docstring e um bloco `if __name__ == "__main__":` de demonstração;
+6. `main.py` importa apenas do pacote (`from finance import ...`) e imprime um relatório completo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="finance/interest.py"
+  """Cálculos de juros."""
+
+
+  def simple(principal, rate, periods):
+      return principal * (1 + rate * periods)
+
+
+  def compound(principal, rate, periods):
+      return principal * (1 + rate) ** periods
+
+
+  if __name__ == "__main__":
+      print(simple(1000, 0.01, 12), compound(1000, 0.01, 12))
+  ```
+
+  ```python title="finance/currency.py"
+  """Formatação e conversão de moedas."""
+
+
+  def to_brl(value):
+      formatted = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+      return f"R$ {formatted}"
+
+
+  def convert(value, rate):
+      return round(value * rate, 2)
+
+
+  if __name__ == "__main__":
+      print(to_brl(1234.5), convert(100, 5.4))
+  ```
+
+  ```python title="finance/report.py"
+  """Relatório de rendimento."""
+
+  from finance.currency import to_brl
+  from finance.interest import compound, simple
+
+
+  def build(principal, rate, periods):
+      lines = [
+          f"{'Aplicação inicial:':<22}{to_brl(principal):>16}",
+          f"{'Juros simples:':<22}{to_brl(simple(principal, rate, periods)):>16}",
+          f"{'Juros compostos:':<22}{to_brl(compound(principal, rate, periods)):>16}",
+      ]
+      return "\n".join(lines)
+
+
+  if __name__ == "__main__":
+      print(build(1000, 0.01, 12))
+  ```
+
+  ```python title="finance/__init__.py"
+  from finance.currency import convert, to_brl
+  from finance.interest import compound, simple
+  from finance.report import build
+
+  __all__ = ["build", "compound", "convert", "simple", "to_brl"]
+  ```
+
+  ```python title="main.py"
+  from finance import build, convert, to_brl
+
+  print(build(2500, 0.008, 24))
+  print(to_brl(convert(500, 5.35)))
+  ```
+</details>
+
+## Desafio
+
+Escreva `plugins.py`, um carregador de módulos dinâmico.
+
+1. Crie um diretório `plugins/` com três módulos, cada um definindo `NAME` e `run(data)`;
+2. Descubra os arquivos disponíveis com `pathlib`, sem lista fixa no código;
+3. Importe cada módulo em tempo de execução com `importlib.import_module`;
+4. Valide que o módulo tem os atributos esperados antes de usá-lo, ignorando os inválidos;
+5. Execute todos os plugins sobre o mesmo dado de entrada e mostre os resultados;
+6. Informe quantos plugins foram carregados e quais foram descartados.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="plugins.py"
+  import importlib
+  from pathlib import Path
+
+  PLUGINS_DIR = Path("plugins")
+
+
+  def discover():
+      """Nomes de módulo dentro de plugins/, sem __init__."""
+      return sorted(
+          path.stem
+          for path in PLUGINS_DIR.glob("*.py")
+          if not path.stem.startswith("_")
+      )
+
+
+  def load(name):
+      module = importlib.import_module(f"plugins.{name}")
+      if not hasattr(module, "NAME") or not callable(getattr(module, "run", None)):
+          return None
+      return module
+
+
+  data = "  Guia de Python  "
+  loaded, skipped = [], []
+
+  for name in discover():
+      module = load(name)
+      if module is None:
+          skipped.append(name)
+          continue
+      loaded.append(module)
+      print(f"{module.NAME:<16}{module.run(data)!r}")
+
+  print(f"\n{len(loaded)} plugins carregados | descartados: {', '.join(skipped) or 'nenhum'}")
+  ```
+
+  Exemplo de plugin:
+
+  ```python title="plugins/upper.py"
+  NAME = "maiúsculas"
+
+
+  def run(data):
+      return data.strip().upper()
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Importação
+
+**1. O que acontece na primeira vez que um módulo é importado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O arquivo é localizado, compilado para bytecode (com cache em `__pycache__/`) e executado
+  do início ao fim. O objeto módulo resultante é guardado em `sys.modules`, e importações
+  seguintes reaproveitam esse objeto sem reexecutar o código.
+</details>
+
+**2. Por que `from modulo import *` é desaconselhado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque traz todos os nomes públicos para o escopo atual: some a informação de origem de
+  cada nome e é possível sobrescrever nomes existentes sem aviso, gerando bugs difíceis de
+  rastrear.
+</details>
+
+**3. Qual a ordem de imports recomendada pela PEP 8?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Três blocos separados por linha em branco: biblioteca padrão, bibliotecas de terceiros e
+  módulos do próprio projeto — cada bloco em ordem alfabética.
+</details>
+
+### Módulos próprios
+
+**4. Para que serve `if __name__ == "__main__":`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para separar o código que só deve rodar quando o arquivo é executado diretamente do código
+  que apenas define funções e classes. Ao importar o módulo, `__name__` recebe o nome do
+  módulo e o bloco não executa.
+</details>
+
+**5. Onde o interpretador procura um módulo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Primeiro em `sys.modules` (já carregados); depois nos caminhos de `sys.path`, que inclui o
+  diretório do script, os caminhos de `PYTHONPATH` e os diretórios de bibliotecas instaladas.
+  Não encontrando, levanta `ModuleNotFoundError`.
+</details>
+
+**6. Por que não se deve criar um arquivo chamado `random.py` no projeto?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o diretório do script vem antes das bibliotecas em `sys.path`: o seu arquivo passa a
+  ser importado no lugar do módulo oficial, quebrando o próprio código e qualquer biblioteca
+  que dependa dele.
+</details>
+
+### Pacotes
+
+**7. O que transforma um diretório em pacote?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A presença de um arquivo `__init__.py`, que é executado quando o pacote é importado e
+  costuma reexportar os nomes públicos. Desde o Python 3.3 existem também pacotes de
+  namespace sem esse arquivo, mas o uso explícito continua sendo o padrão em projetos.
+</details>
+
+**8. Qual a diferença entre import absoluto e relativo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O absoluto parte da raiz do projeto (`from app.models.product import Product`); o relativo
+  parte da posição do módulo atual (`from ..models.product import Product`). O absoluto é
+  mais legível e resiste melhor à movimentação de arquivos.
+</details>
+
+**9. O que é uma importação circular e como resolvê-la?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É quando dois módulos dependem um do outro, causando `ImportError` ou nomes indefinidos. As
+  saídas usuais são extrair o código comum para um terceiro módulo, mover o import para
+  dentro da função ou redesenhar as responsabilidades.
+</details>
+
+**10. Para que serve `__all__`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Define a lista de nomes considerados públicos do módulo ou pacote. Ele controla o que
+  `from modulo import *` traz e documenta a interface pretendida para quem lê o código.
+</details>
+
+## Referências
+
+- [Módulos](https://docs.python.org/pt-br/3/tutorial/modules.html)
+- [Pacotes](https://docs.python.org/pt-br/3/tutorial/modules.html#packages)
+- [Sistema de importação](https://docs.python.org/pt-br/3/reference/import.html)
+- [Índice da biblioteca padrão](https://docs.python.org/pt-br/3/library/index.html)
+- [PEP 8 — Imports](https://peps.python.org/pep-0008/#imports)
+
+## Próxima aula
+
+Com o código dividido em módulos, o passo seguinte é modelar as entidades do domínio.
+
+[Classes e Objetos](../classes/): atributos, métodos, `__init__`, herança, métodos especiais
+e `dataclasses`.

@@ -1,0 +1,530 @@
+---
+title: "Python: Data e Hora"
+description: "Tipos date, time, datetime e timedelta, formatação com strftime e strptime, fuso horário com zoneinfo, cálculos entre datas e o padrão ISO 8601 em Python."
+course: python
+sidebar:
+  label: Data e Hora
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Materiais: [slides da aula](../../../../slides/courses/python/stdlib/datetime/) e [mapa mental](../../../../mindmaps/courses/python/stdlib/datetime/).
+
+Praticamente todo registro tem uma data: um pedido, um log, um prazo, uma matrícula. Datas
+parecem simples até aparecerem fusos horários, horário de verão, formatos regionais e
+cálculos de diferença — motivos pelos quais a linguagem oferece um módulo dedicado.
+
+Esta aula cobre os quatro tipos principais do módulo `datetime`, a conversão entre texto e
+data, e o tratamento de fuso horário com `zoneinfo`.
+
+## Objetivo
+
+Criar e manipular valores de `date`, `time`, `datetime` e `timedelta`, converter entre texto
+e data com `strftime` e `strptime`, usar o formato ISO 8601, calcular diferenças e prazos,
+diferenciar datas ingênuas de conscientes de fuso e trabalhar com `zoneinfo`.
+
+## Os Quatro Tipos
+
+O módulo `datetime` organiza o domínio em tipos com responsabilidades distintas:
+
+| Tipo | Representa | Exemplo |
+| :--- | :--- | :--- |
+| `date` | Data civil (ano, mês, dia) | `2026-08-27` |
+| `time` | Hora do dia, sem data | `14:30:00` |
+| `datetime` | Data e hora combinadas | `2026-08-27 14:30:00` |
+| `timedelta` | Duração entre dois instantes | `30 days, 2:15:00` |
+
+```python title="Criando valores"
+from datetime import date, datetime, time, timedelta
+
+today = date.today()
+now = datetime.now()
+specific = datetime(2026, 8, 27, 14, 30)
+lunch = time(12, 0)
+duration = timedelta(days=30, hours=2)
+
+print(today)
+print(now.strftime("%d/%m/%Y %H:%M"))
+print(specific, lunch, duration)
+print(specific.year, specific.month, specific.day, specific.weekday())
+```
+
+```txt title="Output"
+2026-08-27
+27/08/2026 09:41
+2026-08-27 14:30:00 12:00:00 30 days, 2:00:00
+2026 8 27 3
+```
+
+<Aside type="note" title="weekday começa na segunda">
+  `weekday()` devolve 0 para segunda-feira e 6 para domingo; `isoweekday()` usa 1 a 7 com a
+  mesma ordem. Nenhum dos dois começa no domingo.
+</Aside>
+
+## Formatação e Conversão
+
+Duas funções fazem a ponte entre texto e objeto de data.
+
+### `strftime`: de data para texto
+
+Os códigos de formato montam a saída no padrão desejado:
+
+| Código | Significado | Exemplo |
+| :--- | :--- | :--- |
+| `%d` | Dia com dois dígitos | `27` |
+| `%m` | Mês com dois dígitos | `08` |
+| `%Y` / `%y` | Ano com 4 / 2 dígitos | `2026` / `26` |
+| `%H:%M:%S` | Hora, minuto, segundo | `14:30:00` |
+| `%A` / `%a` | Dia da semana por extenso / abreviado | `Thursday` / `Thu` |
+| `%B` / `%b` | Mês por extenso / abreviado | `August` / `Aug` |
+| `%j` | Dia do ano | `239` |
+| `%p` | AM/PM | `PM` |
+
+```python title="Formatando saídas"
+from datetime import datetime
+
+moment = datetime(2026, 8, 27, 14, 30, 5)
+
+print(moment.strftime("%d/%m/%Y"))
+print(moment.strftime("%d/%m/%Y às %H:%M"))
+print(moment.strftime("%A, %d de %B de %Y"))
+print(f"{moment:%d/%m/%Y %H:%M}")        # f-string aceita os mesmos códigos
+```
+
+```txt title="Output"
+27/08/2026
+27/08/2026 às 14:30
+Thursday, 27 de August de 2026
+27/08/2026 14:30
+```
+
+<Aside type="tip" title="Nomes em português">
+  `%A` e `%B` seguem o *locale* do sistema, que frequentemente é inglês. Para nomes em
+  português de forma previsível, use um dicionário próprio ou o módulo `babel`; configurar
+  `locale` global afeta o processo inteiro e costuma trazer efeitos colaterais.
+</Aside>
+
+### `strptime`: de texto para data
+
+O caminho inverso exige informar exatamente o formato de entrada:
+
+```python title="Interpretando texto"
+from datetime import date, datetime
+
+parsed = datetime.strptime("27/08/2026 14:30", "%d/%m/%Y %H:%M")
+print(parsed, type(parsed))
+
+# ISO 8601: formato padrão para troca de dados
+print(datetime.fromisoformat("2026-08-27T14:30:00"))
+print(date.fromisoformat("2026-08-27"))
+print(parsed.isoformat())
+
+try:
+    datetime.strptime("27-08-2026", "%d/%m/%Y")
+except ValueError as error:
+    print("formato incompatível:", error)
+```
+
+```txt title="Output"
+2026-08-27 14:30:00 <class 'datetime.datetime'>
+2026-08-27 14:30:00
+2026-08-27
+2026-08-27T14:30:00
+formato incompatível: time data '27-08-2026' does not match format '%d/%m/%Y'
+```
+
+<Aside type="caution" title="Prefira ISO 8601 para armazenar">
+  Guardar datas como `dd/mm/aaaa` gera ambiguidade (`03/04` é março ou abril?) e impede
+  ordenação alfabética correta. Armazene e transporte em ISO 8601 (`2026-08-27T14:30:00`) e
+  formate apenas na exibição.
+</Aside>
+
+## Cálculos com `timedelta`
+
+Somar e subtrair datas produz ou consome durações:
+
+```python title="Aritmética de datas"
+from datetime import date, datetime, timedelta
+
+today = date(2026, 8, 27)
+
+print(today + timedelta(days=30))
+print(today - timedelta(weeks=2))
+
+deadline = date(2026, 12, 31)
+remaining = deadline - today
+
+print(remaining, type(remaining))
+print(f"faltam {remaining.days} dias")
+
+start = datetime(2026, 8, 27, 9, 0)
+end = datetime(2026, 8, 27, 17, 30)
+worked = end - start
+
+print(worked, worked.total_seconds() / 3600, "horas")
+```
+
+```txt title="Output"
+2026-09-26
+2026-08-13
+126 days, 0:00:00 <class 'datetime.timedelta'>
+faltam 126 dias
+8:30:00 8.5 horas
+```
+
+| Operação | Resultado |
+| :--- | :--- |
+| `data + timedelta` | Nova data |
+| `data - timedelta` | Nova data |
+| `data - data` | `timedelta` |
+| `timedelta * número` | `timedelta` multiplicado |
+| `timedelta.total_seconds()` | Duração total em segundos |
+
+<Aside type="note" title="timedelta não tem meses">
+  Meses e anos têm duração variável, então `timedelta` só aceita dias, horas, minutos,
+  segundos, semanas e microssegundos. Para "daqui a 3 meses", use a biblioteca externa
+  `dateutil` (`relativedelta`) ou calcule manualmente ano e mês.
+</Aside>
+
+## Fuso Horário
+
+Um `datetime` sem fuso é chamado de **ingênuo** (*naive*); com fuso, **consciente**
+(*aware*). Misturar os dois em uma operação levanta `TypeError`:
+
+```python title="Ingênuo e consciente"
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+naive = datetime(2026, 8, 27, 14, 30)
+aware = datetime(2026, 8, 27, 14, 30, tzinfo=ZoneInfo("America/Recife"))
+
+print(naive.tzinfo)
+print(aware.tzinfo, aware.utcoffset())
+
+utc_now = datetime.now(timezone.utc)
+local = utc_now.astimezone(ZoneInfo("America/Sao_Paulo"))
+
+print(utc_now.isoformat(timespec="seconds"))
+print(local.isoformat(timespec="seconds"))
+
+# print(aware - naive)   # TypeError: can't subtract offset-naive and offset-aware datetimes
+```
+
+```txt title="Output"
+None
+America/Recife -1 day, 21:00:00
+2026-08-27T12:41:03+00:00
+2026-08-27T09:41:03-03:00
+```
+
+<Aside type="tip" title="Armazene em UTC, exiba no fuso do usuário">
+  A regra que evita a maior parte dos bugs: registre instantes com `datetime.now(timezone.utc)`,
+  guarde em ISO 8601 e converta com `astimezone()` apenas na hora de mostrar. `zoneinfo` faz
+  parte da biblioteca padrão desde o Python 3.9 e conhece o horário de verão.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `dates.py`:
+
+   ```python title="dates.py"
+   from datetime import date, datetime, timedelta
+
+   WEEKDAYS = [
+       "segunda-feira", "terça-feira", "quarta-feira",
+       "quinta-feira", "sexta-feira", "sábado", "domingo",
+   ]
+
+   raw = input("Data de nascimento (dd/mm/aaaa): ")
+   birth = datetime.strptime(raw, "%d/%m/%Y").date()
+   today = date.today()
+
+   lived = today - birth
+   age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+
+   next_birthday = birth.replace(year=today.year)
+   if next_birthday < today:
+       next_birthday = next_birthday.replace(year=today.year + 1)
+
+   print(f"Nascimento:      {birth:%d/%m/%Y} ({WEEKDAYS[birth.weekday()]})")
+   print(f"Idade:           {age} anos")
+   print(f"Dias vividos:    {lived.days:,}")
+   print(f"Próximo aniversário: {next_birthday:%d/%m/%Y} (em {(next_birthday - today).days} dias)")
+   ```
+
+2. Execute o arquivo (`python3 dates.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run dates.py
+   ```
+
+   ```txt title="Output"
+   Data de nascimento (dd/mm/aaaa): 15/03/2001
+   Nascimento:      15/03/2001 (quinta-feira)
+   Idade:           25 anos
+   Dias vividos:    9,296
+   Próximo aniversário: 15/03/2027 (em 200 dias)
+   ```
+
+3. No REPL (`uv run python`), explore os tipos:
+
+   ```txt title="Sessão interativa"
+   >>> from datetime import date, timedelta
+   >>> date(2026, 12, 25) - date.today()
+   datetime.timedelta(days=120)
+   >>> (date.today() + timedelta(days=45)).isoformat()
+   '2026-10-11'
+   >>> date(2024, 2, 29)   # ano bissexto é validado
+   datetime.date(2024, 2, 29)
+   >>> date(2026, 2, 30)
+   ValueError: day is out of range for month
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `deadlines.py` que controle prazos de entrega.
+
+1. Represente cada tarefa como um dicionário com `titulo` e `prazo` em ISO 8601;
+2. Converta os prazos para `date` com `date.fromisoformat`;
+3. Classifique cada tarefa em `"atrasada"`, `"hoje"`, `"esta semana"` ou `"futura"`;
+4. Calcule quantos dias faltam (ou passaram) para cada uma;
+5. Ordene as tarefas por prazo e exiba uma tabela com data formatada em `dd/mm/aaaa`;
+6. Mostre um resumo com a contagem por situação.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="deadlines.py"
+  from collections import Counter
+  from datetime import date, timedelta
+
+  TASKS = [
+      {"titulo": "Enviar relatório", "prazo": "2026-08-20"},
+      {"titulo": "Revisar guia", "prazo": "2026-08-27"},
+      {"titulo": "Publicar aula", "prazo": "2026-08-30"},
+      {"titulo": "Planejar semestre", "prazo": "2026-10-15"},
+  ]
+
+  today = date.today()
+
+
+  def classify(deadline):
+      if deadline < today:
+          return "atrasada"
+      if deadline == today:
+          return "hoje"
+      if deadline <= today + timedelta(days=7):
+          return "esta semana"
+      return "futura"
+
+
+  tasks = sorted(
+      ({**task, "data": date.fromisoformat(task["prazo"])} for task in TASKS),
+      key=lambda task: task["data"],
+  )
+
+  print(f"{'Tarefa':<22}{'Prazo':>12}{'Dias':>8}  Situação")
+  print("-" * 56)
+
+  for task in tasks:
+      days = (task["data"] - today).days
+      print(f"{task['titulo']:<22}{task['data']:%d/%m/%Y}{days:>8}  {classify(task['data'])}")
+
+  summary = Counter(classify(task["data"]) for task in tasks)
+  print("\nResumo:", ", ".join(f"{label}: {count}" for label, count in summary.items()))
+  ```
+</details>
+
+## Desafio
+
+Escreva `schedule.py`, uma agenda que calcula horários úteis entre fusos.
+
+1. Represente compromissos com início em UTC e duração em minutos;
+2. Converta cada compromisso para `America/Recife` e `Europe/Lisbon` com `zoneinfo`;
+3. Marque os que caem fora do horário comercial local (8h às 18h) em algum dos fusos;
+4. Calcule o tempo total de reuniões do dia com `timedelta`;
+5. Identifique conflitos de horário comparando intervalos;
+6. Exiba a agenda ordenada, com horários formatados em cada fuso.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="schedule.py"
+  from datetime import datetime, timedelta, timezone
+  from zoneinfo import ZoneInfo
+
+  RECIFE = ZoneInfo("America/Recife")
+  LISBON = ZoneInfo("Europe/Lisbon")
+  BUSINESS = range(8, 18)
+
+  MEETINGS = [
+      {"titulo": "Daily", "inicio": "2026-08-27T11:00:00+00:00", "minutos": 15},
+      {"titulo": "Revisão de guia", "inicio": "2026-08-27T13:30:00+00:00", "minutos": 60},
+      {"titulo": "Alinhamento", "inicio": "2026-08-27T14:00:00+00:00", "minutos": 45},
+      {"titulo": "Retro", "inicio": "2026-08-27T22:00:00+00:00", "minutos": 30},
+  ]
+
+
+  def build(meeting):
+      start = datetime.fromisoformat(meeting["inicio"]).astimezone(timezone.utc)
+      end = start + timedelta(minutes=meeting["minutos"])
+      return {**meeting, "start": start, "end": end}
+
+
+  meetings = sorted((build(meeting) for meeting in MEETINGS), key=lambda m: m["start"])
+
+  print(f"{'Compromisso':<18}{'Recife':>10}{'Lisboa':>10}{'Duração':>10}  Observação")
+  print("-" * 68)
+
+  for meeting in meetings:
+      recife = meeting["start"].astimezone(RECIFE)
+      lisbon = meeting["start"].astimezone(LISBON)
+      outside = [
+          name
+          for name, moment in (("Recife", recife), ("Lisboa", lisbon))
+          if moment.hour not in BUSINESS
+      ]
+      note = f"fora do horário em {', '.join(outside)}" if outside else "ok"
+      # A largura precisa ser aplicada ao texto já formatado: dentro de uma
+      # f-string de datetime, o que vem após : é o formato de data, não o alinhamento.
+      recife_text = f"{recife:%H:%M}"
+      lisbon_text = f"{lisbon:%H:%M}"
+      print(
+          f"{meeting['titulo']:<18}{recife_text:>10}{lisbon_text:>10}"
+          f"{meeting['minutos']:>6} min  {note}"
+      )
+
+  total = sum((meeting["end"] - meeting["start"] for meeting in meetings), timedelta())
+  print(f"\nTempo total em reuniões: {total}")
+
+  for first, second in zip(meetings, meetings[1:]):
+      if second["start"] < first["end"]:
+          overlap = first["end"] - second["start"]
+          print(f"Conflito: {first['titulo']} x {second['titulo']} ({overlap})")
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Tipos e criação
+
+**1. Qual a diferença entre `date`, `datetime` e `timedelta`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `date` guarda apenas ano, mês e dia; `datetime` guarda data e hora; `timedelta` representa
+  uma **duração**, resultado da subtração entre duas datas ou usado para somar e subtrair
+  períodos.
+</details>
+
+**2. Como obter a data e a hora atuais?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `date.today()` para a data local, `datetime.now()` para data e hora locais (ingênuo) e
+  `datetime.now(timezone.utc)` para o instante em UTC com fuso — esta última é a forma
+  recomendada para registrar eventos.
+</details>
+
+**3. O que `weekday()` devolve?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um inteiro de 0 (segunda-feira) a 6 (domingo). A variante `isoweekday()` usa 1 a 7 com a
+  mesma ordem — nenhuma delas começa no domingo.
+</details>
+
+### Conversão
+
+**4. Qual a diferença entre `strftime` e `strptime`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `strftime` formata um objeto de data como **string** (*format*); `strptime` interpreta uma
+  **string** e produz um `datetime` (*parse*). Ambos usam os mesmos códigos (`%d`, `%m`,
+  `%Y`).
+</details>
+
+**5. Por que preferir ISO 8601 para armazenar datas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque é um formato não ambíguo (`2026-08-27`), ordenável alfabeticamente, reconhecido por
+  bancos de dados e APIs, e lido diretamente por `fromisoformat()`. Formatos locais devem
+  ficar restritos à exibição.
+</details>
+
+**6. O que acontece se o formato de `strptime` não corresponder ao texto?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É levantado `ValueError` com a mensagem `time data ... does not match format ...`. Ao
+  converter entradas do usuário, esse erro deve ser tratado com `try`/`except`.
+</details>
+
+### Cálculos e fuso
+
+**7. O que resulta da subtração entre duas datas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um `timedelta`, cuja propriedade `.days` traz a diferença em dias inteiros e
+  `.total_seconds()` a duração total em segundos.
+</details>
+
+**8. Por que `timedelta` não aceita meses?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a duração de um mês varia entre 28 e 31 dias, o que tornaria a aritmética ambígua.
+  Para deslocamentos por mês ou ano, usa-se `dateutil.relativedelta` ou cálculo manual dos
+  campos.
+</details>
+
+**9. Qual a diferença entre datetime ingênuo e consciente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O ingênuo (*naive*) não carrega informação de fuso (`tzinfo is None`) e representa uma
+  leitura de relógio sem contexto. O consciente (*aware*) tem `tzinfo` e identifica um
+  instante único no tempo. Operações entre os dois levantam `TypeError`.
+</details>
+
+**10. Qual a estratégia recomendada para aplicações com usuários em fusos diferentes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Registrar e armazenar tudo em UTC com datas conscientes, e converter para o fuso do usuário
+  com `astimezone()` somente na exibição. `zoneinfo` fornece os fusos e trata o horário de
+  verão.
+</details>
+
+## Referências
+
+- [Módulo `datetime`](https://docs.python.org/pt-br/3/library/datetime.html)
+- [Códigos de formato `strftime` e `strptime`](https://docs.python.org/pt-br/3/library/datetime.html#strftime-and-strptime-format-codes)
+- [Módulo `zoneinfo`](https://docs.python.org/pt-br/3/library/zoneinfo.html)
+- [Módulo `time`](https://docs.python.org/pt-br/3/library/time.html)
+- [Módulo `calendar`](https://docs.python.org/pt-br/3/library/calendar.html)
+
+## Próxima aula
+
+Datas seguem padrões rígidos de texto; extrair informação de texto livre pede outra
+ferramenta.
+
+[Expressões Regulares](../regex/): sintaxe de padrões, grupos, quantificadores e as funções
+do módulo `re`.

@@ -1,0 +1,124 @@
+---
+/**
+ * `<Mermaid>` — diagrama escrito como texto (text2diagram).
+ *
+ * O conteudo e a propria sintaxe do Mermaid, escrita como template literal para
+ * que o MDX nao interprete chaves e setas:
+ *
+ * ```mdx
+ * <Mermaid title="Do arquivo a execucao">
+ * {`
+ * flowchart LR
+ *   A[main.py] --> B[Bytecode]
+ *   B --> C[Maquina Virtual]
+ * `}
+ * </Mermaid>
+ * ```
+ *
+ * Tambem aceita o diagrama pela prop `chart`, util em loops.
+ *
+ * A renderizacao acontece no navegador com a biblioteca `mermaid`, que segue o
+ * tema claro/escuro do Starlight e volta a desenhar quando o tema muda.
+ */
+import { slotHtmlToText } from '../lib/slot-text';
+
+interface Props {
+  /** Diagrama em texto. Alternativa ao conteudo passado como filho. */
+  chart?: string | undefined;
+  /** Legenda exibida abaixo do diagrama. */
+  title?: string | undefined;
+}
+
+const { chart, title } = Astro.props;
+const slotContent = Astro.slots.has('default') ? await Astro.slots.render('default') : '';
+const source = (chart ?? slotHtmlToText(slotContent)).trim();
+
+if (!source) {
+  throw new Error('<Mermaid> precisa receber o diagrama como texto.');
+}
+---
+
+<figure class="mermaid-figure">
+  <pre class="mermaid" data-mermaid-source={source}>{source}</pre>
+  {title && <figcaption>{title}</figcaption>}
+</figure>
+
+<style>
+  .mermaid-figure {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  .mermaid-figure :global(pre.mermaid) {
+    background: none;
+    border: none;
+    display: flex;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    /* Enquanto o script nao roda, o texto do diagrama fica escondido. */
+    visibility: hidden;
+  }
+
+  .mermaid-figure :global(pre.mermaid[data-processed='true']) {
+    visibility: visible;
+  }
+
+  .mermaid-figure :global(svg) {
+    height: auto;
+    max-width: 100%;
+  }
+
+  .mermaid-figure figcaption {
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+</style>
+
+<script>
+  import mermaid from 'mermaid';
+
+  function currentTheme() {
+    const attribute = document.documentElement.dataset.theme;
+    if (attribute === 'dark' || attribute === 'light') return attribute;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  async function renderDiagrams() {
+    const nodes = Array.from(
+      document.querySelectorAll<HTMLElement>('pre.mermaid[data-mermaid-source]'),
+    );
+    if (nodes.length === 0) return;
+
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: currentTheme() === 'dark' ? 'dark' : 'default',
+      fontFamily: 'var(--sl-font)',
+    });
+
+    for (const node of nodes) {
+      // Restaura o codigo-fonte para permitir redesenhar na troca de tema.
+      node.textContent = node.dataset.mermaidSource ?? '';
+      node.removeAttribute('data-processed');
+    }
+
+    await mermaid.run({ nodes });
+
+    for (const node of nodes) {
+      node.dataset.processed = 'true';
+    }
+  }
+
+  renderDiagrams();
+  document.addEventListener('astro:page-load', renderDiagrams);
+
+  // Starlight troca `data-theme` no elemento raiz ao alternar claro/escuro.
+  new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => mutation.attributeName === 'data-theme')) {
+      renderDiagrams();
+    }
+  }).observe(document.documentElement, { attributes: true });
+</script>

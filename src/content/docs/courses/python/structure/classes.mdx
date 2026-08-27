@@ -1,0 +1,858 @@
+---
+title: "Python: Classes e Objetos"
+description: "Classes, instâncias, __init__ e self, atributos de classe, propriedades, métodos especiais, herança, composição, dataclasses e duck typing em Python."
+course: python
+sidebar:
+  label: Classes e Objetos
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/structure/classes/) e [mapa mental](../../../../mindmaps/courses/python/structure/classes/).
+
+Funções organizam comportamento; classes organizam **comportamento junto com estado**. Uma
+classe descreve como criar objetos que guardam dados próprios e sabem operar sobre eles — um
+produto que calcula o próprio desconto, uma conta que valida o próprio saldo.
+
+Em Python tudo já é objeto: strings, listas e até funções. Definir classes é apenas criar
+novos tipos que se comportam como os embutidos, inclusive respondendo a `len()`, `+` e `==`.
+
+## Objetivo
+
+Definir classes com `__init__` e `self`, diferenciar atributos de instância dos de classe,
+escrever métodos de instância, de classe e estáticos, expor atributos calculados com
+`@property`, implementar métodos especiais como `__str__` e `__eq__`, aplicar herança com
+`super()`, escolher entre herança e composição e usar `dataclasses` para classes de dados.
+
+## Classes e Instâncias
+
+A classe é a fôrma; a instância é o objeto criado a partir dela. O método `__init__` recebe o
+objeto recém-criado em `self` e define seus atributos:
+
+```python title="Primeira classe"
+class Product:
+    """Um item vendido na loja."""
+
+    def __init__(self, name, price, stock=0):
+        self.name = name
+        self.price = price
+        self.stock = stock
+
+    def total_value(self):
+        return self.price * self.stock
+
+
+keyboard = Product("Teclado", 349.9, 10)
+mouse = Product("Mouse", 89.9)
+
+print(keyboard.name, keyboard.stock)
+print(mouse.name, mouse.stock)
+print(f"R$ {keyboard.total_value():.2f}")
+print(type(keyboard), isinstance(keyboard, Product))
+```
+
+```txt title="Output"
+Teclado 10
+Mouse 0
+R$ 3499.00
+<class '__main__.Product'> True
+```
+
+<Aside type="note" title="self não é palavra-chave">
+  `self` é apenas o nome convencional do primeiro parâmetro, que recebe a instância. Python o
+  passa automaticamente: `keyboard.total_value()` equivale a `Product.total_value(keyboard)`.
+  Trocar o nome funciona, mas ninguém faz isso.
+</Aside>
+
+## Atributos de Instância e de Classe
+
+Atributos definidos no corpo da classe são compartilhados por todas as instâncias; os
+definidos em `__init__` pertencem a cada objeto:
+
+```python title="Escopo dos atributos"
+class Account:
+    bank = "DevLab Bank"      # atributo de classe: compartilhado
+    count = 0
+
+    def __init__(self, owner):
+        self.owner = owner    # atributo de instância: individual
+        self.balance = 0
+        Account.count += 1
+
+
+first = Account("Ana")
+second = Account("Bia")
+
+print(first.bank, second.bank)      # mesmo valor
+print(Account.count)                # 2
+
+Account.bank = "Novo Banco"         # muda para todos
+print(first.bank, second.bank)
+
+first.bank = "Banco da Ana"         # cria atributo de instância que sombreia o de classe
+print(first.bank, second.bank, Account.bank)
+```
+
+```txt title="Output"
+DevLab Bank DevLab Bank
+2
+Novo Banco Novo Banco
+Banco da Ana Novo Banco Novo Banco
+```
+
+<Aside type="caution" title="Objeto mutável como atributo de classe">
+  `tags = []` no corpo da classe cria **uma única lista** compartilhada por todas as
+  instâncias — o mesmo problema do valor padrão mutável em funções. Inicialize coleções
+  dentro de `__init__`.
+</Aside>
+
+## Métodos
+
+Além dos métodos de instância, uma classe pode declarar métodos que operam sobre a própria
+classe ou que apenas se agrupam nela por afinidade.
+
+| Tipo | Decorador | Primeiro parâmetro | Uso típico |
+| :--- | :--- | :--- | :--- |
+| Instância | — | `self` | Operar sobre os dados do objeto |
+| Classe | `@classmethod` | `cls` | Construtores alternativos, contadores |
+| Estático | `@staticmethod` | nenhum | Função utilitária relacionada ao tema |
+
+```python title="Os três tipos de método"
+class Temperature:
+    def __init__(self, celsius):
+        self.celsius = celsius
+
+    def to_fahrenheit(self):                 # instância
+        return self.celsius * 9 / 5 + 32
+
+    @classmethod
+    def from_fahrenheit(cls, value):         # construtor alternativo
+        return cls((value - 32) * 5 / 9)
+
+    @staticmethod
+    def is_freezing(celsius):                # utilitário sem estado
+        return celsius <= 0
+
+
+reading = Temperature(25)
+print(reading.to_fahrenheit())
+
+from_f = Temperature.from_fahrenheit(212)
+print(round(from_f.celsius, 1))
+
+print(Temperature.is_freezing(-3))
+```
+
+## Propriedades e Encapsulamento
+
+Python não tem `private`. O controle de acesso é feito por convenção e, quando necessário,
+por propriedades.
+
+### Convenções de visibilidade
+
+Os prefixos comunicam a intenção do autor:
+
+| Prefixo | Significado | Efeito real |
+| :--- | :--- | :--- |
+| `nome` | Público | Nenhum |
+| `_nome` | Interno, "use por sua conta" | Nenhum; apenas convenção |
+| `__nome` | Fortemente interno | *Name mangling*: vira `_Classe__nome` |
+
+```python title="Convenções em ação"
+class Session:
+    def __init__(self, token):
+        self.user = "ana"        # público
+        self._cache = {}         # interno
+        self.__token = token     # name mangling
+
+
+session = Session("abc123")
+print(session.user, session._cache)
+# print(session.__token)         # AttributeError
+print(session._Session__token)   # acessível, mas você não deveria
+```
+
+### `@property`
+
+A propriedade expõe um método como se fosse atributo, permitindo validar e calcular sem
+mudar a interface pública:
+
+```python title="Atributo calculado e validado"
+class Product:
+    def __init__(self, name, price):
+        self.name = name
+        self._price = 0
+        self.price = price       # passa pelo setter
+
+    @property
+    def price(self):
+        return self._price
+
+    @price.setter
+    def price(self, value):
+        if value < 0:
+            raise ValueError("preço não pode ser negativo")
+        self._price = value
+
+    @property
+    def price_with_tax(self):
+        """Somente leitura: não há setter."""
+        return round(self._price * 1.1, 2)
+
+
+item = Product("Teclado", 100)
+print(item.price, item.price_with_tax)
+
+item.price = 200                 # usa o setter
+print(item.price, item.price_with_tax)
+
+# item.price = -1                # ValueError: preço não pode ser negativo
+# item.price_with_tax = 10       # AttributeError: property has no setter
+```
+
+<Aside type="tip" title="Comece simples, promova depois">
+  Não crie getters e setters por antecipação. Exponha o atributo direto e, se um dia surgir a
+  necessidade de validar ou calcular, transforme-o em `@property` — o código que já usava
+  `objeto.price` continua funcionando sem alteração.
+</Aside>
+
+## Métodos Especiais
+
+Métodos com nome entre duplos sublinhados (*dunder*) integram a classe aos operadores e
+funções embutidas.
+
+### Representação em texto
+
+`__repr__` é para quem desenvolve; `__str__`, para quem lê a saída:
+
+```python title="__str__ e __repr__"
+class Product:
+    def __init__(self, name, price):
+        self.name = name
+        self.price = price
+
+    def __repr__(self):
+        return f"Product(name={self.name!r}, price={self.price!r})"
+
+    def __str__(self):
+        return f"{self.name} — R$ {self.price:.2f}"
+
+
+item = Product("Teclado", 349.9)
+
+print(item)          # usa __str__
+print(repr(item))    # usa __repr__
+print([item])        # coleções usam __repr__
+```
+
+```txt title="Output"
+Teclado — R$ 349.90
+Product(name='Teclado', price=349.9)
+[Product(name='Teclado', price=349.9)]
+```
+
+### Operadores e protocolos
+
+Implementar o dunder correspondente faz o objeto responder a operadores e funções nativas:
+
+| Método | Ativa |
+| :--- | :--- |
+| `__eq__` | `==` |
+| `__lt__` / `__gt__` | `<` / `>` e ordenação com `sorted()` |
+| `__len__` | `len(objeto)` |
+| `__getitem__` | `objeto[chave]` e iteração |
+| `__contains__` | `x in objeto` |
+| `__add__` | `objeto + outro` |
+| `__call__` | `objeto()` |
+
+```python title="Uma classe que se comporta como coleção"
+class Cart:
+    def __init__(self):
+        self.items = []
+
+    def add(self, name, price):
+        self.items.append((name, price))
+        return self
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        return self.items[index]
+
+    def __contains__(self, name):
+        return any(item[0] == name for item in self.items)
+
+    def __add__(self, other):
+        merged = Cart()
+        merged.items = self.items + other.items
+        return merged
+
+    def __repr__(self):
+        return f"Cart({len(self)} itens, total={sum(p for _, p in self.items):.2f})"
+
+
+cart = Cart().add("Teclado", 349.9).add("Mouse", 89.9)
+other = Cart().add("Monitor", 1899.0)
+
+print(len(cart), cart[0], "Mouse" in cart)
+print(cart + other)
+for name, price in cart:
+    print(f"  {name:<10}{price:>8.2f}")
+```
+
+## Herança
+
+A herança cria uma classe especializada a partir de outra, reaproveitando o que já existe.
+
+<Mermaid title="Hierarquia de pagamentos">
+{`
+classDiagram
+  class Payment {
+    +float amount
+    +process() str
+    +receipt() str
+  }
+  class CardPayment {
+    +str brand
+    +process() str
+  }
+  class PixPayment {
+    +str key
+    +process() str
+  }
+  Payment <|-- CardPayment
+  Payment <|-- PixPayment
+`}
+</Mermaid>
+
+### `super()` e sobrescrita
+
+A subclasse chama a implementação da superclasse com `super()` e pode substituir métodos:
+
+```python title="Especializando comportamento"
+class Payment:
+    def __init__(self, amount):
+        self.amount = amount
+
+    def process(self):
+        return f"processando R$ {self.amount:.2f}"
+
+    def receipt(self):
+        return f"[recibo] {self.process()}"
+
+
+class CardPayment(Payment):
+    def __init__(self, amount, brand):
+        super().__init__(amount)        # reaproveita a inicialização
+        self.brand = brand
+
+    def process(self):
+        base = super().process()        # estende, não substitui
+        return f"{base} no cartão {self.brand}"
+
+
+class PixPayment(Payment):
+    def __init__(self, amount, key):
+        super().__init__(amount)
+        self.key = key
+
+    def process(self):
+        return f"PIX de R$ {self.amount:.2f} para {self.key}"
+
+
+payments = [Payment(50), CardPayment(120, "Visa"), PixPayment(75.5, "ana@devlab.dev")]
+
+for payment in payments:
+    print(payment.receipt())            # polimorfismo: cada um responde à sua maneira
+
+print(issubclass(CardPayment, Payment), isinstance(payments[1], Payment))
+```
+
+```txt title="Output"
+[recibo] processando R$ 50.00
+[recibo] processando R$ 120.00 no cartão Visa
+[recibo] PIX de R$ 75.50 para ana@devlab.dev
+True True
+```
+
+### Herança ou composição
+
+Herança expressa "é um tipo de"; composição expressa "tem um". Na dúvida, componha:
+
+```python title="Composição"
+class Logger:
+    def write(self, message):
+        print(f"[log] {message}")
+
+
+class Order:
+    def __init__(self, code, logger=None):
+        self.code = code
+        self.logger = logger or Logger()    # tem um logger
+
+    def confirm(self):
+        self.logger.write(f"pedido {self.code} confirmado")
+
+
+Order("A-1").confirm()
+```
+
+<Aside type="caution" title="Herança profunda vira armadilha">
+  Cadeias com muitos níveis dificultam descobrir de onde vem cada método e acoplam as classes
+  fortemente. Prefira hierarquias rasas, e use composição quando a relação for de uso, e não
+  de especialização.
+</Aside>
+
+## `dataclasses`
+
+Para classes cujo objetivo é guardar dados, o decorador `@dataclass` gera `__init__`,
+`__repr__` e `__eq__` automaticamente:
+
+```python title="Classe de dados sem repetição"
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Product:
+    name: str
+    price: float
+    tags: list[str] = field(default_factory=list)   # evita a lista compartilhada
+
+    @property
+    def price_with_tax(self):
+        return round(self.price * 1.1, 2)
+
+
+first = Product("Teclado", 349.9, ["periferico"])
+second = Product("Teclado", 349.9, ["periferico"])
+
+print(first)                    # __repr__ gerado
+print(first == second)          # __eq__ compara os campos
+print(first.price_with_tax)
+
+
+@dataclass(frozen=True, slots=True)
+class Point:
+    x: int
+    y: int
+
+
+point = Point(3, 4)
+print(point)
+# point.x = 10                  # FrozenInstanceError: imutável
+print(hash(point))              # frozen é hasheável: serve como chave de dict
+```
+
+## Duck Typing
+
+Python não exige herança comum para tratar objetos de forma uniforme: basta que respondam
+aos mesmos métodos — *"se anda como pato e grasna como pato, é um pato"*:
+
+```python title="Interface implícita"
+class JsonExporter:
+    def export(self, data):
+        return f"json: {data}"
+
+
+class CsvExporter:
+    def export(self, data):
+        return f"csv: {data}"
+
+
+def run_export(exporter, data):
+    """Aceita qualquer objeto que tenha export()."""
+    return exporter.export(data)
+
+
+for exporter in [JsonExporter(), CsvExporter()]:
+    print(run_export(exporter, {"id": 1}))
+
+print(hasattr(JsonExporter(), "export"))
+```
+
+<Aside type="note" title="isinstance com moderação">
+  Verificar tipos com `isinstance()` a cada chamada contraria o estilo da linguagem. Ele é
+  útil em fronteiras (validação de entrada, APIs públicas), mas dentro do domínio prefira
+  confiar na interface — ou formalizá-la com `typing.Protocol`.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `library.py`:
+
+   ```python title="library.py"
+   from dataclasses import dataclass, field
+
+
+   @dataclass
+   class Book:
+       title: str
+       author: str
+       year: int
+       available: bool = True
+
+       def __str__(self):
+           status = "disponível" if self.available else "emprestado"
+           return f"{self.title} ({self.year}) — {self.author} [{status}]"
+
+
+   class Library:
+       def __init__(self, name):
+           self.name = name
+           self.books: list[Book] = []
+
+       def add(self, book):
+           self.books.append(book)
+           return self
+
+       def borrow(self, title):
+           for book in self.books:
+               if book.title == title and book.available:
+                   book.available = False
+                   return book
+           return None
+
+       def __len__(self):
+           return len(self.books)
+
+       def __contains__(self, title):
+           return any(book.title == title for book in self.books)
+
+
+   library = Library("DevLab")
+   library.add(Book("Python Fluente", "Ramalho", 2022))
+   library.add(Book("Clean Code", "Martin", 2008))
+
+   print(f"{library.name}: {len(library)} livros")
+   library.borrow("Clean Code")
+
+   for book in library.books:
+       print(" -", book)
+
+   print("Python Fluente" in library, "Refactoring" in library)
+   ```
+
+2. Execute o arquivo (`python3 library.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run library.py
+   ```
+
+   ```txt title="Output"
+   DevLab: 2 livros
+    - Python Fluente (2022) — Ramalho [disponível]
+    - Clean Code (2008) — Martin [emprestado]
+   True False
+   ```
+
+3. No REPL (`uv run python`), inspecione a classe:
+
+   ```txt title="Sessão interativa"
+   >>> from library import Book, Library
+   >>> Book.__dataclass_fields__.keys()
+   dict_keys(['title', 'author', 'year', 'available'])
+   >>> Library.__mro__
+   (<class 'library.Library'>, <class 'object'>)
+   >>> [m for m in dir(Library) if not m.startswith("__")]
+   ['add', 'borrow']
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `bank.py` modelando contas bancárias.
+
+1. Classe `Account` com `owner`, saldo privado (`_balance`) e histórico de operações;
+2. Métodos `deposit(value)` e `withdraw(value)` que validam valores e atualizam o histórico;
+3. Propriedade `balance` somente leitura e propriedade `statement` que devolve o extrato formatado;
+4. Métodos especiais `__str__` e `__eq__` (contas iguais quando têm o mesmo titular);
+5. Subclasse `SavingsAccount` com taxa de rendimento e método `apply_interest()` usando `super()`;
+6. Demonstre polimorfismo percorrendo uma lista com os dois tipos de conta.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="bank.py"
+  class Account:
+      def __init__(self, owner, balance=0):
+          self.owner = owner
+          self._balance = balance
+          self.history = []
+
+      @property
+      def balance(self):
+          return self._balance
+
+      @property
+      def statement(self):
+          lines = [f"{index:>2}. {entry}" for index, entry in enumerate(self.history, 1)]
+          return "\n".join(lines) or "sem movimentações"
+
+      def deposit(self, value):
+          if value <= 0:
+              raise ValueError("depósito deve ser positivo")
+          self._balance += value
+          self.history.append(f"depósito de R$ {value:.2f}")
+          return self._balance
+
+      def withdraw(self, value):
+          if value > self._balance:
+              raise ValueError("saldo insuficiente")
+          self._balance -= value
+          self.history.append(f"saque de R$ {value:.2f}")
+          return self._balance
+
+      def __str__(self):
+          return f"{type(self).__name__}({self.owner}) saldo R$ {self._balance:.2f}"
+
+      def __eq__(self, other):
+          return isinstance(other, Account) and self.owner == other.owner
+
+
+  class SavingsAccount(Account):
+      def __init__(self, owner, balance=0, rate=0.005):
+          super().__init__(owner, balance)
+          self.rate = rate
+
+      def apply_interest(self):
+          interest = self._balance * self.rate
+          self._balance += interest
+          self.history.append(f"rendimento de R$ {interest:.2f}")
+          return interest
+
+
+  checking = Account("Ana", 500)
+  savings = SavingsAccount("Bia", 1000)
+
+  checking.deposit(250)
+  checking.withdraw(100)
+  savings.apply_interest()
+
+  for account in [checking, savings]:
+      print(account)
+      print(account.statement)
+      print("-" * 40)
+
+  print(Account("Ana") == checking)
+  ```
+</details>
+
+## Desafio
+
+Escreva `shapes.py` com uma hierarquia de formas geométricas e uma classe base abstrata.
+
+1. Use `abc.ABC` e `@abstractmethod` para definir `Shape` com `area()` e `perimeter()`;
+2. Implemente `Rectangle`, `Circle` e `Triangle`, validando as medidas no construtor;
+3. Implemente `__str__`, `__eq__` (por área) e `__lt__` (para permitir `sorted()`);
+4. Some áreas de uma lista mista de formas usando uma expressão geradora;
+5. Ordene as formas por área e mostre uma tabela com nome, área e perímetro;
+6. Demonstre que instanciar `Shape` diretamente levanta `TypeError`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="shapes.py"
+  import math
+  from abc import ABC, abstractmethod
+
+
+  class Shape(ABC):
+      @abstractmethod
+      def area(self):
+          """Área da forma."""
+
+      @abstractmethod
+      def perimeter(self):
+          """Perímetro da forma."""
+
+      def __str__(self):
+          return f"{type(self).__name__:<12}{self.area():>10.2f}{self.perimeter():>12.2f}"
+
+      def __eq__(self, other):
+          return isinstance(other, Shape) and math.isclose(self.area(), other.area())
+
+      def __lt__(self, other):
+          return self.area() < other.area()
+
+
+  class Rectangle(Shape):
+      def __init__(self, width, height):
+          if width <= 0 or height <= 0:
+              raise ValueError("medidas devem ser positivas")
+          self.width, self.height = width, height
+
+      def area(self):
+          return self.width * self.height
+
+      def perimeter(self):
+          return 2 * (self.width + self.height)
+
+
+  class Circle(Shape):
+      def __init__(self, radius):
+          if radius <= 0:
+              raise ValueError("raio deve ser positivo")
+          self.radius = radius
+
+      def area(self):
+          return math.pi * self.radius ** 2
+
+      def perimeter(self):
+          return 2 * math.pi * self.radius
+
+
+  class Triangle(Shape):
+      def __init__(self, a, b, c):
+          if a + b <= c or a + c <= b or b + c <= a:
+              raise ValueError("medidas não formam um triângulo")
+          self.a, self.b, self.c = a, b, c
+
+      def area(self):
+          s = self.perimeter() / 2
+          return math.sqrt(s * (s - self.a) * (s - self.b) * (s - self.c))
+
+      def perimeter(self):
+          return self.a + self.b + self.c
+
+
+  shapes = [Rectangle(4, 5), Circle(3), Triangle(3, 4, 5)]
+
+  print(f"{'Forma':<12}{'Área':>10}{'Perímetro':>12}")
+  print("-" * 34)
+  for shape in sorted(shapes):
+      print(shape)
+
+  print(f"\nÁrea total: {sum(shape.area() for shape in shapes):.2f}")
+
+  try:
+      Shape()
+  except TypeError as error:
+      print("Erro esperado:", error)
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Classes e atributos
+
+**1. Qual a diferença entre classe e instância?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A classe é o molde que descreve atributos e comportamento; a instância é o objeto concreto
+  criado a partir dela, com seus próprios valores. `Product` é a classe; `Product("Teclado",
+  349.9)` é uma instância.
+</details>
+
+**2. O que é `self`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É o primeiro parâmetro dos métodos de instância, que recebe automaticamente o próprio
+  objeto. Ele dá acesso aos atributos e a outros métodos da instância. O nome é convenção, não
+  palavra reservada.
+</details>
+
+**3. Qual o risco de usar uma lista como atributo de classe?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A lista é criada uma única vez e compartilhada por todas as instâncias: itens adicionados
+  por um objeto aparecem nos demais. Coleções devem ser inicializadas dentro de `__init__`
+  (ou com `field(default_factory=list)` em dataclasses).
+</details>
+
+### Métodos e propriedades
+
+**4. Quando usar `@classmethod` em vez de `@staticmethod`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Use `@classmethod` quando o método precisa da classe — tipicamente para construtores
+  alternativos que chamam `cls(...)` e continuam funcionando em subclasses. `@staticmethod`
+  serve para funções utilitárias que só estão ali por afinidade temática.
+</details>
+
+**5. O que `@property` resolve?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permite expor um método como atributo, adicionando validação (com `@nome.setter`) ou cálculo
+  sob demanda sem quebrar o código que já acessava `objeto.atributo`.
+</details>
+
+**6. Python tem atributos privados?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não de verdade. `_nome` é convenção de uso interno, e `__nome` sofre *name mangling*
+  (vira `_Classe__nome`), o que dificulta o acesso acidental mas não o impede.
+</details>
+
+### Métodos especiais e herança
+
+**7. Qual a diferença entre `__str__` e `__repr__`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `__str__` é a representação legível para quem usa o programa (usada por `print()`);
+  `__repr__` é a representação técnica, útil na depuração e usada dentro de coleções e no
+  REPL. Quando só um é definido, defina `__repr__`.
+</details>
+
+**8. Para que serve `super()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para chamar a implementação da superclasse — mais comumente `super().__init__(...)` no
+  construtor da subclasse, ou para estender um método sobrescrito reaproveitando o
+  comportamento original.
+</details>
+
+**9. Quando preferir composição a herança?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando a relação for de uso ("tem um") e não de especialização ("é um"). Composição reduz
+  acoplamento, permite trocar a dependência em testes e evita hierarquias profundas difíceis
+  de acompanhar.
+</details>
+
+**10. O que `@dataclass` gera automaticamente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `__init__`, `__repr__` e `__eq__` a partir dos campos anotados — e, com opções, também
+  ordenação (`order=True`), imutabilidade (`frozen=True`) e economia de memória
+  (`slots=True`).
+</details>
+
+## Referências
+
+- [Classes](https://docs.python.org/pt-br/3/tutorial/classes.html)
+- [Modelo de dados: métodos especiais](https://docs.python.org/pt-br/3/reference/datamodel.html#special-method-names)
+- [Módulo `dataclasses`](https://docs.python.org/pt-br/3/library/dataclasses.html)
+- [Módulo `abc` — classes base abstratas](https://docs.python.org/pt-br/3/library/abc.html)
+- [`typing.Protocol`](https://docs.python.org/pt-br/3/library/typing.html#typing.Protocol)
+
+## Próxima aula
+
+Objetos modelam o domínio; o próximo passo é lidar com o que dá errado em tempo de execução.
+
+[Erros e Exceções](../errors/): `try`/`except`/`else`/`finally`, exceções embutidas, criação
+de exceções próprias e boas práticas de tratamento.

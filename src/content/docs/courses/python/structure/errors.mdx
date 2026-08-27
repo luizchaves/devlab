@@ -1,0 +1,677 @@
+---
+title: "Python: Erros e Exceções"
+description: "Tipos de erro, try/except/else/finally, exceções embutidas, encadeamento, exceções próprias, context managers e boas práticas de tratamento em Python."
+course: python
+sidebar:
+  label: Erros e Exceções
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/structure/errors/) e [mapa mental](../../../../mindmaps/courses/python/structure/errors/).
+
+Programas falham: o arquivo não existe, a API não responde, o usuário digita `abc` onde se
+esperava um número. Em Python, essas situações levantam **exceções** — objetos que
+interrompem o fluxo normal e podem ser capturados e tratados.
+
+Tratar exceções bem é decidir o que fazer quando o esperado não acontece — e, igualmente
+importante, decidir o que **não** capturar, deixando falhas de programação aparecerem cedo.
+
+## Objetivo
+
+Diferenciar erro de sintaxe de exceção em tempo de execução, capturar exceções com
+`try`/`except`, usar `else` e `finally`, escolher a exceção específica em vez do `except`
+genérico, levantar exceções com `raise`, criar exceções próprias e aplicar o gerenciador de
+contexto `with`.
+
+## Erro de Sintaxe x Exceção
+
+O erro de sintaxe impede o arquivo de ser executado; a exceção acontece durante a execução:
+
+```python title="Dois momentos de falha"
+# Erro de sintaxe: o interpretador nem começa
+# print("faltou fechar"
+
+# Exceção: o programa roda e falha na terceira linha
+numbers = [1, 2, 3]
+print("antes")
+print(numbers[10])   # IndexError: list index out of range
+print("nunca chega aqui")
+```
+
+```txt title="Output"
+antes
+Traceback (most recent call last):
+  File "main.py", line 6, in <module>
+    print(numbers[10])
+          ~~~~~~~^^^^
+IndexError: list index out of range
+```
+
+<Aside type="tip" title="Leia o traceback de baixo para cima">
+  A última linha traz o tipo e a mensagem da exceção — a informação mais importante. As linhas
+  acima mostram o caminho até a falha, da chamada mais externa à mais interna.
+</Aside>
+
+## Exceções Embutidas
+
+Conhecer os tipos mais comuns encurta muito a depuração:
+
+| Exceção | Situação típica |
+| :--- | :--- |
+| `ValueError` | Tipo certo, valor inadequado — `int("abc")` |
+| `TypeError` | Operação entre tipos incompatíveis — `"1" + 1` |
+| `KeyError` | Chave inexistente em dicionário |
+| `IndexError` | Índice fora dos limites da sequência |
+| `AttributeError` | Atributo ou método inexistente no objeto |
+| `FileNotFoundError` | Arquivo não encontrado |
+| `ZeroDivisionError` | Divisão por zero |
+| `ImportError` / `ModuleNotFoundError` | Falha ao importar |
+| `StopIteration` | Iterador esgotado |
+| `KeyboardInterrupt` | Interrupção com <kbd>Ctrl</kbd>+<kbd>C</kbd> |
+
+Todas descendem de `BaseException`, e as que representam erros de programa descendem de
+`Exception`:
+
+<Mermaid title="Hierarquia resumida das exceções">
+{`
+flowchart TD
+  A["BaseException"] --> B["SystemExit"]
+  A --> C["KeyboardInterrupt"]
+  A --> D["Exception"]
+  D --> E["ArithmeticError<br/>ZeroDivisionError"]
+  D --> F["LookupError<br/>KeyError, IndexError"]
+  D --> G["OSError<br/>FileNotFoundError"]
+  D --> H["ValueError"]
+  D --> I["TypeError"]
+`}
+</Mermaid>
+
+## `try` e `except`
+
+O bloco `try` delimita o trecho arriscado; cada `except` trata um tipo de falha:
+
+```python title="Captura específica"
+def to_int(raw):
+    try:
+        return int(raw)
+    except ValueError:
+        print(f"'{raw}' não é um número inteiro")
+        return None
+
+
+print(to_int("42"))
+print(to_int("abc"))
+
+
+def divide(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return float("inf")
+    except TypeError as error:
+        print("tipos incompatíveis:", error)
+        return None
+
+
+print(divide(10, 2), divide(10, 0), divide(10, "2"))
+```
+
+```txt title="Output"
+42
+'abc' não é um número inteiro
+None
+5.0 inf tipos incompatíveis: unsupported operand type(s) for /: 'int' and 'str'
+None
+```
+
+## Capturando Vários Tipos
+
+Uma tupla agrupa tipos tratados da mesma forma, e `as` dá acesso ao objeto exceção:
+
+```python title="Vários tipos e acesso ao erro"
+data = {"id": 1, "items": [10, 20]}
+
+for key, index in [("items", 0), ("items", 9), ("tags", 0)]:
+    try:
+        print(data[key][index])
+    except (KeyError, IndexError) as error:
+        print(f"{type(error).__name__}: {error}")
+```
+
+```txt title="Output"
+10
+IndexError: list index out of range
+KeyError: 'tags'
+```
+
+<Aside type="caution" title="except: sozinho esconde bugs">
+  `except:` (ou `except Exception:` sem critério) captura tudo — inclusive erros de digitação
+  no seu próprio código e `KeyboardInterrupt`. Capture o tipo específico que você sabe tratar;
+  o resto deve subir e ser visto.
+</Aside>
+
+## `else` e `finally`
+
+Os dois blocos opcionais separam responsabilidades dentro da estrutura:
+
+| Bloco | Executa quando |
+| :--- | :--- |
+| `try` | Sempre; contém apenas o trecho que pode falhar |
+| `except` | Uma exceção correspondente foi levantada |
+| `else` | O `try` terminou **sem** exceção |
+| `finally` | Sempre, com ou sem exceção — limpeza garantida |
+
+```python title="Estrutura completa"
+def read_config(path):
+    file = None
+    try:
+        file = open(path, encoding="utf-8")
+        content = file.read()
+    except FileNotFoundError:
+        print(f"arquivo {path} não encontrado; usando padrão")
+        return {"debug": False}
+    else:
+        print(f"{len(content)} caracteres lidos")
+        return {"debug": "debug=true" in content}
+    finally:
+        if file is not None:
+            file.close()
+        print("bloco finally sempre executa")
+
+
+print(read_config("config.ini"))
+```
+
+```txt title="Output"
+arquivo config.ini não encontrado; usando padrão
+bloco finally sempre executa
+{'debug': False}
+```
+
+<Aside type="tip" title="Mantenha o try curto">
+  Coloque no `try` apenas a linha que pode falhar e mova o processamento do caso feliz para o
+  `else`. Assim fica claro qual operação a exceção está tratando, e o `except` não captura por
+  acidente um erro de outra linha.
+</Aside>
+
+## Levantando Exceções
+
+`raise` sinaliza uma condição inválida ao chamador, em vez de devolver um valor especial:
+
+```python title="raise e validação"
+def withdraw(balance, amount):
+    if not isinstance(amount, (int, float)):
+        raise TypeError("o valor deve ser numérico")
+    if amount <= 0:
+        raise ValueError("o valor deve ser positivo")
+    if amount > balance:
+        raise ValueError(f"saldo insuficiente: disponível R$ {balance:.2f}")
+    return balance - amount
+
+
+for amount in [50, -10, 5000]:
+    try:
+        print(withdraw(1000, amount))
+    except ValueError as error:
+        print("recusado:", error)
+```
+
+```txt title="Output"
+950
+recusado: o valor deve ser positivo
+recusado: saldo insuficiente: disponível R$ 1000.00
+```
+
+## Encadeamento e Relançamento
+
+`raise ... from` preserva a causa original, e `raise` sozinho relança a exceção atual:
+
+```python title="Preservando o contexto"
+def load_port(raw):
+    try:
+        return int(raw)
+    except ValueError as error:
+        raise ValueError(f"porta inválida: {raw!r}") from error
+
+
+def audit(operation):
+    try:
+        return operation()
+    except Exception:
+        print("[auditoria] falha registrada")
+        raise            # relança sem perder o traceback original
+
+
+try:
+    audit(lambda: load_port("http"))
+except ValueError as error:
+    print("erro:", error)
+    print("causa:", type(error.__cause__).__name__)
+```
+
+```txt title="Output"
+[auditoria] falha registrada
+erro: porta inválida: 'http'
+causa: ValueError
+```
+
+## Exceções Próprias
+
+Criar tipos específicos do domínio permite que quem chama trate cada caso de forma distinta:
+
+```python title="Hierarquia de exceções do domínio"
+class StoreError(Exception):
+    """Erro base da loja — permite capturar tudo do domínio de uma vez."""
+
+
+class OutOfStockError(StoreError):
+    def __init__(self, product, available):
+        super().__init__(f"{product} indisponível (restam {available})")
+        self.product = product
+        self.available = available
+
+
+class PaymentDeclinedError(StoreError):
+    pass
+
+
+def checkout(product, quantity, stock):
+    if quantity > stock:
+        raise OutOfStockError(product, stock)
+    return f"{quantity}x {product} confirmado"
+
+
+for quantity in [2, 10]:
+    try:
+        print(checkout("Teclado", quantity, stock=5))
+    except OutOfStockError as error:
+        print(f"sem estoque de {error.product}: {error}")
+    except StoreError:
+        print("outro erro da loja")
+```
+
+<Aside type="note" title="Uma exceção base por domínio">
+  Definir `StoreError` como raiz permite que o chamador capture todo o domínio com um único
+  `except StoreError:` ou trate casos específicos. É o padrão adotado pelas bibliotecas
+  populares.
+</Aside>
+
+## Gerenciadores de Contexto
+
+O `with` garante a liberação do recurso mesmo quando ocorre exceção — é o `finally`
+embutido no objeto:
+
+```python title="with em vez de try/finally"
+from pathlib import Path
+
+Path("dados.txt").write_text("linha 1\nlinha 2\n", encoding="utf-8")
+
+# Sem with: fechamento manual e propenso a esquecimento
+file = open("dados.txt", encoding="utf-8")
+try:
+    print(file.read().strip())
+finally:
+    file.close()
+
+# Com with: fecha automaticamente, inclusive em caso de erro
+with open("dados.txt", encoding="utf-8") as opened:
+    print(opened.read().strip())
+
+print(opened.closed)
+```
+
+Criar um gerenciador próprio exige apenas o decorador `contextmanager`:
+
+```python title="Gerenciador de contexto próprio"
+import time
+from contextlib import contextmanager
+
+
+@contextmanager
+def timed(label):
+    started = time.perf_counter()
+    try:
+        yield                      # aqui roda o corpo do with
+    finally:
+        elapsed = (time.perf_counter() - started) * 1000
+        print(f"{label}: {elapsed:.2f} ms")
+
+
+with timed("soma"):
+    total = sum(range(1_000_000))
+
+print(total)
+```
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `validation.py`:
+
+   ```python title="validation.py"
+   class InvalidAgeError(ValueError):
+       """Idade fora da faixa aceita."""
+
+
+   def parse_age(raw):
+       try:
+           age = int(raw)
+       except ValueError as error:
+           raise InvalidAgeError(f"{raw!r} não é um número") from error
+
+       if not 0 <= age <= 130:
+           raise InvalidAgeError(f"idade fora da faixa: {age}")
+       return age
+
+
+   for value in ["25", "abc", "999", "0"]:
+       try:
+           result = parse_age(value)
+       except InvalidAgeError as error:
+           print(f"{value:<6} -> erro: {error}")
+       else:
+           print(f"{value:<6} -> ok: {result}")
+       finally:
+           pass
+   ```
+
+2. Execute o arquivo (`python3 validation.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run validation.py
+   ```
+
+   ```txt title="Output"
+   25     -> ok: 25
+   abc    -> erro: 'abc' não é um número
+   999    -> erro: idade fora da faixa: 999
+   0      -> ok: 0
+   ```
+
+3. No REPL (`uv run python`), explore a hierarquia e o encadeamento:
+
+   ```txt title="Sessão interativa"
+   >>> issubclass(FileNotFoundError, OSError)
+   True
+   >>> ZeroDivisionError.__mro__
+   (<class 'ZeroDivisionError'>, <class 'ArithmeticError'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>)
+   >>> try:
+   ...     int("x")
+   ... except ValueError as error:
+   ...     print(type(error).__name__, error.args)
+   ...
+   ValueError ("invalid literal for int() with base 10: 'x'",)
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `safe_calculator.py`, uma calculadora que nunca quebra por entrada inválida.
+
+1. Leia dois números e uma operação com `input()`;
+2. Trate `ValueError` na conversão dos números, pedindo nova entrada em laço;
+3. Trate `ZeroDivisionError` na divisão, informando o problema;
+4. Use `KeyError` ao buscar a operação em um dicionário de funções, tratando operação inexistente;
+5. Use `else` para exibir o resultado apenas quando não houver erro;
+6. Use `finally` para registrar cada tentativa em uma lista de histórico e mostre o histórico no fim;
+7. Trate `KeyboardInterrupt` para encerrar com mensagem amigável.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="safe_calculator.py"
+  OPERATIONS = {
+      "+": lambda a, b: a + b,
+      "-": lambda a, b: a - b,
+      "*": lambda a, b: a * b,
+      "/": lambda a, b: a / b,
+  }
+
+  history = []
+
+
+  def read_number(label):
+      while True:
+          try:
+              return float(input(f"{label}: "))
+          except ValueError:
+              print("valor inválido, tente novamente")
+
+
+  try:
+      while True:
+          first = read_number("Primeiro número")
+          second = read_number("Segundo número")
+          symbol = input("Operação (+ - * / ou 'sair'): ").strip()
+
+          if symbol == "sair":
+              break
+
+          try:
+              operation = OPERATIONS[symbol]
+              result = operation(first, second)
+          except KeyError:
+              print(f"operação {symbol!r} não suportada")
+          except ZeroDivisionError:
+              print("divisão por zero não é permitida")
+          else:
+              print(f"{first} {symbol} {second} = {result}")
+          finally:
+              history.append(f"{first} {symbol} {second}")
+  except KeyboardInterrupt:
+      print("\nencerrado pelo usuário")
+
+  print("\nHistórico:")
+  for index, entry in enumerate(history, start=1):
+      print(f"{index:>2}. {entry}")
+  ```
+</details>
+
+## Desafio
+
+Escreva `retry.py`, um decorador que tenta novamente operações que falham.
+
+1. Crie `@retry(times=3, delay=0.5, exceptions=(Exception,))` com parâmetros;
+2. Registre cada tentativa e o motivo da falha;
+3. Após esgotar as tentativas, relance a última exceção preservando a causa com `from`;
+4. Crie uma exceção `ServiceUnavailableError` para simular falha de serviço;
+5. Aplique o decorador a uma função que falha nas duas primeiras chamadas e funciona na terceira;
+6. Use um gerenciador de contexto próprio para medir o tempo total gasto nas tentativas.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="retry.py"
+  import functools
+  import random
+  import time
+  from contextlib import contextmanager
+
+
+  class ServiceUnavailableError(Exception):
+      """O serviço remoto não respondeu."""
+
+
+  def retry(times=3, delay=0.5, exceptions=(Exception,)):
+      def decorator(function):
+          @functools.wraps(function)
+          def wrapper(*args, **kwargs):
+              last_error = None
+              for attempt in range(1, times + 1):
+                  try:
+                      return function(*args, **kwargs)
+                  except exceptions as error:
+                      last_error = error
+                      print(f"tentativa {attempt}/{times} falhou: {error}")
+                      if attempt < times:
+                          time.sleep(delay)
+              raise ServiceUnavailableError(
+                  f"{function.__name__} falhou após {times} tentativas"
+              ) from last_error
+          return wrapper
+      return decorator
+
+
+  @contextmanager
+  def timed(label):
+      started = time.perf_counter()
+      try:
+          yield
+      finally:
+          print(f"{label}: {(time.perf_counter() - started) * 1000:.0f} ms")
+
+
+  calls = {"count": 0}
+
+
+  @retry(times=4, delay=0.2, exceptions=(ConnectionError,))
+  def fetch_data():
+      calls["count"] += 1
+      if calls["count"] < 3:
+          raise ConnectionError("conexão recusada")
+      return {"status": "ok", "tentativas": calls["count"]}
+
+
+  with timed("fetch_data"):
+      print(fetch_data())
+
+  calls["count"] = 0
+
+
+  @retry(times=2, delay=0.1, exceptions=(ConnectionError,))
+  def always_fails():
+      raise ConnectionError("host inacessível")
+
+
+  try:
+      always_fails()
+  except ServiceUnavailableError as error:
+      print("erro final:", error)
+      print("causa original:", type(error.__cause__).__name__)
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Fundamentos
+
+**1. Qual a diferença entre erro de sintaxe e exceção?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O erro de sintaxe é detectado antes da execução, ao compilar o arquivo — nenhuma linha roda.
+  A exceção acontece durante a execução, quando uma operação não pode ser concluída, e pode
+  ser capturada e tratada.
+</details>
+
+**2. Como ler um traceback?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  De baixo para cima: a última linha mostra o tipo e a mensagem da exceção; as linhas
+  anteriores mostram a pilha de chamadas até o ponto da falha, da mais externa para a mais
+  interna.
+</details>
+
+**3. Qual a diferença entre `ValueError` e `TypeError`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `TypeError` indica que o **tipo** do valor é inadequado para a operação (`"1" + 1`).
+  `ValueError` indica que o tipo está certo, mas o **valor** não é aceitável
+  (`int("abc")`).
+</details>
+
+### Estrutura do tratamento
+
+**4. Quando o bloco `else` de um `try` executa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Somente quando o `try` terminou sem levantar exceção. Ele guarda o processamento do caso
+  feliz, mantendo o `try` restrito à operação que pode falhar.
+</details>
+
+**5. E o bloco `finally`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Executa sempre — com ou sem exceção, e mesmo quando há `return` no `try`. É o lugar de
+  liberar recursos: fechar arquivos, conexões e travas.
+</details>
+
+**6. Por que `except:` genérico é problemático?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque captura qualquer exceção, inclusive erros de programação e `KeyboardInterrupt`,
+  escondendo bugs e dificultando a interrupção do programa. O correto é capturar os tipos
+  específicos que se sabe tratar.
+</details>
+
+### Levantando e criando
+
+**7. Qual a diferença entre `raise` e `raise ... from`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `raise` sozinho dentro de um `except` relança a exceção atual preservando o traceback.
+  `raise NovaExcecao(...) from erro` levanta uma nova exceção registrando a original em
+  `__cause__`, o que mantém o histórico completo da falha.
+</details>
+
+**8. Por que criar exceções próprias?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que o chamador possa distinguir falhas do domínio (`OutOfStockError`) de erros
+  genéricos, tratando cada caso adequadamente. Uma exceção base por domínio permite capturar
+  tudo de uma vez quando for conveniente.
+</details>
+
+**9. O que o `with` garante?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que o recurso será liberado ao sair do bloco, com ou sem exceção — o arquivo é fechado, a
+  conexão devolvida, a trava liberada. Equivale a um `try`/`finally` embutido no objeto.
+</details>
+
+**10. Vale a pena usar exceção para controle de fluxo normal?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em Python, sim em situações específicas: o estilo *"é mais fácil pedir perdão que
+  permissão"* (EAFP) é idiomático, como usar `try/except KeyError` em vez de verificar antes.
+  O limite é a legibilidade: se a condição é esperada e frequente, um `if` costuma ser mais
+  claro.
+</details>
+
+## Referências
+
+- [Erros e exceções](https://docs.python.org/pt-br/3/tutorial/errors.html)
+- [Exceções embutidas](https://docs.python.org/pt-br/3/library/exceptions.html)
+- [Módulo `contextlib`](https://docs.python.org/pt-br/3/library/contextlib.html)
+- [Instrução `with`](https://docs.python.org/pt-br/3/reference/compound_stmts.html#the-with-statement)
+- [Módulo `logging`](https://docs.python.org/pt-br/3/library/logging.html)
+
+## Próxima aula
+
+Com o tratamento de falhas no lugar, é seguro sair da memória e trabalhar com dados em disco.
+
+[Arquivos, JSON e CSV](../../stdlib/files/): leitura e escrita de texto, `pathlib`,
+serialização e planilhas.

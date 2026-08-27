@@ -408,6 +408,64 @@ export default defineConfig({
             },
           ],
         },
+        {
+          label: 'Guia de Python',
+          items: [
+            { label: 'Visão geral', link: '/courses/python/' },
+            {
+              label: 'Fundamentos',
+              collapsed: false,
+              items: [
+                { label: 'Introdução', link: '/courses/python/basics/introduction/' },
+                { label: 'Variáveis e Tipos', link: '/courses/python/basics/variables/' },
+                {
+                  label: 'Expressões e Operadores',
+                  link: '/courses/python/basics/operators/',
+                },
+                {
+                  label: 'Decisão e Repetição',
+                  link: '/courses/python/basics/statements/',
+                },
+                { label: 'Funções', link: '/courses/python/basics/functions/' },
+              ],
+            },
+            {
+              label: 'Dados e Coleções',
+              collapsed: false,
+              items: [
+                { label: 'Strings', link: '/courses/python/data/strings/' },
+                { label: 'Coleções', link: '/courses/python/data/collections/' },
+                {
+                  label: 'Compreensões e Geradores',
+                  link: '/courses/python/data/comprehensions/',
+                },
+              ],
+            },
+            {
+              label: 'Organização do Código',
+              collapsed: false,
+              items: [
+                { label: 'Módulos e Pacotes', link: '/courses/python/structure/modules/' },
+                { label: 'Classes e Objetos', link: '/courses/python/structure/classes/' },
+                { label: 'Erros e Exceções', link: '/courses/python/structure/errors/' },
+              ],
+            },
+            {
+              label: 'Biblioteca Padrão',
+              collapsed: false,
+              items: [
+                { label: 'Arquivos, JSON e CSV', link: '/courses/python/stdlib/files/' },
+                { label: 'Data e Hora', link: '/courses/python/stdlib/datetime/' },
+                { label: 'Expressões Regulares', link: '/courses/python/stdlib/regex/' },
+              ],
+            },
+            {
+              label: 'Ambiente e Ferramentas',
+              collapsed: false,
+              items: [{ label: 'Ambiente e Pacotes com uv', link: '/courses/python/tools/uv/' }],
+            },
+          ],
+        },
       ],
     }),
   ],

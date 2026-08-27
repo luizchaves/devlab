@@ -141,6 +141,102 @@ Padrão do bloco de resposta:
 
 ---
 
+## 📝 Regra do parágrafo de entrada
+
+**Nenhuma tabela ou bloco de código aparece logo abaixo de um título.** Sempre escreva ao
+menos um parágrafo entre o `##`/`###` e a tabela ou o bloco — o texto diz o que vem a
+seguir e por que importa; a tabela/código mostra. Vale também para blocos em sequência:
+dois blocos de código colados precisam de uma frase entre eles.
+
+Errado:
+
+```mdx
+### Métodos mutadores
+
+| Método | Efeito |
+| ------ | ------ |
+```
+
+Certo:
+
+```mdx
+### Métodos mutadores
+
+Estes métodos alteram o array original e devolvem o resultado da operação, não uma cópia:
+
+| Método | Efeito |
+| ------ | ------ |
+```
+
+O parágrafo de entrada de um bloco de código costuma terminar em dois-pontos e nomear o que
+o exemplo demonstra ("O exemplo a seguir demonstra as principais formas de declarar arrays:").
+A exceção são os blocos encadeados dentro de `<Steps>`, onde o item numerado já cumpre esse
+papel, e o bloco `txt title="Output"` que segue imediatamente o comando que o produziu.
+
+---
+
+## 🧱 Subseções e diagramas
+
+**Subseção isolada não se justifica.** Só abra `###` dentro de um `##` quando houver **duas
+ou mais** — uma única subseção é apenas o corpo da seção com um título a mais. Se sobrar uma
+sozinha, dissolva o título no texto ou promova a subseção a `##`.
+
+Errado:
+
+```mdx
+## Operadores lógicos
+
+### Curto-circuito
+
+...texto único...
+```
+
+Certo:
+
+```mdx
+## Operadores lógicos
+
+...texto...
+
+### Curto-circuito
+
+...
+
+### Precedência entre and e or
+
+...
+```
+
+Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai até o nível 3.
+
+### Diagramas
+
+Diagramas de fluxo, sequência, estado e entidade-relacionamento são escritos como texto com
+**Mermaid**, pelo componente `<Mermaid>` (`@components/Mermaid.astro`), que renderiza no
+navegador seguindo o tema claro/escuro:
+
+```mdx
+import Mermaid from '@components/Mermaid.astro';
+
+<Mermaid title="Do arquivo à execução">
+{`
+flowchart LR
+  A[main.py] --> B[Bytecode]
+  B --> C[Máquina Virtual]
+`}
+</Mermaid>
+```
+
+O diagrama vai entre crases dentro de `{...}` (como em `<FileTree>`), porque o MDX
+interpretaria chaves e setas soltas no texto. Prefira Mermaid a desenho ASCII quando o
+diagrama tiver caixas e ligações; mantenha ` ```txt ` apenas para saídas de terminal,
+estruturas de arquivo e esquemas de layout que dependem de alinhamento monoespaçado.
+
+Diagramas Mermaid não funcionam nos slides Marp nem nos mapas mentais Markmap — lá continue
+com ASCII.
+
+---
+
 ## 💻 Blocos de código (Expressive Code)
 
 Configuração em `ec.config.mjs`. Convenções em uso:
@@ -239,3 +335,9 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 7. **Fechar tags**: `<Aside>`, `<Tabs>`, `<TabItem>`, `<Steps>`, `<details>` sempre com
    fechamento; dentro de `<details>` deixe uma linha em branco antes do conteúdo Markdown.
 8. **Título divergente**: `title` da aula, dos slides e do mapa mental devem coincidir.
+9. **Tabela ou código colado no título**: viola a regra do parágrafo de entrada — sempre uma
+   frase de contexto entre o `##`/`###` e a tabela ou o bloco de código.
+10. **Subseção solitária**: um único `###` dentro de um `##` — dissolva no texto ou crie a
+    segunda subseção.
+11. **Diagrama Mermaid sem `<Mermaid>`**: uma cerca ` ```mermaid ` não é renderizada pelo
+    site; o componente é obrigatório.

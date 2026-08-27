@@ -1,0 +1,657 @@
+---
+title: "Python: Ambiente e Pacotes com uv"
+description: "Ambientes virtuais, instalação de dependências com uv, pyproject.toml, uv.lock, execução reproduzível de scripts e equivalências com venv e pip."
+course: python
+sidebar:
+  label: Ambiente e Pacotes com uv
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/tools/uv/) e [mapa mental](../../../../mindmaps/courses/python/tools/uv/).
+
+Até aqui todo exemplo usou apenas a biblioteca padrão. Assim que o projeto precisa de uma
+biblioteca externa — um cliente HTTP, um framework web, uma ferramenta de análise —, surge a
+pergunta: instalar **onde**? Instalar no Python do sistema mistura dependências de projetos
+diferentes e quebra versões.
+
+A resposta é o **ambiente isolado por projeto**. Este guia usa o **uv**, gerenciador escrito
+em Rust que instala interpretadores, cria o ambiente, resolve dependências e executa scripts
+— substituindo a combinação `venv` + `pip` + `pip-tools` com um único comando e uma
+resolução muito mais rápida.
+
+## Objetivo
+
+Explicar por que ambientes isolados são necessários, instalar o uv e um interpretador,
+inicializar um projeto com `pyproject.toml`, adicionar e remover dependências, entender o
+papel do `uv.lock`, executar scripts de forma reproduzível e mapear cada comando para o
+equivalente em `venv`/`pip`.
+
+## Por Que Isolar o Ambiente
+
+Sem isolamento, todos os projetos compartilham a mesma pasta de bibliotecas: atualizar uma
+dependência para o projeto A quebra o projeto B.
+
+<Mermaid title="Dependências compartilhadas x isoladas">
+{`
+flowchart TB
+  subgraph sem["Sem isolamento"]
+    P1["Projeto A<br/>precisa httpx 0.27"] --> S["Python do sistema<br/>site-packages"]
+    P2["Projeto B<br/>precisa httpx 0.24"] --> S
+    S --> C["Conflito de versão"]
+  end
+  subgraph com["Com isolamento"]
+    Q1["Projeto A"] --> V1[".venv do A<br/>httpx 0.27"]
+    Q2["Projeto B"] --> V2[".venv do B<br/>httpx 0.24"]
+  end
+`}
+</Mermaid>
+
+Um ambiente isolado é apenas um diretório (`.venv/`) com um interpretador e as bibliotecas do
+projeto. Ele nunca é versionado: o que vai para o repositório é a **declaração** das
+dependências.
+
+<Aside type="caution" title="Nunca instale pacotes no Python do sistema">
+  Em Linux e macOS, o interpretador do sistema é usado por ferramentas do próprio sistema
+  operacional. Instalar ou atualizar pacotes globalmente pode quebrá-las — distribuições
+  recentes chegam a bloquear a operação com o erro `externally-managed-environment`.
+</Aside>
+
+## Instalando o uv
+
+O instalador oficial não exige Python previamente instalado:
+
+<Tabs syncKey="os">
+  <TabItem label="macOS e Linux">
+    ```bash title="Terminal"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    uv --version
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```bash title="Terminal"
+    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+    uv --version
+    ```
+  </TabItem>
+  <TabItem label="Homebrew / pipx">
+    ```bash title="Terminal"
+    brew install uv
+    # ou, se já tiver pipx
+    pipx install uv
+    ```
+  </TabItem>
+</Tabs>
+
+O próprio uv gerencia versões do interpretador, sem instalador separado:
+
+```bash title="Terminal"
+uv python install 3.14
+uv python list
+uv python pin 3.14
+```
+
+```txt title="Output"
+Installed Python 3.14.0
+cpython-3.14.0-macos-aarch64-none    /Users/ana/.local/share/uv/python/...
+cpython-3.13.5-macos-aarch64-none    /Users/ana/.local/share/uv/python/...
+Pinned `.python-version` to `3.14`
+```
+
+## Criando um Projeto
+
+`uv init` gera a estrutura mínima com metadados, versão fixada e ambiente pronto:
+
+```bash title="Terminal"
+uv init guia-python
+cd guia-python
+```
+
+<FileTree>
+{`
+guia-python/
+├── .python-version
+├── README.md
+├── main.py
+└── pyproject.toml
+`}
+</FileTree>
+
+```toml title="pyproject.toml"
+[project]
+name = "guia-python"
+version = "0.1.0"
+description = "Exemplos do guia de Python"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+```
+
+O `pyproject.toml` é o arquivo padrão de configuração de projetos Python (PEP 621) e
+substitui o antigo `setup.py`. Ele descreve o projeto, a versão mínima do interpretador e as
+dependências.
+
+<Aside type="note" title="O .venv aparece sozinho">
+  Não é preciso criar nem ativar o ambiente: o primeiro `uv run` ou `uv add` cria `.venv/` no
+  diretório do projeto e o mantém sincronizado com o `pyproject.toml`. Acrescente `.venv/` ao
+  `.gitignore`.
+</Aside>
+
+## Gerenciando Dependências
+
+Cada comando altera o `pyproject.toml` e o `uv.lock` de forma consistente:
+
+| Comando | Efeito |
+| :--- | :--- |
+| `uv add httpx` | Adiciona a dependência e instala |
+| `uv add "httpx>=0.27,<1.0"` | Adiciona com restrição de versão |
+| `uv add --dev pytest ruff` | Adiciona ao grupo de desenvolvimento |
+| `uv remove httpx` | Remove a dependência |
+| `uv sync` | Instala exatamente o que está no lock |
+| `uv lock --upgrade` | Recalcula o lock com versões mais novas |
+| `uv tree` | Mostra a árvore de dependências |
+
+```bash title="Terminal"
+uv add httpx rich
+uv add --dev pytest ruff
+uv tree
+```
+
+```txt title="Output"
+Resolved 12 packages in 240ms
+Installed 10 packages in 38ms
+ + httpx==0.28.1
+ + rich==14.1.0
+guia-python v0.1.0
+├── httpx v0.28.1
+│   ├── anyio v4.11.0
+│   ├── certifi v2026.6.15
+│   └── httpcore v1.0.9
+└── rich v14.1.0
+    ├── markdown-it-py v3.0.0
+    └── pygments v2.19.2
+```
+
+```toml title="pyproject.toml (após os comandos)"
+[project]
+name = "guia-python"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.28.1",
+    "rich>=14.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "ruff>=0.14.0",
+]
+```
+
+## O Arquivo de Trava
+
+`uv.lock` registra a versão exata de **todas** as dependências, inclusive as indiretas, com
+hashes de verificação. Ele garante que a instalação de hoje seja idêntica à de seis meses
+atrás, em qualquer máquina:
+
+| Arquivo | Papel | Vai para o Git? |
+| :--- | :--- | :--- |
+| `pyproject.toml` | O que o projeto **pede** (faixas de versão) | Sim |
+| `uv.lock` | O que foi **resolvido** (versões exatas) | Sim |
+| `.venv/` | Onde os pacotes foram instalados | Não |
+| `.python-version` | Versão do interpretador do projeto | Sim |
+
+```bash title="Terminal"
+uv sync --frozen
+```
+
+<Aside type="tip" title="uv sync --frozen na CI e no deploy">
+  A opção `--frozen` instala exatamente o lock e falha se o `pyproject.toml` estiver
+  dessincronizado, em vez de resolver dependências silenciosamente. É o comando indicado em
+  integração contínua e em servidores.
+</Aside>
+
+## Executando Código
+
+`uv run` garante que o ambiente esteja sincronizado antes de executar — não é preciso
+"ativar" nada:
+
+```bash title="Terminal"
+uv run main.py
+uv run python -c "import httpx; print(httpx.__version__)"
+uv run pytest -q
+uv run ruff check .
+```
+
+Ferramentas de linha de comando podem ser executadas sem instalar no projeto, com `uvx`:
+
+```bash title="Terminal"
+uvx ruff format .
+uvx --from httpie http GET https://api.github.com
+```
+
+## Scripts com Dependências Embutidas
+
+A PEP 723 permite declarar dependências dentro do próprio arquivo, e o uv cria um ambiente
+temporário para executá-lo:
+
+```python title="fetch.py"
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["httpx"]
+# ///
+import httpx
+
+response = httpx.get("https://api.github.com/repos/astral-sh/uv")
+data = response.json()
+
+print(f"{data['full_name']}: {data['stargazers_count']} estrelas")
+```
+
+```bash title="Terminal"
+uv run fetch.py
+```
+
+```txt title="Output"
+astral-sh/uv: 71234 estrelas
+```
+
+## Equivalências com `venv` e `pip`
+
+O fluxo tradicional continua válido, e é o que aparece na maior parte da documentação
+antiga:
+
+| Tarefa | uv | venv + pip |
+| :--- | :--- | :--- |
+| Criar ambiente | automático (ou `uv venv`) | `python3 -m venv .venv` |
+| Ativar ambiente | desnecessário | `source .venv/bin/activate` |
+| Instalar pacote | `uv add httpx` | `pip install httpx` |
+| Remover pacote | `uv remove httpx` | `pip uninstall httpx` |
+| Congelar versões | `uv.lock` (automático) | `pip freeze > requirements.txt` |
+| Reinstalar tudo | `uv sync` | `pip install -r requirements.txt` |
+| Executar script | `uv run main.py` | `python main.py` (com ambiente ativo) |
+| Listar instalados | `uv pip list` | `pip list` |
+
+```bash title="Terminal"
+# Fluxo tradicional, quando o projeto exige
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install httpx
+pip freeze > requirements.txt
+deactivate
+```
+
+```bash title="Terminal"
+# Migrando um projeto existente para uv
+uv init --bare
+uv add -r requirements.txt
+uv lock
+```
+
+<Aside type="note" title="requirements.txt não é lock de verdade">
+  `pip freeze` registra o que está instalado agora, sem separar dependências diretas das
+  indiretas nem guardar hashes. Um `uv.lock` (ou `pip-tools`) mantém essa distinção e torna a
+  instalação verificável.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie o projeto e adicione uma dependência:
+
+   ```bash title="Terminal"
+   uv init clima
+   cd clima
+   uv add httpx
+   ```
+
+2. Escreva o script principal:
+
+   ```python title="main.py"
+   import httpx
+
+   URL = "https://api.open-meteo.com/v1/forecast"
+   PARAMS = {
+       "latitude": -7.12,
+       "longitude": -34.88,
+       "current": "temperature_2m,relative_humidity_2m",
+       "timezone": "America/Recife",
+   }
+
+
+   def main():
+       response = httpx.get(URL, params=PARAMS, timeout=10)
+       response.raise_for_status()
+       current = response.json()["current"]
+
+       print(f"{'Local:':<14}João Pessoa/PB")
+       print(f"{'Momento:':<14}{current['time']}")
+       print(f"{'Temperatura:':<14}{current['temperature_2m']} °C")
+       print(f"{'Umidade:':<14}{current['relative_humidity_2m']}%")
+
+
+   if __name__ == "__main__":
+       main()
+   ```
+
+3. Execute com o ambiente sincronizado automaticamente:
+
+   ```bash title="Terminal"
+   uv run main.py
+   ```
+
+   ```txt title="Output"
+   Local:        João Pessoa/PB
+   Momento:      2026-08-27T09:45
+   Temperatura:  27.4 °C
+   Umidade:      74%
+   ```
+
+4. Confira o que foi registrado no projeto:
+
+   ```bash title="Terminal"
+   uv tree --depth 1
+   cat pyproject.toml
+   ```
+
+   <FileTree>
+   {`
+   clima/
+   ├── .python-version
+   ├── .venv/          (não versionar)
+   ├── main.py
+   ├── pyproject.toml
+   └── uv.lock
+   `}
+   </FileTree>
+
+</Steps>
+
+## Exercício
+
+Prepare um projeto `cotacao/` que consulte uma API pública e formate o resultado.
+
+1. Inicialize com `uv init` e fixe a versão do Python com `uv python pin`;
+2. Adicione `httpx` como dependência e `ruff` como dependência de desenvolvimento;
+3. Escreva `main.py` consultando `https://economia.awesomeapi.com.br/json/last/USD-BRL`;
+4. Trate erros de rede e status HTTP com `try`/`except` e `raise_for_status()`;
+5. Formate a saída com duas casas decimais e horário de atualização;
+6. Rode `uv run ruff check .` e corrija o que for apontado;
+7. Explique em comentário quais arquivos devem ir para o repositório.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```bash title="Terminal"
+  uv init cotacao
+  cd cotacao
+  uv python pin 3.14
+  uv add httpx
+  uv add --dev ruff
+  ```
+
+  ```python title="main.py"
+  from datetime import datetime
+
+  import httpx
+
+  URL = "https://economia.awesomeapi.com.br/json/last/USD-BRL"
+
+
+  def fetch_quote():
+      try:
+          response = httpx.get(URL, timeout=10)
+          response.raise_for_status()
+      except httpx.HTTPStatusError as error:
+          raise SystemExit(f"API respondeu {error.response.status_code}") from error
+      except httpx.RequestError as error:
+          raise SystemExit(f"falha de rede: {error}") from error
+      return response.json()["USDBRL"]
+
+
+  def main():
+      quote = fetch_quote()
+      updated = datetime.fromtimestamp(int(quote["timestamp"]))
+
+      print(f"{'Par:':<12}{quote['name']}")
+      print(f"{'Compra:':<12}R$ {float(quote['bid']):.2f}")
+      print(f"{'Venda:':<12}R$ {float(quote['ask']):.2f}")
+      print(f"{'Máxima:':<12}R$ {float(quote['high']):.2f}")
+      print(f"{'Atualizado:':<12}{updated:%d/%m/%Y %H:%M}")
+
+
+  if __name__ == "__main__":
+      main()
+
+
+  # Vão para o repositório: main.py, pyproject.toml, uv.lock e .python-version.
+  # Fica de fora: .venv/ (ambiente recriado por `uv sync`).
+  ```
+</details>
+
+## Desafio
+
+Monte um projeto `devlab-cli/` com estrutura de pacote, testes e ferramentas de qualidade.
+
+1. Inicialize com `uv init --package devlab-cli` para criar o layout `src/`;
+2. Implemente um comando de linha que receba um arquivo CSV e gere um resumo em JSON;
+3. Declare o ponto de entrada em `[project.scripts]` no `pyproject.toml`;
+4. Adicione `pytest` e `ruff` como dependências de desenvolvimento;
+5. Escreva pelo menos três testes e rode com `uv run pytest`;
+6. Configure `ruff` no `pyproject.toml` (comprimento de linha e regras) e rode a verificação;
+7. Documente no README os comandos de instalação, execução e teste para quem clonar o repositório.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```bash title="Terminal"
+  uv init --package devlab-cli
+  cd devlab-cli
+  uv add --dev pytest ruff
+  ```
+
+  <FileTree>
+  {`
+  devlab-cli/
+  ├── pyproject.toml
+  ├── uv.lock
+  ├── README.md
+  ├── src/
+  │   └── devlab_cli/
+  │       ├── __init__.py
+  │       └── summary.py
+  └── tests/
+      └── test_summary.py
+  `}
+  </FileTree>
+
+  ```python title="src/devlab_cli/summary.py"
+  import csv
+  import json
+  import sys
+  from collections import defaultdict
+  from pathlib import Path
+
+
+  def summarize(rows):
+      """Total por região a partir de registros com 'regiao' e 'valor'."""
+      totals = defaultdict(float)
+      for row in rows:
+          totals[row["regiao"]] += float(row["valor"])
+      return {region: round(total, 2) for region, total in sorted(totals.items())}
+
+
+  def read_csv(path):
+      with Path(path).open(encoding="utf-8", newline="") as file:
+          return list(csv.DictReader(file))
+
+
+  def main():
+      if len(sys.argv) < 2:
+          raise SystemExit("uso: devlab-cli <arquivo.csv>")
+      result = summarize(read_csv(sys.argv[1]))
+      print(json.dumps(result, indent=2, ensure_ascii=False))
+  ```
+
+  ```toml title="pyproject.toml (trechos)"
+  [project.scripts]
+  devlab-cli = "devlab_cli.summary:main"
+
+  [tool.ruff]
+  line-length = 100
+
+  [tool.ruff.lint]
+  select = ["E", "F", "I", "UP"]
+  ```
+
+  ```python title="tests/test_summary.py"
+  from devlab_cli.summary import summarize
+
+
+  def test_soma_por_regiao():
+      rows = [{"regiao": "sul", "valor": "10"}, {"regiao": "sul", "valor": "5.5"}]
+      assert summarize(rows) == {"sul": 15.5}
+
+
+  def test_regioes_ordenadas():
+      rows = [{"regiao": "sul", "valor": "1"}, {"regiao": "nordeste", "valor": "2"}]
+      assert list(summarize(rows)) == ["nordeste", "sul"]
+
+
+  def test_sem_registros():
+      assert summarize([]) == {}
+  ```
+
+  ```bash title="Terminal"
+  uv run pytest -q
+  uv run ruff check .
+  uv run devlab-cli vendas.csv
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Ambientes
+
+**1. Por que cada projeto Python deve ter seu próprio ambiente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque projetos diferentes pedem versões diferentes das mesmas bibliotecas. Um ambiente por
+  projeto evita conflitos, mantém as instalações reproduzíveis e protege o Python do sistema,
+  usado por ferramentas do sistema operacional.
+</details>
+
+**2. O diretório `.venv/` deve ir para o repositório?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. Ele contém binários e pacotes instalados, específicos do sistema operacional e da
+  arquitetura, e é recriado a partir do `pyproject.toml` e do `uv.lock` com `uv sync`.
+</details>
+
+**3. Com uv, é preciso "ativar" o ambiente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. `uv run` sincroniza o ambiente e executa o comando dentro dele. A ativação manual
+  (`source .venv/bin/activate`) continua possível, mas deixa de ser necessária.
+</details>
+
+### Dependências
+
+**4. Qual a diferença entre `pyproject.toml` e `uv.lock`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `pyproject.toml` declara o que o projeto pede, em geral como faixas de versão. O
+  `uv.lock` registra o resultado exato da resolução — todas as versões, inclusive as
+  indiretas, com hashes — garantindo instalações idênticas. Ambos vão para o repositório.
+</details>
+
+**5. Para que serve `uv add --dev`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para registrar dependências usadas apenas no desenvolvimento (testes, lint, formatação) em
+  um grupo separado. Elas não são instaladas em produção quando a sincronização exclui os
+  grupos de desenvolvimento.
+</details>
+
+**6. O que `uv sync --frozen` faz de diferente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Instala exatamente o que está no `uv.lock`, sem recalcular a resolução, e falha se o lock
+  estiver dessincronizado do `pyproject.toml`. É o comportamento desejado em CI e em
+  servidores.
+</details>
+
+### Execução e equivalências
+
+**7. Qual a diferença entre `uv run` e `uvx`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `uv run` executa algo **dentro do projeto atual**, com suas dependências. `uvx` executa uma
+  ferramenta em um ambiente temporário e isolado, sem adicioná-la ao projeto — útil para
+  utilitários pontuais.
+</details>
+
+**8. O que é um script com dependências embutidas (PEP 723)?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um arquivo `.py` que declara em um bloco de comentário no topo a versão de Python e as
+  bibliotecas de que precisa. `uv run arquivo.py` cria um ambiente temporário com essas
+  dependências, permitindo distribuir um script único e executável.
+</details>
+
+**9. Qual o equivalente de `pip install -r requirements.txt` no uv?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `uv sync`, quando o projeto já tem `pyproject.toml` e `uv.lock`. Para importar um
+  `requirements.txt` existente, `uv add -r requirements.txt` converte as dependências para o
+  `pyproject.toml`.
+</details>
+
+**10. Por que `pip freeze > requirements.txt` não é um bom mecanismo de trava?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque registra tudo o que está instalado sem distinguir dependências diretas das
+  indiretas, não guarda hashes de verificação e depende do estado atual do ambiente, que pode
+  conter pacotes instalados por engano.
+</details>
+
+## Referências
+
+- [Documentação do uv](https://docs.astral.sh/uv/)
+- [Guia de projetos com uv](https://docs.astral.sh/uv/guides/projects/)
+- [Módulo `venv`](https://docs.python.org/pt-br/3/library/venv.html)
+- [Guia de empacotamento Python](https://packaging.python.org/)
+- [PEP 621 — Metadados em pyproject.toml](https://peps.python.org/pep-0621/)
+- [PEP 723 — Metadados embutidos em scripts](https://peps.python.org/pep-0723/)
+
+## Próxima aula
+
+Este é o fim da trilha principal do guia. Com ambiente isolado e dependências sob controle, o
+caminho natural é escolher um domínio e aprofundar: testes automatizados com `pytest`, APIs
+web com FastAPI, análise de dados com `pandas` ou automação de tarefas.
+
+[Voltar à visão geral do guia](../../): revise a trilha completa e escolha o próximo tema.

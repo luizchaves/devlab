@@ -1,0 +1,670 @@
+---
+title: "Python: Expressões Regulares"
+description: "Módulo re, sintaxe de padrões, classes de caracteres, quantificadores, âncoras, grupos nomeados, substituição, flags e padrões gulosos em Python."
+course: python
+sidebar:
+  label: Expressões Regulares
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Materiais: [slides da aula](../../../../slides/courses/python/stdlib/regex/) e [mapa mental](../../../../mindmaps/courses/python/stdlib/regex/).
+
+Os métodos de `str` resolvem buscas simples: `in`, `startswith`, `replace`. Quando o critério
+vira "três dígitos, um hífen e quatro dígitos" ou "qualquer palavra seguida de arroba e um
+domínio", entram as **expressões regulares** — uma linguagem própria para descrever padrões
+de texto.
+
+Em Python, elas ficam no módulo `re` da biblioteca padrão. Esta aula apresenta a sintaxe dos
+padrões, as funções de busca e substituição e as armadilhas mais comuns.
+
+## Objetivo
+
+Escrever padrões com classes de caracteres, quantificadores e âncoras, aplicar as funções
+`search`, `match`, `findall`, `finditer`, `sub` e `split`, extrair partes do texto com grupos
+nomeados, controlar o comportamento com flags, diferenciar quantificadores gulosos de
+preguiçosos e compilar padrões reutilizados.
+
+## O Módulo `re`
+
+As funções recebem o padrão e o texto, e devolvem objetos `Match`, listas ou strings:
+
+| Função | Devolve | Uso |
+| :--- | :--- | :--- |
+| `re.search(p, t)` | Primeiro `Match` ou `None` | Existe em qualquer posição? |
+| `re.match(p, t)` | `Match` ou `None` | Casa no **início** do texto |
+| `re.fullmatch(p, t)` | `Match` ou `None` | Casa o texto **inteiro** — ideal para validação |
+| `re.findall(p, t)` | Lista de strings | Todas as ocorrências |
+| `re.finditer(p, t)` | Iterador de `Match` | Todas, com posições |
+| `re.sub(p, r, t)` | Nova string | Substituição |
+| `re.split(p, t)` | Lista | Divisão por padrão |
+| `re.compile(p)` | Objeto padrão | Reuso do mesmo padrão |
+
+```python title="As funções de busca"
+import re
+
+text = "Contato: ana@devlab.dev ou bia@devlab.dev (83) 90000-0000"
+
+print(re.search(r"\w+@\w+\.\w+", text))
+print(re.match(r"Contato", text))
+print(re.match(r"ana", text))            # None: não está no início
+print(re.fullmatch(r"\d{5}-\d{4}", "90000-0000"))
+print(re.findall(r"\w+@[\w.]+", text))
+```
+
+```txt title="Output"
+<re.Match object; span=(9, 22), match='ana@devlab.dev'>
+<re.Match object; span=(0, 7), match='Contato'>
+None
+<re.Match object; span=(0, 10), match='90000-0000'>
+['ana@devlab.dev', 'bia@devlab.dev']
+```
+
+<Aside type="tip" title="Sempre use string crua">
+  Escreva padrões como `r"\d+"`. Sem o prefixo `r`, a barra invertida é interpretada primeiro
+  pelo Python (`"\d"` vira uma sequência desconhecida) e o padrão chega diferente ao módulo
+  `re`.
+</Aside>
+
+## O Objeto `Match`
+
+Quando há correspondência, o retorno traz o trecho, a posição e os grupos capturados:
+
+```python title="Extraindo informações do Match"
+import re
+
+found = re.search(r"(\d{2})/(\d{2})/(\d{4})", "Vencimento em 27/08/2026, confirmado")
+
+if found:
+    print(found.group())      # trecho inteiro
+    print(found.group(1))     # primeiro grupo
+    print(found.groups())     # todos os grupos
+    print(found.span())       # posições inicial e final
+    print(found.start(), found.end())
+else:
+    print("nenhuma data encontrada")
+```
+
+```txt title="Output"
+27/08/2026
+27
+('27', '08', '2026')
+(14, 24)
+14 24
+```
+
+<Aside type="caution" title="Verifique antes de usar o resultado">
+  `re.search()` devolve `None` quando não encontra, e `None.group()` levanta
+  `AttributeError`. Sempre teste o retorno — o operador morsa deixa isso conciso:
+  `if (found := re.search(padrao, texto)):`.
+</Aside>
+
+## Sintaxe de Padrões
+
+Um padrão combina literais e metacaracteres, que têm significado especial.
+
+### Classes de caracteres
+
+Descrevem **que tipo** de caractere pode aparecer em uma posição:
+
+| Classe | Casa com | Equivalente |
+| :--- | :--- | :--- |
+| `.` | Qualquer caractere, exceto quebra de linha | — |
+| `\d` / `\D` | Dígito / não-dígito | `[0-9]` |
+| `\w` / `\W` | Letra, dígito ou `_` / o oposto | `[a-zA-Z0-9_]` |
+| `\s` / `\S` | Espaço em branco / o oposto | `[ \t\n\r\f\v]` |
+| `[abc]` | Um entre `a`, `b`, `c` | — |
+| `[^abc]` | Qualquer um **exceto** esses | — |
+| `[a-z0-9]` | Intervalos combinados | — |
+
+```python title="Classes na prática"
+import re
+
+print(re.findall(r"\d", "A1B22C333"))
+print(re.findall(r"\d+", "A1B22C333"))
+print(re.findall(r"[aeiou]", "expressão regular"))
+print(re.findall(r"[^aeiou\s]", "python"))
+print(re.findall(r"[A-Z]\w+", "Ada Lovelace criou o primeiro Algoritmo"))
+```
+
+```txt title="Output"
+['1', '2', '2', '3', '3', '3']
+['1', '22', '333']
+['e', 'e', 'ã', 'o', 'e', 'u', 'a']
+['p', 'y', 't', 'h', 'n']
+['Ada', 'Lovelace', 'Algoritmo']
+```
+
+### Quantificadores
+
+Indicam **quantas vezes** o elemento anterior pode se repetir:
+
+| Quantificador | Significado |
+| :--- | :--- |
+| `*` | Zero ou mais |
+| `+` | Uma ou mais |
+| `?` | Zero ou uma (opcional) |
+| `{n}` | Exatamente `n` |
+| `{n,}` | Pelo menos `n` |
+| `{n,m}` | Entre `n` e `m` |
+
+```python title="Repetições"
+import re
+
+print(re.findall(r"\d{5}-?\d{3}", "CEP 58000-000 e 58015123"))
+print(re.findall(r"a+", "aa a aaa"))
+print(re.findall(r"colou?r", "color colour"))
+print(re.fullmatch(r"\(\d{2}\) \d{4,5}-\d{4}", "(83) 90000-0000"))
+```
+
+### Âncoras e limites
+
+Fixam a posição da correspondência no texto:
+
+| Âncora | Significado |
+| :--- | :--- |
+| `^` | Início do texto (ou da linha, com `re.MULTILINE`) |
+| `$` | Fim do texto (ou da linha) |
+| `\b` | Limite de palavra |
+| `\B` | Posição que **não** é limite de palavra |
+
+```python title="Ancorando o padrão"
+import re
+
+print(re.findall(r"^Erro", "Erro: falha\nErro: timeout", re.MULTILINE))
+print(re.findall(r"\bpy\w*", "python pypi copy"))
+print(re.search(r"\.csv$", "relatorio.csv") is not None)
+print(re.fullmatch(r"[a-z_]+", "nome_valido") is not None)
+```
+
+```txt title="Output"
+['Erro', 'Erro']
+['python', 'pypi']
+True
+True
+```
+
+## Grupos e Captura
+
+Parênteses agrupam partes do padrão e capturam o conteúdo correspondente.
+
+### Grupos nomeados
+
+Dar nome aos grupos torna o código legível e independente da posição:
+
+```python title="Grupos nomeados"
+import re
+
+PATTERN = r"(?P<dia>\d{2})/(?P<mes>\d{2})/(?P<ano>\d{4})"
+
+found = re.search(PATTERN, "Entrega até 15/09/2026")
+
+print(found.group("dia"), found.group("mes"), found.group("ano"))
+print(found.groupdict())
+
+for match in re.finditer(PATTERN, "27/08/2026 e 15/09/2026"):
+    data = match.groupdict()
+    print(f"{data['ano']}-{data['mes']}-{data['dia']}")
+```
+
+```txt title="Output"
+15 09 2026
+{'dia': '15', 'mes': '09', 'ano': '2026'}
+2026-08-27
+2026-09-15
+```
+
+### Alternância e grupos sem captura
+
+`|` oferece alternativas, e `(?:...)` agrupa sem criar um grupo de captura:
+
+```python title="Alternância"
+import re
+
+print(re.findall(r"python|go|rust", "uso python, go e rust"))
+print(re.findall(r"\.(?:csv|json|txt)$", "dados.json"))
+print(re.findall(r"(https?)://([\w.]+)", "http://a.dev e https://b.dev"))
+print(re.findall(r"(?:https?)://([\w.]+)", "http://a.dev e https://b.dev"))
+```
+
+```txt title="Output"
+['python', 'go', 'rust']
+['.json']
+[('http', 'a.dev'), ('https', 'b.dev')]
+['a.dev', 'b.dev']
+```
+
+<Aside type="note" title="findall muda de comportamento com grupos">
+  Sem grupos, `findall` devolve as correspondências inteiras. Com **um** grupo, devolve só o
+  conteúdo do grupo; com vários, devolve tuplas. Quando quiser o trecho completo, use
+  `finditer` ou grupos sem captura.
+</Aside>
+
+## Substituição e Divisão
+
+`sub` troca ocorrências e aceita referências aos grupos ou uma função:
+
+```python title="re.sub e re.split"
+import re
+
+text = "Contato: (83) 90000-0000 e (11) 98888-7777"
+
+print(re.sub(r"\d", "#", text))
+print(re.sub(r"\((\d{2})\) (\d{4,5})-(\d{4})", r"+55\1\2\3", text))
+print(re.sub(r"\s+", " ", "muitos     espaços\n\tjuntos"))
+
+
+def mask(match):
+    number = match.group()
+    return number[:3] + "*" * (len(number) - 3)
+
+
+print(re.sub(r"\d{5}-\d{4}", mask, text))
+print(re.split(r"[;,]\s*", "ana, bia; caio,duda"))
+```
+
+```txt title="Output"
+Contato: (##) #####-#### e (##) #####-####
+Contato: +5583900000000 e +5511988887777
+muitos espaços juntos
+Contato: (83) 900******* e (11) 988*******
+['ana', 'bia', 'caio', 'duda']
+```
+
+## Flags
+
+As flags mudam a interpretação do padrão e podem ser combinadas com `|`:
+
+| Flag | Efeito |
+| :--- | :--- |
+| `re.IGNORECASE` (`re.I`) | Ignora maiúsculas e minúsculas |
+| `re.MULTILINE` (`re.M`) | `^` e `$` casam em cada linha |
+| `re.DOTALL` (`re.S`) | `.` também casa quebra de linha |
+| `re.VERBOSE` (`re.X`) | Permite espaços e comentários no padrão |
+
+```python title="Padrão legível com VERBOSE"
+import re
+
+PHONE = re.compile(
+    r"""
+    \((?P<ddd>\d{2})\)   # DDD entre parênteses
+    \s*
+    (?P<prefixo>\d{4,5}) # primeira parte
+    -
+    (?P<sufixo>\d{4})    # segunda parte
+    """,
+    re.VERBOSE,
+)
+
+print(PHONE.search("ligue para (83) 90000-0000").groupdict())
+print(re.findall(r"erro", "Erro ERRO erro", re.IGNORECASE))
+print(re.search(r"início.*fim", "início\nmeio\nfim", re.DOTALL) is not None)
+```
+
+## Gulosos e Preguiçosos
+
+Por padrão, quantificadores são **gulosos**: consomem o máximo possível. O sufixo `?` os
+torna **preguiçosos**:
+
+```python title="A diferença que mais confunde"
+import re
+
+html = "<b>negrito</b> e <i>itálico</i>"
+
+print(re.findall(r"<.+>", html))    # guloso: pega tudo entre o primeiro < e o último >
+print(re.findall(r"<.+?>", html))   # preguiçoso: para no primeiro >
+print(re.findall(r"<[^>]+>", html)) # classe negada: alternativa mais eficiente
+```
+
+```txt title="Output"
+['<b>negrito</b> e <i>itálico</i>']
+['<b>', '</b>', '<i>', '</i>']
+['<b>', '</b>', '<i>', '</i>']
+```
+
+<Aside type="caution" title="Não use regex para HTML ou JSON">
+  Formatos aninhados não são regulares: qualquer padrão funciona nos exemplos e falha nos
+  casos reais. Use um parser — `json` para JSON, `html.parser` ou uma biblioteca dedicada para
+  HTML.
+</Aside>
+
+## Compilando Padrões
+
+`re.compile()` prepara o padrão uma vez e devolve um objeto com os mesmos métodos — útil
+quando o mesmo padrão é aplicado muitas vezes:
+
+```python title="Padrão compilado"
+import re
+
+EMAIL = re.compile(r"^[\w.+-]+@[\w-]+\.[\w.]+$")
+
+candidates = ["ana@devlab.dev", "sem-arroba.dev", "bia@devlab", "caio.silva+news@dev.lab.br"]
+
+for candidate in candidates:
+    status = "válido" if EMAIL.fullmatch(candidate) else "inválido"
+    print(f"{candidate:<28}{status}")
+```
+
+```txt title="Output"
+ana@devlab.dev              válido
+sem-arroba.dev              inválido
+bia@devlab                  inválido
+caio.silva+news@dev.lab.br  válido
+```
+
+<Aside type="note" title="Validação de e-mail por regex é sempre aproximada">
+  A especificação de endereços de e-mail é complexa demais para um padrão curto. Use uma
+  verificação simples como esta para pegar erros de digitação e confirme o endereço de
+  verdade enviando uma mensagem.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `log_parser.py`:
+
+   ```python title="log_parser.py"
+   import re
+
+   LOG = """
+   2026-08-27 09:12:03 INFO  usuario=ana acao=login ip=10.0.0.4
+   2026-08-27 09:13:44 ERROR usuario=bia acao=upload ip=10.0.0.9
+   2026-08-27 09:15:02 INFO  usuario=caio acao=logout ip=10.0.0.4
+   2026-08-27 09:16:31 ERROR usuario=ana acao=upload ip=10.0.0.4
+   """
+
+   LINE = re.compile(
+       r"(?P<data>\d{4}-\d{2}-\d{2})\s+"
+       r"(?P<hora>\d{2}:\d{2}:\d{2})\s+"
+       r"(?P<nivel>\w+)\s+"
+       r"usuario=(?P<usuario>\w+)\s+"
+       r"acao=(?P<acao>\w+)\s+"
+       r"ip=(?P<ip>[\d.]+)"
+   )
+
+   errors = 0
+   users = set()
+
+   for match in LINE.finditer(LOG):
+       entry = match.groupdict()
+       users.add(entry["usuario"])
+       if entry["nivel"] == "ERROR":
+           errors += 1
+           print(f"{entry['hora']} {entry['usuario']:<6}{entry['acao']:<8}{entry['ip']}")
+
+   print(f"\n{errors} erros | usuários: {', '.join(sorted(users))}")
+   print(re.sub(r"ip=[\d.]+", "ip=***", LOG).strip().splitlines()[0])
+   ```
+
+2. Execute o arquivo (`python3 log_parser.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run log_parser.py
+   ```
+
+   ```txt title="Output"
+   09:13:44 bia   upload  10.0.0.9
+   09:16:31 ana   upload  10.0.0.4
+
+   2 erros | usuários: ana, bia, caio
+   2026-08-27 09:12:03 INFO  usuario=ana acao=login ip=***
+   ```
+
+3. No REPL (`uv run python`), teste padrões rapidamente:
+
+   ```txt title="Sessão interativa"
+   >>> import re
+   >>> re.findall(r"\d+", "a1b22c333")
+   ['1', '22', '333']
+   >>> re.sub(r"\s+", "-", "guia de python")
+   'guia-de-python'
+   >>> bool(re.fullmatch(r"\d{3}\.\d{3}\.\d{3}-\d{2}", "123.456.789-00"))
+   True
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `validators.py` com validações baseadas em expressões regulares.
+
+1. `is_email(value)` — formato básico de e-mail;
+2. `is_phone(value)` — aceita `(83) 90000-0000` e `83900000000`;
+3. `is_cpf_format(value)` — apenas o formato `000.000.000-00` (sem validar dígitos);
+4. `is_strong_password(value)` — pelo menos 8 caracteres, com maiúscula, minúscula, dígito e símbolo;
+5. Compile todos os padrões no nível do módulo e use `fullmatch`;
+6. Percorra uma lista de casos de teste imprimindo o resultado em tabela.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="validators.py"
+  import re
+
+  EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]{2,}")
+  PHONE = re.compile(r"(\(\d{2}\)\s?\d{4,5}-\d{4}|\d{10,11})")
+  CPF = re.compile(r"\d{3}\.\d{3}\.\d{3}-\d{2}")
+  PASSWORD = re.compile(
+      r"""
+      (?=.*[a-z])          # ao menos uma minúscula
+      (?=.*[A-Z])          # ao menos uma maiúscula
+      (?=.*\d)             # ao menos um dígito
+      (?=.*[^\w\s])        # ao menos um símbolo
+      .{8,}                # comprimento mínimo
+      """,
+      re.VERBOSE,
+  )
+
+
+  def is_email(value):
+      return EMAIL.fullmatch(value) is not None
+
+
+  def is_phone(value):
+      return PHONE.fullmatch(value) is not None
+
+
+  def is_cpf_format(value):
+      return CPF.fullmatch(value) is not None
+
+
+  def is_strong_password(value):
+      return PASSWORD.fullmatch(value) is not None
+
+
+  CASES = [
+      ("ana@devlab.dev", is_email),
+      ("ana@devlab", is_email),
+      ("(83) 90000-0000", is_phone),
+      ("83900000000", is_phone),
+      ("123.456.789-00", is_cpf_format),
+      ("12345678900", is_cpf_format),
+      ("Senha@2026", is_strong_password),
+      ("senha123", is_strong_password),
+  ]
+
+  print(f"{'Valor':<20}{'Validador':<22}Resultado")
+  print("-" * 54)
+  for value, validator in CASES:
+      status = "válido" if validator(value) else "inválido"
+      print(f"{value:<20}{validator.__name__:<22}{status}")
+  ```
+
+  `(?=...)` é um *lookahead*: verifica a condição sem consumir caracteres, o que permite
+  exigir várias regras no mesmo padrão.
+</details>
+
+## Desafio
+
+Escreva `markdown_stats.py`, um analisador de arquivos Markdown com expressões regulares.
+
+1. Gere (ou use) um arquivo `.md` com títulos, links, blocos de código e listas;
+2. Extraia todos os títulos com o nível correspondente, usando grupos nomeados;
+3. Extraia todos os links no formato `[texto](url)`, separando texto e destino;
+4. Conte blocos de código por linguagem, considerando as cercas de três crases;
+5. Detecte links quebrados por convenção (URL vazia ou apenas `#`);
+6. Gere um sumário indentado por nível e um relatório com as contagens.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="markdown_stats.py"
+  import re
+  from collections import Counter
+  from pathlib import Path
+
+  SOURCE = Path("exemplo.md")
+  SOURCE.write_text(
+      "# Guia\n\nTexto com [link](https://devlab.dev) e [quebrado](#).\n\n"
+      "## Instalação\n\n```bash\nuv run main.py\n```\n\n"
+      "### Detalhes\n\n```python\nprint('ok')\n```\n\n- item\n- outro\n",
+      encoding="utf-8",
+  )
+
+  content = SOURCE.read_text(encoding="utf-8")
+
+  HEADING = re.compile(r"^(?P<nivel>#{1,6})\s+(?P<titulo>.+)$", re.MULTILINE)
+  LINK = re.compile(r"\[(?P<texto>[^\]]+)\]\((?P<url>[^)]*)\)")
+  FENCE = re.compile(r"^```(?P<lang>\w*)$", re.MULTILINE)
+
+  headings = [(len(m.group("nivel")), m.group("titulo")) for m in HEADING.finditer(content)]
+  links = [m.groupdict() for m in LINK.finditer(content)]
+  languages = Counter(lang for lang in FENCE.findall(content) if lang)
+  broken = [link for link in links if link["url"] in {"", "#"}]
+
+  print("SUMÁRIO")
+  for level, title in headings:
+      print(f"{'  ' * (level - 1)}- {title}")
+
+  print(f"\n{'Títulos:':<20}{len(headings)}")
+  print(f"{'Links:':<20}{len(links)}")
+  print(f"{'Links quebrados:':<20}{len(broken)}")
+  for link in broken:
+      print(f"  - [{link['texto']}]({link['url']})")
+
+  print(f"{'Blocos de código:':<20}{sum(languages.values())}")
+  for language, total in languages.most_common():
+      print(f"  - {language}: {total}")
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Funções do módulo
+
+**1. Qual a diferença entre `re.match`, `re.search` e `re.fullmatch`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `match` exige que o padrão case a partir do **início** do texto; `search` procura em
+  qualquer posição; `fullmatch` exige que o padrão cubra o texto **inteiro** — este último é o
+  indicado para validações.
+</details>
+
+**2. Por que `re.search` pode devolver `None` e o que fazer com isso?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando não há correspondência. Como `None` não tem `.group()`, é preciso testar antes:
+  `if (found := re.search(padrao, texto)):` ou um `if found is not None:` tradicional.
+</details>
+
+**3. O que muda no retorno de `findall` quando o padrão tem grupos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Sem grupos, devolve as correspondências completas. Com um grupo, devolve apenas o conteúdo
+  desse grupo; com vários, devolve tuplas com todos eles. Para obter o trecho inteiro, use
+  `finditer` ou grupos sem captura `(?:...)`.
+</details>
+
+### Sintaxe
+
+**4. Por que escrever padrões como *raw strings*?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a barra invertida tem significado nos dois níveis: no literal Python e na sintaxe da
+  regex. Com `r"..."`, o Python entrega o padrão exatamente como escrito, evitando escapes
+  duplicados como `"\\d+"`.
+</details>
+
+**5. Qual a diferença entre `\d`, `\w` e `\s`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `\d` casa dígitos; `\w` casa letras, dígitos e sublinhado; `\s` casa espaços em branco
+  (espaço, tabulação, quebra de linha). As versões maiúsculas (`\D`, `\W`, `\S`) casam o
+  complemento de cada uma.
+</details>
+
+**6. O que `\b` representa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um limite de palavra: a fronteira entre um caractere de palavra e um que não é. `\bpy\w*`
+  casa `python` e `pypi`, mas não a parte final de `copy`.
+</details>
+
+### Comportamento
+
+**7. O que significa um quantificador guloso?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que ele consome o máximo de caracteres possível antes de devolver o controle. `<.+>` em
+  `<b>x</b>` casa a linha inteira; `<.+?>` (preguiçoso) para no primeiro `>`.
+</details>
+
+**8. Para que serve `re.VERBOSE`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permite escrever o padrão em várias linhas, com espaços ignorados e comentários com `#`,
+  tornando padrões longos legíveis e documentáveis.
+</details>
+
+**9. Quando vale a pena usar `re.compile`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o mesmo padrão é usado repetidamente — em laços ou em várias funções. O padrão é
+  processado uma única vez e o objeto resultante deixa a intenção explícita no nível do
+  módulo.
+</details>
+
+**10. Por que não usar expressões regulares para analisar HTML ou JSON?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque esses formatos são aninhados e recursivos, além do que uma expressão regular
+  descreve. Padrões funcionam em exemplos simples e falham em casos reais — o correto é usar
+  um parser: `json` para JSON e uma biblioteca de HTML para HTML.
+</details>
+
+## Referências
+
+- [Módulo `re`](https://docs.python.org/pt-br/3/library/re.html)
+- [HOWTO de expressões regulares](https://docs.python.org/pt-br/3/howto/regex.html)
+- [Sintaxe de expressões regulares](https://docs.python.org/pt-br/3/library/re.html#regular-expression-syntax)
+- [regex101 — testador interativo](https://regex101.com/)
+- [Módulo `string`](https://docs.python.org/pt-br/3/library/string.html)
+
+## Próxima aula
+
+Com a linguagem e a biblioteca padrão cobertas, falta preparar o projeto para crescer com
+dependências externas.
+
+[Ambiente e Pacotes com uv](../../tools/uv/): ambientes isolados, instalação de bibliotecas,
+`pyproject.toml` e execução reproduzível.

@@ -1,0 +1,735 @@
+---
+title: "Python: Arquivos, JSON e CSV"
+description: "Leitura e escrita de arquivos de texto, modos de abertura, codificação, pathlib, serialização com JSON e manipulação de planilhas com o módulo csv."
+course: python
+sidebar:
+  label: Arquivos, JSON e CSV
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/stdlib/files/) e [mapa mental](../../../../mindmaps/courses/python/stdlib/files/).
+
+Dados em memória desaparecem quando o programa termina. Ler e escrever arquivos é o modo mais
+direto de dar persistência a um script — e de consumir o que já existe: exportações de
+sistemas, logs, planilhas e respostas de API salvas em disco.
+
+Esta aula cobre o acesso a arquivos de texto, o módulo `pathlib` para lidar com caminhos e os
+dois formatos mais frequentes no dia a dia: JSON e CSV.
+
+## Objetivo
+
+Abrir arquivos com o modo e a codificação corretos, ler conteúdo inteiro ou linha a linha,
+escrever e anexar dados, manipular caminhos com `pathlib`, serializar e desserializar
+estruturas Python em JSON e ler e gravar planilhas com o módulo `csv`.
+
+## Abrindo Arquivos
+
+A função `open()` devolve um objeto arquivo, e o `with` garante o fechamento mesmo se ocorrer
+uma exceção:
+
+```python title="Forma recomendada"
+with open("notas.txt", "w", encoding="utf-8") as file:
+    file.write("Ana;9.5\n")
+    file.write("Bia;8.0\n")
+
+with open("notas.txt", encoding="utf-8") as file:
+    print(file.read())
+
+print(file.closed)   # True — fechado automaticamente
+```
+
+```txt title="Output"
+Ana;9.5
+Bia;8.0
+
+True
+```
+
+### Modos de abertura
+
+O segundo argumento define a intenção; a escolha errada apaga dados:
+
+| Modo | Significado | Se o arquivo existe | Se não existe |
+| :--- | :--- | :--- | :--- |
+| `"r"` | Leitura (padrão) | Lê | `FileNotFoundError` |
+| `"w"` | Escrita | **Apaga o conteúdo** | Cria |
+| `"a"` | Anexar | Escreve no final | Cria |
+| `"x"` | Criação exclusiva | `FileExistsError` | Cria |
+| `"r+"` | Leitura e escrita | Mantém | `FileNotFoundError` |
+| `"rb"` / `"wb"` | Modo binário | — | — |
+
+<Aside type="caution" title="O modo w destrói o arquivo">
+  Abrir com `"w"` trunca o conteúdo antes mesmo da primeira escrita. Para acrescentar dados a
+  um arquivo existente, use `"a"`; para não sobrescrever nada por engano, use `"x"`.
+</Aside>
+
+### Codificação
+
+Sempre informe `encoding`: o padrão varia conforme o sistema operacional, e isso quebra a
+portabilidade do código:
+
+```python title="Codificação explícita"
+from pathlib import Path
+
+Path("acentos.txt").write_text("Ação, coração e pão\n", encoding="utf-8")
+
+print(Path("acentos.txt").read_text(encoding="utf-8"))
+
+# Ler com a codificação errada levanta UnicodeDecodeError
+try:
+    Path("acentos.txt").read_text(encoding="ascii")
+except UnicodeDecodeError as error:
+    print("falhou:", error.reason)
+```
+
+## Leitura
+
+Três formas de ler cobrem praticamente todos os casos.
+
+### Arquivo inteiro
+
+Simples e adequado para arquivos pequenos:
+
+```python title="read e readlines"
+from pathlib import Path
+
+Path("times.txt").write_text("Botafogo-PB\nCampinense\nTreze\n", encoding="utf-8")
+
+with open("times.txt", encoding="utf-8") as file:
+    content = file.read()          # tudo em uma string
+
+print(repr(content))
+
+with open("times.txt", encoding="utf-8") as file:
+    lines = file.readlines()       # lista de linhas, com \n
+
+print(lines)
+print([line.strip() for line in lines])
+```
+
+### Linha a linha
+
+Iterar sobre o objeto arquivo lê sob demanda, com memória constante — a forma indicada para
+arquivos grandes:
+
+```python title="Iteração preguiçosa"
+with open("times.txt", encoding="utf-8") as file:
+    for number, line in enumerate(file, start=1):
+        print(f"{number:>2}. {line.strip()}")
+
+# Processando sem carregar tudo
+with open("times.txt", encoding="utf-8") as file:
+    total = sum(1 for line in file if line.strip())
+
+print(f"{total} linhas com conteúdo")
+```
+
+<Aside type="tip" title="Arquivo é um iterador">
+  Como o objeto arquivo é iterável, ele combina naturalmente com geradores e compreensões —
+  o mesmo padrão visto em [Compreensões e Geradores](../../data/comprehensions/).
+</Aside>
+
+## Escrita
+
+`write()` grava uma string e devolve a quantidade de caracteres escritos; a quebra de linha
+precisa ser explícita:
+
+```python title="Escrevendo e anexando"
+lines = ["Ana;9.5", "Bia;8.0", "Caio;7.5"]
+
+with open("boletim.csv", "w", encoding="utf-8") as file:
+    file.write("nome;nota\n")
+    for line in lines:
+        file.write(f"{line}\n")
+
+with open("boletim.csv", "a", encoding="utf-8") as file:
+    file.write("Duda;10.0\n")       # acrescenta ao final
+
+with open("boletim.csv", encoding="utf-8") as file:
+    print(file.read())
+```
+
+```txt title="Output"
+nome;nota
+Ana;9.5
+Bia;8.0
+Caio;7.5
+Duda;10.0
+```
+
+## Caminhos com `pathlib`
+
+`pathlib` substitui a manipulação de caminhos como strings, com uma API orientada a objetos
+que funciona em Windows, macOS e Linux:
+
+```python title="Operações com Path"
+from pathlib import Path
+
+base = Path("dados")
+base.mkdir(exist_ok=True)
+
+report = base / "vendas" / "2026.csv"      # o operador / monta o caminho
+report.parent.mkdir(parents=True, exist_ok=True)
+report.write_text("produto;valor\nTeclado;349.90\n", encoding="utf-8")
+
+print(report)
+print(report.name, report.stem, report.suffix)
+print(report.parent, report.exists(), report.stat().st_size, "bytes")
+print(report.resolve().is_absolute())
+```
+
+```txt title="Output"
+dados/vendas/2026.csv
+2026.csv 2026 .csv
+dados/vendas True 32 bytes
+True
+```
+
+## Busca e Navegação
+
+`glob` e `rglob` encontram arquivos por padrão, sem percorrer diretórios manualmente:
+
+```python title="Encontrando arquivos"
+from pathlib import Path
+
+for path in sorted(Path("dados").rglob("*.csv")):
+    print(path, path.stat().st_size, "bytes")
+
+print([p.name for p in Path(".").glob("*.py")][:5])
+
+target = Path("dados/temporario.txt")
+target.write_text("apagar depois", encoding="utf-8")
+print(target.exists())
+target.unlink(missing_ok=True)     # remove o arquivo
+print(target.exists())
+```
+
+| Método | Faz |
+| :--- | :--- |
+| `Path.cwd()` | Diretório de trabalho atual |
+| `path.exists()` / `is_file()` / `is_dir()` | Verificações |
+| `path.mkdir(parents=True, exist_ok=True)` | Cria diretórios |
+| `path.read_text()` / `write_text()` | Leitura e escrita diretas |
+| `path.glob("*.csv")` / `rglob()` | Busca por padrão (recursiva com `rglob`) |
+| `path.unlink()` / `path.rename()` | Remove e renomeia |
+
+## JSON
+
+JSON é o formato padrão para trocar dados estruturados. O módulo `json` converte entre tipos
+Python e texto JSON:
+
+| Python | JSON |
+| :--- | :--- |
+| `dict` | objeto |
+| `list`, `tuple` | array |
+| `str` | string |
+| `int`, `float` | number |
+| `True` / `False` | `true` / `false` |
+| `None` | `null` |
+
+### Serializando
+
+`dumps` produz string; `dump` escreve direto no arquivo:
+
+```python title="De Python para JSON"
+import json
+from pathlib import Path
+
+course = {
+    "nome": "Guia de Python",
+    "aulas": 15,
+    "publicado": True,
+    "topicos": ["variáveis", "funções", "coleções"],
+    "autor": None,
+}
+
+text = json.dumps(course, indent=2, ensure_ascii=False)
+print(text)
+
+Path("curso.json").write_text(text, encoding="utf-8")
+
+with open("curso.json", "w", encoding="utf-8") as file:
+    json.dump(course, file, indent=2, ensure_ascii=False)
+```
+
+```txt title="Output"
+{
+  "nome": "Guia de Python",
+  "aulas": 15,
+  "publicado": true,
+  "topicos": [
+    "variáveis",
+    "funções",
+    "coleções"
+  ],
+  "autor": null
+}
+```
+
+<Aside type="caution" title="ensure_ascii=False preserva os acentos">
+  Sem essa opção, `json.dumps` escapa caracteres não-ASCII (`"variáveis"`). O arquivo
+  continua válido, mas fica ilegível para quem abre no editor.
+</Aside>
+
+### Lendo
+
+`loads` lê de string; `load` lê de arquivo. Entradas malformadas levantam
+`json.JSONDecodeError`:
+
+```python title="De JSON para Python"
+import json
+from pathlib import Path
+
+data = json.loads(Path("curso.json").read_text(encoding="utf-8"))
+
+print(type(data), data["nome"], data["topicos"][0])
+print(data.get("preco", "não informado"))
+
+with open("curso.json", encoding="utf-8") as file:
+    same = json.load(file)
+
+print(same == data)
+
+try:
+    json.loads("{isto não é json}")
+except json.JSONDecodeError as error:
+    print("JSON inválido:", error.msg)
+```
+
+## CSV
+
+Planilhas exportadas costumam chegar como CSV. O módulo `csv` cuida de separadores, aspas e
+quebras de linha dentro de campos — o que um `split(",")` ingênuo erra:
+
+### `reader` e `writer`
+
+Trabalham com listas, posição a posição:
+
+```python title="Listas de valores"
+import csv
+from pathlib import Path
+
+rows = [
+    ["produto", "preco", "quantidade"],
+    ["Teclado", 349.9, 10],
+    ["Mouse; sem fio", 89.9, 25],      # o ponto e vírgula no campo é preservado
+]
+
+with open("estoque.csv", "w", encoding="utf-8", newline="") as file:
+    writer = csv.writer(file)
+    writer.writerows(rows)
+
+print(Path("estoque.csv").read_text(encoding="utf-8"))
+
+with open("estoque.csv", encoding="utf-8", newline="") as file:
+    reader = csv.reader(file)
+    header = next(reader)
+    for row in reader:
+        print(f"{row[0]:<16}{float(row[1]):>10.2f}{row[2]:>6}")
+```
+
+<Aside type="note" title="newline='' não é opcional">
+  A documentação exige `newline=""` ao abrir arquivos CSV: sem isso, o Windows insere linhas
+  em branco entre os registros e campos com quebra de linha são lidos incorretamente.
+</Aside>
+
+### `DictReader` e `DictWriter`
+
+Trabalham com dicionários, usando o cabeçalho como chave — mais legível e resistente a
+mudanças na ordem das colunas:
+
+```python title="Registros como dicionários"
+import csv
+
+products = [
+    {"produto": "Teclado", "preco": 349.9, "quantidade": 10},
+    {"produto": "Monitor", "preco": 1899.0, "quantidade": 3},
+]
+
+with open("estoque.csv", "w", encoding="utf-8", newline="") as file:
+    writer = csv.DictWriter(file, fieldnames=["produto", "preco", "quantidade"])
+    writer.writeheader()
+    writer.writerows(products)
+
+with open("estoque.csv", encoding="utf-8", newline="") as file:
+    reader = csv.DictReader(file)
+    total = 0
+    for row in reader:
+        value = float(row["preco"]) * int(row["quantidade"])
+        total += value
+        print(f"{row['produto']:<10}{value:>12,.2f}")
+
+print(f"{'TOTAL':<10}{total:>12,.2f}")
+```
+
+```txt title="Output"
+Teclado       3,499.00
+Monitor       5,697.00
+TOTAL         9,196.00
+```
+
+<Aside type="tip" title="CSV é sempre texto">
+  Todo valor lido de um CSV chega como `str` — inclusive números. A conversão com `int()` ou
+  `float()` é responsabilidade do seu código, e é o ponto onde `ValueError` costuma aparecer.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `files_demo.py`:
+
+   ```python title="files_demo.py"
+   import csv
+   import json
+   from pathlib import Path
+
+   base = Path("saida")
+   base.mkdir(exist_ok=True)
+
+   students = [
+       {"nome": "Ana", "nota": 9.5},
+       {"nome": "Bia", "nota": 8.0},
+       {"nome": "Caio", "nota": 6.5},
+   ]
+
+   # 1. Texto puro
+   report = base / "relatorio.txt"
+   with report.open("w", encoding="utf-8") as file:
+       for student in students:
+           file.write(f"{student['nome']}: {student['nota']}\n")
+
+   # 2. JSON
+   (base / "alunos.json").write_text(
+       json.dumps(students, indent=2, ensure_ascii=False), encoding="utf-8"
+   )
+
+   # 3. CSV
+   with (base / "alunos.csv").open("w", encoding="utf-8", newline="") as file:
+       writer = csv.DictWriter(file, fieldnames=["nome", "nota"])
+       writer.writeheader()
+       writer.writerows(students)
+
+   # 4. Leitura de volta
+   loaded = json.loads((base / "alunos.json").read_text(encoding="utf-8"))
+   average = sum(student["nota"] for student in loaded) / len(loaded)
+
+   print(report.read_text(encoding="utf-8"))
+   print(f"Média da turma: {average:.2f}")
+   print("Arquivos gerados:", sorted(path.name for path in base.iterdir()))
+   ```
+
+2. Execute o arquivo (`python3 files_demo.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run files_demo.py
+   ```
+
+   ```txt title="Output"
+   Ana: 9.5
+   Bia: 8.0
+   Caio: 6.5
+
+   Média da turma: 8.00
+   Arquivos gerados: ['alunos.csv', 'alunos.json', 'relatorio.txt']
+   ```
+
+3. Confira o resultado no disco:
+
+   <FileTree>
+   {`
+   saida/
+   ├── alunos.csv
+   ├── alunos.json
+   └── relatorio.txt
+   `}
+   </FileTree>
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `notes.py` que mantenha anotações em um arquivo JSON.
+
+1. Guarde as anotações em `notas.json` como uma lista de dicionários (`id`, `texto`, `feito`);
+2. Implemente funções para carregar e salvar, tratando o caso de arquivo inexistente;
+3. Implemente `add(texto)`, `done(id)` e `remove(id)`;
+4. Use `pathlib` para todos os caminhos e `encoding="utf-8"` em todas as operações;
+5. Trate `json.JSONDecodeError` quando o arquivo estiver corrompido, recomeçando de uma lista vazia;
+6. Exiba as anotações em tabela, marcando as concluídas.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="notes.py"
+  import json
+  from pathlib import Path
+
+  DATABASE = Path("notas.json")
+
+
+  def load():
+      if not DATABASE.exists():
+          return []
+      try:
+          return json.loads(DATABASE.read_text(encoding="utf-8"))
+      except json.JSONDecodeError:
+          print("arquivo corrompido; recomeçando com lista vazia")
+          return []
+
+
+  def save(notes):
+      DATABASE.write_text(
+          json.dumps(notes, indent=2, ensure_ascii=False), encoding="utf-8"
+      )
+
+
+  def add(text):
+      notes = load()
+      next_id = max((note["id"] for note in notes), default=0) + 1
+      notes.append({"id": next_id, "texto": text, "feito": False})
+      save(notes)
+      return next_id
+
+
+  def done(identifier):
+      notes = load()
+      for note in notes:
+          if note["id"] == identifier:
+              note["feito"] = True
+      save(notes)
+
+
+  def remove(identifier):
+      notes = [note for note in load() if note["id"] != identifier]
+      save(notes)
+
+
+  add("Estudar compreensões")
+  add("Revisar exceções")
+  add("Publicar o guia")
+  done(2)
+  remove(3)
+
+  print(f"{'ID':<4}{'Feito':<8}Texto")
+  print("-" * 40)
+  for note in load():
+      mark = "[x]" if note["feito"] else "[ ]"
+      print(f"{note['id']:<4}{mark:<8}{note['texto']}")
+  ```
+</details>
+
+## Desafio
+
+Escreva `csv_report.py`, um conversor de CSV para relatório consolidado.
+
+1. Gere um `vendas.csv` com pelo menos 50 linhas (`data`, `produto`, `regiao`, `valor`);
+2. Leia o arquivo com `DictReader`, convertendo tipos e tratando linhas inválidas sem interromper;
+3. Consolide o total por região e por produto usando `collections.defaultdict` ou `Counter`;
+4. Escreva um `resumo.csv` com o total por região, ordenado do maior para o menor;
+5. Escreva também um `resumo.json` com a estrutura completa e acentos preservados;
+6. Imprima um relatório com totais, ticket médio e a região líder;
+7. Registre em `erros.log` cada linha descartada com o motivo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="csv_report.py"
+  import csv
+  import json
+  import random
+  from collections import defaultdict
+  from pathlib import Path
+
+  SOURCE = Path("vendas.csv")
+  PRODUCTS = ["Teclado", "Monitor", "Mouse", "Cadeira"]
+  REGIONS = ["sul", "sudeste", "nordeste"]
+
+  # 1. Arquivo de exemplo, com duas linhas propositalmente inválidas
+  random.seed(7)
+  with SOURCE.open("w", encoding="utf-8", newline="") as file:
+      writer = csv.writer(file)
+      writer.writerow(["data", "produto", "regiao", "valor"])
+      for day in range(1, 51):
+          writer.writerow([
+              f"2026-08-{day % 28 + 1:02d}",
+              random.choice(PRODUCTS),
+              random.choice(REGIONS),
+              round(random.uniform(50, 2000), 2),
+          ])
+      writer.writerow(["2026-08-30", "Teclado", "sul", "indefinido"])
+      writer.writerow(["2026-08-31", "", "sul", "100"])
+
+  by_region = defaultdict(float)
+  by_product = defaultdict(float)
+  errors = []
+  count = 0
+
+  with SOURCE.open(encoding="utf-8", newline="") as file:
+      for number, row in enumerate(csv.DictReader(file), start=2):
+          try:
+              if not row["produto"]:
+                  raise ValueError("produto vazio")
+              value = float(row["valor"])
+          except ValueError as error:
+              errors.append(f"linha {number}: {error}")
+              continue
+
+          by_region[row["regiao"]] += value
+          by_product[row["produto"]] += value
+          count += 1
+
+  ranking = sorted(by_region.items(), key=lambda item: -item[1])
+
+  with Path("resumo.csv").open("w", encoding="utf-8", newline="") as file:
+      writer = csv.writer(file)
+      writer.writerow(["regiao", "total"])
+      writer.writerows([region, round(total, 2)] for region, total in ranking)
+
+  Path("resumo.json").write_text(
+      json.dumps(
+          {
+              "registros": count,
+              "por_regiao": {k: round(v, 2) for k, v in ranking},
+              "por_produto": {k: round(v, 2) for k, v in sorted(by_product.items())},
+          },
+          indent=2,
+          ensure_ascii=False,
+      ),
+      encoding="utf-8",
+  )
+
+  Path("erros.log").write_text("\n".join(errors), encoding="utf-8")
+
+  total = sum(by_region.values())
+  print(f"{'Região':<12}{'Total':>14}")
+  print("-" * 26)
+  for region, value in ranking:
+      print(f"{region:<12}{value:>14,.2f}")
+
+  print(f"\nRegistros válidos: {count} | descartados: {len(errors)}")
+  print(f"Ticket médio:      R$ {total / count:,.2f}")
+  print(f"Região líder:      {ranking[0][0]}")
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Abertura e modos
+
+**1. Por que usar `with open(...)` em vez de `open()` direto?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o `with` fecha o arquivo automaticamente ao sair do bloco, inclusive quando ocorre
+  uma exceção. Sem ele, é preciso um `try`/`finally` manual e o arquivo pode ficar aberto,
+  segurando o recurso e podendo perder dados não gravados.
+</details>
+
+**2. Qual a diferença entre os modos `"w"` e `"a"`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `"w"` trunca o arquivo: todo o conteúdo anterior é perdido no momento da abertura. `"a"`
+  posiciona a escrita no final, preservando o que já existia.
+</details>
+
+**3. Por que informar `encoding="utf-8"` explicitamente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a codificação padrão depende do sistema operacional e da configuração local. Sem o
+  parâmetro, o mesmo código pode ler corretamente em uma máquina e levantar
+  `UnicodeDecodeError` em outra.
+</details>
+
+### Leitura e escrita
+
+**4. Qual a vantagem de iterar sobre o arquivo em vez de usar `read()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A iteração lê uma linha por vez, mantendo o uso de memória constante, enquanto `read()` (e
+  `readlines()`) carrega todo o conteúdo. Para arquivos grandes, só a iteração é viável.
+</details>
+
+**5. `write()` adiciona quebra de linha?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. É preciso incluir `\n` explicitamente, ou usar `print(..., file=arquivo)`, que
+  acrescenta a quebra por padrão.
+</details>
+
+### pathlib, JSON e CSV
+
+**6. O que `pathlib` oferece sobre manipular caminhos como strings?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma API orientada a objetos, independente de sistema operacional: o operador `/` monta
+  caminhos, e métodos como `exists()`, `mkdir()`, `read_text()`, `glob()` e `unlink()`
+  substituem funções espalhadas por `os` e `os.path`.
+</details>
+
+**7. Qual a diferença entre `json.dumps` e `json.dump`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `dumps` devolve uma **string** JSON; `dump` escreve diretamente em um objeto arquivo. A
+  mesma lógica vale para `loads` (de string) e `load` (de arquivo).
+</details>
+
+**8. Para que serve `ensure_ascii=False`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para gravar caracteres acentuados como estão, em vez de escapá-los em sequências
+  `\uXXXX`. O JSON continua válido nos dois casos, mas fica legível apenas com a opção
+  ativada.
+</details>
+
+**9. Por que usar o módulo `csv` em vez de `split(",")`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o módulo trata corretamente campos entre aspas, separadores dentro do texto, quebras
+  de linha em um campo e diferentes dialetos. Um `split(",")` quebra o registro no primeiro
+  caso especial.
+</details>
+
+**10. O que `DictReader` traz de diferente do `reader`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele usa a primeira linha como cabeçalho e devolve cada registro como dicionário, permitindo
+  acesso por nome de coluna (`row["preco"]`) em vez de posição — mais legível e imune a
+  mudanças na ordem das colunas.
+</details>
+
+## Referências
+
+- [Leitura e escrita de arquivos](https://docs.python.org/pt-br/3/tutorial/inputoutput.html#reading-and-writing-files)
+- [Módulo `pathlib`](https://docs.python.org/pt-br/3/library/pathlib.html)
+- [Módulo `json`](https://docs.python.org/pt-br/3/library/json.html)
+- [Módulo `csv`](https://docs.python.org/pt-br/3/library/csv.html)
+- [Função `open`](https://docs.python.org/pt-br/3/library/functions.html#open)
+
+## Próxima aula
+
+Arquivos guardam registros; quase todo registro tem uma data associada.
+
+[Data e Hora](../datetime/): `date`, `time`, `datetime`, `timedelta`, formatação, fuso
+horário e cálculos com datas.

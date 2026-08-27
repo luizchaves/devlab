@@ -1,0 +1,629 @@
+---
+title: "Python: Compreensões e Geradores"
+description: "List, dict e set comprehensions, expressões geradoras, protocolo de iteração, funções geradoras com yield e utilitários do módulo itertools."
+course: python
+sidebar:
+  label: Compreensões e Geradores
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/data/comprehensions/) e [mapa mental](../../../../mindmaps/courses/python/data/comprehensions/).
+
+Transformar e filtrar coleções é uma das tarefas mais frequentes da programação. Python
+oferece uma sintaxe declarativa para isso — as **compreensões** — e um mecanismo para
+produzir valores sob demanda sem carregar tudo na memória: os **geradores**.
+
+Dominar as duas coisas muda a forma de escrever código: laços que só existiam para montar uma
+lista desaparecem, e conjuntos de dados grandes passam a ser processados em fluxo.
+
+## Objetivo
+
+Escrever list, dict e set comprehensions com filtro e expressão condicional, reconhecer
+quando uma compreensão perde legibilidade, usar expressões geradoras para economizar
+memória, explicar o protocolo de iteração (`iter`/`next`), criar funções geradoras com
+`yield` e aplicar utilitários de `itertools`.
+
+## List Comprehension
+
+A compreensão constrói uma lista descrevendo **o que** ela contém, em vez de descrever o
+passo a passo da construção:
+
+```python title="Do laço à compreensão"
+numbers = [1, 2, 3, 4, 5]
+
+# Forma imperativa
+squares = []
+for number in numbers:
+    squares.append(number ** 2)
+
+# Forma declarativa
+squares = [number ** 2 for number in numbers]
+
+print(squares)   # [1, 4, 9, 16, 25]
+```
+
+A estrutura geral tem três partes: a expressão, a variável de iteração e o iterável de
+origem, com um filtro opcional ao final.
+
+<Mermaid title="Anatomia de uma list comprehension">
+{`
+flowchart LR
+  A["[ expressão"] --> B["for item in iterável"]
+  B --> C["if condição ]"]
+  C --> D["nova lista"]
+  B -.-> D
+`}
+</Mermaid>
+
+### Filtro e expressão condicional
+
+O `if` no final **filtra** itens; o `if/else` antes do `for` **transforma** cada item:
+
+```python title="Filtrar versus transformar"
+numbers = range(1, 11)
+
+evens = [n for n in numbers if n % 2 == 0]
+labels = ["par" if n % 2 == 0 else "ímpar" for n in numbers]
+filtered_labels = [f"{n}!" for n in numbers if n % 3 == 0]
+
+print(evens)
+print(labels[:4])
+print(filtered_labels)
+```
+
+```txt title="Output"
+[2, 4, 6, 8, 10]
+['ímpar', 'par', 'ímpar', 'par']
+['3!', '6!', '9!']
+```
+
+### Aninhamento e limites
+
+Compreensões aceitam vários `for`, mas a legibilidade cai rápido:
+
+```python title="Duas fontes de dados"
+sizes = ["P", "M"]
+colors = ["azul", "verde"]
+
+combinations = [f"{size}-{color}" for size in sizes for color in colors]
+print(combinations)
+
+matrix = [[1, 2, 3], [4, 5, 6]]
+flat = [value for row in matrix for value in row]
+transposed = [[row[i] for row in matrix] for i in range(3)]
+
+print(flat)
+print(transposed)
+```
+
+<Aside type="caution" title="Se precisa de comentário, use um laço">
+  Compreensões com dois níveis de aninhamento, filtro composto e chamada de função aninhada
+  ficam ilegíveis. A regra prática: se a linha não couber confortavelmente ou exigir uma
+  explicação, escreva o `for` tradicional.
+</Aside>
+
+## Dict e Set Comprehension
+
+A mesma sintaxe constrói dicionários e conjuntos, trocando os delimitadores:
+
+```python title="Compreensões de dict e set"
+words = ["python", "go", "rust", "python"]
+
+lengths = {word: len(word) for word in words}
+unique_lengths = {len(word) for word in words}
+inverted = {value: key for key, value in lengths.items()}
+
+print(lengths)
+print(unique_lengths)
+print(inverted)
+
+scores = {"ana": 9.5, "bia": 6.0, "caio": 8.0}
+approved = {name: score for name, score in scores.items() if score >= 7}
+print(approved)
+```
+
+```txt title="Output"
+{'python': 6, 'go': 2, 'rust': 4}
+{2, 4, 6}
+{6: 'python', 2: 'go', 4: 'rust'}
+{'ana': 9.5, 'caio': 8.0}
+```
+
+<Aside type="note" title="Chaves repetidas sobrescrevem">
+  Em uma dict comprehension, se dois itens produzirem a mesma chave, o último vence — como
+  aconteceu com `"python"` no exemplo. Isso pode ser útil (deduplicação) ou um bug silencioso.
+</Aside>
+
+## Expressões Geradoras
+
+Trocar os colchetes por parênteses produz um **gerador**: os valores são calculados sob
+demanda, um de cada vez:
+
+```python title="Lista versus gerador"
+import sys
+
+squares_list = [n ** 2 for n in range(100_000)]
+squares_gen = (n ** 2 for n in range(100_000))
+
+print(type(squares_gen))
+print(sys.getsizeof(squares_list), "bytes na lista")
+print(sys.getsizeof(squares_gen), "bytes no gerador")
+
+print(next(squares_gen), next(squares_gen))
+print(sum(n ** 2 for n in range(1000)))   # parênteses extras dispensados
+```
+
+```txt title="Output"
+<class 'generator'>
+800984 bytes na lista
+200 bytes no gerador
+0 1
+332833500
+```
+
+| Critério | List comprehension | Expressão geradora |
+| :--- | :--- | :--- |
+| Memória | Guarda todos os itens | Um item por vez |
+| Reutilização | Pode ser percorrida várias vezes | Esgota após a primeira passagem |
+| Acesso por índice | Sim | Não |
+| Uso ideal | Resultado pequeno, usado várias vezes | Fluxo grande, consumido uma vez |
+
+```python title="Gerador se esgota"
+values = (n for n in range(3))
+
+print(list(values))   # [0, 1, 2]
+print(list(values))   # [] — o gerador já foi consumido
+```
+
+## Iteradores
+
+Todo `for` funciona sobre o **protocolo de iteração**: `iter()` obtém um iterador e `next()`
+pede o próximo valor até `StopIteration`.
+
+### `iter` e `next`
+
+O laço abaixo é exatamente o que o `for` faz internamente:
+
+```python title="O for por dentro"
+languages = ["python", "go"]
+iterator = iter(languages)
+
+print(next(iterator))    # 'python'
+print(next(iterator))    # 'go'
+# print(next(iterator))  # StopIteration
+
+# Equivalente manual do for
+iterator = iter(languages)
+while True:
+    try:
+        language = next(iterator)
+    except StopIteration:
+        break
+    print(language)
+```
+
+### Iterável x iterador
+
+Os dois conceitos são próximos, mas diferentes:
+
+| Conceito | Define | Exemplo |
+| :--- | :--- | :--- |
+| **Iterável** | `__iter__()` | `list`, `str`, `dict`, `range` |
+| **Iterador** | `__iter__()` e `__next__()` | Resultado de `iter(lista)`, geradores |
+
+```python title="Objeto iterável próprio"
+class Countdown:
+    """Itera de n até 1."""
+
+    def __init__(self, start):
+        self.start = start
+
+    def __iter__(self):
+        current = self.start
+        while current > 0:
+            yield current
+            current -= 1
+
+
+print(list(Countdown(5)))
+for value in Countdown(3):
+    print(value, end=" ")
+```
+
+## Funções Geradoras com `yield`
+
+Uma função que usa `yield` devolve um gerador: a execução **pausa** em cada `yield` e retoma
+do mesmo ponto na próxima chamada:
+
+```python title="yield preserva o estado"
+def read_lines(text):
+    """Devolve uma linha por vez, sem carregar tudo."""
+    for line in text.splitlines():
+        clean = line.strip()
+        if clean:
+            yield clean
+
+
+content = """
+  primeira
+
+  segunda
+  terceira
+"""
+
+for index, line in enumerate(read_lines(content), start=1):
+    print(index, line)
+```
+
+```txt title="Output"
+1 primeira
+2 segunda
+3 terceira
+```
+
+## Geradores Infinitos e Pipelines
+
+Como os valores são produzidos sob demanda, um gerador pode ser infinito — desde que o
+consumidor limite o consumo:
+
+```python title="Fluxo sob demanda"
+import itertools
+
+
+def counter(start=0, step=1):
+    current = start
+    while True:
+        yield current
+        current += step
+
+
+def only_even(values):
+    for value in values:
+        if value % 2 == 0:
+            yield value
+
+
+def squared(values):
+    for value in values:
+        yield value ** 2
+
+
+pipeline = squared(only_even(counter(1)))
+print(list(itertools.islice(pipeline, 5)))
+```
+
+```txt title="Output"
+[4, 16, 36, 64, 100]
+```
+
+<Aside type="tip" title="yield from encadeia geradores">
+  Para repassar todos os valores de outro iterável, `yield from outro` substitui o laço
+  `for item in outro: yield item` — mais curto e com melhor propagação de exceções.
+</Aside>
+
+## Utilitários de `itertools`
+
+A biblioteca padrão traz geradores prontos para os padrões mais comuns:
+
+| Função | Produz |
+| :--- | :--- |
+| `count(start, step)` | Contador infinito |
+| `cycle(iterável)` | Repete o iterável indefinidamente |
+| `repeat(valor, n)` | Repete um valor |
+| `islice(iterável, n)` | Fatia um iterador |
+| `chain(a, b)` | Concatena iteráveis |
+| `groupby(iterável, key)` | Agrupa itens consecutivos |
+| `combinations` / `permutations` | Combinações e permutações |
+
+```python title="itertools na prática"
+import itertools
+
+print(list(itertools.islice(itertools.count(10, 5), 4)))
+print(list(itertools.islice(itertools.cycle("ab"), 5)))
+print(list(itertools.chain([1, 2], (3, 4))))
+print(list(itertools.combinations("abc", 2)))
+
+data = [("frutas", "uva"), ("frutas", "kiwi"), ("legumes", "couve")]
+for category, items in itertools.groupby(data, key=lambda item: item[0]):
+    print(category, [item[1] for item in items])
+```
+
+## Executando
+
+<Steps>
+
+1. Crie um arquivo chamado `pipeline.py`:
+
+   ```python title="pipeline.py"
+   SALES = [
+       {"produto": "Teclado", "valor": 349.9, "regiao": "sul"},
+       {"produto": "Monitor", "valor": 1899.0, "regiao": "nordeste"},
+       {"produto": "Mouse", "valor": 89.9, "regiao": "sul"},
+       {"produto": "Cadeira", "valor": 1200.0, "regiao": "nordeste"},
+   ]
+
+   names = [sale["produto"] for sale in SALES]
+   high = [sale["produto"] for sale in SALES if sale["valor"] > 1000]
+   by_region = {sale["regiao"] for sale in SALES}
+   totals = {
+       region: sum(s["valor"] for s in SALES if s["regiao"] == region)
+       for region in by_region
+   }
+
+   print(names)
+   print(high)
+   print(sorted(by_region))
+   print({region: round(total, 2) for region, total in totals.items()})
+
+   total = sum(sale["valor"] for sale in SALES)
+   print(f"Total geral: R$ {total:,.2f}")
+   ```
+
+2. Execute o arquivo (`python3 pipeline.py` também funciona):
+
+   ```bash title="Terminal"
+   uv run pipeline.py
+   ```
+
+   ```txt title="Output"
+   ['Teclado', 'Monitor', 'Mouse', 'Cadeira']
+   ['Monitor', 'Cadeira']
+   ['nordeste', 'sul']
+   {'nordeste': 3099.0, 'sul': 439.8}
+   Total geral: R$ 3,538.80
+   ```
+
+3. No REPL (`uv run python`), compare memória entre lista e gerador:
+
+   ```txt title="Sessão interativa"
+   >>> import sys
+   >>> sys.getsizeof([n for n in range(10_000)])
+   85176
+   >>> sys.getsizeof((n for n in range(10_000)))
+   200
+   >>> gen = (n for n in range(3))
+   >>> next(gen), next(gen), next(gen)
+   (0, 1, 2)
+   >>> next(gen)
+   Traceback (most recent call last):
+   StopIteration
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo `students.py` que processe notas usando compreensões.
+
+1. Parta de um dicionário `nome -> lista de notas`;
+2. Monte um dicionário `nome -> média` com dict comprehension e uma casa decimal;
+3. Monte a lista dos aprovados (média maior ou igual a 7), ordenada da maior média para a menor;
+4. Monte um conjunto com todas as notas distintas registradas;
+5. Use uma expressão geradora para calcular a média geral da turma sem criar lista intermediária;
+6. Classifique cada aluno em `"aprovado"`, `"recuperação"` ou `"reprovado"` com expressão condicional.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="students.py"
+  GRADES = {
+      "ana": [9.0, 8.5, 10.0],
+      "bia": [6.0, 7.0, 5.5],
+      "caio": [4.0, 5.0, 6.0],
+      "duda": [7.5, 8.0, 7.0],
+  }
+
+  averages = {name: round(sum(values) / len(values), 1) for name, values in GRADES.items()}
+
+  approved = sorted(
+      (name for name, average in averages.items() if average >= 7),
+      key=lambda name: -averages[name],
+  )
+
+  distinct = {grade for values in GRADES.values() for grade in values}
+
+  class_average = sum(averages.values()) / len(averages)
+
+  status = {
+      name: "aprovado" if average >= 7 else "recuperação" if average >= 5 else "reprovado"
+      for name, average in averages.items()
+  }
+
+  print(averages)
+  print(approved)
+  print(sorted(distinct))
+  print(f"Média da turma: {class_average:.2f}")
+  for name, label in status.items():
+      print(f"{name:<6}{averages[name]:>5.1f}  {label}")
+  ```
+</details>
+
+## Desafio
+
+Escreva `log_stream.py`, um processador de log que nunca carrega o arquivo inteiro na memória.
+
+1. Gere um arquivo `access.log` com algumas centenas de linhas no formato `IP STATUS TEMPO_MS`;
+2. Escreva uma função geradora que leia o arquivo linha a linha;
+3. Encadeie geradores para: descartar linhas vazias, converter cada linha em tupla e filtrar somente status 500;
+4. Use `itertools.islice` para mostrar apenas as cinco primeiras ocorrências;
+5. Calcule, com expressão geradora, o tempo médio de resposta de todas as requisições;
+6. Compare o consumo de memória do pipeline com o de uma versão que usa `readlines()`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="log_stream.py"
+  import itertools
+  import random
+  import sys
+  from pathlib import Path
+
+  LOG = Path("access.log")
+
+  # 1. Geração do arquivo de exemplo
+  random.seed(42)
+  LOG.write_text(
+      "\n".join(
+          f"10.0.0.{random.randint(1, 50)} {random.choice([200, 200, 404, 500])} "
+          f"{random.randint(10, 900)}"
+          for _ in range(300)
+      ),
+      encoding="utf-8",
+  )
+
+
+  def read_lines(path):
+      """Um registro por vez, direto do disco."""
+      with path.open(encoding="utf-8") as file:
+          for line in file:
+              yield line.strip()
+
+
+  def parse(lines):
+      for line in lines:
+          if not line:
+              continue
+          ip, status, elapsed = line.split()
+          yield ip, int(status), int(elapsed)
+
+
+  def only_errors(records):
+      yield from (record for record in records if record[1] == 500)
+
+
+  errors = only_errors(parse(read_lines(LOG)))
+  for ip, status, elapsed in itertools.islice(errors, 5):
+      print(f"{ip:<12}{status:>5}{elapsed:>7} ms")
+
+  average = sum(record[2] for record in parse(read_lines(LOG))) / 300
+  print(f"\nTempo médio: {average:.1f} ms")
+
+  pipeline = parse(read_lines(LOG))
+  eager = LOG.read_text(encoding="utf-8").splitlines()
+  print(f"gerador: {sys.getsizeof(pipeline)} bytes | lista: {sys.getsizeof(eager)} bytes")
+  ```
+
+  O gerador ocupa alguns bytes independentemente do tamanho do arquivo, enquanto a lista
+  cresce proporcionalmente ao número de linhas.
+</details>
+
+## Perguntas de revisão
+
+### Compreensões
+
+**1. Qual a diferença entre o `if` no final e o `if/else` antes do `for` em uma compreensão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `if` ao final **filtra**: itens que não satisfazem a condição ficam de fora. O `if/else`
+  antes do `for` faz parte da expressão e **transforma** cada item, mantendo todos.
+</details>
+
+**2. Como escrever uma compreensão que produza um dicionário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Usando chaves e o par `chave: valor` na expressão:
+  `{palavra: len(palavra) for palavra in palavras}`. Com apenas um valor entre chaves, o
+  resultado é um conjunto.
+</details>
+
+**3. Quando evitar uma compreensão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando ela exige mais de um nível de aninhamento, condições compostas ou efeitos colaterais.
+  Nesses casos, um laço `for` explícito é mais legível — e compreensões não devem ser usadas
+  apenas para executar ações, só para construir coleções.
+</details>
+
+### Geradores
+
+**4. O que muda ao trocar colchetes por parênteses em uma compreensão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O resultado deixa de ser uma lista pronta e passa a ser um gerador: os valores são
+  calculados sob demanda, ocupando memória constante, mas só podem ser percorridos uma vez e
+  não aceitam acesso por índice.
+</details>
+
+**5. Por que percorrer um gerador duas vezes devolve vazio na segunda?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o gerador é um iterador de passagem única: ao chegar em `StopIteration` ele está
+  esgotado. Para percorrer novamente é preciso recriá-lo ou materializar em uma lista.
+</details>
+
+**6. O que `yield` faz de diferente de `return`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `return` encerra a função e devolve um valor. `yield` **pausa** a função, devolve um valor e
+  preserva todo o estado local; na próxima solicitação, a execução continua da linha
+  seguinte.
+</details>
+
+### Iteradores
+
+**7. Qual a diferença entre iterável e iterador?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um iterável sabe produzir um iterador (implementa `__iter__`); um iterador sabe entregar o
+  próximo item (implementa `__next__`) e mantém a posição atual. Listas são iteráveis;
+  `iter(lista)` devolve um iterador.
+</details>
+
+**8. O que acontece quando um iterador se esgota?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A chamada seguinte a `next()` levanta `StopIteration`. O laço `for` captura essa exceção
+  internamente e simplesmente encerra a repetição.
+</details>
+
+**9. Como limitar um gerador infinito?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `itertools.islice(gerador, n)`, com um `break` dentro do `for`, ou com uma condição de
+  parada no próprio consumidor. Chamar `list()` sobre um gerador infinito trava o programa.
+</details>
+
+**10. Qual a vantagem de processar arquivos com geradores?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O consumo de memória fica constante, independentemente do tamanho do arquivo: cada linha é
+  lida, processada e descartada. Já `readlines()` carrega tudo de uma vez.
+</details>
+
+## Referências
+
+- [Compreensões de lista](https://docs.python.org/pt-br/3/tutorial/datastructures.html#list-comprehensions)
+- [Geradores](https://docs.python.org/pt-br/3/tutorial/classes.html#generators)
+- [Tipos de iteradores](https://docs.python.org/pt-br/3/library/stdtypes.html#iterator-types)
+- [Módulo `itertools`](https://docs.python.org/pt-br/3/library/itertools.html)
+- [PEP 289 — Expressões geradoras](https://peps.python.org/pep-0289/)
+
+## Próxima aula
+
+Com dados e transformações no lugar, o próximo passo é dividir o programa em arquivos e
+reaproveitar código.
+
+[Módulos e Pacotes](../../structure/modules/): `import`, módulos próprios, pacotes,
+`__init__.py` e a biblioteca padrão.
