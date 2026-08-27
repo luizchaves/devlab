@@ -1,0 +1,613 @@
+---
+title: "TypeScript: Utility Types"
+description: "Partial, Required, Readonly, Pick, Omit, Record, Exclude, Extract, NonNullable, ReturnType, Parameters, Awaited e como compor tipos derivados sem duplicação."
+course: typescript
+sidebar:
+  label: Utility Types
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/advanced/utility-types/) e [mapa mental](../../../../mindmaps/courses/typescript/advanced/utility-types/).
+
+Um mesmo domínio aparece em várias formas: o usuário completo, o usuário sem senha, o usuário
+parcial de uma atualização, o formulário só com os campos editáveis. Declarar cada uma à mão
+significa manter quatro tipos em sincronia — e esquecer um deles no próximo campo novo.
+
+Os **utility types** são tipos genéricos embutidos na linguagem que derivam um tipo a partir
+de outro. Uma única fonte da verdade, várias projeções.
+
+## Objetivo
+
+Aplicar os utility types de objeto (`Partial`, `Required`, `Readonly`, `Pick`, `Omit`,
+`Record`), os de união (`Exclude`, `Extract`, `NonNullable`) e os de função (`ReturnType`,
+`Parameters`, `Awaited`), compor utilitários entre si e reconhecer quando derivar é melhor do
+que declarar.
+
+## O Tipo de Origem
+
+Todos os exemplos partem desta interface:
+
+```ts title="Fonte da verdade"
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  age?: number;
+  createdAt: Date;
+}
+```
+
+## Utilitários de Objeto
+
+Os seis abaixo cobrem a maior parte das projeções do dia a dia:
+
+| Utilitário | Produz |
+| :--- | :--- |
+| `Partial<T>` | Todas as propriedades opcionais |
+| `Required<T>` | Todas as propriedades obrigatórias |
+| `Readonly<T>` | Todas as propriedades somente leitura |
+| `Pick<T, K>` | Só as propriedades listadas em `K` |
+| `Omit<T, K>` | Todas **menos** as listadas em `K` |
+| `Record<K, V>` | Objeto com chaves `K` e valores `V` |
+
+```ts title="Projeções de User"
+type UserUpdate = Partial<User>;
+// { id?: string; name?: string; …todas opcionais }
+
+type CompleteUser = Required<User>;
+// age deixa de ser opcional
+
+type FrozenUser = Readonly<User>;
+// nenhuma propriedade pode ser reatribuída
+
+type PublicUser = Omit<User, "password">;
+// tudo menos password
+
+type Credentials = Pick<User, "email" | "password">;
+// { email: string; password: string }
+
+type UsersById = Record<string, PublicUser>;
+// { [id: string]: PublicUser }
+
+const update: UserUpdate = { name: "Ana Souza" };
+const credentials: Credentials = { email: "ana@devlab.dev", password: "secreta" };
+```
+
+```ts title="Uso típico em funções"
+function updateUser(id: string, changes: Partial<Omit<User, "id" | "createdAt">>): void {
+  console.log(`atualizando ${id}`, changes);
+}
+
+updateUser("u1", { name: "Ana", age: 33 });
+// updateUser("u1", { id: "u2" });   // erro: id foi removido do tipo aceito
+```
+
+<Aside type="tip" title="Omit comunica a intenção melhor que Pick">
+  Para "tudo menos a senha", `Omit<User, "password">` continua correto quando um campo novo
+  entrar em `User`. Já `Pick` exigiria lembrar de acrescentar o campo à lista — o tipo
+  derivado ficaria desatualizado em silêncio.
+</Aside>
+
+## `Record` na Prática
+
+`Record<K, V>` é o utilitário mais versátil: ele constrói objetos a partir de uma união de
+chaves:
+
+```ts title="Mapas exaustivos"
+type Level = "debug" | "info" | "error";
+
+// Exige TODAS as chaves da união
+const colors: Record<Level, string> = {
+  debug: "#9e9e9e",
+  info: "#42a5f5",
+  error: "#f44336",
+};
+
+// Faltar uma chave é erro de compilação
+// const incomplete: Record<Level, string> = { debug: "#9e9e9e" };
+// error TS2739: Type is missing the following properties: info, error
+
+// Dicionário de chaves livres
+type Headers = Record<string, string>;
+
+const headers: Headers = { "content-type": "application/json" };
+
+// Combinando com Partial quando nem toda chave é obrigatória
+const overrides: Partial<Record<Level, string>> = { error: "#b71c1c" };
+```
+
+<Aside type="tip" title="Record garante exaustividade em mapas">
+  Ao mapear uma união literal para configurações, `Record<Uniao, Valor>` obriga a tratar cada
+  variação. Se um valor novo entrar na união, todos os mapas passam a falhar na compilação —
+  o mesmo benefício do `never` em `switch`.
+</Aside>
+
+## Utilitários de União
+
+Estes três operam sobre uniões, filtrando membros:
+
+| Utilitário | Produz |
+| :--- | :--- |
+| `Exclude<T, U>` | Membros de `T` que **não** são atribuíveis a `U` |
+| `Extract<T, U>` | Membros de `T` que **são** atribuíveis a `U` |
+| `NonNullable<T>` | `T` sem `null` e sem `undefined` |
+
+```ts title="Filtrando uniões"
+type Status = "rascunho" | "publicado" | "arquivado" | "removido";
+
+type Visible = Exclude<Status, "removido">;
+// "rascunho" | "publicado" | "arquivado"
+
+type Final = Extract<Status, "publicado" | "arquivado">;
+// "publicado" | "arquivado"
+
+type MaybeName = string | null | undefined;
+type Name = NonNullable<MaybeName>;   // string
+
+// Aplicação frequente: filtrar chaves por tipo de valor
+type StringKeys = Extract<keyof User, string>;   // todas, já que as chaves são strings
+
+function assertVisible(status: Visible): void {
+  console.log(`status válido: ${status}`);
+}
+
+assertVisible("publicado");
+// assertVisible("removido");   // erro
+```
+
+## Utilitários de Função e Promise
+
+Derivar tipos a partir de funções existentes evita repetir assinaturas:
+
+| Utilitário | Produz |
+| :--- | :--- |
+| `ReturnType<F>` | O tipo devolvido pela função |
+| `Parameters<F>` | Tupla com os tipos dos parâmetros |
+| `ConstructorParameters<C>` | Tupla dos parâmetros do construtor |
+| `InstanceType<C>` | O tipo da instância de uma classe |
+| `Awaited<T>` | O tipo resolvido de uma `Promise` |
+
+```ts title="Extraindo tipos de funções"
+function createSession(userId: string, minutes: number) {
+  return {
+    token: crypto.randomUUID(),
+    userId,
+    expiresAt: new Date(Date.now() + minutes * 60_000),
+  };
+}
+
+type Session = ReturnType<typeof createSession>;
+// { token: string; userId: string; expiresAt: Date }
+
+type SessionArgs = Parameters<typeof createSession>;
+// [userId: string, minutes: number]
+
+async function loadUsers(): Promise<User[]> {
+  return [];
+}
+
+type LoadedUsers = Awaited<ReturnType<typeof loadUsers>>;   // User[]
+
+function retry(...args: SessionArgs): Session {
+  return createSession(...args);
+}
+
+class Repository {
+  constructor(
+    public url: string,
+    public timeout: number,
+  ) {}
+}
+
+type RepoArgs = ConstructorParameters<typeof Repository>;   // [string, number]
+type Repo = InstanceType<typeof Repository>;                // Repository
+```
+
+<Aside type="note" title="typeof em espaço de tipo">
+  `ReturnType<typeof funcao>` usa `typeof` do **espaço de tipos**, que consulta o tipo de um
+  valor existente — não o operador de runtime. É o que permite derivar tipos a partir de
+  funções e objetos já escritos.
+</Aside>
+
+## Utilitários de String
+
+TypeScript também traz quatro utilitários que operam sobre tipos literais de texto:
+
+```ts title="Transformações de literais"
+type Event = "click" | "focus";
+
+type Upper = Uppercase<Event>;        // "CLICK" | "FOCUS"
+type Lower = Lowercase<"HELLO">;      // "hello"
+type Capital = Capitalize<Event>;     // "Click" | "Focus"
+type Uncapital = Uncapitalize<"Click">;   // "click"
+
+// Combinados com template literal types
+type HandlerName = `on${Capitalize<Event>}`;   // "onClick" | "onFocus"
+
+const handlers: Record<HandlerName, () => void> = {
+  onClick: () => console.log("click"),
+  onFocus: () => console.log("focus"),
+};
+```
+
+O tema completo dos template literal types está em
+[Manipulação de Tipos](../type-manipulation/).
+
+## Compondo Utilitários
+
+O ganho real aparece ao encadear utilitários para expressar exatamente o contrato:
+
+```ts title="Composições frequentes"
+// Corpo de criação: sem campos gerados pelo servidor
+type CreateUser = Omit<User, "id" | "createdAt">;
+
+// Corpo de atualização: parcial, sem campos imutáveis
+type UpdateUser = Partial<Omit<User, "id" | "createdAt" | "password">>;
+
+// Resposta pública, imutável
+type UserResponse = Readonly<Omit<User, "password">>;
+
+// Índice por status, com listas parciais
+type UsersByStatus = Partial<Record<"ativo" | "inativo", UserResponse[]>>;
+
+// Tornar apenas alguns campos opcionais
+type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+type UserDraft = PartialBy<User, "email" | "password">;
+
+const draft: UserDraft = {
+  id: "u1",
+  name: "Ana",
+  createdAt: new Date(),
+};
+```
+
+<Aside type="caution" title="Legibilidade tem limite">
+  `Partial<Record<string, Readonly<Omit<User, "password">>>>` é tecnicamente correto e
+  praticamente ilegível. Quando a composição passa de dois ou três níveis, dê um nome
+  intermediário ao tipo — é mais barato de ler e produz mensagens de erro melhores.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/utility.ts`:
+
+   ```ts title="src/utility.ts"
+   interface Course {
+     id: string;
+     slug: string;
+     title: string;
+     hours: number;
+     level: "iniciante" | "intermediário" | "avançado";
+     draft: boolean;
+     createdAt: Date;
+   }
+
+   type CreateCourse = Omit<Course, "id" | "createdAt">;
+   type UpdateCourse = Partial<Omit<Course, "id" | "slug" | "createdAt">>;
+   type CourseCard = Readonly<Pick<Course, "title" | "hours" | "level">>;
+   type CoursesByLevel = Record<Course["level"], CourseCard[]>;
+
+   function create(input: CreateCourse): Course {
+     return { id: crypto.randomUUID(), createdAt: new Date(), ...input };
+   }
+
+   function update(course: Course, changes: UpdateCourse): Course {
+     return { ...course, ...changes };
+   }
+
+   function toCard(course: Course): CourseCard {
+     return { title: course.title, hours: course.hours, level: course.level };
+   }
+
+   const python = create({
+     slug: "guia-python",
+     title: "Guia de Python",
+     hours: 30,
+     level: "iniciante",
+     draft: false,
+   });
+
+   const updated = update(python, { hours: 32, draft: true });
+
+   const grouped: CoursesByLevel = {
+     iniciante: [toCard(updated)],
+     intermediário: [],
+     avançado: [],
+   };
+
+   console.log(toCard(updated));
+   console.log(Object.entries(grouped).map(([level, list]) => `${level}: ${list.length}`));
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/utility.js
+   ```
+
+   ```txt title="Output"
+   { title: 'Guia de Python', hours: 32, level: 'iniciante' }
+   [ 'iniciante: 1', 'intermediário: 0', 'avançado: 0' ]
+   ```
+
+3. Comprove as restrições dos tipos derivados:
+
+   ```ts title="src/utility.ts"
+   // update(python, { slug: "outro" });
+   // error TS2353: 'slug' does not exist in type 'UpdateCourse'.
+
+   // const card: CourseCard = { title: "x", hours: 1, level: "iniciante" };
+   // card.hours = 2;
+   // error TS2540: Cannot assign to 'hours' because it is a read-only property.
+
+   // const partialGroup: CoursesByLevel = { iniciante: [] };
+   // error TS2739: Type is missing the following properties: intermediário, avançado
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/api-types.ts` derivando todos os tipos de uma API a partir de uma única interface.
+
+1. Defina `interface Article` com `id`, `slug`, `title`, `body`, `tags: string[]`, `published: boolean`, `authorId` e `createdAt`;
+2. Derive `CreateArticle` sem os campos gerados pelo servidor;
+3. Derive `UpdateArticle` como parcial, sem `id`, `slug` e `createdAt`;
+4. Derive `ArticleSummary` com apenas `slug`, `title` e `tags`, tudo somente leitura;
+5. Derive `ArticlesByTag` como `Record<string, ArticleSummary[]>`;
+6. Escreva `type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string }` e use com os tipos derivados;
+7. Escreva funções `create`, `update` e `summarize` usando os tipos e demonstre um erro de cada restrição em comentário.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/api-types.ts"
+  interface Article {
+    id: string;
+    slug: string;
+    title: string;
+    body: string;
+    tags: string[];
+    published: boolean;
+    authorId: string;
+    createdAt: Date;
+  }
+
+  type CreateArticle = Omit<Article, "id" | "createdAt">;
+  type UpdateArticle = Partial<Omit<Article, "id" | "slug" | "createdAt">>;
+  type ArticleSummary = Readonly<Pick<Article, "slug" | "title" | "tags">>;
+  type ArticlesByTag = Record<string, ArticleSummary[]>;
+  type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+  function create(input: CreateArticle): ApiResult<Article> {
+    if (!input.title.trim()) {
+      return { ok: false, error: "título obrigatório" };
+    }
+    return { ok: true, data: { id: crypto.randomUUID(), createdAt: new Date(), ...input } };
+  }
+
+  function update(article: Article, changes: UpdateArticle): Article {
+    return { ...article, ...changes };
+  }
+
+  function summarize(article: Article): ArticleSummary {
+    return { slug: article.slug, title: article.title, tags: article.tags };
+  }
+
+  function groupByTag(articles: Article[]): ArticlesByTag {
+    const groups: ArticlesByTag = {};
+
+    for (const article of articles) {
+      for (const tag of article.tags) {
+        groups[tag] = [...(groups[tag] ?? []), summarize(article)];
+      }
+    }
+
+    return groups;
+  }
+
+  const result = create({
+    slug: "guia-typescript",
+    title: "Guia de TypeScript",
+    body: "…",
+    tags: ["typescript", "guia"],
+    published: true,
+    authorId: "u1",
+  });
+
+  if (result.ok) {
+    const updated = update(result.data, { published: false, tags: ["typescript"] });
+    console.log(summarize(updated));
+    console.log(Object.keys(groupByTag([updated])));
+  }
+
+  // create({ id: "x", … });        // 'id' does not exist in type 'CreateArticle'
+  // update(article, { slug: "y" }); // 'slug' does not exist in type 'UpdateArticle'
+  // summary.title = "z";            // Cannot assign to 'title' (read-only)
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/utility-lab.ts` reimplementando cinco utility types do zero.
+
+1. Implemente `MyPartial<T>`, `MyRequired<T>`, `MyReadonly<T>`, `MyPick<T, K>` e `MyOmit<T, K>`;
+2. Use apenas tipos mapeados, `keyof` e `Exclude` — nada de utilitários embutidos;
+3. Comprove a equivalência escrevendo `type Assert<A, B> = A extends B ? (B extends A ? true : false) : false`;
+4. Declare constantes do tipo `Assert<MyPartial<User>, Partial<User>>` e confirme que todas são `true`;
+5. Acrescente um `PartialBy<T, K>` que torne opcionais apenas as chaves informadas;
+6. Explique em comentário por que `MyOmit` precisa de `Exclude` e o que `-?` faz em `MyRequired`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/utility-lab.ts"
+  interface User {
+    id: string;
+    name: string;
+    age?: number;
+  }
+
+  type MyPartial<T> = {
+    [K in keyof T]?: T[K];
+  };
+
+  type MyRequired<T> = {
+    [K in keyof T]-?: T[K];   // -? remove o modificador de opcional
+  };
+
+  type MyReadonly<T> = {
+    readonly [K in keyof T]: T[K];
+  };
+
+  type MyPick<T, K extends keyof T> = {
+    [P in K]: T[P];
+  };
+
+  type MyOmit<T, K extends keyof T> = MyPick<T, Exclude<keyof T, K>>;
+
+  type PartialBy<T, K extends keyof T> = MyOmit<T, K> & MyPartial<MyPick<T, K>>;
+
+  type Assert<A, B> = A extends B ? (B extends A ? true : false) : false;
+
+  const partialOk: Assert<MyPartial<User>, Partial<User>> = true;
+  const requiredOk: Assert<MyRequired<User>, Required<User>> = true;
+  const readonlyOk: Assert<MyReadonly<User>, Readonly<User>> = true;
+  const pickOk: Assert<MyPick<User, "id">, Pick<User, "id">> = true;
+  const omitOk: Assert<MyOmit<User, "id">, Omit<User, "id">> = true;
+
+  console.log(partialOk, requiredOk, readonlyOk, pickOk, omitOk);
+
+  const draft: PartialBy<User, "name"> = { id: "u1" };
+  console.log(draft);
+
+  // MyOmit precisa de Exclude porque o tipo mapeado percorre um conjunto de chaves:
+  // é preciso primeiro remover K de keyof T e só então mapear o que sobrou.
+  // O modificador -? em MyRequired remove o "opcional" de cada propriedade;
+  // do mesmo modo, -readonly removeria o modificador de somente leitura.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Objeto
+
+**1. Qual a diferença entre `Pick` e `Omit`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `Pick<T, K>` mantém apenas as chaves listadas; `Omit<T, K>` mantém todas menos as listadas.
+  `Omit` costuma envelhecer melhor, porque campos novos do tipo de origem entram
+  automaticamente no derivado.
+</details>
+
+**2. Por que `Partial` é comum em funções de atualização?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque uma atualização normalmente envia só os campos alterados. `Partial<T>` torna todas as
+  propriedades opcionais, permitindo receber um subconjunto sem abrir mão da verificação de
+  nomes e tipos.
+</details>
+
+**3. O que `Record<Level, string>` garante?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que o objeto tenha **todas** as chaves da união `Level`, cada uma com valor `string`. Faltar
+  uma chave é erro de compilação, o que dá exaustividade a mapas de configuração.
+</details>
+
+### União
+
+**4. Qual a diferença entre `Exclude` e `Extract`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `Exclude<T, U>` remove de `T` os membros atribuíveis a `U`; `Extract<T, U>` mantém apenas
+  esses membros. São operações complementares sobre uniões.
+</details>
+
+**5. Para que serve `NonNullable`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Remove `null` e `undefined` de um tipo. É útil depois de uma verificação que já garantiu a
+  presença do valor, ou ao derivar o tipo de um parâmetro opcional.
+</details>
+
+### Função
+
+**6. O que `ReturnType<typeof createSession>` faz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Extrai o tipo devolvido pela função `createSession`, sem precisar declará-lo à mão. O
+  `typeof` aqui é o do espaço de tipos, que consulta o tipo de um valor existente.
+</details>
+
+**7. Quando `Awaited<T>` é necessário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando se quer o tipo **resolvido** de uma `Promise`, e não a promessa em si — por exemplo
+  `Awaited<ReturnType<typeof carregar>>` para obter os dados devolvidos por uma função
+  assíncrona.
+</details>
+
+### Composição
+
+**8. Como tornar opcionais apenas algumas propriedades?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Combinando dois utilitários: `Omit<T, K> & Partial<Pick<T, K>>`. Não existe utilitário
+  embutido para isso, e dar um nome ao tipo resultante (`PartialBy`) mantém o código legível.
+</details>
+
+**9. Qual o limite prático da composição de utility types?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A legibilidade. Acima de dois ou três níveis de aninhamento, é melhor nomear tipos
+  intermediários — o código fica mais claro e as mensagens de erro do compilador ficam mais
+  compreensíveis.
+</details>
+
+**10. Por que derivar tipos é melhor que declarar cada variação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque mantém uma única fonte da verdade: ao acrescentar um campo ao tipo de origem, todas
+  as projeções acompanham. Tipos declarados separadamente saem de sincronia sem que o
+  compilador perceba.
+</details>
+
+## Referências
+
+- [Utility Types](https://www.typescriptlang.org/docs/handbook/utility-types.html)
+- [`keyof`](https://www.typescriptlang.org/docs/handbook/2/keyof-types.html)
+- [Tipos mapeados](https://www.typescriptlang.org/docs/handbook/2/mapped-types.html)
+- [Tipos condicionais](https://www.typescriptlang.org/docs/handbook/2/conditional-types.html)
+- [`typeof` em tipos](https://www.typescriptlang.org/docs/handbook/2/typeof-types.html)
+
+## Próxima aula
+
+Os utility types são construídos com recursos que você também pode usar diretamente.
+
+[Manipulação de Tipos](../type-manipulation/): tipos mapeados, condicionais, `infer` e template
+literal types.

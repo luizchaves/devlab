@@ -1,0 +1,644 @@
+---
+title: "TypeScript: Narrowing"
+description: "Análise de fluxo de controle, narrowing com typeof, in, instanceof e igualdade, type predicates, funções de asserção, exaustividade com never e strictNullChecks."
+course: typescript
+sidebar:
+  label: Narrowing
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/basics/narrowing/) e [mapa mental](../../../../mindmaps/courses/typescript/basics/narrowing/).
+
+Um valor do tipo `string | number` não pode ser usado como string nem como número: o
+compilador não sabe qual dos dois está ali. **Narrowing** é o processo de estreitar esse tipo
+até uma variação específica — e a boa notícia é que o TypeScript faz isso lendo o mesmo `if`
+que você escreveria de qualquer forma.
+
+Esta aula mostra como a análise de fluxo funciona, quais verificações o compilador entende e
+como ensinar a ele checagens próprias.
+
+## Objetivo
+
+Explicar a análise de fluxo de controle, estreitar tipos com `typeof`, `in`, `instanceof`,
+igualdade e checagem de veracidade, escrever type predicates e funções de asserção, garantir
+exaustividade com `never`, e lidar com `null` e `undefined` sob `strictNullChecks`.
+
+## Análise de Fluxo de Controle
+
+O compilador acompanha o caminho da execução e sabe, em cada linha, o que a variável **pode**
+ser naquele ponto:
+
+```ts title="O tipo muda por ramo"
+function describe(value: string | number): string {
+  if (typeof value === "string") {
+    // aqui value é string
+    return value.toUpperCase();
+  }
+
+  // aqui value só pode ser number
+  return value.toFixed(2);
+}
+
+console.log(describe("devlab"), describe(3.14159));
+```
+
+<Mermaid title="O tipo estreita conforme o fluxo">
+{`
+flowchart TD
+  A["value: string | number"] --> B{"typeof value === 'string'"}
+  B -- "verdadeiro" --> C["value: string<br/>toUpperCase disponível"]
+  B -- "falso" --> D["value: number<br/>toFixed disponível"]
+  C --> E["retorno: string"]
+  D --> E
+`}
+</Mermaid>
+
+## `typeof`
+
+O operador cobre os primitivos do JavaScript, com uma armadilha herdada da linguagem:
+
+| `typeof` devolve | Estreita para |
+| :--- | :--- |
+| `"string"` | `string` |
+| `"number"` | `number` |
+| `"bigint"` | `bigint` |
+| `"boolean"` | `boolean` |
+| `"symbol"` | `symbol` |
+| `"undefined"` | `undefined` |
+| `"function"` | `Function` |
+| `"object"` | objeto **ou `null`** |
+
+```ts title="A armadilha do null"
+function print(value: string[] | null): void {
+  // typeof null === "object": este if não protege contra null
+  if (typeof value === "object") {
+    // console.log(value.length);   // erro: 'value' is possibly 'null'
+  }
+
+  // Forma correta
+  if (value !== null) {
+    console.log(value.length);
+  }
+}
+```
+
+## Veracidade e Igualdade
+
+Testar o valor diretamente estreita eliminando tudo que é *falsy* — o que inclui mais coisas
+do que se costuma lembrar:
+
+```ts title="Checagem de veracidade"
+function greet(name?: string): string {
+  if (!name) {
+    // undefined, "" ou qualquer falsy
+    return "Olá, visitante";
+  }
+  return `Olá, ${name}`;
+}
+
+// Cuidado: 0 e "" também são falsy
+function quantity(value?: number): number {
+  if (!value) return 1;    // troca 0 por 1, provavelmente não intencional
+  return value;
+}
+
+function quantitySafe(value?: number): number {
+  if (value === undefined) return 1;   // explícito
+  return value;
+}
+```
+
+A comparação de igualdade estreita os **dois** lados ao mesmo tempo:
+
+```ts title="Igualdade estreita ambos os lados"
+function compare(a: string | number, b: string | boolean): void {
+  if (a === b) {
+    // só string satisfaz os dois tipos
+    console.log(a.toUpperCase(), b.toUpperCase());
+  }
+}
+
+function trim(value: string | null | undefined): string {
+  if (value == null) return "";   // == null captura null E undefined
+  return value.trim();
+}
+```
+
+<Aside type="tip" title="O único uso legítimo de ==">
+  `value == null` é verdadeiro para `null` e `undefined`, e falso para todo o resto. É o
+  idioma aceito para tratar os dois de uma vez — em qualquer outro caso, use `===`.
+</Aside>
+
+## `in` e `instanceof`
+
+Quando a união é de objetos, a presença de uma propriedade ou a classe do valor fazem o
+estreitamento:
+
+```ts title="Estreitando objetos"
+interface Admin {
+  name: string;
+  permissions: string[];
+}
+
+interface Guest {
+  name: string;
+  expiresAt: Date;
+}
+
+function describeUser(user: Admin | Guest): string {
+  if ("permissions" in user) {
+    return `${user.name}: ${user.permissions.length} permissões`;
+  }
+  return `${user.name}: expira em ${user.expiresAt.toISOString()}`;
+}
+
+function formatValue(value: Date | string): string {
+  if (value instanceof Date) {
+    return value.toLocaleDateString("pt-BR");
+  }
+  return value;
+}
+
+console.log(describeUser({ name: "Ana", permissions: ["read", "write"] }));
+console.log(formatValue(new Date(2026, 7, 27)));
+```
+
+<Aside type="caution" title="instanceof só funciona com classes">
+  Ele verifica a cadeia de protótipos em tempo de execução, então serve para `Date`, `Error`,
+  `Map` e classes próprias — mas não para `interface` ou `type`, que não existem em runtime.
+  Para esses casos, use `in` ou um type predicate.
+</Aside>
+
+## Type Predicates
+
+Quando a verificação é complexa demais para caber em um `if`, extraia-a para uma função cujo
+retorno **informa ao compilador** o que foi provado:
+
+```ts title="value is Tipo"
+interface User {
+  id: number;
+  name: string;
+}
+
+function isUser(value: unknown): value is User {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof (value as Record<string, unknown>).id === "number" &&
+    "name" in value &&
+    typeof (value as Record<string, unknown>).name === "string"
+  );
+}
+
+const data: unknown = JSON.parse('{"id":1,"name":"Ana"}');
+
+if (isUser(data)) {
+  console.log(data.name.toUpperCase());   // data é User aqui
+}
+
+// Filtrando com predicate: o resultado deixa de ser (string | null)[]
+const values: (string | null)[] = ["a", null, "b"];
+
+function isNotNull<T>(value: T | null): value is T {
+  return value !== null;
+}
+
+const clean: string[] = values.filter(isNotNull);
+console.log(clean);
+```
+
+<Aside type="caution" title="O compilador acredita no predicate">
+  `value is User` não é verificado: se a função devolver `true` para algo que não é `User`, o
+  erro reaparece em runtime. O predicate concentra a responsabilidade em um lugar — que
+  portanto merece teste.
+</Aside>
+
+## Funções de Asserção
+
+A variante `asserts` interrompe a execução quando a condição falha e, a partir dali, estreita
+o tipo para o resto do bloco:
+
+```ts title="asserts value is Tipo"
+function assertIsString(value: unknown): asserts value is string {
+  if (typeof value !== "string") {
+    throw new TypeError(`esperava string, recebeu ${typeof value}`);
+  }
+}
+
+function process(input: unknown): string {
+  assertIsString(input);
+  // a partir daqui input é string
+  return input.trim().toUpperCase();
+}
+
+console.log(process("  devlab  "));
+
+function assertDefined<T>(value: T | null | undefined, name: string): asserts value is T {
+  if (value == null) {
+    throw new Error(`${name} não pode ser nulo`);
+  }
+}
+```
+
+| Recurso | Quando o tipo estreita | Se a condição falhar |
+| :--- | :--- | :--- |
+| `if (typeof x === "string")` | Dentro do bloco | Segue o `else` |
+| `value is T` | Dentro do `if` que chamou | Segue o `else` |
+| `asserts value is T` | Do ponto da chamada em diante | Lança exceção |
+
+## Uniões Discriminadas e Exaustividade
+
+Quando cada variação carrega uma propriedade literal que a identifica, o narrowing fica
+trivial — e o compilador consegue provar que todos os casos foram tratados:
+
+```ts title="Discriminante e never"
+type Result =
+  | { status: "sucesso"; data: string[] }
+  | { status: "erro"; message: string }
+  | { status: "carregando" };
+
+function render(result: Result): string {
+  switch (result.status) {
+    case "sucesso":
+      return `${result.data.length} itens`;
+    case "erro":
+      return `Falhou: ${result.message}`;
+    case "carregando":
+      return "Carregando…";
+    default: {
+      const exhaustive: never = result;
+      throw new Error(`status não tratado: ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
+
+console.log(render({ status: "sucesso", data: ["a", "b"] }));
+console.log(render({ status: "erro", message: "timeout" }));
+```
+
+O ganho aparece ao acrescentar uma variação: se um `{ status: "cancelado" }` entrar no tipo,
+a atribuição a `never` passa a falhar, e o compilador aponta exatamente o `switch` que ficou
+incompleto. O tema volta em [Uniões e Interseções](../../types/unions/).
+
+## `null`, `undefined` e `strictNullChecks`
+
+Com `strict` ligado, `null` e `undefined` deixam de ser aceitos em qualquer tipo e passam a
+exigir tratamento explícito:
+
+```ts title="Operadores que ajudam"
+interface Profile {
+  name: string;
+  address?: {
+    city?: string;
+  };
+}
+
+function city(profile: Profile): string {
+  // Optional chaining: para em undefined em vez de lançar
+  const value = profile.address?.city;
+
+  // Nullish coalescing: só substitui null e undefined (não "" nem 0)
+  return value ?? "não informado";
+}
+
+console.log(city({ name: "Ana" }));
+console.log(city({ name: "Bia", address: { city: "João Pessoa" } }));
+
+const element = document.querySelector("#app");
+// element.textContent = "oi";      // erro: possibly 'null'
+if (element) {
+  element.textContent = "oi";
+}
+```
+
+<Aside type="tip" title="?? em vez de ||">
+  `valor || padrao` substitui qualquer *falsy*, trocando `0` e `""` por engano. `valor ??
+  padrao` só entra em ação com `null` e `undefined` — é quase sempre o que se quer.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/narrowing.ts`:
+
+   ```ts title="src/narrowing.ts"
+   type ApiResponse =
+     | { kind: "ok"; body: unknown }
+     | { kind: "error"; status: number; message: string };
+
+   function isStringArray(value: unknown): value is string[] {
+     return Array.isArray(value) && value.every((item) => typeof item === "string");
+   }
+
+   function handle(response: ApiResponse): string {
+     switch (response.kind) {
+       case "ok": {
+         if (isStringArray(response.body)) {
+           return `recebi ${response.body.length} itens: ${response.body.join(", ")}`;
+         }
+         return "corpo em formato inesperado";
+       }
+       case "error":
+         return `erro ${response.status}: ${response.message}`;
+       default: {
+         const exhaustive: never = response;
+         return String(exhaustive);
+       }
+     }
+   }
+
+   console.log(handle({ kind: "ok", body: ["a", "b"] }));
+   console.log(handle({ kind: "ok", body: 42 }));
+   console.log(handle({ kind: "error", status: 404, message: "não encontrado" }));
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/narrowing.js
+   ```
+
+   ```txt title="Output"
+   recebi 2 itens: a, b
+   corpo em formato inesperado
+   erro 404: não encontrado
+   ```
+
+3. Acrescente uma variação ao tipo e veja o compilador cobrar o caso novo:
+
+   ```ts title="src/narrowing.ts"
+   type ApiResponse =
+     | { kind: "ok"; body: unknown }
+     | { kind: "error"; status: number; message: string }
+     | { kind: "timeout" };
+   ```
+
+   ```txt title="Output"
+   src/narrowing.ts:24:15 - error TS2322: Type '{ kind: "timeout"; }' is not assignable to type 'never'.
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/form.ts` validando um formulário com narrowing, sem nenhuma asserção `as`.
+
+1. Defina `type Field = { name: string; value: string | number | boolean | null }`;
+2. Escreva `format(field: Field): string` tratando cada tipo de `value` com `typeof`;
+3. Trate `null` explicitamente, devolvendo `"(vazio)"`;
+4. Escreva `isFilled(field: Field): boolean` usando `== null` para cobrir null e undefined;
+5. Escreva um type predicate `isTextField(field: Field): field is Field & { value: string }`;
+6. Use o predicate em um `filter` e comprove que o resultado já vem estreitado;
+7. Imprima uma tabela com nome, tipo do valor e valor formatado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/form.ts"
+  type Field = {
+    name: string;
+    value: string | number | boolean | null;
+  };
+
+  function format(field: Field): string {
+    const { value } = field;
+
+    if (value === null) return "(vazio)";
+    if (typeof value === "boolean") return value ? "sim" : "não";
+    if (typeof value === "number") return value.toFixed(2);
+    return value.trim() || "(em branco)";
+  }
+
+  function isFilled(field: Field): boolean {
+    return field.value != null && field.value !== "";
+  }
+
+  function isTextField(field: Field): field is Field & { value: string } {
+    return typeof field.value === "string";
+  }
+
+  const fields: Field[] = [
+    { name: "nome", value: "  Ana  " },
+    { name: "idade", value: 32 },
+    { name: "ativo", value: true },
+    { name: "apelido", value: null },
+  ];
+
+  console.log(`${"Campo".padEnd(10)}${"Tipo".padEnd(12)}Valor`);
+  console.log("-".repeat(38));
+
+  for (const field of fields) {
+    const kind = field.value === null ? "null" : typeof field.value;
+    console.log(`${field.name.padEnd(10)}${kind.padEnd(12)}${format(field)}`);
+  }
+
+  const texts = fields.filter(isTextField);
+  console.log(texts.map((field) => field.value.toUpperCase()));
+  console.log("preenchidos:", fields.filter(isFilled).length);
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/safe-fetch.ts`, um cliente HTTP que nunca confia no corpo da resposta.
+
+1. Defina `type Fetched<T> = { ok: true; data: T } | { ok: false; error: string }`;
+2. Escreva `request<T>(url: string, guard: (value: unknown) => value is T): Promise<Fetched<T>>`;
+3. Trate falha de rede com `try`/`catch`, verificando `error instanceof Error` antes de ler a mensagem;
+4. Trate status HTTP fora de 2xx devolvendo a variação de erro;
+5. Aplique o `guard` ao corpo antes de considerar a resposta válida;
+6. Escreva dois guards — um para `{ id: number; name: string }` e outro para uma lista deles;
+7. Consuma o resultado com `switch` sobre `ok` e prove exaustividade com `never`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/safe-fetch.ts"
+  type Fetched<T> = { ok: true; data: T } | { ok: false; error: string };
+
+  interface User {
+    id: number;
+    name: string;
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  function isUser(value: unknown): value is User {
+    return isRecord(value) && typeof value.id === "number" && typeof value.name === "string";
+  }
+
+  function isUserList(value: unknown): value is User[] {
+    return Array.isArray(value) && value.every(isUser);
+  }
+
+  async function request<T>(
+    url: string,
+    guard: (value: unknown) => value is T,
+  ): Promise<Fetched<T>> {
+    try {
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        return { ok: false, error: `HTTP ${response.status}` };
+      }
+
+      const body: unknown = await response.json();
+
+      if (!guard(body)) {
+        return { ok: false, error: "formato inesperado" };
+      }
+
+      return { ok: true, data: body };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "falha desconhecida" };
+    }
+  }
+
+  function report<T>(result: Fetched<T>, describe: (data: T) => string): string {
+    switch (result.ok) {
+      case true:
+        return describe(result.data);
+      case false:
+        return `falhou: ${result.error}`;
+      default: {
+        const exhaustive: never = result;
+        return String(exhaustive);
+      }
+    }
+  }
+
+  const users = await request("https://api.exemplo.dev/users", isUserList);
+  console.log(report(users, (list) => `${list.length} usuários`));
+
+  const single = await request("https://api.exemplo.dev/users/1", isUser);
+  console.log(report(single, (user) => `usuário ${user.name}`));
+  ```
+
+  O `catch` recebe `unknown` sob `strict` — por isso o `instanceof Error` antes de acessar
+  `.message`.
+</details>
+
+## Perguntas de revisão
+
+### Análise de fluxo
+
+**1. O que é narrowing?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É o estreitamento de um tipo amplo (uma união, `unknown` ou um tipo com `null`) para uma
+  variação específica, feito pelo compilador ao analisar as verificações presentes no fluxo do
+  código.
+</details>
+
+**2. Por que `typeof value === "object"` não protege contra `null`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque em JavaScript `typeof null` devolve `"object"` — uma peculiaridade histórica da
+  linguagem. É preciso combinar com `value !== null`.
+</details>
+
+**3. Qual o risco de estreitar com `if (!value)`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A checagem de veracidade elimina todos os valores *falsy*, incluindo `0` e `""`, que
+  frequentemente são valores legítimos. Quando só interessa a ausência, compare explicitamente
+  com `undefined` ou use `== null`.
+</details>
+
+### Operadores de estreitamento
+
+**4. Quando usar `in` em vez de `instanceof`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `in` verifica a presença de uma propriedade e funciona com interfaces e tipos, que não
+  existem em runtime. `instanceof` verifica a cadeia de protótipos e só serve para classes,
+  como `Date`, `Error` ou classes próprias.
+</details>
+
+**5. O que `value == null` captura?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `null` e `undefined`, e nada além disso. É o único uso amplamente aceito de `==` em vez de
+  `===`.
+</details>
+
+### Predicates e asserções
+
+**6. O que significa a assinatura `value is User`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É um *type predicate*: informa ao compilador que, quando a função devolve `true`, o
+  argumento pode ser tratado como `User` no bloco correspondente.
+</details>
+
+**7. Qual a diferença entre `value is T` e `asserts value is T`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A primeira devolve booleano e estreita dentro do `if`. A segunda não devolve valor: ou lança
+  exceção, ou o tipo passa a valer do ponto da chamada em diante, sem bloco.
+</details>
+
+**8. Por que um type predicate exige teste?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o compilador aceita a afirmação sem verificá-la. Um predicate que devolve `true` para
+  um valor incompatível reintroduz exatamente o erro de runtime que a tipagem deveria evitar.
+</details>
+
+### Uniões e nulos
+
+**9. O que torna uma união "discriminada"?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A presença, em todas as variações, de uma propriedade comum com tipo literal distinto (como
+  `kind` ou `status`). O compilador usa essa propriedade para estreitar em `switch` ou `if`.
+</details>
+
+**10. Qual a diferença entre `||` e `??` ao fornecer um valor padrão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `||` substitui qualquer valor *falsy*, incluindo `0` e `""`. `??` só substitui `null` e
+  `undefined`, preservando os demais — normalmente o comportamento desejado.
+</details>
+
+## Referências
+
+- [Narrowing](https://www.typescriptlang.org/docs/handbook/2/narrowing.html)
+- [Type predicates](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates)
+- [Funções de asserção](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html#assertion-functions)
+- [Uniões discriminadas](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions)
+- [`strictNullChecks`](https://www.typescriptlang.org/tsconfig#strictNullChecks)
+
+## Próxima aula
+
+Com o estreitamento dominado, o passo seguinte é descrever com precisão a forma dos dados do
+domínio.
+
+[Objetos e Interfaces](../../types/objects/): propriedades opcionais e somente leitura,
+`interface` versus `type`, extensão e índices.

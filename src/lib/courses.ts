@@ -19,6 +19,11 @@ const courses = {
     shortTitle: 'Python',
     href: '/courses/python/',
   },
+  typescript: {
+    title: 'Guia de TypeScript',
+    shortTitle: 'TS',
+    href: '/courses/typescript/',
+  },
 } as const;
 
 export type CourseId = keyof typeof courses;

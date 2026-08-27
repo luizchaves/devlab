@@ -1,0 +1,646 @@
+---
+title: "TypeScript: tsconfig.json"
+description: "Opções do compilador TypeScript: strict e suas verificações, target, module, moduleResolution, paths, include e exclude, e configurações por ambiente."
+course: typescript
+sidebar:
+  label: tsconfig.json
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/tooling/tsconfig/) e [mapa mental](../../../../mindmaps/courses/typescript/tooling/tsconfig/).
+
+O `tsconfig.json` responde três perguntas: **o que** compilar, **como** verificar e **para
+qual** JavaScript emitir. São mais de cem opções, mas o dia a dia se resolve com uma dúzia —
+e uma delas, `strict`, vale por várias.
+
+Esta aula percorre as opções que realmente mudam o comportamento do projeto e mostra como
+organizar configurações diferentes para código de aplicação, testes e build.
+
+## Objetivo
+
+Criar e interpretar um `tsconfig.json`, entender o que `strict` liga, escolher `target`,
+`module` e `moduleResolution` conforme o ambiente, delimitar arquivos com `include` e
+`exclude`, configurar apelidos de caminho e compor configurações com `extends`.
+
+## Anatomia do Arquivo
+
+A estrutura tem quatro blocos, e apenas o primeiro é obrigatório na prática:
+
+```json title="tsconfig.json comentado"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "declaration": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+| Bloco | Papel |
+| :--- | :--- |
+| `compilerOptions` | Como verificar e como emitir |
+| `include` / `exclude` / `files` | Quais arquivos entram no programa |
+| `extends` | Herda outra configuração |
+| `references` | Divide o projeto em partes compiláveis (*project references*) |
+
+<Aside type="tip" title="tsc --showConfig resolve a dúvida">
+  Com `extends` e padrões de inclusão, nem sempre é óbvio qual configuração está valendo.
+  `pnpm exec tsc --showConfig` imprime a configuração final já resolvida, e
+  `tsc --listFiles` mostra exatamente quais arquivos entraram no programa.
+</Aside>
+
+## `strict` e Suas Verificações
+
+`strict: true` é um atalho que liga um conjunto de opções. Conhecê-las individualmente ajuda
+na migração de projetos existentes:
+
+| Opção incluída | O que passa a ser erro |
+| :--- | :--- |
+| `noImplicitAny` | Parâmetro ou variável cujo tipo seria `any` implícito |
+| `strictNullChecks` | Usar valor possivelmente `null` ou `undefined` |
+| `strictFunctionTypes` | Atribuição de função com parâmetros incompatíveis |
+| `strictBindCallApply` | `bind`, `call` e `apply` com argumentos errados |
+| `strictPropertyInitialization` | Propriedade de classe sem inicialização garantida |
+| `noImplicitThis` | `this` com tipo implícito `any` |
+| `useUnknownInCatchVariables` | Tratar o erro do `catch` como `any` |
+| `alwaysStrict` | Emitir sem `"use strict"` |
+
+```ts title="O que strictNullChecks muda"
+function getLength(value: string | null): number {
+  // Sem strictNullChecks: compila e quebra em runtime
+  // Com strictNullChecks: erro 'value' is possibly 'null'
+  return value.length;
+}
+
+function getLengthSafe(value: string | null): number {
+  return value?.length ?? 0;
+}
+```
+
+Além de `strict`, quatro opções de qualidade valem a pena em projetos novos:
+
+| Opção | Efeito |
+| :--- | :--- |
+| `noUncheckedIndexedAccess` | `array[0]` passa a ser `T \| undefined` |
+| `noImplicitOverride` | Sobrescrever método exige a palavra `override` |
+| `noUnusedLocals` / `noUnusedParameters` | Variáveis e parâmetros não usados viram erro |
+| `exactOptionalPropertyTypes` | `campo?: string` deixa de aceitar `undefined` explícito |
+
+<Aside type="caution" title="noUncheckedIndexedAccess incomoda — e tem razão">
+  Com ele, `const first = items[0]` passa a ser `T | undefined`, exigindo tratamento. É
+  chato no começo e correto sempre: acessar índice inexistente devolve `undefined` em
+  JavaScript, e essa era uma mentira que o TypeScript contava por padrão.
+</Aside>
+
+## `target`, `lib` e `module`
+
+Três opções decidem o JavaScript gerado e as APIs conhecidas pelo compilador:
+
+```json title="Combinações comuns"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "NodeNext"
+  }
+}
+```
+
+| Opção | Responde | Valores frequentes |
+| :--- | :--- | :--- |
+| `target` | Qual sintaxe emitir | `ES2020`, `ES2022`, `ESNext` |
+| `lib` | Quais APIs existem | `ES2022`, `DOM`, `WebWorker` |
+| `module` | Qual formato de módulo emitir | `NodeNext`, `ESNext`, `CommonJS` |
+| `moduleResolution` | Como localizar imports | `NodeNext`, `Bundler` |
+
+| Ambiente | `module` | `moduleResolution` | `lib` |
+| :--- | :--- | :--- | :--- |
+| Node.js moderno | `NodeNext` | `NodeNext` | `ES2022` |
+| Navegador com bundler (Vite) | `ESNext` | `Bundler` | `ES2022`, `DOM` |
+| Biblioteca publicada em npm | `ESNext` | `Bundler` | conforme o alvo |
+| Projeto legado CommonJS | `CommonJS` | `Node10` | `ES2020` |
+
+<Aside type="note" title="target não é polyfill">
+  Baixar o `target` converte a **sintaxe** (arrow, classes, `async`), mas não adiciona APIs
+  ausentes: `Array.prototype.at` continua indefinido em um runtime antigo. Para APIs, o
+  caminho é polyfill em runtime; `lib` apenas informa ao compilador o que assumir presente.
+</Aside>
+
+## Delimitando os Arquivos
+
+`include` e `exclude` definem o programa; `files` lista arquivos explicitamente:
+
+```json title="Padrões de inclusão"
+{
+  "include": ["src/**/*", "types/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
+```
+
+| Chave | Comportamento |
+| :--- | :--- |
+| `include` | Padrões glob a incluir (padrão: tudo abaixo do diretório do arquivo) |
+| `exclude` | Padrões a remover do `include` (padrão: `node_modules`, `bower_components`, `jspm_packages`, `outDir`) |
+| `files` | Lista fechada de arquivos; ignora `include` |
+
+<Aside type="caution" title="exclude não impede a compilação de um arquivo">
+  Se um arquivo excluído for **importado** por um arquivo incluído, ele entra no programa
+  assim mesmo. `exclude` apenas remove os pontos de entrada — para realmente ignorar um
+  arquivo, ele não pode ser alcançável por imports.
+</Aside>
+
+## Apelidos de Caminho
+
+`paths` elimina cadeias de `../../..` nos imports, mas exige suporte de quem executa o código:
+
+```json title="baseUrl e paths"
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@lib/*": ["src/lib/*"]
+    }
+  }
+}
+```
+
+```ts title="Antes e depois"
+// Sem paths
+import { formatCurrency } from "../../../lib/format";
+
+// Com paths
+import { formatCurrency } from "@lib/format";
+```
+
+<Aside type="caution" title="paths não reescreve o import emitido">
+  O compilador entende o apelido, mas **não** o traduz no JavaScript gerado: o `import
+  "@lib/format"` permanece literal. É preciso que o executor também conheça o apelido — via
+  `resolve.alias` do Vite, `moduleNameMapper` do Jest, `imports` do `package.json` ou um
+  resolvedor como `tsconfig-paths`.
+</Aside>
+
+## Composição com `extends`
+
+Projetos reais têm mais de um contexto: aplicação, testes, build. `extends` evita duplicar a
+configuração:
+
+<FileTree>
+{`
+projeto/
+├── tsconfig.base.json      opções compartilhadas
+├── tsconfig.json           aplicação (src)
+├── tsconfig.test.json      testes
+└── src/
+`}
+</FileTree>
+
+```json title="tsconfig.base.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+```json title="tsconfig.json"
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts"]
+}
+```
+
+```json title="tsconfig.test.json"
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}
+```
+
+Comunidades mantêm bases prontas por ambiente, instaláveis como pacote:
+
+```bash title="Terminal"
+pnpm add -D @tsconfig/node22
+```
+
+```json title="tsconfig.json"
+{
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "compilerOptions": { "outDir": "dist" },
+  "include": ["src"]
+}
+```
+
+## Opções de Emissão
+
+Quando o build é feito por um empacotador, o papel do `tsc` muda:
+
+| Opção | Quando usar |
+| :--- | :--- |
+| `noEmit: true` | O bundler gera o JavaScript; o `tsc` só verifica |
+| `declaration: true` | Publicar biblioteca: gera os `.d.ts` |
+| `declarationMap: true` | "Ir para definição" salta para o `.ts`, não para o `.d.ts` |
+| `sourceMap: true` | Depurar o TypeScript original no navegador ou no Node |
+| `isolatedModules: true` | Garante compatibilidade com transpiladores por arquivo |
+| `incremental: true` | Cache entre builds, acelerando recompilações |
+
+```bash title="Terminal"
+pnpm exec tsc --noEmit          # só verifica
+pnpm exec tsc --watch           # verifica continuamente
+pnpm exec tsc --showConfig      # configuração final resolvida
+pnpm exec tsc --listFiles       # arquivos que entraram no programa
+```
+
+## Executando
+
+<Steps>
+
+1. Crie a configuração base do projeto:
+
+   ```json title="tsconfig.json"
+   {
+     "compilerOptions": {
+       "target": "ES2022",
+       "module": "NodeNext",
+       "moduleResolution": "NodeNext",
+       "lib": ["ES2022"],
+       "rootDir": "src",
+       "outDir": "dist",
+       "strict": true,
+       "noUncheckedIndexedAccess": true,
+       "noUnusedLocals": true,
+       "esModuleInterop": true,
+       "skipLibCheck": true,
+       "sourceMap": true
+     },
+     "include": ["src/**/*"],
+     "exclude": ["node_modules", "dist"]
+   }
+   ```
+
+2. Escreva um arquivo que exercite as verificações rigorosas:
+
+   ```ts title="src/config-demo.ts"
+   const items = ["a", "b", "c"];
+
+   // Com noUncheckedIndexedAccess, o tipo é string | undefined
+   const first = items[0];
+   console.log(first?.toUpperCase() ?? "vazio");
+
+   function parsePort(value: string | undefined): number {
+     if (value === undefined) return 3000;
+
+     const port = Number(value);
+     return Number.isNaN(port) ? 3000 : port;
+   }
+
+   console.log(parsePort(process.env.PORT));
+   ```
+
+3. Verifique, compile e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/config-demo.js
+   ```
+
+   ```txt title="Output"
+   A
+   3000
+   ```
+
+4. Inspecione o que o compilador entendeu:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --showConfig
+   ```
+
+5. Provoque erros desligando mentalmente cada opção:
+
+   ```ts title="src/config-demo.ts"
+   // const upper = items[0].toUpperCase();
+   // error TS18048: 'items[0]' is possibly 'undefined'. (noUncheckedIndexedAccess)
+
+   // const unused = 42;
+   // error TS6133: 'unused' is declared but its value is never read. (noUnusedLocals)
+
+   // function f(value) { return value; }
+   // error TS7006: Parameter 'value' implicitly has an 'any' type. (noImplicitAny)
+   ```
+
+</Steps>
+
+## Exercício
+
+Configure o projeto `api-ts/` com três configurações compostas.
+
+1. Crie `tsconfig.base.json` com `strict`, `noUncheckedIndexedAccess`, `target: ES2022` e `module: NodeNext`;
+2. Crie `tsconfig.json` estendendo a base, com `rootDir`, `outDir`, `declaration` e `sourceMap`;
+3. Crie `tsconfig.test.json` estendendo a base, com `noEmit` e incluindo `tests/`;
+4. Configure `paths` com `@app/*` apontando para `src/*`;
+5. Escreva um módulo em `src/lib/format.ts` e importe-o com o apelido a partir de `src/main.ts`;
+6. Rode `tsc --showConfig` nas duas configurações e compare a saída;
+7. Explique em comentário por que o import com apelido pode falhar em runtime.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="tsconfig.base.json"
+  {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "lib": ["ES2022"],
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "baseUrl": ".",
+      "paths": { "@app/*": ["src/*"] }
+    }
+  }
+  ```
+
+  ```json title="tsconfig.json"
+  {
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+      "rootDir": "src",
+      "outDir": "dist",
+      "declaration": true,
+      "declarationMap": true,
+      "sourceMap": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["**/*.test.ts"]
+  }
+  ```
+
+  ```json title="tsconfig.test.json"
+  {
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": { "noEmit": true, "types": ["node"] },
+    "include": ["src/**/*", "tests/**/*"]
+  }
+  ```
+
+  ```ts title="src/lib/format.ts"
+  export function currency(value: number): string {
+    return `R$ ${value.toFixed(2)}`;
+  }
+  ```
+
+  ```ts title="src/main.ts"
+  import { currency } from "@app/lib/format.js";
+
+  console.log(currency(1234.5));
+
+  // O compilador resolve @app/* pelo tsconfig, mas o import emitido continua
+  // literal: o Node não conhece o apelido. É preciso configurar "imports" no
+  // package.json, usar um resolvedor (tsconfig-paths) ou deixar o bundler
+  // reescrever o caminho.
+  ```
+
+  ```bash title="Terminal"
+  pnpm exec tsc --showConfig
+  pnpm exec tsc --project tsconfig.test.json --showConfig
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/strictness-report.ts`, um relatório das opções de rigor do projeto.
+
+1. Leia o `tsconfig.json` com `readFileSync` e remova comentários antes de `JSON.parse`;
+2. Resolva a cadeia de `extends` recursivamente, mesclando as opções na ordem correta;
+3. Liste as oito opções incluídas em `strict`, marcando quais estão ativas;
+4. Liste as quatro opções extras de qualidade (`noUncheckedIndexedAccess` e companhia);
+5. Calcule uma pontuação de rigor de 0 a 100 com base nas ativas;
+6. Sugira, ao final, as três opções desligadas de maior impacto;
+7. Explique em comentário por que `strict: true` já implica as oito, mesmo sem constarem no arquivo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/strictness-report.ts"
+  import { readFileSync } from "node:fs";
+  import { dirname, resolve } from "node:path";
+
+  interface TsConfig {
+    extends?: string;
+    compilerOptions?: Record<string, unknown>;
+  }
+
+  const STRICT_FLAGS = [
+    "noImplicitAny",
+    "strictNullChecks",
+    "strictFunctionTypes",
+    "strictBindCallApply",
+    "strictPropertyInitialization",
+    "noImplicitThis",
+    "useUnknownInCatchVariables",
+    "alwaysStrict",
+  ] as const;
+
+  const EXTRA_FLAGS = [
+    "noUncheckedIndexedAccess",
+    "noImplicitOverride",
+    "noUnusedLocals",
+    "exactOptionalPropertyTypes",
+  ] as const;
+
+  function readConfig(path: string): Record<string, unknown> {
+    const raw = readFileSync(path, "utf-8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|\s)\/\/.*$/gm, "");
+
+    const config = JSON.parse(raw) as TsConfig;
+    const own = config.compilerOptions ?? {};
+
+    if (!config.extends) return own;
+
+    const parentPath = resolve(dirname(path), config.extends);
+    return { ...readConfig(parentPath), ...own };
+  }
+
+  const options = readConfig("tsconfig.json");
+  const strict = options.strict === true;
+
+  function isEnabled(flag: string): boolean {
+    return options[flag] === true || (strict && STRICT_FLAGS.includes(flag as never));
+  }
+
+  const all = [...STRICT_FLAGS, ...EXTRA_FLAGS];
+  const enabled = all.filter(isEnabled);
+  const disabled = all.filter((flag) => !isEnabled(flag));
+
+  console.log(`strict: ${strict ? "ligado" : "desligado"}\n`);
+
+  for (const flag of all) {
+    console.log(`${isEnabled(flag) ? "[x]" : "[ ]"} ${flag}`);
+  }
+
+  const score = Math.round((enabled.length / all.length) * 100);
+  console.log(`\nPontuação de rigor: ${score}/100`);
+
+  if (disabled.length > 0) {
+    console.log("Sugestões:", disabled.slice(0, 3).join(", "));
+  }
+
+  // strict: true é um atalho: o compilador trata as oito como ligadas mesmo que não
+  // apareçam no arquivo. Elas só precisam ser escritas para DESLIGAR alguma
+  // individualmente — recurso útil durante uma migração gradual.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Rigor
+
+**1. O que `strict: true` liga?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um conjunto de oito verificações, entre elas `noImplicitAny`, `strictNullChecks`,
+  `strictPropertyInitialization` e `useUnknownInCatchVariables`. É a configuração recomendada
+  para qualquer projeto novo.
+</details>
+
+**2. O que muda com `strictNullChecks`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `null` e `undefined` deixam de ser atribuíveis a qualquer tipo e passam a exigir tratamento
+  explícito antes do uso — a verificação que evita a maior parte dos erros de "cannot read
+  property of undefined".
+</details>
+
+**3. Por que `noUncheckedIndexedAccess` não vem em `strict`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque afeta muito código existente: todo acesso por índice passa a devolver `T | undefined`.
+  É correto — reflete o comportamento real do JavaScript — mas exigiria mudanças amplas ao ser
+  ligado por padrão.
+</details>
+
+### Alvo e módulos
+
+**4. Qual a diferença entre `target` e `lib`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `target` define a **sintaxe** do JavaScript emitido; `lib` define quais **APIs** o
+  compilador assume existir no ambiente. É possível emitir ES2020 e ainda assim declarar APIs
+  de DOM em `lib`.
+</details>
+
+**5. O que `module: NodeNext` implica?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que o formato do módulo (ESM ou CommonJS) seguirá as regras do Node — determinado pelo campo
+  `type` do `package.json` e pelas extensões `.mts`/`.cts`. É a configuração indicada para
+  código que roda diretamente no Node.
+</details>
+
+**6. `target` resolve a ausência de uma API no runtime?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. Ele converte sintaxe, não adiciona implementações. Uma API ausente exige polyfill em
+  tempo de execução; `lib` apenas informa ao compilador o que considerar disponível.
+</details>
+
+### Arquivos e composição
+
+**7. `exclude` garante que um arquivo não seja compilado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. Ele remove o arquivo dos pontos de entrada, mas se um arquivo incluído o importar, ele
+  entra no programa assim mesmo.
+</details>
+
+**8. Para que serve `extends`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para herdar opções de outra configuração, permitindo manter uma base compartilhada e
+  variações por contexto — aplicação, testes, build — sem duplicação. Também é como se usam as
+  bases publicadas em `@tsconfig/*`.
+</details>
+
+### Caminhos e emissão
+
+**9. Por que `paths` pode funcionar na compilação e falhar em runtime?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o compilador entende o apelido, mas não reescreve o caminho no JavaScript emitido.
+  Quem executa precisa conhecer o mesmo mapeamento — via bundler, `imports` do `package.json`
+  ou um resolvedor dedicado.
+</details>
+
+**10. Quando usar `noEmit: true`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando outro processo gera o JavaScript — Vite, esbuild, SWC ou o próprio Node — e o papel
+  do `tsc` passa a ser apenas verificar tipos, tipicamente em um script de CI.
+</details>
+
+## Referências
+
+- [Referência do `tsconfig.json`](https://www.typescriptlang.org/tsconfig)
+- [O que `strict` inclui](https://www.typescriptlang.org/tsconfig#strict)
+- [Módulos no TypeScript](https://www.typescriptlang.org/docs/handbook/modules/theory.html)
+- [Bases de configuração](https://github.com/tsconfig/bases)
+- [Project references](https://www.typescriptlang.org/docs/handbook/project-references.html)
+
+## Próxima aula
+
+Com o compilador configurado, falta entender como ele encontra e descreve os módulos.
+
+[Módulos e Declarações](../modules/): ESM e CommonJS, `import type`, arquivos `.d.ts` e tipos
+de bibliotecas.

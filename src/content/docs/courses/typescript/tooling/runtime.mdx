@@ -1,0 +1,594 @@
+---
+title: "TypeScript: Execução e Build"
+description: "Formas de executar TypeScript: tsc, tsx, remoção de tipos no Node, Deno e Bun, empacotamento com Vite e esbuild, source maps e verificação de tipos em CI."
+course: typescript
+sidebar:
+  label: Execução e Build
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/tooling/runtime/) e [mapa mental](../../../../mindmaps/courses/typescript/tooling/runtime/).
+
+Nenhum runtime executa TypeScript: navegador, Node, Deno e Bun executam JavaScript. A pergunta
+prática é **quem** remove os tipos, **quando** isso acontece e **onde** a verificação entra
+nesse fluxo.
+
+Esta aula compara as formas de executar e empacotar TypeScript, e mostra por que
+"transpilação" e "verificação de tipos" viraram duas etapas separadas na maioria dos projetos.
+
+## Objetivo
+
+Executar arquivos TypeScript em desenvolvimento, escolher entre `tsc`, `tsx` e a remoção de
+tipos nativa do Node, empacotar para produção com um bundler, configurar source maps,
+e separar a verificação de tipos do build, garantindo-a em CI.
+
+## Duas Etapas, Não Uma
+
+O `tsc` faz verificação e emissão, mas ferramentas modernas separam as duas coisas — e isso
+explica quase toda a confusão da configuração:
+
+<Mermaid title="Verificação e transpilação seguem caminhos distintos">
+{`
+flowchart LR
+  A["código .ts"] --> B["tsc --noEmit<br/>verificação de tipos"]
+  A --> C["esbuild / swc / Node<br/>remoção de tipos"]
+  B --> D["erros de tipo<br/>no editor e na CI"]
+  C --> E["JavaScript<br/>executado"]
+`}
+</Mermaid>
+
+| Ferramenta | Verifica tipos | Emite JavaScript | Velocidade |
+| :--- | :--- | :--- | :--- |
+| `tsc` | Sim | Sim | Lenta |
+| `tsc --noEmit` | Sim | Não | Lenta |
+| `esbuild` / `swc` | **Não** | Sim | Muito rápida |
+| `tsx` | Não | Sim (em memória) | Muito rápida |
+| Node (type stripping) | Não | Sim (em memória) | Nativa |
+
+<Aside type="caution" title="Transpilar não é verificar">
+  Ferramentas baseadas em esbuild ou SWC apenas **apagam** os tipos, sem checá-los. Um erro de
+  tipo não impede o build — o programa roda com o erro dentro. Por isso o `tsc --noEmit`
+  precisa existir em algum lugar do fluxo, normalmente na CI e no editor.
+</Aside>
+
+## Executando em Desenvolvimento
+
+Quatro caminhos cobrem o dia a dia, do mais tradicional ao mais recente:
+
+<Tabs syncKey="runner">
+  <TabItem label="tsx">
+    ```bash title="Terminal"
+    pnpm add -D tsx
+    pnpm exec tsx src/main.ts
+    pnpm exec tsx watch src/main.ts
+    ```
+
+    Executa direto, recompila em memória e reinicia no modo `watch`. É a opção mais usada em
+    projetos Node com TypeScript.
+  </TabItem>
+  <TabItem label="Node nativo">
+    ```bash title="Terminal"
+    node --experimental-strip-types src/main.ts
+    node src/main.ts
+    ```
+
+    Versões recentes do Node removem os tipos nativamente. A sintaxe suportada é a que pode
+    ser apagada sem transformação — `enum` e `namespace` exigem
+    `--experimental-transform-types`.
+  </TabItem>
+  <TabItem label="tsc">
+    ```bash title="Terminal"
+    pnpm exec tsc --watch
+    node dist/main.js
+    ```
+
+    Compila para `dist/` e executa o JavaScript. Mais lento no ciclo, mas é o único que
+    verifica tipos ao mesmo tempo.
+  </TabItem>
+  <TabItem label="Deno e Bun">
+    ```bash title="Terminal"
+    deno run src/main.ts
+    bun run src/main.ts
+    ```
+
+    Ambos executam TypeScript diretamente. O Deno verifica tipos por padrão (`--no-check`
+    desativa); o Bun apenas remove os tipos, sem verificar.
+  </TabItem>
+</Tabs>
+
+```json title="package.json — scripts típicos"
+{
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc --noEmit && tsup src/main.ts --format esm --dts",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/main.js"
+  }
+}
+```
+
+## Empacotando para Produção
+
+Aplicações de navegador quase sempre passam por um bundler, que também remove os tipos:
+
+| Ferramenta | Papel | Verifica tipos |
+| :--- | :--- | :--- |
+| **Vite** | Dev server e build de aplicações web | Não (use `vue-tsc`/`tsc --noEmit`) |
+| **esbuild** | Bundler e transpilador de altíssima velocidade | Não |
+| **tsup** | Empacotamento de bibliotecas sobre esbuild | Só com `--dts` |
+| **Rollup** | Bundle de bibliotecas, saída enxuta | Via plugin |
+| **tsc** | Emissão simples arquivo a arquivo | Sim |
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  build: {
+    target: "es2022",
+    sourcemap: true,
+  },
+});
+```
+
+```bash title="Terminal"
+pnpm exec tsc --noEmit && pnpm exec vite build
+```
+
+<Aside type="tip" title="Bibliotecas precisam publicar .d.ts">
+  Ao publicar um pacote, o JavaScript sozinho não basta: sem os arquivos de declaração, quem
+  consumir a biblioteca em TypeScript recebe `any`. Gere-os com `tsc --emitDeclarationOnly`
+  ou com `tsup --dts`, e aponte o campo `types` no `package.json`.
+</Aside>
+
+## Source Maps
+
+Sem eles, o erro em produção aponta para uma linha do bundle minificado:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "declarationMap": true,
+    "inlineSources": true
+  }
+}
+```
+
+| Opção | Efeito |
+| :--- | :--- |
+| `sourceMap` | Gera `.js.map`: o depurador mostra o `.ts` original |
+| `inlineSourceMap` | Embute o mapa no próprio `.js` |
+| `inlineSources` | Inclui o código-fonte dentro do mapa |
+| `declarationMap` | "Ir para definição" salta para o `.ts`, não para o `.d.ts` |
+
+```bash title="Terminal"
+node --enable-source-maps dist/main.js
+```
+
+Com a flag, o *stack trace* do Node passa a citar `src/main.ts:12` em vez de
+`dist/main.js:1`.
+
+## Verificação em CI
+
+Como o build costuma não verificar tipos, a CI precisa fazê-lo explicitamente:
+
+```yaml title=".github/workflows/ci.yml"
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+```
+
+| Etapa | Comando | Por quê |
+| :--- | :--- | :--- |
+| Tipos | `tsc --noEmit` | O bundler não faz isso |
+| Lint | `eslint .` ou `biome check .` | Regras que o compilador não cobre |
+| Testes | `vitest run` | Comportamento em runtime |
+| Build | `vite build` / `tsup` | Garante que o empacotamento funciona |
+
+<Aside type="caution" title="Editor verde não é build verde">
+  O editor verifica apenas os arquivos abertos e o que eles alcançam. Um erro em um arquivo
+  não aberto — ou introduzido por uma mudança de tipo em outro módulo — só aparece no
+  `tsc --noEmit` completo. Rode-o antes de abrir a *pull request*.
+</Aside>
+
+## Comparando as Estratégias
+
+Nem todo projeto precisa da mesma configuração:
+
+| Cenário | Desenvolvimento | Build | Verificação |
+| :--- | :--- | :--- | :--- |
+| Script ou CLI simples | `tsx src/main.ts` | `tsc` | `tsc --noEmit` |
+| API Node | `tsx watch` | `tsup` ou `tsc` | `tsc --noEmit` na CI |
+| Aplicação web | `vite dev` | `vite build` | `tsc --noEmit` na CI |
+| Biblioteca npm | `tsx` + `vitest` | `tsup --dts` | `tsc --noEmit` na CI |
+| Monorepo | por pacote | por pacote | `tsc --build` com references |
+
+## Executando
+
+<Steps>
+
+1. Prepare o projeto com um executor e um empacotador:
+
+   ```bash title="Terminal"
+   pnpm add -D typescript tsx tsup @types/node
+   ```
+
+2. Escreva um programa com uma dependência interna:
+
+   ```ts title="src/lib/report.ts"
+   export interface Row {
+     label: string;
+     value: number;
+   }
+
+   export function render(rows: Row[]): string {
+     const width = Math.max(...rows.map((row) => row.label.length));
+     return rows
+       .map((row) => `${row.label.padEnd(width)}  ${row.value.toFixed(2).padStart(10)}`)
+       .join("\n");
+   }
+   ```
+
+   ```ts title="src/main.ts"
+   import { render, type Row } from "./lib/report.js";
+
+   const rows: Row[] = [
+     { label: "Guia de Python", value: 30 },
+     { label: "Guia de TypeScript", value: 28 },
+     { label: "Desenvolvimento Web", value: 80 },
+   ];
+
+   console.log(render(rows));
+   console.log(`\nTotal: ${rows.reduce((sum, row) => sum + row.value, 0)}h`);
+   ```
+
+3. Execute em desenvolvimento, sem passo de build:
+
+   ```bash title="Terminal"
+   pnpm exec tsx src/main.ts
+   ```
+
+   ```txt title="Output"
+   Guia de Python            30.00
+   Guia de TypeScript        28.00
+   Desenvolvimento Web       80.00
+
+   Total: 138h
+   ```
+
+4. Verifique os tipos e empacote para produção:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit
+   pnpm exec tsup src/main.ts --format esm --dts --sourcemap
+   node --enable-source-maps dist/main.js
+   ```
+
+5. Comprove que o empacotador **não** verifica tipos:
+
+   ```ts title="src/main.ts"
+   const broken: Row = { label: "Erro", value: "trinta" };
+   ```
+
+   ```bash title="Terminal"
+   pnpm exec tsup src/main.ts --format esm   # empacota mesmo assim
+   pnpm exec tsc --noEmit                    # aqui o erro aparece
+   ```
+
+   ```txt title="Output"
+   src/main.ts:12:31 - error TS2322: Type 'string' is not assignable to type 'number'.
+   ```
+
+</Steps>
+
+## Exercício
+
+Configure o projeto `cli-ts/` com fluxo completo de desenvolvimento e build.
+
+1. Instale `typescript`, `tsx`, `tsup` e `@types/node`;
+2. Configure `tsconfig.json` com `strict`, `noEmit: true`, `module: NodeNext` e `sourceMap`;
+3. Escreva `src/main.ts` que leia argumentos de `process.argv` e imprima um resumo;
+4. Crie os scripts `dev` (`tsx watch`), `typecheck` (`tsc --noEmit`), `build` (`tsup`) e `start`;
+5. Faça o script `build` rodar a verificação antes de empacotar;
+6. Gere o build com source map e execute com `--enable-source-maps`;
+7. Introduza um erro de tipo e mostre em comentário qual script falha e qual não falha.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="package.json"
+  {
+    "name": "cli-ts",
+    "type": "module",
+    "scripts": {
+      "dev": "tsx watch src/main.ts",
+      "typecheck": "tsc --noEmit",
+      "build": "pnpm typecheck && tsup src/main.ts --format esm --sourcemap --clean",
+      "start": "node --enable-source-maps dist/main.js"
+    }
+  }
+  ```
+
+  ```json title="tsconfig.json"
+  {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "noEmit": true,
+      "sourceMap": true,
+      "skipLibCheck": true,
+      "types": ["node"]
+    },
+    "include": ["src/**/*"]
+  }
+  ```
+
+  ```ts title="src/main.ts"
+  interface Options {
+    name: string;
+    times: number;
+    upper: boolean;
+  }
+
+  function parseArgs(argv: string[]): Options {
+    const [name = "devlab", rawTimes = "1"] = argv.slice(2);
+    const times = Number.parseInt(rawTimes, 10);
+
+    return {
+      name,
+      times: Number.isNaN(times) ? 1 : times,
+      upper: argv.includes("--upper"),
+    };
+  }
+
+  function run(options: Options): string[] {
+    const text = options.upper ? options.name.toUpperCase() : options.name;
+    return Array.from({ length: options.times }, (_, index) => `${index + 1}. Olá, ${text}!`);
+  }
+
+  const options = parseArgs(process.argv);
+  console.log(run(options).join("\n"));
+  ```
+
+  ```bash title="Terminal"
+  pnpm dev
+  pnpm build
+  pnpm start Ana 3 --upper
+  ```
+
+  ```txt title="Output"
+  1. Olá, ANA!
+  2. Olá, ANA!
+  3. Olá, ANA!
+  ```
+
+  ```ts
+  // Com `const t: number = "x"` no arquivo:
+  // - `pnpm typecheck` e `pnpm build` falham (o build roda typecheck antes);
+  // - `pnpm exec tsx src/main.ts` e `tsup` sozinho executam normalmente,
+  //   porque apenas removem os tipos, sem verificá-los.
+  ```
+</details>
+
+## Desafio
+
+Escreva `scripts/check-build.ts`, um verificador do fluxo de build do projeto.
+
+1. Leia o `package.json` e confirme a presença dos scripts `typecheck`, `build` e `start`;
+2. Verifique se o script `build` executa alguma forma de verificação de tipos antes de empacotar;
+3. Leia o `tsconfig.json` e confirme `strict`, `sourceMap` e uma das opções de `noEmit`/`outDir`;
+4. Rode `tsc --noEmit` com `child_process` e capture o código de saída e a saída de erro;
+5. Conte quantos erros de tipo foram encontrados, agrupando por arquivo;
+6. Imprima um relatório final e encerre o processo com código diferente de zero se algo falhar;
+7. Explique em comentário por que esse script serve como *guard rail* na CI.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="scripts/check-build.ts"
+  import { spawnSync } from "node:child_process";
+  import { readFileSync } from "node:fs";
+
+  interface PackageJson {
+    scripts?: Record<string, string>;
+  }
+
+  function readJson<T>(path: string): T {
+    const raw = readFileSync(path, "utf-8").replace(/(^|\s)\/\/.*$/gm, "");
+    return JSON.parse(raw) as T;
+  }
+
+  const pkg = readJson<PackageJson>("package.json");
+  const tsconfig = readJson<{ compilerOptions?: Record<string, unknown> }>("tsconfig.json");
+  const options = tsconfig.compilerOptions ?? {};
+  const scripts = pkg.scripts ?? {};
+
+  const problems: string[] = [];
+
+  for (const required of ["typecheck", "build", "start"]) {
+    if (!scripts[required]) {
+      problems.push(`script ausente: ${required}`);
+    }
+  }
+
+  const build = scripts.build ?? "";
+  if (!/tsc|typecheck|vue-tsc/.test(build)) {
+    problems.push("o script build não verifica tipos antes de empacotar");
+  }
+
+  if (options.strict !== true) {
+    problems.push("strict não está ligado");
+  }
+
+  if (options.sourceMap !== true) {
+    problems.push("sourceMap desligado: rastreamento de erro em produção fica ruim");
+  }
+
+  const result = spawnSync("pnpm", ["exec", "tsc", "--noEmit"], { encoding: "utf-8" });
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  const errors = output.split("\n").filter((line) => / - error TS\d+:/.test(line));
+
+  const byFile = new Map<string, number>();
+  for (const line of errors) {
+    const file = line.split("(")[0]?.split(":")[0] ?? "desconhecido";
+    byFile.set(file, (byFile.get(file) ?? 0) + 1);
+  }
+
+  console.log("=".repeat(56));
+  console.log("VERIFICAÇÃO DO FLUXO DE BUILD".padStart(40));
+  console.log("=".repeat(56));
+
+  console.log(`\nConfiguração: ${problems.length === 0 ? "ok" : `${problems.length} problema(s)`}`);
+  problems.forEach((problem) => console.log(`  - ${problem}`));
+
+  console.log(`\nErros de tipo: ${errors.length}`);
+  for (const [file, count] of [...byFile].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${String(count).padStart(3)}  ${file}`);
+  }
+
+  const failed = problems.length > 0 || errors.length > 0;
+  console.log(`\nResultado: ${failed ? "FALHOU" : "passou"}`);
+  process.exit(failed ? 1 : 0);
+
+  // Serve como guard rail porque bundlers não verificam tipos: sem uma etapa
+  // explícita, um erro de tipo chega em produção com o build "verde". O script
+  // também garante que a configuração não regrediu — alguém desligar `strict`
+  // passa a falhar a CI, em vez de passar despercebido em uma revisão.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Verificação e transpilação
+
+**1. Por que verificação de tipos e build viraram etapas separadas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque transpilar apagando tipos é uma operação simples e muito rápida (esbuild, SWC),
+  enquanto verificar tipos exige o compilador completo e é lento. Separar dá builds rápidos,
+  com a verificação acontecendo no editor e na CI.
+</details>
+
+**2. O que acontece se o projeto só usar esbuild?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O build funciona, mas nenhum erro de tipo é detectado: o programa é empacotado com o erro
+  dentro. É por isso que `tsc --noEmit` precisa existir em algum ponto do fluxo.
+</details>
+
+**3. Para que serve `tsc --noEmit`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para verificar tipos sem gerar arquivos. É o comando indicado quando outro processo cuida da
+  emissão, e o padrão em scripts de CI.
+</details>
+
+### Execução
+
+**4. Qual a diferença entre `tsx` e `tsc && node`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `tsx` remove os tipos em memória e executa direto, sem gerar `dist/` e sem verificar tipos.
+  `tsc && node` compila para disco, verificando tipos, e depois executa o JavaScript — mais
+  lento no ciclo de desenvolvimento.
+</details>
+
+**5. O que o Node faz ao executar um `.ts` diretamente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Remove as anotações de tipo (*type stripping*) e executa o JavaScript resultante, sem
+  verificar nada. A sintaxe suportada é a que pode ser apagada; `enum` e `namespace` exigem
+  transformação adicional.
+</details>
+
+**6. Deno e Bun se comportam igual quanto a tipos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. O Deno verifica tipos por padrão ao executar (podendo desligar com `--no-check`),
+  enquanto o Bun apenas remove os tipos, como o esbuild.
+</details>
+
+### Build e produção
+
+**7. O que uma biblioteca precisa publicar além do JavaScript?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Os arquivos de declaração `.d.ts`, apontados pelo campo `types` (ou por `exports`) do
+  `package.json`. Sem eles, quem consome em TypeScript recebe `any`.
+</details>
+
+**8. Para que servem source maps?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para mapear o JavaScript executado de volta ao TypeScript original, de modo que depurador e
+  *stack traces* citem o arquivo e a linha reais. No Node, é preciso `--enable-source-maps`.
+</details>
+
+**9. O que `declarationMap` acrescenta?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Faz o "ir para definição" do editor saltar para o `.ts` de origem em vez do `.d.ts` gerado —
+  especialmente útil em monorepos e bibliotecas internas.
+</details>
+
+**10. Por que o editor mostrar tudo certo não garante que a CI vai passar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o editor analisa apenas os arquivos abertos e o que eles alcançam. Um erro em outro
+  arquivo do projeto só aparece na verificação completa com `tsc --noEmit`.
+</details>
+
+## Referências
+
+- [Compilando um projeto](https://www.typescriptlang.org/docs/handbook/compiler-options.html)
+- [tsx](https://tsx.is/)
+- [Node.js: executando TypeScript](https://nodejs.org/api/typescript.html)
+- [Vite: TypeScript](https://vite.dev/guide/features.html#typescript)
+- [tsup](https://tsup.egoist.dev/)
+
+## Próxima aula
+
+Com o fluxo de execução no lugar, é hora de aplicar tudo isso a um projeto que já existe.
+
+[Migrando de JavaScript](../../practice/migration/): `allowJs`, `checkJs`, JSDoc e a estratégia
+incremental.

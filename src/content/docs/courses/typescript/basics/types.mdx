@@ -1,0 +1,659 @@
+---
+title: "TypeScript: Tipos Básicos"
+description: "Tipos primitivos, arrays, tuplas, enums, any, unknown, never, inferência de tipos, asserções e a diferença entre anotar e deixar inferir."
+course: typescript
+sidebar:
+  label: Tipos Básicos
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/basics/types/) e [mapa mental](../../../../mindmaps/courses/typescript/basics/types/).
+
+Anotar tipos é a operação mais frequente em TypeScript — e também a mais fácil de exagerar.
+O compilador **infere** a maior parte do que precisa a partir do valor atribuído; escrever a
+anotação onde ela não acrescenta informação só gera ruído.
+
+Esta aula percorre os tipos embutidos, mostra quando a inferência basta e apresenta os três
+tipos especiais que mais confundem quem está começando: `any`, `unknown` e `never`.
+
+## Objetivo
+
+Anotar variáveis, arrays e tuplas com os tipos embutidos, explicar como funciona a inferência
+e quando a anotação é necessária, diferenciar `any` de `unknown` e entender o papel de
+`never`, usar tipos literais e `enum`, e aplicar asserções com consciência dos seus riscos.
+
+## Tipos Primitivos
+
+Os primitivos do JavaScript têm um tipo correspondente, sempre em minúsculas:
+
+| Tipo | Valores | Exemplo |
+| :--- | :--- | :--- |
+| `string` | Texto | `"DevLab"`, `` `Olá, ${nome}` `` |
+| `number` | Inteiros e decimais (IEEE 754) | `42`, `3.14`, `NaN`, `Infinity` |
+| `boolean` | Verdadeiro ou falso | `true`, `false` |
+| `bigint` | Inteiros de precisão arbitrária | `9007199254740993n` |
+| `symbol` | Identificadores únicos | `Symbol("id")` |
+| `null` | Ausência intencional de valor | `null` |
+| `undefined` | Valor não atribuído | `undefined` |
+
+```ts title="Anotações explícitas"
+let name: string = "DevLab";
+let attempts: number = 3;
+let isActive: boolean = true;
+let nickname: string | null = null;
+let notFilled: undefined = undefined;
+
+const big: bigint = 9007199254740993n;
+const id: symbol = Symbol("id");
+```
+
+<Aside type="caution" title="Use string, não String">
+  `String`, `Number` e `Boolean` (com inicial maiúscula) são os objetos empacotadores do
+  JavaScript, não os tipos primitivos. Anotar com eles funciona por acidente e causa problemas
+  sutis — a forma correta é sempre a minúscula.
+</Aside>
+
+## Inferência
+
+Na maior parte do código, a anotação é redundante: o compilador deduz o tipo a partir do valor:
+
+```ts title="O compilador já sabe"
+let name = "DevLab";       // inferido: string
+let attempts = 3;          // inferido: number
+const rate = 0.15;         // inferido: 0.15 (tipo literal!)
+
+// name = 42;              // erro: Type 'number' is not assignable to type 'string'
+
+const user = { name: "Ana", age: 32 };   // { name: string; age: number }
+const values = [1, 2, 3];                // number[]
+const mixed = [1, "dois"];               // (string | number)[]
+```
+
+A diferença entre `let` e `const` importa para a inferência: `const` guarda o tipo **literal**,
+porque o valor nunca muda:
+
+<Mermaid title="Como o compilador infere a partir da declaração">
+{`
+flowchart TD
+  A["const rate = 0.15"] --> B["tipo literal: 0.15"]
+  C["let rate = 0.15"] --> D["tipo alargado: number"]
+  E["let rate: number = 0.15"] --> D
+  B --> F["útil em uniões literais"]
+  D --> G["aceita qualquer número"]
+`}
+</Mermaid>
+
+## Quando Anotar
+
+A regra prática é anotar nas **fronteiras** e deixar inferir no meio:
+
+| Situação | Anotar? |
+| :--- | :--- |
+| Variável inicializada na declaração | Não — a inferência já acerta |
+| Parâmetro de função | **Sim** — não há valor de onde inferir |
+| Retorno de função pública ou exportada | Sim — documenta o contrato e evita mudanças acidentais |
+| Variável declarada sem valor | Sim — caso contrário vira `any` |
+| Objeto que representa um dado do domínio | Sim — via `interface` ou `type` |
+
+```ts title="Anotação nas fronteiras"
+// Redundante
+const total: number = 10 + 5;
+
+// Necessário: sem anotação, os parâmetros seriam any implícito
+function applyDiscount(price: number, percentage: number): number {
+  return price * (1 - percentage);
+}
+
+// Necessário: declarada sem valor
+let selected: string | undefined;
+```
+
+## Arrays e Tuplas
+
+Arrays aceitam duas sintaxes equivalentes, e a primeira é a convenção dominante:
+
+```ts title="Arrays"
+const languages: string[] = ["TypeScript", "Go"];
+const scores: Array<number> = [9.5, 8.0];
+const matrix: number[][] = [
+  [1, 2],
+  [3, 4],
+];
+
+const readonlyList: readonly string[] = ["a", "b"];
+// readonlyList.push("c");   // erro: Property 'push' does not exist
+```
+
+A tupla fixa a **quantidade** e o **tipo de cada posição** — útil para pares e retornos
+posicionais:
+
+```ts title="Tuplas"
+let pair: [string, number] = ["Ana", 32];
+let rgb: [number, number, number] = [255, 128, 0];
+
+// Elementos nomeados melhoram a leitura no editor
+type HttpResult = [status: number, body: string];
+
+const result: HttpResult = [200, "ok"];
+const [status, body] = result;
+
+// Opcional e rest também valem
+type Range = [start: number, end?: number];
+type Command = [name: string, ...args: string[]];
+
+const command: Command = ["deploy", "--force", "--env=prod"];
+```
+
+<Aside type="tip" title="Tupla é como o React expõe o useState">
+  `const [value, setValue] = useState(0)` funciona porque `useState` devolve uma tupla
+  `[T, (v: T) => void]`. Sem tuplas, a desestruturação posicional perderia o tipo de cada
+  elemento.
+</Aside>
+
+## `any`, `unknown` e `never`
+
+Os três tipos especiais ocupam pontas opostas do sistema, e escolher errado entre eles é a
+fonte mais comum de bugs em código TypeScript.
+
+### `any` desliga o compilador
+
+Anotar algo como `any` remove a verificação naquele ponto e em tudo que dele deriva:
+
+```ts title="any propaga silenciosamente"
+let value: any = "texto";
+
+value.toFixed(2);        // compila; explode em runtime
+value.qualquerCoisa();   // compila; explode em runtime
+
+const numbers: number[] = value;   // compila
+```
+
+`any` diz "confie em mim, não verifique". Ele se espalha: tudo que deriva de um `any` também
+vira `any`, e a verificação some do caminho inteiro.
+
+### `unknown` exige verificação
+
+O `unknown` aceita qualquer valor, mas não deixa você usá-lo antes de provar do que se trata:
+
+```ts title="unknown obriga a estreitar"
+let value: unknown = JSON.parse('{"name":"Ana"}');
+
+// value.name;                     // erro: 'value' is of type 'unknown'
+
+if (typeof value === "object" && value !== null && "name" in value) {
+  console.log(value.name);         // agora é seguro
+}
+
+function parse(raw: string): unknown {
+  return JSON.parse(raw);
+}
+```
+
+| Critério | `any` | `unknown` |
+| :--- | :--- | :--- |
+| Aceita qualquer valor | Sim | Sim |
+| Permite qualquer operação | Sim | **Não** |
+| Exige verificação antes do uso | Não | **Sim** |
+| Propaga para o resto do código | Sim | Não |
+| Indicado para | Escape temporário em migração | Dados externos: JSON, API, `catch` |
+
+<Aside type="caution" title="any é dívida técnica com juros">
+  Cada `any` cria uma região do código sem verificação, e ele contamina tudo que toca. Quando
+  o tipo é realmente desconhecido, use `unknown` e estreite. Ative `noImplicitAny` (incluso em
+  `strict`) para que o compilador avise quando um `any` aparecer sem você pedir.
+</Aside>
+
+### `never` representa o impossível
+
+O `never` descreve o que jamais acontece — e é isso que o torna útil para provar exaustividade:
+
+```ts title="never na prática"
+// Função que nunca retorna normalmente
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+// Tipo vazio: nenhum valor satisfaz
+type Impossible = string & number;
+
+// Uso mais valioso: garantir que todos os casos foram tratados
+type Shape = { kind: "circle"; radius: number } | { kind: "square"; side: number };
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case "circle":
+      return Math.PI * shape.radius ** 2;
+    case "square":
+      return shape.side ** 2;
+    default: {
+      const exhaustive: never = shape;   // erro se um caso novo aparecer
+      return exhaustive;
+    }
+  }
+}
+```
+
+## Tipos Literais e `enum`
+
+Um tipo literal restringe a variável a **valores específicos**, e a união deles forma um
+conjunto fechado:
+
+```ts title="Uniões literais"
+type Status = "rascunho" | "publicado" | "arquivado";
+type Dice = 1 | 2 | 3 | 4 | 5 | 6;
+
+let article: Status = "rascunho";
+// article = "removido";   // erro: Type '"removido"' is not assignable to type 'Status'
+
+function publish(status: Status): boolean {
+  return status === "publicado";
+}
+```
+
+O `enum` resolve o mesmo problema, porém **gera código** em tempo de execução:
+
+```ts title="enum gera objeto"
+enum Level {
+  Debug = "DEBUG",
+  Info = "INFO",
+  Error = "ERROR",
+}
+
+const current: Level = Level.Info;
+console.log(current);          // "INFO"
+console.log(Object.values(Level));   // ['DEBUG', 'INFO', 'ERROR']
+```
+
+| Abordagem | Existe em runtime | Iterável | Recomendação |
+| :--- | :--- | :--- | :--- |
+| União literal | Não | Não | Padrão para a maioria dos casos |
+| `enum` de string | Sim | Sim | Quando é preciso listar os valores |
+| `enum` numérico | Sim | Sim | Evitar: aceita qualquer número por padrão |
+| `as const` em objeto | Sim | Sim | Alternativa moderna ao `enum` |
+
+```ts title="O padrão as const"
+const LEVELS = {
+  Debug: "DEBUG",
+  Info: "INFO",
+  Error: "ERROR",
+} as const;
+
+type Level2 = (typeof LEVELS)[keyof typeof LEVELS];   // "DEBUG" | "INFO" | "ERROR"
+
+const level: Level2 = LEVELS.Info;
+console.log(Object.values(LEVELS));
+```
+
+<Aside type="note" title="Por que a comunidade evita enum">
+  O `enum` numérico aceita valores fora da lista, o `enum` tradicional não funciona sob
+  apagamento de tipos (`isolatedModules`, usado por bundlers) e ele existe no JavaScript
+  gerado. União literal e `as const` cobrem os mesmos casos sem essas ressalvas.
+</Aside>
+
+## Asserções de Tipo
+
+A asserção **afirma** um tipo sem verificar nada — é uma promessa sua ao compilador:
+
+```ts title="as e satisfies"
+const input = document.querySelector("#email") as HTMLInputElement;
+console.log(input.value);
+
+const value: unknown = "42";
+const length = (value as string).length;
+
+// satisfies: verifica sem alargar o tipo (TypeScript 5.0+)
+const palette = {
+  primary: "#42a5f5",
+  danger: "#f44336",
+} satisfies Record<string, string>;
+
+palette.primary.toUpperCase();   // continua sabendo que é string literal
+```
+
+| Recurso | O que faz | Risco |
+| :--- | :--- | :--- |
+| `as Tipo` | Afirma o tipo, sem checagem | Alto: mente para o compilador |
+| `as const` | Torna literal e somente leitura | Nenhum |
+| `satisfies Tipo` | Verifica compatibilidade preservando a inferência | Nenhum |
+| `!` (non-null) | Afirma que não é `null` nem `undefined` | Alto: some com a verificação |
+
+<Aside type="caution" title="Toda asserção é uma aposta">
+  `as` e `!` desligam a verificação naquele ponto. Prefira estreitar com `if`, `typeof` ou
+  `in` — o assunto de [Narrowing](../narrowing/) — e reserve a asserção para casos em que você
+  realmente sabe mais que o compilador, como um seletor do DOM que sempre existe.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/types.ts`:
+
+   ```ts title="src/types.ts"
+   type Status = "ativo" | "inativo";
+
+   interface Employee {
+     name: string;
+     salary: number;
+     status: Status;
+     skills: string[];
+     manager?: string;
+   }
+
+   const team: Employee[] = [
+     { name: "Ana", salary: 8500, status: "ativo", skills: ["TS", "Node"] },
+     { name: "Bia", salary: 9200, status: "ativo", skills: ["React"], manager: "Ana" },
+     { name: "Caio", salary: 7100, status: "inativo", skills: [] },
+   ];
+
+   function payroll(employees: Employee[]): number {
+     return employees
+       .filter((employee) => employee.status === "ativo")
+       .reduce((total, employee) => total + employee.salary, 0);
+   }
+
+   const pair: [string, number] = ["folha ativa", payroll(team)];
+   const [label, amount] = pair;
+
+   console.log(`${label}: R$ ${amount.toFixed(2)}`);
+
+   for (const employee of team) {
+     const manager = employee.manager ?? "—";
+     console.log(`${employee.name.padEnd(6)}${employee.status.padEnd(9)}${manager}`);
+   }
+   ```
+
+2. Verifique os tipos sem gerar arquivos:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit
+   ```
+
+3. Compile e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc && node dist/types.js
+   ```
+
+   ```txt title="Output"
+   folha ativa: R$ 17700.00
+   Ana   ativo    —
+   Bia   ativo    Ana
+   Caio  inativo  —
+   ```
+
+4. Teste a inferência no REPL do compilador, com o Playground ou com `tsc --noEmit`:
+
+   ```ts title="src/inferencia.ts"
+   const rate = 0.15;        // hover mostra: 0.15
+   let mutable = 0.15;       // hover mostra: number
+   const tags = ["a", "b"];  // string[]
+   const frozen = ["a", "b"] as const;   // readonly ["a", "b"]
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/inventory.ts` modelando um inventário com os tipos desta aula.
+
+1. Defina `type Category` como união literal com quatro categorias;
+2. Defina `interface Item` com `sku`, `name`, `price`, `category`, `tags: string[]` e `discount?`;
+3. Crie a tupla `type Summary = [total: number, count: number]`;
+4. Escreva `summarize(items: Item[]): Summary` aplicando o desconto quando existir;
+5. Escreva `byCategory(items: Item[], category: Category): Item[]`;
+6. Use `as const` em um objeto de categorias e derive o tipo a partir dele;
+7. Declare uma variável `unknown` recebendo `JSON.parse` e só use depois de verificar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/inventory.ts"
+  const CATEGORIES = {
+    Peripheral: "periferico",
+    Video: "video",
+    Cable: "cabo",
+    Chair: "cadeira",
+  } as const;
+
+  type Category = (typeof CATEGORIES)[keyof typeof CATEGORIES];
+
+  interface Item {
+    sku: string;
+    name: string;
+    price: number;
+    category: Category;
+    tags: string[];
+    discount?: number;
+  }
+
+  type Summary = [total: number, count: number];
+
+  const items: Item[] = [
+    { sku: "TEC-01", name: "Teclado", price: 349.9, category: "periferico", tags: ["usb"] },
+    { sku: "MON-02", name: "Monitor", price: 1899, category: "video", tags: [], discount: 0.1 },
+    { sku: "CAB-03", name: "Cabo HDMI", price: 59.9, category: "cabo", tags: ["2m"] },
+  ];
+
+  function finalPrice(item: Item): number {
+    return item.price * (1 - (item.discount ?? 0));
+  }
+
+  function summarize(list: Item[]): Summary {
+    const total = list.reduce((sum, item) => sum + finalPrice(item), 0);
+    return [Number(total.toFixed(2)), list.length];
+  }
+
+  function byCategory(list: Item[], category: Category): Item[] {
+    return list.filter((item) => item.category === category);
+  }
+
+  const [total, count] = summarize(items);
+  console.log(`${count} itens · R$ ${total.toFixed(2)}`);
+  console.log(byCategory(items, "video").map((item) => item.name));
+
+  const parsed: unknown = JSON.parse('{"sku":"TEC-01"}');
+
+  if (typeof parsed === "object" && parsed !== null && "sku" in parsed) {
+    console.log("SKU recebido:", parsed.sku);
+  }
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/strict-parse.ts`, um leitor de configuração que nunca usa `any`.
+
+1. Defina `interface Config` com `port: number`, `host: string`, `debug: boolean` e `tags: string[]`;
+2. Escreva `parseConfig(raw: string): Config` recebendo JSON e devolvendo `Config`;
+3. Comece o corpo com `const data: unknown = JSON.parse(raw)` — nada de `as Config`;
+4. Verifique cada campo antes de usar, lançando erro com mensagem específica quando faltar;
+5. Escreva uma função auxiliar `isRecord(value: unknown): value is Record<string, unknown>`;
+6. Teste com um JSON válido, um sem campo obrigatório e um com tipo errado;
+7. Compare em comentário o que aconteceria se o corpo usasse `JSON.parse(raw) as Config`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/strict-parse.ts"
+  interface Config {
+    port: number;
+    host: string;
+    debug: boolean;
+    tags: string[];
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  function isStringArray(value: unknown): value is string[] {
+    return Array.isArray(value) && value.every((item) => typeof item === "string");
+  }
+
+  function parseConfig(raw: string): Config {
+    const data: unknown = JSON.parse(raw);
+
+    if (!isRecord(data)) {
+      throw new TypeError("a configuração deve ser um objeto JSON");
+    }
+    if (typeof data.port !== "number") {
+      throw new TypeError("port ausente ou não numérico");
+    }
+    if (typeof data.host !== "string") {
+      throw new TypeError("host ausente ou não textual");
+    }
+    if (typeof data.debug !== "boolean") {
+      throw new TypeError("debug ausente ou não booleano");
+    }
+    if (!isStringArray(data.tags)) {
+      throw new TypeError("tags deve ser uma lista de strings");
+    }
+
+    return { port: data.port, host: data.host, debug: data.debug, tags: data.tags };
+  }
+
+  const cases = [
+    '{"port":3000,"host":"localhost","debug":true,"tags":["api"]}',
+    '{"host":"localhost","debug":true,"tags":[]}',
+    '{"port":"3000","host":"localhost","debug":true,"tags":[]}',
+  ];
+
+  for (const raw of cases) {
+    try {
+      console.log("ok:", parseConfig(raw));
+    } catch (error) {
+      console.log("falhou:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Com `JSON.parse(raw) as Config` o compilador aceitaria os três casos sem reclamar,
+  // e o erro só apareceria mais adiante, como `undefined` ou NaN em produção.
+  ```
+
+  `value is Record<string, unknown>` é um *type predicate*: ele informa ao compilador o que a
+  função garante quando devolve `true`. É o tema de [Narrowing](../narrowing/).
+</details>
+
+## Perguntas de revisão
+
+### Primitivos e inferência
+
+**1. Por que anotar `const total: number = 10 + 5` é redundante?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o compilador infere `number` a partir do valor atribuído. A anotação só repete o que
+  já é conhecido, aumentando o ruído sem acrescentar segurança.
+</details>
+
+**2. Qual a diferença de inferência entre `let rate = 0.15` e `const rate = 0.15`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `let` recebe o tipo alargado `number`, porque a variável pode mudar. `const` recebe o tipo
+  **literal** `0.15`, já que o valor nunca muda — o que permite usá-lo em uniões literais.
+</details>
+
+**3. Em quais situações a anotação é realmente necessária?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em parâmetros de função (não há valor de onde inferir), em variáveis declaradas sem valor
+  inicial, no retorno de funções exportadas (para fixar o contrato) e ao descrever dados do
+  domínio com `interface` ou `type`.
+</details>
+
+### Coleções
+
+**4. Qual a diferença entre `string[]` e `[string, number]`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `string[]` é um array de tamanho livre com todos os elementos do mesmo tipo. `[string,
+  number]` é uma **tupla**: tamanho fixo, com tipo definido por posição.
+</details>
+
+**5. O que `readonly string[]` impede?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Impede métodos mutadores como `push`, `pop` e `splice`, além de atribuição por índice. O
+  array continua legível e iterável, mas não pode ser alterado por aquela referência.
+</details>
+
+### Tipos especiais
+
+**6. Qual a diferença entre `any` e `unknown`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ambos aceitam qualquer valor, mas `any` permite qualquer operação sem verificação e propaga
+  essa permissividade, enquanto `unknown` obriga a estreitar o tipo antes de usar. Para dados
+  externos, `unknown` é a escolha correta.
+</details>
+
+**7. Para que serve o tipo `never`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Representa o que não pode acontecer: o retorno de funções que sempre lançam ou entram em
+  laço infinito, e o resultado de interseções impossíveis. O uso mais valioso é garantir
+  exaustividade em `switch`, atribuindo o valor restante a `const x: never`.
+</details>
+
+**8. Por que a comunidade costuma preferir união literal a `enum`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a união literal não gera código em runtime, funciona com `isolatedModules` e
+  bundlers, e não tem o comportamento permissivo do `enum` numérico. Quando é preciso listar
+  os valores, um objeto com `as const` cobre o caso.
+</details>
+
+### Asserções
+
+**9. Qual a diferença entre `as` e `satisfies`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `as` **afirma** um tipo sem verificação, podendo mentir para o compilador. `satisfies`
+  verifica se o valor é compatível com o tipo informado, mas preserva a inferência mais
+  específica — sem alargar o tipo do valor.
+</details>
+
+**10. Por que o operador `!` (non-null assertion) é arriscado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele apenas afirma que o valor não é `null` nem `undefined`, sem qualquer verificação.
+  Se a afirmação estiver errada, o erro reaparece em tempo de execução — exatamente o problema
+  que TypeScript deveria evitar.
+</details>
+
+## Referências
+
+- [Tipos do dia a dia](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html)
+- [Tipos literais](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types)
+- [Enums](https://www.typescriptlang.org/docs/handbook/enums.html)
+- [Asserções de tipo](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-assertions)
+- [`satisfies`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator)
+
+## Próxima aula
+
+Com os tipos de valores conhecidos, o próximo passo é tipar o que transforma esses valores.
+
+[Funções](../functions/): parâmetros opcionais, valores padrão, rest, sobrecargas, tipos de
+função e retorno.

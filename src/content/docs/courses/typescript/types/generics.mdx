@@ -1,0 +1,625 @@
+---
+title: "TypeScript: Generics"
+description: "Parâmetros de tipo, funções e interfaces genéricas, restrições com extends, valores padrão, inferência, keyof em generics e classes genéricas."
+course: typescript
+sidebar:
+  label: Generics
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/types/generics/) e [mapa mental](../../../../mindmaps/courses/typescript/types/generics/).
+
+Uma função que devolve o primeiro item de uma lista funciona com qualquer tipo de lista. Sem
+generics, restam duas saídas ruins: escrever uma versão por tipo, ou usar `any` e perder toda
+a informação. **Generics** são a terceira via — a função continua uma só, e o tipo que entra é
+o tipo que sai.
+
+Esta aula mostra como declarar parâmetros de tipo, restringi-los ao necessário e deixar o
+compilador inferir o resto.
+
+## Objetivo
+
+Declarar funções, interfaces e classes genéricas, restringir parâmetros de tipo com `extends`,
+definir valores padrão, aproveitar a inferência a partir dos argumentos, combinar generics com
+`keyof` e reconhecer quando um generic não se justifica.
+
+## O Problema Que Generics Resolvem
+
+Sem parâmetros de tipo, a informação se perde no caminho:
+
+```ts title="Três abordagens"
+// 1. Uma função por tipo: duplicação
+function firstString(items: string[]): string | undefined {
+  return items[0];
+}
+
+function firstNumber(items: number[]): number | undefined {
+  return items[0];
+}
+
+// 2. any: funciona com tudo e não protege nada
+function firstAny(items: any[]): any {
+  return items[0];
+}
+
+const wrong = firstAny(["a", "b"]);
+wrong.toFixed(2);   // compila; explode em runtime
+
+// 3. Generic: uma função, tipo preservado
+function first<T>(items: T[]): T | undefined {
+  return items[0];
+}
+
+const name = first(["a", "b"]);   // string | undefined
+const value = first([1, 2, 3]);   // number | undefined
+// name?.toFixed(2);              // erro, como deveria
+```
+
+<Mermaid title="O tipo entra e sai preservado">
+{`
+flowchart LR
+  A["first(['a','b'])"] --> B["T = string"]
+  B --> C["retorno: string | undefined"]
+  D["first([1,2,3])"] --> E["T = number"]
+  E --> F["retorno: number | undefined"]
+`}
+</Mermaid>
+
+## Funções Genéricas
+
+O parâmetro de tipo é declarado entre `<>` antes dos parâmetros e vale por chamada:
+
+```ts title="Um e vários parâmetros de tipo"
+function identity<T>(value: T): T {
+  return value;
+}
+
+function pair<A, B>(first: A, second: B): [A, B] {
+  return [first, second];
+}
+
+function mapValues<T, U>(items: T[], transform: (item: T) => U): U[] {
+  return items.map(transform);
+}
+
+// Inferência: quase nunca é preciso passar o tipo explicitamente
+const result = pair("ana", 32);              // [string, number]
+const lengths = mapValues(["ab", "cde"], (s) => s.length);   // number[]
+
+// Explícito quando a inferência não basta
+const empty = first<string>([]);             // string | undefined
+```
+
+<Aside type="tip" title="Deixe o compilador inferir">
+  Passar o tipo explicitamente (`first<string>(...)`) só é necessário quando não há argumento
+  de onde inferir, ou quando se quer um tipo mais amplo do que o inferido. Em código
+  idiomático, a maioria das chamadas genéricas não menciona tipo algum.
+</Aside>
+
+## Restrições com `extends`
+
+Um `T` sem restrição pode ser qualquer coisa — inclusive algo sem as propriedades que a
+função precisa. `extends` estabelece o mínimo exigido:
+
+```ts title="Exigindo uma forma"
+// Sem restrição: erro, pois nem todo T tem length
+// function longest<T>(a: T, b: T): T {
+//   return a.length >= b.length ? a : b;
+// }
+
+interface HasLength {
+  length: number;
+}
+
+function longest<T extends HasLength>(a: T, b: T): T {
+  return a.length >= b.length ? a : b;
+}
+
+console.log(longest("banana", "kiwi"));        // string
+console.log(longest([1, 2, 3], [1]));          // number[]
+// console.log(longest(10, 20));               // erro: number não tem length
+
+// Restrição a partir de outro parâmetro de tipo
+function getProperty<T, K extends keyof T>(object: T, key: K): T[K] {
+  return object[key];
+}
+
+const user = { name: "Ana", age: 32, active: true };
+
+const userName = getProperty(user, "name");    // string
+const userAge = getProperty(user, "age");      // number
+// getProperty(user, "email");                 // erro: '"email"' não é chave de user
+```
+
+| Restrição | Exige que `T` seja |
+| :--- | :--- |
+| `T extends object` | Um objeto (não primitivo) |
+| `T extends { id: string }` | Um objeto com `id` textual |
+| `K extends keyof T` | Uma chave existente em `T` |
+| `T extends unknown[]` | Um array de qualquer tipo |
+| `T extends (...args: never[]) => unknown` | Uma função |
+
+## Valores Padrão
+
+Como parâmetros de função, parâmetros de tipo aceitam padrão — útil em tipos usados com
+frequência na mesma configuração:
+
+```ts title="Parâmetro de tipo com padrão"
+interface ApiResponse<T = unknown> {
+  status: number;
+  data: T;
+}
+
+const generic: ApiResponse = { status: 200, data: { qualquer: "coisa" } };
+const typed: ApiResponse<string[]> = { status: 200, data: ["a", "b"] };
+
+type Dictionary<V, K extends string = string> = Record<K, V>;
+
+const counts: Dictionary<number> = { a: 1, b: 2 };
+```
+
+## Interfaces e Tipos Genéricos
+
+Estruturas de dados e contratos ganham o mesmo tratamento:
+
+```ts title="Contratos parametrizados"
+interface Repository<T, Id = string> {
+  findById(id: Id): Promise<T | null>;
+  save(entity: T): Promise<T>;
+  list(): Promise<T[]>;
+}
+
+interface User {
+  id: string;
+  name: string;
+}
+
+class InMemoryUserRepository implements Repository<User> {
+  private readonly items = new Map<string, User>();
+
+  async findById(id: string): Promise<User | null> {
+    return this.items.get(id) ?? null;
+  }
+
+  async save(entity: User): Promise<User> {
+    this.items.set(entity.id, entity);
+    return entity;
+  }
+
+  async list(): Promise<User[]> {
+    return [...this.items.values()];
+  }
+}
+
+type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
+
+function ok<T>(value: T): Result<T> {
+  return { ok: true, value };
+}
+```
+
+## Classes Genéricas
+
+A classe declara o parâmetro no nome, e ele vale em todos os membros:
+
+```ts title="Estrutura de dados tipada"
+class Stack<T> {
+  private readonly items: T[] = [];
+
+  push(item: T): this {
+    this.items.push(item);
+    return this;
+  }
+
+  pop(): T | undefined {
+    return this.items.pop();
+  }
+
+  peek(): T | undefined {
+    return this.items.at(-1);
+  }
+
+  get size(): number {
+    return this.items.length;
+  }
+}
+
+const numbers = new Stack<number>();
+numbers.push(1).push(2).push(3);
+
+console.log(numbers.pop(), numbers.peek(), numbers.size);
+
+const inferred = new Stack<string>();
+inferred.push("a");
+// inferred.push(1);   // erro: number não é string
+```
+
+<Aside type="caution" title="Parâmetro de tipo precisa ser usado">
+  Se `T` aparece uma única vez na assinatura, ele não está relacionando nada e provavelmente
+  deveria ser apenas `unknown`. Generic existe para **conectar** posições: entrada com saída,
+  parâmetro com retorno, chave com valor.
+</Aside>
+
+## Convenções e Boas Práticas
+
+Nomes de parâmetro de tipo seguem convenções que facilitam a leitura:
+
+| Nome | Uso habitual |
+| :--- | :--- |
+| `T` | Tipo genérico principal |
+| `U`, `V` | Tipos adicionais |
+| `K` | Chave (normalmente `K extends keyof T`) |
+| `V` | Valor em estruturas chave-valor |
+| `E` | Erro ou elemento |
+| `TItem`, `TResult` | Nomes descritivos em APIs públicas |
+
+```ts title="Quando não usar generic"
+// Desnecessário: T aparece só uma vez
+function logValue<T>(value: T): void {
+  console.log(value);
+}
+
+// Melhor
+function logValueBetter(value: unknown): void {
+  console.log(value);
+}
+
+// Necessário: T conecta parâmetro e retorno
+function clone<T>(value: T): T {
+  return structuredClone(value);
+}
+```
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/generics.ts`:
+
+   ```ts title="src/generics.ts"
+   interface Entity {
+     id: string;
+   }
+
+   class Collection<T extends Entity> {
+     private readonly items = new Map<string, T>();
+
+     add(item: T): this {
+       this.items.set(item.id, item);
+       return this;
+     }
+
+     find(id: string): T | undefined {
+       return this.items.get(id);
+     }
+
+     filter(predicate: (item: T) => boolean): T[] {
+       return [...this.items.values()].filter(predicate);
+     }
+
+     pluck<K extends keyof T>(key: K): T[K][] {
+       return [...this.items.values()].map((item) => item[key]);
+     }
+
+     get size(): number {
+       return this.items.size;
+     }
+   }
+
+   interface Course extends Entity {
+     title: string;
+     hours: number;
+   }
+
+   const courses = new Collection<Course>();
+
+   courses
+     .add({ id: "py", title: "Guia de Python", hours: 30 })
+     .add({ id: "ts", title: "Guia de TypeScript", hours: 28 })
+     .add({ id: "dw", title: "Desenvolvimento Web", hours: 80 });
+
+   console.log(courses.find("ts")?.title);
+   console.log(courses.filter((course) => course.hours > 29).map((course) => course.id));
+   console.log(courses.pluck("title"));
+   console.log(`${courses.size} cursos`);
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/generics.js
+   ```
+
+   ```txt title="Output"
+   Guia de TypeScript
+   [ 'py', 'dw' ]
+   [ 'Guia de Python', 'Guia de TypeScript', 'Desenvolvimento Web' ]
+   3 cursos
+   ```
+
+3. Comprove que a restrição funciona:
+
+   ```ts title="src/generics.ts"
+   // const invalid = new Collection<{ title: string }>();
+   // error TS2344: Type '{ title: string; }' does not satisfy the constraint 'Entity'.
+
+   // courses.pluck("duration");
+   // error TS2345: Argument of type '"duration"' is not assignable to
+   // parameter of type 'keyof Course'.
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/cache.ts` com um cache genérico com expiração.
+
+1. Defina `class Cache<K, V>` com `Map<K, { value: V; expiresAt: number }>` internamente;
+2. Implemente `set(key: K, value: V, ttlMs?: number): void` com TTL padrão de 60 segundos;
+3. Implemente `get(key: K): V | undefined`, removendo entradas expiradas;
+4. Implemente `getOrSet(key: K, factory: () => V, ttlMs?: number): V`;
+5. Implemente `keys(): K[]` e um getter `size`;
+6. Restrinja `K` para aceitar apenas `string | number`;
+7. Teste com dois caches de tipos diferentes e comprove que os tipos não se misturam.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/cache.ts"
+  interface Entry<V> {
+    value: V;
+    expiresAt: number;
+  }
+
+  export class Cache<K extends string | number, V> {
+    private readonly store = new Map<K, Entry<V>>();
+
+    constructor(private readonly defaultTtlMs: number = 60_000) {}
+
+    set(key: K, value: V, ttlMs: number = this.defaultTtlMs): void {
+      this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
+    }
+
+    get(key: K): V | undefined {
+      const entry = this.store.get(key);
+
+      if (!entry) return undefined;
+
+      if (entry.expiresAt <= Date.now()) {
+        this.store.delete(key);
+        return undefined;
+      }
+
+      return entry.value;
+    }
+
+    getOrSet(key: K, factory: () => V, ttlMs?: number): V {
+      const cached = this.get(key);
+      if (cached !== undefined) return cached;
+
+      const value = factory();
+      this.set(key, value, ttlMs);
+      return value;
+    }
+
+    keys(): K[] {
+      return [...this.store.keys()];
+    }
+
+    get size(): number {
+      return this.store.size;
+    }
+  }
+
+  const users = new Cache<string, { name: string }>();
+  const counters = new Cache<number, number>(1_000);
+
+  users.set("u1", { name: "Ana" });
+  counters.set(1, 42);
+
+  console.log(users.get("u1")?.name.toUpperCase());
+  console.log(counters.getOrSet(2, () => 100));
+  console.log(users.keys(), counters.size);
+
+  // users.set("u2", 42);        // erro: number não é { name: string }
+  // counters.set("x", 1);       // erro: string não é number
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/query.ts`, um construtor de consultas que preserva os tipos das colunas.
+
+1. Defina `class Query<T>` recebendo um array de registros no construtor;
+2. Implemente `where<K extends keyof T>(key: K, value: T[K]): Query<T>`;
+3. Implemente `select<K extends keyof T>(...keys: K[]): Query<Pick<T, K>>` — o tipo do resultado muda;
+4. Implemente `orderBy<K extends keyof T>(key: K, direction?: "asc" | "desc"): Query<T>`;
+5. Implemente `limit(count: number): Query<T>` e `run(): T[]`;
+6. Encadeie os métodos sobre uma lista de objetos e comprove que, após `select`, apenas as colunas escolhidas existem;
+7. Explique em comentário por que `select` precisa devolver `Query<Pick<T, K>>` e não `Query<T>`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/query.ts"
+  export class Query<T> {
+    constructor(private readonly rows: T[]) {}
+
+    where<K extends keyof T>(key: K, value: T[K]): Query<T> {
+      return new Query(this.rows.filter((row) => row[key] === value));
+    }
+
+    select<K extends keyof T>(...keys: K[]): Query<Pick<T, K>> {
+      const projected = this.rows.map((row) => {
+        const result = {} as Pick<T, K>;
+        for (const key of keys) {
+          result[key] = row[key];
+        }
+        return result;
+      });
+      return new Query(projected);
+    }
+
+    orderBy<K extends keyof T>(key: K, direction: "asc" | "desc" = "asc"): Query<T> {
+      const sorted = [...this.rows].sort((a, b) => {
+        if (a[key] === b[key]) return 0;
+        const ascending = a[key] < b[key] ? -1 : 1;
+        return direction === "asc" ? ascending : -ascending;
+      });
+      return new Query(sorted);
+    }
+
+    limit(count: number): Query<T> {
+      return new Query(this.rows.slice(0, count));
+    }
+
+    run(): T[] {
+      return this.rows;
+    }
+  }
+
+  interface Course {
+    id: string;
+    title: string;
+    hours: number;
+    level: "iniciante" | "avançado";
+  }
+
+  const data: Course[] = [
+    { id: "py", title: "Guia de Python", hours: 30, level: "iniciante" },
+    { id: "ts", title: "Guia de TypeScript", hours: 28, level: "avançado" },
+    { id: "dw", title: "Desenvolvimento Web", hours: 80, level: "iniciante" },
+  ];
+
+  const result = new Query(data)
+    .where("level", "iniciante")
+    .orderBy("hours", "desc")
+    .select("title", "hours")
+    .limit(2)
+    .run();
+
+  console.log(result);
+  // result[0].level;   // erro: 'level' não existe em Pick<Course, "title" | "hours">
+
+  // select precisa devolver Query<Pick<T, K>> porque o conjunto de colunas mudou:
+  // manter Query<T> faria o compilador acreditar em propriedades que foram descartadas,
+  // e o erro só apareceria em runtime como undefined.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Fundamentos
+
+**1. Que problema os generics resolvem?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permitem escrever uma única função ou estrutura que funciona com vários tipos **preservando**
+  a informação de tipo — o oposto de `any`, que aceita tudo e não protege nada, e sem a
+  duplicação de escrever uma versão por tipo.
+</details>
+
+**2. Quando é preciso informar o tipo explicitamente na chamada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando não há argumento de onde inferir (como `first<string>([])`) ou quando se deseja um
+  tipo mais amplo do que o inferido. Na maioria dos casos a inferência resolve.
+</details>
+
+**3. Como se lê `function first<T>(items: T[]): T | undefined`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  "Para qualquer tipo `T`, recebo um array de `T` e devolvo um `T` ou `undefined`." O `T` da
+  entrada e o do retorno são o mesmo, e é essa ligação que preserva o tipo.
+</details>
+
+### Restrições
+
+**4. Por que `T` sem restrição não permite acessar `.length`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `T` pode ser qualquer coisa, inclusive `number`, que não tem `length`. Para acessar a
+  propriedade é preciso restringir: `T extends { length: number }`.
+</details>
+
+**5. O que significa `K extends keyof T`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que `K` só pode ser uma das chaves existentes em `T`. Combinado com o retorno `T[K]`, isso
+  permite escrever acessos genéricos que devolvem exatamente o tipo daquela propriedade.
+</details>
+
+**6. Para que serve um valor padrão em parâmetro de tipo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para permitir usar o tipo sem informar o parâmetro, como `ApiResponse` em vez de
+  `ApiResponse<unknown>`. Funciona como valor padrão de parâmetro de função.
+</details>
+
+### Uso adequado
+
+**7. Como identificar um generic desnecessário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o parâmetro de tipo aparece uma única vez na assinatura. Nesse caso ele não conecta
+  nada e pode ser substituído por `unknown` — generics existem para relacionar posições.
+</details>
+
+**8. Qual a diferença entre `Array<T>` e `T[]`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Nenhuma: são sintaxes equivalentes para o mesmo tipo. A forma `T[]` é a mais usada; a forma
+  genérica aparece quando o tipo do elemento é uma expressão longa.
+</details>
+
+**9. Uma classe genérica pode ter restrição?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Sim: `class Collection<T extends Entity>` exige que todo tipo usado tenha a forma de
+  `Entity`. A restrição vale para todos os membros da classe.
+</details>
+
+**10. Por que um método como `select` deve mudar o parâmetro de tipo do retorno?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a operação altera a forma dos dados. Devolver o tipo original faria o compilador
+  acreditar em propriedades que já não existem, e o erro só apareceria em execução.
+</details>
+
+## Referências
+
+- [Generics](https://www.typescriptlang.org/docs/handbook/2/generics.html)
+- [Restrições de tipo](https://www.typescriptlang.org/docs/handbook/2/generics.html#generic-constraints)
+- [`keyof`](https://www.typescriptlang.org/docs/handbook/2/keyof-types.html)
+- [Indexed access types](https://www.typescriptlang.org/docs/handbook/2/indexed-access-types.html)
+- [Classes genéricas](https://www.typescriptlang.org/docs/handbook/2/generics.html#generic-classes)
+
+## Próxima aula
+
+Com generics no repertório, é possível usar a biblioteca de tipos que a linguagem já oferece
+para derivar tipos a partir de outros.
+
+[Utility Types](../../advanced/utility-types/): `Partial`, `Pick`, `Omit`, `Record`,
+`ReturnType` e companhia.

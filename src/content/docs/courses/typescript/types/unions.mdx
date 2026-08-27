@@ -1,0 +1,613 @@
+---
+title: "TypeScript: Uniões e Interseções"
+description: "Tipos união e interseção, tipos literais, uniões discriminadas, exaustividade, composição de tipos e cuidados ao combinar objetos em TypeScript."
+course: typescript
+sidebar:
+  label: Uniões e Interseções
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/types/unions/) e [mapa mental](../../../../mindmaps/courses/typescript/types/unions/).
+
+Nem todo dado tem uma forma só. Uma requisição está carregando, deu certo ou falhou. Um
+pagamento é cartão, PIX ou boleto. Um identificador pode chegar como texto ou número. A
+**união** descreve essas alternativas, e a **interseção** faz o oposto: combina exigências.
+
+Modelar bem as alternativas é o que permite ao compilador cobrar o tratamento de cada caso —
+inclusive dos casos que você acrescentar meses depois.
+
+## Objetivo
+
+Escrever tipos união e interseção, restringir valores com tipos literais, modelar alternativas
+com uniões discriminadas, garantir exaustividade com `never`, compor tipos com `&` e
+reconhecer os cuidados ao unir e intersectar objetos.
+
+## União
+
+A união aceita valores de qualquer uma das variações, e permite apenas o que é comum a todas
+elas até que o tipo seja estreitado:
+
+```ts title="O denominador comum"
+type Id = string | number;
+
+function describe(id: Id): string {
+  // Só o que existe nos DOIS tipos está disponível aqui
+  console.log(id.toString());
+
+  // id.toUpperCase();   // erro: não existe em number
+
+  if (typeof id === "string") {
+    return id.toUpperCase();
+  }
+  return id.toFixed(0);
+}
+
+console.log(describe("abc"), describe(42));
+```
+
+<Mermaid title="União aceita mais valores e oferece menos operações">
+{`
+flowchart LR
+  A["string<br/>toUpperCase, trim…"] --> C["string | number"]
+  B["number<br/>toFixed, toPrecision…"] --> C
+  C --> D["disponível sem narrowing:<br/>toString, valueOf"]
+  C --> E["após narrowing:<br/>tudo do tipo estreitado"]
+`}
+</Mermaid>
+
+## Tipos Literais em União
+
+A união de literais cria um conjunto fechado de valores válidos — o recurso mais usado no dia
+a dia de um projeto tipado:
+
+```ts title="Conjuntos fechados"
+type Level = "debug" | "info" | "error";
+type Dice = 1 | 2 | 3 | 4 | 5 | 6;
+type Flag = true;
+
+function log(level: Level, message: string): void {
+  console.log(`[${level.toUpperCase()}] ${message}`);
+}
+
+log("info", "servidor iniciado");
+// log("warn", "…");   // erro: '"warn"' is not assignable to 'Level'
+
+// Derivando a união a partir de um objeto
+const ROUTES = {
+  home: "/",
+  courses: "/courses",
+  guides: "/guides",
+} as const;
+
+type RouteName = keyof typeof ROUTES;          // "home" | "courses" | "guides"
+type RoutePath = (typeof ROUTES)[RouteName];   // "/" | "/courses" | "/guides"
+```
+
+<Aside type="tip" title="Uniões literais substituem constantes soltas">
+  Em vez de `status: string` e uma constante em outro arquivo, `status: "ativo" | "inativo"`
+  documenta as opções na própria assinatura, oferece autocompletar e falha na compilação
+  quando alguém digita `"Ativo"`.
+</Aside>
+
+## Uniões Discriminadas
+
+Unir objetos exige um cuidado extra: sem uma propriedade que os distinga, o compilador não
+consegue estreitar. A solução é dar a cada variação um **discriminante** literal:
+
+```ts title="O padrão mais útil do TypeScript"
+type Payment =
+  | { method: "card"; brand: string; installments: number }
+  | { method: "pix"; key: string }
+  | { method: "slip"; dueDate: Date };
+
+function describePayment(payment: Payment): string {
+  switch (payment.method) {
+    case "card":
+      return `Cartão ${payment.brand} em ${payment.installments}x`;
+    case "pix":
+      return `PIX para ${payment.key}`;
+    case "slip":
+      return `Boleto vencendo em ${payment.dueDate.toLocaleDateString("pt-BR")}`;
+  }
+}
+
+console.log(describePayment({ method: "pix", key: "ana@devlab.dev" }));
+console.log(describePayment({ method: "card", brand: "Visa", installments: 3 }));
+```
+
+Dentro de cada `case`, o compilador sabe exatamente qual variação está em uso: acessar
+`payment.key` no ramo do cartão é erro de compilação, e não um `undefined` silencioso.
+
+| Elemento | Papel |
+| :--- | :--- |
+| Propriedade comum (`method`) | Existe em todas as variações |
+| Tipo literal em cada variação | Permite ao compilador distinguir |
+| `switch` ou `if` sobre ela | Ativa o narrowing automático |
+| Caso `never` no `default` | Prova que nenhuma variação ficou de fora |
+
+## Exaustividade
+
+Sem um caso `default` que force o erro, acrescentar uma variação passa despercebido. O truque
+é atribuir o valor restante a `never`:
+
+```ts title="O compilador cobra o caso novo"
+type Shape =
+  | { kind: "circle"; radius: number }
+  | { kind: "rect"; width: number; height: number };
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case "circle":
+      return Math.PI * shape.radius ** 2;
+    case "rect":
+      return shape.width * shape.height;
+    default: {
+      const exhaustive: never = shape;
+      throw new Error(`forma não tratada: ${JSON.stringify(exhaustive)}`);
+    }
+  }
+}
+```
+
+Ao acrescentar `| { kind: "triangle"; base: number; height: number }` ao tipo, o compilador
+aponta o `default`:
+
+```txt title="Output"
+src/shapes.ts:14:13 - error TS2322: Type '{ kind: "triangle"; … }' is not assignable to type 'never'.
+```
+
+<Aside type="tip" title="Esse é o principal argumento a favor de tipos">
+  Em JavaScript, acrescentar uma variação exige lembrar de todos os lugares que a tratam. Com
+  união discriminada e `never`, o compilador produz a lista completa de pontos a atualizar —
+  refatoração deixa de depender de memória.
+</Aside>
+
+## Interseção
+
+A interseção combina exigências: o valor precisa satisfazer **todos** os tipos ao mesmo tempo:
+
+```ts title="Combinando contratos"
+interface Timestamped {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface Identifiable {
+  id: string;
+}
+
+type Entity = Identifiable & Timestamped;
+
+type User = Entity & {
+  name: string;
+  email: string;
+};
+
+const user: User = {
+  id: "u1",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  name: "Ana",
+  email: "ana@devlab.dev",
+};
+```
+
+| Operador | Significado | Efeito no conjunto de valores |
+| :--- | :--- | :--- |
+| `A \| B` | "um **ou** outro" | Mais valores aceitos, menos operações disponíveis |
+| `A & B` | "um **e** outro" | Menos valores aceitos, mais operações disponíveis |
+
+```ts title="Quando a interseção não faz sentido"
+type Impossible = string & number;   // never: nenhum valor é os dois
+
+// Interseção de objetos com a mesma chave de tipos incompatíveis
+type A = { value: string };
+type B = { value: number };
+type AB = A & B;                     // value: never — impossível de satisfazer
+
+// const ab: AB = { value: "x" };    // erro
+```
+
+<Aside type="caution" title="Interseção de objetos pode gerar never silencioso">
+  Quando dois tipos declaram a mesma propriedade com tipos incompatíveis, a interseção não
+  falha de imediato: ela produz `never` naquela propriedade, e o erro só aparece na hora de
+  criar o objeto. Ao compor tipos, verifique se as chaves não colidem.
+</Aside>
+
+## Uniões de Arrays e Funções
+
+Duas construções costumam confundir por causa da precedência:
+
+```ts title="Onde os parênteses importam"
+// Array de valores que podem ser string ou number
+let mixed: (string | number)[] = ["a", 1];
+
+// União entre "array de string" e "array de number"
+let separate: string[] | number[] = ["a", "b"];
+// separate = ["a", 1];   // erro: não é nem string[] nem number[]
+
+// União de funções: os parâmetros viram interseção
+type Handler = ((value: string) => void) | ((value: number) => void);
+
+// Alternativa mais útil: uma função que aceita a união
+type BetterHandler = (value: string | number) => void;
+```
+
+## Modelando Estados com União
+
+Uniões discriminadas eliminam estados impossíveis — o objeto não consegue representar "carregando
+com erro e dados ao mesmo tempo":
+
+```ts title="Antes e depois"
+// Modelagem frouxa: quatro campos, 16 combinações, a maioria inválida
+interface LooseState {
+  loading: boolean;
+  data?: string[];
+  error?: string;
+}
+
+// Modelagem por união: só os estados possíveis existem
+type State =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: string[] }
+  | { status: "failure"; error: string };
+
+function render(state: State): string {
+  switch (state.status) {
+    case "idle":
+      return "Aguardando";
+    case "loading":
+      return "Carregando…";
+    case "success":
+      return `${state.data.length} itens`;
+    case "failure":
+      return `Erro: ${state.error}`;
+  }
+}
+
+console.log(render({ status: "success", data: ["a", "b", "c"] }));
+```
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/unions.ts`:
+
+   ```ts title="src/unions.ts"
+   type Notification =
+     | { channel: "email"; to: string; subject: string }
+     | { channel: "sms"; phone: string }
+     | { channel: "push"; deviceId: string; badge?: number };
+
+   function send(notification: Notification): string {
+     switch (notification.channel) {
+       case "email":
+         return `E-mail para ${notification.to}: ${notification.subject}`;
+       case "sms":
+         return `SMS para ${notification.phone}`;
+       case "push":
+         return `Push para ${notification.deviceId} (badge ${notification.badge ?? 0})`;
+       default: {
+         const exhaustive: never = notification;
+         throw new Error(`canal não tratado: ${JSON.stringify(exhaustive)}`);
+       }
+     }
+   }
+
+   const queue: Notification[] = [
+     { channel: "email", to: "ana@devlab.dev", subject: "Bem-vinda" },
+     { channel: "sms", phone: "83900000000" },
+     { channel: "push", deviceId: "dev-01", badge: 3 },
+   ];
+
+   queue.forEach((notification) => console.log(send(notification)));
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/unions.js
+   ```
+
+   ```txt title="Output"
+   E-mail para ana@devlab.dev: Bem-vinda
+   SMS para 83900000000
+   Push para dev-01 (badge 3)
+   ```
+
+3. Acrescente um canal e veja a exaustividade cobrar o novo caso:
+
+   ```ts title="src/unions.ts"
+   type Notification =
+     | { channel: "email"; to: string; subject: string }
+     | { channel: "sms"; phone: string }
+     | { channel: "push"; deviceId: string; badge?: number }
+     | { channel: "webhook"; url: string };
+   ```
+
+   ```txt title="Output"
+   src/unions.ts:19:15 - error TS2322: Type '{ channel: "webhook"; url: string; }' is not assignable to type 'never'.
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/editor.ts` modelando comandos de um editor com união discriminada.
+
+1. Defina `type Command` com quatro variações: `insert`, `delete`, `move` e `undo`;
+2. Cada variação carrega apenas os campos que fazem sentido para ela;
+3. Escreva `apply(text: string, command: Command): string` usando `switch` sobre o discriminante;
+4. Garanta exaustividade com `never` no `default`;
+5. Defina `type Auditable = { at: Date; by: string }` e crie `type AuditedCommand = Command & Auditable`;
+6. Escreva `describe(command: AuditedCommand): string` incluindo autor e horário;
+7. Aplique uma sequência de comandos a um texto inicial e imprima cada passo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/editor.ts"
+  type Command =
+    | { kind: "insert"; position: number; content: string }
+    | { kind: "delete"; position: number; length: number }
+    | { kind: "move"; from: number; to: number }
+    | { kind: "undo" };
+
+  type Auditable = { at: Date; by: string };
+  type AuditedCommand = Command & Auditable;
+
+  const history: string[] = [];
+
+  function apply(text: string, command: Command): string {
+    switch (command.kind) {
+      case "insert":
+        return text.slice(0, command.position) + command.content + text.slice(command.position);
+      case "delete":
+        return text.slice(0, command.position) + text.slice(command.position + command.length);
+      case "move": {
+        const char = text[command.from] ?? "";
+        const without = text.slice(0, command.from) + text.slice(command.from + 1);
+        return without.slice(0, command.to) + char + without.slice(command.to);
+      }
+      case "undo":
+        return history.pop() ?? text;
+      default: {
+        const exhaustive: never = command;
+        throw new Error(`comando não tratado: ${JSON.stringify(exhaustive)}`);
+      }
+    }
+  }
+
+  function describe(command: AuditedCommand): string {
+    const when = command.at.toLocaleTimeString("pt-BR");
+    return `${when} · ${command.by.padEnd(6)} · ${command.kind}`;
+  }
+
+  const commands: AuditedCommand[] = [
+    { kind: "insert", position: 0, content: "Guia ", at: new Date(), by: "ana" },
+    { kind: "insert", position: 5, content: "de TS", at: new Date(), by: "bia" },
+    { kind: "delete", position: 0, length: 5, at: new Date(), by: "ana" },
+    { kind: "undo", at: new Date(), by: "bia" },
+  ];
+
+  let text = "";
+  for (const command of commands) {
+    history.push(text);
+    text = apply(text, command);
+    console.log(`${describe(command).padEnd(34)}${JSON.stringify(text)}`);
+  }
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/machine.ts`, uma máquina de estados tipada em que transições inválidas não compilam.
+
+1. Defina `type State` com quatro estados discriminados: `idle`, `loading`, `success`, `failure`;
+2. Defina `type Event` com as ações possíveis: `FETCH`, `RESOLVE`, `REJECT`, `RETRY`, `RESET`;
+3. Escreva `transition(state: State, event: Event): State` cobrindo apenas as combinações válidas;
+4. Uma transição inválida deve devolver o estado atual, sem lançar exceção;
+5. Use exaustividade em dois níveis: sobre o estado e sobre o evento;
+6. Escreva um teste manual percorrendo uma sequência de eventos e imprimindo o estado a cada passo;
+7. Comente por que essa modelagem impede o estado "carregando com erro".
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/machine.ts"
+  type State =
+    | { status: "idle" }
+    | { status: "loading"; startedAt: number }
+    | { status: "success"; data: string[] }
+    | { status: "failure"; error: string; attempts: number };
+
+  type Event =
+    | { type: "FETCH" }
+    | { type: "RESOLVE"; data: string[] }
+    | { type: "REJECT"; error: string }
+    | { type: "RETRY" }
+    | { type: "RESET" };
+
+  function transition(state: State, event: Event): State {
+    switch (state.status) {
+      case "idle":
+        return event.type === "FETCH" ? { status: "loading", startedAt: Date.now() } : state;
+
+      case "loading":
+        switch (event.type) {
+          case "RESOLVE":
+            return { status: "success", data: event.data };
+          case "REJECT":
+            return { status: "failure", error: event.error, attempts: 1 };
+          default:
+            return state;
+        }
+
+      case "success":
+        return event.type === "RESET" ? { status: "idle" } : state;
+
+      case "failure":
+        switch (event.type) {
+          case "RETRY":
+            return { status: "loading", startedAt: Date.now() };
+          case "RESET":
+            return { status: "idle" };
+          default:
+            return state;
+        }
+
+      default: {
+        const exhaustive: never = state;
+        return exhaustive;
+      }
+    }
+  }
+
+  const events: Event[] = [
+    { type: "FETCH" },
+    { type: "REJECT", error: "timeout" },
+    { type: "RESOLVE", data: ["ignorado"] },
+    { type: "RETRY" },
+    { type: "RESOLVE", data: ["a", "b"] },
+    { type: "RESET" },
+  ];
+
+  let state: State = { status: "idle" };
+
+  for (const event of events) {
+    const next = transition(state, event);
+    const changed = next.status === state.status ? "  (ignorado)" : "";
+    console.log(`${event.type.padEnd(9)} ${state.status.padEnd(8)} -> ${next.status}${changed}`);
+    state = next;
+  }
+
+  // O estado "carregando com erro" não existe porque `error` só aparece na variação
+  // failure: não há como construir um objeto que seja loading e carregue erro ao mesmo
+  // tempo. Estados impossíveis deixam de ser representáveis.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### União
+
+**1. Por que uma variável do tipo `string | number` não aceita `.toUpperCase()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque só as operações comuns a **todas** as variações ficam disponíveis antes do
+  estreitamento. `toUpperCase` não existe em `number`, então é preciso estreitar com `typeof`
+  antes.
+</details>
+
+**2. Qual a vantagem de uma união literal sobre `string`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ela documenta os valores válidos na própria assinatura, oferece autocompletar no editor e
+  transforma um valor inválido em erro de compilação, em vez de bug silencioso.
+</details>
+
+**3. Como derivar uma união literal a partir de um objeto existente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `as const` e os operadores de tipo: `keyof typeof OBJ` produz a união das chaves, e
+  `(typeof OBJ)[keyof typeof OBJ]` produz a união dos valores.
+</details>
+
+### Uniões discriminadas
+
+**4. O que é um discriminante?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma propriedade presente em todas as variações da união, com um tipo literal distinto em
+  cada uma. É o que permite ao compilador identificar a variação a partir de um `switch` ou
+  `if`.
+</details>
+
+**5. Como garantir que todas as variações foram tratadas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Atribuindo o valor restante a uma variável do tipo `never` no `default`. Se uma variação
+  nova entrar no tipo, essa atribuição deixa de compilar e aponta o local exato.
+</details>
+
+**6. Por que modelar estados com união é melhor que usar vários booleanos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a união só permite representar as combinações válidas. Com campos independentes é
+  possível construir estados impossíveis, como "carregando" e "com erro" ao mesmo tempo, e
+  cada leitura precisa reconferir a coerência.
+</details>
+
+### Interseção
+
+**7. Qual a diferença conceitual entre `A | B` e `A & B`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `A | B` aceita valores de qualquer um dos dois, oferecendo apenas o que é comum. `A & B`
+  exige satisfazer os dois ao mesmo tempo, oferecendo tudo dos dois — mais operações, menos
+  valores possíveis.
+</details>
+
+**8. O que acontece ao intersectar `{ value: string }` com `{ value: number }`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A propriedade `value` fica com tipo `never`, pois nenhum valor é string e número ao mesmo
+  tempo. O tipo continua existindo, mas nenhum objeto consegue satisfazê-lo.
+</details>
+
+### Precedência
+
+**9. Qual a diferença entre `(string | number)[]` e `string[] | number[]`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O primeiro é um array cujos elementos podem ser string ou número, misturados. O segundo é um
+  array **ou** de strings **ou** de números, sem mistura.
+</details>
+
+**10. Como tipar uma função que aceita string ou número?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com a união no parâmetro: `(value: string | number) => void`. Unir dois tipos de função
+  (`((v: string) => void) | ((v: number) => void)`) produz um resultado bem mais difícil de
+  usar, porque os parâmetros passam a ser tratados como interseção.
+</details>
+
+## Referências
+
+- [Tipos união](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#union-types)
+- [Uniões discriminadas](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions)
+- [Interseções](https://www.typescriptlang.org/docs/handbook/2/objects.html#intersection-types)
+- [Exaustividade com `never`](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#exhaustiveness-checking)
+- [`keyof` e `typeof`](https://www.typescriptlang.org/docs/handbook/2/typeof-types.html)
+
+## Próxima aula
+
+Uniões descrevem alternativas conhecidas; falta descrever estruturas que funcionam com
+qualquer tipo, sem perder a informação.
+
+[Generics](../generics/): parâmetros de tipo, restrições com `extends`, valores padrão e
+inferência em funções genéricas.

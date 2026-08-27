@@ -1,0 +1,700 @@
+---
+title: "TypeScript: Migrando de JavaScript"
+description: "Estratégia incremental de migração: allowJs, checkJs, JSDoc, renomeação por etapas, strict progressivo, tipagem de dependências e métricas de progresso."
+course: typescript
+sidebar:
+  label: Migrando de JavaScript
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/practice/migration/) e [mapa mental](../../../../mindmaps/courses/typescript/practice/migration/).
+
+Migrar um projeto para TypeScript raramente é uma decisão de "parar tudo e reescrever". O
+superset foi projetado justamente para o contrário: `.js` e `.ts` convivem no mesmo build, o
+rigor pode ser ligado por etapas, e um arquivo migrado por dia já muda o projeto em um
+trimestre.
+
+Esta aula descreve uma estratégia incremental — com a ordem das etapas, o que ganhar em cada
+uma e as armadilhas que fazem migrações travarem no meio.
+
+## Objetivo
+
+Planejar uma migração incremental, configurar `allowJs` e `checkJs`, tipar código JavaScript
+com JSDoc antes de renomear, escolher a ordem dos arquivos, ligar `strict` por partes, lidar
+com dependências sem tipos e acompanhar o progresso com métricas.
+
+## A Estratégia em Cinco Fases
+
+Cada fase entrega valor sozinha: é possível parar em qualquer uma e ainda ter ganhado algo.
+
+<Mermaid title="Migração incremental, fase a fase">
+{`
+flowchart TD
+  A["1. Preparar<br/>tsc + tsconfig com allowJs"] --> B["2. Verificar JS<br/>checkJs + JSDoc"]
+  B --> C["3. Renomear<br/>.js para .ts, das folhas ao topo"]
+  C --> D["4. Endurecer<br/>strict por etapas"]
+  D --> E["5. Manter<br/>CI, lint e sem novos .js"]
+`}
+</Mermaid>
+
+| Fase | Entrega | Risco |
+| :--- | :--- | :--- |
+| 1. Preparar | Build funcionando com TypeScript no fluxo | Baixo |
+| 2. Verificar JS | Erros reais aparecem sem renomear nada | Baixo |
+| 3. Renomear | Tipagem de verdade, arquivo a arquivo | Médio |
+| 4. Endurecer | `strict` completo | Médio |
+| 5. Manter | Impede regressão | Baixo |
+
+## Fase 1: Preparar
+
+O objetivo é ter o compilador no projeto sem quebrar nada:
+
+```bash title="Terminal"
+pnpm add -D typescript @types/node
+pnpm exec tsc --init
+```
+
+```json title="tsconfig.json inicial — permissivo de propósito"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+| Opção | Papel nesta fase |
+| :--- | :--- |
+| `allowJs: true` | `.js` entra no programa e pode ser importado por `.ts` |
+| `checkJs: false` | Ainda não verifica o JavaScript — evita milhares de erros no dia 1 |
+| `strict: false` | Rigor desligado por enquanto |
+| `noEmit: true` | O build atual continua sendo feito por quem já fazia |
+
+```bash title="Terminal"
+pnpm exec tsc --noEmit
+```
+
+<Aside type="tip" title="Comece pelo build que já existe">
+  Não troque o empacotador na mesma semana em que introduz o TypeScript. Vite, webpack e
+  esbuild já lidam com `.ts`; deixe o `tsc` apenas verificando (`noEmit`) até a migração
+  amadurecer.
+</Aside>
+
+## Fase 2: Verificar o JavaScript
+
+Antes de renomear qualquer arquivo, é possível **verificar** o JavaScript existente:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true
+  }
+}
+```
+
+Ligar globalmente costuma produzir centenas de erros. Duas alternativas graduais:
+
+```js title="src/legacy.js — verificação por arquivo"
+// @ts-check
+
+/**
+ * @param {number} price
+ * @param {number} percentage
+ * @returns {number}
+ */
+export function applyDiscount(price, percentage) {
+  return price * (1 - percentage);
+}
+
+// applyDiscount("100", 0.1);
+// error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+```
+
+```js title="src/problematic.js — silenciar pontualmente"
+// @ts-nocheck  — arquivo inteiro fora da verificação
+
+// ou, em uma linha específica:
+// @ts-expect-error: a API legada devolve string, corrigir na issue #412
+const total = soma("10", 20);
+```
+
+| Marcador | Efeito | Quando usar |
+| :--- | :--- | :--- |
+| `// @ts-check` | Liga a verificação em um `.js` | Migração gradual sem `checkJs` global |
+| `// @ts-nocheck` | Desliga em um arquivo | Arquivo legado que ainda não vale o esforço |
+| `// @ts-expect-error` | Silencia a próxima linha e **exige** que haja erro | Dívida documentada |
+| `// @ts-ignore` | Silencia a próxima linha | Evitar: não avisa quando o erro some |
+
+<Aside type="caution" title="Prefira @ts-expect-error a @ts-ignore">
+  O `@ts-expect-error` falha quando o erro deixa de existir, avisando que o comentário pode ser
+  removido. Já o `@ts-ignore` permanece para sempre, escondendo eventuais erros novos naquela
+  linha.
+</Aside>
+
+## Tipando com JSDoc
+
+JSDoc permite tipar sem renomear — útil quando o build ainda não aceita `.ts`, ou para
+bibliotecas que querem publicar tipos sem migrar:
+
+```js title="src/domain.js"
+/**
+ * @typedef {object} Course
+ * @property {string} id
+ * @property {string} title
+ * @property {number} hours
+ * @property {"iniciante" | "avançado"} [level]
+ */
+
+/**
+ * Calcula a carga horária total.
+ * @param {Course[]} courses
+ * @returns {number}
+ */
+export function totalHours(courses) {
+  return courses.reduce((total, course) => total + course.hours, 0);
+}
+
+/**
+ * @template T
+ * @param {T[]} items
+ * @returns {T | undefined}
+ */
+export function first(items) {
+  return items[0];
+}
+
+/** @type {Course} */
+const course = { id: "ts", title: "Guia de TypeScript", hours: 28 };
+
+console.log(totalHours([course]), first(["a", "b"]));
+```
+
+| TypeScript | Equivalente em JSDoc |
+| :--- | :--- |
+| `interface X { … }` | `@typedef {object} X` + `@property` |
+| `const x: T` | `/** @type {T} */` |
+| `function f(a: T): U` | `@param {T} a` + `@returns {U}` |
+| `function f<T>(…)` | `@template T` |
+| `value as T` | `/** @type {T} */ (value)` |
+| `import type { T }` | `@import { T } from "./mod.js"` |
+
+## Fase 3: Renomear
+
+Com o JavaScript já verificado, renomear vira uma operação pequena. A ordem importa:
+
+| Ordem | Comece por | Motivo |
+| :--- | :--- | :--- |
+| 1º | Utilitários e funções puras (folhas da árvore) | Sem dependências; tipos simples |
+| 2º | Modelos e tipos de domínio | Definem o vocabulário do resto |
+| 3º | Serviços e casos de uso | Já consomem tipos prontos |
+| 4º | Controllers, rotas, componentes | Muitas dependências externas |
+| 5º | Ponto de entrada e configuração | Amarra tudo |
+
+```bash title="Terminal"
+git mv src/lib/format.js src/lib/format.ts
+pnpm exec tsc --noEmit
+```
+
+```ts title="src/lib/format.ts — depois da renomeação"
+export interface FormatOptions {
+  locale?: string;
+  fractionDigits?: number;
+}
+
+export function currency(value: number, options: FormatOptions = {}): string {
+  const { locale = "pt-BR", fractionDigits = 2 } = options;
+  return value.toLocaleString(locale, {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: fractionDigits,
+  });
+}
+```
+
+<Aside type="tip" title="Um arquivo por commit">
+  Renomear em lote produz revisões impossíveis de ler e conflitos em cascata. Um arquivo por
+  commit mantém o histórico compreensível e permite reverter uma etapa isolada sem desfazer a
+  migração inteira.
+</Aside>
+
+## Fase 4: Endurecer
+
+`strict` pode ser ligado por partes, na ordem do menor para o maior impacto:
+
+```json title="Progressão típica"
+{
+  "compilerOptions": {
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true
+  }
+}
+```
+
+Quando todas estiverem ligadas, substitua o bloco por `"strict": true`.
+
+| Etapa | Esforço | Ganho |
+| :--- | :--- | :--- |
+| `noImplicitAny` | Médio: exige anotar parâmetros | Elimina buracos silenciosos na verificação |
+| `strictFunctionTypes` / `strictBindCallApply` | Baixo | Callbacks e `bind` corretos |
+| `strictNullChecks` | **Alto**: costuma ser a maior etapa | Evita a maioria dos erros de runtime |
+| `strictPropertyInitialization` | Médio | Classes sem campos indefinidos |
+
+<Aside type="caution" title="strictNullChecks é a etapa que trava migrações">
+  Ela revela todos os pontos onde `null` e `undefined` circulam sem tratamento, e em bases
+  grandes isso são centenas de erros. Ligue por diretório, usando um `tsconfig` separado que
+  inclua apenas a parte já tratada, e vá expandindo o `include`.
+</Aside>
+
+## Dependências Sem Tipos
+
+Três situações e três respostas, na ordem de preferência:
+
+```bash title="Terminal"
+# 1. Existe pacote da comunidade
+pnpm add -D @types/lodash @types/express
+
+# 2. Verificar antes de instalar
+pnpm exec tsc --traceResolution | grep lodash
+```
+
+```ts title="types/vendor.d.ts"
+// 3. Não existe: declare o mínimo que você usa
+declare module "legacy-chart" {
+  export function render(data: number[], element: HTMLElement): void;
+}
+
+// Escape temporário, com dívida documentada
+// TODO(#412): tipar corretamente quando a lib publicar tipos
+declare module "another-legacy-lib";
+```
+
+## Fase 5: Manter
+
+Sem trava, a base volta a acumular JavaScript e `any`:
+
+```json title="package.json"
+{
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "migration:report": "tsx scripts/migration-report.ts"
+  }
+}
+```
+
+| Trava | Como aplicar |
+| :--- | :--- |
+| Verificação obrigatória | `tsc --noEmit` na CI, bloqueando o merge |
+| Sem novos `.js` | Regra de lint ou verificação no CI contando arquivos |
+| `any` sob controle | `@typescript-eslint/no-explicit-any` como aviso ou erro |
+| Progresso visível | Script que reporta a porcentagem migrada |
+
+## Executando
+
+<Steps>
+
+1. Prepare um projeto JavaScript existente:
+
+   ```bash title="Terminal"
+   pnpm add -D typescript @types/node
+   pnpm exec tsc --init
+   ```
+
+2. Ajuste o `tsconfig.json` para a fase 1:
+
+   ```json title="tsconfig.json"
+   {
+     "compilerOptions": {
+       "target": "ES2022",
+       "module": "NodeNext",
+       "moduleResolution": "NodeNext",
+       "allowJs": true,
+       "checkJs": false,
+       "strict": false,
+       "noEmit": true,
+       "skipLibCheck": true
+     },
+     "include": ["src/**/*"]
+   }
+   ```
+
+3. Ligue a verificação em um arquivo e documente os tipos com JSDoc:
+
+   ```js title="src/cart.js"
+   // @ts-check
+
+   /**
+    * @typedef {object} Item
+    * @property {string} name
+    * @property {number} price
+    * @property {number} [quantity]
+    */
+
+   /**
+    * @param {Item} item
+    * @returns {number}
+    */
+   export function subtotal(item) {
+     return item.price * (item.quantity ?? 1);
+   }
+
+   /**
+    * @param {Item[]} items
+    * @returns {number}
+    */
+   export function total(items) {
+     return items.reduce((sum, item) => sum + subtotal(item), 0);
+   }
+   ```
+
+4. Verifique e observe os erros reais aparecerem:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit
+   ```
+
+   ```txt title="Output"
+   src/cart.js:24:22 - error TS2345: Argument of type 'string' is not assignable
+   to parameter of type 'number'.
+   ```
+
+5. Renomeie o arquivo e converta o JSDoc em tipos nativos:
+
+   ```bash title="Terminal"
+   git mv src/cart.js src/cart.ts
+   ```
+
+   ```ts title="src/cart.ts"
+   export interface Item {
+     name: string;
+     price: number;
+     quantity?: number;
+   }
+
+   export function subtotal(item: Item): number {
+     return item.price * (item.quantity ?? 1);
+   }
+
+   export function total(items: Item[]): number {
+     return items.reduce((sum, item) => sum + subtotal(item), 0);
+   }
+   ```
+
+6. Ligue a primeira opção de rigor e repita o ciclo:
+
+   ```json title="tsconfig.json"
+   { "compilerOptions": { "noImplicitAny": true } }
+   ```
+
+</Steps>
+
+## Exercício
+
+Migre um módulo JavaScript para TypeScript seguindo as fases.
+
+1. Crie `src/inventory.js` com três funções sem tipos (`add`, `remove`, `report`);
+2. Adicione `// @ts-check` e tipe tudo com JSDoc, incluindo um `@typedef` para o item;
+3. Rode `tsc --noEmit` e corrija os erros que aparecerem;
+4. Renomeie para `.ts` e converta o JSDoc em `interface` e anotações nativas;
+5. Ligue `noImplicitAny` e depois `strictNullChecks`, corrigindo o que surgir;
+6. Documente em comentário quantos erros cada etapa revelou;
+7. Registre no `package.json` os scripts `typecheck` e `migration:report`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="src/inventory.js — fase 2"
+  // @ts-check
+
+  /**
+   * @typedef {object} Item
+   * @property {string} sku
+   * @property {string} name
+   * @property {number} quantity
+   */
+
+  /** @type {Item[]} */
+  const items = [];
+
+  /**
+   * @param {Item} item
+   * @returns {Item[]}
+   */
+  export function add(item) {
+    items.push(item);
+    return items;
+  }
+
+  /**
+   * @param {string} sku
+   * @returns {Item | undefined}
+   */
+  export function remove(sku) {
+    const index = items.findIndex((item) => item.sku === sku);
+    return index >= 0 ? items.splice(index, 1)[0] : undefined;
+  }
+
+  /**
+   * @returns {string}
+   */
+  export function report() {
+    return items.map((item) => `${item.sku} ${item.name} x${item.quantity}`).join("\n");
+  }
+  ```
+
+  ```ts title="src/inventory.ts — fase 3"
+  export interface Item {
+    sku: string;
+    name: string;
+    quantity: number;
+  }
+
+  const items: Item[] = [];
+
+  export function add(item: Item): Item[] {
+    items.push(item);
+    return items;
+  }
+
+  export function remove(sku: string): Item | undefined {
+    const index = items.findIndex((item) => item.sku === sku);
+    return index >= 0 ? items.splice(index, 1)[0] : undefined;
+  }
+
+  export function report(): string {
+    return items.map((item) => `${item.sku} ${item.name} x${item.quantity}`).join("\n");
+  }
+
+  // Erros revelados por etapa neste módulo:
+  // - @ts-check + JSDoc: 3 (parâmetro sem tipo, retorno implícito, sku numérico)
+  // - noImplicitAny: 0 (já resolvidos na etapa anterior)
+  // - strictNullChecks: 1 (splice pode devolver undefined com noUncheckedIndexedAccess)
+  ```
+</details>
+
+## Desafio
+
+Escreva `scripts/migration-report.ts`, um medidor de progresso da migração.
+
+1. Percorra `src/` recursivamente com `node:fs`, ignorando `node_modules` e `dist`;
+2. Conte arquivos `.js`/`.jsx` e `.ts`/`.tsx`, e some as linhas de cada grupo;
+3. Detecte quantos `.js` já têm `// @ts-check` e quantos usam `@typedef`;
+4. Conte ocorrências de `any`, `@ts-ignore` e `@ts-expect-error` nos arquivos TypeScript;
+5. Calcule a porcentagem migrada por arquivos e por linhas;
+6. Liste os cinco maiores `.js` restantes, como sugestão de próximos passos;
+7. Encerre com código 1 se a porcentagem cair abaixo de um limite recebido por argumento.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="scripts/migration-report.ts"
+  import { readFileSync, readdirSync, statSync } from "node:fs";
+  import { extname, join } from "node:path";
+
+  const IGNORED = new Set(["node_modules", "dist", ".git", "coverage"]);
+
+  interface FileInfo {
+    path: string;
+    lines: number;
+    content: string;
+  }
+
+  function walk(dir: string): FileInfo[] {
+    return readdirSync(dir).flatMap((entry) => {
+      if (IGNORED.has(entry)) return [];
+
+      const full = join(dir, entry);
+
+      if (statSync(full).isDirectory()) return walk(full);
+
+      if (![".js", ".jsx", ".ts", ".tsx"].includes(extname(full))) return [];
+
+      const content = readFileSync(full, "utf-8");
+      return [{ path: full, lines: content.split("\n").length, content }];
+    });
+  }
+
+  const files = walk("src");
+  const js = files.filter((file) => [".js", ".jsx"].includes(extname(file.path)));
+  const ts = files.filter((file) => [".ts", ".tsx"].includes(extname(file.path)));
+
+  const jsLines = js.reduce((sum, file) => sum + file.lines, 0);
+  const tsLines = ts.reduce((sum, file) => sum + file.lines, 0);
+
+  const checked = js.filter((file) => file.content.includes("@ts-check")).length;
+  const typedef = js.filter((file) => file.content.includes("@typedef")).length;
+
+  function count(pattern: RegExp): number {
+    return ts.reduce((sum, file) => sum + (file.content.match(pattern)?.length ?? 0), 0);
+  }
+
+  const byFiles = (ts.length / (files.length || 1)) * 100;
+  const byLines = (tsLines / (jsLines + tsLines || 1)) * 100;
+
+  console.log("=".repeat(58));
+  console.log("PROGRESSO DA MIGRAÇÃO".padStart(39));
+  console.log("=".repeat(58));
+
+  console.log(`\n${"Arquivos TypeScript:".padEnd(28)}${ts.length}/${files.length}  ${byFiles.toFixed(1)}%`);
+  console.log(`${"Linhas TypeScript:".padEnd(28)}${tsLines}/${jsLines + tsLines}  ${byLines.toFixed(1)}%`);
+  console.log(`${"JS com @ts-check:".padEnd(28)}${checked}/${js.length}`);
+  console.log(`${"JS com @typedef:".padEnd(28)}${typedef}/${js.length}`);
+
+  console.log(`\n${"Ocorrências de any:".padEnd(28)}${count(/\bany\b/g)}`);
+  console.log(`${"@ts-ignore:".padEnd(28)}${count(/@ts-ignore/g)}`);
+  console.log(`${"@ts-expect-error:".padEnd(28)}${count(/@ts-expect-error/g)}`);
+
+  if (js.length > 0) {
+    console.log("\nMaiores arquivos ainda em JavaScript:");
+    [...js]
+      .sort((a, b) => b.lines - a.lines)
+      .slice(0, 5)
+      .forEach((file) => console.log(`  ${String(file.lines).padStart(5)}  ${file.path}`));
+  }
+
+  const threshold = Number(process.argv[2] ?? 0);
+
+  if (byFiles < threshold) {
+    console.log(`\nFALHOU: ${byFiles.toFixed(1)}% abaixo do limite de ${threshold}%`);
+    process.exit(1);
+  }
+
+  console.log("\nOK");
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Estratégia
+
+**1. Por que a migração pode ser incremental?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque TypeScript é um superset e `allowJs` permite que `.js` e `.ts` convivam no mesmo
+  programa, importando-se mutuamente. Não existe um momento de virada obrigatório.
+</details>
+
+**2. Qual a ordem recomendada para renomear arquivos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Das folhas para a raiz: utilitários e funções puras primeiro, depois modelos de domínio,
+  serviços, camadas de interface e, por último, o ponto de entrada. Assim cada arquivo migrado
+  já encontra tipos prontos nas suas dependências.
+</details>
+
+**3. Por que a configuração inicial deve ser permissiva?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que a introdução do compilador não gere centenas de erros no primeiro dia, o que
+  costuma levar o time a abandonar a migração. O rigor entra depois, por etapas.
+</details>
+
+### JavaScript verificado
+
+**4. O que `checkJs` faz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Liga a verificação de tipos nos arquivos `.js`, usando inferência e JSDoc. É possível fazer
+  o mesmo arquivo a arquivo com o comentário `// @ts-check`.
+</details>
+
+**5. Qual a diferença entre `@ts-ignore` e `@ts-expect-error`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ambos silenciam o erro da linha seguinte, mas `@ts-expect-error` falha quando **não há**
+  erro, avisando que o comentário virou obsoleto. `@ts-ignore` permanece silencioso para
+  sempre.
+</details>
+
+**6. Quando vale tipar com JSDoc em vez de renomear?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o build ainda não aceita `.ts`, quando a equipe está começando e a mudança de
+  extensão geraria atrito, ou em bibliotecas JavaScript que querem publicar tipos sem migrar o
+  código.
+</details>
+
+### Rigor
+
+**7. Qual etapa de `strict` costuma dar mais trabalho?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `strictNullChecks`, porque revela todos os pontos em que `null` e `undefined` circulam sem
+  tratamento. Em bases grandes, convém ligá-la por diretório.
+</details>
+
+**8. Como ligar `strictNullChecks` gradualmente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com um `tsconfig` adicional que inclua apenas os diretórios já tratados, expandindo o
+  `include` conforme a migração avança — e mantendo os dois na CI.
+</details>
+
+### Dependências e manutenção
+
+**9. O que fazer quando uma dependência não tem tipos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Procurar `@types/nome` no DefinitelyTyped; não existindo, declarar em um `.d.ts` local
+  apenas a parte que o projeto usa. `declare module "nome"` sem corpo é um escape que deve
+  ficar documentado como dívida.
+</details>
+
+**10. Como impedir que a migração regrida?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Bloqueando o merge com `tsc --noEmit` na CI, proibindo arquivos `.js` novos, tratando `any`
+  explícito como aviso de lint e acompanhando um relatório de progresso ao longo do tempo.
+</details>
+
+## Referências
+
+- [Migrando de JavaScript](https://www.typescriptlang.org/docs/handbook/migrating-from-javascript.html)
+- [Suporte a JSDoc](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html)
+- [Verificação de tipos em arquivos JavaScript](https://www.typescriptlang.org/docs/handbook/type-checking-javascript-files.html)
+- [`allowJs` e `checkJs`](https://www.typescriptlang.org/tsconfig#allowJs)
+- [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)
+
+## Próxima aula
+
+Com a base migrada, resta ver TypeScript no contexto que mais aparece no back-end.
+
+[TypeScript no Node.js](../nodejs/): tipagem de Express, variáveis de ambiente, validação em
+runtime e organização de um projeto de API.

@@ -469,6 +469,78 @@ export default defineConfig({
             },
           ],
         },
+        {
+          label: 'Guia de TypeScript',
+          items: [
+            { label: 'Visão geral', link: '/courses/typescript/' },
+            {
+              label: 'Fundamentos',
+              collapsed: false,
+              items: [
+                { label: 'Introdução', link: '/courses/typescript/basics/introduction/' },
+                { label: 'Tipos Básicos', link: '/courses/typescript/basics/types/' },
+                { label: 'Funções', link: '/courses/typescript/basics/functions/' },
+                { label: 'Narrowing', link: '/courses/typescript/basics/narrowing/' },
+              ],
+            },
+            {
+              label: 'Sistema de Tipos',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Objetos e Interfaces',
+                  link: '/courses/typescript/types/objects/',
+                },
+                {
+                  label: 'Uniões e Interseções',
+                  link: '/courses/typescript/types/unions/',
+                },
+                { label: 'Generics', link: '/courses/typescript/types/generics/' },
+              ],
+            },
+            {
+              label: 'Tipos Avançados',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Utility Types',
+                  link: '/courses/typescript/advanced/utility-types/',
+                },
+                {
+                  label: 'Manipulação de Tipos',
+                  link: '/courses/typescript/advanced/type-manipulation/',
+                },
+                { label: 'Classes', link: '/courses/typescript/advanced/classes/' },
+              ],
+            },
+            {
+              label: 'Ferramentas',
+              collapsed: false,
+              items: [
+                { label: 'tsconfig.json', link: '/courses/typescript/tooling/tsconfig/' },
+                {
+                  label: 'Módulos e Declarações',
+                  link: '/courses/typescript/tooling/modules/',
+                },
+                { label: 'Execução e Build', link: '/courses/typescript/tooling/runtime/' },
+              ],
+            },
+            {
+              label: 'Na Prática',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Migrando de JavaScript',
+                  link: '/courses/typescript/practice/migration/',
+                },
+                {
+                  label: 'TypeScript no Node.js',
+                  link: '/courses/typescript/practice/nodejs/',
+                },
+              ],
+            },
+          ],
+        },
       ],
     }),
   ],

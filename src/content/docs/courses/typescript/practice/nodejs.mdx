@@ -1,0 +1,883 @@
+---
+title: "TypeScript no Node.js"
+description: "Projeto Node.js com TypeScript: estrutura em camadas, tipagem de Express, variáveis de ambiente, validação em runtime, erros tipados e testes."
+course: typescript
+sidebar:
+  label: TypeScript no Node.js
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/practice/nodejs/) e [mapa mental](../../../../mindmaps/courses/typescript/practice/nodejs/).
+
+Uma API é o lugar onde os limites do TypeScript ficam mais visíveis: tudo que entra — corpo da
+requisição, parâmetros de rota, variáveis de ambiente, resposta de outro serviço — chega do
+mundo externo, onde o compilador não alcança. O tipo só vale depois de alguém verificar.
+
+Esta aula monta uma API Express tipada de ponta a ponta, mostrando onde a tipagem estática
+protege e onde é preciso validar em tempo de execução.
+
+## Objetivo
+
+Estruturar um projeto Node.js em TypeScript, tipar rotas e middlewares do Express, validar
+entrada em runtime, tipar variáveis de ambiente, modelar erros de domínio com uniões
+discriminadas e escrever testes que aproveitem os tipos.
+
+## Estrutura do Projeto
+
+Separar por responsabilidade mantém os tipos fluindo em uma direção só:
+
+<FileTree>
+{`
+api-ts/
+├── package.json
+├── tsconfig.json
+├── src/
+│   ├── main.ts              ponto de entrada
+│   ├── env.ts               variáveis de ambiente validadas
+│   ├── domain/
+│   │   ├── course.ts        tipos e regras do domínio
+│   │   └── errors.ts        erros tipados
+│   ├── repositories/
+│   │   └── course-repository.ts
+│   ├── services/
+│   │   └── course-service.ts
+│   ├── http/
+│   │   ├── app.ts           configuração do Express
+│   │   ├── routes.ts
+│   │   └── middlewares.ts
+│   └── shared/
+│       └── validation.ts    guards de runtime
+└── tests/
+    └── course-service.test.ts
+`}
+</FileTree>
+
+<Mermaid title="Direção das dependências">
+{`
+flowchart LR
+  A["http<br/>rotas e middlewares"] --> B["services<br/>casos de uso"]
+  B --> C["repositories<br/>persistência"]
+  B --> D["domain<br/>tipos e regras"]
+  C --> D
+  A --> E["shared<br/>validação"]
+`}
+</Mermaid>
+
+## Configuração
+
+O `package.json` e o `tsconfig.json` de um projeto Node moderno:
+
+```json title="package.json"
+{
+  "name": "api-ts",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm typecheck && tsup src/main.ts --format esm --clean",
+    "start": "node --enable-source-maps dist/main.js",
+    "test": "vitest run"
+  }
+}
+```
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}
+```
+
+```bash title="Terminal"
+pnpm add express
+pnpm add -D typescript tsx tsup vitest @types/node @types/express
+```
+
+## Variáveis de Ambiente
+
+`process.env` é `Record<string, string | undefined>`: tudo é opcional e tudo é texto. Validar
+uma vez, na inicialização, evita espalhar verificações pelo código:
+
+```ts title="src/env.ts"
+interface Env {
+  nodeEnv: "development" | "test" | "production";
+  port: number;
+  databaseUrl: string;
+  logLevel: "debug" | "info" | "error";
+}
+
+function required(name: string): string {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`variável de ambiente obrigatória ausente: ${name}`);
+  }
+
+  return value;
+}
+
+function oneOf<T extends string>(name: string, options: readonly T[], fallback: T): T {
+  const value = process.env[name];
+  return options.includes(value as T) ? (value as T) : fallback;
+}
+
+export const env: Env = {
+  nodeEnv: oneOf("NODE_ENV", ["development", "test", "production"] as const, "development"),
+  port: Number(process.env.PORT ?? 3000),
+  databaseUrl: required("DATABASE_URL"),
+  logLevel: oneOf("LOG_LEVEL", ["debug", "info", "error"] as const, "info"),
+};
+```
+
+<Aside type="tip" title="Falhe cedo, não no meio da requisição">
+  Validar o ambiente no import de `env.ts` faz o processo morrer na inicialização quando falta
+  configuração — muito melhor do que descobrir na primeira requisição em produção. O mesmo
+  vale ao usar Zod ou similar para essa validação.
+</Aside>
+
+## Domínio e Erros Tipados
+
+Os tipos do domínio ficam isolados de Express, banco e HTTP:
+
+```ts title="src/domain/course.ts"
+export type Level = "iniciante" | "intermediário" | "avançado";
+
+export interface Course {
+  id: string;
+  slug: string;
+  title: string;
+  hours: number;
+  level: Level;
+  createdAt: Date;
+}
+
+export type CreateCourseInput = Omit<Course, "id" | "createdAt">;
+export type UpdateCourseInput = Partial<Omit<Course, "id" | "slug" | "createdAt">>;
+```
+
+```ts title="src/domain/errors.ts"
+export type DomainError =
+  | { kind: "not_found"; resource: string; id: string }
+  | { kind: "conflict"; field: string; value: string }
+  | { kind: "validation"; issues: string[] };
+
+export class AppError extends Error {
+  constructor(readonly detail: DomainError) {
+    super(AppError.messageFor(detail));
+    this.name = "AppError";
+  }
+
+  static messageFor(detail: DomainError): string {
+    switch (detail.kind) {
+      case "not_found":
+        return `${detail.resource} ${detail.id} não encontrado`;
+      case "conflict":
+        return `já existe registro com ${detail.field} = ${detail.value}`;
+      case "validation":
+        return `entrada inválida: ${detail.issues.join("; ")}`;
+    }
+  }
+
+  get status(): number {
+    switch (this.detail.kind) {
+      case "not_found":
+        return 404;
+      case "conflict":
+        return 409;
+      case "validation":
+        return 400;
+    }
+  }
+}
+```
+
+## Validação em Runtime
+
+O tipo não existe depois da compilação: o corpo da requisição precisa ser verificado de fato:
+
+```ts title="src/shared/validation.ts"
+import type { CreateCourseInput, Level } from "../domain/course.js";
+
+const LEVELS = ["iniciante", "intermediário", "avançado"] as const;
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function parseCreateCourse(body: unknown): CreateCourseInput {
+  const issues: string[] = [];
+
+  if (!isRecord(body)) {
+    throw new TypeError("corpo deve ser um objeto JSON");
+  }
+
+  const { slug, title, hours, level } = body;
+
+  if (typeof slug !== "string" || slug.length < 3) issues.push("slug inválido");
+  if (typeof title !== "string" || !title.trim()) issues.push("título obrigatório");
+  if (typeof hours !== "number" || hours <= 0) issues.push("hours deve ser positivo");
+  if (!LEVELS.includes(level as Level)) issues.push(`level deve ser um de ${LEVELS.join(", ")}`);
+
+  if (issues.length > 0) {
+    throw new AggregateError(issues.map((issue) => new Error(issue)), "validação falhou");
+  }
+
+  return {
+    slug: slug as string,
+    title: title as string,
+    hours: hours as number,
+    level: level as Level,
+  };
+}
+```
+
+<Aside type="caution" title="as depois da checagem é aceitável; antes, não">
+  As asserções acima só acontecem **depois** de cada `typeof` correspondente — o compilador
+  não consegue estreitar propriedades desestruturadas de `Record<string, unknown>`, mas a
+  verificação já foi feita. Em projeto real, uma biblioteca de esquema como Zod produz o tipo
+  e a validação de uma vez, dispensando as asserções.
+</Aside>
+
+## Repositório e Serviço
+
+O repositório conhece a persistência; o serviço, as regras:
+
+```ts title="src/repositories/course-repository.ts"
+import type { Course, CreateCourseInput, UpdateCourseInput } from "../domain/course.js";
+
+export interface CourseRepository {
+  findAll(): Promise<Course[]>;
+  findBySlug(slug: string): Promise<Course | null>;
+  create(input: CreateCourseInput): Promise<Course>;
+  update(slug: string, input: UpdateCourseInput): Promise<Course | null>;
+}
+
+export class InMemoryCourseRepository implements CourseRepository {
+  readonly #items = new Map<string, Course>();
+
+  async findAll(): Promise<Course[]> {
+    return [...this.#items.values()];
+  }
+
+  async findBySlug(slug: string): Promise<Course | null> {
+    return this.#items.get(slug) ?? null;
+  }
+
+  async create(input: CreateCourseInput): Promise<Course> {
+    const course: Course = { id: crypto.randomUUID(), createdAt: new Date(), ...input };
+    this.#items.set(course.slug, course);
+    return course;
+  }
+
+  async update(slug: string, input: UpdateCourseInput): Promise<Course | null> {
+    const current = this.#items.get(slug);
+    if (!current) return null;
+
+    const updated: Course = { ...current, ...input };
+    this.#items.set(slug, updated);
+    return updated;
+  }
+}
+```
+
+```ts title="src/services/course-service.ts"
+import type { Course, CreateCourseInput } from "../domain/course.js";
+import { AppError } from "../domain/errors.js";
+import type { CourseRepository } from "../repositories/course-repository.js";
+
+export class CourseService {
+  constructor(private readonly repository: CourseRepository) {}
+
+  async list(): Promise<Course[]> {
+    return this.repository.findAll();
+  }
+
+  async getBySlug(slug: string): Promise<Course> {
+    const course = await this.repository.findBySlug(slug);
+
+    if (!course) {
+      throw new AppError({ kind: "not_found", resource: "curso", id: slug });
+    }
+
+    return course;
+  }
+
+  async create(input: CreateCourseInput): Promise<Course> {
+    const existing = await this.repository.findBySlug(input.slug);
+
+    if (existing) {
+      throw new AppError({ kind: "conflict", field: "slug", value: input.slug });
+    }
+
+    return this.repository.create(input);
+  }
+}
+```
+
+## Express Tipado
+
+Os genéricos de `Request` descrevem parâmetros, corpo e query:
+
+```ts title="src/http/routes.ts"
+import { Router, type Request, type Response, type NextFunction } from "express";
+import type { CreateCourseInput } from "../domain/course.js";
+import type { CourseService } from "../services/course-service.js";
+import { parseCreateCourse } from "../shared/validation.js";
+
+// Request<Params, ResBody, ReqBody, Query>
+type SlugParams = { slug: string };
+
+export function createCourseRouter(service: CourseService): Router {
+  const router = Router();
+
+  router.get("/", async (_request, response, next) => {
+    try {
+      response.json(await service.list());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:slug", async (request: Request<SlugParams>, response, next) => {
+    try {
+      response.json(await service.getBySlug(request.params.slug));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post(
+    "/",
+    async (request: Request<unknown, unknown, unknown>, response: Response, next: NextFunction) => {
+      try {
+        const input: CreateCourseInput = parseCreateCourse(request.body);
+        response.status(201).json(await service.create(input));
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  return router;
+}
+```
+
+```ts title="src/http/middlewares.ts"
+import type { ErrorRequestHandler, RequestHandler } from "express";
+import { AppError } from "../domain/errors.js";
+
+export const requestLogger: RequestHandler = (request, _response, next) => {
+  console.log(`${request.method} ${request.originalUrl}`);
+  next();
+};
+
+export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+  if (error instanceof AppError) {
+    response.status(error.status).json({ error: error.message, detail: error.detail });
+    return;
+  }
+
+  if (error instanceof AggregateError) {
+    response.status(400).json({ error: error.message, issues: error.errors.map(String) });
+    return;
+  }
+
+  console.error(error);
+  response.status(500).json({ error: "erro interno" });
+};
+```
+
+<Aside type="note" title="Middleware de erro precisa dos quatro parâmetros">
+  O Express identifica o *error handler* pela **aridade**: uma função com quatro parâmetros. O
+  tipo `ErrorRequestHandler` garante a assinatura correta, e o prefixo `_` nos não usados evita
+  o erro de `noUnusedParameters`.
+</Aside>
+
+## Testes Tipados
+
+Os tipos ajudam a manter os testes sincronizados com o domínio:
+
+```ts title="tests/course-service.test.ts"
+import { beforeEach, describe, expect, it } from "vitest";
+import { AppError } from "../src/domain/errors.js";
+import { InMemoryCourseRepository } from "../src/repositories/course-repository.js";
+import { CourseService } from "../src/services/course-service.js";
+import type { CreateCourseInput } from "../src/domain/course.js";
+
+const input: CreateCourseInput = {
+  slug: "guia-typescript",
+  title: "Guia de TypeScript",
+  hours: 28,
+  level: "intermediário",
+};
+
+describe("CourseService", () => {
+  let service: CourseService;
+
+  beforeEach(() => {
+    service = new CourseService(new InMemoryCourseRepository());
+  });
+
+  it("cria e recupera um curso", async () => {
+    const created = await service.create(input);
+
+    expect(created.id).toBeTypeOf("string");
+    expect(await service.getBySlug("guia-typescript")).toEqual(created);
+  });
+
+  it("recusa slug duplicado", async () => {
+    await service.create(input);
+
+    await expect(service.create(input)).rejects.toThrowError(AppError);
+  });
+
+  it("informa quando o curso não existe", async () => {
+    await expect(service.getBySlug("inexistente")).rejects.toMatchObject({
+      detail: { kind: "not_found" },
+    });
+  });
+});
+```
+
+## Executando
+
+<Steps>
+
+1. Monte o ponto de entrada:
+
+   ```ts title="src/http/app.ts"
+   import express, { type Express } from "express";
+   import { createCourseRouter } from "./routes.js";
+   import { errorHandler, requestLogger } from "./middlewares.js";
+   import { CourseService } from "../services/course-service.js";
+   import { InMemoryCourseRepository } from "../repositories/course-repository.js";
+
+   export function createApp(): Express {
+     const app = express();
+     const service = new CourseService(new InMemoryCourseRepository());
+
+     app.use(express.json());
+     app.use(requestLogger);
+     app.use("/courses", createCourseRouter(service));
+     app.use(errorHandler);
+
+     return app;
+   }
+   ```
+
+   ```ts title="src/main.ts"
+   import { createApp } from "./http/app.js";
+   import { env } from "./env.js";
+
+   createApp().listen(env.port, () => {
+     console.log(`API em http://localhost:${env.port} (${env.nodeEnv})`);
+   });
+   ```
+
+2. Rode em desenvolvimento:
+
+   ```bash title="Terminal"
+   DATABASE_URL=postgres://localhost/devlab pnpm dev
+   ```
+
+   ```txt title="Output"
+   API em http://localhost:3000 (development)
+   ```
+
+3. Exercite a API:
+
+   ```bash title="Terminal"
+   curl -s -X POST localhost:3000/courses \
+     -H 'content-type: application/json' \
+     -d '{"slug":"guia-typescript","title":"Guia de TypeScript","hours":28,"level":"intermediário"}'
+   ```
+
+   ```txt title="Output"
+   {"id":"9f1c…","createdAt":"2026-08-27T12:00:00.000Z","slug":"guia-typescript", …}
+   ```
+
+4. Comprove a validação e os erros tipados:
+
+   ```bash title="Terminal"
+   curl -s -X POST localhost:3000/courses -H 'content-type: application/json' -d '{"slug":"ab"}'
+   curl -s localhost:3000/courses/inexistente
+   ```
+
+   ```txt title="Output"
+   {"error":"validação falhou","issues":["Error: slug inválido","Error: título obrigatório", …]}
+   {"error":"curso inexistente não encontrado","detail":{"kind":"not_found", …}}
+   ```
+
+5. Verifique tipos e rode os testes:
+
+   ```bash title="Terminal"
+   pnpm typecheck && pnpm test
+   ```
+
+</Steps>
+
+## Exercício
+
+Estenda a API com um recurso novo, mantendo a estrutura em camadas.
+
+1. Crie o domínio `Lesson` com `id`, `courseSlug`, `title`, `minutes` e `order`;
+2. Crie `LessonRepository` (interface + implementação em memória) e `LessonService`;
+3. Adicione as rotas `GET /courses/:slug/lessons` e `POST /courses/:slug/lessons`;
+4. Valide o corpo com um parser próprio, recusando `minutes` não positivo;
+5. Devolva `404` quando o curso da rota não existir, reaproveitando `AppError`;
+6. Derive `CreateLessonInput` com utility types em vez de declarar outra interface;
+7. Escreva três testes cobrindo criação, listagem e curso inexistente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/domain/lesson.ts"
+  export interface Lesson {
+    id: string;
+    courseSlug: string;
+    title: string;
+    minutes: number;
+    order: number;
+  }
+
+  export type CreateLessonInput = Omit<Lesson, "id">;
+  ```
+
+  ```ts title="src/repositories/lesson-repository.ts"
+  import type { CreateLessonInput, Lesson } from "../domain/lesson.js";
+
+  export interface LessonRepository {
+    listByCourse(courseSlug: string): Promise<Lesson[]>;
+    create(input: CreateLessonInput): Promise<Lesson>;
+  }
+
+  export class InMemoryLessonRepository implements LessonRepository {
+    readonly #items: Lesson[] = [];
+
+    async listByCourse(courseSlug: string): Promise<Lesson[]> {
+      return this.#items
+        .filter((lesson) => lesson.courseSlug === courseSlug)
+        .sort((a, b) => a.order - b.order);
+    }
+
+    async create(input: CreateLessonInput): Promise<Lesson> {
+      const lesson: Lesson = { id: crypto.randomUUID(), ...input };
+      this.#items.push(lesson);
+      return lesson;
+    }
+  }
+  ```
+
+  ```ts title="src/services/lesson-service.ts"
+  import type { CreateLessonInput, Lesson } from "../domain/lesson.js";
+  import type { LessonRepository } from "../repositories/lesson-repository.js";
+  import type { CourseService } from "./course-service.js";
+
+  export class LessonService {
+    constructor(
+      private readonly repository: LessonRepository,
+      private readonly courses: CourseService,
+    ) {}
+
+    async listByCourse(slug: string): Promise<Lesson[]> {
+      await this.courses.getBySlug(slug);   // lança AppError se não existir
+      return this.repository.listByCourse(slug);
+    }
+
+    async create(slug: string, input: Omit<CreateLessonInput, "courseSlug">): Promise<Lesson> {
+      await this.courses.getBySlug(slug);
+      return this.repository.create({ ...input, courseSlug: slug });
+    }
+  }
+  ```
+
+  ```ts title="tests/lesson-service.test.ts"
+  import { beforeEach, describe, expect, it } from "vitest";
+  import { AppError } from "../src/domain/errors.js";
+  import { CourseService } from "../src/services/course-service.js";
+  import { InMemoryCourseRepository } from "../src/repositories/course-repository.js";
+  import { InMemoryLessonRepository } from "../src/repositories/lesson-repository.js";
+  import { LessonService } from "../src/services/lesson-service.js";
+
+  describe("LessonService", () => {
+    let lessons: LessonService;
+    let courses: CourseService;
+
+    beforeEach(async () => {
+      courses = new CourseService(new InMemoryCourseRepository());
+      lessons = new LessonService(new InMemoryLessonRepository(), courses);
+
+      await courses.create({
+        slug: "guia-typescript",
+        title: "Guia de TypeScript",
+        hours: 28,
+        level: "intermediário",
+      });
+    });
+
+    it("cria uma aula", async () => {
+      const lesson = await lessons.create("guia-typescript", {
+        title: "Generics",
+        minutes: 40,
+        order: 1,
+      });
+
+      expect(lesson.courseSlug).toBe("guia-typescript");
+    });
+
+    it("lista ordenado", async () => {
+      await lessons.create("guia-typescript", { title: "B", minutes: 10, order: 2 });
+      await lessons.create("guia-typescript", { title: "A", minutes: 10, order: 1 });
+
+      const list = await lessons.listByCourse("guia-typescript");
+      expect(list.map((lesson) => lesson.title)).toEqual(["A", "B"]);
+    });
+
+    it("falha quando o curso não existe", async () => {
+      await expect(lessons.listByCourse("inexistente")).rejects.toThrowError(AppError);
+    });
+  });
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/http/typed-router.ts`, um roteador que valida e tipa cada rota.
+
+1. Defina `type RouteSchema<P, B, R>` descrevendo parâmetros, corpo e resposta de uma rota;
+2. Implemente `defineRoute` recebendo método, caminho, guards de validação e o handler tipado;
+3. O handler deve receber `params` e `body` já validados e tipados, sem `any` nem asserção;
+4. Erros de validação devem virar `AppError` com `kind: "validation"` automaticamente;
+5. Registre pelo menos três rotas usando o helper e monte o `Router` do Express a partir delas;
+6. Comprove que devolver um objeto incompatível com `R` é erro de compilação;
+7. Explique em comentário o que essa abordagem ganha em relação a tipar `request.body` diretamente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/http/typed-router.ts"
+  import { Router, type RequestHandler } from "express";
+  import { AppError } from "../domain/errors.js";
+
+  type Guard<T> = (value: unknown) => T;
+
+  interface RouteDefinition<P, B, R> {
+    method: "get" | "post" | "put" | "delete";
+    path: string;
+    params?: Guard<P>;
+    body?: Guard<B>;
+    handler: (input: { params: P; body: B }) => Promise<R>;
+  }
+
+  export function defineRoute<P = unknown, B = unknown, R = unknown>(
+    definition: RouteDefinition<P, B, R>,
+  ): RouteDefinition<P, B, R> {
+    return definition;
+  }
+
+  function toHandler<P, B, R>(definition: RouteDefinition<P, B, R>): RequestHandler {
+    return async (request, response, next) => {
+      try {
+        const params = definition.params
+          ? definition.params(request.params)
+          : (request.params as P);
+
+        const body = definition.body ? definition.body(request.body) : (request.body as B);
+
+        response.json(await definition.handler({ params, body }));
+      } catch (error) {
+        if (error instanceof AppError) return next(error);
+
+        const issues = error instanceof Error ? [error.message] : ["entrada inválida"];
+        next(new AppError({ kind: "validation", issues }));
+      }
+    };
+  }
+
+  export function buildRouter(routes: RouteDefinition<never, never, never>[]): Router {
+    const router = Router();
+
+    for (const route of routes) {
+      router[route.method](route.path, toHandler(route));
+    }
+
+    return router;
+  }
+  ```
+
+  ```ts title="src/http/course-routes.ts"
+  import type { Course } from "../domain/course.js";
+  import type { CourseService } from "../services/course-service.js";
+  import { parseCreateCourse } from "../shared/validation.js";
+  import { defineRoute } from "./typed-router.js";
+
+  function parseSlugParams(value: unknown): { slug: string } {
+    if (typeof value === "object" && value !== null && "slug" in value) {
+      const { slug } = value as { slug: unknown };
+      if (typeof slug === "string" && slug.length >= 3) return { slug };
+    }
+    throw new Error("slug inválido");
+  }
+
+  export function courseRoutes(service: CourseService) {
+    return [
+      defineRoute({
+        method: "get",
+        path: "/",
+        handler: async (): Promise<Course[]> => service.list(),
+      }),
+      defineRoute({
+        method: "get",
+        path: "/:slug",
+        params: parseSlugParams,
+        handler: async ({ params }): Promise<Course> => service.getBySlug(params.slug),
+      }),
+      defineRoute({
+        method: "post",
+        path: "/",
+        body: parseCreateCourse,
+        handler: async ({ body }): Promise<Course> => service.create(body),
+      }),
+    ];
+  }
+
+  // Tipar request.body diretamente é uma promessa vazia: o Express entrega `any`,
+  // e a anotação não gera verificação alguma em runtime. Aqui o guard é obrigatório
+  // para obter o tipo, então validação e tipo saem sempre da mesma fonte — e o
+  // retorno do handler é conferido contra R na compilação.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Projeto
+
+**1. Por que separar `domain` de `http`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que as regras e os tipos do negócio não dependam do framework. Isso permite testar o
+  serviço sem subir o Express e trocar a camada HTTP sem reescrever o domínio.
+</details>
+
+**2. Por que os imports terminam em `.js` mesmo em arquivos `.ts`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque com `module: NodeNext` o caminho é resolvido em runtime sobre o arquivo emitido, e o
+  ESM do Node exige extensão explícita. O compilador não reescreve o caminho.
+</details>
+
+### Entrada externa
+
+**3. Qual o tipo de `process.env.PORT`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `string | undefined`. Toda variável de ambiente é texto e pode estar ausente, o que exige
+  conversão e valor padrão antes do uso.
+</details>
+
+**4. Por que validar o ambiente na inicialização?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que a falta de configuração derrube o processo imediatamente, em vez de causar erro na
+  primeira requisição que precisar daquele valor — possivelmente em produção.
+</details>
+
+**5. Por que anotar `request.body` não basta?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a anotação é apagada na compilação: o Express entrega o que o cliente enviou. Sem
+  validação em runtime, o tipo é apenas uma promessa que ninguém verifica.
+</details>
+
+### Express
+
+**6. O que os genéricos de `Request` descrevem?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Na ordem: parâmetros de rota, corpo da resposta, corpo da requisição e query string —
+  `Request<Params, ResBody, ReqBody, Query>`.
+</details>
+
+**7. Como o Express identifica um middleware de erro?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Pela quantidade de parâmetros: quatro (`error, request, response, next`). O tipo
+  `ErrorRequestHandler` garante a assinatura correta.
+</details>
+
+**8. Como estender `Request` com um campo próprio, como `user`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com *declaration merging* em um `.d.ts`: `declare module "express-serve-static-core" {
+  interface Request { user?: User } }`.
+</details>
+
+### Erros e testes
+
+**9. Qual a vantagem de modelar erros com união discriminada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O tratamento fica exaustivo: o compilador cobra um caso para cada tipo de erro, e mapear
+  para o status HTTP correto passa a ser uma decisão verificada, não uma cadeia de `if`
+  espalhada.
+</details>
+
+**10. Como os tipos ajudam nos testes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Objetos de exemplo declarados com os tipos do domínio deixam de compilar quando o domínio
+  muda, apontando os testes desatualizados antes da execução. Além disso, mocks precisam
+  satisfazer a interface do repositório.
+</details>
+
+## Referências
+
+- [Node.js com TypeScript](https://nodejs.org/api/typescript.html)
+- [Tipos do Express (`@types/express`)](https://www.npmjs.com/package/@types/express)
+- [Vitest](https://vitest.dev/)
+- [Zod — validação com inferência de tipos](https://zod.dev/)
+- [Total TypeScript: Node.js](https://www.totaltypescript.com/tutorials)
+
+## Próxima aula
+
+Este é o fim da trilha do guia. Com a linguagem, o sistema de tipos, as ferramentas e uma
+aplicação real cobertos, os próximos passos naturais são aprofundar em um framework tipado
+(React, NestJS, Fastify), estudar validação com esquemas ou encarar os
+[Type Challenges](https://github.com/type-challenges/type-challenges).
+
+[Voltar à visão geral do guia](../../): revise a trilha completa e escolha o próximo tema.

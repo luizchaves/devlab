@@ -1,0 +1,526 @@
+---
+title: "TypeScript: Funções"
+description: "Tipagem de parâmetros e retorno, parâmetros opcionais e padrão, rest, tipos de função, tipagem contextual, sobrecargas, void versus never e this tipado."
+course: typescript
+sidebar:
+  label: Funções
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/basics/functions/) e [mapa mental](../../../../mindmaps/courses/typescript/basics/functions/).
+
+Funções são a fronteira mais importante de um sistema tipado: é nelas que o contrato fica
+explícito. Um parâmetro anotado documenta o que entra, um retorno anotado fixa o que sai, e o
+compilador passa a cobrar os dois lados em cada chamada.
+
+Esta aula cobre a tipagem de parâmetros e retornos, os tipos que descrevem funções inteiras e
+os recursos que aparecem quando a assinatura simples não basta.
+
+## Objetivo
+
+Anotar parâmetros e retornos, decidir quando deixar o retorno ser inferido, usar parâmetros
+opcionais, com valor padrão e rest, declarar tipos de função e aproveitar a tipagem
+contextual em callbacks, escrever sobrecargas quando a assinatura varia, e diferenciar `void`
+de `never` e de `undefined`.
+
+## Parâmetros e Retorno
+
+Parâmetros **sempre** precisam de anotação — não existe valor de onde inferir. O retorno,
+quase sempre, pode ser inferido:
+
+```ts title="Assinatura básica"
+function applyDiscount(price: number, percentage: number): number {
+  return price * (1 - percentage);
+}
+
+// Retorno inferido como number
+function subtotal(price: number, quantity: number) {
+  return price * quantity;
+}
+
+const format = (value: number): string => `R$ ${value.toFixed(2)}`;
+
+console.log(format(applyDiscount(200, 0.15)));
+```
+
+| Elemento | Anotar? | Motivo |
+| :--- | :--- | :--- |
+| Parâmetro | **Sempre** | Sem anotação vira `any` implícito |
+| Retorno de função exportada | Sim | Fixa o contrato e evita mudanças acidentais |
+| Retorno de função interna curta | Opcional | A inferência acerta e o código fica mais limpo |
+| Retorno de função recursiva | Sim | A inferência pode falhar em ciclos |
+
+<Aside type="tip" title="Anotar o retorno pega o erro no lugar certo">
+  Sem anotação, mudar o corpo da função muda silenciosamente o tipo de retorno, e o erro
+  aparece em quem chama — às vezes três arquivos adiante. Com anotação, o compilador aponta o
+  problema dentro da própria função.
+</Aside>
+
+## Parâmetros Opcionais, Padrão e Rest
+
+As três formas mudam a assinatura de maneiras diferentes:
+
+```ts title="Formas de receber argumentos"
+// Opcional: o tipo vira `string | undefined`
+function greet(name: string, title?: string): string {
+  return title ? `${title} ${name}` : name;
+}
+
+// Valor padrão: o tipo continua `number`, e o parâmetro é opcional na chamada
+function connect(host: string, port: number = 5432): string {
+  return `${host}:${port}`;
+}
+
+// Rest: sempre um array
+function sum(...values: number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+// Rest com tupla nomeada
+function log(level: "info" | "error", ...messages: string[]): void {
+  console.log(`[${level}]`, messages.join(" "));
+}
+
+console.log(greet("Ana"), greet("Ana", "Dra."));
+console.log(connect("localhost"), connect("db.dev", 3306));
+console.log(sum(1, 2, 3));
+log("info", "servidor", "iniciado");
+```
+
+<Aside type="caution" title="Opcional vem depois do obrigatório">
+  `function f(a?: string, b: number)` é erro de compilação: parâmetros opcionais e com valor
+  padrão precisam vir por último. Quando a ordem importa, receba um objeto de opções em vez de
+  vários parâmetros soltos.
+</Aside>
+
+## Tipos de Função
+
+Uma função também é um valor, e portanto tem tipo. Existem três formas de escrevê-lo:
+
+```ts title="Descrevendo a assinatura"
+// 1. Sintaxe de arrow (a mais comum)
+type Transformer = (value: string) => string;
+
+// 2. Assinatura de chamada em objeto — permite propriedades
+type Handler = {
+  (event: string): void;
+  priority: number;
+};
+
+// 3. Interface com assinatura de chamada
+interface Comparator<T> {
+  (a: T, b: T): number;
+}
+
+const upper: Transformer = (value) => value.toUpperCase();
+
+const handle: Handler = Object.assign((event: string) => console.log(event), {
+  priority: 1,
+});
+
+const byLength: Comparator<string> = (a, b) => a.length - b.length;
+
+console.log(upper("devlab"), handle.priority, ["ccc", "a"].sort(byLength));
+```
+
+## Tipagem Contextual
+
+Quando o tipo da função já é conhecido pelo contexto, os parâmetros dispensam anotação — é o
+que faz callbacks funcionarem sem ruído:
+
+```ts title="O contexto informa o tipo"
+const names = ["ana", "bia", "caio"];
+
+// `name` é string por contexto; anotar seria redundante
+names.map((name) => name.toUpperCase());
+names.filter((name) => name.startsWith("a"));
+
+function repeat(times: number, callback: (index: number) => void): void {
+  for (let index = 0; index < times; index += 1) {
+    callback(index);
+  }
+}
+
+repeat(3, (index) => console.log(`passo ${index + 1}`));
+```
+
+## `void`, `undefined` e `never`
+
+Os três aparecem em posição de retorno e significam coisas distintas:
+
+| Tipo | Significa | Exemplo |
+| :--- | :--- | :--- |
+| `void` | O retorno não deve ser usado | `console.log`, um `forEach` |
+| `undefined` | O retorno é literalmente `undefined` | `function f(): undefined { return; }` |
+| `never` | A função **nunca** retorna | Lança exceção ou laço infinito |
+
+```ts title="Diferença na prática"
+function notify(message: string): void {
+  console.log(message);
+}
+
+function fail(message: string): never {
+  throw new Error(message);
+}
+
+const result = notify("oi");   // tipo void: não use o valor
+
+// Particularidade útil: uma função que retorna algo pode ser
+// atribuída onde se espera `void` — é o que permite este código:
+const ids: number[] = [];
+[1, 2, 3].forEach((value) => ids.push(value));   // push devolve number, e tudo bem
+```
+
+<Aside type="note" title="void não é undefined">
+  `void` diz "ignore o retorno", enquanto `undefined` exige que o valor seja exatamente
+  `undefined`. Por isso um callback `() => void` aceita uma função que devolve qualquer coisa:
+  quem chama simplesmente não vai usar o resultado.
+</Aside>
+
+## Sobrecargas
+
+Quando o tipo do retorno depende do formato dos argumentos, uma assinatura só não descreve
+bem. As sobrecargas declaram as combinações válidas antes da implementação:
+
+```ts title="Assinaturas múltiplas"
+function parse(value: string): string[];
+function parse(value: string, asNumber: true): number[];
+function parse(value: string, asNumber?: boolean): string[] | number[] {
+  const parts = value.split(",").map((part) => part.trim());
+  return asNumber ? parts.map(Number) : parts;
+}
+
+const words = parse("a, b, c");           // string[]
+const numbers = parse("1, 2, 3", true);   // number[]
+
+console.log(words, numbers);
+```
+
+A implementação em si não fica visível para quem chama: apenas as assinaturas declaradas
+acima dela são oferecidas pelo editor.
+
+<Aside type="tip" title="Prefira união a sobrecarga quando possível">
+  Sobrecargas são verbosas e fáceis de dessincronizar da implementação. Se as variações
+  couberem em parâmetros de união ou em generics, prefira essas alternativas — a de generics
+  aparece em [Generics](../../types/generics/).
+</Aside>
+
+## `this` Tipado
+
+Em funções que dependem de `this`, o primeiro parâmetro pode declarar o seu tipo. Ele existe
+só para o compilador e não entra na chamada:
+
+```ts title="Parâmetro this"
+interface Button {
+  label: string;
+  onClick(this: Button, event: string): void;
+}
+
+const button: Button = {
+  label: "Salvar",
+  onClick(event) {
+    console.log(`${this.label}: ${event}`);
+  },
+};
+
+button.onClick("click");
+
+// Arrow function não tem `this` próprio: herda do escopo léxico
+class Counter {
+  private count = 0;
+
+  increment = (): number => {
+    this.count += 1;
+    return this.count;
+  };
+}
+
+const counter = new Counter();
+const increment = counter.increment;   // seguro: arrow preserva o this
+console.log(increment(), increment());
+```
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/functions.ts`:
+
+   ```ts title="src/functions.ts"
+   type Formatter = (value: number) => string;
+
+   interface Product {
+     name: string;
+     price: number;
+     quantity?: number;
+   }
+
+   const brl: Formatter = (value) => `R$ ${value.toFixed(2)}`;
+
+   function subtotal(product: Product, defaultQuantity: number = 1): number {
+     return product.price * (product.quantity ?? defaultQuantity);
+   }
+
+   function total(...products: Product[]): number {
+     return products.reduce((sum, product) => sum + subtotal(product), 0);
+   }
+
+   function report(products: Product[], format: Formatter): void {
+     for (const product of products) {
+       console.log(`${product.name.padEnd(10)}${format(subtotal(product)).padStart(12)}`);
+     }
+   }
+
+   const cart: Product[] = [
+     { name: "Teclado", price: 349.9, quantity: 2 },
+     { name: "Mouse", price: 89.9 },
+   ];
+
+   report(cart, brl);
+   console.log(`${"TOTAL".padEnd(10)}${brl(total(...cart)).padStart(12)}`);
+   ```
+
+2. Verifique os tipos e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/functions.js
+   ```
+
+   ```txt title="Output"
+   Teclado        R$ 699.80
+   Mouse           R$ 89.90
+   TOTAL          R$ 789.70
+   ```
+
+3. Provoque erros de contrato e observe as mensagens:
+
+   ```ts title="src/functions.ts"
+   // report(cart, (value) => value);
+   // error TS2322: Type 'number' is not assignable to type 'string'.
+
+   // subtotal({ name: "Monitor" });
+   // error TS2345: Property 'price' is missing in type '{ name: string; }'.
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/validators.ts` com funções de validação tipadas.
+
+1. Defina `type Validator = (value: string) => boolean`;
+2. Escreva `isEmail`, `isPhone` e `minLength(size: number): Validator` — a última devolve uma função;
+3. Escreva `validate(value: string, ...validators: Validator[]): boolean` usando rest;
+4. Escreva `describe(value: string, rules: Record<string, Validator>): string` que liste o resultado de cada regra;
+5. Use parâmetro opcional com valor padrão em pelo menos uma função;
+6. Anote o retorno de todas as funções exportadas;
+7. Teste com três valores diferentes e imprima uma tabela alinhada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/validators.ts"
+  export type Validator = (value: string) => boolean;
+
+  export function isEmail(value: string): boolean {
+    return /^[\w.+-]+@[\w-]+\.[\w.]{2,}$/.test(value);
+  }
+
+  export function isPhone(value: string): boolean {
+    return /^(\(\d{2}\)\s?\d{4,5}-\d{4}|\d{10,11})$/.test(value);
+  }
+
+  export function minLength(size: number = 8): Validator {
+    return (value) => value.length >= size;
+  }
+
+  export function validate(value: string, ...validators: Validator[]): boolean {
+    return validators.every((validator) => validator(value));
+  }
+
+  export function describe(value: string, rules: Record<string, Validator>): string {
+    const results = Object.entries(rules).map(
+      ([name, rule]) => `${name}=${rule(value) ? "ok" : "falhou"}`,
+    );
+    return `${value.padEnd(22)}${results.join("  ")}`;
+  }
+
+  const rules: Record<string, Validator> = {
+    email: isEmail,
+    tamanho: minLength(10),
+  };
+
+  for (const value of ["ana@devlab.dev", "ana@dev", "(83) 90000-0000"]) {
+    console.log(describe(value, rules));
+  }
+
+  console.log(validate("ana@devlab.dev", isEmail, minLength(5)));
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/pipeline.ts`, um encadeador de transformações com tipos preservados.
+
+1. Defina `type Step<In, Out> = (value: In) => Out`;
+2. Escreva `pipe` com sobrecargas para dois, três e quatro passos, preservando o tipo em cada etapa;
+3. A implementação deve aceitar uma quantidade variável de passos;
+4. Monte um pipeline que receba `string`, produza `string[]`, depois `number[]` e por fim `number`;
+5. Comprove que o editor conhece o tipo final sem nenhuma anotação na variável de resultado;
+6. Explique em comentário por que a versão sem sobrecargas perderia essa informação.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/pipeline.ts"
+  type Step<In, Out> = (value: In) => Out;
+
+  function pipe<A, B>(a: Step<A, B>): Step<A, B>;
+  function pipe<A, B, C>(a: Step<A, B>, b: Step<B, C>): Step<A, C>;
+  function pipe<A, B, C, D>(a: Step<A, B>, b: Step<B, C>, c: Step<C, D>): Step<A, D>;
+  function pipe<A, B, C, D, E>(
+    a: Step<A, B>,
+    b: Step<B, C>,
+    c: Step<C, D>,
+    d: Step<D, E>,
+  ): Step<A, E>;
+  function pipe(...steps: Step<unknown, unknown>[]): Step<unknown, unknown> {
+    return (value) => steps.reduce((current, step) => step(current), value);
+  }
+
+  const split: Step<string, string[]> = (value) => value.split(",");
+  const trim: Step<string[], string[]> = (parts) => parts.map((part) => part.trim());
+  const toNumbers: Step<string[], number[]> = (parts) => parts.map(Number);
+  const sum: Step<number[], number> = (values) => values.reduce((a, b) => a + b, 0);
+
+  const parseTotal = pipe(split, trim, toNumbers, sum);
+
+  const total = parseTotal("10, 20, 30");   // number, sem anotação
+  console.log(total.toFixed(2));
+
+  // Sem sobrecargas, a assinatura seria (...steps: Step<unknown, unknown>[]),
+  // e o resultado viria como `unknown`: seria preciso asserção em cada uso,
+  // perdendo justamente a verificação que motiva o TypeScript.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Assinatura
+
+**1. Por que parâmetros sempre precisam de anotação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque não existe valor inicial de onde inferir o tipo. Sem anotação eles se tornam `any`
+  implícito — e, com `strict` ligado, isso vira erro de compilação (`noImplicitAny`).
+</details>
+
+**2. Quando vale a pena anotar o retorno?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em funções exportadas ou públicas, para fixar o contrato, e em funções recursivas, onde a
+  inferência pode falhar. A anotação também faz o erro aparecer dentro da função, e não no
+  código que a chama.
+</details>
+
+**3. Qual a diferença entre `title?: string` e `title: string = "Sr."`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O primeiro torna o parâmetro opcional com tipo `string | undefined`; é preciso tratar a
+  ausência. O segundo também permite omitir na chamada, mas o tipo continua `string`, pois o
+  valor padrão garante que nunca será `undefined`.
+</details>
+
+### Tipos de função
+
+**4. Como se escreve o tipo de uma função que recebe `string` e devolve `number`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com a sintaxe de arrow em um alias: `type Parser = (value: string) => number`. Também é
+  possível usar uma assinatura de chamada em `interface` ou em um tipo objeto.
+</details>
+
+**5. O que é tipagem contextual?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É quando o compilador deduz o tipo dos parâmetros de uma função a partir do contexto em que
+  ela é usada — como o callback de `map`, cujo parâmetro recebe o tipo dos elementos do array
+  sem precisar de anotação.
+</details>
+
+### Retornos especiais
+
+**6. Qual a diferença entre `void` e `undefined` como retorno?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `void` significa "o retorno não deve ser usado" e aceita funções que devolvem qualquer
+  coisa. `undefined` exige que o valor devolvido seja exatamente `undefined`.
+</details>
+
+**7. Quando uma função tem retorno `never`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando ela nunca termina normalmente: sempre lança uma exceção ou entra em laço infinito.
+  `never` também aparece ao provar exaustividade em `switch`.
+</details>
+
+### Sobrecargas e `this`
+
+**8. Para que servem sobrecargas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para descrever combinações válidas de argumentos quando o tipo do retorno depende do formato
+  da chamada. As assinaturas declaradas são as visíveis para quem chama; a implementação fica
+  oculta.
+</details>
+
+**9. Qual a alternativa mais simples a uma sobrecarga?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Parâmetros de união ou funções genéricas. Sobrecargas são verbosas e podem sair de sincronia
+  com a implementação, então valem apenas quando as alternativas não expressam o contrato.
+</details>
+
+**10. O que faz o parâmetro `this` em uma assinatura?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Declara o tipo esperado de `this` dentro da função, permitindo que o compilador verifique os
+  acessos. Ele é apagado na compilação e não entra na lista de argumentos da chamada.
+</details>
+
+## Referências
+
+- [Mais sobre funções](https://www.typescriptlang.org/docs/handbook/2/functions.html)
+- [Tipos de função](https://www.typescriptlang.org/docs/handbook/2/functions.html#function-type-expressions)
+- [Sobrecargas](https://www.typescriptlang.org/docs/handbook/2/functions.html#function-overloads)
+- [Declarando `this` em funções](https://www.typescriptlang.org/docs/handbook/2/functions.html#declaring-this-in-a-function)
+- [Parâmetros rest e desestruturação](https://www.typescriptlang.org/docs/handbook/2/functions.html#rest-parameters-and-arguments)
+
+## Próxima aula
+
+Anotar o tipo é metade do trabalho; a outra metade é convencer o compilador de qual variação
+está em uso em cada ponto do código.
+
+[Narrowing](../narrowing/): análise de fluxo, `typeof`, `in`, `instanceof`, type predicates e
+exaustividade.

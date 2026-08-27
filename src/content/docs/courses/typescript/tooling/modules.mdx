@@ -1,0 +1,644 @@
+---
+title: "TypeScript: Módulos e Declarações"
+description: "ESM e CommonJS em TypeScript, import type, resolução de módulos, arquivos .d.ts, pacotes @types, declaration merging e tipagem de módulos sem tipos."
+course: typescript
+sidebar:
+  label: Módulos e Declarações
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/tooling/modules/) e [mapa mental](../../../../mindmaps/courses/typescript/tooling/modules/).
+
+Módulos em TypeScript carregam uma complicação a mais que em JavaScript: além do código,
+circulam **tipos**. Um `import` pode trazer um valor, um tipo, ou os dois — e o que sobrevive
+à compilação depende dessa distinção.
+
+Esta aula cobre a convivência entre ESM e CommonJS, a sintaxe `import type`, os arquivos de
+declaração `.d.ts` e o que fazer quando uma biblioteca não publica tipos.
+
+## Objetivo
+
+Exportar e importar valores e tipos, usar `import type` e `export type` com consciência do que
+é apagado, entender a resolução de módulos no Node, escrever arquivos `.d.ts`, declarar tipos
+para bibliotecas sem tipagem e estender declarações existentes.
+
+## Exportando e Importando
+
+A sintaxe é a do ECMAScript, com tipos participando das mesmas listas:
+
+```ts title="src/domain.ts"
+export interface Course {
+  id: string;
+  title: string;
+  hours: number;
+}
+
+export type Level = "iniciante" | "avançado";
+
+export const DEFAULT_HOURS = 20;
+
+export function describe(course: Course): string {
+  return `${course.title} (${course.hours}h)`;
+}
+
+export default class CourseService {
+  list(): Course[] {
+    return [];
+  }
+}
+```
+
+```ts title="src/main.ts"
+import CourseService, { describe, DEFAULT_HOURS, type Course, type Level } from "./domain.js";
+
+const course: Course = { id: "ts", title: "Guia de TypeScript", hours: DEFAULT_HOURS };
+const level: Level = "iniciante";
+
+console.log(describe(course), level, new CourseService().list());
+```
+
+<Aside type="caution" title="A extensão .js no import não é erro">
+  Com `module: NodeNext`, o import precisa apontar para o arquivo **emitido** — `./domain.js`,
+  mesmo escrevendo `domain.ts`. É a regra do ESM no Node, que exige extensão explícita. Com
+  `moduleResolution: Bundler` (Vite, esbuild), a extensão pode ser omitida.
+</Aside>
+
+## `import type`
+
+Separar a importação de tipos deixa explícito o que será apagado na compilação:
+
+```ts title="Três formas equivalentes"
+// 1. Import misto: o compilador decide o que apagar
+import { describe, type Course } from "./domain.js";
+
+// 2. Import exclusivo de tipos: some por completo do JavaScript
+import type { Course as CourseType } from "./domain.js";
+
+// 3. Import de valor (não use para tipos com isolatedModules)
+import { describe as run } from "./domain.js";
+```
+
+| Situação | Use |
+| :--- | :--- |
+| Importa só tipos do módulo | `import type { … }` |
+| Importa tipos e valores juntos | `import { valor, type Tipo }` |
+| Reexporta um tipo | `export type { Tipo }` |
+| Projeto com `isolatedModules` ou bundler | Sempre marcar tipos explicitamente |
+
+<Aside type="tip" title="verbatimModuleSyntax elimina a dúvida">
+  A opção `verbatimModuleSyntax` faz o compilador emitir exatamente os imports escritos,
+  apagando apenas os marcados com `type`. Isso evita que um import de tipo puxe o módulo
+  inteiro por engano — problema clássico com efeitos colaterais e ordem de inicialização.
+</Aside>
+
+## ESM e CommonJS
+
+Os dois sistemas convivem no Node, e a escolha afeta a sintaxe e o `tsconfig.json`:
+
+| Aspecto | ESM | CommonJS |
+| :--- | :--- | :--- |
+| Sintaxe | `import` / `export` | `require` / `module.exports` |
+| Extensão exigida no import | Sim | Não |
+| Carregamento | Assíncrono, estático | Síncrono, dinâmico |
+| `package.json` | `"type": "module"` | `"type": "commonjs"` (padrão) |
+| Extensões explícitas | `.mts` | `.cts` |
+| Top-level `await` | Sim | Não |
+
+```json title="package.json de um projeto ESM"
+{
+  "name": "guia-ts",
+  "type": "module",
+  "main": "dist/main.js",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    }
+  }
+}
+```
+
+```ts title="Interoperabilidade"
+// Importando um pacote CommonJS a partir de ESM
+import express from "express";        // exige esModuleInterop: true
+
+// Import dinâmico funciona nos dois mundos
+const { default: chalk } = await import("chalk");
+
+console.log(typeof express, typeof chalk);
+```
+
+<Aside type="caution" title="ERR_REQUIRE_ESM e ERR_MODULE_NOT_FOUND">
+  Os dois erros mais comuns da transição: o primeiro aparece ao dar `require` em um pacote que
+  só publica ESM; o segundo, ao esquecer a extensão `.js` em um import ESM. Ambos são erros de
+  **runtime**, não de compilação — o `tsc` só os previne com `module: NodeNext`.
+</Aside>
+
+## Resolução de Módulos
+
+Ao encontrar um import, o compilador segue uma ordem para localizar código **e** tipos:
+
+<Mermaid title="Como o TypeScript encontra os tipos de um import">
+{`
+flowchart TD
+  A["import 'lodash'"] --> B{"O pacote tem<br/>campo types/typings?"}
+  B -- "sim" --> C["usa os .d.ts do próprio pacote"]
+  B -- "não" --> D{"Existe @types/lodash<br/>em node_modules?"}
+  D -- "sim" --> E["usa o pacote de tipos da comunidade"]
+  D -- "não" --> F{"Existe declaração local<br/>em types/*.d.ts?"}
+  F -- "sim" --> G["usa a declaração do projeto"]
+  F -- "não" --> H["erro TS7016:<br/>implicitly has an 'any' type"]
+`}
+</Mermaid>
+
+```bash title="Terminal"
+pnpm exec tsc --traceResolution | grep lodash
+```
+
+O comando acima imprime cada passo da busca — a ferramenta certa quando um import "não tem
+tipos" sem motivo aparente.
+
+## Arquivos de Declaração
+
+Um `.d.ts` contém **apenas tipos**: nenhuma implementação, nenhum código emitido:
+
+```ts title="types/domain.d.ts"
+export interface Course {
+  id: string;
+  title: string;
+}
+
+export declare function describe(course: Course): string;
+```
+
+Eles aparecem em três situações:
+
+| Situação | Origem do `.d.ts` |
+| :--- | :--- |
+| Biblioteca publicada com tipos | Gerado por `declaration: true` no build da lib |
+| Biblioteca sem tipos, com pacote da comunidade | `@types/nome`, do DefinitelyTyped |
+| Biblioteca sem tipos nenhum | Escrito por você, no próprio projeto |
+
+```bash title="Terminal"
+pnpm exec tsc --declaration --emitDeclarationOnly
+```
+
+<FileTree>
+{`
+projeto/
+├── src/
+│   └── main.ts
+├── types/
+│   ├── legacy-lib.d.ts       declaração escrita à mão
+│   └── globals.d.ts          tipos globais do projeto
+└── dist/
+    ├── main.js
+    └── main.d.ts             gerado pelo compilador
+`}
+</FileTree>
+
+## Tipando Biblioteca Sem Tipos
+
+Quando não existe `@types`, três estratégias resolvem, em ordem crescente de esforço:
+
+```ts title="types/legacy-lib.d.ts"
+// 1. Escape rápido: silencia o erro, sem nenhuma verificação
+declare module "legacy-lib";
+
+// 2. Declaração mínima: tipa só o que você usa
+declare module "legacy-lib" {
+  export interface Options {
+    debug?: boolean;
+  }
+
+  export function connect(url: string, options?: Options): Promise<void>;
+  export const version: string;
+}
+
+// 3. Tipos globais, para scripts carregados fora do sistema de módulos
+declare global {
+  interface Window {
+    analytics?: {
+      track(event: string, payload?: Record<string, unknown>): void;
+    };
+  }
+}
+
+export {};
+```
+
+```ts title="src/main.ts"
+import { connect, version } from "legacy-lib";
+
+await connect("https://api.devlab.dev", { debug: true });
+console.log(version);
+
+window.analytics?.track("page_view");
+```
+
+<Aside type="note" title="O export {} vazio não é enfeite">
+  Um `.d.ts` sem nenhum `import` ou `export` é tratado como **script global**, e suas
+  declarações vazam para todo o projeto. O `export {}` no final o transforma em módulo,
+  restringindo o escopo — exceto pelo bloco `declare global`, cuja finalidade é justamente
+  ampliar o escopo global.
+</Aside>
+
+## Estendendo Declarações
+
+O *declaration merging* de interfaces permite acrescentar campos a tipos de terceiros:
+
+```ts title="types/express.d.ts"
+import type { User } from "../src/domain.js";
+
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: User;
+  }
+}
+```
+
+```ts title="src/middleware.ts"
+import type { NextFunction, Request, Response } from "express";
+
+export function authenticate(request: Request, _response: Response, next: NextFunction): void {
+  // request.user existe porque a interface foi estendida
+  request.user = { id: "u1", name: "Ana" };
+  next();
+}
+```
+
+| Alvo | Como estender |
+| :--- | :--- |
+| Interface de um módulo | `declare module "pacote" { interface X { … } }` |
+| Objeto global (`window`, `globalThis`) | `declare global { interface Window { … } }` |
+| Variáveis de ambiente | `declare global { namespace NodeJS { interface ProcessEnv { … } } }` |
+
+## Executando
+
+<Steps>
+
+1. Monte a estrutura do projeto:
+
+   <FileTree>
+   {`
+   modulos-ts/
+   ├── package.json          "type": "module"
+   ├── tsconfig.json
+   ├── types/
+   │   └── env.d.ts
+   └── src/
+       ├── domain.ts
+       └── main.ts
+   `}
+   </FileTree>
+
+2. Escreva o módulo de domínio e a declaração global:
+
+   ```ts title="src/domain.ts"
+   export interface Course {
+     id: string;
+     title: string;
+     hours: number;
+   }
+
+   export type Level = "iniciante" | "avançado";
+
+   export function describe(course: Course, level: Level): string {
+     return `${course.title} · ${course.hours}h · ${level}`;
+   }
+   ```
+
+   ```ts title="types/env.d.ts"
+   declare global {
+     namespace NodeJS {
+       interface ProcessEnv {
+         APP_NAME?: string;
+         PORT?: string;
+       }
+     }
+   }
+
+   export {};
+   ```
+
+3. Consuma tudo no ponto de entrada:
+
+   ```ts title="src/main.ts"
+   import { describe, type Course, type Level } from "./domain.js";
+
+   const course: Course = { id: "ts", title: "Guia de TypeScript", hours: 28 };
+   const level: Level = "iniciante";
+
+   console.log(`[${process.env.APP_NAME ?? "devlab"}] ${describe(course, level)}`);
+   console.log(`porta: ${process.env.PORT ?? "3000"}`);
+   ```
+
+4. Compile gerando também as declarações e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --declaration && node dist/main.js
+   ```
+
+   ```txt title="Output"
+   [devlab] Guia de TypeScript · 28h · iniciante
+   porta: 3000
+   ```
+
+5. Confira o `.d.ts` gerado:
+
+   ```ts title="dist/domain.d.ts"
+   export interface Course {
+       id: string;
+       title: string;
+       hours: number;
+   }
+   export type Level = "iniciante" | "avançado";
+   export declare function describe(course: Course, level: Level): string;
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie o pacote `format-lib/` publicando código e tipos.
+
+1. Configure `package.json` com `"type": "module"` e o campo `exports` apontando para `types` e `import`;
+2. Escreva `src/index.ts` exportando `currency`, `percentage` e a interface `FormatOptions`;
+3. Ative `declaration: true` e `declarationMap: true` no `tsconfig.json`;
+4. Compile e verifique os arquivos `.js`, `.d.ts` e `.d.ts.map` gerados;
+5. Crie `types/legacy-chart.d.ts` declarando um módulo fictício `legacy-chart` com uma função `render`;
+6. Importe o módulo fictício em um arquivo e comprove que o editor conhece a assinatura;
+7. Explique em comentário a diferença entre `import type` e `import` neste projeto.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="package.json"
+  {
+    "name": "format-lib",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    }
+  }
+  ```
+
+  ```ts title="src/index.ts"
+  export interface FormatOptions {
+    locale?: string;
+    fractionDigits?: number;
+  }
+
+  export function currency(value: number, options: FormatOptions = {}): string {
+    const { locale = "pt-BR", fractionDigits = 2 } = options;
+    return value.toLocaleString(locale, {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: fractionDigits,
+    });
+  }
+
+  export function percentage(value: number, options: FormatOptions = {}): string {
+    const { locale = "pt-BR", fractionDigits = 1 } = options;
+    return value.toLocaleString(locale, {
+      style: "percent",
+      minimumFractionDigits: fractionDigits,
+    });
+  }
+  ```
+
+  ```ts title="types/legacy-chart.d.ts"
+  declare module "legacy-chart" {
+    export interface ChartOptions {
+      width: number;
+      height: number;
+      title?: string;
+    }
+
+    export function render(data: number[], options: ChartOptions): string;
+    export const version: string;
+  }
+  ```
+
+  ```ts title="src/demo.ts"
+  import { render, type ChartOptions } from "legacy-chart";
+  import { currency, type FormatOptions } from "./index.js";
+
+  const options: ChartOptions = { width: 400, height: 200, title: "Vendas" };
+  const formatOptions: FormatOptions = { fractionDigits: 2 };
+
+  console.log(currency(1234.5, formatOptions));
+  console.log(render([1, 2, 3], options));
+
+  // `import type` traz apenas a declaração e desaparece do JavaScript gerado.
+  // `import` comum traz o valor e permanece no bundle — usar import comum para
+  // um tipo pode carregar o módulo inteiro sem necessidade.
+  ```
+</details>
+
+## Desafio
+
+Escreva `types/devlab.d.ts` estendendo tipos de terceiros e globais em um único arquivo.
+
+1. Estenda `ProcessEnv` com `DATABASE_URL: string` (obrigatória) e `LOG_LEVEL?: "debug" | "info" | "error"`;
+2. Estenda a interface `Window` com um objeto `devlab` contendo `version: string` e `track(event: string): void`;
+3. Declare um módulo `"virtual:build-info"` exportando `buildTime: string` e `commit: string`;
+4. Estenda `Array<T>` com um método `last(): T | undefined` e implemente-o em `src/polyfills.ts`;
+5. Escreva `src/usage.ts` consumindo as quatro extensões;
+6. Comprove que remover o `export {}` do arquivo muda o comportamento das declarações;
+7. Explique em comentário por que estender protótipos nativos é desaconselhado apesar de possível.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="types/devlab.d.ts"
+  declare global {
+    namespace NodeJS {
+      interface ProcessEnv {
+        DATABASE_URL: string;
+        LOG_LEVEL?: "debug" | "info" | "error";
+      }
+    }
+
+    interface Window {
+      devlab: {
+        version: string;
+        track(event: string): void;
+      };
+    }
+
+    interface Array<T> {
+      last(): T | undefined;
+    }
+  }
+
+  declare module "virtual:build-info" {
+    export const buildTime: string;
+    export const commit: string;
+  }
+
+  export {};
+  ```
+
+  ```ts title="src/polyfills.ts"
+  Object.defineProperty(Array.prototype, "last", {
+    value: function last<T>(this: T[]): T | undefined {
+      return this[this.length - 1];
+    },
+    enumerable: false,   // não aparece em for...in
+    writable: true,
+    configurable: true,
+  });
+
+  export {};
+  ```
+
+  ```ts title="src/usage.ts"
+  import "./polyfills.js";
+  import { buildTime, commit } from "virtual:build-info";
+
+  const level = process.env.LOG_LEVEL ?? "info";
+  console.log(`banco: ${process.env.DATABASE_URL} · log: ${level}`);
+  console.log(`build ${commit} em ${buildTime}`);
+  console.log([1, 2, 3].last());
+
+  if (typeof window !== "undefined") {
+    window.devlab.track("page_view");
+  }
+
+  // Sem `export {}` no .d.ts, o arquivo vira script global: as declarações passam a
+  // valer sem `declare global`, e um `import` acidental muda todo o comportamento.
+  //
+  // Estender protótipos nativos é desaconselhado porque afeta todo o processo:
+  // duas bibliotecas podem definir `last` de formas diferentes, `enumerable` mal
+  // configurado quebra `for...in`, e o método some se o polyfill não for importado
+  // antes do uso — o tipo promete algo que o runtime pode não ter.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Imports e exports
+
+**1. Por que `module: NodeNext` exige a extensão `.js` no import?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o import é resolvido pelo Node em tempo de execução, sobre o arquivo **emitido**. O
+  ESM do Node exige extensão explícita, e o compilador não reescreve caminhos.
+</details>
+
+**2. Qual a diferença entre `import` e `import type`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `import type` traz apenas declarações e desaparece por completo do JavaScript gerado.
+  `import` comum importa valores e permanece no código emitido, podendo carregar o módulo e
+  seus efeitos colaterais.
+</details>
+
+**3. Para que serve `verbatimModuleSyntax`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Faz o compilador emitir exatamente os imports escritos, apagando apenas os marcados com
+  `type`. Isso torna previsível o que sobra no bundle e evita imports de tipo que puxam
+  módulos inteiros.
+</details>
+
+### ESM e CommonJS
+
+**4. O que define se um arquivo `.ts` vira ESM ou CommonJS?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O campo `type` do `package.json` mais próximo e as opções `module`/`moduleResolution`.
+  Extensões explícitas (`.mts` e `.cts`) forçam um formato independentemente do `type`.
+</details>
+
+**5. O que `esModuleInterop` resolve?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permite importar pacotes CommonJS com a sintaxe de import padrão (`import express from
+  "express"`), gerando o código de compatibilidade necessário.
+</details>
+
+### Declarações
+
+**6. O que é um arquivo `.d.ts`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um arquivo que contém apenas declarações de tipo, sem implementação. Ele descreve a API de
+  um módulo para o compilador e não gera JavaScript.
+</details>
+
+**7. Como o compilador encontra os tipos de um pacote?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Procura primeiro os tipos publicados pelo próprio pacote (campo `types`/`exports`), depois
+  `@types/nome` em `node_modules`, e por fim declarações locais do projeto. Não encontrando,
+  emite o erro TS7016.
+</details>
+
+**8. Para que serve `declare module "nome"`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para declarar tipos de um módulo que não os publica, ou para **estender** os tipos de um
+  módulo existente — como acrescentar `user` à interface `Request` do Express.
+</details>
+
+### Escopo
+
+**9. Por que um `.d.ts` costuma terminar com `export {}`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que o arquivo seja tratado como módulo. Sem nenhum import ou export, ele vira script
+  global e todas as suas declarações vazam para o projeto inteiro.
+</details>
+
+**10. Como tipar `window.minhaLib` em um projeto de navegador?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `declare global { interface Window { minhaLib: … } }` dentro de um `.d.ts` que seja um
+  módulo. O *declaration merging* acrescenta a propriedade à interface `Window` existente.
+</details>
+
+## Referências
+
+- [Módulos: teoria](https://www.typescriptlang.org/docs/handbook/modules/theory.html)
+- [Módulos: guia de referência](https://www.typescriptlang.org/docs/handbook/modules/reference.html)
+- [Arquivos de declaração](https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html)
+- [Declaration merging](https://www.typescriptlang.org/docs/handbook/declaration-merging.html)
+- [Node.js: ESM e CommonJS](https://nodejs.org/api/esm.html)
+
+## Próxima aula
+
+Com módulos e tipos organizados, resta decidir como esse código chega ao runtime.
+
+[Execução e Build](../runtime/): `tsc`, `tsx`, bundlers, remoção de tipos no Node e
+verificação em CI.

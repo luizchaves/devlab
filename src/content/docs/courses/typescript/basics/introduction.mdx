@@ -1,0 +1,578 @@
+---
+title: "TypeScript: Introdução"
+description: "O que é TypeScript, relação com JavaScript, papel do compilador, apagamento de tipos, instalação, primeiro projeto e o ecossistema de tipos."
+course: typescript
+sidebar:
+  label: Introdução
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/basics/introduction/) e [mapa mental](../../../../mindmaps/courses/typescript/basics/introduction/).
+
+JavaScript não avisa quando você chama `usuario.nome` em um objeto que na verdade tem
+`usuario.name`. O erro aparece em produção, como `undefined` em uma tela ou uma exceção às
+duas da manhã. TypeScript existe para antecipar essa conversa: ele descreve a **forma** dos
+dados e verifica, antes de executar, se o código respeita o que foi declarado.
+
+Esta aula estabelece o modelo mental que sustenta todo o resto: o que o compilador faz, o que
+ele deliberadamente **não** faz, e como montar um projeto do zero.
+
+## Objetivo
+
+Explicar a relação entre TypeScript e JavaScript, descrever o papel do compilador e o
+apagamento de tipos, reconhecer o que a verificação estática não protege, instalar o
+TypeScript em um projeto, configurar o `tsconfig.json` mínimo e compilar o primeiro arquivo.
+
+## O Que É TypeScript
+
+TypeScript é um **superset tipado** do JavaScript, criado pela Microsoft em 2012. A definição
+tem três partes, e cada uma explica uma decisão de projeto:
+
+| Afirmação | Consequência prática |
+| :--- | :--- |
+| **Superset** | Todo `.js` válido é `.ts` válido; migrar é incremental, arquivo a arquivo |
+| **Tipado** | O compilador conhece a forma dos dados e verifica o uso antes de executar |
+| **Compilado para JavaScript** | O runtime continua sendo JS: navegador, Node, Deno e Bun não veem tipos |
+
+```ts title="O mesmo código, com e sem tipos"
+// JavaScript: o erro só aparece ao executar
+function greet(user) {
+  return `Olá, ${user.name}`;
+}
+
+// TypeScript: o erro aparece no editor, antes de rodar
+interface User {
+  name: string;
+  age: number;
+}
+
+function greetTyped(user: User): string {
+  return `Olá, ${user.name}`;
+}
+
+greetTyped({ name: "Ana", age: 32 });
+// greetTyped({ nome: "Ana" });
+// Erro: Object literal may only specify known properties,
+// and 'nome' does not exist in type 'User'.
+```
+
+<Aside type="note" title="TypeScript não é uma linguagem nova">
+  A sintaxe de execução é a do JavaScript: as mesmas funções, o mesmo `for`, os mesmos
+  módulos. O que TypeScript acrescenta é uma **camada de anotações** que descreve o código
+  existente. Quem sabe JavaScript já sabe 90% de TypeScript.
+</Aside>
+
+## O Compilador e o Apagamento de Tipos
+
+O `tsc` faz duas coisas independentes: **verifica** os tipos e **emite** JavaScript. Na
+emissão, todas as anotações são removidas — é o que se chama de *type erasure*.
+
+<Mermaid title="Do arquivo .ts ao JavaScript executado">
+{`
+flowchart LR
+  A["app.ts<br/>código + tipos"] --> B["tsc"]
+  B --> C["Verificação de tipos<br/>erros no editor e no build"]
+  B --> D["Emissão<br/>tipos apagados"]
+  D --> E["app.js<br/>JavaScript comum"]
+  E --> F["Navegador · Node · Deno · Bun"]
+`}
+</Mermaid>
+
+```ts title="entrada.ts"
+interface Product {
+  name: string;
+  price: number;
+}
+
+const items: Product[] = [{ name: "Teclado", price: 349.9 }];
+
+function total(products: Product[]): number {
+  return products.reduce((sum, product) => sum + product.price, 0);
+}
+
+console.log(total(items).toFixed(2));
+```
+
+```js title="saída.js (target ES2022)"
+const items = [{ name: "Teclado", price: 349.9 }];
+
+function total(products) {
+  return products.reduce((sum, product) => sum + product.price, 0);
+}
+
+console.log(total(items).toFixed(2));
+```
+
+Repare que `interface Product` desapareceu por completo: ela não tem representação em tempo de
+execução. Essa é a razão de o TypeScript não custar nada em desempenho — e também de ele não
+poder validar dados que chegam de fora.
+
+<Aside type="caution" title="Tipos não validam dados de entrada">
+  Um `JSON.parse()` de resposta de API devolve `any`: o compilador acredita no tipo que você
+  declarar, sem verificar. Dados vindos de rede, formulário ou arquivo precisam de validação
+  em **tempo de execução** — com checagens manuais ou com uma biblioteca como Zod. O assunto
+  volta em [Narrowing](../narrowing/).
+</Aside>
+
+## O Que a Verificação Estática Cobre
+
+Vale ser explícito sobre a fronteira, para não esperar do compilador o que ele não promete:
+
+| TypeScript detecta | TypeScript **não** detecta |
+| :--- | :--- |
+| Propriedade inexistente ou com nome errado | Valor `null` vindo de uma API que prometeu objeto |
+| Argumento de tipo incompatível | Divisão por zero, estouro numérico |
+| Chamada com quantidade errada de argumentos | Erro de lógica: somar onde deveria subtrair |
+| Retorno incompatível com o declarado | Falha de rede, arquivo ausente, disco cheio |
+| Acesso a variável possivelmente indefinida | Condição de corrida entre requisições |
+
+```ts title="O compilador acredita no que você afirma"
+const response = await fetch("/api/users");
+const users = (await response.json()) as { name: string }[];
+
+// Compila sem reclamar — mas quebra se a API mudar o contrato
+console.log(users[0].name.toUpperCase());
+```
+
+## Instalando
+
+TypeScript é um pacote npm e deve ser instalado **por projeto**, como dependência de
+desenvolvimento — assim cada projeto fixa a sua versão:
+
+<Tabs syncKey="pm">
+  <TabItem label="pnpm">
+    ```bash title="Terminal"
+    pnpm init
+    pnpm add -D typescript
+    pnpm exec tsc --version
+    ```
+  </TabItem>
+  <TabItem label="npm">
+    ```bash title="Terminal"
+    npm init -y
+    npm install -D typescript
+    npx tsc --version
+    ```
+  </TabItem>
+  <TabItem label="yarn">
+    ```bash title="Terminal"
+    yarn init -y
+    yarn add -D typescript
+    yarn tsc --version
+    ```
+  </TabItem>
+</Tabs>
+
+```txt title="Output"
+Version 5.9.2
+```
+
+<Aside type="caution" title="Evite instalar o TypeScript globalmente">
+  Uma instalação global faz projetos diferentes compartilharem a mesma versão do compilador —
+  e uma atualização passa a quebrar builds antigos. O editor também usa a versão do projeto
+  quando ela existe, o que mantém editor, terminal e CI de acordo.
+</Aside>
+
+## O Primeiro Projeto
+
+O `tsconfig.json` diz ao compilador o que compilar e com quais regras. O comando abaixo gera
+uma versão comentada, útil para explorar as opções:
+
+```bash title="Terminal"
+pnpm exec tsc --init
+```
+
+Para começar, este arquivo enxuto basta:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
+```
+
+| Opção | Papel |
+| :--- | :--- |
+| `target` | Versão de JavaScript gerada |
+| `module` / `moduleResolution` | Sistema de módulos e como resolver imports |
+| `rootDir` / `outDir` | Onde está o código-fonte e onde escrever o resultado |
+| `strict` | Liga todas as verificações rigorosas — **sempre** ligue |
+| `esModuleInterop` | Interoperabilidade com módulos CommonJS |
+| `skipLibCheck` | Não verifica os `.d.ts` de dependências (acelera muito) |
+
+A estrutura resultante separa fonte de saída:
+
+<FileTree>
+{`
+projeto/
+├── package.json
+├── tsconfig.json
+├── src/
+│   └── main.ts
+└── dist/            (gerado pelo tsc; não versionar)
+    └── main.js
+`}
+</FileTree>
+
+<Aside type="tip" title="strict não é opcional">
+  Sem `strict`, o compilador aceita `null` em qualquer lugar e infere `any` silenciosamente —
+  o que remove justamente a proteção que motivou adotar TypeScript. Em projeto novo, ligue
+  desde o primeiro dia; em migração, ligue por etapas, como mostra
+  [Migrando de JavaScript](../../practice/migration/).
+</Aside>
+
+## Ecossistema de Tipos
+
+Bibliotecas modernas publicam os próprios tipos dentro do pacote. As que não publicam
+costumam ter um pacote complementar mantido pela comunidade no repositório DefinitelyTyped:
+
+```bash title="Terminal"
+pnpm add express
+pnpm add -D @types/express @types/node
+```
+
+```ts title="Tipos de terceiros em ação"
+import express, { type Request, type Response } from "express";
+
+const app = express();
+
+app.get("/users/:id", (request: Request, response: Response) => {
+  // request.params.id é string; o editor sabe disso
+  response.json({ id: request.params.id });
+});
+```
+
+| Situação | O que fazer |
+| :--- | :--- |
+| A biblioteca inclui tipos | Nada: funciona ao instalar |
+| Existe pacote `@types/nome` | `pnpm add -D @types/nome` |
+| Não existe tipo algum | Declarar você mesmo em um `.d.ts` |
+
+O último caso aparece em [Módulos e Declarações](../../tooling/modules/).
+
+## Executando
+
+<Steps>
+
+1. Crie o projeto e instale o compilador:
+
+   ```bash title="Terminal"
+   mkdir guia-ts && cd guia-ts
+   pnpm init
+   pnpm add -D typescript @types/node
+   pnpm exec tsc --init
+   ```
+
+2. Escreva o primeiro arquivo tipado:
+
+   ```ts title="src/main.ts"
+   interface Product {
+     name: string;
+     price: number;
+     quantity: number;
+   }
+
+   const cart: Product[] = [
+     { name: "Teclado", price: 349.9, quantity: 2 },
+     { name: "Mouse", price: 89.9, quantity: 1 },
+   ];
+
+   function subtotal(product: Product): number {
+     return product.price * product.quantity;
+   }
+
+   function total(products: Product[]): number {
+     return products.reduce((sum, product) => sum + subtotal(product), 0);
+   }
+
+   for (const product of cart) {
+     console.log(`${product.name.padEnd(10)} R$ ${subtotal(product).toFixed(2)}`);
+   }
+
+   console.log(`${"TOTAL".padEnd(10)} R$ ${total(cart).toFixed(2)}`);
+   ```
+
+3. Compile e execute o JavaScript gerado:
+
+   ```bash title="Terminal"
+   pnpm exec tsc
+   node dist/main.js
+   ```
+
+   ```txt title="Output"
+   Teclado    R$ 789.80
+   Mouse      R$ 89.90
+   TOTAL      R$ 879.70
+   ```
+
+4. Provoque um erro de propósito e veja o compilador reagir:
+
+   ```ts title="src/main.ts"
+   const broken: Product = { name: "Monitor", price: "1899" , quantity: 1 };
+   ```
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit
+   ```
+
+   ```txt title="Output"
+   src/main.ts:15:47 - error TS2322: Type 'string' is not assignable to type 'number'.
+   Found 1 error in src/main.ts:15
+   ```
+
+5. Deixe o compilador rodando em modo observador enquanto desenvolve:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --watch
+   ```
+
+</Steps>
+
+## Exercício
+
+Monte o projeto `agenda-ts/` e escreva um primeiro módulo tipado.
+
+1. Inicialize o projeto, instale `typescript` e `@types/node` e gere o `tsconfig.json`;
+2. Configure `strict: true`, `rootDir: "src"` e `outDir: "dist"`;
+3. Crie `src/main.ts` com uma interface `Contact` (`name`, `email`, `phone` opcional);
+4. Escreva uma função `format(contact: Contact): string` que devolva uma linha alinhada;
+5. Crie uma lista com três contatos e imprima todos;
+6. Rode `tsc --noEmit` e confirme que não há erros; depois compile e execute com `node`;
+7. Adicione um contato com propriedade errada e registre em comentário a mensagem do compilador.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```bash title="Terminal"
+  mkdir agenda-ts && cd agenda-ts
+  pnpm init
+  pnpm add -D typescript @types/node
+  pnpm exec tsc --init
+  ```
+
+  ```ts title="src/main.ts"
+  interface Contact {
+    name: string;
+    email: string;
+    phone?: string;
+  }
+
+  const contacts: Contact[] = [
+    { name: "Ana Souza", email: "ana@devlab.dev", phone: "83 90000-0001" },
+    { name: "Bia Lima", email: "bia@devlab.dev" },
+    { name: "Caio Reis", email: "caio@devlab.dev", phone: "83 90000-0003" },
+  ];
+
+  function format(contact: Contact): string {
+    const phone = contact.phone ?? "-";
+    return `${contact.name.padEnd(14)}${contact.email.padEnd(22)}${phone}`;
+  }
+
+  console.log(`${"Nome".padEnd(14)}${"E-mail".padEnd(22)}Telefone`);
+  console.log("-".repeat(52));
+
+  for (const contact of contacts) {
+    console.log(format(contact));
+  }
+
+  // const invalido: Contact = { name: "Duda", mail: "duda@devlab.dev" };
+  // error TS2353: Object literal may only specify known properties,
+  // and 'mail' does not exist in type 'Contact'.
+  ```
+
+  ```bash title="Terminal"
+  pnpm exec tsc --noEmit && pnpm exec tsc && node dist/main.js
+  ```
+
+  `phone?` marca a propriedade como opcional, e `??` fornece o valor padrão quando ela está
+  ausente.
+</details>
+
+## Desafio
+
+Escreva `erasure.ts`, uma demonstração do que sobrevive à compilação.
+
+1. Declare uma `interface`, um `type`, um `enum` e uma `class` no mesmo arquivo;
+2. Use os quatro em código executável que imprima algo no console;
+3. Compile com `tsc` e abra o `.js` gerado;
+4. Liste em comentário quais construções desapareceram e quais viraram código real;
+5. Explique por que `enum` e `class` sobrevivem, mas `interface` e `type` não;
+6. Mostre com `typeof` em tempo de execução que só as duas primeiras existem.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/erasure.ts"
+  interface Point {
+    x: number;
+    y: number;
+  }
+
+  type Label = "origem" | "ponto";
+
+  enum Status {
+    Active = "ACTIVE",
+    Inactive = "INACTIVE",
+  }
+
+  class Marker {
+    constructor(
+      public point: Point,
+      public label: Label,
+      public status: Status,
+    ) {}
+
+    describe(): string {
+      return `${this.label} (${this.point.x}, ${this.point.y}) — ${this.status}`;
+    }
+  }
+
+  const marker = new Marker({ x: 0, y: 0 }, "origem", Status.Active);
+  console.log(marker.describe());
+
+  console.log(typeof Marker); // "function" — existe em runtime
+  console.log(typeof Status); // "object"   — existe em runtime
+  // console.log(typeof Point);  // erro: 'Point' only refers to a type
+  // console.log(typeof Label);  // erro: 'Label' only refers to a type
+
+  // Sobrevivem à compilação: enum (vira objeto) e class (vira função/classe JS).
+  // Desaparecem: interface e type, que são apenas descrições para o compilador.
+  ```
+
+  Como `interface` e `type` não têm valor associado, usá-los onde se espera um valor é erro de
+  compilação — a distinção entre *espaço de tipos* e *espaço de valores*.
+</details>
+
+## Perguntas de revisão
+
+### Linguagem e compilador
+
+**1. O que significa dizer que TypeScript é um superset do JavaScript?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que todo programa JavaScript válido também é um programa TypeScript válido. TypeScript
+  acrescenta sintaxe (anotações, interfaces, generics) sem remover nada da linguagem base, o
+  que torna a adoção incremental.
+</details>
+
+**2. O que o `tsc` produz ao compilar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  JavaScript comum, com todas as anotações de tipo removidas, na versão definida por `target`.
+  Ele também pode gerar arquivos de declaração (`.d.ts`) e *source maps*, mas nenhum tipo
+  sobrevive no código executável.
+</details>
+
+**3. O que é *type erasure*?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É o apagamento dos tipos na emissão: interfaces, aliases e anotações não existem em tempo de
+  execução. Por isso TypeScript não impõe custo de desempenho e por isso não é possível
+  verificar um tipo com `typeof` durante a execução.
+</details>
+
+### Fronteiras da verificação
+
+**4. Por que TypeScript não protege contra dados inválidos vindos de uma API?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a verificação acontece antes da execução, sobre o que o código **declara**. Um
+  `response.json()` devolve `any`, e uma asserção `as` apenas afirma um tipo sem checá-lo. É
+  preciso validar em tempo de execução, manualmente ou com uma biblioteca de esquema.
+</details>
+
+**5. Cite dois erros que TypeScript detecta e dois que ele não detecta.**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Detecta: propriedade com nome errado e argumento de tipo incompatível. Não detecta: erro de
+  lógica (somar onde deveria subtrair) e falhas de execução como rede indisponível ou divisão
+  por zero.
+</details>
+
+**6. Quais construções de TypeScript existem em tempo de execução?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `class` e `enum`, que geram código JavaScript real. `interface`, `type` e as anotações são
+  apagadas na compilação e só existem para o compilador e o editor.
+</details>
+
+### Projeto e ecossistema
+
+**7. Por que instalar o TypeScript por projeto e não globalmente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que cada projeto fixe a própria versão do compilador, evitando que uma atualização
+  global quebre builds antigos. Editor, terminal e CI passam a usar a mesma versão declarada
+  no `package.json`.
+</details>
+
+**8. Para que serve a opção `strict`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ela liga o conjunto de verificações rigorosas — entre elas `strictNullChecks` e
+  `noImplicitAny`. Sem ela, o compilador aceita `null` em qualquer lugar e infere `any` em
+  silêncio, o que anula boa parte do benefício de usar TypeScript.
+</details>
+
+**9. O que é o DefinitelyTyped?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É o repositório comunitário que mantém declarações de tipo para bibliotecas JavaScript que
+  não publicam as próprias. Os pacotes são distribuídos com o prefixo `@types/`, como
+  `@types/express` e `@types/node`.
+</details>
+
+**10. Qual a diferença entre `tsc` e `tsc --noEmit`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `tsc` verifica os tipos **e** gera os arquivos JavaScript. `tsc --noEmit` apenas verifica,
+  sem escrever nada — é o comando usado em CI e em projetos cujo build é feito por um
+  empacotador como Vite ou esbuild.
+</details>
+
+## Referências
+
+- [TypeScript para programadores JavaScript](https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes.html)
+- [The TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
+- [Referência do `tsconfig.json`](https://www.typescriptlang.org/tsconfig)
+- [TS Playground](https://www.typescriptlang.org/play)
+- [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped)
+
+## Próxima aula
+
+Com o compilador funcionando, o passo seguinte é aprender a descrever valores.
+
+[Tipos Básicos](../types/): primitivos, arrays, tuplas, `any`, `unknown`, `never`, inferência
+e quando escrever a anotação.

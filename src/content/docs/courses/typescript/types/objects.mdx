@@ -1,0 +1,643 @@
+---
+title: "TypeScript: Objetos e Interfaces"
+description: "Tipagem de objetos, interface versus type alias, propriedades opcionais e readonly, index signatures, extensão, tipagem estrutural e excess property checks."
+course: typescript
+sidebar:
+  label: Objetos e Interfaces
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/types/objects/) e [mapa mental](../../../../mindmaps/courses/typescript/types/objects/).
+
+Quase todo dado de uma aplicação é um objeto: o usuário autenticado, o item do carrinho, a
+resposta da API. Descrever bem essas formas é o que transforma TypeScript de "JavaScript com
+anotações" em uma ferramenta de modelagem.
+
+Esta aula cobre as duas maneiras de nomear a forma de um objeto — `interface` e `type` —, os
+modificadores de propriedade e o princípio que governa a compatibilidade entre tipos: a
+**tipagem estrutural**.
+
+## Objetivo
+
+Descrever objetos com `interface` e `type`, escolher entre os dois com critério, usar
+propriedades opcionais, somente leitura e índices, estender e compor tipos, explicar a
+tipagem estrutural e entender por que literais de objeto recebem verificação extra.
+
+## Descrevendo um Objeto
+
+O tipo pode ser escrito no lugar, mas nomeá-lo é o que permite reutilizar e comunicar:
+
+```ts title="Inline e nomeado"
+// Inline: serve para um uso único
+function print(user: { name: string; age: number }): void {
+  console.log(`${user.name}, ${user.age}`);
+}
+
+// Nomeado com interface
+interface User {
+  name: string;
+  age: number;
+}
+
+// Nomeado com type alias
+type Product = {
+  name: string;
+  price: number;
+};
+
+const user: User = { name: "Ana", age: 32 };
+const product: Product = { name: "Teclado", price: 349.9 };
+
+print(user);
+```
+
+## `interface` ou `type`
+
+As duas descrevem objetos e são intercambiáveis na maioria dos casos. As diferenças aparecem
+nas bordas:
+
+| Recurso | `interface` | `type` |
+| :--- | :--- | :--- |
+| Descrever objeto | Sim | Sim |
+| Estender | `extends` | interseção `&` |
+| Declaração incremental (*merging*) | **Sim** | Não |
+| Uniões | Não | **Sim** |
+| Tuplas e primitivos | Não | **Sim** |
+| Tipos mapeados e condicionais | Não | **Sim** |
+| Mensagens de erro | Costumam citar o nome | Podem expandir a estrutura |
+
+```ts title="O que só interface faz"
+interface Window {
+  title: string;
+}
+
+// Declaração aberta: as duas se fundem
+interface Window {
+  version: number;
+}
+
+const w: Window = { title: "App", version: 2 };
+```
+
+```ts title="O que só type faz"
+type Status = "ativo" | "inativo";        // união
+type Pair = [string, number];             // tupla
+type Id = string | number;                // primitivos
+type Nullable<T> = T | null;              // genérico com união
+```
+
+<Aside type="tip" title="Regra prática">
+  Use `interface` para a forma de objetos e contratos públicos — especialmente em bibliotecas,
+  onde o *merging* permite que consumidores estendam declarações. Use `type` para tudo o mais:
+  uniões, tuplas, funções e tipos derivados. Ser consistente vale mais que a escolha em si.
+</Aside>
+
+## Modificadores de Propriedade
+
+Três marcações mudam o contrato de cada campo:
+
+```ts title="Opcional, somente leitura e índice"
+interface Config {
+  readonly id: string;          // não pode ser reatribuída
+  host: string;
+  port?: number;                // pode não existir: number | undefined
+  readonly tags?: readonly string[];
+}
+
+const config: Config = { id: "cfg-1", host: "localhost" };
+
+// config.id = "cfg-2";         // erro: Cannot assign to 'id'
+config.host = "db.dev";         // permitido
+console.log(config.port ?? 5432);
+```
+
+| Modificador | Efeito | Observação |
+| :--- | :--- | :--- |
+| `campo?: T` | Campo opcional, tipo `T \| undefined` | Exige tratamento antes do uso |
+| `readonly campo: T` | Impede reatribuição do campo | Superficial: objetos internos continuam mutáveis |
+| `[chave: string]: T` | Aceita qualquer chave desse tipo | Todas as demais propriedades devem ser compatíveis |
+
+```ts title="Index signature"
+interface Dictionary {
+  [word: string]: string;
+}
+
+const translations: Dictionary = { hello: "olá", bye: "tchau" };
+translations.thanks = "obrigado";
+
+// Combinando índice com propriedades fixas
+interface Response {
+  status: number;
+  [header: string]: string | number;   // status precisa caber aqui
+}
+```
+
+<Aside type="caution" title="readonly é raso">
+  `readonly items: string[]` impede trocar o array, mas não impede `config.items.push("x")`.
+  Para proteger o conteúdo, use `readonly string[]` (ou `ReadonlyArray<string>`) no tipo do
+  próprio array.
+</Aside>
+
+## Estendendo e Compondo
+
+`extends` acrescenta campos a uma interface; a interseção `&` funde tipos:
+
+```ts title="Duas formas de reaproveitar"
+interface Entity {
+  id: string;
+  createdAt: Date;
+}
+
+interface Article extends Entity {
+  title: string;
+  body: string;
+}
+
+// Múltiplas heranças
+interface Timestamped {
+  updatedAt: Date;
+}
+
+interface Post extends Entity, Timestamped {
+  title: string;
+}
+
+// Equivalente com type e interseção
+type ArticleType = Entity & {
+  title: string;
+  body: string;
+};
+
+const article: Article = {
+  id: "a1",
+  createdAt: new Date(),
+  title: "TypeScript",
+  body: "…",
+};
+```
+
+<Mermaid title="Composição da forma de um objeto">
+{`
+flowchart TD
+  E["Entity<br/>id, createdAt"] --> A["Article<br/>+ title, body"]
+  E --> P["Post"]
+  T["Timestamped<br/>updatedAt"] --> P
+  P --> R["Post = id, createdAt,<br/>updatedAt, title"]
+`}
+</Mermaid>
+
+## Tipagem Estrutural
+
+TypeScript compara tipos pela **forma**, não pelo nome. Se um objeto tem o que o tipo exige,
+ele é compatível — mesmo que nunca tenha ouvido falar daquela interface:
+
+```ts title="Compatibilidade por estrutura"
+interface Point {
+  x: number;
+  y: number;
+}
+
+function distance(point: Point): number {
+  return Math.hypot(point.x, point.y);
+}
+
+// Nunca declarou implementar Point, mas tem a forma
+const coordinates = { x: 3, y: 4, label: "origem" };
+console.log(distance(coordinates));   // 5
+
+class Vector {
+  constructor(
+    public x: number,
+    public y: number,
+  ) {}
+}
+
+console.log(distance(new Vector(6, 8)));   // 10 — classes também são estruturais
+```
+
+Repare que `coordinates` tem uma propriedade a mais e ainda assim é aceito: o tipo exige
+`x` e `y`, e extras não atrapalham. Essa regra tem uma exceção importante.
+
+## Excess Property Checks
+
+Literais de objeto atribuídos diretamente recebem uma verificação **extra**, que rejeita
+propriedades desconhecidas:
+
+```ts title="Literal versus variável"
+interface Options {
+  debug?: boolean;
+  timeout?: number;
+}
+
+// Erro: literal atribuído diretamente
+// const a: Options = { debug: true, timeuot: 30 };
+// error TS2353: Object literal may only specify known properties,
+// and 'timeuot' does not exist in type 'Options'.
+
+// Sem erro: a variável já tem tipo próprio
+const raw = { debug: true, timeuot: 30 };
+const b: Options = raw;
+```
+
+A verificação existe justamente para pegar erros de digitação em opções — o caso em que a
+propriedade extra quase sempre indica engano. Quando o excedente é intencional, três saídas:
+
+```ts title="Aceitando propriedades extras"
+// 1. Index signature no tipo
+interface OpenOptions {
+  debug?: boolean;
+  [key: string]: unknown;
+}
+
+// 2. Atribuir via variável intermediária
+const options = { debug: true, extra: 1 };
+const used: OpenOptions = options;
+
+// 3. Asserção — último recurso
+const forced = { debug: true, extra: 1 } as OpenOptions;
+```
+
+<Aside type="note" title="Por que a regra parece inconsistente">
+  Um literal "fresco" só existe naquela expressão: se tem uma propriedade que ninguém vai ler,
+  o mais provável é que seja erro de digitação. Uma variável já tipada, por outro lado, pode
+  ter sido criada para outros fins — e aí a compatibilidade estrutural basta.
+</Aside>
+
+## Objetos Aninhados e Utilitários
+
+Objetos do mundo real têm profundidade, e tipos derivados evitam repetir a estrutura:
+
+```ts title="Aninhamento e reaproveitamento"
+interface Address {
+  street: string;
+  city: string;
+  zip?: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  address: Address;
+  contacts: {
+    email: string;
+    phone?: string;
+  };
+}
+
+// Reaproveitando partes do tipo
+type CustomerId = Customer["id"];              // string
+type Contacts = Customer["contacts"];          // { email: string; phone?: string }
+type Keys = keyof Customer;                    // "id" | "name" | "address" | "contacts"
+
+// Formas parciais, úteis em atualização
+type CustomerUpdate = Partial<Customer>;
+type PublicCustomer = Omit<Customer, "id">;
+
+const update: CustomerUpdate = { name: "Ana Souza" };
+```
+
+`Partial` e `Omit` são *utility types*, tema de [Utility Types](../../advanced/utility-types/).
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/objects.ts`:
+
+   ```ts title="src/objects.ts"
+   interface Entity {
+     readonly id: string;
+     createdAt: Date;
+   }
+
+   interface Task extends Entity {
+     title: string;
+     done: boolean;
+     tags?: readonly string[];
+     assignee?: {
+       name: string;
+       email: string;
+     };
+   }
+
+   const tasks: Task[] = [
+     {
+       id: "t1",
+       createdAt: new Date("2026-08-01"),
+       title: "Escrever o guia",
+       done: true,
+       tags: ["docs", "typescript"],
+       assignee: { name: "Ana", email: "ana@devlab.dev" },
+     },
+     { id: "t2", createdAt: new Date("2026-08-20"), title: "Revisar exemplos", done: false },
+   ];
+
+   function format(task: Task): string {
+     const mark = task.done ? "[x]" : "[ ]";
+     const owner = task.assignee?.name ?? "sem responsável";
+     const tags = task.tags?.join(", ") ?? "—";
+     return `${mark} ${task.title.padEnd(20)}${owner.padEnd(18)}${tags}`;
+   }
+
+   for (const task of tasks) {
+     console.log(format(task));
+   }
+
+   const pending = tasks.filter((task) => !task.done).length;
+   console.log(`\n${pending} de ${tasks.length} pendentes`);
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/objects.js
+   ```
+
+   ```txt title="Output"
+   [x] Escrever o guia      Ana               docs, typescript
+   [ ] Revisar exemplos     sem responsável   —
+
+   1 de 2 pendentes
+   ```
+
+3. Provoque os três erros clássicos e leia as mensagens:
+
+   ```ts title="src/objects.ts"
+   // tasks[0].id = "t9";
+   // error TS2540: Cannot assign to 'id' because it is a read-only property.
+
+   // const wrong: Task = { id: "t3", createdAt: new Date(), titulo: "x", done: false };
+   // error TS2353: Object literal may only specify known properties…
+
+   // const missing: Task = { id: "t4", createdAt: new Date() };
+   // error TS2739: Type is missing the following properties: title, done
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/catalog.ts` modelando um catálogo de cursos.
+
+1. Defina `interface Metadata` com `readonly slug: string` e `createdAt: Date`;
+2. Defina `interface Course extends Metadata` com `title`, `hours: number`, `level` (união literal) e `instructor?`;
+3. Defina `interface Instructor` com `name`, `email` e `bio?`;
+4. Crie um `Record<string, Course>` indexado pelo slug com pelo menos três cursos;
+5. Escreva `summary(course: Course): string` usando optional chaining e `??`;
+6. Escreva `totalHours(courses: Course[]): number`;
+7. Demonstre em comentário um erro de excess property check e a mensagem exibida.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/catalog.ts"
+  type Level = "iniciante" | "intermediário" | "avançado";
+
+  interface Metadata {
+    readonly slug: string;
+    createdAt: Date;
+  }
+
+  interface Instructor {
+    name: string;
+    email: string;
+    bio?: string;
+  }
+
+  interface Course extends Metadata {
+    title: string;
+    hours: number;
+    level: Level;
+    instructor?: Instructor;
+  }
+
+  const catalog: Record<string, Course> = {
+    "guia-python": {
+      slug: "guia-python",
+      createdAt: new Date("2026-08-26"),
+      title: "Guia de Python",
+      hours: 30,
+      level: "iniciante",
+      instructor: { name: "Luiz", email: "luiz@devlab.dev" },
+    },
+    "guia-typescript": {
+      slug: "guia-typescript",
+      createdAt: new Date("2026-08-27"),
+      title: "Guia de TypeScript",
+      hours: 28,
+      level: "intermediário",
+    },
+    "dev-web": {
+      slug: "dev-web",
+      createdAt: new Date("2026-03-01"),
+      title: "Desenvolvimento Web",
+      hours: 80,
+      level: "iniciante",
+      instructor: { name: "Ana", email: "ana@devlab.dev", bio: "Full-stack" },
+    },
+  };
+
+  function summary(course: Course): string {
+    const owner = course.instructor?.name ?? "a definir";
+    return `${course.title.padEnd(22)}${String(course.hours).padStart(3)}h  ${course.level.padEnd(15)}${owner}`;
+  }
+
+  function totalHours(courses: Course[]): number {
+    return courses.reduce((total, course) => total + course.hours, 0);
+  }
+
+  const courses = Object.values(catalog);
+  courses.forEach((course) => console.log(summary(course)));
+  console.log(`\nTotal: ${totalHours(courses)}h em ${courses.length} cursos`);
+
+  // const errado: Course = { ...catalog["dev-web"], horas: 10 };
+  // error TS2353: Object literal may only specify known properties,
+  // and 'horas' does not exist in type 'Course'.
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/deep-readonly.ts` explorando os limites do `readonly`.
+
+1. Defina `interface Settings` com pelo menos dois níveis de aninhamento e um array;
+2. Marque as propriedades do primeiro nível como `readonly` e comprove que o aninhado continua mutável;
+3. Escreva `type DeepReadonly<T>` que aplique `readonly` recursivamente, usando tipo mapeado;
+4. Aplique-o a `Settings` e comprove que a mutação aninhada passa a ser erro;
+5. Escreva `freeze<T>(value: T): DeepReadonly<T>` usando `Object.freeze` recursivo;
+6. Compare em comentário o que o tipo garante e o que apenas a função garante em runtime.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/deep-readonly.ts"
+  interface Settings {
+    readonly theme: "claro" | "escuro";
+    readonly server: {
+      host: string;
+      ports: number[];
+    };
+  }
+
+  const settings: Settings = {
+    theme: "escuro",
+    server: { host: "localhost", ports: [3000, 8080] },
+  };
+
+  // settings.theme = "claro";        // erro: read-only
+  settings.server.host = "db.dev";    // permitido: readonly é raso
+  settings.server.ports.push(9000);   // permitido também
+
+  type DeepReadonly<T> = {
+    readonly [K in keyof T]: T[K] extends (infer U)[]
+      ? readonly DeepReadonly<U>[]
+      : T[K] extends object
+        ? DeepReadonly<T[K]>
+        : T[K];
+  };
+
+  const locked: DeepReadonly<Settings> = settings;
+
+  // locked.server.host = "x";        // erro: read-only
+  // locked.server.ports.push(1);     // erro: push não existe em readonly array
+
+  function freeze<T>(value: T): DeepReadonly<T> {
+    if (value && typeof value === "object") {
+      for (const nested of Object.values(value)) {
+        freeze(nested);
+      }
+      Object.freeze(value);
+    }
+    return value as DeepReadonly<T>;
+  }
+
+  const frozen = freeze(structuredClone(settings));
+  console.log(Object.isFrozen(frozen.server));
+
+  // O tipo DeepReadonly protege em tempo de compilação e some no JavaScript gerado.
+  // Object.freeze protege em tempo de execução, inclusive contra código não tipado —
+  // os dois se complementam, e nenhum substitui o outro.
+  ```
+
+  O tipo mapeado com `infer` é o assunto de
+  [Manipulação de Tipos](../../advanced/type-manipulation/).
+</details>
+
+## Perguntas de revisão
+
+### interface e type
+
+**1. Qual a principal capacidade que `interface` tem e `type` não?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A declaração incremental (*declaration merging*): duas interfaces com o mesmo nome no mesmo
+  escopo se fundem. É o que permite estender tipos de bibliotecas de terceiros.
+</details>
+
+**2. E o que `type` faz que `interface` não faz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Descrever uniões, tuplas, primitivos, tipos condicionais e mapeados. `interface` só descreve
+  a forma de objetos (e assinaturas de função e construtor).
+</details>
+
+**3. Como estender tipos em cada estilo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `interface B extends A` ou com interseção: `type B = A & { … }`. As duas formas produzem
+  resultados equivalentes para objetos.
+</details>
+
+### Modificadores
+
+**4. O que muda ao marcar uma propriedade como opcional?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O tipo passa a incluir `undefined` e a propriedade pode ser omitida na criação do objeto.
+  Antes de usar o valor é preciso tratar a ausência, com `?.`, `??` ou uma verificação.
+</details>
+
+**5. Por que `readonly` é considerado raso?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque impede apenas a reatribuição daquela propriedade. Objetos e arrays referenciados por
+  ela continuam mutáveis — é preciso `readonly T[]` ou um tipo profundo para protegê-los.
+</details>
+
+**6. Para que serve uma index signature?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para descrever objetos com chaves dinâmicas, como dicionários e mapas de configuração:
+  `[chave: string]: T`. Todas as propriedades declaradas precisam ser compatíveis com o tipo
+  do índice.
+</details>
+
+### Estrutura e literais
+
+**7. O que é tipagem estrutural?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É a regra de compatibilidade do TypeScript: um valor é aceito se tiver a **forma** exigida,
+  independentemente de qual tipo ou classe o originou. Não é preciso declarar que implementa
+  uma interface.
+</details>
+
+**8. Por que um objeto com propriedades a mais às vezes é aceito e às vezes não?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Pela verificação de propriedades em excesso: literais atribuídos diretamente são checados
+  também contra propriedades desconhecidas, para pegar erros de digitação. Um valor que já
+  está em uma variável passa apenas pela compatibilidade estrutural.
+</details>
+
+**9. Como permitir propriedades extras de forma intencional?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Acrescentando uma index signature ao tipo, atribuindo através de uma variável intermediária
+  ou, em último caso, usando uma asserção `as`.
+</details>
+
+**10. O que `Customer["contacts"]` significa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É um *indexed access type*: extrai o tipo daquela propriedade. Permite reaproveitar partes
+  de um tipo maior sem duplicar a declaração, assim como `keyof Customer` extrai a união das
+  chaves.
+</details>
+
+## Referências
+
+- [Tipos de objeto](https://www.typescriptlang.org/docs/handbook/2/objects.html)
+- [Interfaces versus type aliases](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#differences-between-type-aliases-and-interfaces)
+- [Compatibilidade de tipos](https://www.typescriptlang.org/docs/handbook/type-compatibility.html)
+- [Excess property checks](https://www.typescriptlang.org/docs/handbook/2/objects.html#excess-property-checks)
+- [Indexed access types](https://www.typescriptlang.org/docs/handbook/2/indexed-access-types.html)
+
+## Próxima aula
+
+Objetos descrevem uma forma; muitos domínios exigem descrever **alternativas** entre formas.
+
+[Uniões e Interseções](../unions/): tipos literais, uniões discriminadas, composição com `&` e
+os cuidados com uniões de objetos.

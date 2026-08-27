@@ -1,0 +1,624 @@
+---
+title: "TypeScript: Manipulação de Tipos"
+description: "Tipos mapeados, tipos condicionais, infer, template literal types, keyof e indexed access para derivar e transformar tipos em TypeScript."
+course: typescript
+sidebar:
+  label: Manipulação de Tipos
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/advanced/type-manipulation/) e [mapa mental](../../../../mindmaps/courses/typescript/advanced/type-manipulation/).
+
+Os utility types da aula anterior não são mágica do compilador: `Partial`, `Omit` e `Record`
+são escritos em TypeScript, com recursos que estão à sua disposição. O sistema de tipos é, na
+prática, uma pequena linguagem funcional — com entrada, condicional, iteração e extração de
+valores.
+
+Esta aula abre essa caixa. O objetivo não é escrever tipos complicados por esporte, mas
+resolver os casos em que nenhum utilitário pronto expressa o contrato.
+
+## Objetivo
+
+Escrever tipos mapeados com modificadores e renomeação de chaves, usar tipos condicionais e
+`infer` para extrair partes de um tipo, montar template literal types, combinar `keyof` e
+acesso indexado, e reconhecer quando a complexidade deixou de compensar.
+
+## Operadores de Consulta
+
+Três operadores extraem informação de tipos e valores existentes:
+
+| Operador | Faz | Exemplo |
+| :--- | :--- | :--- |
+| `keyof T` | União das chaves de `T` | `keyof User` → `"id" \| "name"` |
+| `T[K]` | Tipo da propriedade `K` | `User["id"]` → `string` |
+| `typeof valor` | Tipo de um valor existente | `typeof config` |
+
+```ts title="Consultando tipos"
+interface User {
+  id: string;
+  name: string;
+  age: number;
+}
+
+type UserKeys = keyof User;            // "id" | "name" | "age"
+type UserId = User["id"];              // string
+type Values = User[keyof User];        // string | number
+
+const config = { host: "localhost", port: 5432, secure: false };
+
+type Config = typeof config;           // { host: string; port: number; secure: boolean }
+type ConfigKey = keyof typeof config;  // "host" | "port" | "secure"
+
+// Acesso indexado em arrays e tuplas
+type Names = string[];
+type Name = Names[number];             // string
+
+const LEVELS = ["debug", "info", "error"] as const;
+type Level = (typeof LEVELS)[number];  // "debug" | "info" | "error"
+```
+
+## Tipos Mapeados
+
+O tipo mapeado percorre as chaves de um tipo e produz um novo, aplicando uma transformação a
+cada uma:
+
+```ts title="A forma geral"
+type Mapped<T> = {
+  [K in keyof T]: T[K];
+};
+
+// Transformando o valor
+type Stringify<T> = {
+  [K in keyof T]: string;
+};
+
+type Nullable<T> = {
+  [K in keyof T]: T[K] | null;
+};
+
+type Getters<T> = {
+  [K in keyof T]: () => T[K];
+};
+
+type UserStrings = Stringify<User>;    // { id: string; name: string; age: string }
+type UserGetters = Getters<User>;      // { id: () => string; … }
+```
+
+Os modificadores `?` e `readonly` podem ser **adicionados** ou **removidos** com `+` e `-`:
+
+```ts title="Modificadores"
+type MyPartial<T> = { [K in keyof T]?: T[K] };
+type MyRequired<T> = { [K in keyof T]-?: T[K] };
+type MyReadonly<T> = { readonly [K in keyof T]: T[K] };
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+interface Frozen {
+  readonly id: string;
+  readonly tags?: string[];
+}
+
+type Thawed = Mutable<Required<Frozen>>;
+// { id: string; tags: string[] }
+```
+
+## Renomeando Chaves com `as`
+
+A cláusula `as` reescreve o nome de cada chave — e permite filtrar, ao mapear para `never`:
+
+```ts title="Renomeação e filtro"
+type Prefixed<T, P extends string> = {
+  [K in keyof T as `${P}${Capitalize<string & K>}`]: T[K];
+};
+
+type PrefixedUser = Prefixed<User, "user">;
+// { userId: string; userName: string; userAge: number }
+
+// Filtrando: chaves mapeadas para never desaparecem
+type OnlyStrings<T> = {
+  [K in keyof T as T[K] extends string ? K : never]: T[K];
+};
+
+type UserTexts = OnlyStrings<User>;   // { id: string; name: string }
+
+// Gerando handlers a partir de eventos
+type Events = "click" | "focus" | "blur";
+
+type Handlers = {
+  [E in Events as `on${Capitalize<E>}`]: (event: Event) => void;
+};
+// { onClick: …; onFocus: …; onBlur: … }
+```
+
+## Tipos Condicionais
+
+A sintaxe `A extends B ? X : Y` escolhe um tipo conforme a relação entre outros dois:
+
+```ts title="Decisão no nível dos tipos"
+type IsString<T> = T extends string ? true : false;
+
+type A = IsString<"texto">;   // true
+type B = IsString<42>;        // false
+
+// Utilitários da biblioteca padrão são escritos assim
+type MyExclude<T, U> = T extends U ? never : T;
+type MyNonNullable<T> = T extends null | undefined ? never : T;
+
+type Status = "ativo" | "inativo" | "removido";
+type Visible = MyExclude<Status, "removido">;   // "ativo" | "inativo"
+```
+
+<Mermaid title="Como um tipo condicional decide">
+{`
+flowchart LR
+  A["T extends U ?"] -- "sim" --> B["ramo verdadeiro"]
+  A -- "não" --> C["ramo falso"]
+  D["T é uma união?"] -- "sim" --> E["distribui:<br/>avalia membro a membro"]
+  E --> A
+`}
+</Mermaid>
+
+## Distributividade
+
+Quando `T` é um parâmetro de tipo nu e recebe uma união, o condicional é aplicado a **cada
+membro** separadamente:
+
+```ts title="Distribuição sobre uniões"
+type ToArray<T> = T extends unknown ? T[] : never;
+
+type Distributed = ToArray<string | number>;
+// string[] | number[]  — distribuiu
+
+// Envolvendo em tupla, a distribuição é desligada
+type ToArrayNonDist<T> = [T] extends [unknown] ? T[] : never;
+
+type NotDistributed = ToArrayNonDist<string | number>;
+// (string | number)[]
+```
+
+<Aside type="note" title="Por que Exclude funciona">
+  `Exclude<T, U> = T extends U ? never : T` só filtra porque distribui: cada membro da união é
+  testado isoladamente, e os que viram `never` desaparecem do resultado — `never` é o elemento
+  neutro da união.
+</Aside>
+
+## `infer`
+
+Dentro de um condicional, `infer` captura uma parte do tipo e a nomeia para uso no ramo
+verdadeiro:
+
+```ts title="Extraindo tipos internos"
+// O tipo dos elementos de um array
+type ElementOf<T> = T extends (infer U)[] ? U : never;
+
+type Item = ElementOf<string[]>;        // string
+
+// O retorno de uma função
+type MyReturnType<F> = F extends (...args: never[]) => infer R ? R : never;
+
+type Result = MyReturnType<() => Promise<number>>;   // Promise<number>
+
+// Os parâmetros de uma função
+type MyParameters<F> = F extends (...args: infer P) => unknown ? P : never;
+
+type Args = MyParameters<(id: string, active: boolean) => void>;   // [string, boolean]
+
+// Desembrulhando Promise recursivamente
+type Unwrap<T> = T extends Promise<infer U> ? Unwrap<U> : T;
+
+type Value = Unwrap<Promise<Promise<string>>>;   // string
+
+// Extraindo do primeiro e do resto de uma tupla
+type Head<T> = T extends [infer H, ...unknown[]] ? H : never;
+type Tail<T> = T extends [unknown, ...infer R] ? R : never;
+
+type First = Head<[1, "dois", true]>;   // 1
+type Rest = Tail<[1, "dois", true]>;    // ["dois", true]
+```
+
+## Template Literal Types
+
+Tipos literais de texto podem ser compostos como template strings, produzindo uniões de todas
+as combinações:
+
+```ts title="Construindo strings no nível de tipo"
+type Method = "get" | "post";
+type Resource = "users" | "courses";
+
+type Route = `/${Resource}`;                    // "/users" | "/courses"
+type Endpoint = `${Uppercase<Method>} /${Resource}`;
+// "GET /users" | "GET /courses" | "POST /users" | "POST /courses"
+
+const endpoint: Endpoint = "POST /courses";
+
+// Extraindo com infer a partir de um template
+type ResourceOf<T> = T extends `${string} /${infer R}` ? R : never;
+type Extracted = ResourceOf<"GET /users">;      // "users"
+
+// Caso clássico: caminhos de propriedades aninhadas
+type Path<T> = {
+  [K in keyof T & string]: T[K] extends object ? K | `${K}.${Path<T[K]>}` : K;
+}[keyof T & string];
+
+interface Settings {
+  server: { host: string; port: number };
+  debug: boolean;
+}
+
+type SettingsPath = Path<Settings>;
+// "server" | "debug" | "server.host" | "server.port"
+```
+
+<Aside type="caution" title="Combinações explodem rápido">
+  Uma união de 10 métodos por 20 recursos gera 200 membros — e cada template aninhado
+  multiplica de novo. O compilador tem limite (`Expression produces a union type that is too
+  complex to represent`), e o editor fica lento bem antes disso. Use com parcimônia.
+</Aside>
+
+## Quando Parar
+
+Tipos avançados resolvem problemas reais, mas cobram manutenção. Antes de escrever um tipo
+condicional recursivo, vale a checagem:
+
+| Pergunta | Se a resposta for "não"… |
+| :--- | :--- |
+| Um utility type pronto resolve? | Use o pronto |
+| A próxima pessoa vai entender em 30 segundos? | Simplifique ou documente com comentário |
+| O ganho é maior que o custo de manutenção? | Prefira duplicar um tipo simples |
+| A mensagem de erro resultante é compreensível? | Nomeie tipos intermediários |
+
+```ts title="Nem tudo precisa de tipo genial"
+// Elegante, ilegível, difícil de depurar
+type DeepPartial<T> = T extends object
+  ? { [K in keyof T]?: T[K] extends (infer U)[] ? DeepPartial<U>[] : DeepPartial<T[K]> }
+  : T;
+
+// Muitas vezes suficiente, e óbvio
+interface SettingsUpdate {
+  server?: { host?: string; port?: number };
+  debug?: boolean;
+}
+```
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/type-lab.ts`:
+
+   ```ts title="src/type-lab.ts"
+   interface Course {
+     id: string;
+     title: string;
+     hours: number;
+     tags: string[];
+     published: boolean;
+   }
+
+   // 1. Mapeado com renomeação
+   type Getters<T> = {
+     [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K];
+   };
+
+   // 2. Mapeado com filtro
+   type StringKeys<T> = {
+     [K in keyof T as T[K] extends string ? K : never]: T[K];
+   };
+
+   // 3. Condicional com infer
+   type ElementOf<T> = T extends (infer U)[] ? U : never;
+
+   // 4. Template literal
+   type EventName<T> = `${string & keyof T}:changed`;
+
+   type CourseGetters = Getters<Course>;
+   type CourseTexts = StringKeys<Course>;
+   type Tag = ElementOf<Course["tags"]>;
+   type CourseEvent = EventName<Course>;
+
+   const course: Course = {
+     id: "ts",
+     title: "Guia de TypeScript",
+     hours: 28,
+     tags: ["typescript", "guia"],
+     published: true,
+   };
+
+   const getters: CourseGetters = {
+     getId: () => course.id,
+     getTitle: () => course.title,
+     getHours: () => course.hours,
+     getTags: () => course.tags,
+     getPublished: () => course.published,
+   };
+
+   const texts: CourseTexts = { id: course.id, title: course.title };
+   const tag: Tag = "typescript";
+   const event: CourseEvent = "title:changed";
+
+   console.log(getters.getTitle(), texts, tag, event);
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/type-lab.js
+   ```
+
+   ```txt title="Output"
+   Guia de TypeScript { id: 'ts', title: 'Guia de TypeScript' } typescript title:changed
+   ```
+
+3. Comprove que os tipos derivados são restritivos:
+
+   ```ts title="src/type-lab.ts"
+   // const wrongEvent: CourseEvent = "autor:changed";
+   // error TS2322: Type '"autor:changed"' is not assignable to type
+   // '"id:changed" | "title:changed" | "hours:changed" | …'
+
+   // const wrongTexts: CourseTexts = { id: "x", hours: 1 };
+   // error TS2353: 'hours' does not exist in type 'StringKeys<Course>'.
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/form-types.ts` derivando a estrutura de um formulário a partir do modelo de dados.
+
+1. Defina `interface Profile` com `name: string`, `age: number`, `active: boolean` e `address: { city: string; zip: string }`;
+2. Escreva `type FormValues<T>` que transforme todos os campos primitivos em `string`;
+3. Escreva `type FormErrors<T>` com as mesmas chaves, todas opcionais e do tipo `string`;
+4. Escreva `type Touched<T>` com as mesmas chaves e valores `boolean`;
+5. Escreva `type FieldNames<T>` produzindo `"field:name" | "field:age" | …` com template literal;
+6. Escreva `type Handlers<T>` gerando `onNameChange`, `onAgeChange` etc.;
+7. Monte objetos de exemplo para cada tipo e comprove um erro de chave inexistente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/form-types.ts"
+  interface Profile {
+    name: string;
+    age: number;
+    active: boolean;
+    address: { city: string; zip: string };
+  }
+
+  type Primitive = string | number | boolean;
+
+  type FormValues<T> = {
+    [K in keyof T]: T[K] extends Primitive ? string : FormValues<T[K]>;
+  };
+
+  type FormErrors<T> = {
+    [K in keyof T]?: string;
+  };
+
+  type Touched<T> = {
+    [K in keyof T]: boolean;
+  };
+
+  type FieldNames<T> = `field:${string & keyof T}`;
+
+  type Handlers<T> = {
+    [K in keyof T as `on${Capitalize<string & K>}Change`]: (value: T[K]) => void;
+  };
+
+  const values: FormValues<Profile> = {
+    name: "Ana",
+    age: "32",
+    active: "true",
+    address: { city: "João Pessoa", zip: "58000-000" },
+  };
+
+  const errors: FormErrors<Profile> = { age: "informe um número" };
+
+  const touched: Touched<Profile> = {
+    name: true,
+    age: false,
+    active: false,
+    address: false,
+  };
+
+  const field: FieldNames<Profile> = "field:age";
+
+  const handlers: Handlers<Profile> = {
+    onNameChange: (value) => console.log(value.toUpperCase()),
+    onAgeChange: (value) => console.log(value.toFixed(0)),
+    onActiveChange: (value) => console.log(value ? "sim" : "não"),
+    onAddressChange: (value) => console.log(value.city),
+  };
+
+  console.log(values, errors, touched, field);
+  handlers.onAgeChange(32);
+
+  // const wrong: FieldNames<Profile> = "field:email";
+  // error TS2322: Type '"field:email"' is not assignable…
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/deep-paths.ts`, um acessador tipado de propriedades aninhadas.
+
+1. Escreva `type Path<T>` produzindo todos os caminhos possíveis em notação de ponto;
+2. Escreva `type PathValue<T, P>` que devolva o tipo do valor em um caminho;
+3. Implemente `get<T, P extends Path<T>>(object: T, path: P): PathValue<T, P>` percorrendo as chaves em runtime;
+4. Trate caminhos que passam por arrays devolvendo o tipo do elemento;
+5. Comprove que um caminho inexistente não compila e que o valor devolvido tem o tipo exato;
+6. Compare em comentário essa abordagem com uma função `get(obj, "a.b.c"): unknown`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/deep-paths.ts"
+  type Primitive = string | number | boolean | null | undefined | Date;
+
+  type Path<T> = T extends Primitive
+    ? never
+    : {
+        [K in keyof T & string]: T[K] extends Primitive ? K : K | `${K}.${Path<T[K]>}`;
+      }[keyof T & string];
+
+  type PathValue<T, P extends string> = P extends `${infer K}.${infer Rest}`
+    ? K extends keyof T
+      ? PathValue<T[K], Rest>
+      : never
+    : P extends keyof T
+      ? T[P]
+      : never;
+
+  function get<T, P extends Path<T> & string>(object: T, path: P): PathValue<T, P> {
+    return path
+      .split(".")
+      .reduce<unknown>((current, key) => (current as Record<string, unknown>)[key], object) as PathValue<T, P>;
+  }
+
+  interface Config {
+    server: {
+      host: string;
+      port: number;
+      tls: { enabled: boolean; cert: string };
+    };
+    debug: boolean;
+  }
+
+  const config: Config = {
+    server: { host: "localhost", port: 5432, tls: { enabled: true, cert: "cert.pem" } },
+    debug: false,
+  };
+
+  const host = get(config, "server.host");           // string
+  const port = get(config, "server.port");           // number
+  const enabled = get(config, "server.tls.enabled"); // boolean
+
+  console.log(host.toUpperCase(), port.toFixed(0), enabled ? "TLS on" : "TLS off");
+
+  // get(config, "server.hostname");
+  // error TS2345: Argument of type '"server.hostname"' is not assignable…
+
+  // Uma função get(obj, path): unknown compilaria com qualquer string e devolveria
+  // unknown, exigindo asserção em cada uso — trocando a verificação por confiança.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Consulta
+
+**1. O que `keyof T` produz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A união literal das chaves de `T`. Para `interface User { id: string; name: string }`,
+  `keyof User` é `"id" | "name"`.
+</details>
+
+**2. O que `(typeof LEVELS)[number]` faz quando `LEVELS` é um array `as const`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Devolve a união dos tipos dos elementos. Como `as const` preserva os literais, o resultado é
+  a união literal dos valores do array — uma forma comum de derivar uniões a partir de listas.
+</details>
+
+### Mapeados
+
+**3. Qual a forma geral de um tipo mapeado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `{ [K in keyof T]: Transformação<T[K]> }`: percorre as chaves de `T` e produz um novo tipo
+  aplicando a transformação em cada valor.
+</details>
+
+**4. O que fazem `-?` e `-readonly` em um tipo mapeado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Removem os modificadores correspondentes: `-?` torna as propriedades obrigatórias (é o que
+  `Required` faz) e `-readonly` as torna mutáveis. Sem o sinal, os modificadores são
+  adicionados.
+</details>
+
+**5. Como filtrar chaves em um tipo mapeado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com a cláusula `as` e um condicional que mapeia para `never` as chaves indesejadas:
+  `[K in keyof T as T[K] extends string ? K : never]`. Chaves que viram `never` desaparecem do
+  resultado.
+</details>
+
+### Condicionais e `infer`
+
+**6. Como se lê `T extends U ? X : Y`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  "Se `T` for atribuível a `U`, o tipo é `X`; caso contrário, `Y`." É um `if` avaliado pelo
+  compilador, no espaço dos tipos.
+</details>
+
+**7. O que é distributividade em tipos condicionais?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o tipo testado é um parâmetro nu e recebe uma união, o condicional é aplicado a cada
+  membro separadamente, e os resultados são reunidos em uma união. Envolver em tupla
+  (`[T] extends [U]`) desliga esse comportamento.
+</details>
+
+**8. Para que serve `infer`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para capturar uma parte do tipo dentro de um condicional e reutilizá-la no ramo verdadeiro —
+  como extrair o elemento de um array (`T extends (infer U)[]`) ou o retorno de uma função.
+</details>
+
+### Template literals e limites
+
+**9. O que `` `on${Capitalize<E>}` `` produz para `E = "click" | "focus"`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A união `"onClick" | "onFocus"`. Template literal types combinam cada membro das uniões
+  envolvidas, gerando todas as combinações possíveis.
+</details>
+
+**10. Quando parar de sofisticar um tipo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando um utilitário pronto resolveria, quando a próxima pessoa não entenderia rapidamente,
+  ou quando as mensagens de erro passam a ser incompreensíveis. Tipos existem para ajudar
+  quem lê o código — se atrapalham, perderam o propósito.
+</details>
+
+## Referências
+
+- [Manipulação de tipos](https://www.typescriptlang.org/docs/handbook/2/types-from-types.html)
+- [Tipos mapeados](https://www.typescriptlang.org/docs/handbook/2/mapped-types.html)
+- [Tipos condicionais](https://www.typescriptlang.org/docs/handbook/2/conditional-types.html)
+- [Template literal types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html)
+- [Type Challenges](https://github.com/type-challenges/type-challenges)
+
+## Próxima aula
+
+Falta a construção que existe nos dois mundos — no sistema de tipos e no JavaScript gerado.
+
+[Classes](../classes/): modificadores de acesso, propriedades de parâmetro, `implements`,
+classes abstratas e campos privados.

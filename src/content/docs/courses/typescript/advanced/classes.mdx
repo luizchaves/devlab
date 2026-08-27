@@ -1,0 +1,761 @@
+---
+title: "TypeScript: Classes"
+description: "Modificadores de acesso, propriedades de parâmetro, readonly, getters e setters, classes abstratas, implements, campos privados e generics em classes."
+course: typescript
+sidebar:
+  label: Classes
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/typescript/advanced/classes/) e [mapa mental](../../../../mindmaps/courses/typescript/advanced/classes/).
+
+Classes são uma das poucas construções de TypeScript que existem nos dois lados da fronteira:
+elas geram código JavaScript real **e** definem um tipo. É por isso que uma classe pode
+aparecer tanto em `new Repository()` quanto em `repo: Repository`.
+
+Esta aula cobre o que TypeScript acrescenta às classes do JavaScript — modificadores de
+acesso, propriedades de parâmetro, `implements`, classes abstratas — e onde essas adições
+terminam e o runtime começa.
+
+## Objetivo
+
+Declarar classes com propriedades tipadas, usar `public`, `private`, `protected` e `readonly`,
+encurtar construtores com propriedades de parâmetro, expor acessadores, implementar interfaces
+com `implements`, criar classes abstratas e diferenciar `private` de campos privados `#`.
+
+## Classe Tipada
+
+Propriedades precisam ser declaradas antes de usadas, com tipo e (sob `strict`) inicialização
+garantida:
+
+```ts title="Estrutura básica"
+class Course {
+  title: string;
+  hours: number;
+  published = false;          // tipo inferido: boolean
+
+  constructor(title: string, hours: number) {
+    this.title = title;
+    this.hours = hours;
+  }
+
+  describe(): string {
+    return `${this.title} (${this.hours}h)`;
+  }
+}
+
+const course = new Course("Guia de TypeScript", 28);
+console.log(course.describe());
+```
+
+<Aside type="caution" title="strictPropertyInitialization cobra a inicialização">
+  Sob `strict`, declarar `title: string` sem atribuir no construtor é erro: *Property 'title'
+  has no initializer*. As saídas são inicializar na declaração, atribuir no construtor, marcar
+  como opcional (`title?: string`) ou usar `title!: string` quando a inicialização acontece
+  fora do construtor — esta última sendo uma promessa não verificada.
+</Aside>
+
+## Modificadores de Acesso
+
+Três modificadores controlam a visibilidade dos membros — sempre em **tempo de compilação**:
+
+| Modificador | Acessível em | Padrão |
+| :--- | :--- | :--- |
+| `public` | Qualquer lugar | Sim (implícito) |
+| `protected` | Na classe e nas subclasses | Não |
+| `private` | Apenas na própria classe | Não |
+| `readonly` | Leitura em qualquer lugar; escrita só na inicialização | Não |
+
+```ts title="Visibilidade"
+class Account {
+  public readonly id: string;
+  protected balance: number;
+  private readonly pin: string;
+
+  constructor(id: string, pin: string, balance = 0) {
+    this.id = id;
+    this.pin = pin;
+    this.balance = balance;
+  }
+
+  deposit(value: number): number {
+    this.balance += value;
+    return this.balance;
+  }
+
+  protected validate(pin: string): boolean {
+    return this.pin === pin;
+  }
+}
+
+class SavingsAccount extends Account {
+  applyInterest(rate: number): number {
+    // balance é protected: visível aqui
+    return this.deposit(this.balanceView * rate);
+  }
+
+  private get balanceView(): number {
+    return this.balance;
+  }
+}
+
+const account = new SavingsAccount("a1", "1234", 1000);
+
+console.log(account.deposit(500));
+// account.balance;    // erro: 'balance' is protected
+// account.pin;        // erro: 'pin' is private
+// account.id = "a2";  // erro: 'id' is read-only
+```
+
+<Aside type="caution" title="private não é privado em runtime">
+  `private` é apagado na compilação: no JavaScript gerado, a propriedade continua acessível
+  via `objeto["pin"]`. Para privacidade real, use campos privados do JavaScript (`#pin`), que
+  o runtime também protege.
+</Aside>
+
+## Propriedades de Parâmetro
+
+O atalho mais usado do TypeScript em classes: declarar e atribuir a propriedade direto na
+assinatura do construtor:
+
+```ts title="Antes e depois"
+// Forma longa
+class Verbose {
+  private readonly url: string;
+  private readonly timeout: number;
+
+  constructor(url: string, timeout: number) {
+    this.url = url;
+    this.timeout = timeout;
+  }
+}
+
+// Propriedades de parâmetro: idêntico, sem repetição
+class Concise {
+  constructor(
+    private readonly url: string,
+    private readonly timeout: number = 5_000,
+  ) {}
+
+  describe(): string {
+    return `${this.url} (${this.timeout}ms)`;
+  }
+}
+
+console.log(new Concise("https://api.devlab.dev").describe());
+```
+
+O modificador é obrigatório para que o atalho funcione: um parâmetro sem `public`, `private`,
+`protected` ou `readonly` continua sendo apenas um parâmetro.
+
+## Acessadores
+
+`get` e `set` expõem lógica com sintaxe de propriedade, útil para valores derivados e
+validação:
+
+```ts title="get e set"
+class Product {
+  #price = 0;
+
+  constructor(
+    public readonly name: string,
+    price: number,
+  ) {
+    this.price = price;   // passa pelo setter
+  }
+
+  get price(): number {
+    return this.#price;
+  }
+
+  set price(value: number) {
+    if (value < 0) {
+      throw new RangeError("preço não pode ser negativo");
+    }
+    this.#price = value;
+  }
+
+  get priceWithTax(): number {
+    return Number((this.#price * 1.1).toFixed(2));
+  }
+}
+
+const product = new Product("Teclado", 349.9);
+product.price = 299.9;
+
+console.log(product.price, product.priceWithTax);
+// product.priceWithTax = 10;   // erro: só leitura, não há setter
+```
+
+## `implements` e Contratos
+
+`implements` verifica que a classe satisfaz uma interface — sem herdar nada dela:
+
+```ts title="Contrato explícito"
+interface Repository<T> {
+  findById(id: string): Promise<T | null>;
+  save(entity: T): Promise<T>;
+}
+
+interface Course {
+  id: string;
+  title: string;
+}
+
+class InMemoryCourseRepository implements Repository<Course> {
+  private readonly items = new Map<string, Course>();
+
+  async findById(id: string): Promise<Course | null> {
+    return this.items.get(id) ?? null;
+  }
+
+  async save(entity: Course): Promise<Course> {
+    this.items.set(entity.id, entity);
+    return entity;
+  }
+}
+```
+
+<Aside type="note" title="implements não muda a classe">
+  Ele apenas verifica. Nada é herdado, nenhuma implementação é fornecida, e a compatibilidade
+  do TypeScript continua **estrutural**: uma classe que tenha os métodos certos é aceita onde
+  se espera `Repository<Course>`, mesmo sem `implements`. A cláusula serve para que o erro
+  apareça na classe, e não em quem a usa.
+</Aside>
+
+## Classes Abstratas
+
+A classe abstrata define comportamento comum e obriga as subclasses a preencherem as lacunas:
+
+<Mermaid title="Hierarquia com classe abstrata">
+{`
+classDiagram
+  class Notification {
+    <<abstract>>
+    #recipient string
+    +send()* string
+    +format() string
+  }
+  class EmailNotification {
+    +send() string
+  }
+  class SmsNotification {
+    +send() string
+  }
+  Notification <|-- EmailNotification
+  Notification <|-- SmsNotification
+`}
+</Mermaid>
+
+```ts title="abstract"
+abstract class Notification {
+  constructor(protected readonly recipient: string) {}
+
+  // Sem corpo: cada subclasse implementa
+  abstract send(): string;
+
+  // Com corpo: herdado por todas
+  format(): string {
+    return `[${new Date().toISOString()}] ${this.send()}`;
+  }
+}
+
+class EmailNotification extends Notification {
+  constructor(
+    recipient: string,
+    private readonly subject: string,
+  ) {
+    super(recipient);
+  }
+
+  send(): string {
+    return `E-mail para ${this.recipient}: ${this.subject}`;
+  }
+}
+
+class SmsNotification extends Notification {
+  send(): string {
+    return `SMS para ${this.recipient}`;
+  }
+}
+
+const notifications: Notification[] = [
+  new EmailNotification("ana@devlab.dev", "Bem-vinda"),
+  new SmsNotification("83900000000"),
+];
+
+notifications.forEach((notification) => console.log(notification.format()));
+
+// new Notification("x");   // erro: Cannot create an instance of an abstract class
+```
+
+| Recurso | `interface` | `abstract class` |
+| :--- | :--- | :--- |
+| Existe em runtime | Não | Sim |
+| Pode conter implementação | Não | Sim |
+| Herança múltipla | Sim (várias interfaces) | Não |
+| Pode ter estado | Não | Sim |
+| Custo no bundle | Zero | Código real |
+
+## `private` versus `#`
+
+TypeScript oferece dois mecanismos de privacidade, e eles não são equivalentes:
+
+```ts title="Duas privacidades"
+class Token {
+  private legacy = "abc";   // apagado na compilação
+  #modern = "xyz";          // campo privado do JavaScript
+
+  reveal(): string {
+    return `${this.legacy}/${this.#modern}`;
+  }
+}
+
+const token = new Token();
+
+console.log(token.reveal());
+// token.legacy;                      // erro de compilação…
+console.log((token as any).legacy);   // …mas acessível em runtime: "abc"
+// console.log((token as any).#modern);  // SyntaxError: realmente inacessível
+
+console.log(Object.keys(token));      // ['legacy'] — o campo # nem aparece
+```
+
+| Critério | `private` | `#campo` |
+| :--- | :--- | :--- |
+| Verificado pelo compilador | Sim | Sim |
+| Protegido em runtime | Não | **Sim** |
+| Visível em `Object.keys` / JSON | Sim | Não |
+| Acessível por subclasse | Não | Não |
+| Funciona em JavaScript puro | Não | Sim |
+
+<Aside type="tip" title="Prefira # em código novo">
+  Campos privados são sintaxe padrão do JavaScript e valem também depois da compilação. Use
+  `private` quando precisar de compatibilidade com código mais antigo ou quando a serialização
+  do campo for desejada.
+</Aside>
+
+## Classes Genéricas e Estáticos
+
+Parâmetros de tipo e membros estáticos completam o quadro:
+
+```ts title="Generic e static"
+class Collection<T extends { id: string }> {
+  static readonly version = "1.0";
+  static create<U extends { id: string }>(items: U[]): Collection<U> {
+    const collection = new Collection<U>();
+    items.forEach((item) => collection.add(item));
+    return collection;
+  }
+
+  readonly #items = new Map<string, T>();
+
+  add(item: T): this {
+    this.#items.set(item.id, item);
+    return this;
+  }
+
+  get size(): number {
+    return this.#items.size;
+  }
+
+  toArray(): T[] {
+    return [...this.#items.values()];
+  }
+}
+
+const courses = Collection.create([
+  { id: "ts", title: "TypeScript" },
+  { id: "py", title: "Python" },
+]);
+
+console.log(Collection.version, courses.size, courses.toArray());
+```
+
+## Executando
+
+<Steps>
+
+1. Crie o arquivo `src/classes.ts`:
+
+   ```ts title="src/classes.ts"
+   interface Describable {
+     describe(): string;
+   }
+
+   abstract class Vehicle implements Describable {
+     static count = 0;
+
+     protected constructor(
+       public readonly plate: string,
+       protected readonly year: number,
+     ) {
+       Vehicle.count += 1;
+     }
+
+     abstract get category(): string;
+
+     describe(): string {
+       return `${this.plate} · ${this.category} · ${this.year}`;
+     }
+   }
+
+   class Car extends Vehicle {
+     constructor(
+       plate: string,
+       year: number,
+       private readonly doors: number,
+     ) {
+       super(plate, year);
+     }
+
+     get category(): string {
+       return `carro ${this.doors} portas`;
+     }
+   }
+
+   class Truck extends Vehicle {
+     #maxLoad: number;
+
+     constructor(plate: string, year: number, maxLoad: number) {
+       super(plate, year);
+       this.#maxLoad = maxLoad;
+     }
+
+     get category(): string {
+       return `caminhão ${this.#maxLoad}t`;
+     }
+   }
+
+   const fleet: Vehicle[] = [
+     new Car("ABC-1234", 2024, 4),
+     new Truck("XYZ-9876", 2022, 12),
+   ];
+
+   fleet.forEach((vehicle) => console.log(vehicle.describe()));
+   console.log(`${Vehicle.count} veículos registrados`);
+   ```
+
+2. Verifique e execute:
+
+   ```bash title="Terminal"
+   pnpm exec tsc --noEmit && pnpm exec tsc && node dist/classes.js
+   ```
+
+   ```txt title="Output"
+   ABC-1234 · carro 4 portas · 2024
+   XYZ-9876 · caminhão 12t · 2022
+   2 veículos registrados
+   ```
+
+3. Comprove as restrições dos modificadores:
+
+   ```ts title="src/classes.ts"
+   // new Vehicle("AAA-0000", 2020);
+   // error TS2511: Cannot create an instance of an abstract class.
+
+   // fleet[0].year;
+   // error TS2445: Property 'year' is protected…
+
+   // fleet[0].plate = "NOVA-0000";
+   // error TS2540: Cannot assign to 'plate' because it is a read-only property.
+   ```
+
+</Steps>
+
+## Exercício
+
+Crie `src/shapes.ts` com uma hierarquia de formas geométricas tipada.
+
+1. Defina `interface Measurable` com `area(): number` e `perimeter(): number`;
+2. Crie `abstract class Shape implements Measurable` com `readonly name: string` via propriedade de parâmetro;
+3. Declare `area` e `perimeter` como abstratos e implemente `describe(): string` na base;
+4. Implemente `Rectangle`, `Circle` e `Square` — esta última estendendo `Rectangle`;
+5. Valide as medidas no construtor, lançando `RangeError` para valores não positivos;
+6. Use campo privado `#` em pelo menos uma classe e um membro `static` de contagem;
+7. Ordene uma lista mista por área e imprima uma tabela alinhada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/shapes.ts"
+  interface Measurable {
+    area(): number;
+    perimeter(): number;
+  }
+
+  abstract class Shape implements Measurable {
+    static created = 0;
+
+    protected constructor(public readonly name: string) {
+      Shape.created += 1;
+    }
+
+    abstract area(): number;
+    abstract perimeter(): number;
+
+    describe(): string {
+      return `${this.name.padEnd(12)}${this.area().toFixed(2).padStart(10)}${this.perimeter()
+        .toFixed(2)
+        .padStart(12)}`;
+    }
+  }
+
+  class Rectangle extends Shape {
+    constructor(
+      protected readonly width: number,
+      protected readonly height: number,
+      name = "retângulo",
+    ) {
+      if (width <= 0 || height <= 0) {
+        throw new RangeError("medidas devem ser positivas");
+      }
+      super(name);
+    }
+
+    area(): number {
+      return this.width * this.height;
+    }
+
+    perimeter(): number {
+      return 2 * (this.width + this.height);
+    }
+  }
+
+  class Square extends Rectangle {
+    constructor(side: number) {
+      super(side, side, "quadrado");
+    }
+  }
+
+  class Circle extends Shape {
+    #radius: number;
+
+    constructor(radius: number) {
+      if (radius <= 0) {
+        throw new RangeError("raio deve ser positivo");
+      }
+      super("círculo");
+      this.#radius = radius;
+    }
+
+    area(): number {
+      return Math.PI * this.#radius ** 2;
+    }
+
+    perimeter(): number {
+      return 2 * Math.PI * this.#radius;
+    }
+  }
+
+  const shapes: Shape[] = [new Rectangle(4, 5), new Circle(3), new Square(4)];
+
+  console.log(`${"Forma".padEnd(12)}${"Área".padStart(10)}${"Perímetro".padStart(12)}`);
+  console.log("-".repeat(34));
+
+  shapes
+    .sort((a, b) => a.area() - b.area())
+    .forEach((shape) => console.log(shape.describe()));
+
+  console.log(`\n${Shape.created} formas criadas`);
+  ```
+</details>
+
+## Desafio
+
+Escreva `src/di.ts`, um container de injeção de dependências tipado.
+
+1. Defina `type Token<T> = symbol & { __type?: T }` para associar um símbolo a um tipo;
+2. Implemente `class Container` com `register<T>(token: Token<T>, factory: () => T): void`;
+3. Implemente `resolve<T>(token: Token<T>): T`, lançando erro quando o token não estiver registrado;
+4. Adicione suporte a singleton: a fábrica roda uma vez e o valor é reaproveitado;
+5. Crie duas interfaces de serviço, registre implementações e resolva as duas;
+6. Comprove que `resolve` devolve o tipo correto sem asserção;
+7. Explique em comentário por que o `Token<T>` precisa carregar o tipo na assinatura.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/di.ts"
+  type Token<T> = symbol & { __type?: T };
+
+  function createToken<T>(description: string): Token<T> {
+    return Symbol(description) as Token<T>;
+  }
+
+  interface Registration<T> {
+    factory: () => T;
+    singleton: boolean;
+    instance?: T;
+  }
+
+  class Container {
+    readonly #registry = new Map<symbol, Registration<unknown>>();
+
+    register<T>(token: Token<T>, factory: () => T, singleton = true): this {
+      this.#registry.set(token, { factory, singleton });
+      return this;
+    }
+
+    resolve<T>(token: Token<T>): T {
+      const registration = this.#registry.get(token) as Registration<T> | undefined;
+
+      if (!registration) {
+        throw new Error(`token não registrado: ${String(token.description)}`);
+      }
+
+      if (!registration.singleton) {
+        return registration.factory();
+      }
+
+      registration.instance ??= registration.factory();
+      return registration.instance;
+    }
+  }
+
+  interface Logger {
+    log(message: string): void;
+  }
+
+  interface Clock {
+    now(): Date;
+  }
+
+  const LoggerToken = createToken<Logger>("Logger");
+  const ClockToken = createToken<Clock>("Clock");
+
+  const container = new Container()
+    .register(LoggerToken, () => ({ log: (message) => console.log(`[log] ${message}`) }))
+    .register(ClockToken, () => ({ now: () => new Date() }), false);
+
+  const logger = container.resolve(LoggerToken);   // Logger, sem asserção
+  const clock = container.resolve(ClockToken);     // Clock
+
+  logger.log(`agora são ${clock.now().toLocaleTimeString("pt-BR")}`);
+  console.log(container.resolve(LoggerToken) === logger);   // true: singleton
+  console.log(container.resolve(ClockToken) === clock);     // false: nova instância
+
+  // O tipo precisa viajar no token porque `symbol` sozinho não carrega informação:
+  // a propriedade fantasma __type existe apenas no espaço de tipos e é apagada na
+  // compilação, permitindo que resolve() devolva T em vez de unknown.
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Declaração
+
+**1. Por que `strict` exige inicializar as propriedades?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque uma propriedade declarada e nunca atribuída seria `undefined` em runtime, apesar de o
+  tipo prometer um valor. `strictPropertyInitialization` obriga a inicializar na declaração ou
+  no construtor, tornar o campo opcional ou assumir o risco com `!`.
+</details>
+
+**2. O que são propriedades de parâmetro?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O atalho de declarar e atribuir uma propriedade direto no construtor, prefixando o parâmetro
+  com `public`, `private`, `protected` ou `readonly`. Sem um desses modificadores, o parâmetro
+  continua sendo apenas um parâmetro.
+</details>
+
+### Visibilidade
+
+**3. Qual a diferença entre `private` e `protected`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `private` restringe o acesso à própria classe; `protected` também permite o acesso nas
+  subclasses. Ambos valem apenas em tempo de compilação.
+</details>
+
+**4. Por que `private` não protege em runtime?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque é uma anotação de TypeScript, apagada na compilação. No JavaScript gerado a
+  propriedade é comum e continua acessível por `objeto["campo"]` ou depois de um `as any`.
+</details>
+
+**5. O que muda ao usar `#campo` em vez de `private campo`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `#campo` é sintaxe padrão do JavaScript: a privacidade vale também em runtime, o campo não
+  aparece em `Object.keys` nem em `JSON.stringify`, e o acesso indevido é erro de sintaxe.
+</details>
+
+### Contratos e herança
+
+**6. O que `implements` faz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Verifica, em tempo de compilação, se a classe satisfaz a interface. Não herda nada e não
+  altera o comportamento — serve para que o erro apareça na classe, e não no consumidor.
+</details>
+
+**7. Quando usar classe abstrata em vez de interface?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando é preciso compartilhar **implementação** ou estado entre as subclasses. Se o contrato
+  é apenas de forma, a interface é mais leve, permite múltipla implementação e não gera código.
+</details>
+
+**8. Uma classe sem `implements` pode ser usada onde a interface é esperada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Sim: a compatibilidade em TypeScript é estrutural. Se a classe tiver os membros exigidos,
+  ela é aceita — `implements` apenas antecipa a verificação.
+</details>
+
+### Membros
+
+**9. Para que serve um getter sem setter?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para expor um valor derivado ou somente leitura com sintaxe de propriedade. Tentar atribuir
+  a ele é erro de compilação, o que documenta a intenção sem exigir um método `getX()`.
+</details>
+
+**10. O que caracteriza um membro `static`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele pertence à classe, não às instâncias: é acessado por `Classe.membro` e é compartilhado.
+  Serve para contadores, constantes e construtores alternativos (métodos fábrica).
+</details>
+
+## Referências
+
+- [Classes](https://www.typescriptlang.org/docs/handbook/2/classes.html)
+- [Modificadores de acesso](https://www.typescriptlang.org/docs/handbook/2/classes.html#member-visibility)
+- [Propriedades de parâmetro](https://www.typescriptlang.org/docs/handbook/2/classes.html#parameter-properties)
+- [Classes abstratas](https://www.typescriptlang.org/docs/handbook/2/classes.html#abstract-classes-and-members)
+- [Campos privados do JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_properties)
+
+## Próxima aula
+
+Com a linguagem coberta, restam as decisões que valem para o projeto inteiro.
+
+[tsconfig.json](../../tooling/tsconfig/): opções do compilador, `strict`, alvo, módulos e
+caminhos.
