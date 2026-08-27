@@ -1,0 +1,702 @@
+---
+title: "Python: venv e pip"
+description: "Ambientes virtuais com o módulo venv, ativação por sistema operacional, instalação de pacotes com pip, requirements.txt, instalação editável e solução de problemas comuns."
+course: python
+sidebar:
+  label: venv e pip
+---
+
+import { Aside, Card, CardGrid, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Materiais: [slides da aula](../../../../slides/courses/python/tools/venv/) e [mapa mental](../../../../mindmaps/courses/python/tools/venv/).
+
+O [uv](../uv/) resolve ambiente e dependências com um comando só — e é o caminho recomendado
+neste guia. Mas ele automatiza um mecanismo que existe na biblioteca padrão desde o Python
+3.3 e que aparece em praticamente toda documentação, tutorial e projeto legado: o **`venv`**
+e o **`pip`**.
+
+Saber o que acontece por baixo muda a forma de depurar. Quando o `pip install` some, quando o
+editor usa o interpretador errado ou quando o servidor recusa a instalação, a resposta quase
+sempre está na estrutura do ambiente virtual — que esta aula abre por dentro.
+
+## Objetivo
+
+Explicar o que é um ambiente virtual e o que ele contém, criar ambientes com `python3 -m venv`,
+ativar e desativar em cada sistema operacional, instalar e remover pacotes com `pip`, gerar e
+consumir `requirements.txt`, usar instalação editável em projetos próprios e diagnosticar os
+erros mais frequentes.
+
+## O Que É um Ambiente Virtual
+
+Um ambiente virtual é apenas um **diretório** com um interpretador (ligado ao Python do
+sistema), um `site-packages/` próprio e scripts de ativação. Nada mágico, nada global:
+
+<FileTree>
+{`
+.venv/
+├── bin/                 (Scripts/ no Windows)
+│   ├── activate
+│   ├── pip
+│   ├── python -> /usr/local/bin/python3.14
+│   └── python3
+├── lib/
+│   └── python3.14/
+│       └── site-packages/   pacotes instalados aqui
+└── pyvenv.cfg               aponta para o Python base
+`}
+</FileTree>
+
+O arquivo `pyvenv.cfg` guarda a referência ao interpretador de origem e é o que diferencia um
+diretório comum de um ambiente virtual:
+
+```txt title="pyvenv.cfg"
+home = /usr/local/bin
+include-system-site-packages = false
+version = 3.14.0
+executable = /usr/local/bin/python3.14
+```
+
+<Aside type="note" title="O ambiente não é portável">
+  Os caminhos dentro de `.venv/` são absolutos e apontam para o interpretador da máquina.
+  Copiar a pasta para outro computador (ou para dentro de uma imagem Docker) não funciona: o
+  ambiente é sempre **recriado** a partir da lista de dependências.
+</Aside>
+
+## Criando o Ambiente
+
+O módulo `venv` faz parte da biblioteca padrão e é invocado com `-m`:
+
+```bash title="Terminal"
+python3 -m venv .venv
+```
+
+O nome `.venv` é a convenção mais adotada — é o que editores e ferramentas procuram
+automaticamente. As opções abaixo cobrem os casos menos comuns:
+
+| Opção | Efeito |
+| :--- | :--- |
+| `--prompt nome` | Muda o rótulo exibido no prompt do shell |
+| `--system-site-packages` | Enxerga também os pacotes do Python do sistema |
+| `--upgrade-deps` | Já cria com `pip` e `setuptools` atualizados |
+| `--clear` | Apaga o conteúdo antes de recriar |
+| `--without-pip` | Cria sem `pip` (raro; exige `ensurepip` depois) |
+
+```bash title="Terminal"
+python3 -m venv --prompt guia-python --upgrade-deps .venv
+```
+
+<Aside type="caution" title="No Debian e Ubuntu o venv vem separado">
+  Distribuições baseadas em Debian não instalam o módulo junto do interpretador. Se aparecer
+  `The virtual environment was not created successfully because ensurepip is not available`,
+  instale o pacote correspondente: `sudo apt install python3-venv`.
+</Aside>
+
+## Ativando e Desativando
+
+A ativação varia conforme o shell. O comando abaixo é o do seu sistema:
+
+<Tabs syncKey="os">
+  <TabItem label="macOS e Linux">
+    ```bash title="Terminal"
+    source .venv/bin/activate
+    which python
+    deactivate
+    ```
+  </TabItem>
+  <TabItem label="Windows (PowerShell)">
+    ```bash title="Terminal"
+    .venv\Scripts\Activate.ps1
+    where.exe python
+    deactivate
+    ```
+
+    Se o PowerShell recusar o script, libere a execução para o usuário atual:
+    `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+  </TabItem>
+  <TabItem label="Windows (cmd)">
+    ```bash title="Terminal"
+    .venv\Scripts\activate.bat
+    where python
+    deactivate
+    ```
+  </TabItem>
+  <TabItem label="fish e csh">
+    ```bash title="Terminal"
+    source .venv/bin/activate.fish
+    source .venv/bin/activate.csh
+    ```
+  </TabItem>
+</Tabs>
+
+## O Que a Ativação Faz
+
+Ativar **não** é um passo mágico: o script apenas coloca `.venv/bin` na frente do `PATH`,
+define a variável `VIRTUAL_ENV` e altera o prompt. É por isso que `python` e `pip` passam a
+apontar para dentro do projeto:
+
+<Mermaid title="Resolução de `python` antes e depois da ativação">
+{`
+flowchart LR
+  subgraph sem["Sem ativação"]
+    A["digitou: python"] --> B["PATH: /usr/local/bin"]
+    B --> C["Python do sistema"]
+  end
+  subgraph com["Com ativação"]
+    D["digitou: python"] --> E["PATH: .venv/bin primeiro"]
+    E --> F["Python do projeto"]
+  end
+`}
+</Mermaid>
+
+```bash title="Terminal"
+source .venv/bin/activate
+echo $VIRTUAL_ENV
+which python pip
+python -c "import sys; print(sys.prefix)"
+deactivate
+```
+
+```txt title="Output"
+/Users/ana/projetos/guia-python/.venv
+/Users/ana/projetos/guia-python/.venv/bin/python
+/Users/ana/projetos/guia-python/.venv/bin/pip
+/Users/ana/projetos/guia-python/.venv
+```
+
+Como o efeito é só o `PATH`, é possível **dispensar a ativação** chamando o interpretador
+pelo caminho — forma indicada em scripts, `Makefile`, CI e contêineres:
+
+```bash title="Terminal"
+.venv/bin/python main.py
+.venv/bin/python -m pip install httpx
+```
+
+<Aside type="tip" title="A ativação vale por terminal aberto">
+  Ela altera apenas a sessão atual do shell: outra aba do terminal continua com o Python do
+  sistema, e fechar o terminal desfaz tudo. Nada é instalado ou registrado globalmente.
+</Aside>
+
+## Instalando Pacotes com pip
+
+Com o ambiente ativo, `pip` instala dentro de `.venv/lib/.../site-packages/`:
+
+| Comando | Efeito |
+| :--- | :--- |
+| `pip install httpx` | Instala a versão mais recente compatível |
+| `pip install "httpx>=0.27,<1.0"` | Restringe a faixa de versões |
+| `pip install httpx==0.28.1` | Fixa uma versão exata |
+| `pip install -U httpx` | Atualiza um pacote já instalado |
+| `pip uninstall httpx` | Remove |
+| `pip list` / `pip list --outdated` | Lista instalados / desatualizados |
+| `pip show httpx` | Metadados e dependências do pacote |
+| `pip install -r requirements.txt` | Instala a partir de um arquivo |
+
+```bash title="Terminal"
+python -m pip install --upgrade pip
+python -m pip install httpx rich
+python -m pip show httpx
+```
+
+```txt title="Output"
+Name: httpx
+Version: 0.28.1
+Location: /Users/ana/projetos/guia-python/.venv/lib/python3.14/site-packages
+Requires: anyio, certifi, httpcore, idna
+```
+
+<Aside type="tip" title="Prefira python -m pip a pip">
+  `python -m pip` usa explicitamente o interpretador atual, eliminando a dúvida sobre qual
+  `pip` está no `PATH`. É a forma recomendada pela própria documentação do pip, e resolve a
+  maior parte dos casos de "instalei mas o import não encontra".
+</Aside>
+
+## requirements.txt
+
+O arquivo de requisitos é a lista de dependências que acompanha o projeto no repositório:
+
+```txt title="requirements.txt"
+httpx>=0.28,<1.0
+rich>=14.0
+python-dotenv
+```
+
+```bash title="Terminal"
+python -m pip install -r requirements.txt
+python -m pip freeze > requirements.lock.txt
+```
+
+É comum separar as dependências de desenvolvimento em um segundo arquivo, que instala o
+primeiro:
+
+```txt title="requirements-dev.txt"
+-r requirements.txt
+pytest>=8.0
+ruff>=0.14
+```
+
+<Aside type="caution" title="pip freeze não é um arquivo de trava">
+  `pip freeze` despeja **tudo** o que está instalado, sem distinguir o que você pediu do que
+  veio como dependência indireta, sem hashes de verificação e sem registrar o ambiente. Ele
+  serve para congelar um estado conhecido, não para descrever a intenção do projeto — por
+  isso existem `uv.lock`, `pip-tools` e `poetry.lock`.
+</Aside>
+
+## Projeto Próprio e Instalação Editável
+
+Quando o projeto tem um `pyproject.toml`, o próprio `pip` sabe instalá-lo. A instalação
+editável (`-e`) aponta para o código-fonte em vez de copiá-lo, de modo que cada alteração
+vale imediatamente:
+
+```toml title="pyproject.toml"
+[project]
+name = "guia-python"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["httpx>=0.28"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+```
+
+```bash title="Terminal"
+python -m pip install -e .
+python -m pip install -e ".[dev]"
+python -c "import guia_python; print(guia_python.__file__)"
+```
+
+Sem a instalação editável, importar o próprio pacote de dentro de `tests/` costuma falhar com
+`ModuleNotFoundError` — o mesmo problema de resolução visto em
+[Módulos e Pacotes](../../structure/modules/).
+
+## Problemas Frequentes
+
+Quase todo erro de ambiente cai em um destes seis casos, e todos têm o mesmo diagnóstico de fundo: o `python` em uso não é o que você imagina.
+
+| Sintoma | Causa provável | Solução |
+| :--- | :--- | :--- |
+| `error: externally-managed-environment` | `pip` fora de um ambiente virtual | Crie e ative o `.venv` antes |
+| `ModuleNotFoundError` logo após instalar | `pip` de um ambiente, `python` de outro | Use `python -m pip install` |
+| `command not found` após instalar CLI | Ambiente não ativado | Ative, ou chame `.venv/bin/ferramenta` |
+| `ensurepip is not available` | `python3-venv` ausente (Debian/Ubuntu) | `sudo apt install python3-venv` |
+| Editor não reconhece o pacote | Interpretador errado selecionado | Aponte o VS Code para `.venv/bin/python` |
+| `activate` recusado no PowerShell | Política de execução | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+
+```bash title="Terminal"
+python -c "import sys; print(sys.prefix); print(sys.executable)"
+python -m pip --version
+```
+
+A primeira linha mostra qual ambiente está em uso; a segunda confirma a qual interpretador
+aquele `pip` pertence. Quando os dois caminhos não batem, o problema é esse.
+
+<Aside type="caution" title="Nunca use sudo pip install">
+  Instalar como administrador grava pacotes no Python do sistema, misturando dependências de
+  projetos com as de ferramentas do sistema operacional. Se um comando de instalação pede
+  `sudo`, o ambiente virtual está faltando.
+</Aside>
+
+## Equivalências com uv
+
+Os dois caminhos resolvem o mesmo problema; a diferença está em quantos passos manuais
+sobram para você:
+
+| Tarefa | venv + pip | uv |
+| :--- | :--- | :--- |
+| Criar ambiente | `python3 -m venv .venv` | automático (ou `uv venv`) |
+| Ativar | `source .venv/bin/activate` | desnecessário |
+| Instalar pacote | `pip install httpx` | `uv add httpx` |
+| Remover pacote | `pip uninstall httpx` | `uv remove httpx` |
+| Registrar dependências | editar `requirements.txt` | `pyproject.toml` (automático) |
+| Travar versões | `pip freeze` (parcial) | `uv.lock` (completo, com hashes) |
+| Restaurar ambiente | `pip install -r requirements.txt` | `uv sync` |
+| Executar script | ativar e `python main.py` | `uv run main.py` |
+| Instalar o Python | fora do escopo | `uv python install 3.14` |
+
+<Aside type="tip" title="Quando ainda usar venv e pip diretamente">
+  Em projetos legados que já têm `requirements.txt`, em ambientes onde não é possível instalar
+  ferramentas novas, em imagens Docker mínimas e ao seguir documentação de bibliotecas — que
+  quase sempre mostra `pip install`. Para projetos novos, o [uv](../uv/) faz o mesmo com menos
+  passos e resultado reproduzível.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Crie o projeto e o ambiente:
+
+   ```bash title="Terminal"
+   mkdir clima-venv && cd clima-venv
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+2. Instale a dependência e registre no arquivo de requisitos:
+
+   ```bash title="Terminal"
+   python -m pip install --upgrade pip
+   python -m pip install httpx
+   python -m pip freeze > requirements.txt
+   ```
+
+3. Escreva o script:
+
+   ```python title="main.py"
+   import sys
+
+   import httpx
+
+   URL = "https://api.open-meteo.com/v1/forecast"
+   PARAMS = {
+       "latitude": -7.12,
+       "longitude": -34.88,
+       "current": "temperature_2m",
+       "timezone": "America/Recife",
+   }
+
+
+   def main():
+       print(f"{'Interpretador:':<16}{sys.executable}")
+       print(f"{'Ambiente:':<16}{sys.prefix}")
+
+       response = httpx.get(URL, params=PARAMS, timeout=10)
+       response.raise_for_status()
+
+       print(f"{'Temperatura:':<16}{response.json()['current']['temperature_2m']} °C")
+
+
+   if __name__ == "__main__":
+       main()
+   ```
+
+4. Execute e confirme que o interpretador é o do ambiente:
+
+   ```bash title="Terminal"
+   python main.py
+   ```
+
+   ```txt title="Output"
+   Interpretador:  /Users/ana/projetos/clima-venv/.venv/bin/python
+   Ambiente:       /Users/ana/projetos/clima-venv/.venv
+   Temperatura:    27.4 °C
+   ```
+
+5. Saia do ambiente e observe a diferença:
+
+   ```bash title="Terminal"
+   deactivate
+   which python
+   python -c "import httpx" 
+   ```
+
+   ```txt title="Output"
+   /usr/local/bin/python3
+   ModuleNotFoundError: No module named 'httpx'
+   ```
+
+</Steps>
+
+## Exercício
+
+Prepare o projeto `notas-venv/` sem usar uv em nenhuma etapa.
+
+1. Crie o diretório e o ambiente com `python3 -m venv .venv --prompt notas`;
+2. Ative e atualize o `pip`;
+3. Instale `rich` e registre em `requirements.txt` escrito à mão, com faixa de versão;
+4. Escreva `main.py` que leia um JSON de notas e imprima uma tabela colorida com `rich`;
+5. Crie um `.gitignore` ignorando `.venv/` e `__pycache__/`;
+6. Desative o ambiente, apague o `.venv/` e recrie o projeto apenas a partir do `requirements.txt`;
+7. Comprove com `python -c "import sys; print(sys.prefix)"` que o ambiente novo está em uso.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```bash title="Terminal"
+  mkdir notas-venv && cd notas-venv
+  python3 -m venv .venv --prompt notas
+  source .venv/bin/activate
+  python -m pip install --upgrade pip
+  python -m pip install rich
+  ```
+
+  ```txt title="requirements.txt"
+  rich>=14.0,<15.0
+  ```
+
+  ```python title="main.py"
+  import json
+  from pathlib import Path
+
+  from rich.console import Console
+  from rich.table import Table
+
+  DATA = Path("notas.json")
+  DATA.write_text(
+      json.dumps([
+          {"nome": "Ana", "nota": 9.5},
+          {"nome": "Bia", "nota": 8.0},
+          {"nome": "Caio", "nota": 6.5},
+      ], ensure_ascii=False),
+      encoding="utf-8",
+  )
+
+  students = json.loads(DATA.read_text(encoding="utf-8"))
+
+  table = Table(title="Boletim")
+  table.add_column("Aluno")
+  table.add_column("Nota", justify="right")
+  table.add_column("Situação")
+
+  for student in students:
+      status = "[green]aprovado" if student["nota"] >= 7 else "[red]recuperação"
+      table.add_row(student["nome"], f"{student['nota']:.1f}", status)
+
+  Console().print(table)
+  ```
+
+  ```txt title=".gitignore"
+  .venv/
+  __pycache__/
+  *.pyc
+  ```
+
+  ```bash title="Terminal"
+  deactivate
+  rm -rf .venv
+  python3 -m venv .venv
+  source .venv/bin/activate
+  python -m pip install -r requirements.txt
+  python -c "import sys; print(sys.prefix)"
+  python main.py
+  ```
+</details>
+
+## Desafio
+
+Escreva `env_doctor.py`, um diagnosticador de ambiente que roda **sem** dependências externas.
+
+1. Detecte se o script está rodando dentro de um ambiente virtual comparando `sys.prefix` com `sys.base_prefix`;
+2. Mostre interpretador, versão, `VIRTUAL_ENV` e o diretório de `site-packages` em uso;
+3. Leia o `pyvenv.cfg` do ambiente, quando existir, e exiba as chaves encontradas;
+4. Liste os pacotes instalados com `importlib.metadata`, ordenados por nome;
+5. Compare a lista com um `requirements.txt` do diretório atual e aponte o que falta instalar;
+6. Termine com um diagnóstico em uma linha: ambiente ativo e completo, ativo e incompleto, ou ausente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python title="env_doctor.py"
+  import sys
+  import sysconfig
+  from importlib import metadata
+  from pathlib import Path
+
+
+  def in_virtualenv():
+      """Dentro de um venv, sys.prefix aponta para ele; a base continua no sistema."""
+      return sys.prefix != sys.base_prefix
+
+
+  def config_values():
+      config = Path(sys.prefix) / "pyvenv.cfg"
+      if not config.exists():
+          return {}
+      values = {}
+      for line in config.read_text(encoding="utf-8").splitlines():
+          if "=" in line:
+              key, value = line.split("=", 1)
+              values[key.strip()] = value.strip()
+      return values
+
+
+  def installed():
+      return {
+          dist.metadata["Name"].lower(): dist.version
+          for dist in metadata.distributions()
+          if dist.metadata["Name"]
+      }
+
+
+  def required():
+      path = Path("requirements.txt")
+      if not path.exists():
+          return []
+      names = []
+      for line in path.read_text(encoding="utf-8").splitlines():
+          line = line.strip()
+          if not line or line.startswith(("#", "-")):
+              continue
+          names.append(line.split("[")[0].split(">")[0].split("<")[0].split("=")[0].strip())
+      return names
+
+
+  def line(label, value):
+      print(f"{label:<24}{value}")
+
+
+  print("=" * 68)
+  print("DIAGNÓSTICO DO AMBIENTE".center(68))
+  print("=" * 68)
+
+  line("Ambiente virtual:", "sim" if in_virtualenv() else "NÃO")
+  line("Interpretador:", sys.executable)
+  line("Versão:", sys.version.split()[0])
+  line("sys.prefix:", sys.prefix)
+  line("sys.base_prefix:", sys.base_prefix)
+  line("site-packages:", sysconfig.get_paths()["purelib"])
+
+  config = config_values()
+  if config:
+      print("\npyvenv.cfg:")
+      for key, value in config.items():
+          print(f"  {key:<32}{value}")
+
+  packages = installed()
+  print(f"\n{len(packages)} pacotes instalados:")
+  for name, version in sorted(packages.items())[:10]:
+      print(f"  {name:<28}{version}")
+
+  missing = [name for name in required() if name.lower() not in packages]
+
+  print()
+  if not in_virtualenv():
+      print("Diagnóstico: ambiente virtual AUSENTE — crie com python3 -m venv .venv")
+  elif missing:
+      print(f"Diagnóstico: ambiente ativo, faltam {len(missing)}: {', '.join(missing)}")
+  else:
+      print("Diagnóstico: ambiente ativo e completo.")
+  ```
+
+  A comparação entre `sys.prefix` e `sys.base_prefix` é o teste oficial: fora de um ambiente
+  virtual os dois são iguais.
+</details>
+
+## Perguntas de revisão
+
+### Ambiente virtual
+
+**1. O que é, na prática, um ambiente virtual?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um diretório contendo um interpretador ligado ao Python base, um `site-packages/` próprio,
+  scripts de ativação e um `pyvenv.cfg` apontando para a instalação de origem. Não há registro
+  global nem alteração no sistema.
+</details>
+
+**2. Por que copiar a pasta `.venv/` para outra máquina não funciona?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque os caminhos internos são absolutos e apontam para o interpretador daquela máquina. O
+  ambiente é sempre recriado a partir da lista de dependências (`requirements.txt`,
+  `pyproject.toml` ou lock).
+</details>
+
+**3. O que o comando `source .venv/bin/activate` realmente faz?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Coloca `.venv/bin` no início do `PATH`, define `VIRTUAL_ENV` e ajusta o prompt do shell. Por
+  isso `python` e `pip` passam a resolver para dentro do projeto. O efeito vale apenas naquela
+  sessão do terminal.
+</details>
+
+**4. Como usar o ambiente sem ativá-lo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Chamando o interpretador pelo caminho completo: `.venv/bin/python main.py` ou
+  `.venv/bin/python -m pip install pacote`. É a forma preferida em scripts, `Makefile`,
+  contêineres e integração contínua.
+</details>
+
+### pip e dependências
+
+**5. Qual a diferença entre `pip install` e `python -m pip install`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A segunda forma usa explicitamente o interpretador atual, garantindo que a instalação vá
+  para o ambiente correto. `pip` sozinho depende de qual executável está primeiro no `PATH`, o
+  que é a causa mais comum de "instalei mas não importa".
+</details>
+
+**6. Qual a diferença entre `requirements.txt` e a saída de `pip freeze`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `requirements.txt` escrito à mão declara as dependências **diretas**, normalmente com
+  faixas de versão. O `pip freeze` lista tudo o que está instalado, com versões exatas e sem
+  distinguir diretas de indiretas — útil para congelar um estado, ruim como descrição do
+  projeto.
+</details>
+
+**7. Para que serve `pip install -e .`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Instala o próprio projeto em modo editável: o pacote fica importável de qualquer diretório,
+  mas continua apontando para o código-fonte, de modo que alterações valem imediatamente. É o
+  que permite `from meu_pacote import x` dentro de `tests/`.
+</details>
+
+**8. O que significa o erro `externally-managed-environment`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que você tentou instalar um pacote no Python gerenciado pelo sistema operacional, que
+  bloqueia a operação para proteger suas próprias ferramentas. A solução é criar e ativar um
+  ambiente virtual — nunca contornar com `sudo` ou `--break-system-packages`.
+</details>
+
+### Comparação com uv
+
+**9. Quando ainda faz sentido usar `venv` e `pip` diretamente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em projetos legados com `requirements.txt`, em ambientes onde não se pode instalar
+  ferramentas novas, em imagens Docker mínimas e ao seguir documentação de bibliotecas, que
+  quase sempre mostra `pip install`. Para projetos novos, o uv cobre o mesmo com menos passos.
+</details>
+
+**10. O que o uv oferece que `venv` e `pip` sozinhos não dão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Instalação do próprio interpretador, resolução de dependências muito mais rápida, um lock
+  completo com hashes (`uv.lock`), sincronização do ambiente a cada execução (`uv run`) e
+  dispensa da ativação manual.
+</details>
+
+## Referências
+
+- [Módulo `venv`](https://docs.python.org/pt-br/3/library/venv.html)
+- [Tutorial: ambientes virtuais e pacotes](https://docs.python.org/pt-br/3/tutorial/venv.html)
+- [Documentação do pip](https://pip.pypa.io/en/stable/)
+- [Guia de empacotamento Python](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/)
+- [PEP 405 — Ambientes virtuais](https://peps.python.org/pep-0405/)
+- [PEP 668 — Ambientes gerenciados externamente](https://peps.python.org/pep-0668/)
+
+## Próxima aula
+
+Este é o fim da trilha do guia. Com o ambiente sob controle — pelo caminho automatizado do
+[uv](../uv/) ou pelo caminho manual do `venv` —, o passo seguinte é escolher um domínio e
+aprofundar: testes com `pytest`, APIs web com FastAPI, análise de dados com `pandas` ou
+automação de tarefas.
+
+[Voltar à visão geral do guia](../../): revise a trilha completa e escolha o próximo tema.

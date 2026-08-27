@@ -462,7 +462,10 @@ export default defineConfig({
             {
               label: 'Ambiente e Ferramentas',
               collapsed: false,
-              items: [{ label: 'Ambiente e Pacotes com uv', link: '/courses/python/tools/uv/' }],
+              items: [
+                { label: 'Ambiente e Pacotes com uv', link: '/courses/python/tools/uv/' },
+                { label: 'venv e pip', link: '/courses/python/tools/venv/' },
+              ],
             },
           ],
         },
