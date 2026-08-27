@@ -582,6 +582,7 @@ export default defineConfig({
               items: [
                 { label: 'Promises e Async/Await', link: '/courses/ecmascript/async/promises/' },
                 { label: 'Expressões Regulares (RegExp)', link: '/courses/ecmascript/stdlib/regex/' },
+                { label: 'Date e Manipulação de Datas', link: '/courses/ecmascript/stdlib/date/' },
                 { label: 'Evolução e TC39', link: '/courses/ecmascript/evolution/tc39/' },
               ],
             },
