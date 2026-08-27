@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const mindmapsDir = join(projectRoot, 'mindmaps');
+const materialsDir = join(projectRoot, 'materials');
 const outputDir = join(projectRoot, 'public', 'mindmaps');
 
 const controlsStyle = `<style>
@@ -108,11 +108,11 @@ const controlsScript = `<script>
 })();
 </script>`;
 
-function listMarkdownFiles(dir) {
+function listMindmapFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) return listMarkdownFiles(full);
-    return entry.name.endsWith('.md') ? [full] : [];
+    if (entry.isDirectory()) return listMindmapFiles(full);
+    return entry.name.endsWith('.mindmap.md') ? [full] : [];
   });
 }
 
@@ -136,22 +136,22 @@ function addControls(outputFile) {
   writeFileSync(outputFile, html);
 }
 
-if (!existsSync(mindmapsDir)) {
-  console.log('mindmaps/ não encontrado. Nenhum mapa mental gerado.');
+if (!existsSync(materialsDir)) {
+  console.log('materials/ não encontrado. Nenhum mapa mental gerado.');
   process.exit(0);
 }
 
-const mindmapFiles = listMarkdownFiles(mindmapsDir);
+const mindmapFiles = listMindmapFiles(materialsDir);
 
 if (mindmapFiles.length === 0) {
-  console.log('Nenhum arquivo .md encontrado em mindmaps/.');
+  console.log('Nenhum arquivo *.mindmap.md encontrado em materials/.');
   process.exit(0);
 }
 
 for (const mindmapFile of mindmapFiles) {
-  const rel = mindmapFile.endsWith('/index.md')
-    ? relative(mindmapsDir, mindmapFile).replace(/\.md$/, '.html')
-    : relative(mindmapsDir, mindmapFile).replace(/\.md$/, '/index.html');
+  const rel = mindmapFile.endsWith('/index.mindmap.md')
+    ? relative(materialsDir, mindmapFile).replace(/\.mindmap\.md$/, '.html')
+    : relative(materialsDir, mindmapFile).replace(/\.mindmap\.md$/, '/index.html');
   const outputFile = join(outputDir, rel);
 
   mkdirSync(dirname(outputFile), { recursive: true });

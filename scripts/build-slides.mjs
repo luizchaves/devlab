@@ -5,33 +5,33 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const slidesDir = join(projectRoot, 'slides');
+const materialsDir = join(projectRoot, 'materials');
 const outputDir = join(projectRoot, 'public', 'slides');
 
-function listMarkdownFiles(dir) {
+function listSlideFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) return listMarkdownFiles(full);
-    return entry.name.endsWith('.md') ? [full] : [];
+    if (entry.isDirectory()) return listSlideFiles(full);
+    return entry.name.endsWith('.slide.md') ? [full] : [];
   });
 }
 
-if (!existsSync(slidesDir)) {
-  console.log('slides/ não encontrado. Nenhum slide gerado.');
+if (!existsSync(materialsDir)) {
+  console.log('materials/ não encontrado. Nenhum slide gerado.');
   process.exit(0);
 }
 
-const slideFiles = listMarkdownFiles(slidesDir);
+const slideFiles = listSlideFiles(materialsDir);
 
 if (slideFiles.length === 0) {
-  console.log('Nenhum arquivo .md encontrado em slides/.');
+  console.log('Nenhum arquivo *.slide.md encontrado em materials/.');
   process.exit(0);
 }
 
 for (const slideFile of slideFiles) {
-  const rel = slideFile.endsWith('/index.md')
-    ? relative(slidesDir, slideFile).replace(/\.md$/, '.html')
-    : relative(slidesDir, slideFile).replace(/\.md$/, '/index.html');
+  const rel = slideFile.endsWith('/index.slide.md')
+    ? relative(materialsDir, slideFile).replace(/\.slide\.md$/, '.html')
+    : relative(materialsDir, slideFile).replace(/\.slide\.md$/, '/index.html');
   const outputFile = join(outputDir, rel);
 
   mkdirSync(dirname(outputFile), { recursive: true });
