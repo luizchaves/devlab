@@ -24,6 +24,16 @@ const courses = {
     shortTitle: 'TS',
     href: '/courses/typescript/',
   },
+  html: {
+    title: 'Guia de HTML',
+    shortTitle: 'HTML',
+    href: '/courses/html/',
+  },
+  css: {
+    title: 'Guia de CSS',
+    shortTitle: 'CSS',
+    href: '/courses/css/',
+  },
   ecmascript: {
     title: 'Guia de ECMAScript',
     shortTitle: 'ECMAScript',

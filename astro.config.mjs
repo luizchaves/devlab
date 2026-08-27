@@ -584,6 +584,58 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guia de CSS',
+          items: [
+            { label: 'Visão geral', link: '/courses/css/' },
+            {
+              label: 'Fundamentos e Seletores',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Sintaxe, Inclusão e Cascata',
+                  link: '/courses/css/basics/syntax-cascade/',
+                },
+                {
+                  label: 'Seletores, Pseudo-classes e Pseudo-elementos',
+                  link: '/courses/css/basics/selectors/',
+                },
+              ],
+            },
+            {
+              label: 'Modelo de Caixa e Layout',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Modelo de Caixa (Box Model)',
+                  link: '/courses/css/layout/box-model/',
+                },
+                {
+                  label: 'Layout Flexível (Flexbox)',
+                  link: '/courses/css/layout/flexbox/',
+                },
+                {
+                  label: 'Layout Bidimensional (CSS Grid)',
+                  link: '/courses/css/layout/grid/',
+                },
+              ],
+            },
+            {
+              label: 'Estilização e Responsividade',
+              collapsed: false,
+              items: [
+                {
+                  label: 'Tipografia, Cores e Variáveis',
+                  link: '/courses/css/styling/typography-colors/',
+                },
+                {
+                  label: 'Design Responsivo e Media Queries',
+                  link: '/courses/css/styling/responsive-mediaqueries/',
+                },
+              ],
+            },
+          ],
+        },
+        {
           label: 'Guia de ECMAScript',
           items: [
             { label: 'Visão geral', link: '/courses/ecmascript/' },
