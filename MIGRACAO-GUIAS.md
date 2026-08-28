@@ -531,6 +531,7 @@ build com **560 páginas**, `check-links` com **zero links quebrados**.
 | §13 Índices | Listas dos `<Card>` viraram badges nos 8 guias que ainda usavam bullets |
 | §14 Índice da DW | 76 badges cobrindo todas as páginas dos guias; títulos e rótulos das páginas movidas corrigidos |
 | §15 Páginas de tópico | 6 páginas de tópico na DW; sidebar reduzida de 76 links para 12 |
+| §16 PW2 | 44 arquivos convertidos; Guia de React criado; cobertura de conteúdo verificada linha a linha |
 
 ### Desvios em relação ao plano
 
@@ -676,3 +677,79 @@ aula específica — momento em que a sidebar do guia é, de fato, a navegação
   vivem só nas páginas de tópico, sem duplicação.
 - O roteiro em `<Steps>` da página inicial, que ainda apontava para as URLs antigas
   via redirect, passou a apontar para os tópicos.
+
+---
+
+## 16. Conversão da PW2
+
+Mesmo processo da DW, aplicado a `csbes-jp-pw2` (44 arquivos, 16.962 linhas). Como a
+PW2 e a DW compartilham boa parte do material de ECMAScript e Web APIs, o risco aqui
+não era a duplicação — era **perder as versões da PW2**, que em vários casos eram mais
+ricas que as do guia.
+
+### Onde a PW2 era melhor que o guia
+
+| Página | PW2 | Guia (vindo da DW) | Ação |
+| --- | --- | --- | --- |
+| `w3c/fetch-api` | 276 linhas | 92 | **merge**: CORS, comparação com XHR, exemplo ViaCEP e CRUD completo |
+| `package/vite` | 216 | 157 | merge do Invest App e do passo a passo de criação |
+| `package/axios` | 171 | 154 | merge do CRUD completo com Axios |
+| `w3c/local-storage` | 235 | 229 | merge do Invest App (o guia tinha só o Monitor App) |
+| `ecma/promise` | 329 | — | tratamento independente; merge da tabela de estados e do `checkAge` |
+
+O padrão se repetiu: **cada página da PW2 carregava um exemplo Invest App** que o guia
+não tinha, porque o guia herdou os exemplos Monitor App da DW. Os dois foram
+preservados lado a lado.
+
+### Conteúdo exclusivo da PW2
+
+| PW2 | Destino |
+| --- | --- |
+| `react/*` (5 páginas, 1.964 linhas) | **novo Guia de React** (`courses/react/`) |
+| `package/supabase-*`, `firebase-*` (5) | `packages/baas/` |
+| `api/rest`, `api/graphql`, `package/http-client` | `web-api/http/` |
+
+### Verificação de perda
+
+Escrevi um verificador que compara **cada linha substantiva** (>45 caracteres, sem
+boilerplate) de todos os 44 arquivos originais contra o corpus atual, normalizando os
+caminhos de `examples/` que mudaram. Resultado por arquivo, após as correções:
+
+- **25 arquivos com cobertura de 100%.**
+- Os demais ficaram entre 85% e 99%, e cada resíduo foi inspecionado à mão.
+
+O verificador encontrou **quatro lacunas reais**, todas corrigidas:
+
+1. `w3c/local-storage`: só o cabeçalho do Invest App havia sido migrado, faltando as
+   168 linhas da implementação do CRUD.
+2. `w3c/browser-objects`: dois `<SourceCode>` e dois diagramas (`dom-hierarchy.svg`,
+   `console-table-fruits.png`).
+3. `w3c/event-handling`: dois diagramas de hierarquia.
+4. `package/json-server`: três `<SourceCode>` do exemplo da PW2.
+
+Também recuperei as seções `## Bootstrap` e `## Tailwind CSS` de `package/vite.mdx`,
+que eu havia deixado para trás na primeira passagem — hoje em
+`css/frameworks/bootstrap.mdx` e `tailwind.mdx`.
+
+O resíduo que sobrou (231 linhas) foi inspecionado e é de três tipos, nenhum deles
+perda: badges com slugs antigos da PW2, linhas "Materiais:"/"Próxima aula" específicas
+da sequência daquele curso, e reformulações em que a versão do guia é igual ou mais
+rica — por exemplo, a tabela de tipos de `types.mdx`, que hoje tem uma coluna de
+descrição e um diagrama que a PW2 não tinha.
+
+### Estrutura final
+
+Sidebar da PW2: de 130 para 19 linhas de configuração, com quatro tópicos —
+JavaScript, Web APIs, Pacotes e Serviços, React — mais Avaliações. O índice virou uma
+grade de `<LinkCard>`, e a seção "Como a disciplina está organizada", redundante com
+ela, foi removida (o `<Aside>` do repositório da turma foi preservado).
+
+40 redirects cobrem as URLs antigas. `examples/pw2/` foi redistribuído em 301
+renomeações, sem nenhuma remoção.
+
+### Pendência
+
+Dois links quebrados restam, ambos `/vite.svg` dentro dos exemplos
+`css/frameworks/{bootstrap,tailwind}-pw2`. É o favicon absoluto que o scaffold do Vite
+gera, que só resolve sob o dev server do próprio projeto — comportamento idêntico ao
+que existia antes da migração, sob o caminho antigo.

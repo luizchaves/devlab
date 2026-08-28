@@ -129,6 +129,62 @@ export default defineConfig({
     '/courses/cstrc-jp-dw/projects/express-prisma': withBase(
       '/courses/express/practice/express-prisma/'
     ),
+    '/courses/csbes-jp-pw2/ecma': withBase('/courses/ecmascript/'),
+    '/courses/csbes-jp-pw2/ecma/introduction': withBase('/courses/ecmascript/basics/introduction/'),
+    '/courses/csbes-jp-pw2/ecma/variable': withBase('/courses/ecmascript/basics/variables/'),
+    '/courses/csbes-jp-pw2/ecma/expression-and-operator': withBase(
+      '/courses/ecmascript/basics/operators/'
+    ),
+    '/courses/csbes-jp-pw2/ecma/statements': withBase('/courses/ecmascript/basics/control-flow/'),
+    '/courses/csbes-jp-pw2/ecma/function': withBase('/courses/ecmascript/structure/functions/'),
+    '/courses/csbes-jp-pw2/ecma/modules': withBase('/courses/ecmascript/structure/modules/'),
+    '/courses/csbes-jp-pw2/ecma/array': withBase('/courses/ecmascript/data/arrays/'),
+    '/courses/csbes-jp-pw2/ecma/string': withBase('/courses/ecmascript/data/strings/'),
+    '/courses/csbes-jp-pw2/ecma/number-math': withBase('/courses/ecmascript/data/numbers/'),
+    '/courses/csbes-jp-pw2/ecma/date': withBase('/courses/ecmascript/stdlib/date/'),
+    '/courses/csbes-jp-pw2/ecma/regexp': withBase('/courses/ecmascript/stdlib/regex/'),
+    '/courses/csbes-jp-pw2/ecma/map-set': withBase('/courses/ecmascript/data/collections/'),
+    '/courses/csbes-jp-pw2/ecma/object': withBase('/courses/ecmascript/data/objects/'),
+    '/courses/csbes-jp-pw2/ecma/promise': withBase('/courses/ecmascript/async/promises/'),
+    '/courses/csbes-jp-pw2/ecma/error-handling': withBase('/courses/ecmascript/structure/errors/'),
+    '/courses/csbes-jp-pw2/extra/cheat-sheet': withBase(
+      '/courses/ecmascript/reference/cheat-sheet/'
+    ),
+    '/courses/csbes-jp-pw2/extra/ecmascript-versions': withBase(
+      '/courses/ecmascript/evolution/tc39/'
+    ),
+    '/courses/csbes-jp-pw2/w3c/browser-objects': withBase('/courses/web-api/browser/objects/'),
+    '/courses/csbes-jp-pw2/w3c/dom-api': withBase('/courses/web-api/dom/manipulation/'),
+    '/courses/csbes-jp-pw2/w3c/dynamic-elements': withBase(
+      '/courses/web-api/dom/dynamic-elements/'
+    ),
+    '/courses/csbes-jp-pw2/w3c/event-handling': withBase('/courses/web-api/dom/events/'),
+    '/courses/csbes-jp-pw2/w3c/local-storage': withBase('/courses/web-api/storage/local-storage/'),
+    '/courses/csbes-jp-pw2/w3c/fetch-api': withBase('/courses/web-api/http/fetch/'),
+    '/courses/csbes-jp-pw2/api/rest': withBase('/courses/web-api/http/rest/'),
+    '/courses/csbes-jp-pw2/api/graphql': withBase('/courses/web-api/http/graphql/'),
+    '/courses/csbes-jp-pw2/package/axios': withBase('/courses/web-api/http/axios/'),
+    '/courses/csbes-jp-pw2/package/http-client': withBase('/courses/web-api/http/clients/'),
+    '/courses/csbes-jp-pw2/package/vite': withBase('/courses/packages/build/vite/'),
+    '/courses/csbes-jp-pw2/package/json-server': withBase('/courses/packages/mock/json-server/'),
+    '/courses/csbes-jp-pw2/package/supabase-api': withBase('/courses/packages/baas/supabase-api/'),
+    '/courses/csbes-jp-pw2/package/supabase-client': withBase(
+      '/courses/packages/baas/supabase-client/'
+    ),
+    '/courses/csbes-jp-pw2/package/supabase-auth': withBase(
+      '/courses/packages/baas/supabase-auth/'
+    ),
+    '/courses/csbes-jp-pw2/package/firebase-firestore': withBase(
+      '/courses/packages/baas/firebase-firestore/'
+    ),
+    '/courses/csbes-jp-pw2/package/firebase-auth': withBase(
+      '/courses/packages/baas/firebase-auth/'
+    ),
+    '/courses/csbes-jp-pw2/react/introduction': withBase('/courses/react/basics/introduction/'),
+    '/courses/csbes-jp-pw2/react/style': withBase('/courses/react/basics/style/'),
+    '/courses/csbes-jp-pw2/react/hooks': withBase('/courses/react/state/hooks/'),
+    '/courses/csbes-jp-pw2/react/supabase-auth': withBase('/courses/react/auth/supabase/'),
+    '/courses/csbes-jp-pw2/react/firebase-auth': withBase('/courses/react/auth/firebase/'),
   },
   integrations: [
     starlight({
@@ -187,7 +243,6 @@ export default defineConfig({
                 },
               ],
             },
-
           ],
         },
         {
@@ -199,125 +254,14 @@ export default defineConfig({
               collapsed: true,
               items: [
                 { label: 'Projeto', link: '/courses/csbes-jp-pw2/project/' },
-                {
-                  label: 'Exercícios',
-                  link: '/courses/csbes-jp-pw2/extra/exercises/',
-                },
+                { label: 'Exercícios', link: '/courses/csbes-jp-pw2/extra/exercises/' },
                 { label: 'Quizzes', link: '/courses/csbes-jp-pw2/extra/quizzes/' },
               ],
             },
-            {
-              label: 'JavaScript',
-              collapsed: true,
-              items: [
-                { label: 'ECMAScript', link: '/courses/csbes-jp-pw2/ecma/introduction/' },
-                { label: 'Variáveis', link: '/courses/csbes-jp-pw2/ecma/variable/' },
-                {
-                  label: 'Expressões e Operadores',
-                  link: '/courses/csbes-jp-pw2/ecma/expression-and-operator/',
-                },
-                {
-                  label: 'Decisão e Repetição',
-                  link: '/courses/csbes-jp-pw2/ecma/statements/',
-                },
-                { label: 'Funções', link: '/courses/csbes-jp-pw2/ecma/function/' },
-                { label: 'Módulos', link: '/courses/csbes-jp-pw2/ecma/modules/' },
-                { label: 'Arrays', link: '/courses/csbes-jp-pw2/ecma/array/' },
-                { label: 'Strings', link: '/courses/csbes-jp-pw2/ecma/string/' },
-                { label: 'Number e Math', link: '/courses/csbes-jp-pw2/ecma/number-math/' },
-                { label: 'Date', link: '/courses/csbes-jp-pw2/ecma/date/' },
-                { label: 'RegExp', link: '/courses/csbes-jp-pw2/ecma/regexp/' },
-                { label: 'Map e Set', link: '/courses/csbes-jp-pw2/ecma/map-set/' },
-                { label: 'Objetos', link: '/courses/csbes-jp-pw2/ecma/object/' },
-                { label: 'Promises', link: '/courses/csbes-jp-pw2/ecma/promise/' },
-                {
-                  label: 'Tratamento de Erros',
-                  link: '/courses/csbes-jp-pw2/ecma/error-handling/',
-                },
-              ],
-            },
-            {
-              label: 'Browser, APIs e Pacotes',
-              collapsed: true,
-              items: [
-                {
-                  label: 'Objetos do Navegador',
-                  link: '/courses/csbes-jp-pw2/w3c/browser-objects/',
-                },
-                {
-                  label: 'Elementos Dinâmicos',
-                  link: '/courses/csbes-jp-pw2/w3c/dynamic-elements/',
-                },
-                { label: 'Vite', link: '/courses/csbes-jp-pw2/package/vite/' },
-                { label: 'Eventos', link: '/courses/csbes-jp-pw2/w3c/event-handling/' },
-                { label: 'DOM API', link: '/courses/csbes-jp-pw2/w3c/dom-api/' },
-                { label: 'Local Storage', link: '/courses/csbes-jp-pw2/w3c/local-storage/' },
-                { label: 'REST API', link: '/courses/csbes-jp-pw2/api/rest/' },
-                { label: 'GraphQL', link: '/courses/csbes-jp-pw2/api/graphql/' },
-                { label: 'Supabase API', link: '/courses/csbes-jp-pw2/package/supabase-api/' },
-                {
-                  label: 'Consumo do Supabase',
-                  link: '/courses/csbes-jp-pw2/package/http-client/',
-                },
-                { label: 'Fetch API', link: '/courses/csbes-jp-pw2/w3c/fetch-api/' },
-                { label: 'Axios', link: '/courses/csbes-jp-pw2/package/axios/' },
-                { label: 'JSON Server', link: '/courses/csbes-jp-pw2/package/json-server/' },
-                {
-                  label: 'Supabase Client',
-                  link: '/courses/csbes-jp-pw2/package/supabase-client/',
-                },
-                {
-                  label: 'Supabase Auth',
-                  link: '/courses/csbes-jp-pw2/package/supabase-auth/',
-                },
-                {
-                  label: 'Firebase Firestore',
-                  link: '/courses/csbes-jp-pw2/package/firebase-firestore/',
-                },
-                {
-                  label: 'Firebase Auth',
-                  link: '/courses/csbes-jp-pw2/package/firebase-auth/',
-                },
-              ],
-            },
-            {
-              label: 'React',
-              collapsed: true,
-              items: [
-                { label: 'ReactJS', link: '/courses/csbes-jp-pw2/react/introduction/' },
-                { label: 'React Hooks', link: '/courses/csbes-jp-pw2/react/hooks/' },
-                {
-                  label: 'Supabase Auth',
-                  link: '/courses/csbes-jp-pw2/react/supabase-auth/',
-                },
-                {
-                  label: 'Firebase Auth',
-                  link: '/courses/csbes-jp-pw2/react/firebase-auth/',
-                },
-                { label: 'React Style', link: '/courses/csbes-jp-pw2/react/style/' },
-              ],
-            },
-            {
-              label: 'Guias e Referências',
-              collapsed: true,
-              items: [
-                {
-                  label: 'Versões do ECMAScript',
-                  link: '/courses/csbes-jp-pw2/extra/ecmascript-versions/',
-                },
-                {
-                  label: 'Assinaturas ECMAScript',
-                  link: '/courses/csbes-jp-pw2/extra/cheat-sheet/',
-                },
-              ],
-            },
-            {
-              label: 'Extras',
-              collapsed: true,
-              items: [
-                { label: 'Próximos Passos', link: '/courses/csbes-jp-pw2/extra/next-steps/' },
-              ],
-            },
+            { label: 'JavaScript', link: '/courses/csbes-jp-pw2/topics/javascript/' },
+            { label: 'Web APIs', link: '/courses/csbes-jp-pw2/topics/web-apis/' },
+            { label: 'Pacotes e Serviços', link: '/courses/csbes-jp-pw2/topics/packages/' },
+            { label: 'React', link: '/courses/csbes-jp-pw2/topics/react/' },
           ],
         },
         {
@@ -714,6 +658,9 @@ export default defineConfig({
               items: [
                 { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
                 { label: 'Axios', link: '/courses/web-api/http/axios/' },
+                { label: 'Clientes HTTP', link: '/courses/web-api/http/clients/' },
+                { label: 'REST API', link: '/courses/web-api/http/rest/' },
+                { label: 'GraphQL', link: '/courses/web-api/http/graphql/' },
               ],
             },
           ],
@@ -824,6 +771,33 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guia de React',
+          items: [
+            { label: 'Visão geral', link: '/courses/react/' },
+            {
+              label: 'Fundamentos',
+              collapsed: true,
+              items: [
+                { label: 'Introdução', link: '/courses/react/basics/introduction/' },
+                { label: 'Estilos', link: '/courses/react/basics/style/' },
+              ],
+            },
+            {
+              label: 'Estado e Efeitos',
+              collapsed: true,
+              items: [{ label: 'Hooks', link: '/courses/react/state/hooks/' }],
+            },
+            {
+              label: 'Autenticação',
+              collapsed: true,
+              items: [
+                { label: 'Autenticação com Supabase', link: '/courses/react/auth/supabase/' },
+                { label: 'Autenticação com Firebase', link: '/courses/react/auth/firebase/' },
+              ],
+            },
+          ],
+        },
+        {
           label: 'Guia de Pacotes',
           items: [
             { label: 'Visão geral', link: '/courses/packages/' },
@@ -841,6 +815,17 @@ export default defineConfig({
               label: 'Interface',
               collapsed: true,
               items: [{ label: 'Chart.js', link: '/courses/packages/ui/chartjs/' }],
+            },
+            {
+              label: 'Backend as a Service',
+              collapsed: true,
+              items: [
+                { label: 'Supabase API', link: '/courses/packages/baas/supabase-api/' },
+                { label: 'Supabase Client', link: '/courses/packages/baas/supabase-client/' },
+                { label: 'Supabase Auth', link: '/courses/packages/baas/supabase-auth/' },
+                { label: 'Cloud Firestore', link: '/courses/packages/baas/firebase-firestore/' },
+                { label: 'Firebase Auth', link: '/courses/packages/baas/firebase-auth/' },
+              ],
             },
           ],
         },

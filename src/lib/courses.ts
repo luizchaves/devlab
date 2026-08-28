@@ -59,6 +59,11 @@ const courses = {
     shortTitle: 'Banco de Dados',
     href: '/courses/database/',
   },
+  react: {
+    title: 'Guia de React',
+    shortTitle: 'React',
+    href: '/courses/react/',
+  },
   packages: {
     title: 'Guia de Pacotes',
     shortTitle: 'Pacotes',
