@@ -1,0 +1,383 @@
+---
+title: "TypeScript: Comparativo com JavaScript"
+description: "Comparativo prático entre TypeScript e JavaScript: relação entre as linguagens, tipagem, compilação, erros detectados, runtime, migração e quando usar cada uma."
+course: typescript
+sidebar:
+  label: "Comparativo com JavaScript"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Esta aula compara **TypeScript** e **JavaScript** do ponto de vista de quem escreve aplicações
+web. A ideia não é colocar uma linguagem contra a outra, e sim entender o que cada uma
+resolve, onde elas se encontram e onde suas responsabilidades terminam.
+
+TypeScript não substitui o JavaScript em tempo de execução. Ele adiciona uma camada de tipos,
+verifica o programa durante o desenvolvimento e depois gera JavaScript comum para navegador,
+Node.js, Deno, Bun ou qualquer outro runtime compatível.
+
+## Objetivo
+
+Comparar TypeScript e JavaScript em sintaxe, tipagem, execução, ferramentas e manutenção.
+Ao final, você deve conseguir explicar por que TypeScript é chamado de *superset*, quais
+erros ele detecta antes da execução, quais erros continuam sendo responsabilidade do runtime
+e quando faz sentido manter um projeto em JavaScript puro.
+
+## Relação Entre as Linguagens
+
+Todo código JavaScript válido também é aceito pelo TypeScript. Essa é a parte mais importante
+do termo **superset**: TypeScript começa no JavaScript e acrescenta recursos de verificação
+estática, principalmente anotações de tipo.
+
+O fluxo abaixo resume a relação entre código-fonte, compilador e execução:
+
+<Mermaid title="TypeScript como camada sobre JavaScript">
+{`
+flowchart LR
+  A["arquivo .js<br/>JavaScript comum"] --> B["também é aceito<br/>como TypeScript"]
+  B --> C["arquivo .ts<br/>JS + tipos"]
+  C --> D["tsc / bundler"]
+  D --> E["arquivo .js<br/>tipos removidos"]
+  E --> F["runtime<br/>navegador ou servidor"]
+`}
+</Mermaid>
+
+| Aspecto | JavaScript | TypeScript |
+| :--- | :--- | :--- |
+| Padrão | Linguagem padronizada pelo ECMAScript | Linguagem criada sobre JavaScript |
+| Arquivos comuns | `.js`, `.mjs`, `.cjs` | `.ts`, `.tsx`, além de poder analisar `.js` |
+| Tipagem | Dinâmica, verificada durante a execução | Estática no desenvolvimento e dinâmica no runtime |
+| Execução | Executa diretamente no runtime | Precisa ser transformado em JavaScript |
+| Saída final | O próprio código JavaScript | JavaScript com os tipos apagados |
+| Força principal | Simplicidade e execução direta | Contratos explícitos e refatoração mais segura |
+
+<Aside type="note" title="TypeScript não muda o runtime">
+  O navegador não passa a entender tipos por causa do TypeScript. Quando o programa roda,
+  ele roda como JavaScript. Por isso validações de formulário, dados de API e permissões
+  ainda precisam existir em tempo de execução.
+</Aside>
+
+## Tipagem: Dinâmica vs Estática
+
+JavaScript decide o tipo de um valor durante a execução. TypeScript tenta prever, antes de
+executar, quais valores podem circular por cada variável, parâmetro e retorno.
+
+O exemplo a seguir mostra o mesmo erro em duas fases diferentes:
+
+```js title="JavaScript: erro percebido ao executar"
+function total(price, quantity) {
+  return price * quantity;
+}
+
+console.log(total("R$ 10", 3)); // NaN
+```
+
+Em TypeScript, a assinatura da função transforma a intenção em contrato verificável:
+
+```ts title="TypeScript: erro percebido no editor"
+function total(price: number, quantity: number): number {
+  return price * quantity;
+}
+
+console.log(total(10, 3)); // 30
+// console.log(total("R$ 10", 3));
+// Erro: string não pode ser usado onde number é esperado.
+```
+
+<Aside type="tip" title="Tipo é documentação executável pelo compilador">
+  Um tipo bem escrito não serve apenas para satisfazer o `tsc`. Ele comunica para a equipe
+  qual formato a função espera e impede que chamadas incompatíveis passem despercebidas.
+</Aside>
+
+## O Que TypeScript Detecta
+
+TypeScript é mais útil quando o erro nasce de um contrato interno quebrado: nome de propriedade
+errado, parâmetro ausente, retorno incompatível ou uso de uma variável antes do estreitamento
+correto.
+
+A tabela resume problemas comuns e onde eles aparecem:
+
+| Situação | JavaScript | TypeScript |
+| :--- | :--- | :--- |
+| Propriedade com nome errado | Pode virar `undefined` em produção | Erro se o objeto tiver tipo conhecido |
+| Argumento do tipo errado | Só aparece na execução ou em teste | Erro antes de rodar |
+| Retorno incompatível | Pode quebrar quem chama a função | Erro na função ou na chamada |
+| Campo opcional sem checagem | Pode lançar `Cannot read properties of undefined` | Exige checagem quando o tipo permite ausência |
+| JSON vindo de API | Continua sendo dado externo não confiável | Precisa de validação em runtime do mesmo jeito |
+
+O exemplo a seguir mostra um contrato de objeto que JavaScript não conhece sozinho:
+
+```ts title="Contrato de objeto em TypeScript"
+type User = {
+  id: number;
+  name: string;
+  email?: string;
+};
+
+function label(user: User): string {
+  return user.email ? `${user.name} <${user.email}>` : user.name;
+}
+
+console.log(label({ id: 1, name: "Ana" })); // Ana
+// console.log(label({ id: 1, nome: "Ana" }));
+// Erro: a propriedade correta é name, não nome.
+```
+
+<Aside type="caution" title="Tipo não é validação de segurança">
+  Se um servidor envia `{ "nome": "Ana" }` e você força esse dado a ser `User`, o TypeScript
+  acredita. Para dados externos, combine tipos com validação real antes de confiar no valor.
+</Aside>
+
+## O Que Continua Igual
+
+Como TypeScript emite JavaScript, quase todo comportamento de execução continua sendo o mesmo:
+coerção, protótipos, closures, `this`, event loop, Promises, módulos e APIs do ambiente.
+
+O trecho abaixo compila, mas continua obedecendo às regras numéricas do JavaScript:
+
+```ts title="Comportamento de runtime continua sendo JavaScript"
+const result = 0.1 + 0.2;
+
+console.log(result); // 0.30000000000000004
+console.log(result === 0.3); // false
+```
+
+TypeScript também não muda a semântica de igualdade:
+
+```ts title="Igualdade continua seguindo ECMAScript"
+const value = Number.NaN;
+
+console.log(value === value); // false
+console.log(Number.isNaN(value)); // true
+```
+
+<Aside type="note" title="Aprender JavaScript continua obrigatório">
+  TypeScript melhora a experiência de desenvolvimento, mas não remove a necessidade de
+  entender JavaScript. Quando algo quebra no navegador ou no Node.js, quem está executando
+  é o runtime JavaScript.
+</Aside>
+
+## Quando Usar Cada Um
+
+Projetos pequenos, scripts descartáveis e protótipos podem ser mais simples em JavaScript
+puro. Projetos maiores, com múltiplas pessoas, domínio rico e vida longa, costumam se pagar
+com TypeScript porque os contratos do código ficam explícitos.
+
+Esta comparação ajuda a decidir:
+
+| Cenário | Escolha comum | Motivo |
+| :--- | :--- | :--- |
+| Script curto de automação | JavaScript | Menos configuração e execução direta |
+| Página simples com poucas interações | JavaScript | O custo de setup pode ser maior que o ganho |
+| Aplicação React, Vue ou Angular | TypeScript | Componentes e props se beneficiam muito de tipos |
+| API Node.js com regras de negócio | TypeScript | Contratos entre camadas evitam regressões |
+| Biblioteca publicada para terceiros | TypeScript | Tipos documentam a API consumida por outras pessoas |
+| Migração de sistema legado | TypeScript incremental | Arquivo a arquivo, sem reescrever tudo de uma vez |
+
+<Aside type="tip" title="A migração pode ser gradual">
+  Não é preciso converter uma base inteira em um fim de semana. Um caminho realista é ativar
+  `allowJs`, tipar módulos novos e aumentar o rigor do `tsconfig.json` aos poucos.
+</Aside>
+
+## Executando
+
+Você pode testar a diferença criando dois arquivos equivalentes e observando quando o erro
+aparece em cada fluxo.
+
+<Steps>
+
+1. Crie um arquivo JavaScript chamado `comparison.js`:
+
+   ```js title="comparison.js"
+   function formatPrice(value) {
+     return value.toFixed(2);
+   }
+
+   console.log(formatPrice(19.9)); // 19.90
+   console.log(formatPrice("19.9")); // TypeError em runtime
+   ```
+
+2. Execute com Node.js:
+
+   ```bash title="Terminal"
+   node comparison.js
+   ```
+
+   ```txt title="Output"
+   19.90
+   TypeError: value.toFixed is not a function
+   ```
+
+3. Crie a versão TypeScript chamada `comparison.ts`:
+
+   ```ts title="comparison.ts"
+   function formatPrice(value: number): string {
+     return value.toFixed(2);
+   }
+
+   console.log(formatPrice(19.9));
+   // console.log(formatPrice("19.9"));
+   ```
+
+4. Verifique o arquivo com o compilador:
+
+   ```bash title="Terminal"
+   npx tsc comparison.ts --noEmit
+   ```
+
+   ```txt title="Output"
+   sem erros enquanto a chamada com string estiver comentada
+   ```
+
+5. Descomente a chamada com string e rode o comando novamente. O erro aparece antes de
+   executar o programa.
+
+</Steps>
+
+## Exercício
+
+Compare um pequeno módulo escrito em JavaScript e em TypeScript:
+
+1. Crie uma função `createCourse(title, workload)`.
+2. Faça a função devolver um objeto com `title`, `workload` e `active`.
+3. Escreva primeiro em JavaScript.
+4. Reescreva em TypeScript usando um tipo `Course`.
+5. Crie uma chamada correta.
+6. Crie uma chamada incorreta e deixe comentada.
+7. Explique, em comentário, qual erro o TypeScript evita.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="course.ts"
+  type Course = {
+    title: string;
+    workload: number;
+    active: boolean;
+  };
+
+  function createCourse(title: string, workload: number): Course {
+    return {
+      title,
+      workload,
+      active: true,
+    };
+  }
+
+  console.log(createCourse("JavaScript", 80));
+  // console.log(createCourse("JavaScript", "80h"));
+  // Erro evitado: workload precisa ser number, não string.
+  ```
+</details>
+
+## Desafio
+
+Modele uma resposta de API que pode dar certo ou falhar. Use uma união discriminada para
+representar os dois resultados e escreva uma função que trate cada caso.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="api-result.ts"
+  type Success = {
+    ok: true;
+    data: {
+      id: number;
+      name: string;
+    };
+  };
+
+  type Failure = {
+    ok: false;
+    error: string;
+  };
+
+  type ApiResult = Success | Failure;
+
+  function render(result: ApiResult): string {
+    if (result.ok) {
+      return `Usuário: ${result.data.name}`;
+    }
+
+    return `Erro: ${result.error}`;
+  }
+
+  console.log(render({ ok: true, data: { id: 1, name: "Ana" } }));
+  console.log(render({ ok: false, error: "Não autorizado" }));
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Relação entre TypeScript e JavaScript
+
+**1. O que significa dizer que TypeScript é um superset do JavaScript?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Significa que código JavaScript válido também é aceito pelo TypeScript. TypeScript adiciona
+  recursos de tipagem e verificação sobre a base da linguagem JavaScript.
+</details>
+
+**2. TypeScript executa diretamente no navegador?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não no fluxo comum. O código TypeScript é compilado ou transformado em JavaScript, e esse
+  JavaScript é o que roda no navegador ou no servidor.
+</details>
+
+**3. O que acontece com os tipos depois da compilação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Eles são apagados. Interfaces, aliases de tipo e anotações servem para o compilador, mas
+  não existem como validação automática no runtime.
+</details>
+
+### Uso prático
+
+**4. Que tipo de erro TypeScript detecta melhor?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Erros de contrato interno: parâmetro errado, propriedade inexistente, retorno incompatível
+  e uso inseguro de valores opcionais.
+</details>
+
+**5. Quando JavaScript puro ainda é uma boa escolha?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em scripts pequenos, protótipos rápidos, páginas simples ou contextos em que a configuração
+  de TypeScript seria maior que o benefício.
+</details>
+
+**6. Por que dados externos continuam exigindo validação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o TypeScript não inspeciona automaticamente o conteúdo real vindo de API, formulário
+  ou arquivo. Ele verifica o que o código declara, não a confiabilidade dos dados recebidos.
+</details>
+
+## Referências
+
+Documentação oficial:
+
+- [TypeScript for JavaScript Programmers](https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes.html)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
+- [Migrating from JavaScript](https://www.typescriptlang.org/docs/handbook/migrating-from-javascript.html)
+- [JavaScript data types and data structures | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Data_structures)
+
+## Próxima aula
+
+Depois de entender a relação entre as linguagens, siga para [Introdução](../introduction/):
+compilador, apagamento de tipos, instalação e primeiro projeto TypeScript.

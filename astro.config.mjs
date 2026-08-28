@@ -306,7 +306,8 @@ export default defineConfig({
               label: 'Fundamentos',
               items: [
                 { label: 'Introdução', link: '/courses/python/basics/introduction/' },
-                { label: 'Variáveis e Tipos', link: '/courses/python/basics/variables/' },
+                { label: 'Tipos de Dados', link: '/courses/python/basics/types/' },
+                { label: 'Variáveis', link: '/courses/python/basics/variables/' },
                 {
                   label: 'Expressões e Operadores',
                   link: '/courses/python/basics/operators/',
@@ -362,6 +363,10 @@ export default defineConfig({
               label: 'Fundamentos',
               items: [
                 { label: 'Introdução', link: '/courses/typescript/basics/introduction/' },
+                {
+                  label: 'Comparativo com JavaScript',
+                  link: '/courses/typescript/basics/typescript-vs-javascript/',
+                },
                 { label: 'Tipos Básicos', link: '/courses/typescript/basics/types/' },
                 { label: 'Funções', link: '/courses/typescript/basics/functions/' },
                 { label: 'Narrowing', link: '/courses/typescript/basics/narrowing/' },
@@ -576,7 +581,10 @@ export default defineConfig({
                   link: '/courses/ecmascript/stdlib/regex/',
                 },
                 { label: 'Arrays e Métodos Funcionais', link: '/courses/ecmascript/data/arrays/' },
-                { label: 'Objetos, Classes e Protótipos', link: '/courses/ecmascript/data/objects/' },
+                {
+                  label: 'Objetos, Classes e Protótipos',
+                  link: '/courses/ecmascript/data/objects/',
+                },
                 { label: 'Map, Set e Coleções', link: '/courses/ecmascript/data/collections/' },
               ],
             },
@@ -597,6 +605,14 @@ export default defineConfig({
                 {
                   label: 'Guia de Referência',
                   link: '/courses/ecmascript/reference/cheat-sheet/',
+                },
+                {
+                  label: 'JavaScript vs Python',
+                  link: '/courses/ecmascript/reference/python-vs-javascript/',
+                },
+                {
+                  label: 'Casos "Bizarros"',
+                  link: '/courses/ecmascript/reference/weird-cases/',
                 },
               ],
             },
