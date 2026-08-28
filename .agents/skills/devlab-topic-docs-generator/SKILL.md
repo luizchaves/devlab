@@ -236,6 +236,25 @@ Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai at
    - O diagrama vai entre crases dentro de `{...}` (como em `<FileTree>`), para evitar que o MDX interprete chaves e setas no texto.
    - Utilize estilos e cores (`style NoID fill:#...`) quando a diferenciação de áreas for didaticamente relevante (ex: camadas do Box Model, eixos do Flexbox).
    - Prefira Mermaid a desenho ASCII quando o diagrama tiver caixas e ligações; mantenha ` ```txt ` apenas para saídas de terminal, estruturas de arquivo e esquemas monoespaçados.
+   - **Diagramas de Classe (`classDiagram`)**: **Obrigatório para tópicos de Classes/POO**. Toda aula ou tópico que abordar Classes e Programação Orientada a Objetos (POO) deve obrigatoriamente incluir um diagrama de classe Mermaid (`classDiagram`) ilustrando a estrutura das classes, atributos, métodos e relacionamentos de herança (`extends`):
+
+     ```mdx
+     <Mermaid title="Diagrama de Classes (UML / POO): Herança entre User e Admin">
+     {`
+     classDiagram
+         class User {
+             +String name
+             +String email
+             +getProfile() String
+         }
+         class Admin {
+             +Array permissions
+             +getProfile() String
+         }
+         User <|-- Admin : extends
+     `}
+     </Mermaid>
+     ```
 
 2. **Previews Interativos (`<HtmlPreview>`)**:
    Para tópicos de HTML/CSS que envolvem componentes visuais, utilize `<HtmlPreview path="examples/..." />` para exibir uma prévia viva renderizada.
@@ -358,3 +377,4 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
     site; o componente é obrigatório.
 12. **Parágrafo monolítico**: blocos de texto muito longos e densos dificultam a leitura — divida em mais parágrafos curtos para deixar a aula mais didática.
 13. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
+14. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).

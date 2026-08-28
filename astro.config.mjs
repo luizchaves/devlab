@@ -558,6 +558,14 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Organização de Código',
+              items: [
+                { label: 'Funções e Closures', link: '/courses/ecmascript/structure/functions/' },
+                { label: 'Módulos ES (ESM)', link: '/courses/ecmascript/structure/modules/' },
+                { label: 'Tratamento de Erros', link: '/courses/ecmascript/structure/errors/' },
+              ],
+            },
+            {
               label: 'Estruturas de Dados',
               items: [
                 { label: 'Strings e Template Literals', link: '/courses/ecmascript/data/strings/' },
@@ -568,16 +576,8 @@ export default defineConfig({
                   link: '/courses/ecmascript/stdlib/regex/',
                 },
                 { label: 'Arrays e Métodos Funcionais', link: '/courses/ecmascript/data/arrays/' },
-                { label: 'Objetos e Protótipos', link: '/courses/ecmascript/data/objects/' },
+                { label: 'Objetos, Classes e Protótipos', link: '/courses/ecmascript/data/objects/' },
                 { label: 'Map, Set e Coleções', link: '/courses/ecmascript/data/collections/' },
-              ],
-            },
-            {
-              label: 'Organização de Código',
-              items: [
-                { label: 'Funções e Closures', link: '/courses/ecmascript/structure/functions/' },
-                { label: 'Módulos ES (ESM)', link: '/courses/ecmascript/structure/modules/' },
-                { label: 'Tratamento de Erros', link: '/courses/ecmascript/structure/errors/' },
               ],
             },
             {
