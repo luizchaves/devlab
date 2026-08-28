@@ -141,12 +141,17 @@ Padrão do bloco de resposta:
 
 ---
 
-## 📝 Regra do parágrafo de entrada
+## 📝 Regra do parágrafo de entrada e didática do texto
 
 **Nenhuma tabela ou bloco de código aparece logo abaixo de um título.** Sempre escreva ao
 menos um parágrafo entre o `##`/`###` e a tabela ou o bloco — o texto diz o que vem a
 seguir e por que importa; a tabela/código mostra. Vale também para blocos em sequência:
 dois blocos de código colados precisam de uma frase entre eles.
+
+**Uso de parágrafos curtos e didáticos:** Prefira fragmentar as explicações em múltiplos
+parágrafos curtos em vez de criar blocos de texto longos e monolíticos. O uso frequente de
+parágrafos espaçados torna a leitura mais fluida, melhora a escaneabilidade do conteúdo e
+ajuda o estudante a absorver cada conceito passo a passo.
 
 Errado:
 
@@ -209,31 +214,36 @@ Certo:
 
 Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai até o nível 3.
 
-### Diagramas
+### Diagramas e Recursos Visuais
 
-Diagramas de fluxo, sequência, estado e entidade-relacionamento são escritos como texto com
-**Mermaid**, pelo componente `<Mermaid>` (`@components/Mermaid.astro`), que renderiza no
-navegador seguindo o tema claro/escuro:
+**Obrigatoriedade de Recursos Visuais**: Sempre que a aula abordar conceitos abstratos, arquiteturas, fluxos de execução, hierarquias, eixos de layout (como Box Model, Flexbox, Grid, escopos, ciclo de vida) ou comparações de modelos, **é obrigatório incluir diagramas visuais ou recursos gráficos** para reforçar a didática.
 
-```mdx
-import Mermaid from '@components/Mermaid.astro';
+1. **Diagramas Mermaid (`<Mermaid>`)**:
+   Diagramas de fluxo, sequência, hierarquia, estado e entidade-relacionamento são escritos como texto usando o componente `<Mermaid>` (`@components/Mermaid.astro`), que se ajusta automaticamente ao tema claro/escuro da página:
 
-<Mermaid title="Do arquivo à execução">
-{`
-flowchart LR
-  A[main.py] --> B[Bytecode]
-  B --> C[Máquina Virtual]
-`}
-</Mermaid>
-```
+   ```mdx
+   import Mermaid from '@components/Mermaid.astro';
 
-O diagrama vai entre crases dentro de `{...}` (como em `<FileTree>`), porque o MDX
-interpretaria chaves e setas soltas no texto. Prefira Mermaid a desenho ASCII quando o
-diagrama tiver caixas e ligações; mantenha ` ```txt ` apenas para saídas de terminal,
-estruturas de arquivo e esquemas de layout que dependem de alinhamento monoespaçado.
+   <Mermaid title="Do arquivo à execução">
+   {`
+   flowchart LR
+     A[main.py] --> B[Bytecode]
+     B --> C[Máquina Virtual]
+   `}
+   </Mermaid>
+   ```
 
-Diagramas Mermaid não funcionam nos slides Marp nem nos mapas mentais Markmap — lá continue
-com ASCII.
+   - O diagrama vai entre crases dentro de `{...}` (como em `<FileTree>`), para evitar que o MDX interprete chaves e setas no texto.
+   - Utilize estilos e cores (`style NoID fill:#...`) quando a diferenciação de áreas for didaticamente relevante (ex: camadas do Box Model, eixos do Flexbox).
+   - Prefira Mermaid a desenho ASCII quando o diagrama tiver caixas e ligações; mantenha ` ```txt ` apenas para saídas de terminal, estruturas de arquivo e esquemas monoespaçados.
+
+2. **Previews Interativos (`<HtmlPreview>`)**:
+   Para tópicos de HTML/CSS que envolvem componentes visuais, utilize `<HtmlPreview path="examples/..." />` para exibir uma prévia viva renderizada.
+
+3. **Imagens e Ilustrações**:
+   Para capturas de tela ou esquemas gráficos estáticos, inclua imagens otimizadas com o atributo `alt` totalmente descritivo.
+
+Diagramas Mermaid não funcionam nos slides Marp nem nos mapas mentais Markmap — lá continue com ASCII.
 
 ---
 
@@ -246,7 +256,10 @@ Configuração em `ec.config.mjs`. Convenções em uso:
 - **Sempre** dê um `title` descritivo: ` ```js title="Formas de criação de Arrays" `.
 - Terminal: ` ```bash title="Terminal" ` (o frame de terminal é automático para
   `bash,sh,shell,zsh,console,powershell`).
-- Saída de execução: ` ```txt title="Output" `.
+- **Demonstração do Resultado / Saída**: Exemplos de código CSS e HTML não devem ficar isolados apenas com a sintaxe. Sempre acompanhe o código de sua demonstração visual ou saída esperada:
+  1. **Via `<HtmlPreview path="examples/..." />`**: para mostrar o resultado vivo renderizado pelo navegador a partir de arquivos reais em `examples/`.
+  2. **Via ` ```txt title="Resultado na tela" ` ou comentários explicativos**: para demonstrar/descrever exatamente como o elemento é desenhado no navegador (dimensões finais, alinhamento ou efeito visual).
+- Saída de execução de terminal ou navegador: ` ```txt title="Output" ` ou ` ```txt title="Resultado na tela" `.
 - Recursos disponíveis quando ajudarem: `{3}` / `{1-5}` (destaque de linhas),
   `showLineNumbers`, `mark="…"`, `ins` / `del`, `collapse={2-8}`, `wrap`.
 - Comentários dentro do código explicam entrada → transformação → saída, e o
@@ -287,14 +300,16 @@ Antes de criar componente novo, confira se o Starlight já resolve.
 
 ---
 
-## 🗂️ Registro na sidebar
+## 🗂️ Registro na sidebar e páginas de visão geral (index.mdx)
 
-Página nova **não aparece sozinha** em `dw-cstrc-jp`: a sidebar é explícita em
-`astro.config.mjs`. Adicione a entrada no grupo correto, com link absoluto e barra final:
+Sempre que uma página for **criada, renomeada ou reestruturada**, essas alterações **devem obrigatoriamente afetar**:
 
-```js
-{ label: 'Arrays', link: '/courses/ecmascript/data/arrays/' },
-```
+1. **A Sidebar (`astro.config.mjs`)**: páginas novas não aparecem sozinhas; a sidebar é explícita. Adicione/atualize a entrada no grupo correto com link absoluto e barra final (não utilize `collapsed: true` nos grupos para mantê-los expandidos por padrão):
+   ```js
+   { label: 'Arrays', link: '/courses/ecmascript/data/arrays/' },
+   ```
+
+2. **As Páginas Index / Visão Geral (`index.mdx`)**: mantenha atualizadas as listas de tópicos e cartões nas páginas de visão geral do curso e de suas respectivas categorias (`/courses/<curso>/index.mdx` ou `/courses/<curso>/topics/<categoria>.mdx`), garantindo que a estrutura geral do curso reflita todas as páginas disponíveis.
 
 ---
 
@@ -330,7 +345,7 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 3. **Profundidade de link errada**: conte segmentos da **URL**, não pastas; a falta da
    barra final também quebra o `check:links`.
 4. **Linkar `.excalidraw`**: o diretório `excalidraw/` não é publicado — não referencie.
-5. **Esquecer a sidebar**: a página existe, mas fica inalcançável pela navegação.
+5. **Esquecer a sidebar ou a página index**: a página passa a existir, mas fica inalcançável na navegação lateral ou na visão geral do curso.
 6. **Duplicar código de `examples/`**: use `<SourceCode>`.
 7. **Fechar tags**: `<Aside>`, `<Tabs>`, `<TabItem>`, `<Steps>`, `<details>` sempre com
    fechamento; dentro de `<details>` deixe uma linha em branco antes do conteúdo Markdown.
@@ -341,3 +356,5 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
     segunda subseção.
 11. **Diagrama Mermaid sem `<Mermaid>`**: uma cerca ` ```mermaid ` não é renderizada pelo
     site; o componente é obrigatório.
+12. **Parágrafo monolítico**: blocos de texto muito longos e densos dificultam a leitura — divida em mais parágrafos curtos para deixar a aula mais didática.
+13. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.

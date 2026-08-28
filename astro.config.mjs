@@ -246,7 +246,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/dw-cstrc-jp/' },
             {
               label: 'Avaliações',
-              collapsed: true,
               items: [
                 { label: 'Projeto', link: '/courses/dw-cstrc-jp/project/' },
                 { label: 'Exercícios', link: '/courses/dw-cstrc-jp/extra/exercises/' },
@@ -261,7 +260,6 @@ export default defineConfig({
             { label: 'Banco de Dados', link: '/courses/dw-cstrc-jp/topics/database/' },
             {
               label: 'Projetos',
-              collapsed: true,
               items: [
                 { label: 'Visão geral', link: '/courses/dw-cstrc-jp/projects/' },
                 {
@@ -278,7 +276,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/pw2-csbes-jp/' },
             {
               label: 'Avaliações',
-              collapsed: true,
               items: [
                 { label: 'Projeto', link: '/courses/pw2-csbes-jp/project/' },
                 { label: 'Exercícios', link: '/courses/pw2-csbes-jp/extra/exercises/' },
@@ -307,7 +304,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/python/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [
                 { label: 'Introdução', link: '/courses/python/basics/introduction/' },
                 { label: 'Variáveis e Tipos', link: '/courses/python/basics/variables/' },
@@ -324,7 +320,6 @@ export default defineConfig({
             },
             {
               label: 'Dados e Coleções',
-              collapsed: true,
               items: [
                 { label: 'Strings', link: '/courses/python/data/strings/' },
                 { label: 'Coleções', link: '/courses/python/data/collections/' },
@@ -336,7 +331,6 @@ export default defineConfig({
             },
             {
               label: 'Organização do Código',
-              collapsed: true,
               items: [
                 { label: 'Módulos e Pacotes', link: '/courses/python/structure/modules/' },
                 { label: 'Classes e Objetos', link: '/courses/python/structure/classes/' },
@@ -345,7 +339,6 @@ export default defineConfig({
             },
             {
               label: 'Biblioteca Padrão',
-              collapsed: true,
               items: [
                 { label: 'Arquivos, JSON e CSV', link: '/courses/python/stdlib/files/' },
                 { label: 'Data e Hora', link: '/courses/python/stdlib/datetime/' },
@@ -354,7 +347,6 @@ export default defineConfig({
             },
             {
               label: 'Ambiente e Ferramentas',
-              collapsed: true,
               items: [
                 { label: 'Ambiente e Pacotes com uv', link: '/courses/python/tools/uv/' },
                 { label: 'venv e pip', link: '/courses/python/tools/venv/' },
@@ -368,7 +360,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/typescript/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [
                 { label: 'Introdução', link: '/courses/typescript/basics/introduction/' },
                 { label: 'Tipos Básicos', link: '/courses/typescript/basics/types/' },
@@ -378,7 +369,6 @@ export default defineConfig({
             },
             {
               label: 'Sistema de Tipos',
-              collapsed: true,
               items: [
                 {
                   label: 'Objetos e Interfaces',
@@ -393,7 +383,6 @@ export default defineConfig({
             },
             {
               label: 'Tipos Avançados',
-              collapsed: true,
               items: [
                 {
                   label: 'Utility Types',
@@ -408,7 +397,6 @@ export default defineConfig({
             },
             {
               label: 'Ferramentas',
-              collapsed: true,
               items: [
                 { label: 'tsconfig.json', link: '/courses/typescript/tooling/tsconfig/' },
                 {
@@ -420,7 +408,6 @@ export default defineConfig({
             },
             {
               label: 'Na Prática',
-              collapsed: true,
               items: [
                 {
                   label: 'Migrando de JavaScript',
@@ -440,7 +427,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/html/' },
             {
               label: 'Fundamentos e Conceitos',
-              collapsed: true,
               items: [
                 { label: 'A Importância da Web', link: '/courses/html/basics/web-importance/' },
                 { label: 'Linguagens de Marcação', link: '/courses/html/basics/markup-languages/' },
@@ -452,7 +438,6 @@ export default defineConfig({
             },
             {
               label: 'Elementos e Semântica',
-              collapsed: true,
               items: [
                 {
                   label: 'Elementos Semânticos e Acessibilidade',
@@ -464,11 +449,19 @@ export default defineConfig({
             },
             {
               label: 'Formulários',
-              collapsed: true,
               items: [
                 {
                   label: 'Estrutura de Formulários e Controles',
                   link: '/courses/html/forms/elements-controls/',
+                },
+              ],
+            },
+            {
+              label: 'Ferramentas e Publicação',
+              items: [
+                {
+                  label: 'Publicação e Deploy',
+                  link: '/courses/html/tools/deploy/',
                 },
               ],
             },
@@ -480,7 +473,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/css/' },
             {
               label: 'Fundamentos e Seletores',
-              collapsed: true,
               items: [
                 {
                   label: 'Sintaxe, Inclusão e Cascata',
@@ -495,11 +487,14 @@ export default defineConfig({
             },
             {
               label: 'Modelo de Caixa e Layout',
-              collapsed: true,
               items: [
                 {
                   label: 'Modelo de Caixa (Box Model)',
                   link: '/courses/css/layout/box-model/',
+                },
+                {
+                  label: 'Posicionamento (Positioning)',
+                  link: '/courses/css/layout/positioning/',
                 },
                 {
                   label: 'Layout Flexível (Flexbox)',
@@ -513,12 +508,20 @@ export default defineConfig({
             },
             {
               label: 'Estilização e Responsividade',
-              collapsed: true,
               items: [
                 {
                   label: 'Tipografia, Cores e Variáveis',
                   link: '/courses/css/styling/typography-colors/',
                 },
+                {
+                  label: 'Cores, Fundos e Gradientes',
+                  link: '/courses/css/styling/backgrounds-gradients/',
+                },
+                {
+                  label: 'Transições e Animações',
+                  link: '/courses/css/styling/animations-transitions/',
+                },
+                { label: 'Estilizando Formulários', link: '/courses/css/forms/styling/' },
                 {
                   label: 'Design Responsivo e Media Queries',
                   link: '/courses/css/styling/responsive-mediaqueries/',
@@ -526,10 +529,8 @@ export default defineConfig({
               ],
             },
             {
-              label: 'Formulários e Frameworks',
-              collapsed: true,
+              label: 'Frameworks',
               items: [
-                { label: 'Estilizando Formulários', link: '/courses/css/forms/styling/' },
                 { label: 'Bootstrap', link: '/courses/css/frameworks/bootstrap/' },
                 { label: 'Tailwind CSS', link: '/courses/css/frameworks/tailwind/' },
               ],
@@ -542,7 +543,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/ecmascript/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [
                 {
                   label: 'Introdução e Ecossistema',
@@ -559,7 +559,6 @@ export default defineConfig({
             },
             {
               label: 'Estruturas de Dados',
-              collapsed: true,
               items: [
                 { label: 'Strings e Template Literals', link: '/courses/ecmascript/data/strings/' },
                 { label: 'Numbers, BigInt e Math', link: '/courses/ecmascript/data/numbers/' },
@@ -575,7 +574,6 @@ export default defineConfig({
             },
             {
               label: 'Organização de Código',
-              collapsed: true,
               items: [
                 { label: 'Funções e Closures', link: '/courses/ecmascript/structure/functions/' },
                 { label: 'Módulos ES (ESM)', link: '/courses/ecmascript/structure/modules/' },
@@ -584,7 +582,6 @@ export default defineConfig({
             },
             {
               label: 'Assincronismo',
-              collapsed: true,
               items: [
                 { label: 'Promises', link: '/courses/ecmascript/async/promises/' },
                 { label: 'Async/Await', link: '/courses/ecmascript/async/async-await/' },
@@ -592,7 +589,6 @@ export default defineConfig({
             },
             {
               label: 'Referência',
-              collapsed: true,
               items: [
                 {
                   label: 'Evolução e TC39',
@@ -612,12 +608,10 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/web-api/' },
             {
               label: 'Objetos do Navegador',
-              collapsed: true,
               items: [{ label: 'Objetos do Navegador', link: '/courses/web-api/browser/objects/' }],
             },
             {
               label: 'DOM',
-              collapsed: true,
               items: [
                 { label: 'Manipulação do DOM', link: '/courses/web-api/dom/manipulation/' },
                 { label: 'Eventos', link: '/courses/web-api/dom/events/' },
@@ -629,12 +623,10 @@ export default defineConfig({
             },
             {
               label: 'Armazenamento',
-              collapsed: true,
               items: [{ label: 'Local Storage', link: '/courses/web-api/storage/local-storage/' }],
             },
             {
               label: 'Requisições HTTP',
-              collapsed: true,
               items: [
                 { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
                 { label: 'Axios', link: '/courses/web-api/http/axios/' },
@@ -651,7 +643,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/nodejs/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [
                 { label: 'Introdução ao Node.js', link: '/courses/nodejs/basics/introduction/' },
                 { label: 'Módulos no Node.js', link: '/courses/nodejs/basics/modules/' },
@@ -659,12 +650,10 @@ export default defineConfig({
             },
             {
               label: 'Ferramentas',
-              collapsed: true,
               items: [{ label: 'npm', link: '/courses/nodejs/tools/npm/' }],
             },
             {
               label: 'HTTP',
-              collapsed: true,
               items: [{ label: 'Servidor HTTP nativo', link: '/courses/nodejs/http/server/' }],
             },
           ],
@@ -675,7 +664,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/express/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [
                 {
                   label: 'Introdução ao Express.js',
@@ -688,7 +676,6 @@ export default defineConfig({
             },
             {
               label: 'APIs HTTP',
-              collapsed: true,
               items: [
                 { label: 'REST API', link: '/courses/express/api/rest/' },
                 { label: 'Construção de API', link: '/courses/express/api/construction/' },
@@ -696,7 +683,6 @@ export default defineConfig({
             },
             {
               label: 'Arquitetura e Recursos',
-              collapsed: true,
               items: [
                 { label: 'MVC', link: '/courses/express/architecture/mvc/' },
                 { label: 'Chamada de Sistema', link: '/courses/express/advanced/system-call/' },
@@ -713,7 +699,6 @@ export default defineConfig({
             },
             {
               label: 'Na Prática',
-              collapsed: true,
               items: [
                 { label: 'Hello Express', link: '/courses/express/practice/hello-express/' },
                 { label: 'Express Router', link: '/courses/express/practice/express-router/' },
@@ -729,12 +714,10 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/database/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [{ label: 'SGBD', link: '/courses/database/basics/dbms/' }],
             },
             {
               label: 'SQL',
-              collapsed: true,
               items: [
                 { label: 'Fundamentos de SQL', link: '/courses/database/sql/fundamentals/' },
                 { label: 'SQL com Node.js', link: '/courses/database/sql/node-sqlite/' },
@@ -742,7 +725,6 @@ export default defineConfig({
             },
             {
               label: 'Prisma ORM',
-              collapsed: true,
               items: [
                 {
                   label: 'Introdução ao Prisma',
@@ -760,7 +742,6 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/react/' },
             {
               label: 'Fundamentos',
-              collapsed: true,
               items: [
                 { label: 'Introdução', link: '/courses/react/basics/introduction/' },
                 { label: 'Estilos', link: '/courses/react/basics/style/' },
@@ -768,12 +749,10 @@ export default defineConfig({
             },
             {
               label: 'Estado e Efeitos',
-              collapsed: true,
               items: [{ label: 'Hooks', link: '/courses/react/state/hooks/' }],
             },
             {
               label: 'Autenticação',
-              collapsed: true,
               items: [
                 { label: 'Autenticação com Supabase', link: '/courses/react/auth/supabase/' },
                 { label: 'Autenticação com Firebase', link: '/courses/react/auth/firebase/' },
@@ -787,22 +766,18 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/packages/' },
             {
               label: 'Build e Desenvolvimento',
-              collapsed: true,
               items: [{ label: 'Vite', link: '/courses/packages/build/vite/' }],
             },
             {
               label: 'APIs de Prototipagem',
-              collapsed: true,
               items: [{ label: 'JSON Server', link: '/courses/packages/mock/json-server/' }],
             },
             {
               label: 'Interface',
-              collapsed: true,
               items: [{ label: 'Chart.js', link: '/courses/packages/ui/chartjs/' }],
             },
             {
               label: 'Backend as a Service',
-              collapsed: true,
               items: [
                 { label: 'Supabase API', link: '/courses/packages/baas/supabase-api/' },
                 { label: 'Supabase Client', link: '/courses/packages/baas/supabase-client/' },
