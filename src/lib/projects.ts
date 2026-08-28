@@ -32,8 +32,8 @@ export const projects: Project[] = [
     level: 'Iniciante',
     tech: ['Node.js', 'Express.js'],
     concepts: ['Servidor HTTP', 'Rotas', 'JSON'],
-    docs: '/courses/cstrc-jp-dw/projects/hello-express/',
-    source: 'examples/express-basic',
+    docs: '/courses/express/practice/hello-express/',
+    source: 'examples/express/projects/hello',
   },
   {
     id: 'express-router',
@@ -42,8 +42,8 @@ export const projects: Project[] = [
     level: 'Iniciante',
     tech: ['Node.js', 'Express.js'],
     concepts: ['express.Router()', 'Modularização', 'Parâmetros de rota'],
-    docs: '/courses/cstrc-jp-dw/projects/express-router/',
-    source: 'examples/express-router',
+    docs: '/courses/express/practice/express-router/',
+    source: 'examples/express/projects/router',
   },
   {
     id: 'express-mvc',
@@ -53,8 +53,8 @@ export const projects: Project[] = [
     level: 'Intermediário',
     tech: ['Node.js', 'Express.js', 'MVC'],
     concepts: ['Separação de responsabilidades', 'Controllers', 'Models', 'Middleware de erro'],
-    docs: '/courses/cstrc-jp-dw/projects/express-mvc/',
-    source: 'examples/express-mvc',
+    docs: '/courses/express/practice/express-mvc/',
+    source: 'examples/express/projects/mvc',
   },
   {
     id: 'express-prisma',
@@ -64,8 +64,8 @@ export const projects: Project[] = [
     level: 'Avançado',
     tech: ['Node.js', 'Express.js', 'Prisma', 'SQLite'],
     concepts: ['ORM', 'Schema', 'Migrations', 'CRUD assíncrono'],
-    docs: '/courses/cstrc-jp-dw/projects/express-prisma/',
-    source: 'examples/express-prisma',
+    docs: '/courses/express/practice/express-prisma/',
+    source: 'examples/express/projects/prisma',
   },
 ];
 

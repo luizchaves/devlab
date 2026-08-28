@@ -11,7 +11,7 @@ description: >-
 
 Guia para gerar arquivos `.excalidraw` no estilo lousa do DevLab. As medidas abaixo foram
 extraídas do arquivo de referência
-`excalidraw/courses/cstrc-jp-dw/javascript/ecmascript.excalidraw` (8 slides, 313 elementos).
+`excalidraw/courses/ecmascript/basics/introduction.excalidraw` (8 slides, 313 elementos).
 
 ---
 
@@ -50,7 +50,7 @@ b.sketch_browser("frame_1", "s1_br", 200, 183, stroke=AMBER)
 b.add_callout("frame_1", "s1_idea", "Dica do Professor", "• Regra de ouro da aula.")
 b.add_flow("frame_1", "s1_flow", "Mocha (1995)   ➔   ECMAScript   ➔   Runtimes")
 
-b.save("excalidraw/courses/cstrc-jp-dw/javascript/ecmascript.excalidraw")
+b.save("excalidraw/courses/ecmascript/basics/introduction.excalidraw")
 ```
 
 Escreva o script gerador em `scripts/` do scratchpad da sessão (ou em um arquivo temporário)
@@ -152,7 +152,7 @@ essa fórmula em `add_text`.
 Depois de gerar, confira programaticamente antes de entregar:
 
 ```bash
-python3 -c "import json,sys; d=json.load(open(sys.argv[1])); els=d['elements']; frames=[e for e in els if e['type']=='frame']; orfaos=[e['id'] for e in els if e['type']!='frame' and not e.get('frameId')]; print(len(frames),'frames,',len(els),'elementos, órfãos:',orfaos)" excalidraw/courses/cstrc-jp-dw/javascript/ecmascript.excalidraw
+python3 -c "import json,sys; d=json.load(open(sys.argv[1])); els=d['elements']; frames=[e for e in els if e['type']=='frame']; orfaos=[e['id'] for e in els if e['type']!='frame' and not e.get('frameId')]; print(len(frames),'frames,',len(els),'elementos, órfãos:',orfaos)" excalidraw/courses/ecmascript/basics/introduction.excalidraw
 ```
 
 Abra o arquivo no Excalidraw e verifique: nenhum texto cortado, nenhum elemento fora do

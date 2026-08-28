@@ -30,7 +30,7 @@ src/content/docs/courses/<course-id>/<categoria>/<topico>.(md|mdx)
 - Nome do arquivo em **kebab-case, inglês**, igual ao slug da URL
   (`expressions-operators.mdx`, `error-handling.mdx`).
 - A URL final tem **barra no fim** (`trailingSlash: 'always'`):
-  `/courses/cstrc-jp-dw/javascript/arrays/`.
+  `/courses/ecmascript/data/arrays/`.
 
 ### `.md` ou `.mdx`?
 
@@ -89,7 +89,7 @@ Logo após um parágrafo curto de abertura ("Esta aula apresenta…"), inclua a 
 materiais quando existirem slides/mapa mental do tópico:
 
 ```mdx
-Materiais: [slides da aula](../../../../slides/courses/cstrc-jp-dw/javascript/arrays/) e [mapa mental](../../../../mindmaps/courses/cstrc-jp-dw/javascript/arrays/).
+Materiais: [slides da aula](../../../../slides/courses/ecmascript/data/arrays/) e [mapa mental](../../../../mindmaps/courses/ecmascript/data/arrays/).
 ```
 
 **Profundidade do `../`** — conte os segmentos da URL da página, não as pastas do disco:
@@ -107,7 +107,7 @@ Só cite materiais que **existem** em `slides/` e `mindmaps/`. Não linke arquiv
 
 ## 📐 Estrutura da aula
 
-Ordem observada nas 16 aulas de `cstrc-jp-dw/javascript`. Nem toda seção é obrigatória,
+Ordem observada nas 16 aulas de `ecmascript`. Nem toda seção é obrigatória,
 mas **`Objetivo`, `Exercício` e `Próxima aula` são**, e a ordem relativa deve ser mantida.
 
 1. **Parágrafo de abertura** — o que a aula apresenta, em 1–3 linhas.
@@ -293,7 +293,7 @@ Página nova **não aparece sozinha** em `cstrc-jp-dw`: a sidebar é explícita 
 `astro.config.mjs`. Adicione a entrada no grupo correto, com link absoluto e barra final:
 
 ```js
-{ label: 'Arrays', link: '/courses/cstrc-jp-dw/javascript/arrays/' },
+{ label: 'Arrays', link: '/courses/ecmascript/data/arrays/' },
 ```
 
 ---

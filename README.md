@@ -9,7 +9,7 @@ Ele vive em projetos executáveis dentro de `examples/` e é importado pela
 documentação em tempo de build.
 
 ```text
-examples/express-mvc/src/app.js     ← código executável (single source of truth)
+examples/express/projects/mvc/src/app.js     ← código executável (single source of truth)
               ↓
          <SourceCode path="…" />
               ↓
@@ -161,7 +161,7 @@ próprias dependências e é instalado separadamente. Assim o build da documenta
 CI) não precisa instalar Express, Prisma e afins.
 
 ```bash
-cd examples/express-mvc
+cd examples/express/projects/mvc
 pnpm install
 pnpm dev
 ```
@@ -169,14 +169,14 @@ pnpm dev
 O `html-basics` não tem dependências — é só abrir os arquivos no navegador:
 
 ```bash
-cd examples/html-basics
+cd examples/html/basics
 open index.html
 ```
 
 Já o `express-prisma` tem dois passos a mais:
 
 ```bash
-cd examples/express-prisma
+cd examples/express/projects/prisma
 pnpm install
 cp .env.example .env
 pnpm db:push
@@ -263,7 +263,7 @@ Convenções adotadas:
 
 - **Links internos são relativos**, para continuarem corretos sob o `base` do GitHub
   Pages sem precisar escrevê-lo. Atenção: as URLs terminam em barra
-  (`/courses/cstrc-jp-dw/express/mvc/`), então a partir de uma aula uma *irmã* é `../rest-api/`
+  (`/courses/express/architecture/mvc/`), então a partir de uma aula uma *irmã* é `../rest-api/`
   e uma pasta vizinha é `../../database/sql/`. Em páginas `index`, que já são o
   diretório, vale a forma direta (`javascript/`).
 - Toda aula termina com **Exercício** e **Próxima aula**.
@@ -319,7 +319,7 @@ Bloco de código alimentado por um arquivo real. É a forma **preferencial** de 
 qualquer código que já exista em `examples/`.
 
 ```mdx
-<SourceCode path="examples/express-mvc/src/app.js" />
+<SourceCode path="examples/express/projects/mvc/src/app.js" />
 ```
 
 Herda todas as props do `<Code>` do Expressive Code e acrescenta:
@@ -337,18 +337,18 @@ Herda todas as props do `<Code>` do Expressive Code e acrescenta:
 
 ```mdx
 {/* título "app.js", linguagem js */}
-<SourceCode path="examples/express-mvc/src/app.js" />
+<SourceCode path="examples/express/projects/mvc/src/app.js" />
 
 {/* explícitos vencem a inferência */}
-<SourceCode path="examples/express-mvc/src/app.js" title="src/app.js" lang="javascript" />
+<SourceCode path="examples/express/projects/mvc/src/app.js" title="src/app.js" lang="javascript" />
 ```
 
 Seleção de trecho:
 
 ```mdx
-<SourceCode path="examples/express-mvc/src/app.js" lines="7-12" showLineNumbers />
-<SourceCode path="examples/express-mvc/src/app.js" startLine={7} endLine={12} />
-<SourceCode path="examples/express-mvc/src/app.js" region="middleware" showLineNumbers />
+<SourceCode path="examples/express/projects/mvc/src/app.js" lines="7-12" showLineNumbers />
+<SourceCode path="examples/express/projects/mvc/src/app.js" startLine={7} endLine={12} />
+<SourceCode path="examples/express/projects/mvc/src/app.js" region="middleware" showLineNumbers />
 ```
 
 `lines` é a API canônica; `startLine`/`endLine` existem para uso programático.
@@ -369,10 +369,10 @@ Dentro de abas do Starlight:
 ```mdx
 <Tabs syncKey="express-mvc">
   <TabItem label="app.js">
-    <SourceCode path="examples/express-mvc/src/app.js" title="src/app.js" />
+    <SourceCode path="examples/express/projects/mvc/src/app.js" title="src/app.js" />
   </TabItem>
   <TabItem label="user-router.js">
-    <SourceCode path="examples/express-mvc/src/routes/user-router.js" title="src/routes/user-router.js" />
+    <SourceCode path="examples/express/projects/mvc/src/routes/user-router.js" title="src/routes/user-router.js" />
   </TabItem>
 </Tabs>
 ```
@@ -390,7 +390,7 @@ Mostra como o navegador renderiza um arquivo HTML real — o par indispensável 
 `<SourceCode>` nas aulas de HTML e CSS.
 
 ```mdx
-<HtmlPreview path="examples/html-basics/listas.html" height="18rem" />
+<HtmlPreview path="examples/html/basics/listas.html" height="18rem" />
 ```
 
 | Prop     | Descrição                                            |
@@ -408,10 +408,10 @@ Combina bem com abas, para alternar entre marcação e resultado:
 ```mdx
 <Tabs syncKey="html-basics">
   <TabItem label="Código">
-    <SourceCode path="examples/html-basics/listas.html" title="listas.html" showLineNumbers />
+    <SourceCode path="examples/html/basics/listas.html" title="listas.html" showLineNumbers />
   </TabItem>
   <TabItem label="Resultado">
-    <HtmlPreview path="examples/html-basics/listas.html" />
+    <HtmlPreview path="examples/html/basics/listas.html" />
   </TabItem>
 </Tabs>
 ```
@@ -424,8 +424,8 @@ Vários arquivos relacionados em abas, cada um renderizado pelo `<SourceCode>`.
 <CodeTabs
   syncKey="express-mvc"
   files={[
-    'examples/express-mvc/src/app.js',
-    { path: 'examples/express-mvc/src/routes/user-router.js', title: 'src/routes/user-router.js', showLineNumbers: true },
+    'examples/express/projects/mvc/src/app.js',
+    { path: 'examples/express/projects/mvc/src/routes/user-router.js', title: 'src/routes/user-router.js', showLineNumbers: true },
   ]}
 />
 ```
@@ -542,7 +542,7 @@ Evite copiar código:
 Prefira:
 
 ```mdx
-<SourceCode path="examples/express-mvc/src/app.js" title="src/app.js" showLineNumbers />
+<SourceCode path="examples/express/projects/mvc/src/app.js" title="src/app.js" showLineNumbers />
 ```
 
 Blocos de código escritos à mão continuam válidos para o que **não** existe em
@@ -584,7 +584,7 @@ Nas props do `<SourceCode>`, os equivalentes:
 
 ```mdx
 <SourceCode
-  path="examples/express-mvc/src/app.js"
+  path="examples/express/projects/mvc/src/app.js"
   showLineNumbers
   mark="7-12"
   ins={14}

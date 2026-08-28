@@ -23,10 +23,10 @@ O caminho espelha o da aula e o dos slides:
 
 | Arquivo | Resultado |
 | ------- | --------- |
-| `src/content/docs/courses/cstrc-jp-dw/javascript/arrays.mdx` | aula |
-| `mindmaps/courses/cstrc-jp-dw/javascript/arrays.md`          | fonte do mapa |
-| `public/mindmaps/courses/cstrc-jp-dw/javascript/arrays/index.html` | HTML gerado |
-| `/mindmaps/courses/cstrc-jp-dw/javascript/arrays/`           | URL linkada na aula |
+| `src/content/docs/courses/ecmascript/data/arrays.mdx` | aula |
+| `mindmaps/courses/ecmascript/data/arrays.md`          | fonte do mapa |
+| `public/mindmaps/courses/ecmascript/data/arrays/index.html` | HTML gerado |
+| `/mindmaps/courses/ecmascript/data/arrays/`           | URL linkada na aula |
 
 `public/mindmaps/` é gitignorado: **versione apenas o `.md`**.
 

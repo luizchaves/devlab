@@ -1,5 +1,6 @@
 # TODO
 
+- [ ] page: O path http://localhost:4321/devlab/courses/cstrc-jp-dw/ no nome do curso cstrc-jp-dw deveria ser o prefixo do curso primeiro dw-cstrc-jp
 - [ ] page: gerar um book.pdf por guia ou curso
 - [ ] page: ts e js centralizado
 - [ ] page: comparativo entre typescript e javascript

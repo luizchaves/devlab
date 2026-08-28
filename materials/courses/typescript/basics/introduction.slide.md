@@ -3,8 +3,21 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: "TypeScript: Introdução"

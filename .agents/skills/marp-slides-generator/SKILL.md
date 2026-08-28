@@ -23,10 +23,10 @@ O caminho **espelha** o da aula, e o build gera a URL pública:
 
 | Arquivo | Resultado |
 | ------- | --------- |
-| `src/content/docs/courses/cstrc-jp-dw/javascript/arrays.mdx` | aula |
-| `slides/courses/cstrc-jp-dw/javascript/arrays.md`            | fonte do deck |
-| `public/slides/courses/cstrc-jp-dw/javascript/arrays/index.html` | HTML gerado |
-| `/slides/courses/cstrc-jp-dw/javascript/arrays/`             | URL linkada na aula |
+| `src/content/docs/courses/ecmascript/data/arrays.mdx` | aula |
+| `slides/courses/ecmascript/data/arrays.md`            | fonte do deck |
+| `public/slides/courses/ecmascript/data/arrays/index.html` | HTML gerado |
+| `/slides/courses/ecmascript/data/arrays/`             | URL linkada na aula |
 
 `public/slides/` é gitignorado: **versione apenas o `.md`**.
 

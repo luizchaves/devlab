@@ -39,6 +39,31 @@ const courses = {
     shortTitle: 'ECMAScript',
     href: '/courses/ecmascript/',
   },
+  'web-api': {
+    title: 'Guia de Web APIs',
+    shortTitle: 'Web APIs',
+    href: '/courses/web-api/',
+  },
+  nodejs: {
+    title: 'Guia de Node.js',
+    shortTitle: 'Node.js',
+    href: '/courses/nodejs/',
+  },
+  express: {
+    title: 'Guia de Express.js',
+    shortTitle: 'Express.js',
+    href: '/courses/express/',
+  },
+  database: {
+    title: 'Guia de Banco de Dados',
+    shortTitle: 'Banco de Dados',
+    href: '/courses/database/',
+  },
+  packages: {
+    title: 'Guia de Pacotes',
+    shortTitle: 'Pacotes',
+    href: '/courses/packages/',
+  },
 } as const;
 
 export type CourseId = keyof typeof courses;

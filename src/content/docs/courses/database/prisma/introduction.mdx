@@ -1,0 +1,192 @@
+---
+title: "Banco de Dados: Prisma"
+description: Modelagem declarativa e acesso a dados com o Prisma ORM.
+course: database
+project: express-prisma
+sidebar:
+  label: "Prisma"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+O Prisma é um ORM: você descreve o modelo de dados em um arquivo, ele gera um cliente
+JavaScript com autocomplete e traduz suas chamadas para o [SQL](../../sql/fundamentals/) que estudamos.
+
+## Objetivo
+
+Substituir o model em memória do projeto MVC por um banco SQLite de verdade, sem
+mudar routers nem a estrutura da aplicação.
+
+## Instalação
+
+<Steps>
+
+1. Instale o CLI como dependência de desenvolvimento:
+
+   <PackageManagerTabs package="prisma" dev />
+
+2. Instale o cliente:
+
+   <PackageManagerTabs package="@prisma/client" />
+
+3. Inicialize o projeto Prisma:
+
+   <PackageManagerTabs exec="prisma init --datasource-provider sqlite" />
+
+</Steps>
+
+## Estrutura
+
+<FileTree>
+{`
+  express-prisma/
+  ├── .env.example                   DATABASE_URL
+  ├── package.json
+  ├── prisma/
+  │   ├── schema.prisma              o modelo de dados
+  │   └── seed.js                    dados iniciais
+  └── src/
+      ├── app.js
+      ├── server.js
+      ├── lib/
+      │   └── prisma.js              instância única do client
+      ├── controllers/
+      │   └── user-controller.js
+      ├── middlewares/
+      │   └── error-handler.js
+      └── routes/
+          └── user-router.js
+`}
+</FileTree>
+
+## O schema
+
+<SourceCode
+  path="examples/express/projects/prisma/prisma/schema.prisma"
+  title="prisma/schema.prisma"
+  showLineNumbers
+  mark={[15, "23-24"]}
+/>
+
+Compare com o `CREATE TABLE` da aula anterior: é a mesma modelagem, declarada de
+forma mais curta.
+
+| Atributo               | Equivalente em SQL                |
+| ---------------------- | --------------------------------- |
+| `@id`                  | `PRIMARY KEY`                     |
+| `@default(autoincrement())` | `AUTOINCREMENT`              |
+| `@unique`              | `UNIQUE`                          |
+| `String?`              | coluna que aceita `NULL`          |
+| `@relation(...)`       | `FOREIGN KEY`                     |
+| `onDelete: Cascade`    | `ON DELETE CASCADE`               |
+
+## Configurando a conexão
+
+```ini title=".env" {1}
+DATABASE_URL="file:./dev.db"
+PORT=3000
+```
+
+<Aside type="caution" title="`.env` nunca vai para o Git">
+  Versione apenas o `.env.example`. O arquivo real guarda credenciais e é ignorado
+  pelo `.gitignore`.
+</Aside>
+
+<Aside type="note" title="Versão do Prisma">
+  O projeto usa **Prisma 6**. A partir do Prisma 7 a configuração mudou: a `url` sai
+  do `schema.prisma` e vai para um `prisma.config.ts`, e o `PrismaClient` passa a
+  exigir um *driver adapter*. Se você seguir a documentação mais recente do Prisma,
+  vai encontrar essa outra forma — o modelo de dados e as consultas permanecem os
+  mesmos.
+</Aside>
+
+## Criando o banco
+
+<Steps>
+
+1. Aplique o schema ao banco (cria as tabelas):
+
+   <PackageManagerTabs run="db:push" />
+
+2. Popule com dados iniciais:
+
+   <PackageManagerTabs run="db:seed" />
+
+3. Inspecione visualmente, se quiser:
+
+   <PackageManagerTabs run="db:studio" />
+
+</Steps>
+
+`prisma db push` é ideal em sala de aula porque é rápido e idempotente. Em projetos
+reais use `prisma migrate dev`, que gera um histórico versionado de alterações.
+
+## Uma instância do client
+
+<SourceCode path="examples/express/projects/prisma/src/lib/prisma.js" title="src/lib/prisma.js" showLineNumbers />
+
+<Aside type="danger" title="Nunca crie um client por requisição">
+  Cada `new PrismaClient()` abre seu próprio pool de conexões. Instanciar dentro de um
+  controller esgota o banco em poucos minutos de uso.
+</Aside>
+
+## Consultas
+
+```js title="consultas.js" showLineNumbers
+// SELECT * FROM User
+const todos = await prisma.user.findMany();
+
+// SELECT * FROM User WHERE id = 1
+const um = await prisma.user.findUnique({ where: { id: 1 } });
+
+// INSERT INTO User (name, email) VALUES (...)
+const novo = await prisma.user.create({
+  data: { name: 'Ana', email: 'ana@example.com' },
+});
+
+// UPDATE User SET name = 'Ana Silva' WHERE id = 1
+const alterado = await prisma.user.update({
+  where: { id: 1 },
+  data: { name: 'Ana Silva' },
+});
+
+// DELETE FROM User WHERE id = 1
+await prisma.user.delete({ where: { id: 1 } });
+```
+
+## Filtros, ordenação e relações
+
+```js title="avancado.js" showLineNumbers {2,7,12}
+const filtrados = await prisma.user.findMany({
+  where: { name: { startsWith: 'A' } },
+  orderBy: { name: 'asc' },
+  take: 10,
+  skip: 20,
+});
+
+// Equivalente a um JOIN: traz o usuário com seus posts
+const comPosts = await prisma.user.findUnique({
+  where: { id: 1 },
+  include: { posts: true },
+});
+
+// Seleciona apenas algumas colunas
+const nomes = await prisma.user.findMany({ select: { id: true, name: true } });
+```
+
+## Seed
+
+<SourceCode path="examples/express/projects/prisma/prisma/seed.js" title="prisma/seed.js" showLineNumbers collapse="16-21" />
+
+## Exercício
+
+Adicione ao schema um model `Category` e relacione-o a `Post` (uma categoria tem
+vários posts). Rode `prisma db push`, atualize o seed e escreva uma consulta que liste
+os posts publicados com o nome do autor e o da categoria.
+
+## Próxima aula
+
+[CRUD](../crud/) — ligando o Prisma aos controllers.
