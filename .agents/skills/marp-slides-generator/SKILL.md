@@ -9,7 +9,7 @@ description: >-
 # DevLab — Gerador de Slides Marp
 
 Guia para escrever decks Marp seguindo o padrão **real** dos 15 decks já existentes em
-`slides/courses/cstrc-jp-dw/`.
+`slides/courses/dw-cstrc-jp/`.
 
 ---
 

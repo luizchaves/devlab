@@ -11,7 +11,7 @@ Uso típico (ver SKILL.md para o guia visual completo):
                "executa no navegador", AMBER)
     b.add_callout("frame_1", "s1_idea", "Dica do Professor", "• Regra de ouro da aula.")
     b.add_flow("frame_1", "s1_flow", "Origem  ➔  Padrão  ➔  Runtimes")
-    b.save("excalidraw/courses/cstrc-jp-dw/javascript/ecmascript.excalidraw")
+    b.save("excalidraw/courses/dw-cstrc-jp/javascript/ecmascript.excalidraw")
 
 Todas as coordenadas passadas aos helpers são **relativas ao frame**; o builder soma a
 origem do frame antes de gravar (o Excalidraw guarda coordenadas absolutas de canvas).

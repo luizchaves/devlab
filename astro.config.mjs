@@ -31,187 +31,187 @@ export default defineConfig({
    * preservam links de slides, mapas mentais, exercícios e material externo.
    */
   redirects: {
-    '/courses/cstrc-jp-dw/html': withBase('/courses/html/basics/syntax-structure/'),
-    '/courses/cstrc-jp-dw/html/web-importance': withBase('/courses/html/basics/web-importance/'),
-    '/courses/cstrc-jp-dw/html/markup-languages': withBase(
+    '/courses/dw-cstrc-jp/html': withBase('/courses/html/basics/syntax-structure/'),
+    '/courses/dw-cstrc-jp/html/web-importance': withBase('/courses/html/basics/web-importance/'),
+    '/courses/dw-cstrc-jp/html/markup-languages': withBase(
       '/courses/html/basics/markup-languages/'
     ),
-    '/courses/cstrc-jp-dw/html/forms': withBase('/courses/html/forms/elements-controls/'),
-    '/courses/cstrc-jp-dw/css': withBase('/courses/css/basics/syntax-cascade/'),
-    '/courses/cstrc-jp-dw/css/box-model': withBase('/courses/css/layout/box-model/'),
-    '/courses/cstrc-jp-dw/css/forms': withBase('/courses/css/forms/styling/'),
-    '/courses/cstrc-jp-dw/javascript': withBase('/courses/ecmascript/'),
-    '/courses/cstrc-jp-dw/javascript/ecmascript': withBase(
+    '/courses/dw-cstrc-jp/html/forms': withBase('/courses/html/forms/elements-controls/'),
+    '/courses/dw-cstrc-jp/css': withBase('/courses/css/basics/syntax-cascade/'),
+    '/courses/dw-cstrc-jp/css/box-model': withBase('/courses/css/layout/box-model/'),
+    '/courses/dw-cstrc-jp/css/forms': withBase('/courses/css/forms/styling/'),
+    '/courses/dw-cstrc-jp/javascript': withBase('/courses/ecmascript/'),
+    '/courses/dw-cstrc-jp/javascript/ecmascript': withBase(
       '/courses/ecmascript/basics/introduction/'
     ),
-    '/courses/cstrc-jp-dw/javascript/variables': withBase('/courses/ecmascript/basics/variables/'),
-    '/courses/cstrc-jp-dw/javascript/expressions-operators': withBase(
+    '/courses/dw-cstrc-jp/javascript/variables': withBase('/courses/ecmascript/basics/variables/'),
+    '/courses/dw-cstrc-jp/javascript/expressions-operators': withBase(
       '/courses/ecmascript/basics/operators/'
     ),
-    '/courses/cstrc-jp-dw/javascript/control-flow': withBase(
+    '/courses/dw-cstrc-jp/javascript/control-flow': withBase(
       '/courses/ecmascript/basics/control-flow/'
     ),
-    '/courses/cstrc-jp-dw/javascript/functions': withBase(
+    '/courses/dw-cstrc-jp/javascript/functions': withBase(
       '/courses/ecmascript/structure/functions/'
     ),
-    '/courses/cstrc-jp-dw/javascript/modules': withBase('/courses/ecmascript/structure/modules/'),
-    '/courses/cstrc-jp-dw/javascript/arrays': withBase('/courses/ecmascript/data/arrays/'),
-    '/courses/cstrc-jp-dw/javascript/strings': withBase('/courses/ecmascript/data/strings/'),
-    '/courses/cstrc-jp-dw/javascript/number-math': withBase('/courses/ecmascript/data/numbers/'),
-    '/courses/cstrc-jp-dw/javascript/date': withBase('/courses/ecmascript/stdlib/date/'),
-    '/courses/cstrc-jp-dw/javascript/regexp': withBase('/courses/ecmascript/stdlib/regex/'),
-    '/courses/cstrc-jp-dw/javascript/map-set': withBase('/courses/ecmascript/data/collections/'),
-    '/courses/cstrc-jp-dw/javascript/objects': withBase('/courses/ecmascript/data/objects/'),
-    '/courses/cstrc-jp-dw/javascript/promises': withBase('/courses/ecmascript/async/promises/'),
-    '/courses/cstrc-jp-dw/javascript/async-await': withBase(
+    '/courses/dw-cstrc-jp/javascript/modules': withBase('/courses/ecmascript/structure/modules/'),
+    '/courses/dw-cstrc-jp/javascript/arrays': withBase('/courses/ecmascript/data/arrays/'),
+    '/courses/dw-cstrc-jp/javascript/strings': withBase('/courses/ecmascript/data/strings/'),
+    '/courses/dw-cstrc-jp/javascript/number-math': withBase('/courses/ecmascript/data/numbers/'),
+    '/courses/dw-cstrc-jp/javascript/date': withBase('/courses/ecmascript/stdlib/date/'),
+    '/courses/dw-cstrc-jp/javascript/regexp': withBase('/courses/ecmascript/stdlib/regex/'),
+    '/courses/dw-cstrc-jp/javascript/map-set': withBase('/courses/ecmascript/data/collections/'),
+    '/courses/dw-cstrc-jp/javascript/objects': withBase('/courses/ecmascript/data/objects/'),
+    '/courses/dw-cstrc-jp/javascript/promises': withBase('/courses/ecmascript/async/promises/'),
+    '/courses/dw-cstrc-jp/javascript/async-await': withBase(
       '/courses/ecmascript/async/async-await/'
     ),
-    '/courses/cstrc-jp-dw/javascript/error-handling': withBase(
+    '/courses/dw-cstrc-jp/javascript/error-handling': withBase(
       '/courses/ecmascript/structure/errors/'
     ),
-    '/courses/cstrc-jp-dw/javascript/fetch-api': withBase('/courses/web-api/http/fetch/'),
-    '/courses/cstrc-jp-dw/extra/cheat-sheet': withBase(
+    '/courses/dw-cstrc-jp/javascript/fetch-api': withBase('/courses/web-api/http/fetch/'),
+    '/courses/dw-cstrc-jp/extra/cheat-sheet': withBase(
       '/courses/ecmascript/reference/cheat-sheet/'
     ),
-    '/courses/cstrc-jp-dw/extra/ecmascript-versions': withBase(
+    '/courses/dw-cstrc-jp/extra/ecmascript-versions': withBase(
       '/courses/ecmascript/evolution/tc39/'
     ),
-    '/courses/cstrc-jp-dw/browser': withBase('/courses/web-api/'),
-    '/courses/cstrc-jp-dw/browser/browser-objects': withBase('/courses/web-api/browser/objects/'),
-    '/courses/cstrc-jp-dw/browser/dom-api': withBase('/courses/web-api/dom/manipulation/'),
-    '/courses/cstrc-jp-dw/browser/events': withBase('/courses/web-api/dom/events/'),
-    '/courses/cstrc-jp-dw/browser/dynamic-elements': withBase(
+    '/courses/dw-cstrc-jp/browser': withBase('/courses/web-api/'),
+    '/courses/dw-cstrc-jp/browser/browser-objects': withBase('/courses/web-api/browser/objects/'),
+    '/courses/dw-cstrc-jp/browser/dom-api': withBase('/courses/web-api/dom/manipulation/'),
+    '/courses/dw-cstrc-jp/browser/events': withBase('/courses/web-api/dom/events/'),
+    '/courses/dw-cstrc-jp/browser/dynamic-elements': withBase(
       '/courses/web-api/dom/dynamic-elements/'
     ),
-    '/courses/cstrc-jp-dw/browser/local-storage': withBase(
+    '/courses/dw-cstrc-jp/browser/local-storage': withBase(
       '/courses/web-api/storage/local-storage/'
     ),
-    '/courses/cstrc-jp-dw/node': withBase('/courses/nodejs/basics/introduction/'),
-    '/courses/cstrc-jp-dw/node/modules': withBase('/courses/nodejs/basics/modules/'),
-    '/courses/cstrc-jp-dw/node/npm': withBase('/courses/nodejs/tools/npm/'),
-    '/courses/cstrc-jp-dw/node/http': withBase('/courses/nodejs/http/server/'),
-    '/courses/cstrc-jp-dw/express': withBase('/courses/express/basics/introduction/'),
-    '/courses/cstrc-jp-dw/express/routes': withBase('/courses/express/basics/routes/'),
-    '/courses/cstrc-jp-dw/express/controllers': withBase('/courses/express/basics/controllers/'),
-    '/courses/cstrc-jp-dw/express/middleware': withBase('/courses/express/basics/middleware/'),
-    '/courses/cstrc-jp-dw/express/rest-api': withBase('/courses/express/api/rest/'),
-    '/courses/cstrc-jp-dw/express/api-construction': withBase('/courses/express/api/construction/'),
-    '/courses/cstrc-jp-dw/express/mvc': withBase('/courses/express/architecture/mvc/'),
-    '/courses/cstrc-jp-dw/express/system-call': withBase('/courses/express/advanced/system-call/'),
-    '/courses/cstrc-jp-dw/express/user-registration': withBase(
+    '/courses/dw-cstrc-jp/node': withBase('/courses/nodejs/basics/introduction/'),
+    '/courses/dw-cstrc-jp/node/modules': withBase('/courses/nodejs/basics/modules/'),
+    '/courses/dw-cstrc-jp/node/npm': withBase('/courses/nodejs/tools/npm/'),
+    '/courses/dw-cstrc-jp/node/http': withBase('/courses/nodejs/http/server/'),
+    '/courses/dw-cstrc-jp/express': withBase('/courses/express/basics/introduction/'),
+    '/courses/dw-cstrc-jp/express/routes': withBase('/courses/express/basics/routes/'),
+    '/courses/dw-cstrc-jp/express/controllers': withBase('/courses/express/basics/controllers/'),
+    '/courses/dw-cstrc-jp/express/middleware': withBase('/courses/express/basics/middleware/'),
+    '/courses/dw-cstrc-jp/express/rest-api': withBase('/courses/express/api/rest/'),
+    '/courses/dw-cstrc-jp/express/api-construction': withBase('/courses/express/api/construction/'),
+    '/courses/dw-cstrc-jp/express/mvc': withBase('/courses/express/architecture/mvc/'),
+    '/courses/dw-cstrc-jp/express/system-call': withBase('/courses/express/advanced/system-call/'),
+    '/courses/dw-cstrc-jp/express/user-registration': withBase(
       '/courses/express/auth/user-registration/'
     ),
-    '/courses/cstrc-jp-dw/express/authentication': withBase(
+    '/courses/dw-cstrc-jp/express/authentication': withBase(
       '/courses/express/auth/authentication/'
     ),
-    '/courses/cstrc-jp-dw/database/dbms': withBase('/courses/database/basics/dbms/'),
-    '/courses/cstrc-jp-dw/database/sql': withBase('/courses/database/sql/fundamentals/'),
-    '/courses/cstrc-jp-dw/database/sql-node': withBase('/courses/database/sql/node-sqlite/'),
-    '/courses/cstrc-jp-dw/database/prisma': withBase('/courses/database/prisma/introduction/'),
-    '/courses/cstrc-jp-dw/database/crud': withBase('/courses/database/prisma/crud/'),
-    '/courses/cstrc-jp-dw/database/prisma-relations': withBase(
+    '/courses/dw-cstrc-jp/database/dbms': withBase('/courses/database/basics/dbms/'),
+    '/courses/dw-cstrc-jp/database/sql': withBase('/courses/database/sql/fundamentals/'),
+    '/courses/dw-cstrc-jp/database/sql-node': withBase('/courses/database/sql/node-sqlite/'),
+    '/courses/dw-cstrc-jp/database/prisma': withBase('/courses/database/prisma/introduction/'),
+    '/courses/dw-cstrc-jp/database/crud': withBase('/courses/database/prisma/crud/'),
+    '/courses/dw-cstrc-jp/database/prisma-relations': withBase(
       '/courses/database/prisma/relations/'
     ),
-    '/courses/cstrc-jp-dw/packages': withBase('/courses/packages/'),
-    '/courses/cstrc-jp-dw/packages/vite': withBase('/courses/packages/build/vite/'),
-    '/courses/cstrc-jp-dw/packages/json-server': withBase('/courses/packages/mock/json-server/'),
-    '/courses/cstrc-jp-dw/packages/chartjs': withBase('/courses/packages/ui/chartjs/'),
-    '/courses/cstrc-jp-dw/packages/axios': withBase('/courses/web-api/http/axios/'),
-    '/courses/cstrc-jp-dw/packages/bootstrap': withBase('/courses/css/frameworks/bootstrap/'),
-    '/courses/cstrc-jp-dw/packages/tailwind-css': withBase('/courses/css/frameworks/tailwind/'),
-    '/courses/cstrc-jp-dw/projects/hello-express': withBase(
+    '/courses/dw-cstrc-jp/packages': withBase('/courses/packages/'),
+    '/courses/dw-cstrc-jp/packages/vite': withBase('/courses/packages/build/vite/'),
+    '/courses/dw-cstrc-jp/packages/json-server': withBase('/courses/packages/mock/json-server/'),
+    '/courses/dw-cstrc-jp/packages/chartjs': withBase('/courses/packages/ui/chartjs/'),
+    '/courses/dw-cstrc-jp/packages/axios': withBase('/courses/web-api/http/axios/'),
+    '/courses/dw-cstrc-jp/packages/bootstrap': withBase('/courses/css/frameworks/bootstrap/'),
+    '/courses/dw-cstrc-jp/packages/tailwind-css': withBase('/courses/css/frameworks/tailwind/'),
+    '/courses/dw-cstrc-jp/projects/hello-express': withBase(
       '/courses/express/practice/hello-express/'
     ),
-    '/courses/cstrc-jp-dw/projects/express-router': withBase(
+    '/courses/dw-cstrc-jp/projects/express-router': withBase(
       '/courses/express/practice/express-router/'
     ),
-    '/courses/cstrc-jp-dw/projects/express-mvc': withBase('/courses/express/practice/express-mvc/'),
-    '/courses/cstrc-jp-dw/projects/express-prisma': withBase(
+    '/courses/dw-cstrc-jp/projects/express-mvc': withBase('/courses/express/practice/express-mvc/'),
+    '/courses/dw-cstrc-jp/projects/express-prisma': withBase(
       '/courses/express/practice/express-prisma/'
     ),
-    '/courses/csbes-jp-pw2/ecma': withBase('/courses/ecmascript/'),
-    '/courses/csbes-jp-pw2/ecma/introduction': withBase('/courses/ecmascript/basics/introduction/'),
-    '/courses/csbes-jp-pw2/ecma/variable': withBase('/courses/ecmascript/basics/variables/'),
-    '/courses/csbes-jp-pw2/ecma/expression-and-operator': withBase(
+    '/courses/pw2-csbes-jp/ecma': withBase('/courses/ecmascript/'),
+    '/courses/pw2-csbes-jp/ecma/introduction': withBase('/courses/ecmascript/basics/introduction/'),
+    '/courses/pw2-csbes-jp/ecma/variable': withBase('/courses/ecmascript/basics/variables/'),
+    '/courses/pw2-csbes-jp/ecma/expression-and-operator': withBase(
       '/courses/ecmascript/basics/operators/'
     ),
-    '/courses/csbes-jp-pw2/ecma/statements': withBase('/courses/ecmascript/basics/control-flow/'),
-    '/courses/csbes-jp-pw2/ecma/function': withBase('/courses/ecmascript/structure/functions/'),
-    '/courses/csbes-jp-pw2/ecma/modules': withBase('/courses/ecmascript/structure/modules/'),
-    '/courses/csbes-jp-pw2/ecma/array': withBase('/courses/ecmascript/data/arrays/'),
-    '/courses/csbes-jp-pw2/ecma/string': withBase('/courses/ecmascript/data/strings/'),
-    '/courses/csbes-jp-pw2/ecma/number-math': withBase('/courses/ecmascript/data/numbers/'),
-    '/courses/csbes-jp-pw2/ecma/date': withBase('/courses/ecmascript/stdlib/date/'),
-    '/courses/csbes-jp-pw2/ecma/regexp': withBase('/courses/ecmascript/stdlib/regex/'),
-    '/courses/csbes-jp-pw2/ecma/map-set': withBase('/courses/ecmascript/data/collections/'),
-    '/courses/csbes-jp-pw2/ecma/object': withBase('/courses/ecmascript/data/objects/'),
-    '/courses/csbes-jp-pw2/ecma/promise': withBase('/courses/ecmascript/async/promises/'),
-    '/courses/csbes-jp-pw2/ecma/error-handling': withBase('/courses/ecmascript/structure/errors/'),
-    '/courses/csbes-jp-pw2/extra/cheat-sheet': withBase(
+    '/courses/pw2-csbes-jp/ecma/statements': withBase('/courses/ecmascript/basics/control-flow/'),
+    '/courses/pw2-csbes-jp/ecma/function': withBase('/courses/ecmascript/structure/functions/'),
+    '/courses/pw2-csbes-jp/ecma/modules': withBase('/courses/ecmascript/structure/modules/'),
+    '/courses/pw2-csbes-jp/ecma/array': withBase('/courses/ecmascript/data/arrays/'),
+    '/courses/pw2-csbes-jp/ecma/string': withBase('/courses/ecmascript/data/strings/'),
+    '/courses/pw2-csbes-jp/ecma/number-math': withBase('/courses/ecmascript/data/numbers/'),
+    '/courses/pw2-csbes-jp/ecma/date': withBase('/courses/ecmascript/stdlib/date/'),
+    '/courses/pw2-csbes-jp/ecma/regexp': withBase('/courses/ecmascript/stdlib/regex/'),
+    '/courses/pw2-csbes-jp/ecma/map-set': withBase('/courses/ecmascript/data/collections/'),
+    '/courses/pw2-csbes-jp/ecma/object': withBase('/courses/ecmascript/data/objects/'),
+    '/courses/pw2-csbes-jp/ecma/promise': withBase('/courses/ecmascript/async/promises/'),
+    '/courses/pw2-csbes-jp/ecma/error-handling': withBase('/courses/ecmascript/structure/errors/'),
+    '/courses/pw2-csbes-jp/extra/cheat-sheet': withBase(
       '/courses/ecmascript/reference/cheat-sheet/'
     ),
-    '/courses/csbes-jp-pw2/extra/ecmascript-versions': withBase(
+    '/courses/pw2-csbes-jp/extra/ecmascript-versions': withBase(
       '/courses/ecmascript/evolution/tc39/'
     ),
-    '/courses/csbes-jp-pw2/w3c/browser-objects': withBase('/courses/web-api/browser/objects/'),
-    '/courses/csbes-jp-pw2/w3c/dom-api': withBase('/courses/web-api/dom/manipulation/'),
-    '/courses/csbes-jp-pw2/w3c/dynamic-elements': withBase(
+    '/courses/pw2-csbes-jp/w3c/browser-objects': withBase('/courses/web-api/browser/objects/'),
+    '/courses/pw2-csbes-jp/w3c/dom-api': withBase('/courses/web-api/dom/manipulation/'),
+    '/courses/pw2-csbes-jp/w3c/dynamic-elements': withBase(
       '/courses/web-api/dom/dynamic-elements/'
     ),
-    '/courses/csbes-jp-pw2/w3c/event-handling': withBase('/courses/web-api/dom/events/'),
-    '/courses/csbes-jp-pw2/w3c/local-storage': withBase('/courses/web-api/storage/local-storage/'),
-    '/courses/csbes-jp-pw2/w3c/fetch-api': withBase('/courses/web-api/http/fetch/'),
-    '/courses/csbes-jp-pw2/api/rest': withBase('/courses/web-api/http/rest/'),
-    '/courses/csbes-jp-pw2/api/graphql': withBase('/courses/web-api/http/graphql/'),
-    '/courses/csbes-jp-pw2/package/axios': withBase('/courses/web-api/http/axios/'),
-    '/courses/csbes-jp-pw2/package/http-client': withBase('/courses/web-api/http/clients/'),
-    '/courses/csbes-jp-pw2/package/vite': withBase('/courses/packages/build/vite/'),
-    '/courses/csbes-jp-pw2/package/json-server': withBase('/courses/packages/mock/json-server/'),
-    '/courses/csbes-jp-pw2/package/supabase-api': withBase('/courses/packages/baas/supabase-api/'),
-    '/courses/csbes-jp-pw2/package/supabase-client': withBase(
+    '/courses/pw2-csbes-jp/w3c/event-handling': withBase('/courses/web-api/dom/events/'),
+    '/courses/pw2-csbes-jp/w3c/local-storage': withBase('/courses/web-api/storage/local-storage/'),
+    '/courses/pw2-csbes-jp/w3c/fetch-api': withBase('/courses/web-api/http/fetch/'),
+    '/courses/pw2-csbes-jp/api/rest': withBase('/courses/web-api/http/rest/'),
+    '/courses/pw2-csbes-jp/api/graphql': withBase('/courses/web-api/http/graphql/'),
+    '/courses/pw2-csbes-jp/package/axios': withBase('/courses/web-api/http/axios/'),
+    '/courses/pw2-csbes-jp/package/http-client': withBase('/courses/web-api/http/clients/'),
+    '/courses/pw2-csbes-jp/package/vite': withBase('/courses/packages/build/vite/'),
+    '/courses/pw2-csbes-jp/package/json-server': withBase('/courses/packages/mock/json-server/'),
+    '/courses/pw2-csbes-jp/package/supabase-api': withBase('/courses/packages/baas/supabase-api/'),
+    '/courses/pw2-csbes-jp/package/supabase-client': withBase(
       '/courses/packages/baas/supabase-client/'
     ),
-    '/courses/csbes-jp-pw2/package/supabase-auth': withBase(
+    '/courses/pw2-csbes-jp/package/supabase-auth': withBase(
       '/courses/packages/baas/supabase-auth/'
     ),
-    '/courses/csbes-jp-pw2/package/firebase-firestore': withBase(
+    '/courses/pw2-csbes-jp/package/firebase-firestore': withBase(
       '/courses/packages/baas/firebase-firestore/'
     ),
-    '/courses/csbes-jp-pw2/package/firebase-auth': withBase(
+    '/courses/pw2-csbes-jp/package/firebase-auth': withBase(
       '/courses/packages/baas/firebase-auth/'
     ),
-    '/courses/csbes-jp-pw2/react/introduction': withBase('/courses/react/basics/introduction/'),
-    '/courses/csbes-jp-pw2/react/style': withBase('/courses/react/basics/style/'),
-    '/courses/csbes-jp-pw2/react/hooks': withBase('/courses/react/state/hooks/'),
-    '/courses/csbes-jp-pw2/react/supabase-auth': withBase('/courses/react/auth/supabase/'),
-    '/courses/csbes-jp-pw2/react/firebase-auth': withBase('/courses/react/auth/firebase/'),
-    '/courses/ctii-jp-lp2/javascript/introduction': withBase(
+    '/courses/pw2-csbes-jp/react/introduction': withBase('/courses/react/basics/introduction/'),
+    '/courses/pw2-csbes-jp/react/style': withBase('/courses/react/basics/style/'),
+    '/courses/pw2-csbes-jp/react/hooks': withBase('/courses/react/state/hooks/'),
+    '/courses/pw2-csbes-jp/react/supabase-auth': withBase('/courses/react/auth/supabase/'),
+    '/courses/pw2-csbes-jp/react/firebase-auth': withBase('/courses/react/auth/firebase/'),
+    '/courses/lp2-ctii-jp/javascript/introduction': withBase(
       '/courses/ecmascript/basics/introduction/'
     ),
-    '/courses/ctii-jp-lp2/javascript/frontend': withBase('/courses/web-api/dom/dynamic-elements/'),
-    '/courses/ctii-jp-lp2/nodejs/http': withBase('/courses/nodejs/http/server/'),
-    '/courses/ctii-jp-lp2/expressjs/introduction': withBase(
+    '/courses/lp2-ctii-jp/javascript/frontend': withBase('/courses/web-api/dom/dynamic-elements/'),
+    '/courses/lp2-ctii-jp/nodejs/http': withBase('/courses/nodejs/http/server/'),
+    '/courses/lp2-ctii-jp/expressjs/introduction': withBase(
       '/courses/express/basics/introduction/'
     ),
-    '/courses/ctii-jp-lp2/expressjs/api': withBase('/courses/express/api/construction/'),
-    '/courses/ctii-jp-lp2/expressjs/mvc': withBase('/courses/express/architecture/mvc/'),
-    '/courses/ctii-jp-lp2/expressjs/db-simple': withBase('/courses/database/sql/node-sqlite/'),
-    '/courses/ctii-jp-lp2/expressjs/prismajs-simple': withBase(
+    '/courses/lp2-ctii-jp/expressjs/api': withBase('/courses/express/api/construction/'),
+    '/courses/lp2-ctii-jp/expressjs/mvc': withBase('/courses/express/architecture/mvc/'),
+    '/courses/lp2-ctii-jp/expressjs/db-simple': withBase('/courses/database/sql/node-sqlite/'),
+    '/courses/lp2-ctii-jp/expressjs/prismajs-simple': withBase(
       '/courses/database/prisma/introduction/'
     ),
-    '/courses/ctii-jp-lp2/expressjs/prismajs-relation': withBase(
+    '/courses/lp2-ctii-jp/expressjs/prismajs-relation': withBase(
       '/courses/database/prisma/relations/'
     ),
-    '/courses/ctii-jp-lp2/expressjs/prismajs-user': withBase(
+    '/courses/lp2-ctii-jp/expressjs/prismajs-user': withBase(
       '/courses/express/auth/user-registration/'
     ),
-    '/courses/ctii-jp-lp2/expressjs/auth': withBase('/courses/express/auth/authentication/'),
-    '/courses/ctii-jp-lp2/expressjs/validation': withBase('/courses/express/advanced/validation/'),
-    '/courses/ctii-jp-lp2/expressjs/email': withBase('/courses/express/advanced/email/'),
-    '/courses/ctii-jp-lp2/expressjs/upload-file': withBase(
+    '/courses/lp2-ctii-jp/expressjs/auth': withBase('/courses/express/auth/authentication/'),
+    '/courses/lp2-ctii-jp/expressjs/validation': withBase('/courses/express/advanced/validation/'),
+    '/courses/lp2-ctii-jp/expressjs/email': withBase('/courses/express/advanced/email/'),
+    '/courses/lp2-ctii-jp/expressjs/upload-file': withBase(
       '/courses/express/advanced/upload-file/'
     ),
-    '/courses/ctii-jp-lp2/expressjs/test': withBase('/courses/express/advanced/testing/'),
+    '/courses/lp2-ctii-jp/expressjs/test': withBase('/courses/express/advanced/testing/'),
   },
   integrations: [
     starlight({
@@ -243,30 +243,30 @@ export default defineConfig({
         {
           label: 'Desenvolvimento Web',
           items: [
-            { label: 'Visão geral', link: '/courses/cstrc-jp-dw/' },
+            { label: 'Visão geral', link: '/courses/dw-cstrc-jp/' },
             {
               label: 'Avaliações',
               collapsed: true,
               items: [
-                { label: 'Projeto', link: '/courses/cstrc-jp-dw/project/' },
-                { label: 'Exercícios', link: '/courses/cstrc-jp-dw/extra/exercises/' },
-                { label: 'Quizzes', link: '/courses/cstrc-jp-dw/extra/quizzes/' },
+                { label: 'Projeto', link: '/courses/dw-cstrc-jp/project/' },
+                { label: 'Exercícios', link: '/courses/dw-cstrc-jp/extra/exercises/' },
+                { label: 'Quizzes', link: '/courses/dw-cstrc-jp/extra/quizzes/' },
               ],
             },
-            { label: 'Web e HTML', link: '/courses/cstrc-jp-dw/topics/web-html/' },
-            { label: 'CSS', link: '/courses/cstrc-jp-dw/topics/css/' },
-            { label: 'JavaScript', link: '/courses/cstrc-jp-dw/topics/javascript/' },
-            { label: 'Web APIs e Pacotes', link: '/courses/cstrc-jp-dw/topics/web-apis/' },
-            { label: 'Node.js e Express.js', link: '/courses/cstrc-jp-dw/topics/node-express/' },
-            { label: 'Banco de Dados', link: '/courses/cstrc-jp-dw/topics/database/' },
+            { label: 'Web e HTML', link: '/courses/dw-cstrc-jp/topics/web-html/' },
+            { label: 'CSS', link: '/courses/dw-cstrc-jp/topics/css/' },
+            { label: 'JavaScript', link: '/courses/dw-cstrc-jp/topics/javascript/' },
+            { label: 'Web APIs e Pacotes', link: '/courses/dw-cstrc-jp/topics/web-apis/' },
+            { label: 'Node.js e Express.js', link: '/courses/dw-cstrc-jp/topics/node-express/' },
+            { label: 'Banco de Dados', link: '/courses/dw-cstrc-jp/topics/database/' },
             {
               label: 'Projetos',
               collapsed: true,
               items: [
-                { label: 'Visão geral', link: '/courses/cstrc-jp-dw/projects/' },
+                { label: 'Visão geral', link: '/courses/dw-cstrc-jp/projects/' },
                 {
                   label: 'Invest App Bootstrap',
-                  link: '/courses/cstrc-jp-dw/projects/invest-app-bootstrap/',
+                  link: '/courses/dw-cstrc-jp/projects/invest-app-bootstrap/',
                 },
               ],
             },
@@ -275,30 +275,30 @@ export default defineConfig({
         {
           label: 'Programação para Web 2',
           items: [
-            { label: 'Visão geral', link: '/courses/csbes-jp-pw2/' },
+            { label: 'Visão geral', link: '/courses/pw2-csbes-jp/' },
             {
               label: 'Avaliações',
               collapsed: true,
               items: [
-                { label: 'Projeto', link: '/courses/csbes-jp-pw2/project/' },
-                { label: 'Exercícios', link: '/courses/csbes-jp-pw2/extra/exercises/' },
-                { label: 'Quizzes', link: '/courses/csbes-jp-pw2/extra/quizzes/' },
+                { label: 'Projeto', link: '/courses/pw2-csbes-jp/project/' },
+                { label: 'Exercícios', link: '/courses/pw2-csbes-jp/extra/exercises/' },
+                { label: 'Quizzes', link: '/courses/pw2-csbes-jp/extra/quizzes/' },
               ],
             },
-            { label: 'JavaScript', link: '/courses/csbes-jp-pw2/topics/javascript/' },
-            { label: 'Web APIs', link: '/courses/csbes-jp-pw2/topics/web-apis/' },
-            { label: 'Pacotes e Serviços', link: '/courses/csbes-jp-pw2/topics/packages/' },
-            { label: 'React', link: '/courses/csbes-jp-pw2/topics/react/' },
+            { label: 'JavaScript', link: '/courses/pw2-csbes-jp/topics/javascript/' },
+            { label: 'Web APIs', link: '/courses/pw2-csbes-jp/topics/web-apis/' },
+            { label: 'Pacotes e Serviços', link: '/courses/pw2-csbes-jp/topics/packages/' },
+            { label: 'React', link: '/courses/pw2-csbes-jp/topics/react/' },
           ],
         },
         {
           label: 'Linguagem de Programação II',
           items: [
-            { label: 'Visão geral', link: '/courses/ctii-jp-lp2/' },
-            { label: 'JavaScript e Front-end', link: '/courses/ctii-jp-lp2/topics/javascript/' },
-            { label: 'Node.js e Express.js', link: '/courses/ctii-jp-lp2/topics/node-express/' },
-            { label: 'Dados e Autenticação', link: '/courses/ctii-jp-lp2/topics/data-auth/' },
-            { label: 'Recursos da Aplicação', link: '/courses/ctii-jp-lp2/topics/app-features/' },
+            { label: 'Visão geral', link: '/courses/lp2-ctii-jp/' },
+            { label: 'JavaScript e Front-end', link: '/courses/lp2-ctii-jp/topics/javascript/' },
+            { label: 'Node.js e Express.js', link: '/courses/lp2-ctii-jp/topics/node-express/' },
+            { label: 'Dados e Autenticação', link: '/courses/lp2-ctii-jp/topics/data-auth/' },
+            { label: 'Recursos da Aplicação', link: '/courses/lp2-ctii-jp/topics/app-features/' },
           ],
         },
         {

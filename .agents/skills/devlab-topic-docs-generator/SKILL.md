@@ -24,8 +24,8 @@ Guia para escrever aulas do DevLab seguindo as convenções **reais** do reposit
 src/content/docs/courses/<course-id>/<categoria>/<topico>.(md|mdx)
 ```
 
-- `course-id` existentes: `cstrc-jp-dw` (Desenvolvimento Web), `ctii-jp-lp2`, `csbes-jp-pw2`.
-- Categorias de `cstrc-jp-dw`: `html`, `css`, `javascript`, `browser`, `node`,
+- `course-id` existentes: `dw-cstrc-jp` (Desenvolvimento Web), `lp2-ctii-jp`, `pw2-csbes-jp`.
+- Categorias de `dw-cstrc-jp`: `html`, `css`, `javascript`, `browser`, `node`,
   `express`, `database`, `packages`, `projects`, `extra`.
 - Nome do arquivo em **kebab-case, inglês**, igual ao slug da URL
   (`expressions-operators.mdx`, `error-handling.mdx`).
@@ -56,7 +56,7 @@ aulas curtas de conceito podem ficar em `.md` com `:::tip[…]`.
 ---
 title: "JavaScript: Arrays"
 description: "Criação, geração de intervalos (range), manipulação, iteração, desestruturação, operador spread e principais métodos de Array em JavaScript."
-course: cstrc-jp-dw
+course: dw-cstrc-jp
 sidebar:
   label: Arrays
   order: 8
@@ -71,7 +71,7 @@ sidebar:
 - `sidebar.label`: rótulo curto para a navegação quando o `title` é longo
   (`label: "Map e Set"` para `title: "JavaScript: Map e Set"`). Usado em ~40% das páginas.
 - `sidebar.order`: só tem efeito em disciplinas cuja sidebar usa `autogenerate`;
-  `cstrc-jp-dw` tem sidebar **explícita** em `astro.config.mjs` (ver "Registro na sidebar").
+  `dw-cstrc-jp` tem sidebar **explícita** em `astro.config.mjs` (ver "Registro na sidebar").
 
 Depois do frontmatter, em `.mdx`, importe **apenas** o que for usado:
 
@@ -289,7 +289,7 @@ Antes de criar componente novo, confira se o Starlight já resolve.
 
 ## 🗂️ Registro na sidebar
 
-Página nova **não aparece sozinha** em `cstrc-jp-dw`: a sidebar é explícita em
+Página nova **não aparece sozinha** em `dw-cstrc-jp`: a sidebar é explícita em
 `astro.config.mjs`. Adicione a entrada no grupo correto, com link absoluto e barra final:
 
 ```js

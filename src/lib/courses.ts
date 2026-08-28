@@ -1,18 +1,18 @@
 const courses = {
-  'cstrc-jp-dw': {
+  'dw-cstrc-jp': {
     title: 'Desenvolvimento Web',
     shortTitle: 'DW',
-    href: '/courses/cstrc-jp-dw/',
+    href: '/courses/dw-cstrc-jp/',
   },
-  'csbes-jp-pw2': {
+  'pw2-csbes-jp': {
     title: 'Programação para Web 2',
     shortTitle: 'PW2',
-    href: '/courses/csbes-jp-pw2/',
+    href: '/courses/pw2-csbes-jp/',
   },
-  'ctii-jp-lp2': {
+  'lp2-ctii-jp': {
     title: 'Linguagem de Programação II',
     shortTitle: 'LP2',
-    href: '/courses/ctii-jp-lp2/',
+    href: '/courses/lp2-ctii-jp/',
   },
   python: {
     title: 'Guia de Python',

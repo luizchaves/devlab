@@ -1,6 +1,6 @@
-# Mapeamento: `cstrc-jp-dw` → guias específicos
+# Mapeamento: `dw-cstrc-jp` → guias específicos
 
-Levantamento de **todos os 72 arquivos** de `src/content/docs/courses/cstrc-jp-dw/`
+Levantamento de **todos os 72 arquivos** de `src/content/docs/courses/dw-cstrc-jp/`
 para os guias por tecnologia (`html/`, `css/`, `ecmascript/`, e os novos a criar).
 
 O objetivo é que os guias passem a ser a **fonte única** do conteúdo técnico —
@@ -37,13 +37,13 @@ guia estão **quebrados**: sobrou o `console.log` sem o `import` correspondente.
 | `ecmascript/async/promises.mdx` | 2 — `import { PrismaClient } from "@prisma/client"`, `import prisma from "../database.js"` |
 | `ecmascript/evolution/tc39.mdx` | 1 — `import { add } from './math.js'` |
 
-Origem correta em `cstrc-jp-dw/javascript/modules.mdx`, `date.mdx`,
+Origem correta em `dw-cstrc-jp/javascript/modules.mdx`, `date.mdx`,
 `async-await.mdx` e `extra/ecmascript-versions.mdx`.
 
 ### 1.2 — `html/forms/elements-controls.mdx` perdeu o `<style>` dos previews
 
 O guia usa `class="form-preview"` em **10 blocos**, mas o `<style>{`...`}</style>`
-que define esse CSS ficou só em `cstrc-jp-dw/html/forms.mdx` (linhas 428-451).
+que define esse CSS ficou só em `dw-cstrc-jp/html/forms.mdx` (linhas 428-451).
 Os formulários de exemplo renderizam sem borda, sem padding e sem cor.
 
 ### 1.3 — Headings de nível errado em "Perguntas de revisão"
@@ -71,11 +71,11 @@ Mesmo padrão em `ecmascript/reference/cheat-sheet.mdx`.
 
 | Guia | `course` | Diretório | Origem |
 | --- | --- | --- | --- |
-| Guia de Web APIs | `web-api` | `courses/web-api/` | `cstrc-jp-dw/browser/` + `javascript/fetch-api` + `packages/axios` |
-| Guia de Node.js | `nodejs` | `courses/nodejs/` | `cstrc-jp-dw/node/` |
-| Guia de Express.js | `express` | `courses/express/` | `cstrc-jp-dw/express/` + `projects/` |
-| Guia de Banco de Dados | `database` | `courses/database/` | `cstrc-jp-dw/database/` |
-| Guia de Pacotes e Build | `packages` | `courses/packages/` | `cstrc-jp-dw/packages/` (menos Bootstrap/Tailwind) |
+| Guia de Web APIs | `web-api` | `courses/web-api/` | `dw-cstrc-jp/browser/` + `javascript/fetch-api` + `packages/axios` |
+| Guia de Node.js | `nodejs` | `courses/nodejs/` | `dw-cstrc-jp/node/` |
+| Guia de Express.js | `express` | `courses/express/` | `dw-cstrc-jp/express/` + `projects/` |
+| Guia de Banco de Dados | `database` | `courses/database/` | `dw-cstrc-jp/database/` |
+| Guia de Pacotes e Build | `packages` | `courses/packages/` | `dw-cstrc-jp/packages/` (menos Bootstrap/Tailwind) |
 
 Cada guia novo exige, além dos `.mdx`:
 
@@ -251,10 +251,10 @@ sumário lateral. Considerar rebaixar o segundo bloco para `###` ou separar em
 | `javascript/fetch-api.md` | 90 | `web-api/http/fetch.mdx` | GET · POST JSON · PUT/DELETE · query string · teste por terminal · 2 `:::` |
 | `packages/axios.mdx` | 154 | `web-api/http/axios.mdx` | Objeto Axios · 1 `<Aside>` |
 
-Ao criar `web-api/http/fetch.mdx`, comparar com `csbes-jp-pw2/w3c/fetch-api.mdx`
+Ao criar `web-api/http/fetch.mdx`, comparar com `pw2-csbes-jp/w3c/fetch-api.mdx`
 (a versão da PW2 é independente e pode ter material extra) — o guia deve absorver
 o melhor dos dois. Mesmo cuidado para `browser-objects`, `dom-api`,
-`dynamic-elements`, `local-storage`, que têm par em `csbes-jp-pw2/w3c/`.
+`dynamic-elements`, `local-storage`, que têm par em `pw2-csbes-jp/w3c/`.
 
 Sobreposição a resolver: `ecmascript/async/promises.mdx` já tem
 `## Consumo Prático da Fetch API e Validação de response.ok`. Manter lá o
@@ -294,7 +294,7 @@ sugestão: ESM como linguagem fica no guia de ECMAScript; `require`,
 | `projects/express-mvc.mdx` | 110 | `express/practice/express-mvc.mdx` | walkthrough de `examples/express/projects/mvc` |
 | `projects/express-prisma.mdx` | 100 | `express/practice/express-prisma.mdx` | walkthrough de `examples/express/projects/prisma` |
 
-**Absorver também `ctii-jp-lp2/expressjs/`**, que tem 4 aulas que a DW não tem:
+**Absorver também `lp2-ctii-jp/expressjs/`**, que tem 4 aulas que a DW não tem:
 `validation.mdx`, `email.mdx`, `upload-file.mdx`, `test.mdx` → `express/advanced/`.
 E os pares `db-simple`, `prismajs-simple`, `prismajs-relation`, `prismajs-user`,
 `auth`, `api`, `mvc`, `introduction` são duplicatas das páginas da DW.
@@ -400,7 +400,7 @@ Quem mexe nisso precisa atualizar em conjunto:
   muda.
 - `scripts/build-public-previews.mjs` e `clean-public-previews.mjs` — conferir se
   assumem caminhos fixos.
-- `examples/html/basics/README.md` — cita `courses/cstrc-jp-dw/html`.
+- `examples/html/basics/README.md` — cita `courses/dw-cstrc-jp/html`.
 
 ### 7.1 — 14 projetos de exemplo órfãos
 
@@ -433,10 +433,10 @@ Os quatro `bmi-*` e `hello-*` são bons candidatos a exemplo de
 
 `materials/courses/**` alimenta `scripts/build-slides.mjs` e
 `build-mindmaps.mjs`, que publicam em `public/slides/courses/**` e
-`public/mindmaps/courses/**`. Hoje só existem quatro trilhas: `cstrc-jp-dw`,
+`public/mindmaps/courses/**`. Hoje só existem quatro trilhas: `dw-cstrc-jp`,
 `ecmascript`, `python`, `typescript` — **não há material para `html` nem `css`**.
 
-| `materials/courses/cstrc-jp-dw/` | Destino | Situação |
+| `materials/courses/dw-cstrc-jp/` | Destino | Situação |
 | --- | --- | --- |
 | `javascript/ecmascript.{slide,mindmap}.md` | `ecmascript/basics/introduction.*` | ✅ já existe |
 | `javascript/variables.*` | `ecmascript/basics/variables.*` | ✅ já existe (+ `basics/types.*` novo) |
@@ -453,7 +453,7 @@ Os quatro `bmi-*` e `hello-*` são bons candidatos a exemplo de
 | `html/markup-languages.*` | `html/basics/markup-languages.*` | **criar trilha `html`** |
 | `html/html.*` (monolito) | `html/basics/syntax-structure.*` + `html/elements/*` | **dividir** |
 | `css/css.*` (monolito) | `css/basics/*` + `css/layout/*` + `css/styling/*` | **dividir e criar trilha `css`** |
-| `project.*` | permanece em `cstrc-jp-dw/project.*` | ✅ é da disciplina |
+| `project.*` | permanece em `dw-cstrc-jp/project.*` | ✅ é da disciplina |
 
 Dentro da trilha `ecmascript` já existente, faltam materiais para
 `stdlib/date` e `reference/cheat-sheet` — e para todas as páginas dos 5 guias
@@ -468,7 +468,7 @@ Materiais: [slides da aula](../../../../slides/courses/<guia>/<caminho>/) e
 ```
 
 Hoje **nenhuma página de guia tem essa linha** — os 14 arquivos com materiais
-estão todos em `cstrc-jp-dw/`.
+estão todos em `dw-cstrc-jp/`.
 
 ---
 
@@ -476,16 +476,16 @@ estão todos em `cstrc-jp-dw/`.
 
 | Local | O que cita |
 | --- | --- |
-| `astro.config.mjs` | 22 links `/courses/cstrc-jp-dw/{html,css,javascript}/...` na sidebar |
-| `src/content/docs/index.mdx:102` | `[Começar →](courses/cstrc-jp-dw/html/)` |
+| `astro.config.mjs` | 22 links `/courses/dw-cstrc-jp/{html,css,javascript}/...` na sidebar |
+| `src/content/docs/index.mdx:102` | `[Começar →](courses/dw-cstrc-jp/html/)` |
 | `src/lib/projects.ts` | `docs` e `source` dos 4 projetos (`express-basic`, `express-router`, `express-mvc`, `express-prisma`) |
-| `.agents/skills/devlab-topic-docs-generator/SKILL.md` | usa `cstrc-jp-dw/javascript/arrays` como exemplo canônico |
-| `.agents/skills/marp-slides-generator/SKILL.md` | tabela de caminhos `cstrc-jp-dw/javascript/arrays` |
+| `.agents/skills/devlab-topic-docs-generator/SKILL.md` | usa `dw-cstrc-jp/javascript/arrays` como exemplo canônico |
+| `.agents/skills/marp-slides-generator/SKILL.md` | tabela de caminhos `dw-cstrc-jp/javascript/arrays` |
 | `.agents/skills/markmap-mindmap-generator/SKILL.md` | idem |
-| `.agents/skills/excalidraw-generator/SKILL.md` | `excalidraw/courses/cstrc-jp-dw/javascript/ecmascript.excalidraw` |
+| `.agents/skills/excalidraw-generator/SKILL.md` | `excalidraw/courses/dw-cstrc-jp/javascript/ecmascript.excalidraw` |
 | `exercises/courses/html/basics/syntax-structure.exercise.md` | "Página base" apontando para o `.mdx` da DW |
 | `exercises/courses/html/basics/syntax-structure.braincheck.md` | idem (antes em `braincheck/`) |
-| `examples/html/basics/README.md:22` | `courses/cstrc-jp-dw/html` |
+| `examples/html/basics/README.md:22` | `courses/dw-cstrc-jp/html` |
 | `scripts/check-links.mjs` | roda em `pnpm validate` — usar para validar a migração |
 
 ---
@@ -570,8 +570,8 @@ guia, e o tipo de material no sufixo do arquivo.
 
 | Antes | Depois |
 | --- | --- |
-| `exercises/courses/cstrc-jp-dw/html/index.md` | `exercises/courses/html/basics/syntax-structure.exercise.md` |
-| `braincheck/courses/cstrc-jp-dw/html/index.md` | `exercises/courses/html/basics/syntax-structure.braincheck.md` |
+| `exercises/courses/dw-cstrc-jp/html/index.md` | `exercises/courses/html/basics/syntax-structure.exercise.md` |
+| `braincheck/courses/dw-cstrc-jp/html/index.md` | `exercises/courses/html/basics/syntax-structure.braincheck.md` |
 
 O diretório `braincheck/` deixou de existir. A convenção fica assim:
 
@@ -613,7 +613,7 @@ página de introdução — nenhum com texto vazando.
 
 ## 14. Índice da disciplina reconstruído
 
-A página `/courses/cstrc-jp-dw/` listava só as 48 páginas que existiam antes da
+A página `/courses/dw-cstrc-jp/` listava só as 48 páginas que existiam antes da
 migração. Foi reconstruída com **76 badges**, cobrindo todas as páginas dos guias
 que fazem parte do roteiro da disciplina.
 
@@ -653,7 +653,7 @@ disciplina** — `Sidebar.astro` escolhe o grupo pelo `course:` do frontmatter, 
 barra passava a mostrar "Guia de ECMAScript".
 
 A solução foi de arquitetura de conteúdo, sem tocar em `Sidebar.astro`: seis páginas
-de tópico dentro da própria disciplina, em `cstrc-jp-dw/topics/`. Cada uma traz uma
+de tópico dentro da própria disciplina, em `dw-cstrc-jp/topics/`. Cada uma traz uma
 introdução que situa o tópico **nesta** disciplina — por que ele está ali, o que
 esperar dele, como se conecta ao projeto — seguida do índice de badges com as aulas.
 
@@ -683,7 +683,7 @@ aula específica — momento em que a sidebar do guia é, de fato, a navegação
 
 ## 16. Conversão da PW2
 
-Mesmo processo da DW, aplicado a `csbes-jp-pw2` (44 arquivos, 16.962 linhas). Como a
+Mesmo processo da DW, aplicado a `pw2-csbes-jp` (44 arquivos, 16.962 linhas). Como a
 PW2 e a DW compartilham boa parte do material de ECMAScript e Web APIs, o risco aqui
 não era a duplicação — era **perder as versões da PW2**, que em vários casos eram mais
 ricas que as do guia.
@@ -759,7 +759,7 @@ que existia antes da migração, sob o caminho antigo.
 
 ## 17. Conversão da LP2
 
-`ctii-jp-lp2` (16 arquivos, 2.628 linhas) é uma disciplina de nível técnico, e isso
+`lp2-ctii-jp` (16 arquivos, 2.628 linhas) é uma disciplina de nível técnico, e isso
 mudou o diagnóstico: a similaridade com os guias ficou entre **2% e 49%** — não é a
 mesma aula escrita duas vezes, é o mesmo assunto em outra profundidade.
 
@@ -799,7 +799,7 @@ grade de tópicos, e reformulações de links de referência que foram reescrito
 entrar no guia — todos os destinos foram conferidos individualmente e estão presentes.
 
 Como efeito colateral bem-vindo, os blocos que a LP2 trouxe fecharam também o resíduo
-da PW2: **`csbes-jp-pw2` passou a marcar 0 linhas sem correspondência.**
+da PW2: **`pw2-csbes-jp` passou a marcar 0 linhas sem correspondência.**
 
 ### Estrutura final
 

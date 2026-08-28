@@ -102,7 +102,7 @@ Três decisões sustentam a estrutura:
     │   ├── index.mdx           homepage
     │   ├── 404.mdx
     │   └── courses/
-    │       └── cstrc-jp-dw/    disciplina Desenvolvimento Web
+    │       └── dw-cstrc-jp/    disciplina Desenvolvimento Web
     │           ├── index.mdx
     │           ├── html/
     │           ├── javascript/
@@ -238,7 +238,7 @@ Crie o arquivo dentro do diretório da disciplina:
 ---
 title: Express.js — Middleware
 description: A cadeia de middlewares do Express.
-course: cstrc-jp-dw
+course: dw-cstrc-jp
 sidebar:
   label: Middleware
   order: 4
@@ -641,13 +641,13 @@ export const projects: Project[] = [
     level: 'Avançado',
     tech: ['Node.js', 'Express.js', 'JWT'],
     concepts: ['Hash de senha', 'Tokens', 'Middleware de autorização'],
-    docs: '/courses/cstrc-jp-dw/projects/express-auth/',
+    docs: '/courses/dw-cstrc-jp/projects/express-auth/',
     source: 'examples/express-auth',
   },
 ];
 ```
 
-Acrescentar um item já o faz aparecer na homepage e em `courses/cstrc-jp-dw/projects/`, que
+Acrescentar um item já o faz aparecer na homepage e em `courses/dw-cstrc-jp/projects/`, que
 apenas percorrem a lista:
 
 ```mdx

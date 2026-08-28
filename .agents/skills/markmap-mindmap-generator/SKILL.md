@@ -9,7 +9,7 @@ description: >-
 # DevLab — Gerador de Mapas Mentais Markmap
 
 Guia para escrever mapas mentais seguindo o padrão **real** dos 15 mapas já existentes em
-`mindmaps/courses/cstrc-jp-dw/`.
+`mindmaps/courses/dw-cstrc-jp/`.
 
 ---
 
