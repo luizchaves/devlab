@@ -532,6 +532,7 @@ build com **560 páginas**, `check-links` com **zero links quebrados**.
 | §14 Índice da DW | 76 badges cobrindo todas as páginas dos guias; títulos e rótulos das páginas movidas corrigidos |
 | §15 Páginas de tópico | 6 páginas de tópico na DW; sidebar reduzida de 76 links para 12 |
 | §16 PW2 | 44 arquivos convertidos; Guia de React criado; cobertura de conteúdo verificada linha a linha |
+| §17 LP2 | 16 arquivos convertidos; 4 tópicos novos no Guia de Express; PW2 fechou em 100% de cobertura |
 
 ### Desvios em relação ao plano
 
@@ -753,3 +754,57 @@ Dois links quebrados restam, ambos `/vite.svg` dentro dos exemplos
 `css/frameworks/{bootstrap,tailwind}-pw2`. É o favicon absoluto que o scaffold do Vite
 gera, que só resolve sob o dev server do próprio projeto — comportamento idêntico ao
 que existia antes da migração, sob o caminho antigo.
+
+---
+
+## 17. Conversão da LP2
+
+`ctii-jp-lp2` (16 arquivos, 2.628 linhas) é uma disciplina de nível técnico, e isso
+mudou o diagnóstico: a similaridade com os guias ficou entre **2% e 49%** — não é a
+mesma aula escrita duas vezes, é o mesmo assunto em outra profundidade.
+
+### Ganho puro: quatro tópicos que o guia não tinha
+
+`validation`, `email`, `upload-file` e `test` **não existiam em nenhum guia**. Foram
+para `express/advanced/` como páginas próprias, e o Guia de Express saltou de 15 para
+19 páginas.
+
+### Conteúdo técnico único incorporado aos guias
+
+| Origem na LP2 | Destino | O que era |
+| --- | --- | --- |
+| `expressjs/auth` | `express/auth/authentication` | Seção **JSON Web Token (JWT)** com fluxo de requisição, middleware, router e view — o guia citava JWT mas não o explicava |
+| `expressjs/introduction` | `express/basics/routes` | **Query, route e body param** — os três tipos de parâmetro de requisição, ausentes do guia |
+| `expressjs/api` | `express/api/rest` | Tabela de referência de **status codes** (200 a 500) |
+| `javascript/introduction` | `ecmascript/basics/operators` | **Taxonomia completa dos operadores** por categoria |
+| `javascript/introduction` | `ecmascript/basics/types` | Diagrama e tabela de hierarquia de tipos |
+| `javascript/introduction` | `ecmascript/structure/modules` | Comparação **CJS × ESM lado a lado** |
+
+Mais os exemplos Invest App/Invest API de sete páginas, no mesmo padrão adotado para a
+PW2.
+
+### Um detalhe que quebrou o build
+
+O bloco de módulos da LP2 usava `export const singleESM = \`...\`` com instruções
+`import` dentro do template literal, renderizadas via `<Code code={...} />`. O
+normalizador de imports interpretou essas linhas como imports reais de MDX e as içou
+para o topo do arquivo, gerando `Identifier 'sum' has already been declared`.
+Convertidos em blocos de código cercados, que dizem o mesmo sem a indireção.
+
+### Cobertura
+
+Mesmo verificador linha a linha usado na PW2. **12 dos 16 arquivos fecharam em 100%.**
+O resíduo (19 linhas) é de dois tipos: os links do índice antigo, substituídos pela
+grade de tópicos, e reformulações de links de referência que foram reescritos ao
+entrar no guia — todos os destinos foram conferidos individualmente e estão presentes.
+
+Como efeito colateral bem-vindo, os blocos que a LP2 trouxe fecharam também o resíduo
+da PW2: **`csbes-jp-pw2` passou a marcar 0 linhas sem correspondência.**
+
+### Estrutura final
+
+Sidebar da LP2: de 57 para 10 linhas, com quatro tópicos — JavaScript e Front-end,
+Node.js e Express.js, Dados e Autenticação, Recursos da Aplicação. 15 redirects.
+`examples/lp2/` redistribuído por tecnologia.
+
+A disciplina ficou com 5 arquivos: o índice e as quatro páginas de tópico.

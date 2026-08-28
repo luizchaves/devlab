@@ -185,6 +185,33 @@ export default defineConfig({
     '/courses/csbes-jp-pw2/react/hooks': withBase('/courses/react/state/hooks/'),
     '/courses/csbes-jp-pw2/react/supabase-auth': withBase('/courses/react/auth/supabase/'),
     '/courses/csbes-jp-pw2/react/firebase-auth': withBase('/courses/react/auth/firebase/'),
+    '/courses/ctii-jp-lp2/javascript/introduction': withBase(
+      '/courses/ecmascript/basics/introduction/'
+    ),
+    '/courses/ctii-jp-lp2/javascript/frontend': withBase('/courses/web-api/dom/dynamic-elements/'),
+    '/courses/ctii-jp-lp2/nodejs/http': withBase('/courses/nodejs/http/server/'),
+    '/courses/ctii-jp-lp2/expressjs/introduction': withBase(
+      '/courses/express/basics/introduction/'
+    ),
+    '/courses/ctii-jp-lp2/expressjs/api': withBase('/courses/express/api/construction/'),
+    '/courses/ctii-jp-lp2/expressjs/mvc': withBase('/courses/express/architecture/mvc/'),
+    '/courses/ctii-jp-lp2/expressjs/db-simple': withBase('/courses/database/sql/node-sqlite/'),
+    '/courses/ctii-jp-lp2/expressjs/prismajs-simple': withBase(
+      '/courses/database/prisma/introduction/'
+    ),
+    '/courses/ctii-jp-lp2/expressjs/prismajs-relation': withBase(
+      '/courses/database/prisma/relations/'
+    ),
+    '/courses/ctii-jp-lp2/expressjs/prismajs-user': withBase(
+      '/courses/express/auth/user-registration/'
+    ),
+    '/courses/ctii-jp-lp2/expressjs/auth': withBase('/courses/express/auth/authentication/'),
+    '/courses/ctii-jp-lp2/expressjs/validation': withBase('/courses/express/advanced/validation/'),
+    '/courses/ctii-jp-lp2/expressjs/email': withBase('/courses/express/advanced/email/'),
+    '/courses/ctii-jp-lp2/expressjs/upload-file': withBase(
+      '/courses/express/advanced/upload-file/'
+    ),
+    '/courses/ctii-jp-lp2/expressjs/test': withBase('/courses/express/advanced/testing/'),
   },
   integrations: [
     starlight({
@@ -268,57 +295,10 @@ export default defineConfig({
           label: 'Linguagem de Programação II',
           items: [
             { label: 'Visão geral', link: '/courses/ctii-jp-lp2/' },
-            {
-              label: 'JavaScript e Node.js',
-              collapsed: true,
-              items: [
-                { label: 'JavaScript', link: '/courses/ctii-jp-lp2/javascript/introduction/' },
-                {
-                  label: 'JavaScript no Front-end',
-                  link: '/courses/ctii-jp-lp2/javascript/frontend/',
-                },
-                { label: 'Node.js HTTP', link: '/courses/ctii-jp-lp2/nodejs/http/' },
-              ],
-            },
-            {
-              label: 'Express.js',
-              collapsed: true,
-              items: [
-                { label: 'Express.js', link: '/courses/ctii-jp-lp2/expressjs/introduction/' },
-                {
-                  label: 'Construção de API',
-                  link: '/courses/ctii-jp-lp2/expressjs/api/',
-                },
-                { label: 'MVC', link: '/courses/ctii-jp-lp2/expressjs/mvc/' },
-              ],
-            },
-            {
-              label: 'Dados e Autenticação',
-              collapsed: true,
-              items: [
-                { label: 'SQL com Node.js', link: '/courses/ctii-jp-lp2/expressjs/db-simple/' },
-                { label: 'Prisma', link: '/courses/ctii-jp-lp2/expressjs/prismajs-simple/' },
-                {
-                  label: 'Relações com Prisma',
-                  link: '/courses/ctii-jp-lp2/expressjs/prismajs-relation/',
-                },
-                {
-                  label: 'Cadastro de Usuário',
-                  link: '/courses/ctii-jp-lp2/expressjs/prismajs-user/',
-                },
-                { label: 'Autenticação', link: '/courses/ctii-jp-lp2/expressjs/auth/' },
-              ],
-            },
-            {
-              label: 'Recursos da Aplicação',
-              collapsed: true,
-              items: [
-                { label: 'Validação', link: '/courses/ctii-jp-lp2/expressjs/validation/' },
-                { label: 'E-mail', link: '/courses/ctii-jp-lp2/expressjs/email/' },
-                { label: 'Upload de Arquivo', link: '/courses/ctii-jp-lp2/expressjs/upload-file/' },
-                { label: 'Testes', link: '/courses/ctii-jp-lp2/expressjs/test/' },
-              ],
-            },
+            { label: 'JavaScript e Front-end', link: '/courses/ctii-jp-lp2/topics/javascript/' },
+            { label: 'Node.js e Express.js', link: '/courses/ctii-jp-lp2/topics/node-express/' },
+            { label: 'Dados e Autenticação', link: '/courses/ctii-jp-lp2/topics/data-auth/' },
+            { label: 'Recursos da Aplicação', link: '/courses/ctii-jp-lp2/topics/app-features/' },
           ],
         },
         {
@@ -725,6 +705,10 @@ export default defineConfig({
                   link: '/courses/express/auth/user-registration/',
                 },
                 { label: 'Autenticação', link: '/courses/express/auth/authentication/' },
+                { label: 'Validação', link: '/courses/express/advanced/validation/' },
+                { label: 'Envio de E-mail', link: '/courses/express/advanced/email/' },
+                { label: 'Upload de Arquivo', link: '/courses/express/advanced/upload-file/' },
+                { label: 'Testes', link: '/courses/express/advanced/testing/' },
               ],
             },
             {
