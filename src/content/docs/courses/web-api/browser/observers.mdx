@@ -1,0 +1,215 @@
+---
+title: "Web APIs: Observadores"
+description: "IntersectionObserver, ResizeObserver e MutationObserver para reagir a visibilidade, tamanho e mudanças no DOM sem depender de loops manuais."
+course: web-api
+sidebar:
+  label: "Observadores"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Nas versões clássicas do JavaScript para o navegador, verificar se um elemento estava visível,
+mudou de tamanho ou recebeu novos nós exigia escutar eventos globais como `scroll` e `resize` ou
+fazer consultas repetidas no DOM.
+
+As **APIs de Observação** resolvem esse problema delegando esse monitoramento ao navegador. Em vez
+de perguntar a todo momento "mudou?", o código registra um observador e recebe uma notificação
+assíncrona quando a condição configurada acontece.
+
+## Objetivo
+
+Compreender quando usar `IntersectionObserver`, `ResizeObserver` e `MutationObserver`, sabendo
+configurar callbacks, escolher o alvo observado e encerrar a observação quando ela não for mais
+necessária.
+
+## Modelo de observação
+
+Todo observador segue a mesma ideia: criar uma instância, informar uma função de callback, escolher
+opções de monitoramento e chamar `observe()` para registrar um elemento alvo.
+
+<Mermaid title="Ciclo de uma API de Observação">
+{`
+flowchart TD
+  Setup["Criar observador"]
+  Options["Definir opções"]
+  Observe["observe(elemento)"]
+  Browser["Navegador monitora mudanças"]
+  Callback["callback(entries)"]
+  Update["Atualizar DOM, estado ou classe"]
+  Stop["unobserve() / disconnect()"]
+
+  Setup --> Options
+  Options --> Observe
+  Observe --> Browser
+  Browser --> Callback
+  Callback --> Update
+  Callback --> Stop
+`}
+</Mermaid>
+
+## IntersectionObserver
+
+O `IntersectionObserver` detecta quando um elemento entra, sai ou cruza um limite de visibilidade
+em relação à viewport ou a um container ancestral. Ele é indicado para *lazy loading*, rolagem
+infinita, animações sob demanda e leitura da seção atual.
+
+O exemplo a seguir observa cartões e registra quando pelo menos metade de um deles aparece:
+
+```js title="Observando visibilidade com IntersectionObserver"
+const opcoes = {
+  root: null,
+  rootMargin: '0px',
+  threshold: 0.5,
+};
+
+const observador = new IntersectionObserver((entries, observer) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+
+    entry.target.classList.add('visivel');
+    observer.unobserve(entry.target);
+  });
+}, opcoes);
+
+document.querySelectorAll('.card').forEach((card) => {
+  observador.observe(card);
+});
+```
+
+<Aside type="tip" title="Por que isso melhora desempenho?">
+O navegador calcula interseções de forma otimizada e entrega mudanças em lote. Isso evita que a
+aplicação faça medições repetidas de layout durante cada evento de rolagem.
+</Aside>
+
+## ResizeObserver
+
+O `ResizeObserver` observa o tamanho de um elemento específico. Ele é diferente de `window.resize`:
+um componente pode mudar de largura porque uma sidebar abriu, porque uma grade mudou ou porque o
+conteúdo interno foi alterado, mesmo sem a janela mudar de tamanho.
+
+Este padrão ajuda a adaptar um componente ao seu próprio espaço disponível:
+
+```js title="Adaptando um componente ao próprio tamanho"
+const painel = document.querySelector('.painel-dashboard');
+
+const observadorDeTamanho = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const { width } = entry.contentRect;
+
+    entry.target.classList.toggle('compacto', width < 400);
+  }
+});
+
+observadorDeTamanho.observe(painel);
+```
+
+## MutationObserver
+
+O `MutationObserver` observa alterações estruturais no DOM: nós adicionados, nós removidos,
+mudanças em atributos e alterações em texto. Ele é útil quando uma parte da página é modificada por
+componentes, bibliotecas, widgets externos ou renderização dinâmica.
+
+O exemplo abaixo reage quando novos itens entram em uma lista:
+
+```js title="Observando mudanças estruturais no DOM"
+const lista = document.querySelector('#notificacoes');
+
+const observadorDeMutacoes = new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList') continue;
+
+    mutation.addedNodes.forEach((node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        node.classList.add('recem-adicionado');
+      }
+    });
+  }
+});
+
+observadorDeMutacoes.observe(lista, {
+  childList: true,
+  subtree: false,
+});
+```
+
+<Aside type="caution" title="Não observe a página inteira sem necessidade">
+`MutationObserver` pode gerar muitos registros em páginas complexas. Observe o menor container
+possível e chame `disconnect()` quando o monitoramento terminar.
+</Aside>
+
+## Comparando os observadores
+
+A escolha correta depende do tipo de mudança que interessa ao código. A tabela resume os casos mais
+comuns:
+
+| API | Observa | Uso típico | Método de parada |
+| --- | --- | --- | --- |
+| `IntersectionObserver` | Visibilidade/interseção | Lazy loading, scroll infinito, seção ativa | `unobserve()` ou `disconnect()` |
+| `ResizeObserver` | Tamanho de elemento | Componentes responsivos, gráficos, painéis | `unobserve()` ou `disconnect()` |
+| `MutationObserver` | Mudanças no DOM | Nós adicionados/removidos, atributos alterados | `disconnect()` |
+
+## Executando
+
+Use o console do navegador para observar uma seção da página atual e entender o formato dos dados
+recebidos pelo callback:
+
+<Steps>
+1. Abra uma página com várias seções e pressione <kbd>F12</kbd>.
+2. Cole o exemplo de `IntersectionObserver` no console.
+3. Role a página até o elemento observado entrar na viewport.
+4. Troque `threshold` para `0`, `0.5` e `1` e compare quando o callback dispara.
+</Steps>
+
+## Exercício
+
+1. Crie um `IntersectionObserver` que adicione a classe `ativo` ao primeiro `<h2>` visível.
+2. Crie um `ResizeObserver` que troque um card para modo compacto quando sua largura ficar abaixo de `360px`.
+3. Crie um `MutationObserver` que conte quantos `<li>` foram adicionados a uma lista.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma solução possível combina os três observadores separadamente: `IntersectionObserver` para
+  seção ativa, `ResizeObserver` para classe visual do card e `MutationObserver` para ler
+  `mutation.addedNodes` quando a lista receber novos elementos.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que `IntersectionObserver` costuma ser melhor que escutar `scroll` continuamente?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o navegador faz o monitoramento de interseção de forma otimizada e entrega notificações
+     assíncronas, sem obrigar o código a medir posições a cada evento de rolagem.
+   </details>
+
+2. **Qual a diferença entre `ResizeObserver` e `window.onresize`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `window.onresize` reage ao tamanho da janela. `ResizeObserver` reage ao tamanho de um elemento
+     específico, mesmo que a janela continue igual.
+   </details>
+
+3. **Quando `MutationObserver` deve ser desconectado?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Quando o componente for removido, quando a mudança esperada já aconteceu ou quando observar
+     aquele trecho da árvore DOM deixar de ser necessário.
+   </details>
+
+## Referências
+
+- [Intersection Observer API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API)
+- [Resize Observer API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Resize_Observer_API)
+- [MutationObserver | MDN](https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver)
+
+## Próxima aula
+
+[APIs Modernas do Navegador](../modern-apis/): Dialog, Canvas, Clipboard, Drag and Drop, Fullscreen,
+Geolocation, Notifications e Web Speech com exemplos executáveis.

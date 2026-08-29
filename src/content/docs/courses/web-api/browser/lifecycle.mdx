@@ -1,0 +1,308 @@
+---
+title: "Web APIs: Ciclo de Vida da Página"
+description: "Carregamento do HTML, DOMContentLoaded, load, defer, type module, visibilitychange e eventos de navegação no navegador."
+course: web-api
+sidebar:
+  label: "Ciclo de Vida da Página"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Antes de manipular elementos com JavaScript, é preciso entender **em que momento a página existe**.
+O navegador baixa o HTML, interpreta as tags, constrói a árvore DOM, carrega arquivos externos,
+executa scripts e dispara eventos em uma ordem específica.
+
+## Objetivo
+
+Compreender o ciclo de carregamento de uma página web, escolhendo o momento correto para executar
+JavaScript com `defer`, `type="module"`, `DOMContentLoaded`, `load`, `visibilitychange` e eventos de
+navegação.
+
+---
+
+## O Caminho do HTML até a Página Interativa
+
+Quando o navegador recebe um documento HTML, ele não espera tudo terminar para começar a trabalhar.
+Ele processa o arquivo progressivamente, criando nós no DOM conforme encontra tags.
+
+<Mermaid title="Linha do Tempo do Carregamento da Página">
+{`
+sequenceDiagram
+  participant S as Servidor
+  participant B as Navegador
+  participant P as Parser HTML
+  participant D as DOM
+  participant JS as JavaScript
+
+  S->>B: Envia HTML
+  B->>P: Inicia parsing
+  P->>D: Cria elementos
+  P->>B: Encontra CSS, imagens e scripts
+  B->>JS: Executa scripts conforme atributo
+  P->>D: DOM completo
+  D-->>JS: DOMContentLoaded
+  B-->>JS: load apos recursos externos
+`}
+</Mermaid>
+
+O ponto principal é: **o arquivo JavaScript pode executar antes de um elemento existir no DOM**. Isso
+explica erros como `Cannot read properties of null`, comuns quando `querySelector()` retorna `null`.
+
+---
+
+## Scripts Bloqueantes, `defer` e `type="module"`
+
+Por padrão, um `<script src="app.js"></script>` encontrado no meio do HTML pausa o parser até o
+arquivo ser baixado e executado. Isso pode atrasar a construção da página.
+
+| Forma de carregar | Quando baixa? | Quando executa? | Uso recomendado |
+| --- | --- | --- | --- |
+| `<script src="app.js"></script>` | Ao encontrar a tag | Imediatamente, bloqueando o parser | Evitar em páginas modernas |
+| `<script defer src="app.js"></script>` | Em paralelo ao HTML | Depois do DOM pronto, antes de `DOMContentLoaded` | Padrão seguro para scripts clássicos |
+| `<script async src="app.js"></script>` | Em paralelo ao HTML | Assim que baixar, sem ordem garantida | Scripts independentes, como analytics |
+| `<script type="module" src="app.js"></script>` | Em paralelo ao HTML | Como `defer`, com suporte a `import/export` | Padrão moderno para aplicações |
+
+```html title="Carregamento recomendado para JavaScript moderno"
+<head>
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+  <button id="btn-salvar">Salvar</button>
+</body>
+```
+
+Como módulos são adiados por padrão, o botão já existe quando `main.js` roda:
+
+```js title="main.js"
+const botao = document.querySelector('#btn-salvar');
+
+botao.addEventListener('click', () => {
+  console.log('Dados salvos');
+});
+```
+
+<Aside type="tip" title="Regra prática">
+Em projetos com Vite, React, Vue ou módulos ES, use `type="module"`. Em HTML simples com JavaScript
+clássico, use `defer`. Evite depender de scripts no final do `<body>` como única estratégia de
+organização.
+</Aside>
+
+---
+
+## `DOMContentLoaded` vs `load`
+
+Dois eventos aparecem muito no ciclo de carregamento:
+
+- **`DOMContentLoaded`**: dispara quando o HTML foi lido e o DOM está montado.
+- **`load`**: dispara depois que imagens, CSS, iframes e outros recursos externos terminaram de carregar.
+
+```js title="Quando usar cada evento"
+document.addEventListener('DOMContentLoaded', () => {
+  const titulo = document.querySelector('h1');
+  console.log('DOM pronto:', titulo.textContent);
+});
+
+window.addEventListener('load', () => {
+  console.log('Pagina e recursos externos carregados');
+});
+```
+
+Use `DOMContentLoaded` para inicializar interatividade. Use `load` apenas quando o código depende
+das dimensões finais de imagens, iframes ou recursos externos.
+
+---
+
+## `document.readyState`
+
+A propriedade `document.readyState` informa o estágio atual do documento:
+
+| Valor | Significado |
+| --- | --- |
+| `loading` | O HTML ainda está sendo processado |
+| `interactive` | O DOM já foi construído, mas recursos externos podem estar carregando |
+| `complete` | Página e recursos externos terminaram de carregar |
+
+```js title="Inicializacao segura reaproveitavel"
+function iniciarPagina() {
+  const app = document.querySelector('#app');
+
+  if (!app) {
+    console.warn('Elemento #app nao encontrado.');
+    return;
+  }
+
+  app.textContent = 'Aplicacao iniciada';
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', iniciarPagina);
+} else {
+  iniciarPagina();
+}
+```
+
+Esse padrão é útil para bibliotecas ou arquivos reaproveitáveis que podem ser carregados em momentos
+diferentes.
+
+---
+
+## Página Visível, Oculta ou Descartada
+
+O usuário pode trocar de aba, bloquear o celular, minimizar a janela ou navegar para outra página.
+O navegador expõe alguns eventos para reagir a essas mudanças.
+
+### `visibilitychange`
+
+O evento `visibilitychange` indica se a página está visível ou oculta:
+
+```js title="Pausando tarefas quando a aba fica oculta"
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    console.log('Aba oculta: pausar atualizacoes pesadas.');
+  } else {
+    console.log('Aba visivel: retomar atualizacoes.');
+  }
+});
+```
+
+Casos comuns:
+
+- pausar animações ou polling;
+- reduzir chamadas HTTP quando a aba está em segundo plano;
+- salvar rascunhos antes de uma navegação;
+- retomar sincronização quando a aba volta a ficar visível.
+
+### `beforeunload`
+
+O evento `beforeunload` pode avisar sobre perda de dados ao fechar ou recarregar a página. Use com
+moderação, apenas quando existe risco real de descarte de trabalho não salvo.
+
+```js title="Aviso ao sair com alteracoes nao salvas"
+let formularioAlterado = false;
+
+document.querySelector('form').addEventListener('input', () => {
+  formularioAlterado = true;
+});
+
+window.addEventListener('beforeunload', (event) => {
+  if (!formularioAlterado) return;
+
+  event.preventDefault();
+  event.returnValue = '';
+});
+```
+
+<Aside type="caution" title="Limitação importante">
+Navegadores modernos não permitem personalizar livremente a mensagem do `beforeunload`. Eles exibem
+um aviso genérico para evitar abuso.
+</Aside>
+
+---
+
+## Erros Comuns
+
+| Sintoma | Causa provável | Correção |
+| --- | --- | --- |
+| `querySelector(...)` retorna `null` | Script executou antes do elemento existir | Use `defer`, `type="module"` ou `DOMContentLoaded` |
+| Evento de clique não funciona | O elemento foi criado depois do listener | Use delegação de eventos ou registre após renderizar |
+| Medida de imagem vem `0` | Imagem ainda não carregou | Use `load` da imagem ou `window.load` |
+| Timer continua rodando em aba oculta | Código ignora visibilidade da página | Use `visibilitychange` |
+| Usuário perde formulário ao fechar aba | Estado não foi salvo | Use autosave e, se necessário, `beforeunload` |
+
+---
+
+## Executando
+
+<Steps>
+1. Crie um arquivo `index.html` com um botão `<button id="teste">Testar</button>`.
+2. Carregue um arquivo `main.js` no `<head>` com `<script type="module" src="./main.js"></script>`.
+3. No `main.js`, selecione o botão e registre um evento de clique.
+4. Abra a página no navegador e confirme que o botão funciona mesmo com o script declarado no `<head>`.
+5. Troque de aba e volte observando logs do evento `visibilitychange`.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual a diferença entre `DOMContentLoaded` e `load`?
+2. Por que `type="module"` costuma evitar o erro de acessar um elemento antes dele existir?
+3. Quando faz sentido usar `visibilitychange`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. `DOMContentLoaded` dispara quando o DOM está pronto para manipulação. `load` dispara depois que
+  recursos externos, como imagens e iframes, também carregaram.
+
+  2. Scripts do tipo módulo são executados de forma adiada em relação ao parsing do HTML, de modo
+  semelhante a `defer`. Assim, o DOM básico já está montado quando o código roda.
+
+  3. Quando a aplicação deve pausar ou retomar tarefas conforme a aba fica visível ou oculta, como
+  polling, animações, sincronização e timers.
+</details>
+
+---
+
+## Desafio
+
+Crie uma função `inicializarQuandoPronto(callback)` que execute o `callback` imediatamente se o DOM
+já estiver pronto, ou registre `DOMContentLoaded` caso o documento ainda esteja em `loading`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js
+  function inicializarQuandoPronto(callback) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', callback, { once: true });
+    } else {
+      callback();
+    }
+  }
+
+  inicializarQuandoPronto(() => {
+    console.log('DOM pronto para uso');
+  });
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual atributo preserva a ordem dos scripts e evita bloquear o parser HTML?**
+   <details>
+     <summary>Possível resposta</summary>
+     O atributo `defer`.
+   </details>
+
+2. **Por que `async` pode ser perigoso para scripts que dependem uns dos outros?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque scripts assíncronos executam assim que terminam de baixar, sem garantir a ordem em que
+     aparecem no HTML.
+   </details>
+
+3. **Qual propriedade indica se a aba atual está oculta?**
+   <details>
+     <summary>Possível resposta</summary>
+     `document.hidden`.
+   </details>
+
+---
+
+## Referências
+
+- [DOMContentLoaded | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event)
+- [Window: load event | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event)
+- [Document: readyState | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Document/readyState)
+- [Page Visibility API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
+- [script async and defer | MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script)
+
+---
+
+## Próxima aula
+
+[Objetos do Navegador](../objects/): entenda `window`, `document`, `location`, `history`,
+`navigator` e `console`.

@@ -1,130 +1,275 @@
 ---
-title: "Web APIs: Eventos"
-description: "Manipulação de eventos com atributos HTML, handlers e addEventListener."
+title: "Web APIs: Eventos e Interatividade"
+description: "Ouvintes de eventos, fases de captura e borbulhamento, preventDefault, stopPropagation e delegação de eventos."
 course: web-api
 sidebar:
-  label: "Eventos"
+  label: "Eventos e Interatividade"
 ---
+import { Aside, Steps } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 
-## Propagação de Eventos no DOM (Event Flow)
+Aplicações Web modernas reagem continuamente às interações do usuário — cliques, digitação, movimentação do mouse e submissão de formulários — bem como a eventos do próprio navegador, como o término do carregamento da página. Essas ações geram **eventos** que podem ser capturados e manipulados pelo JavaScript.
 
-Quando um evento ocorre em um elemento do DOM, ele não é disparado apenas naquele elemento isolado. O navegador processa o evento através de **três fases de propagação**:
+## Objetivo
 
-1. **Fase de Captura (Capturing Phase)**: O evento desce do objeto raiz `Window` e `Document` até a árvore DOM chegar ao elemento ancestral do alvo.
-2. **Fase de Alvo (Target Phase)**: O evento atinge diretamente o elemento onde a interação ocorreu (`event.target`).
-3. **Fase de Borbulhamento (Bubbling Phase)**: O evento sobe do elemento alvo de volta até a raiz `Window`, acionando os ouvintes registrados em cada ancestral.
+Compreender o ciclo de vida dos eventos no navegador, dominando o registro de ouvintes com `addEventListener`, a manipulação do objeto de evento, o controle de propagação (fases de captura e borbulhamento) e a aplicação da técnica de **Delegação de Eventos** (*Event Delegation*).
 
-<Mermaid title="Fases de Propagação de Eventos no DOM (Captura -> Alvo -> Borbulhamento)">
+---
+
+## O Ciclo de Propagação de Eventos (*Event Flow*)
+
+Quando o usuário clica em um elemento filho (por exemplo, um botão `<button>` dentro de um `<div>`), o evento não é disparado apenas naquele botão isolado. O navegador processa o evento através de **três fases consecutivas**:
+
+1. **Fase de Captura (*Capturing Phase*)**: O evento desce desde a raiz (`window` e `document`) percorrendo todos os elementos ancestrais até chegar ao pai do elemento alvo.
+2. **Fase de Alvo (*Target Phase*)**: O evento atinge o elemento específico onde a interação ocorreu (`event.target`).
+3. **Fase de Borbulhamento (*Bubbling Phase*)**: O evento "subirá" de volta pela árvore DOM, disparando os ouvintes registrados em cada um dos elementos ancestrais até atingir a raiz `window`.
+
+<Mermaid title="As 3 Fases da Propagação de Eventos no DOM">
 {`
 flowchart TD
-  subgraph Capturing["1. Fase de Captura (Downwards)"]
-    W["Window / Document"] --> Body["Elemento body"]
+  subgraph Captura["1. Fase de Captura (Desce na árvore)"]
+    W["window / document"] --> Body["body"]
     Body --> Div["div#container"]
   end
 
-  subgraph Target["2. Fase de Alvo"]
-    Div --> Btn["button#btn (Target)"]
+  subgraph Alvo["2. Fase de Alvo"]
+    Div --> Btn["button#btn (target)"]
   end
 
-  subgraph Bubbling["3. Fase de Borbulhamento (Upwards)"]
+  subgraph Borbulhamento["3. Fase de Borbulhamento (Sobe na árvore)"]
     Btn -.-> DivUp["div#container"]
-    DivUp -.-> BodyUp["Elemento body"]
-    BodyUp -.-> WUp["Window / Document"]
+    DivUp -.-> BodyUp["body"]
+    BodyUp -.-> WUp["window / document"]
   end
 `}
 </Mermaid>
 
-## GlobalEventHandlers
+---
 
-![](/pw2/imgs/w3c/event-handling/global-event-handlers-hierarchy.svg)
+## Registrando Ouvintes de Evento
 
-[MDN](https://developer.mozilla.org/en-US/docs/Web/API/GlobalEventHandlers)
+Existem três formas de vincular código JavaScript a interações do usuário.
 
-### Hierarchy
+### 1. Atributos HTML Inline (Legado - Evitar)
 
-![](/dw/imgs/w3c/event-handling/global-event-handlers-hierarchy.svg)
-
-### Registering on-event handlers
-
-HTML attribute named on(eventtype):
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Document</title>
-  </head>
-  <body>
-    <h1>Lorem ipsum</h1>
-    <button onclick="window.print()">Print</button>
-  </body>
-</html>
+```html title="Atributos HTML inline (não recomendado)"
+<button onclick="alert('Clicado!')">Enviar</button>
 ```
 
-Setting the on-event handlers property from JavaScript:
+### 2. Propriedades On-Event (Limitado)
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Document</title>
-  </head>
-  <body>
-    <h1>Lorem ipsum</h1>
-    <button>Print</button>
-  </body>
-</html>
-```
+```js title="Propriedades de handler"
+const botao = document.querySelector('button');
 
-```js
-const button = document.querySelector('button');
-button.onclick = function () {
-  window.print();
+// Sobrescreve qualquer handler configurado anteriormente
+botao.onclick = function() {
+  console.log('Primeiro handler');
 };
 ```
 
-### On-event handlers
+### 3. O Método `addEventListener` (Padrão Moderno)
 
-- onclick
-- onkeyup
-- onload
-- onchange
+O método `addEventListener` é a forma padrão e recomendada. Ele permite registrar múltiplos ouvintes para o mesmo evento sem sobrescrever os existentes:
 
-## EventTarget
+```js title="Registrando ouvintes com addEventListener"
+const botao = document.querySelector('#btn-salvar');
 
-![](/pw2/imgs/w3c/event-handling/event-target-hierarchy.svg)
+function dispararSalvamento(event) {
+  console.log('Salvando dados...');
+}
 
-[MDN](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget)
+function notificarUsuario(event) {
+  console.log('Notificação exibida!');
+}
 
-![](/dw/imgs/w3c/event-handling/event-target-hierarchy.svg)
+// Adiciona múltiplos ouvintes para o mesmo evento 'click'
+botao.addEventListener('click', dispararSalvamento);
+botao.addEventListener('click', notificarUsuario);
 
-### EventTarget.addEventListener()
+// Remover um ouvinte previamente registrado (requer função nomeada)
+// botao.removeEventListener('click', dispararSalvamento);
+```
 
-Click ([MouseEvent](https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent)):
+---
 
-```js
-const button = document.querySelector('button#print');
+## O Objeto Event
 
-button.addEventListener('click', function () {
-  window.print();
+Quando uma função ouvinte é disparada, ela recebe automaticamente como primeiro argumento um objeto `Event` com metadados sobre a interatividade.
+
+### Propriedades `target` vs `currentTarget`
+
+- **`event.target`**: O elemento exato que originou o evento (onde o usuário clicou).
+- **`event.currentTarget`**: O elemento onde o `addEventListener` foi registrado.
+
+```js title="Diferença entre target e currentTarget"
+const container = document.querySelector('#container');
+
+container.addEventListener('click', (event) => {
+  console.log('Elemento clicado (target):', event.target);
+  console.log('Elemento escutando (currentTarget):', event.currentTarget);
 });
 ```
 
-Keyup ([KeyboardEvent](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent), [Key Values](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values)):
+### Métodos de Controle: `preventDefault` e `stopPropagation`
 
-```js
-document.addEventListener('keyup', function (event) {
-  if (event.key == 'Enter') {
-    console.log('Enter key');
+```js title="Interrompendo comportamentos padrão e borbulhamento"
+const formulario = document.querySelector('#meu-form');
+const link = document.querySelector('#link-externo');
+
+// 1. preventDefault(): Impede a ação padrão do navegador (ex: enviar formulário ou abrir link)
+formulario.addEventListener('submit', (event) => {
+  event.preventDefault(); // Evita que a página seja recarregada
+  console.log('Dados validados no JavaScript antes do envio.');
+});
+
+// 2. stopPropagation(): Impede que o evento continue subindo na fase de borbulhamento
+link.addEventListener('click', (event) => {
+  event.stopPropagation(); // O elemento pai não receberá a notificação deste clique
+});
+```
+
+---
+
+## Delegação de Eventos (*Event Delegation*)
+
+A **Delegação de Eventos** é um padrão de otimização de performance onde, em vez de registrar um ouvinte para cada elemento filho individual (como uma lista com 100 itens), registra-se um **único ouvinte no elemento pai**.
+
+Devido à fase de borbulhamento (*bubbling*), cliques nos elementos filhos sobem até o pai, onde podem ser identificados via `event.target`.
+
+```js title="Delegação de eventos em uma lista dinamicamente gerada"
+const listaTarefas = document.querySelector('#lista-tarefas');
+
+// Registro de um ÚNICO listener no elemento pai (ul)
+listaTarefas.addEventListener('click', (event) => {
+  // Verifica se o elemento clicado possui a classe .btn-excluir
+  if (event.target.matches('.btn-excluir')) {
+    const item = event.target.closest('li'); // Encontra o item <li> ancestral
+    item.remove();                           // Remove o item da lista
+    console.log('Item removido via delegação de eventos!');
   }
 });
 ```
 
-[MDN](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)
+<Aside type="tip" title="Vantagens da Delegação">
+1. **Economia de memória**: Reduz drasticamente o número de objetos `EventListener` criados no navegador.
+2. **Suporte a elementos dinâmicos**: Elementos adicionados ao DOM posteriormente funcionarão automaticamente sem precisar registrar novos ouvintes.
+</Aside>
+
+---
+
+## Principais Eventos do Navegador
+
+| Categoria | Evento | Descrição |
+| --- | --- | --- |
+| **Mouse** | `click`, `dblclick`, `mouseenter`, `mouseleave` | Interações com o cursor do mouse |
+| **Teclado** | `keydown`, `keyup` | Pressionamento e soltura de teclas (`event.key`) |
+| **Formulário** | `submit`, `change`, `input`, `focus`, `blur` | Digitação, alteração e envio de dados |
+| **Documento** | `DOMContentLoaded` | Disparado quando o HTML foi completamente lido e parseado |
+
+```js title="Aguardando a construção do DOM"
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('A árvore DOM está pronta para ser manipulada!');
+});
+```
+
+---
+
+## Executando
+
+Siga os passos para inspecionar eventos no navegador:
+
+<Steps>
+1. Abra as ferramentas do desenvolvedor com <kbd>F12</kbd> e selecione a aba **Console**.
+2. Cole o código: `document.addEventListener('click', e => console.log('Clicado em:', e.target));`.
+3. Clique em diferentes elementos da página (botões, parágrafos, imagens) e observe o objeto e a tag de cada elemento clicado sendo exibidos no console.
+</Steps>
+
+---
+
+## Exercício
+
+1. Por que o método `event.preventDefault()` é frequentemente utilizado no evento de `submit` de um formulário em aplicações modernas?
+2. Explique a diferença entre `event.target` e `event.currentTarget`.
+3. Escreva um exemplo de código que escute o evento `keyup` em um campo de texto e exiba uma mensagem apenas quando o usuário pressionar a tecla <kbd>Enter</kbd>.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Em formulários HTML normais, a submissão faz o navegador realizar um POST/GET recarregando a página inteira. O `event.preventDefault()` evita esse recarregamento nativo, permitindo capturar os dados, validá-los e enviá-los assincronamente via `fetch`.
+
+  2. `event.target` é o elemento exato que recebeu o clique/interação original (o alvo). `event.currentTarget` é o elemento onde o ouvinte de evento (`addEventListener`) foi registrado.
+
+  3. Captura da tecla Enter:
+     ```js
+     const campoTexto = document.querySelector('#busca');
+
+     campoTexto.addEventListener('keyup', (event) => {
+       if (event.key === 'Enter') {
+         console.log('Busca realizada para:', event.target.value);
+       }
+     });
+     ```
+</details>
+
+---
+
+## Desafio
+
+Implemente a delegação de eventos para uma tabela com ID `#tabela-produtos`. Quando o usuário clicar em qualquer célula `<td>` da tabela, altere a cor de fundo daquela linha `<tr>` específica para amarelo (`#fef08a`), garantindo que apenas uma linha fique destacada por vez.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js
+  const tabela = document.querySelector('#tabela-produtos');
+
+  tabela.addEventListener('click', (event) => {
+    // Verifica se o clique ocorreu dentro de uma célula td
+    const celula = event.target.closest('td');
+    if (!celula) return;
+
+    // Encontra a linha tr correspondente
+    const linha = celula.closest('tr');
+
+    // Remove a classe de destaque de todas as linhas anteriores
+    tabela.querySelectorAll('tr').forEach(tr => {
+      tr.style.backgroundColor = '';
+    });
+
+    // Destaca a linha atual
+    linha.style.backgroundColor = '#fef08a';
+  });
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Propagação e Fluxo de Eventos
+
+1. **Em qual fase do evento os ouvintes registrados com `addEventListener` executam por padrão?**
+   <details>
+     <summary>Possível resposta</summary>
+     Por padrão, o `addEventListener` executa na fase de **borbulhamento** (*bubbling*). Para escutar na fase de captura, deve-se passar o argumento `{ capture: true }`.
+   </details>
+
+2. **O que acontece quando chamamos `event.stopPropagation()` em um handler de clique?**
+   <details>
+     <summary>Possível resposta</summary>
+     O método interrompe a subida do evento na árvore DOM, fazendo com que nenhum elemento pai ou ancestral receba a notificação daquele clique na fase de borbulhamento.
+   </details>
+
+---
+
+## Referências
+
+- [Introduction to events | MDN](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Building_blocks/Events)
+- [EventTarget.addEventListener() | MDN](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener)
+- [Event reference | MDN](https://developer.mozilla.org/en-US/docs/Web/EVENTS)
+
+---
+
+## Próxima aula
+
+[Elementos Dinâmicos](../dynamic-elements/): Criação e renderização performática de nós no DOM com `createElement`, `DocumentFragment` e o elemento `<template>`.

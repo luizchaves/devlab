@@ -116,7 +116,7 @@ export default defineConfig({
     '/courses/dw-cstrc-jp/packages/vite': withBase('/courses/packages/build/vite/'),
     '/courses/dw-cstrc-jp/packages/json-server': withBase('/courses/packages/mock/json-server/'),
     '/courses/dw-cstrc-jp/packages/chartjs': withBase('/courses/packages/ui/chartjs/'),
-    '/courses/dw-cstrc-jp/packages/axios': withBase('/courses/web-api/http/axios/'),
+    '/courses/dw-cstrc-jp/packages/axios': withBase('/courses/packages/http/axios/'),
     '/courses/dw-cstrc-jp/packages/bootstrap': withBase('/courses/css/frameworks/bootstrap/'),
     '/courses/dw-cstrc-jp/packages/tailwind-css': withBase('/courses/css/frameworks/tailwind/'),
     '/courses/dw-cstrc-jp/projects/hello-express': withBase(
@@ -163,7 +163,7 @@ export default defineConfig({
     '/courses/pw2-csbes-jp/w3c/fetch-api': withBase('/courses/web-api/http/fetch/'),
     '/courses/pw2-csbes-jp/api/rest': withBase('/courses/web-api/http/rest/'),
     '/courses/pw2-csbes-jp/api/graphql': withBase('/courses/web-api/http/graphql/'),
-    '/courses/pw2-csbes-jp/package/axios': withBase('/courses/web-api/http/axios/'),
+    '/courses/pw2-csbes-jp/package/axios': withBase('/courses/packages/http/axios/'),
     '/courses/pw2-csbes-jp/package/http-client': withBase('/courses/web-api/http/clients/'),
     '/courses/pw2-csbes-jp/package/vite': withBase('/courses/packages/build/vite/'),
     '/courses/pw2-csbes-jp/package/json-server': withBase('/courses/packages/mock/json-server/'),
@@ -623,32 +623,79 @@ export default defineConfig({
           items: [
             { label: 'Visão geral', link: '/courses/web-api/' },
             {
-              label: 'Objetos do Navegador',
-              items: [{ label: 'Objetos do Navegador', link: '/courses/web-api/browser/objects/' }],
-            },
-            {
-              label: 'DOM',
+              label: 'Ambiente e Navegador',
               items: [
-                { label: 'Manipulação do DOM', link: '/courses/web-api/dom/manipulation/' },
-                { label: 'Eventos', link: '/courses/web-api/dom/events/' },
-                {
-                  label: 'Elementos Dinâmicos',
-                  link: '/courses/web-api/dom/dynamic-elements/',
-                },
+                { label: 'APIs Modernas do Navegador', link: '/courses/web-api/browser/modern-apis/' },
+                { label: 'Ciclo de Vida da Página', link: '/courses/web-api/browser/lifecycle/' },
               ],
             },
             {
-              label: 'Armazenamento',
-              items: [{ label: 'Local Storage', link: '/courses/web-api/storage/local-storage/' }],
+              label: 'Interface e Navegação',
+              items: [
+                { label: 'Objetos do Navegador (BOM)', link: '/courses/web-api/browser/objects/' },
+                { label: 'History API (Navegação SPA)', link: '/courses/web-api/browser/history/' },
+                { label: 'Dialog API (Modais Nativos)', link: '/courses/web-api/browser/modern-apis/dialog/' },
+                { label: 'Fullscreen API (Tela Cheia)', link: '/courses/web-api/browser/modern-apis/fullscreen/' },
+              ],
             },
             {
-              label: 'Requisições HTTP',
+              label: 'DOM e Estrutura',
               items: [
+                { label: 'Manipulação do DOM', link: '/courses/web-api/dom/manipulation/' },
+                { label: 'Eventos e Interatividade', link: '/courses/web-api/dom/events/' },
+                { label: 'Elementos Dinâmicos', link: '/courses/web-api/dom/dynamic-elements/' },
+                { label: 'Observadores (Observers)', link: '/courses/web-api/browser/observers/' },
+              ],
+            },
+            {
+              label: 'Desenho e Mídia',
+              items: [
+                { label: 'Canvas API (Desenho 2D)', link: '/courses/web-api/browser/modern-apis/canvas/' },
+                { label: 'Web Speech API (Voz)', link: '/courses/web-api/browser/modern-apis/web-speech/' },
+              ],
+            },
+            {
+              label: 'Entrada e Transferência',
+              items: [
+                { label: 'Clipboard API (Copiar e Colar)', link: '/courses/web-api/browser/modern-apis/clipboard/' },
+                { label: 'Drag and Drop API (Arrastar)', link: '/courses/web-api/browser/modern-apis/drag-and-drop/' },
+              ],
+            },
+            {
+              label: 'Dispositivo e Sistema',
+              items: [
+                { label: 'Geolocation API (Localização)', link: '/courses/web-api/browser/modern-apis/geolocation/' },
+                { label: 'Notification API (Notificações)', link: '/courses/web-api/browser/modern-apis/notification/' },
+                { label: 'Vibration API (Feedback Tátil)', link: '/courses/web-api/browser/modern-apis/vibration/' },
+                { label: 'Web Workers API (Multi-threading)', link: '/courses/web-api/browser/workers/' },
+              ],
+            },
+            {
+              label: 'Armazenamento Client-Side',
+              items: [
+                { label: 'Local Storage e Web Storage', link: '/courses/web-api/storage/local-storage/' },
+                { label: 'Web Storage API (Exemplo)', link: '/courses/web-api/browser/modern-apis/web-storage/' },
+                { label: 'Cookies e Sessão', link: '/courses/web-api/storage/cookies/' },
+              ],
+            },
+            {
+              label: 'Comunicação de Rede',
+              items: [
+                { label: 'Server-Side Rendering (SSR)', link: '/courses/web-api/browser/ssr/' },
+                { label: 'WebSockets API (Tempo Real)', link: '/courses/web-api/http/websockets/' },
                 { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
-                { label: 'Axios', link: '/courses/web-api/http/axios/' },
+                { label: 'Fetch API (Exemplo)', link: '/courses/web-api/browser/modern-apis/fetch/' },
+                { label: 'CORS e Segurança', link: '/courses/web-api/http/cors/' },
                 { label: 'Clientes HTTP', link: '/courses/web-api/http/clients/' },
                 { label: 'REST API', link: '/courses/web-api/http/rest/' },
                 { label: 'GraphQL', link: '/courses/web-api/http/graphql/' },
+              ],
+            },
+            {
+              label: 'Na Prática',
+              items: [
+                { label: 'MonitorApp (DOM e Storage)', link: '/courses/web-api/practice/monitor-app/' },
+                { label: 'InvestApp (Fetch e API)', link: '/courses/web-api/practice/invest-app/' },
               ],
             },
           ],
@@ -787,6 +834,10 @@ export default defineConfig({
             {
               label: 'APIs de Prototipagem',
               items: [{ label: 'JSON Server', link: '/courses/packages/mock/json-server/' }],
+            },
+            {
+              label: 'HTTP e Clientes',
+              items: [{ label: 'Axios', link: '/courses/packages/http/axios/' }],
             },
             {
               label: 'Interface',

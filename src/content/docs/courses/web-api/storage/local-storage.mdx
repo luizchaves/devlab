@@ -1,430 +1,240 @@
 ---
-title: "Web APIs: Local Storage"
-description: "Persistência simples no navegador com localStorage e serialização JSON."
+title: "Web APIs: Local Storage e Web Storage"
+description: "Persistência de dados no cliente com localStorage, sessionStorage, serialização JSON e sincronização entre abas."
 course: web-api
 sidebar:
-  label: "Local Storage"
+  label: "Local Storage e Web Storage"
 ---
-import FileTree from '@components/FileTree.astro';
-import SourceCode from '@components/SourceCode.astro';
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
 
-## Objeto localStorage
+Diferente das requisições HTTP tradicionais que armazenam dados no servidor, as **Web Storage APIs** permitem que as aplicações mantenham informações salvas diretamente no navegador do usuário de forma persistente.
 
-```js
-const name = 'value';
+## Objetivo
 
-localStorage.setItem('name', name);
+Compreender os mecanismos de armazenamento no lado do cliente (*client-side storage*), dominando a API de `localStorage` e `sessionStorage`, a serialização segura com JSON, os limites de cota e o tratamento de exceções.
 
-console.log(localStorage.getItem('name'));
-//=> value
+---
 
-localStorage.setItem('person', JSON.stringify({ name: 'John' }));
+## Comparativo de Armazenamento no Navegador
 
-console.log(JSON.parse(localStorage.getItem('name')));
-//=> { name: 'John' }
-```
+O navegador oferece diferentes opções para salvar dados no cliente, cada uma adequada a um caso de uso específico:
 
-Alternativas Remotas
+| Tecnologia | Capacidade Média | Expiração | Acesso no Servidor? | Tipo de Dados |
+| --- | --- | --- | --- | --- |
+| **`localStorage`** | ~5 MB por origem | Permanente (até ser limpo) | Não | Apenas Strings |
+| **`sessionStorage`** | ~5 MB por origem | Ao fechar a aba/janela | Não | Apenas Strings |
+| **Cookies** | ~4 KB por cookie | Data configurável | Sim (enviado via HTTP) | Strings |
+| **IndexedDB** | > 250 MB (banco de dados) | Permanente | Não | Objetos / Chave-Valor |
 
-- [JSON Server](../../../packages/mock/json-server/)
+---
 
-{/*
-- Supabase
-- Firebase
- */}
+## A Web Storage API
 
-## Monitor-app (CRUD)
+Os objetos `localStorage` e `sessionStorage` compartilham exatamente a mesma interface de métodos e propriedades. A única diferença é a persistência: enquanto o `sessionStorage` é limpo quando a aba é fechada, o `localStorage` permanece armazenado por tempo indeterminado.
 
-![](/dw/imgs/w3c/local-storage/monitor-app-crud.png)
-
-<FileTree>
+<Mermaid title="Fluxo de Armazenamento no LocalStorage">
 {`
-monitor-app/
-    css/
-        style.css
-    js/
-        components/
-        data/
-        lib/
-        services/
-        main.js
-    public/
-        vite.svg
-    .gitignore
-    index.html
-    package-lock.json
-    package.json
+flowchart TD
+  A["1. Objeto JS original<br />{ id: 42, nome: 'Ana' }"] -->|"JSON.stringify()"| B["2. String JSON serializada"]
+  B -->|"localStorage.setItem()"| C["3. Disco do Navegador<br />(Armazenamento Local)"]
+  C -->|"localStorage.getItem()"| D["4. String JSON lida"]
+  D -->|"JSON.parse()"| E["5. Objeto JS reconstituído"]
 `}
-</FileTree>
+</Mermaid>
 
-## Local Storage
+### Métodos Principais
 
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/data/seed.js" />
+```js title="Operações com localStorage"
+// 1. Armazenar uma string
+localStorage.setItem('temaPref', 'dark');
 
-```js title="/codes/w3c/local-storage/monitor-app/js/services/storage.js"
-import { v4 as uuidv4 } from 'uuid';
+// 2. Ler um valor armazenado (retorna string ou null se não existir)
+const tema = localStorage.getItem('temaPref');
+console.log(tema); //=> "dark"
 
-function storageInsert(key, value) {
-  if (typeof value === 'object') {
-    value = JSON.stringify(value);
-  }
+// 3. Remover uma chave específica
+localStorage.removeItem('temaPref');
 
-  localStorage.setItem(`@monitor-app:${key}`, value);
-}
-
-function storageSelect(key, isJSON = true) {
-  let value = localStorage.getItem(`@monitor-app:${key}`);
-
-  if (isJSON) {
-    value = JSON.parse(value);
-  }
-
-  return value;
-}
-
-function load(resourse, data) {
-  if (storageSelect('loaded', false) !== 'ok') {
-    storageInsert(resourse, data);
-
-    storageInsert('loaded', 'ok');
-  }
-}
-
-function create(resourse, value) {}
-
-function read(resourse, id) {}
-
-function update(resourse, id, value) {}
-
-function remove(resourse, id) {}
-
-export default { load, create, read, update, remove };
+// 4. Limpar TODOS os dados da origem atual
+localStorage.clear();
 ```
 
-### Create a host
+---
 
-```js title="/codes/w3c/local-storage/monitor-app/js/services/storage.js"
-function create(resource, value) {
-  const values = storageSelect(resource);
+## Serialização de Objetos com JSON
 
-  value = { ...value, id: uuidv4() };
+Como a Web Storage API armazena **exclusivamente valores do tipo string**, tentar salvar um objeto JavaScript diretamente resultará na gravação da string inútil `"[object Object]"`.
 
-  storageInsert(resource, [...values, value]);
+Para armazenar estruturas de dados complexas (arrays e objetos), devemos serializá-las para JSON na gravação e desserializá-las na leitura:
 
-  return value;
-}
-```
-
-```js
-import Storage from './services/storage.js';
-
-const host = {
-    name: 'Google DNS',
-    address: '8.8.8.8',
-    mask: '255.255.255.0',
-    version: 'v4',
-  };
-
-Storage.create('hosts', host);
-```
-
-### Read hosts
-
-```js title="/codes/w3c/local-storage/monitor-app/js/services/storage.js"
-function read(resourse, id) {
-  const values = storageSelect(resourse);
-
-  if (id) {
-    return values.find((value) => value.id === id);
-  } else {
-    return values;
-  }
-}
-```
-
-```js
-import Storage from './services/storage.js';
-
-Storage.read('hosts');
-Storage.read('hosts', 1);
-```
-
-### Update a host
-
-```js title="/codes/w3c/local-storage/monitor-app/js/services/storage.js"
-function update(resourse, id, value) {
-  const values = storageSelect(resourse);
-
-  const index = values.findIndex((value) => value.id === id);
-
-  if (index >= 0) {
-    value = { id, ...value };
-
-    values[index] = {...values[index], ...value};
-
-    storageInsert(resourse, values);
-
-    return value;
-  } else {
-    return false;
-  }
-}
-```
-
-```js
-import Storage from './services/storage.js';
-
-Storage.update('hosts', { id: 1, value: 15000 });
-```
-
-### Delete a host
-
-```js title="/codes/w3c/local-storage/monitor-app/js/services/storage.js"
-function remove(resourse, id) {
-  const values = storageSelect(resourse);
-
-  const index = values.findIndex((value) => value.id === id);
-
-  if (index >= 0) {
-    values.splice(index, 1);
-  }
-
-  storageInsert(resourse, values);
-}
-```
-
-```js
-import Storage from './services/storage.js';
-
-Storage.remove('hosts', 1);
-```
-
-## Front-end
-
-```bash
-$ npm i uuidv4 iconify-icon bootstrap
-```
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/index.html" />
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/main.js" />
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/css/style.css" />
-
-### Utilitários
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/lib/dom.js" />
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/lib/hosts.js" />
-
-### Componentes
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/components/HostTableRow.js" />
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/components/HostForm.js" />
-
-<SourceCode path="examples/web-api/local-storage/monitor-app/js/components/Modal.js" />
-
-## Exemplo completo: Invest App (CRUD)
-
-A mesma estrutura de CRUD do exemplo anterior, agora aplicada ao Invest App.
-
-[Código Fonte](https://github.com/ifpb/pw2/tree/main/public/codes/w3c/local-storage/invest-app/)
-
-<FileTree>
-{`
-invest-app/
-├── css/
-│   └── style.css
-├── js/
-│   ├── components/
-│   │   ├── InvestmentCard.js
-│   │   ├── InvestmentForm.js
-│   │   └── Modal.js
-│   ├── data/
-│   │   └── seed.js
-│   ├── lib/
-│   │   ├── dom.js
-│   │   ├── format.js
-│   │   └── investments.js
-│   ├── services/
-│   │   └── storage.js
-│   └── main.js
-├── public/
-│   └── vite.svg
-├── .gitignore
-├── index.html
-├── package-lock.json
-├── package.json
-├── postcss.config.js
-└── tailwind.config.js
-`}
-</FileTree>
-### Implementação do serviço de storage
-
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/data/seed.js" />
-
-```js title="/codes/w3c/local-storage/invest-app/js/services/storage.js"
-import { v4 as uuidv4 } from 'uuid';
-
-function storageInsert(key, data) {
-  if (typeof data === 'object') {
-    data = JSON.stringify(data);
-  }
-
-  localStorage.setItem(`@invest-app:${key}`, data);
-}
-
-function storageSelect(key, isJSON = true) {
-  let data = localStorage.getItem(`@invest-app:${key}`);
-
-  if (isJSON) {
-    data = JSON.parse(data);
-  }
-
-  return data;
-}
-
-function load(resource, dataset) {
-  if (storageSelect('loaded', false) !== 'ok') {
-    storageInsert(resource, dataset);
-
-    storageInsert('loaded', 'ok');
-  }
-}
-
-function create(resourse, data) {}
-function read(resourse, id) {}
-function update(resourse, id, data) {}
-function remove(resourse, id) {}
-
-export default { load, create, read, update, remove };
-```
-
-#### Criar um investimento
-
-```js title="/codes/w3c/local-storage/invest-app/js/services/storage.js"
-function create(resource, data) {
-  const datas = storageSelect(resource);
-
-  data = { ...data, id: uuidv4() };
-
-  storageInsert(resource, [...datas, data]);
-
-  return data;
-}
-```
-
-```js
-import Storage from './services/storage.js';
-
-const investment = {
-  name: "Tesouro Selic 2029",
-  value: 10000,
-  origin: "Tesouro Direto",
-  category: "Pós",
-  interest: "100% Selic",
-  created_at: "2021-09-10T00:00:00-03:00",
+```js title="Gravando e lendo objetos com JSON"
+const usuario = {
+  id: 42,
+  nome: 'Ana Silva',
+  preferencias: { notificacoes: true }
 };
 
-Storage.create('investments', investment);
-```
+// GRAVAÇÃO: Converte o objeto para string JSON
+const jsonString = JSON.stringify(usuario);
+localStorage.setItem('@app:usuario', jsonString);
 
-#### Ler investimentos
+// LEITURA: Lê a string e converte de volta para objeto JS
+const dadosSalvos = localStorage.getItem('@app:usuario');
 
-```js title="/codes/w3c/local-storage/invest-app/js/services/storage.js"
-function read(resource, id) {
-  const datas = storageSelect(resource);
-
-  if (id) {
-    return datas.find((data) => data.id === id);
-  } else {
-    return datas;
+if (dadosSalvos) {
+  try {
+    const usuarioRecuperado = JSON.parse(dadosSalvos);
+    console.log(usuarioRecuperado.nome); // "Ana Silva"
+  } catch (erro) {
+    console.error("Erro ao fazer parse do JSON do localStorage:", erro);
   }
 }
 ```
 
-```js
-import Storage from './services/storage.js';
+<Aside type="caution" title="Limites de Cota e Exceções">
+Tentar gravar dados além do limite de cota (~5MB) disparará a exceção `QuotaExceededError`. Envolva sempre operações de `setItem` em blocos `try/catch` quando lidar com dados volumosos.
+</Aside>
 
-Storage.read('investments');
-Storage.read('investments', 1);
-```
+---
 
-#### Atualizar um investimento
+## Módulo de Armazenamento Reutilizável
 
-```js title="/codes/w3c/local-storage/invest-app/js/services/storage.js"
-function update(resource, id, data) {
-  const dataset = storageSelect(resource);
+Em aplicações reais, abstraímos as chamadas do `localStorage` em um serviço centralizado para evitar duplicação de `JSON.stringify` e `JSON.parse`:
 
-  const index = dataset.findIndex((data) => data.id === id);
+```js title="src/services/storage.js"
+export const storage = {
+  get(key, defaultValue = null) {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      console.error(`Erro ao ler chave ${key}:`, error);
+      return defaultValue;
+    }
+  },
 
-  if (index >= 0) {
-    data = { id, ...data };
+  set(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Erro ao gravar chave ${key}:`, error);
+    }
+  },
 
-    dataset[index] = { ...dataset[index], ...data };
-
-    storageInsert(resource, dataset);
-
-    return data;
-  } else {
-    return false;
+  remove(key) {
+    localStorage.removeItem(key);
   }
-}
+};
 ```
 
-```js
-import Storage from './services/storage.js';
+---
 
-Storage.update('investments', 1, { value: 15000 });
+## O Evento `storage`
+
+Quando um valor no `localStorage` é alterado, o navegador dispara o evento `storage` em **todas as outras abas ativas do mesmo domínio**:
+
+```js title="Sincronizando estados entre abas"
+window.addEventListener('storage', (event) => {
+  console.log(`A chave ${event.key} foi alterada!`);
+  console.log(`Valor antigo: ${event.oldValue}`);
+  console.log(`Novo valor: ${event.newValue}`);
+});
 ```
 
-#### Remover um investimento
+<Aside type="tip" title="Projetos Práticos">
+Para ver a implementação completa de um CRUD persistente com interface gráfica e modularização em JavaScript, acesse as páginas de projetos práticos:
+- [MonitorApp (DOM e Storage)](../../practice/monitor-app/)
+- [InvestApp (Fetch e API)](../../practice/invest-app/)
+</Aside>
 
-```js title="/codes/w3c/local-storage/invest-app/js/services/storage.js"
-function remove(resource, id) {
-  const dataset = storageSelect(resource);
+---
 
-  const index = dataset.findIndex((data) => data.id === id);
+## Executando
 
-  if (index >= 0) {
-    dataset.splice(index, 1);
+<Steps>
+1. Abra o navegador com <kbd>F12</kbd> e clique na aba **Aplicação** (ou **Storage** no Firefox).
+2. Expanda o menu **Local Storage** e clique na URL do domínio atual.
+3. No console, execute: `localStorage.setItem('usuario', JSON.stringify({ nome: 'DevLab' }));`.
+4. Observe a nova chave `usuario` aparecer instantaneamente no painel visual da aba Aplicação.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual a diferença fundamental de persistência entre `localStorage` e `sessionStorage`?
+2. Por que a chamada `localStorage.setItem('usuario', { nome: 'Ana' })` resulta em um erro de gravação sem utilidade? Como corrigir?
+3. O evento `storage` é disparado na mesma aba onde a alteração foi realizada?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O `localStorage` mantém os dados gravados no disco do usuário indefinidamente, mesmo após fechar o navegador. O `sessionStorage` apaga os dados assim que a aba ou janela correspondente for fechada.
+
+  2. Porque a Web Storage API converte tudo para string por padrão. Sem o `JSON.stringify()`, o objeto é convertido para a string `"[object Object]"`. A forma correta é: `localStorage.setItem('usuario', JSON.stringify({ nome: 'Ana' }))`.
+
+  3. Não. O evento `storage` é disparado apenas nas **outras abas ou janelas** abertas na mesma origem, permitindo sincronizar o estado entre abas diferentes.
+</details>
+
+---
+
+## Desafio
+
+Crie uma função `salvarHistoricoBusca(termo)` que mantenha um array dos últimos 5 termos pesquisados no `localStorage` sob a chave `@app:historico_buscas`, garantindo que não haja termos duplicados e que a lista não exceda 5 itens.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js
+  function salvarHistoricoBusca(termo) {
+    const CHAVE = '@app:historico_buscas';
+    let historico = JSON.parse(localStorage.getItem(CHAVE)) || [];
+
+    // Remove duplicados se já existir
+    historico = historico.filter(item => item !== termo);
+
+    // Adiciona o novo termo no início
+    historico.unshift(termo);
+
+    // Limita a no máximo 5 itens
+    if (historico.length > 5) {
+      historico.pop();
+    }
+
+    localStorage.setItem(CHAVE, JSON.stringify(historico));
   }
+  ```
+</details>
 
-  storageInsert(resource, dataset);
-}
-```
+---
 
-```js
-import Storage from './services/storage.js';
+## Perguntas de revisão
 
-Storage.remove('investments', 1);
-```
+### Capacidade e Exceções
 
-### Front-end
+1. **Qual exceção é lançada pelo navegador quando o limite de cota do `localStorage` é ultrapassado?**
+   <details>
+     <summary>Possível resposta</summary>
+     A exceção `QuotaExceededError` (ou `DOMException` de código 22).
+   </details>
 
-```bash
-$ npm i @iconify/iconify
-$ npm i preline
-$ npm i @preline/overlay
-```
+2. **Como verificar quantas chaves estão atualmente gravadas no `localStorage`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Acessando a propriedade `localStorage.length`.
+   </details>
 
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/tailwind.config.js" />
+---
 
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/index.html" />
+## Referências
 
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/main.js" />
+- [Window.localStorage | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
+- [Window.sessionStorage | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage)
+- [Window: storage event | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event)
 
-### Utilitários
+---
 
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/lib/dom.js" />
+## Próxima aula
 
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/lib/format.js" />
-
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/lib/investments.js" />
-
-### Componentes
-
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/components/InvestmentCard.js" />
-
-<SourceCode path="examples/web-api/pw2/local-storage/invest-app/js/components/InvestmentForm.js" />
+[Fetch API](../../http/fetch/): Realizando requisições HTTP assíncronas com `fetch`, tratando Promises com `async/await`, enviando dados JSON e tratando erros de rede.

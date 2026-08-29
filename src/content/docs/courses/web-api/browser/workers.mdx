@@ -1,0 +1,325 @@
+---
+title: "Web APIs: Web Workers"
+description: "Execução em segundo plano no navegador com Web Workers, postMessage, transferência de dados e limites de acesso ao DOM."
+course: web-api
+sidebar:
+  label: "Web Workers"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+JavaScript no navegador roda, em grande parte, na **thread principal**. Essa mesma thread cuida de
+eventos, renderização, layout, pintura da tela e execução do código da aplicação. Se um cálculo pesado
+ocupa essa thread por muito tempo, a interface congela.
+
+**Web Workers** permitem executar JavaScript em segundo plano, fora da thread principal, mantendo a
+interface responsiva.
+
+## Objetivo
+
+Compreender quando usar Web Workers, como criar um worker, trocar mensagens com `postMessage`,
+tratar erros e reconhecer os limites dessa API, especialmente a impossibilidade de manipular o DOM
+diretamente dentro do worker.
+
+---
+
+## Thread Principal vs Worker
+
+<Mermaid title="Separação entre UI e Worker">
+{`
+flowchart LR
+  Main["Thread principal"]
+  Worker["Web Worker"]
+
+  Main --> UI["DOM, eventos, renderizacao"]
+  Main -- "postMessage(dados)" --> Worker
+  Worker --> CPU["Calculo pesado / processamento"]
+  Worker -- "postMessage(resultado)" --> Main
+  Main --> Update["Atualiza a interface"]
+`}
+</Mermaid>
+
+O worker não substitui `async/await`. Ele resolve outro problema:
+
+- `async/await` organiza tarefas assíncronas, como rede e timers.
+- `Worker` move processamento pesado para outra thread.
+
+Uma Promise que calcula milhões de itens ainda pode travar a tela se o cálculo acontecer na thread
+principal. Um worker evita esse bloqueio.
+
+---
+
+## Criando um Worker
+
+Crie um arquivo separado para o código executado em segundo plano.
+
+```js title="worker.js"
+self.addEventListener('message', (event) => {
+  const limite = event.data;
+  let soma = 0;
+
+  for (let i = 0; i <= limite; i += 1) {
+    soma += i;
+  }
+
+  self.postMessage({ limite, soma });
+});
+```
+
+Na thread principal, instancie o worker e envie uma mensagem:
+
+```js title="main.js"
+const worker = new Worker('./worker.js');
+
+worker.addEventListener('message', (event) => {
+  console.log('Resultado recebido:', event.data);
+});
+
+worker.postMessage(100_000_000);
+```
+
+O valor enviado por `postMessage()` é copiado para o worker usando o algoritmo de **structured clone**.
+Objetos, arrays, números, strings, `Map`, `Set` e vários tipos estruturados podem ser enviados sem
+precisar serializar manualmente com JSON.
+
+---
+
+## Worker com Módulos
+
+Em projetos modernos, é comum criar workers como módulos, usando `import` dentro do worker:
+
+```js title="main.js"
+const worker = new Worker(new URL('./worker.js', import.meta.url), {
+  type: 'module'
+});
+
+worker.postMessage({ inicio: 1, fim: 10_000_000 });
+```
+
+```js title="worker.js"
+import { somarIntervalo } from './math.js';
+
+self.addEventListener('message', (event) => {
+  const { inicio, fim } = event.data;
+  const resultado = somarIntervalo(inicio, fim);
+
+  self.postMessage({ resultado });
+});
+```
+
+Esse formato funciona bem com empacotadores como Vite, porque o build consegue descobrir e processar
+o arquivo do worker.
+
+---
+
+## O Worker Não Acessa o DOM
+
+Um worker não possui acesso a `document`, `window`, `querySelector()` ou elementos HTML.
+
+```js title="worker.js"
+console.log(typeof document); // "undefined"
+```
+
+Isso é intencional. A UI continua sob responsabilidade da thread principal. O worker calcula,
+transforma ou processa dados; a thread principal recebe o resultado e atualiza a tela.
+
+```js title="main.js"
+worker.addEventListener('message', (event) => {
+  const resultado = event.data.resultado;
+  document.querySelector('#saida').textContent = resultado;
+});
+```
+
+---
+
+## Tratamento de Erros
+
+Erros dentro do worker devem ser monitorados pela thread principal:
+
+```js title="main.js"
+const worker = new Worker('./worker.js');
+
+worker.addEventListener('error', (event) => {
+  console.error('Erro no worker:', event.message);
+});
+
+worker.addEventListener('messageerror', () => {
+  console.error('A mensagem nao pode ser clonada para o worker.');
+});
+```
+
+Dentro do worker, também é possível capturar exceções e responder com um objeto de erro controlado:
+
+```js title="worker.js"
+self.addEventListener('message', (event) => {
+  try {
+    const resultado = executarCalculo(event.data);
+    self.postMessage({ ok: true, resultado });
+  } catch (error) {
+    self.postMessage({ ok: false, mensagem: error.message });
+  }
+});
+```
+
+---
+
+## Encerrando um Worker
+
+Workers continuam vivos enquanto a página existir ou até serem encerrados. Quando não forem mais
+necessários, finalize-os com `terminate()`.
+
+```js title="main.js"
+const worker = new Worker('./worker.js');
+
+document.querySelector('#cancelar').addEventListener('click', () => {
+  worker.terminate();
+  console.log('Worker encerrado');
+});
+```
+
+O próprio worker também pode chamar `self.close()` para encerrar sua execução.
+
+---
+
+## Transferindo Dados Grandes
+
+Por padrão, mensagens são copiadas. Para buffers grandes, é possível transferir a posse do dado para
+evitar cópia.
+
+```js title="Transferindo ArrayBuffer"
+const buffer = new ArrayBuffer(1024 * 1024);
+
+worker.postMessage(buffer, [buffer]);
+
+console.log(buffer.byteLength); // 0 apos a transferencia
+```
+
+Depois da transferência, a thread principal deixa de possuir aquele `ArrayBuffer`. Essa técnica é útil
+em processamento de imagens, áudio, arquivos e dados binários grandes.
+
+---
+
+## Quando Usar
+
+| Use Worker para | Evite Worker para |
+| --- | --- |
+| Cálculos pesados | Atualizar DOM diretamente |
+| Processamento de arquivos grandes | Pequenas validações de formulário |
+| Conversão de imagem, áudio ou CSV | Uma única chamada `fetch()` simples |
+| Ordenação ou busca custosa em listas grandes | Código que precisa acessar elementos HTML o tempo todo |
+| Simulações e algoritmos CPU-bound | Corrigir código lento por manipulação excessiva do DOM |
+
+<Aside type="tip" title="Diagnóstico">
+Se a página fica sem responder enquanto um laço, parsing ou cálculo executa, um Worker pode ajudar.
+Se o gargalo é muita alteração de DOM, revise a renderização antes de mover código para outra thread.
+</Aside>
+
+---
+
+## Executando
+
+<Steps>
+1. Crie `index.html`, `main.js` e `worker.js` na mesma pasta.
+2. Em `index.html`, carregue `main.js` com `<script type="module" src="./main.js"></script>`.
+3. No `worker.js`, escute `message`, execute um cálculo e responda com `self.postMessage()`.
+4. No `main.js`, crie `new Worker('./worker.js')` e registre o evento `message`.
+5. Abra a página por um servidor local; workers podem falhar quando o HTML é aberto diretamente com `file://`.
+</Steps>
+
+---
+
+## Exercício
+
+1. Por que um cálculo pesado pode travar a interface?
+2. O worker pode acessar `document.querySelector()`?
+3. Qual método é usado para enviar mensagens entre a thread principal e o worker?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a thread principal do navegador executa JavaScript e também processa eventos, layout e
+  renderização. Um cálculo longo bloqueia essas tarefas.
+
+  2. Não. Workers não acessam o DOM diretamente.
+
+  3. `postMessage()`, combinado com o evento `message`.
+</details>
+
+---
+
+## Desafio
+
+Crie um worker que receba um array de números e retorne:
+
+- menor valor;
+- maior valor;
+- média aritmética;
+- quantidade de itens.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="stats-worker.js"
+  self.addEventListener('message', (event) => {
+    const numeros = event.data;
+    const total = numeros.reduce((acc, n) => acc + n, 0);
+
+    self.postMessage({
+      menor: Math.min(...numeros),
+      maior: Math.max(...numeros),
+      media: total / numeros.length,
+      quantidade: numeros.length
+    });
+  });
+  ```
+
+  ```js title="main.js"
+  const worker = new Worker('./stats-worker.js');
+
+  worker.addEventListener('message', (event) => {
+    console.table(event.data);
+  });
+
+  worker.postMessage([10, 20, 30, 40]);
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é a principal vantagem de usar Web Worker?**
+   <details>
+     <summary>Possível resposta</summary>
+     Executar processamento pesado sem bloquear a thread principal e sem congelar a interface.
+   </details>
+
+2. **Por que dados grandes podem ser transferidos em vez de copiados?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para reduzir custo de memória e tempo de cópia, especialmente com `ArrayBuffer` e arquivos
+     binários.
+   </details>
+
+3. **Quando `terminate()` deve ser chamado?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o worker não será mais usado, como ao cancelar uma tarefa, sair de uma tela ou liberar
+     recursos.
+   </details>
+
+---
+
+## Referências
+
+- [Web Workers API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
+- [Worker | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Worker)
+- [Structured clone algorithm | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm)
+- [Using web workers | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers)
+
+---
+
+## Próxima aula
+
+[MonitorApp (DOM e Storage)](../../practice/monitor-app/): aplique manipulação do DOM e persistência em
+um projeto guiado.

@@ -1,0 +1,231 @@
+---
+title: "Guia de Pacotes: Axios"
+description: "Cliente HTTP Axios para navegador e Node.js: instâncias configuráveis, métodos CRUD, interceptores e tratamento de erros."
+course: packages
+sidebar:
+  label: "Axios"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Axios** é uma das bibliotecas de cliente HTTP mais populares do ecossistema JavaScript. Funcionando tanto no navegador (via `XMLHttpRequest` por baixo dos panos) quanto no ambiente Node.js, ele simplifica requisições assíncronas fornecendo recursos como parse automático de JSON, rejeição automática de Promises em erros HTTP e interceptores.
+
+## Objetivo
+
+Compreender o uso da biblioteca Axios para consumo de serviços Web, dominando a criação de instâncias personalizadas com `axios.create()`, a configuração de cabeçalhos globais, a captura de exceções via `try/catch` e o uso de interceptores de requisição e resposta.
+
+---
+
+## Vantagens do Axios em Relação ao `fetch` Nativo
+
+Embora a `Fetch API` seja nativa, o Axios oferece facilidades de alto nível que reduzem código boilerplate:
+
+| Recurso | Fetch API | Axios |
+| --- | --- | --- |
+| **Instalação** | Nativo do navegador / Node 18+ | Biblioteca externa (`npm i axios`) |
+| **Parse de JSON** | Requer `await res.json()` manual | Automático (dados em `res.data`) |
+| **Erros HTTP (4xx/5xx)** | Não rejeita (requer `if (!res.ok)`) | Rejeita a Promise automaticamente |
+| **Instâncias Base** | Requer funções utilitárias personalizadas | Nativo (`axios.create({ baseURL })`) |
+| **Interceptores** | Não possui suporte nativo | Suporte nativo para req/res |
+
+---
+
+## Uso Básico do Axios
+
+### Instalação
+
+```bash title="Instalação via npm"
+npm install axios
+```
+
+### Requisição GET Simples
+
+No Axios, o retorno de `axios.get()` traz um objeto de resposta onde os dados desembrulhados e parseados ficam na propriedade `data`:
+
+```js title="Buscando dados de uma API com Axios"
+import axios from 'axios';
+
+async function buscarUsuarios() {
+  try {
+    const resposta = await axios.get('https://api.github.com/users/octocat');
+
+    // Os dados retornados pela API ficam em resposta.data
+    console.log('Nome:', resposta.data.name);
+    console.log('Seguidores:', resposta.data.followers);
+  } catch (erro) {
+    console.error('Erro na requisição:', erro.message);
+  }
+}
+
+buscarUsuarios();
+```
+
+---
+
+## Criando Instâncias Customizadas (`axios.create`)
+
+Em aplicações reais, você raramente chamará a URL inteira em todas as funções. A boa prática é criar uma **instância pré-configurada** com a `baseURL` da API e cabeçalhos padrão:
+
+```js title="src/services/api.js (Instância do Axios)"
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'https://api.exemplo.com/v1',
+  timeout: 5000, // Tempo limite de 5 segundos
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+export default api;
+```
+
+Com essa instância criada, você pode chamá-la utilizando caminhos relativos em todo o projeto:
+
+```js title="Consumindo a instância da API"
+import api from './services/api.js';
+
+// Faz a chamada para https://api.exemplo.com/v1/produtos
+async function listarProdutos() {
+  try {
+    const resposta = await api.get('/produtos');
+    return resposta.data;
+  } catch (erro) {
+    if (erro.response) {
+      // O servidor respondeu com um código de erro (4xx, 5xx)
+      console.error('Erro do Servidor:', erro.response.status, erro.response.data);
+    } else if (erro.request) {
+      // A requisição foi feita mas não houve resposta (offline/network error)
+      console.error('Sem resposta do servidor. Verifique sua conexão.');
+    } else {
+      console.error('Erro ao configurar requisição:', erro.message);
+    }
+  }
+}
+```
+
+---
+
+## Métodos HTTP (CRUD)
+
+O Axios fornece métodos convenientes para todas as operações HTTP:
+
+```js title="Operações CRUD com Axios"
+import api from './services/api.js';
+
+// 1. Criar um novo recurso (POST)
+async function criarProduto(novoProduto) {
+  const resposta = await api.post('/produtos', novoProduto);
+  return resposta.data; // Retorna o item criado com o ID gerado pelo backend
+}
+
+// 2. Atualizar um recurso existente (PUT)
+async function atualizarProduto(id, dadosAtualizados) {
+  const resposta = await api.put(`/produtos/${id}`, dadosAtualizados);
+  return resposta.data;
+}
+
+// 3. Deletar um recurso (DELETE)
+async function deletarProduto(id) {
+  await api.delete(`/produtos/${id}`);
+  console.log(`Produto ${id} removido com sucesso.`);
+}
+```
+
+---
+
+## Interceptores (*Interceptors*)
+
+Os **Interceptores** permitem que você insira uma lógica que será executada *antes* de uma requisição sair da aplicação ou *antes* de uma resposta ser entregue ao seu código.
+
+<Mermaid title="Fluxo de Execução dos Interceptores no Axios">
+{`
+flowchart TD
+  App["Aplicação JS"] -- "api.get()" --> ReqInt["Interceptor de Requisição<br />(Injeta Token JWT)"]
+  ReqInt -- "HTTP Request" --> Server["Servidor API"]
+  Server -- "HTTP Response" --> ResInt["Interceptor de Resposta<br />(Trata Erro 401)"]
+  ResInt -- "Retorna res.data" --> App
+`}
+</Mermaid>
+
+### Exemplo: Injetando Token de Autenticação
+
+```js title="Injetando Bearer Token com Interceptor de Requisição"
+import api from './services/api.js';
+
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (erro) => {
+    return Promise.reject(erro);
+  }
+);
+```
+
+### Exemplo: Tratamento Global de Erro 401 (Sessão Expirada)
+
+```js title="Redirecionando para Login se o token for inválido"
+api.interceptors.response.use(
+  (resposta) => resposta,
+  (erro) => {
+    if (erro.response && erro.response.status === 401) {
+      console.warn('Sessão expirada. Redirecionando para login...');
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(erro);
+  }
+);
+```
+
+---
+
+## Executando
+
+Siga os passos para testar requisições Axios em um projeto Node.js ou navegador:
+
+<Steps>
+1. Instale a biblioteca: `npm install axios`.
+2. Crie um arquivo `test-axios.js` e adicione a chamada:
+   ```js
+   import axios from 'axios';
+   axios.get('https://jsonplaceholder.typicode.com/posts/1')
+     .then(res => console.log('Título:', res.data.title));
+   ```
+3. Execute o arquivo com `node test-axios.js`.
+</Steps>
+
+---
+
+## Exercício
+
+1. Onde ficam os dados retornados pelo servidor na resposta do Axios?
+2. Como o Axios descobre se deve enviar o corpo da requisição serializado como JSON?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Na propriedade `response.data`.
+
+  2. Quando um objeto JavaScript é passado no segundo argumento de `axios.post()` ou `axios.put()`, o Axios converte o objeto automaticamente para JSON e adiciona o cabeçalho `Content-Type: application/json`.
+</details>
+
+---
+
+## Referências
+
+- [Axios Documentation | Official Site](https://axios-http.com/docs/intro)
+- [Axios Instance Configuration | Official Docs](https://axios-http.com/docs/instance)
+- [Axios Interceptors | Official Docs](https://axios-http.com/docs/interceptors)
+
+---
+
+## Próxima aula
+
+[JSON Server](../../mock/json-server/): Prototipagem rápida de APIs REST falsas a partir de um arquivo JSON.

@@ -1,0 +1,215 @@
+---
+title: "Web APIs: History API"
+description: "Navegação sem recarregamento de página em Single Page Applications (SPAs) com history.pushState, replaceState e o evento popstate."
+course: web-api
+sidebar:
+  label: "History API"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A **History API** permite interagir diretamente com o histórico de navegação da aba do navegador. Ela é a base fundamental para a criação de **Single Page Applications (SPAs)**, permitindo alterar a URL exibida na barra de endereço e navegar entre estados sem precisar recarregar a página do servidor.
+
+## Objetivo
+
+Compreender o funcionamento da History API, dominando a manipulação da URL com `history.pushState()` e `history.replaceState()`, a captura da navegação pelo botão voltar do navegador com o evento `popstate`, e os cuidados com o roteamento em aplicações SPA.
+
+---
+
+## O Objeto `window.history`
+
+O objeto `history` expõe métodos para navegar no histórico da sessão (avançar, voltar) e manipular a pilha de URLs registradas sem causar uma requisição HTTP tradicional.
+
+| Método / Propriedade | Descrição | Exemplo |
+| --- | --- | --- |
+| `history.length` | Retorna a quantidade de entradas na pilha de histórico | `console.log(history.length)` |
+| `history.back()` | Volta para a página anterior no histórico (igual ao botão Voltar) | `history.back()` |
+| `history.forward()` | Avança para a próxima página no histórico | `history.forward()` |
+| `history.go(n)` | Desloca $n$ passos no histórico (ex: `-1` para voltar, `2` para avançar 2) | `history.go(-2)` |
+| `history.pushState()` | Adiciona uma nova entrada na pilha do histórico e atualiza a URL | `history.pushState(state, '', '/produto/42')` |
+| `history.replaceState()` | Substitui a entrada atual do histórico sem criar um novo registro | `history.replaceState(state, '', '/nova-url')` |
+
+<Mermaid title="Fluxo de Navegação em SPAs com History API">
+{`
+flowchart TD
+  subgraph UserAction["1. Ação do Usuário no Front-end"]
+    Click["Clique em um Link/Botão da SPA"] --> Prevent["e.preventDefault()<br />(Impede o recarregamento)"]
+  end
+
+  subgraph StateChange["2. Atualização de Estado e URL"]
+    Prevent --> PushState["history.pushState(dados, '', '/perfil')"]
+    PushState --> UI["Atualiza a Interface (DOM)<br />sem buscar HTML no servidor"]
+  end
+
+  subgraph BackButton["3. Navegação pelos Botões do Navegador"]
+    Back["Usuário clica em Voltar/Avançar"] --> PopState["Evento 'popstate' disparado"]
+    PopState --> RenderState["Renderiza a tela com base no event.state"]
+  end
+`}
+</Mermaid>
+
+---
+
+## Manipulando o Histórico: `pushState` vs `replaceState`
+
+### 1. Adicionando Histórico com `pushState`
+
+O método `pushState(state, unused, url)` aceita três parâmetros:
+1. `state`: Um objeto JavaScript associado à nova entrada do histórico (armazenado nativamente no navegador).
+2. `unused`: Parâmetro reservado por razões históricas (deve ser passado como string vazia `''`).
+3. `url`: A nova URL que será exibida na barra de endereço (deve ser da mesma origem).
+
+```js title="Adicionando uma rota dinamicamente sem recarregar a página"
+// Estado associado à rota
+const estadoProduto = { produtoId: 42, categoria: 'eletronicos' };
+
+// Atualiza a URL na barra de endereço para /produtos/42
+history.pushState(estadoProduto, '', '/produtos/42');
+
+// Atualiza a interface visual no DOM
+document.querySelector('#app').textContent = 'Exibindo Produto 42';
+```
+
+### 2. Substituindo a Entrada Atual com `replaceState`
+
+O `replaceState()` possui a mesma assinatura do `pushState()`, mas em vez de criar um novo registro no botão voltar, ele **modifica a entrada atual**. É ideal para atualizar query params de filtros ou formulários sem poluir o histórico do usuário.
+
+```js title="Atualizando query params de busca sem criar novos passos no histórico"
+const estadoFiltro = { busca: 'teclado', pagina: 1 };
+
+// Atualiza a URL de /produtos para /produtos?busca=teclado
+history.replaceState(estadoFiltro, '', '/produtos?busca=teclado');
+```
+
+---
+
+## O Evento `popstate`
+
+Quando o usuário clica nos botões **Voltar** ou **Avançar** do navegador, a History API dispara o evento `popstate` na janela (`window`).
+
+```js title="Capturando a navegação pelos botões do navegador"
+window.addEventListener('popstate', (event) => {
+  // event.state contém o objeto passado no pushState ou replaceState
+  if (event.state) {
+    console.log('Navegou para o estado:', event.state);
+
+    // Re-renderiza a página de acordo com o estado recuperado
+    carregarPaginaPorId(event.state.produtoId);
+  } else {
+    // Estado inicial da página (sem estado gravado)
+    console.log('Navegou para a página inicial.');
+  }
+});
+```
+
+<Aside type="tip" title="Restrição do Evento popstate">
+O evento `popstate` é disparado **apenas** quando o usuário clica nos botões Voltar/Avançar do navegador ou executa `history.back()` / `history.forward()`. Ele **não** é disparado chamando `history.pushState()` diretamente no código.
+</Aside>
+
+<Aside type="caution" title="Armadilha em Produção: Configuração do Servidor (404 em F5)">
+Ao utilizar URLs amigáveis com `pushState()` (ex: `/usuarios/10`), se o usuário recarregar a página (<kbd>F5</kbd>), o navegador solicitará o arquivo `/usuarios/10` diretamente ao servidor. Se o servidor HTTP (Nginx, Express, Vite) não estiver configurado para redirecionar todas as rotas não encontradas para o `index.html` (*fallback route*), o servidor retornará **Erro 404**.
+</Aside>
+
+---
+
+## Executando
+
+Siga os passos no console do navegador para testar a History API em tempo real:
+
+<Steps>
+1. Abra o console das ferramentas do desenvolvedor (<kbd>F12</kbd>).
+2. Execute: `history.pushState({ passo: 1 }, '', '?passo=1');` e observe a barra de endereço mudar instantaneamente sem recarregar a página.
+3. Execute: `history.pushState({ passo: 2 }, '', '?passo=2');`.
+4. Clique no botão **Voltar** do navegador e verifique como a URL retorna para `?passo=1`.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual a diferença fundamental entre `history.pushState()` e `history.replaceState()`?
+2. Por que a chamada `history.pushState()` não dispara o evento `popstate`?
+3. O que acontece se tentarmos passar uma URL de outro domínio (ex: `https://google.com`) no terceiro parâmetro de `pushState()`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O `pushState()` adiciona uma nova entrada na pilha do histórico (permitindo voltar para a URL anterior pelo botão do navegador), enquanto o `replaceState()` substitui a entrada atual no histórico sem adicionar um novo passo.
+
+  2. Porque o `popstate` foi projetado para responder a ações de navegação do usuário (botões voltar/avançar do navegador ou `history.back()`). Como o desenvolvedor já sabe que chamou `pushState()`, ele deve atualizar a UI diretamente na mesma função.
+
+  3. O navegador lançará um erro de segurança (*SecurityError / Same-Origin Policy*) para impedir que scripts simulem endereços de outros domínios na barra de busca (*phishing*).
+</details>
+
+---
+
+## Desafio
+
+Crie um pequeno roteador Vanilla JS que escute os cliques em todos os links `<a class="nav-link">` de uma página, previna o comportamento padrão de navegação com `e.preventDefault()`, chame `history.pushState()` com o atributo `href` do link e dispare uma função `renderizarRota(pathname)` para atualizar o conteúdo da página.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js
+  function renderizarRota(path) {
+    const app = document.querySelector('#app');
+    if (path === '/sobre') {
+      app.textContent = 'Página Sobre Nós';
+    } else if (path === '/contato') {
+      app.textContent = 'Página de Contato';
+    } else {
+      app.textContent = 'Página Inicial';
+    }
+  }
+
+  // Captura cliques nos links com a classe nav-link
+  document.querySelectorAll('a.nav-link').forEach(link => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      const path = link.getAttribute('href');
+
+      // Atualiza o histórico e a URL
+      history.pushState({ path }, '', path);
+
+      // Renderiza o novo conteúdo
+      renderizarRota(path);
+    });
+  });
+
+  // Trata a navegação pelos botões do navegador (Voltar/Avançar)
+  window.addEventListener('popstate', () => {
+    renderizarRota(window.location.pathname);
+  });
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Conceitos e Boas Práticas
+
+1. **Qual propriedade do objeto `event` no handler de `popstate` traz os dados salvos durante o `pushState`?**
+   <details>
+     <summary>Possível resposta</summary>
+     A propriedade `event.state`.
+   </details>
+
+2. **Por que bibliotecas como React Router ou Vue Router utilizam a History API em vez de fragmentos de hash (`#`) na URL?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a History API produz URLs limpas e sem o caractere `#` (ex: `/produtos` em vez de `/#/produtos`), oferecendo uma experiência visual de navegação nativa e facilitando a otimização de motores de busca (SEO).
+   </details>
+
+---
+
+## Referências
+
+- [History API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/History_API)
+- [Window: popstate event | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/popstate_event)
+
+---
+
+## Próxima aula
+
+[Ciclo de Vida da Página](../lifecycle/): Entendendo eventos de carregamento, visibilidade e encerramento de abas.

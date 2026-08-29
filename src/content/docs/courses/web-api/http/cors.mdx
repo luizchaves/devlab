@@ -1,0 +1,335 @@
+---
+title: "Web APIs: CORS e Segurança"
+description: "Same-Origin Policy, CORS, preflight, credenciais, cabeçalhos HTTP e erros comuns em requisições entre origens."
+course: web-api
+sidebar:
+  label: "CORS e Segurança"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Ao consumir uma API com `fetch()`, é comum encontrar mensagens como **"blocked by CORS policy"**.
+Esse erro não significa que o JavaScript está errado. Significa que o navegador aplicou uma regra
+de segurança para impedir que uma página leia respostas de uma origem que não autorizou esse acesso.
+
+## Objetivo
+
+Compreender a **Same-Origin Policy**, o funcionamento do **CORS**, as requisições de preflight, o uso
+de credenciais e os cabeçalhos envolvidos em integrações HTTP entre front-end e back-end.
+
+---
+
+## Origem: Protocolo + Domínio + Porta
+
+Para o navegador, uma origem é formada por três partes:
+
+```txt
+origem = protocolo + dominio + porta
+```
+
+| URL | Origem |
+| --- | --- |
+| `https://app.exemplo.com/dashboard` | `https://app.exemplo.com:443` |
+| `http://app.exemplo.com/dashboard` | `http://app.exemplo.com:80` |
+| `https://api.exemplo.com/users` | `https://api.exemplo.com:443` |
+| `http://localhost:5173` | `http://localhost:5173` |
+| `http://localhost:3000` | `http://localhost:3000` |
+
+`localhost:5173` e `localhost:3000` são origens diferentes porque a porta mudou. Esse é o cenário
+clássico de desenvolvimento: Vite no front-end e API em outra porta.
+
+---
+
+## Same-Origin Policy
+
+A **Same-Origin Policy** é uma regra de segurança do navegador. Ela restringe como scripts de uma
+origem podem ler dados de outra origem.
+
+Sem essa regra, um site malicioso aberto no navegador poderia tentar ler dados de bancos, e-mails,
+intranets ou APIs onde o usuário já está autenticado.
+
+<Mermaid title="Same-Origin Policy no Navegador">
+{`
+flowchart LR
+  User["Usuario autenticado"] --> Evil["site-malicioso.com"]
+  Evil --> Browser["Navegador"]
+  Browser --> Bank["banco.com/api/saldo"]
+  Bank --> Browser
+  Browser --> Decision{API autorizou a origem?}
+  Decision -- "Sim" --> JS["JavaScript recebe a resposta"]
+  Decision -- "Nao" --> Block["Resposta bloqueada para o JS"]
+`}
+</Mermaid>
+
+<Aside type="caution" title="CORS é proteção do navegador">
+Ferramentas como `curl`, Postman ou Insomnia podem acessar uma API sem sofrer bloqueio de CORS,
+porque CORS é uma regra aplicada por navegadores a scripts web. Isso não prova que o front-end
+conseguirá ler a resposta.
+</Aside>
+
+---
+
+## O que é CORS
+
+**CORS** significa *Cross-Origin Resource Sharing*. É o mecanismo pelo qual um servidor informa ao
+navegador quais origens externas podem acessar suas respostas.
+
+Em uma requisição cross-origin, o navegador envia um cabeçalho `Origin`:
+
+```http title="Requisicao enviada pelo navegador"
+GET /usuarios HTTP/1.1
+Host: api.exemplo.com
+Origin: http://localhost:5173
+```
+
+O servidor precisa responder com um cabeçalho permitindo essa origem:
+
+```http title="Resposta autorizando a origem"
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: http://localhost:5173
+Content-Type: application/json
+```
+
+Se a autorização não existir, o navegador até pode receber a resposta pela rede, mas não entrega os
+dados ao JavaScript.
+
+---
+
+## Requisições Simples e Preflight
+
+Algumas requisições são consideradas simples. Outras exigem uma requisição preliminar chamada
+**preflight**, feita com o método `OPTIONS`.
+
+### Requisição simples
+
+Geralmente ocorre com `GET`, `HEAD` ou `POST` usando cabeçalhos e tipos de conteúdo simples.
+
+```js title="GET cross-origin simples"
+const resposta = await fetch('https://api.exemplo.com/produtos');
+const produtos = await resposta.json();
+```
+
+### Requisição com preflight
+
+Ao enviar JSON com `Content-Type: application/json`, usar métodos como `PUT`/`DELETE` ou adicionar
+cabeçalhos personalizados, o navegador pergunta antes se a API permite aquela operação.
+
+<Mermaid title="Fluxo de Preflight CORS">
+{`
+sequenceDiagram
+  participant JS as Front-end
+  participant B as Navegador
+  participant API as Servidor API
+
+  JS->>B: fetch com POST JSON
+  B->>API: OPTIONS /usuarios
+  API-->>B: Access-Control-Allow-Methods / Headers
+  B->>API: POST /usuarios com body JSON
+  API-->>B: 201 Created + Access-Control-Allow-Origin
+  B-->>JS: Response liberada
+`}
+</Mermaid>
+
+Exemplo de resposta de preflight:
+
+```http title="Resposta para OPTIONS"
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: http://localhost:5173
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+Access-Control-Allow-Headers: Content-Type, Authorization
+```
+
+---
+
+## Credenciais: Cookies e Autenticação
+
+Por padrão, `fetch()` não envia cookies em requisições para outra origem. Para incluir cookies,
+é preciso configurar `credentials`.
+
+```js title="Enviando cookies em fetch cross-origin"
+const resposta = await fetch('https://api.exemplo.com/perfil', {
+  credentials: 'include'
+});
+```
+
+O servidor também precisa autorizar credenciais:
+
+```http title="Resposta CORS com credenciais"
+Access-Control-Allow-Origin: http://localhost:5173
+Access-Control-Allow-Credentials: true
+```
+
+<Aside type="caution" title="Wildcard não combina com credenciais">
+Quando `Access-Control-Allow-Credentials: true` é usado, o servidor não pode responder
+`Access-Control-Allow-Origin: *`. Ele precisa devolver uma origem específica.
+</Aside>
+
+---
+
+## Cabeçalhos Mais Importantes
+
+| Cabeçalho | Quem envia? | Para que serve |
+| --- | --- | --- |
+| `Origin` | Navegador | Informa a origem da página que fez a requisição |
+| `Access-Control-Allow-Origin` | Servidor | Define quais origens podem ler a resposta |
+| `Access-Control-Allow-Methods` | Servidor | Lista métodos permitidos no preflight |
+| `Access-Control-Allow-Headers` | Servidor | Lista cabeçalhos permitidos no preflight |
+| `Access-Control-Allow-Credentials` | Servidor | Permite uso de cookies/autenticação cross-origin |
+| `Access-Control-Max-Age` | Servidor | Define por quanto tempo o preflight pode ser cacheado |
+
+---
+
+## Erros Comuns e Diagnóstico
+
+| Mensagem ou sintoma | Causa provável | Onde corrigir |
+| --- | --- | --- |
+| `No 'Access-Control-Allow-Origin' header` | API não autorizou a origem do front-end | Back-end |
+| `Request header field authorization is not allowed` | Preflight não permite o cabeçalho `Authorization` | Back-end |
+| `Response to preflight request doesn't pass access control check` | Resposta `OPTIONS` está incorreta | Back-end |
+| Funciona no Postman, falha no navegador | Postman não aplica CORS | Back-end ou proxy de desenvolvimento |
+| Cookies não chegam na API | Falta `credentials: 'include'` ou configuração de cookie/CORS | Front-end e back-end |
+
+```js title="Tratamento de erro no front-end"
+try {
+  const resposta = await fetch('https://api.exemplo.com/dados');
+
+  if (!resposta.ok) {
+    throw new Error(`Erro HTTP: ${resposta.status}`);
+  }
+
+  const dados = await resposta.json();
+  console.log(dados);
+} catch (erro) {
+  console.error('Falha na requisicao:', erro);
+}
+```
+
+O `catch` acima captura falhas de rede e bloqueios que impedem a entrega da resposta ao JavaScript.
+Mas a configuração CORS correta precisa estar no servidor.
+
+---
+
+## Desenvolvimento Local
+
+Durante o desenvolvimento, há três soluções comuns:
+
+1. Configurar CORS corretamente no back-end para aceitar `http://localhost:5173`.
+2. Usar um proxy do servidor de desenvolvimento, como o proxy do Vite.
+3. Servir front-end e API pela mesma origem em ambiente integrado.
+
+```js title="Exemplo de proxy no vite.config.js"
+export default {
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true
+      }
+    }
+  }
+};
+```
+
+Com o proxy, o front-end chama `/api/usuarios`, e o servidor de desenvolvimento encaminha a
+requisição para `http://localhost:3000/usuarios`.
+
+---
+
+## Executando
+
+<Steps>
+1. Abra a aba **Network** das ferramentas do desenvolvedor.
+2. Faça uma requisição `fetch()` para uma API em outra origem.
+3. Clique na requisição e procure o cabeçalho `Origin` em **Request Headers**.
+4. Verifique se a resposta contém `Access-Control-Allow-Origin`.
+5. Se houver uma requisição `OPTIONS` antes da requisição real, identifique os cabeçalhos de preflight.
+</Steps>
+
+---
+
+## Exercício
+
+1. Por que `http://localhost:5173` e `http://localhost:3000` são origens diferentes?
+2. O que é uma requisição preflight?
+3. Por que não basta adicionar um cabeçalho CORS no `fetch()`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a origem inclui protocolo, domínio e porta. Mesmo domínio com porta diferente forma
+  outra origem.
+
+  2. É uma requisição `OPTIONS` enviada automaticamente pelo navegador antes de certas requisições
+  cross-origin para verificar se método, cabeçalhos e origem são permitidos pelo servidor.
+
+  3. Porque CORS é uma autorização dada pelo servidor ao navegador. O front-end pode enviar
+  `Origin`, mas quem precisa responder com `Access-Control-Allow-Origin` é a API.
+</details>
+
+---
+
+## Desafio
+
+Imagine uma aplicação em `http://localhost:5173` chamando uma API em `http://localhost:3000` com:
+
+```js
+await fetch('http://localhost:3000/usuarios', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer token'
+  },
+  body: JSON.stringify({ nome: 'Ana' })
+});
+```
+
+Liste quais cabeçalhos a resposta de preflight precisa permitir para essa chamada funcionar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```http
+  Access-Control-Allow-Origin: http://localhost:5173
+  Access-Control-Allow-Methods: POST
+  Access-Control-Allow-Headers: Content-Type, Authorization
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **CORS é uma regra do JavaScript ou do navegador?**
+   <details>
+     <summary>Possível resposta</summary>
+     Do navegador. Ele controla se scripts web podem ler respostas de outra origem.
+   </details>
+
+2. **Por que `Access-Control-Allow-Origin: *` não serve para requisições com cookies?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque requisições com credenciais exigem uma origem explícita e
+     `Access-Control-Allow-Credentials: true`.
+   </details>
+
+3. **Qual método HTTP é usado no preflight?**
+   <details>
+     <summary>Possível resposta</summary>
+     `OPTIONS`.
+   </details>
+
+---
+
+## Referências
+
+- [Cross-Origin Resource Sharing | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+- [Same-origin policy | MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
+- [Fetch: credentials | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Request/credentials)
+- [OPTIONS | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/OPTIONS)
+
+---
+
+## Próxima aula
+
+[Axios](../../../packages/http/axios/): crie uma camada de cliente HTTP com instâncias, interceptores e tratamento
+centralizado de erros.

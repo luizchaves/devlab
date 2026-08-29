@@ -1,374 +1,298 @@
 ---
 title: "Web APIs: Fetch API"
-description: Consumindo APIs HTTP com fetch, tanto no navegador quanto no Node.js.
+description: "Requisições HTTP assíncronas nativas no navegador e Node.js com fetch, async/await, tratamento de erros e CORS."
 course: web-api
 sidebar:
   label: "Fetch API"
 ---
-import FileTree from '@components/FileTree.astro';
-import SourceCode from '@components/SourceCode.astro';
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
 
-`fetch` é a função padrão para requisições HTTP. Ela existe no navegador e, desde a
-versão 18, também no Node.js — sem instalar nada.
+A **Fetch API** é a interface padrão nativa do navegador (e disponível no Node.js a partir da versão 18) para realizar requisições HTTP assíncronas pela rede. Ela substituiu a antiga e verbosa API `XMLHttpRequest`, fornecendo uma abstração limpa baseada em **Promises**.
 
-## A função `fetch`
+## Objetivo
 
-`fetch` recebe o recurso e, opcionalmente, um objeto de opções com método,
-cabeçalhos e corpo da requisição:
+Compreender o consumo de Web APIs e serviços REST no front-end, dominando os métodos HTTP, o envio e recebimento de cargas JSON, o tratamento correto de erros de resposta (`response.ok`), a configuração de CORS e o cancelamento de requisições com `AbortController`.
+
+---
+
+## Natureza Assíncrona e Event Loop
+
+A comunicação com servidores remotos via rede é uma operação de entrada e saída (*I/O*) não bloqueante. O método `fetch()` não trava a execução da página nem paralisa a interface do usuário enquanto aguarda os dados do servidor.
+
+Em vez disso, ele delega a tarefa de rede para o navegador e retorna uma **Promise**. Quando a resposta do servidor chega, o navegador envia o resultado para a fila de *microtasks* do Event Loop, permitindo que a aplicação trate os dados sem causar congelamento (*freezing*) na tela. Por isso, a sintaxe padrão recomendada em todo o guia é o uso de `async/await` com blocos `try/catch`.
+
+---
+
+## A Função `fetch` e a Classe `Response`
+
+A função `fetch()` aceita uma URL de destino e um objeto opcional de opções de configuração. Ela retorna uma Promise que resolve em um objeto do tipo `Response`:
 
 ```js
-fetch(resource)
-fetch(resource, options)
+fetch(url, options)
 ```
 
-Exemplo
+<Mermaid title="Fluxo de Execução do fetch e Parse do JSON">
+{`
+flowchart TD
+  Req["fetch(url, options)"] -- "Requisição Assíncrona" --> Net["Servidor Remoto / API"]
+  Net -- "Retorna Objeto Response" --> Res["const res = await fetch(...)"]
+  Res --> Check{res.ok === true?}
+  Check -- "Sim" --> Parse["await res.json()"]
+  Check -- "Não (404, 500)" --> Err["throw new Error(res.status)"]
+  Parse --> Data["Dados JS prontos para uso"]
+`}
+</Mermaid>
 
-<SourceCode path="examples/web-api/pw2/fetch-api/via-cep/index.js" />
+---
 
-## GET
+## Operações CRUD com `fetch`
 
-```js title="get.js" showLineNumbers {2,4}
-async function listarUsuarios() {
-  const resposta = await fetch('http://localhost:3000/users');
+### 1. Leitura de Dados (GET)
+
+A requisição do tipo GET é o padrão do `fetch` caso nenhum segundo parâmetro seja fornecido:
+
+```js title="GET - Consultando uma API"
+async function buscarUsuarios() {
+  try {
+    const resposta = await fetch('https://jsonplaceholder.typicode.com/users');
+
+    // VERIFICAÇÃO CRÍTICA: fetch NÃO lança exceções em status 404 ou 500!
+    if (!resposta.ok) {
+      throw new Error(`Erro HTTP! Status: ${resposta.status}`);
+    }
+
+    const usuarios = await resposta.json();
+    console.log(usuarios);
+  } catch (erro) {
+    console.error('Falha na requisição de rede:', erro);
+  }
+}
+
+buscarUsuarios();
+```
+
+<Aside type="caution" title="Armadilha Crítica do fetch">
+Uma Promise retornada pelo `fetch()` **NÃO é rejeitada** em caso de erro HTTP como `404 Not Found` ou `500 Internal Server Error`. A Promise só é rejeitada se houver uma falha real de rede (ex: perda de conexão ou endereço inexistente). Sempre verifique a propriedade `resposta.ok`!
+</Aside>
+
+### 2. Envio de Dados (POST)
+
+Para enviar dados em formato JSON para uma API, três configurações no objeto de opções são obrigatórias:
+1. `method: 'POST'`
+2. `headers: { 'Content-Type': 'application/json' }`
+3. `body: JSON.stringify(dados)`
+
+```js title="POST - Criando um recurso"
+async function criarUsuario(novoUsuario) {
+  const opcoes = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(novoUsuario)
+  };
+
+  const resposta = await fetch('https://jsonplaceholder.typicode.com/users', opcoes);
 
   if (!resposta.ok) {
-    throw new Error(`Erro HTTP ${resposta.status}`);
+    throw new Error(`Erro ao criar usuário: ${resposta.status}`);
   }
 
-  return resposta.json();
+  const usuarioCriado = await resposta.json();
+  return usuarioCriado;
 }
 ```
 
-:::caution[`fetch` não rejeita em erro HTTP]
-Um `404` ou `500` **não** lança exceção: a Promise resolve normalmente. Sempre
-verifique `resposta.ok` ou `resposta.status`.
-:::
+### 3. Atualização (PUT e PATCH) e Remoção (DELETE)
 
-## POST com JSON
-
-Três coisas são obrigatórias: o método, o cabeçalho `Content-Type` e o corpo
-serializado com `JSON.stringify`.
-
-```js title="post.js" showLineNumbers {3-6}
-async function criarUsuario(dados) {
-  const resposta = await fetch('http://localhost:3000/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(dados),
-  });
-
-  return resposta.json();
-}
-
-await criarUsuario({ name: 'Ana', email: 'ana@example.com' });
-```
-
-## PUT e DELETE
-
-```js title="put-delete.js"
-await fetch(`http://localhost:3000/users/${id}`, {
+```js title="PUT, PATCH e DELETE"
+// PUT - Atualização completa do recurso
+await fetch('https://api.com/users/1', {
   method: 'PUT',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ name: 'Ana Silva' }),
+  body: JSON.stringify({ nome: 'Ana Silva', email: 'ana@email.com' })
 });
 
-await fetch(`http://localhost:3000/users/${id}`, { method: 'DELETE' });
+// DELETE - Remoção do recurso
+const resDelete = await fetch('https://api.com/users/1', {
+  method: 'DELETE'
+});
+
+// Respostas 204 No Content não possuem corpo — não chame .json() nelas!
+if (resDelete.status === 204) {
+  console.log('Recurso excluído com sucesso!');
+}
 ```
 
-Respostas `204 No Content` não têm corpo — chamar `.json()` nelas lança erro.
+---
 
-## Query string
+## Montando Query Strings com `URLSearchParams`
 
-Monte parâmetros com `URLSearchParams` em vez de concatenar strings:
+Evite concatenar strings manualmente para passar parâmetros na URL. Utilize o utilitário nativo `URLSearchParams`:
 
-```js title="query.js"
-const params = new URLSearchParams({ page: '1', limit: '10' });
-const resposta = await fetch(`http://localhost:3000/users?${params}`);
+```js title="Construção segura de query parameters"
+const parametros = new URLSearchParams({
+  page: 1,
+  limit: 10,
+  busca: 'desenvolvimento web'
+});
+
+const url = `https://api.com/produtos?${parametros.toString()}`;
+// Resultado: https://api.com/produtos?page=1&limit=10&busca=desenvolvimento+web
+
+const resposta = await fetch(url);
 ```
 
-## CORS
+---
 
-Uma página só consegue ler a resposta de um domínio diferente do seu se o servidor
-autorizar explicitamente, através dos cabeçalhos de **CORS** (*Cross-Origin Resource
-Sharing*). É a causa mais comum de uma requisição que "funciona no terminal" mas
-falha no navegador.
+## Entendendo o CORS (Cross-Origin Resource Sharing)
 
-[Cross-Origin Resource Sharing (CORS)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+O **CORS** é um mecanismo de segurança implementado pelos navegadores que restringe requisições HTTP feitas via scripts para um domínio (origem) diferente daquele que serviu a página atual.
 
-- Access-Control-Allow-Origin
-- Access-Control-Allow-Methods
-- Access-Control-Allow-Headers
-- Access-Control-Allow-Credentials
-- Access-Control-Max-Age
-
-```http
-HTTP/1.1 200 OK
-Server: nginx/1.22.0
-Date: Seg, 11 Sep 2023 12:03:17 GMT
-Content-Type: application/json; charset=utf-8
-Transfer-Encoding: chunked
-Connection: close
-Expires: Sun, 10 Sep 2023 13:03:17 GMT
-Cache-Control: max-age=3600, public
-Pragma: public
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET
-Access-Control-Allow-Headers: Content-Type, X-Request-With, X-Requested-By
-Access-Control-Allow-Credentials: true
-Access-Control-Max-Age: 86400
-
-{
-  "cep": "58015-430",
-  "logradouro": "Avenida Primeiro de Maio",
-  "complemento": "até 469/470",
-  "bairro": "Jaguaribe",
-  "localidade": "João Pessoa",
-  "uf": "PB",
-  "ibge": "2507507",
-  "gia": "",
-  "ddd": "83",
-  "siafi": "2051"
-}
-
-## Fetch API e XMLHttpRequest
-
-
-O [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) é uma alternativa ao [XMLHttpRequest](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest)
-
-```js
-function makeRequest (method, url) {
-  return new Promise(function (resolve, reject) {
-    const xhr = new XMLHttpRequest();
-
-    xhr.open(method, url);
-
-    // xhr.setRequestHeader('Authorization', `Bearer TOKEN`);
-
-    xhr.onload = resolve;
-
-    xhr.onerror = reject;
-
-    xhr.send();
-  });
-}
-
-const cep = '58015430';
-
-const resource = `https://viacep.com.br/ws/${cep}/json/`;
-
-makeRequest('GET', resource)
-    .then(function (e) {
-        console.log(e.target.response);
-    }, function (e) {
-        // handle errors
-    });
-
-## Exemplo completo: Invest App (CRUD)
-
-O exemplo a seguir usa `fetch` para as quatro operações de um CRUD contra uma API
-REST, isolando o acesso à rede em um único módulo de serviço.
-
-![](/pw2/imgs/w3c/fetch-api/invest-app-crud.png)
-
-[Código Fonte](https://github.com/ifpb/pw2/tree/main/public/codes/w3c/fetch-api/invest-app/)
-
-<FileTree>
+<Mermaid title="Fluxo de Verificação do CORS pelo Navegador">
 {`
-invest-app/
-├── css/
-│   └── style.css
-├── js/
-│   ├── components/
-│   │   ├── InvestmentCard.js
-│   │   ├── InvestmentForm.js
-│   │   └── Modal.js
-│   ├── lib/
-│   │   ├── dom.js
-│   │   ├── format.js
-│   │   └── investments.js
-│   ├── services/
-│   │   └── storage.js
-│   └── main.js
-├── public/
-│   └── vite.svg
-├── .env.example
-├── .gitignore
-├── index.html
-├── package-lock.json
-├── package.json
-├── postcss.config.js
-└── tailwind.config.js
+flowchart TD
+  App["Aplicação Web (meusite.com)"] -- "fetch('https://api.com/dados')" --> Browser["Navegador"]
+  Browser -- "Requisição HTTP (com Origin: meusite.com)" --> API["Servidor API (api.com)"]
+  API -- "Resposta com Access-Control-Allow-Origin" --> Browser
+  Browser -- "Valida se meusite.com foi permitido" --> Decision{Permitido?}
+  Decision -- "Sim" --> Deliver["Entrega dados ao JS"]
+  Decision -- "Não" --> Block["Bloqueia no JS (CORS Error)"]
 `}
-</FileTree>
+</Mermaid>
 
-```ini title="codes/w3c/fetch-api/invest-app/.env.example"
-VITE_APP_SUPABASE_KEY=
-VITE_APP_SUPABASE_URL=
-```
+Se a API remota não retornar o cabeçalho `Access-Control-Allow-Origin` autorizando a origem do seu site, o navegador **bloqueará o acesso à resposta** por motivos de segurança.
 
-```js title="/codes/w3c/fetch-api/invest-app/js/service/storage.js"
-const API_TOKEN = import.meta.env.VITE_APP_SUPABASE_KEY;
-const API_URL = import.meta.env.VITE_APP_SUPABASE_URL;
+---
 
-async function create(resource, data) {}
-async function read(resource, id) {}
-async function update(resource, id, data) {}
-async function remove(resource, id) {}
+## Cancelando Requisições com `AbortController`
 
-export default { create, read, update, remove };
-```
+Em busca dinâmica ou navegação rápida, requisições antigas que ainda estão em andamento devem ser canceladas para evitar *race conditions* ou desperdício de banda. Isso é feito com a API `AbortController`:
 
-### Criar um investimento
+```js title="Cancelando requisições com AbortController"
+const controller = new AbortController();
+const signal = controller.signal;
 
-![](/pw2/imgs/package/supabase-api/post-investment.png)
+async function buscarDadosComTimeout() {
+  try {
+    // Cancela automaticamente após 5 segundos
+    const timer = setTimeout(() => controller.abort(), 5000);
 
-```js title="/codes/w3c/fetch-api/invest-app/js/service/storage.js"
-async function create(resource, data) {
-  resource = `${API_URL}/${resource}`;
+    const resposta = await fetch('https://api.com/dados-demorados', { signal });
+    clearTimeout(timer);
 
-  const options = {
-    headers: {
-      apikey: API_TOKEN,
-      Authorization: `Bearer ${API_TOKEN}`,
-      Prefer: 'return=representation',
-      'Content-Type': 'application/json',
-    },
-    method: 'POST',
-    body: JSON.stringify(data),
-  };
-
-  const res = await fetch(resource, options);
-
-  const createdData = await res.json();
-
-  return createdData?.[0];
+    const dados = await resposta.json();
+    return dados;
+  } catch (erro) {
+    if (erro.name === 'AbortError') {
+      console.warn('A requisição foi cancelada por ter excedido o tempo limite!');
+    } else {
+      console.error('Outro erro de rede:', erro);
+    }
+  }
 }
 ```
 
-```js
-import Storage from './js/services/storage.js';
+<Aside type="tip" title="Projeto Prático">
+Para ver a Fetch API integrada a um serviço REST completo com autenticação, tokens de API e interface reativa, acesse a página de projeto prático do [InvestApp (Fetch e API)](../../practice/invest-app/).
+</Aside>
 
-const investment = {
-  name: "Tesouro Selic 2029",
-  value: 10000,
-  origin: "Tesouro Direto",
-  category: "Pós",
-  interest: "100% Selic",
-  created_at: "2021-09-10T00:00:00-03:00",
-};
+---
 
-Storage.create('investments', investment);
-```
+## Executando
 
-### Ler investimentos
+Siga os passos abaixo para consultar uma API pública de CEP diretamente no console:
 
-![](/pw2/imgs/package/supabase-api/get-investments.png)
+<Steps>
+1. Abra o navegador com <kbd>F12</kbd> e acesse a aba **Console**.
+2. Cole o código a seguir e pressione <kbd>Enter</kbd>:
+   ```js
+   const res = await fetch('https://viacep.com.br/ws/58015430/json/');
+   const dados = await res.json();
+   console.table(dados);
+   ```
+3. Veja o objeto com os dados de endereço formatados no console.
+</Steps>
 
-```js title="/codes/w3c/fetch-api/invest-app/js/service/storage.js"
-async function read(resource, id) {
-  resource = id
-    ? `${API_URL}/${resource}?id=eq.${id}`
-    : `${API_URL}/${resource}`;
-
-  const options = {
-    headers: {
-      apikey: API_TOKEN,
-      Authorization: `Bearer ${API_TOKEN}`,
-    },
-    method: 'GET',
-  };
-
-  const res = await fetch(resource, options);
-
-  return await res.json();
-}
-```
-
-```js
-import Storage from './js/services/storage.js';
-
-Storage.read('investments');
-Storage.read('investments', 1);
-```
-
-### Atualizar um investimento
-
-![](/pw2/imgs/package/supabase-api/patch-investment.png)
-
-```js title="/codes/w3c/fetch-api/invest-app/js/service/storage.js"
-async function update(resource, id, data) {
-  resource = `${API_URL}/${resource}?id=eq.${id}`;
-
-  const options = {
-    headers: {
-      apikey: API_TOKEN,
-      Authorization: `Bearer ${API_TOKEN}`,
-      Prefer: 'return=representation',
-      'Content-Type': 'application/json',
-    },
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  };
-
-  const res = await fetch(resource, options);
-
-  const updatedData = await res.json();
-
-  return updatedData?.[0];
-}
-```
-
-```js
-import Storage from './js/services/storage.js';
-
-Storage.update('investments', 1, { value: 15000 });
-```
-
-### Remover um investimento
-
-![](/pw2/imgs/package/supabase-api/delete-investment.png)
-
-```js title="/codes/w3c/fetch-api/invest-app/js/service/storage.js"
-async function remove(resource, id) {
-  resource = `${API_URL}/${resource}?id=eq.${id}`;
-
-  const options = {
-    headers: {
-      apikey: API_TOKEN,
-      Authorization: `Bearer ${API_TOKEN}`,
-    },
-    method: 'DELETE',
-  };
-
-  const res = await fetch(resource, options);
-
-  return res.ok;
-}
-```
-
-```js
-import Storage from './js/services/storage.js';
-
-Storage.remove('investments', 1);
-```
-
-## Testando pelo terminal
-
-Enquanto não há front-end, use `curl` para exercitar a API:
-
-```bash
-curl http://localhost:3000/users
-
-curl -X POST http://localhost:3000/users \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Ana","email":"ana@example.com"}'
-```
+---
 
 ## Exercício
 
-Escreva um pequeno script Node que crie um usuário, liste todos, atualize o nome do
-usuário criado e por fim o remova — imprimindo o status de cada etapa.
+1. Por que uma requisição `fetch()` que retorna o código de status HTTP `404 Not Found` **não** cai no bloco `catch` de um `try/catch`?
+2. Quais são os três cabeçalhos/propriedades fundamentais necessários para enviar dados em formato JSON utilizando o método `POST` no `fetch`?
+3. O que é e para que serve o `AbortController`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a Fetch API considera como "rejeição" apenas falhas físicas de rede (sem conexão, falha de DNS ou erro de CORS). Respostas HTTP válidas retornadas pelo servidor (mesmo com erros 4xx ou 5xx) resolvem a Promise normalmente.
+
+  2. As três propriedades são:
+     - `method: 'POST'`
+     - `headers: { 'Content-Type': 'application/json' }`
+     - `body: JSON.stringify(dados)`
+
+  3. O `AbortController` é uma API nativa que permite abortar/cancelar uma ou mais requisições HTTP em andamento, sendo usada para timeouts ou para cancelar buscas anteriores quando o usuário digita um novo termo.
+</details>
+
+---
+
+## Desafio
+
+Escreva uma função `buscarComRetry(url, tentativas)` que tente realizar um `fetch(url)` até o número máximo de tentativas especificado. Se a resposta não for `.ok`, a função deve aguardar 1 segundo e tentar novamente antes de lançar o erro final.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js
+  async function buscarComRetry(url, tentativas = 3) {
+    for (let i = 1; i <= tentativas; i++) {
+      try {
+        console.log(`Tentativa ${i} de ${tentativas}...`);
+        const res = await fetch(url);
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (erro) {
+        if (i === tentativas) throw erro;
+      }
+      // Aguarda 1 segundo antes da próxima tentativa
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    throw new Error(`Falha após ${tentativas} tentativas.`);
+  }
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Resposta e Erros HTTP
+
+1. **Qual propriedade da interface `Response` retorna `true` apenas se o código de status HTTP estiver na faixa de `200` a `299`?**
+   <details>
+     <summary>Possível resposta</summary>
+     A propriedade `response.ok`.
+   </details>
+
+2. **O que acontece ao chamar o método `response.json()` em uma resposta com código HTTP `204 No Content`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Como uma resposta `204` não possui corpo textual, tentar fazer o parse com `.json()` resultará em um erro de sintaxe (*SyntaxError: Unexpected end of JSON input*).
+   </details>
+
+---
+
+## Referências
+
+- [Fetch API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+- [Using Fetch | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
+- [Cross-Origin Resource Sharing (CORS) | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+
+---
 
 ## Próxima aula
 
-[Node.js: Fundamentos](../../../nodejs/basics/introduction/) — executando JavaScript no servidor.
+[Axios](../../../packages/http/axios/): Cliente HTTP baseado em Promises com transformação automática de dados, instâncias configuráveis e interceptores de requisição/resposta.

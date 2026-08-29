@@ -1,0 +1,228 @@
+---
+title: "Web APIs: Server-Side Rendering (SSR)"
+description: "Entenda os desafios de utilizar Web APIs em ambientes com Server-Side Rendering (SSR), prevenindo erros de window is not defined e aplicando hidratação segura em React, Vue e Astro."
+course: web-api
+sidebar:
+  label: "Server-Side Rendering (SSR)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+No desenvolvimento web moderno com frameworks como **Next.js, Astro, Nuxt e SvelteKit**, a renderização das páginas ocorre em dois momentos distintos: no **servidor** (gerando o HTML inicial) e no **cliente** (executando interatividade no navegador).
+
+Como as **Web APIs** (`window`, `document`, `localStorage`, `navigator`, `WebSocket`) são fornecidas exclusivamente pelo runtime do navegador, tentativas de acessá-las durante a renderização no servidor causarão exceções fatais como `ReferenceError: window is not defined`.
+
+## Objetivo
+
+Compreender a arquitetura de renderização no servidor (*Server-Side Rendering - SSR*), identificar as limitações de acesso às Web APIs no ambiente Node.js do servidor e dominar técnicas de hidratação (*hydration*), guards de escopo global e importações dinâmicas.
+
+---
+
+## O Ciclo de Vida do SSR e Hidratação (*Hydration*)
+
+Em uma aplicação SSR, a requisição do usuário passa por dois estágios de execução:
+
+<Mermaid title="Fluxo de Execução entre Servidor e Cliente em SSR">
+{`
+flowchart TD
+  User["Usuário Solicita Página"] --> Server["1. Servidor Node.js / Edge<br />Executa JS sem 'window'<br />Gera HTML Estático"]
+  Server -- "Envia HTML + JS" --> Browser["2. Navegador (Cliente)<br />Renderiza HTML Inicial (FCP)"]
+  Browser --> Hydration["3. Processo de Hidratação<br />Carrega Web APIs (window, DOM)<br />Liga Eventos e Estados"]
+  Hydration --> Interactive["Página 100% Interativa"]
+`}
+</Mermaid>
+
+### Diferença de Ambientes
+
+| Recurso / Objeto | Ambiente do Servidor (Node.js/Edge) | Ambiente do Cliente (Navegador) |
+| --- | --- | --- |
+| **Objeto Global** | `global`, `globalThis`, `process` | `window`, `self`, `globalThis` |
+| **Acesso ao DOM** | ❌ Não existe (`document` não definido) | ✅ Disponível (`document.querySelector`) |
+| **Armazenamento** | ❌ Sem `localStorage` / `sessionStorage` | ✅ Disponível (`localStorage`, `IndexedDB`) |
+| **Rede & Comunicação** | `fetch` (Node 18+), `http/https` | `fetch`, `XMLHttpRequest`, `WebSocket` |
+| **Sensores & Hardware**| ❌ Sem Geolocation, Speech, Vibration | ✅ Disponível mediante permissão |
+
+---
+
+## O Problema: `ReferenceError: window is not defined`
+
+Quando um componente tenta acessar um objeto do navegador diretamente no corpo da função de renderização, o Node.js no servidor falha imediatamente:
+
+```js title="Exemplo Incorreto (Quebra no SSR)"
+// ❌ ERRO no servidor: ReferenceError: window is not defined
+function ComponentePerfil() {
+  const larguraTela = window.innerWidth; // Falha na renderização do servidor!
+  const tema = localStorage.getItem('tema'); // Falha na renderização do servidor!
+
+  return <div>Largura: {larguraTela}px</div>;
+}
+```
+
+---
+
+## Estratégias para Acesso Seguro a Web APIs
+
+### Estratégia 1: Guard de Escopo Global (`typeof window`)
+
+A técnica mais simples para código isomórfico (que pode rodar tanto no cliente quanto no servidor) é verificar a existência de `window`:
+
+```js title="Checagem condicional com typeof window"
+function obterTemaSalvo() {
+  // Verifica se o código está executando no navegador
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return localStorage.getItem('tema') || 'light';
+  }
+  
+  // Valor fallback padrão para a renderização inicial no servidor
+  return 'light';
+}
+```
+
+### Estratégia 2: Hooks e Eventos de Hidratação (*Client Lifecycle*)
+
+Em frameworks reativos, o código inserido em manipuladores de montagem roda **estritamente no cliente**, após a hidratação da página.
+
+#### Em React / Next.js (`useEffect`):
+
+```jsx title="React: Acessando Web APIs dentro do useEffect"
+import { useState, useEffect } from 'react';
+
+export function MedidorViewport() {
+  const [dimensoes, setDimensoes] = useState({ largura: 0, altura: 0 });
+
+  useEffect(() => {
+    // useEffect NUNCA executa no servidor! É seguro usar window aqui.
+    function atualizar() {
+      setDimensoes({
+        largura: window.innerWidth,
+        altura: window.innerHeight,
+      });
+    }
+
+    atualizar();
+    window.addEventListener('resize', atualizar);
+
+    return () => window.removeEventListener('resize', atualizar);
+  }, []);
+
+  return <p>Resolução atual: {dimensoes.largura} x {dimensoes.altura}</p>;
+}
+```
+
+#### Em Vue / Nuxt (`onMounted`):
+
+```html title="Vue: Acessando Web APIs dentro do onMounted"
+<script setup>
+import { ref, onMounted } from 'vue';
+
+const geolocalizacao = ref(null);
+
+onMounted(() => {
+  // onMounted executa apenas no navegador após o componente ser inserido no DOM
+  if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      geolocalizacao.value = pos.coords;
+    });
+  }
+});
+</script>
+```
+
+### Estratégia 3: Arquitetura de Ilhas (*Astro Islands*)
+
+O Astro utiliza o conceito de **Zero JavaScript por padrão**. Quando um componente precisa interagir com Web APIs do navegador, ele deve receber uma diretiva cliente explícita:
+
+```astro title="src/pages/index.astro (Astro Framework)"
+---
+import ComponenteModal from '../components/ComponenteModal.jsx';
+import PlayerAudio from '../components/PlayerAudio.vue';
+---
+
+<!-- Componente estático HTML gerado no servidor -->
+<h1>Minha Aplicação SSR</h1>
+
+<!-- Componente hidratado no navegador imediatamente -->
+<ComponenteModal client:load />
+
+<!-- Componente hidratado APENAS quando ficar visível na tela -->
+<PlayerAudio client:visible />
+
+<!-- Componente renderizado EXCLUSIVAMENTE no cliente (ignora SSR) -->
+<ComponenteModal client:only="react" />
+```
+
+<Aside type="tip" title="Diretiva client:only">
+A diretiva `client:only` ignora completamente a renderização no servidor para aquele componente. É ideal para componentes pesados em Web APIs como Canvas 3D, WebGL ou leitores de QRCode.
+</Aside>
+
+---
+
+## Comparativo de Armazenamento: SSR vs Cliente
+
+Em aplicações SSR, se você precisa identificar o usuário autenticado **durante a renderização no servidor**, o `localStorage` não funcionará. Deve-se utilizar **Cookies HTTP**:
+
+| Recurso | `localStorage` / `sessionStorage` | Cookies (`document.cookie` / Headers) |
+| --- | --- | --- |
+| **Acessível no Servidor (SSR)?** | ❌ Não (apenas no cliente) | ✅ Sim (enviado no cabeçalho `Cookie` da requisição HTTP) |
+| **Leitura no Servidor** | Impossível | Disponível em `req.headers.cookie` ou `Astro.cookies` |
+| **Caso de Uso em SSR** | Preferências visuais da UI (tema, rascunho) | Tokens JWT de autenticação, idioma da sessão |
+
+---
+
+## Executando um Exemplo Seguro
+
+<Steps>
+1. Abra o console do navegador com <kbd>F12</kbd>.
+2. Execute o código de checagem condicional:
+   ```js
+   const estaNoNavegador = typeof window !== 'undefined';
+   console.log('Executando no cliente?', estaNoNavegador);
+   ```
+3. Observe que no navegador o resultado é `true`, enquanto em um script rodado via `node` o resultado seria `false`.
+</Steps>
+
+---
+
+## Exercício
+
+1. Por que o código `const width = window.innerWidth` dentro do corpo de um componente Next.js/Astro lança erro durante o build ou renderização?
+2. Como podemos passar a informação de autenticação do usuário para o renderizador SSR do servidor se o `localStorage` não está disponível no Node.js?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque durante a renderização no servidor (SSR), o JavaScript é executado pelo Node.js, onde o objeto global `window` não existe.
+
+  2. Utilizando **Cookies HTTP**. Como os cookies são enviados automaticamente no cabeçalho `Cookie` da requisição HTTP, o servidor Node.js consegue lê-los antes de gerar o HTML da página.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a função do hook `useEffect` (React) ou `onMounted` (Vue) no contexto de SSR?**
+   <details>
+     <summary>Possível resposta</summary>
+     Eles garantem que a função interna seja ignorada durante a execução no servidor Node.js e disparada exclusivamente no navegador após o processo de hidratação (*hydration*).
+   </details>
+
+2. **O que acontece se alterarmos o DOM diretamente antes do processo de hidratação terminar em um framework SSR?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ocorre um erro de incompatibilidade de hidratação (*Hydration Mismatch*), pois a árvore HTML gerada pelo servidor não corresponderá mais ao estado esperado pelo cliente.
+   </details>
+
+---
+
+## Referências
+
+- [Rendering on the Web | web.dev](https://web.dev/articles/rendering-on-the-web)
+- [Hydration | React Docs](https://react.dev/reference/react-dom/client/hydrateRoot)
+- [Astro Islands & Client Directives | Astro Docs](https://docs.astro.build/en/concepts/islands/)
+- [Next.js Server Components and Web APIs | Next.js Docs](https://nextjs.org/docs)
+
+---
+
+## Próxima aula
+
+[Observadores (Observers)](../observers/): Aprendendo a monitorar visibilidade com `IntersectionObserver`, redimensionamentos com `ResizeObserver` e mutações com `MutationObserver`.

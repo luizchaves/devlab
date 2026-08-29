@@ -1,0 +1,293 @@
+---
+title: "Web APIs: Cookies e Sessão"
+description: "Cookies no navegador, atributos Secure, HttpOnly, SameSite, expiração, sessão, autenticação e comparação com Web Storage."
+course: web-api
+sidebar:
+  label: "Cookies e Sessão"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Cookies são pequenos pares **chave-valor** associados a uma origem ou domínio. Diferente do
+`localStorage`, eles podem ser enviados automaticamente pelo navegador em requisições HTTP, o que os
+torna importantes para autenticação, sessão, preferências simples e rastreamento consentido.
+
+## Objetivo
+
+Compreender quando usar cookies, como eles diferem de `localStorage` e `sessionStorage`, quais
+atributos controlam segurança e expiração, e por que cookies de sessão devem ser configurados com
+cuidado no servidor.
+
+---
+
+## Cookies vs Web Storage
+
+| Recurso | Cookies | `localStorage` | `sessionStorage` |
+| --- | --- | --- | --- |
+| Enviado automaticamente em HTTP | Sim | Não | Não |
+| Acessível por JavaScript | Sim, exceto `HttpOnly` | Sim | Sim |
+| Capacidade típica | Cerca de 4 KB por cookie | Cerca de 5 MB por origem | Cerca de 5 MB por origem |
+| Expiração | Configurável | Até ser limpo | Ao fechar a aba |
+| Uso comum | Sessão, autenticação, preferências pequenas | Preferências e cache simples | Estado temporário por aba |
+| Risco principal | CSRF, configuração insegura | XSS lendo dados sensíveis | XSS lendo dados sensíveis |
+
+<Aside type="caution" title="Tokens sensíveis">
+Evite guardar tokens sensíveis em `localStorage` quando a aplicação pode usar cookies `HttpOnly`
+configurados pelo servidor. Um cookie `HttpOnly` não pode ser lido por JavaScript, reduzindo o impacto
+de ataques XSS que tentam roubar credenciais.
+</Aside>
+
+---
+
+## Como um Cookie Circula
+
+O servidor pode criar um cookie com o cabeçalho `Set-Cookie`. Depois disso, o navegador decide em
+quais requisições futuras deve enviar esse valor.
+
+<Mermaid title="Ciclo de Vida de um Cookie de Sessão">
+{`
+sequenceDiagram
+  participant U as Usuario
+  participant B as Navegador
+  participant API as Servidor
+
+  U->>B: Envia login
+  B->>API: POST /login
+  API-->>B: Set-Cookie: sessionId=abc; HttpOnly; Secure; SameSite=Lax
+  B->>API: GET /perfil com Cookie: sessionId=abc
+  API-->>B: Dados do perfil
+`}
+</Mermaid>
+
+Exemplo de resposta HTTP criando cookie:
+
+```http title="Resposta de login"
+HTTP/1.1 200 OK
+Set-Cookie: sessionId=abc123; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=3600
+Content-Type: application/json
+```
+
+---
+
+## Atributos Importantes
+
+### `Path`
+
+Define em quais caminhos o cookie será enviado.
+
+```http
+Set-Cookie: tema=dark; Path=/
+```
+
+Com `Path=/`, o cookie vale para toda a aplicação.
+
+### `Domain`
+
+Define o domínio ao qual o cookie pertence. Sem `Domain`, o cookie fica restrito ao host que o criou.
+
+```http
+Set-Cookie: preferencia=compacto; Domain=exemplo.com; Path=/
+```
+
+### `Max-Age` e `Expires`
+
+Controlam expiração. `Max-Age` usa segundos; `Expires` usa uma data.
+
+```http
+Set-Cookie: carrinho=123; Max-Age=86400; Path=/
+```
+
+Sem expiração, o cookie é normalmente tratado como cookie de sessão e pode desaparecer ao fechar o
+navegador.
+
+### `Secure`
+
+Faz o cookie ser enviado apenas em conexões HTTPS.
+
+```http
+Set-Cookie: sessionId=abc; Secure
+```
+
+### `HttpOnly`
+
+Impede leitura e alteração pelo JavaScript. Esse atributo só pode ser definido pelo servidor.
+
+```http
+Set-Cookie: sessionId=abc; HttpOnly
+```
+
+### `SameSite`
+
+Controla quando o cookie é enviado em navegações ou requisições iniciadas por outros sites.
+
+| Valor | Comportamento |
+| --- | --- |
+| `Strict` | Envia apenas em navegação originada do mesmo site |
+| `Lax` | Envia em navegações principais seguras, mas reduz envio cross-site |
+| `None` | Permite envio cross-site, mas exige `Secure` |
+
+---
+
+## Criando Cookies com JavaScript
+
+Cookies simples podem ser criados com `document.cookie`, mas a API é antiga e baseada em string.
+
+```js title="Criando um cookie simples"
+document.cookie = 'tema=dark; Path=/; Max-Age=86400; SameSite=Lax';
+```
+
+Para ler cookies acessíveis por JavaScript:
+
+```js title="Lendo cookies como objeto"
+function listarCookies() {
+  return Object.fromEntries(
+    document.cookie
+      .split('; ')
+      .filter(Boolean)
+      .map((cookie) => {
+        const [chave, valor] = cookie.split('=');
+        return [decodeURIComponent(chave), decodeURIComponent(valor)];
+      })
+  );
+}
+
+console.log(listarCookies());
+```
+
+Para remover, sobrescreva o cookie com expiração no passado ou `Max-Age=0`:
+
+```js title="Removendo um cookie"
+document.cookie = 'tema=; Path=/; Max-Age=0';
+```
+
+<Aside type="caution" title="Limitação do document.cookie">
+JavaScript não consegue criar nem ler cookies `HttpOnly`. Esse é exatamente o objetivo do atributo:
+impedir que scripts tenham acesso direto ao segredo de sessão.
+</Aside>
+
+---
+
+## Cookies em Requisições `fetch`
+
+Em chamadas para a mesma origem, o navegador pode enviar cookies automaticamente. Em chamadas para
+outra origem, normalmente será necessário configurar `credentials`.
+
+```js title="Incluindo cookies em uma chamada cross-origin"
+const resposta = await fetch('https://api.exemplo.com/perfil', {
+  credentials: 'include'
+});
+
+const perfil = await resposta.json();
+```
+
+Também é necessário que a API configure CORS corretamente:
+
+```http title="Resposta CORS com cookies"
+Access-Control-Allow-Origin: https://app.exemplo.com
+Access-Control-Allow-Credentials: true
+Set-Cookie: sessionId=abc; HttpOnly; Secure; SameSite=None
+```
+
+---
+
+## Boas Práticas
+
+| Cenário | Recomendação |
+| --- | --- |
+| Sessão autenticada | Cookie `HttpOnly`, `Secure`, `SameSite=Lax` ou `SameSite=None` conforme arquitetura |
+| Preferência visual simples | `localStorage` ou cookie não sensível |
+| Dados grandes ou listas | Evite cookies; use `localStorage` ou IndexedDB |
+| Token lido manualmente pelo front-end | Avalie risco de XSS antes de usar storage acessível por JS |
+| Aplicação em HTTPS | Use `Secure` em cookies de autenticação |
+| Login em domínio diferente da API | Combine CORS, `credentials: 'include'` e `SameSite=None; Secure` |
+
+---
+
+## Executando
+
+<Steps>
+1. Abra uma página local ou qualquer site de teste no navegador.
+2. No console, execute `document.cookie = 'aula=webapi; Path=/; Max-Age=300; SameSite=Lax';`.
+3. Abra a aba **Application** ou **Storage** das ferramentas do desenvolvedor.
+4. Localize a seção **Cookies** e confirme que o cookie foi criado.
+5. Execute `document.cookie = 'aula=; Path=/; Max-Age=0';` para remover o cookie.
+</Steps>
+
+---
+
+## Exercício
+
+1. Por que cookies são usados em autenticação com mais frequência que `localStorage`?
+2. Qual atributo impede JavaScript de ler um cookie?
+3. O que muda quando uma requisição `fetch()` usa `credentials: 'include'`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque cookies podem ser enviados automaticamente pelo navegador ao servidor e podem ser
+  protegidos com atributos como `HttpOnly`, `Secure` e `SameSite`.
+
+  2. `HttpOnly`.
+
+  3. O navegador passa a incluir credenciais, como cookies, mesmo em requisições cross-origin,
+  desde que o servidor também permita isso via CORS.
+</details>
+
+---
+
+## Desafio
+
+Explique qual configuração de cookie é mais adequada para uma sessão de login em produção e por quê:
+
+```http
+Set-Cookie: sessionId=abc; Path=/; HttpOnly; Secure; SameSite=Lax
+```
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A configuração é adequada para muitos cenários porque `HttpOnly` impede leitura pelo JavaScript,
+  `Secure` limita envio a HTTPS, `Path=/` vale para toda a aplicação e `SameSite=Lax` reduz riscos de
+  CSRF sem quebrar navegações normais. Em arquiteturas que exigem envio cross-site, pode ser
+  necessário `SameSite=None; Secure`, junto com CORS e proteção adicional contra CSRF.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual mecanismo é melhor para guardar um array grande de itens: cookie ou Web Storage?**
+   <details>
+     <summary>Possível resposta</summary>
+     Web Storage ou IndexedDB. Cookies são pequenos e enviados em toda requisição compatível, então
+     não devem carregar dados grandes.
+   </details>
+
+2. **Por que `SameSite=None` exige `Secure`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque cookies enviados em contexto cross-site têm maior risco de exposição, então navegadores
+     modernos exigem que trafeguem apenas por HTTPS.
+   </details>
+
+3. **Um cookie `HttpOnly` aparece em `document.cookie`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Não. Ele pode aparecer nas ferramentas do desenvolvedor, mas não fica disponível para leitura
+     por JavaScript.
+   </details>
+
+---
+
+## Referências
+
+- [HTTP cookies | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies)
+- [Set-Cookie | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
+- [Document: cookie | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Document/cookie)
+- [Request credentials | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Request/credentials)
+
+---
+
+## Próxima aula
+
+[Fetch API](../../http/fetch/): consuma APIs HTTP, trate erros de resposta e trabalhe com JSON.

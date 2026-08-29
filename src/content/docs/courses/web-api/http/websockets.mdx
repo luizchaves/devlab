@@ -1,0 +1,220 @@
+---
+title: "Web APIs: WebSockets API"
+description: "Comunicação em tempo real e bidirecional (Full-Duplex) entre cliente e servidor com a WebSockets API nativa."
+course: web-api
+sidebar:
+  label: "WebSockets API"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Diferente do modelo HTTP tradicional onde o cliente precisa disparar uma nova requisição para cada atualização de dados, a **WebSockets API** estabelece um canal de comunicação permanente, aberto e bidirecional (*Full-Duplex*) entre o navegador e o servidor sobre uma única conexão TCP.
+
+## Objetivo
+
+Compreender o funcionamento do protocolo WebSocket, dominando a abertura de conexões com `new WebSocket()`, a escuta de eventos em tempo real (`onmessage`, `onopen`, `onclose`), o envio de mensagens JSON e os padrões de reconexão e segurança.
+
+---
+
+## HTTP vs WebSockets
+
+Enquanto o HTTP é baseado em requisição e resposta (unidirecional por chamada), o WebSocket permite que tanto o cliente quanto o servidor enviem dados a qualquer momento com sobretaxa (*overhead*) de cabeçalhos mínima.
+
+| Característica | HTTP / REST | WebSockets API |
+| --- | --- | --- |
+| **Comunicação** | Unidirecional (Cliente pede -> Servidor responde) | Bidirecional em tempo real (Full-Duplex) |
+| **Conexão** | Aberta e fechada por requisição | Conexão TCP persistente |
+| **Sobretaxa (Overhead)** | Alta (cabeçalhos HTTP em cada chamada) | Muito baixa (frames leves após handshake) |
+| **Casos de uso** | CRUD, páginas estáticas, APIs de consulta | Chats, jogos multiplayer, cotações em tempo real |
+
+<Mermaid title="Ciclo de Vida de uma Conexão WebSocket">
+{`
+flowchart TD
+  subgraph Handshake["1. Handshake HTTP (Upgrade)"]
+    Client["Cliente (Navegador)"] -- "GET /socket HTTP/1.1 (Upgrade: websocket)" --> Server["Servidor WebSocket"]
+    Server -- "101 Switching Protocols" --> Client
+  end
+
+  subgraph RealTime["2. Canal Bidirecional em Tempo Real (Full-Duplex)"]
+    Client -- "socket.send('Mensagem do usuário')" --> Server
+    Server -- "Notificação em tempo real para todos" --> Client
+  end
+
+  subgraph Closing["3. Encerramento"]
+    Client -- "socket.close()" --> Server
+  end
+`}
+</Mermaid>
+
+---
+
+## Usando a Classe Nativa `WebSocket`
+
+A WebSockets API é nativa do navegador e não exige nenhuma biblioteca de terceiros. A conexão é iniciada instanciando o construtor com uma URL no protocolo `ws://` (não seguro) ou `wss://` (seguro/criptografado).
+
+### Estabelecendo e Escutando a Conexão
+
+```js title="Conexão básica e eventos do WebSocket"
+// Cria a conexão WebSocket segura
+const socket = new WebSocket('wss://echo.websocket.org');
+
+// 1. Evento disparado quando a conexão é estabelecida
+socket.addEventListener('open', (event) => {
+  console.log('Conexão WebSocket estabelecida com sucesso!');
+
+  // Envia a primeira mensagem para o servidor
+  socket.send(JSON.stringify({ tipo: 'saudacao', texto: 'Olá Servidor!' }));
+});
+
+// 2. Evento disparado quando o servidor envia uma mensagem
+socket.addEventListener('message', (event) => {
+  try {
+    const dados = JSON.parse(event.data);
+    console.log('Mensagem recebida do servidor:', dados);
+  } catch {
+    console.log('Mensagem de texto simples recebida:', event.data);
+  }
+});
+
+// 3. Evento disparado em caso de erro na conexão
+socket.addEventListener('error', (event) => {
+  console.error('Erro de conexão no WebSocket:', event);
+});
+
+// 4. Evento disparado quando a conexão é encerrada
+socket.addEventListener('close', (event) => {
+  console.warn(`Conexão encerrada. Código: ${event.code}, Motivo: ${event.reason}`);
+});
+```
+
+<Aside type="caution" title="Requisito de Criptografia (WSS)">
+Em ambientes de produção com suporte a HTTPS (`https://`), o navegador bloquerá conexões não criptografadas (`ws://`). Utilize sempre o protocolo seguro **`wss://`**.
+</Aside>
+
+---
+
+## Padrão de Reconexão Automática
+
+Se a conexão de rede oscilar ou o servidor for reiniciado, o evento `close` é disparado. É uma boa prática implementar um mecanismo simples de reconexão automática com retardo:
+
+```js title="src/services/websocket.js (Reconexão automática)"
+function conectarWebSocket(url) {
+  const socket = new WebSocket(url);
+
+  socket.onopen = () => console.log('WebSocket Conectado!');
+
+  socket.onmessage = (event) => {
+    console.log('Dado em tempo real:', event.data);
+  };
+
+  socket.onclose = () => {
+    console.warn('Conexão perdida. Tentando reconectar em 3 segundos...');
+    setTimeout(() => conectarWebSocket(url), 3000);
+  };
+
+  return socket;
+}
+
+// Inicia o monitoramento
+const meuSocket = conectarWebSocket('wss://echo.websocket.org');
+```
+
+---
+
+## Executando
+
+Siga os passos no console do navegador para testar uma conexão WebSocket real com um servidor de teste público:
+
+<Steps>
+1. Abra as ferramentas do desenvolvedor com <kbd>F12</kbd> e selecione a aba **Console**.
+2. Cole o código a seguir e pressione <kbd>Enter</kbd>:
+   ```js
+   const ws = new WebSocket('wss://echo.websocket.org');
+   ws.onmessage = e => console.log('Eco recebido do servidor:', e.data);
+   ws.onopen = () => ws.send('DevLab WebSockets em tempo real!');
+   ```
+3. Observe no console a mensagem de eco retornada instantaneamente pelo servidor.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual a diferença fundamental entre o modelo de requisição HTTP e uma conexão WebSocket?
+2. Por que devemos enviar objetos JavaScript serializados com `JSON.stringify()` através do método `socket.send()`?
+3. O que representa o protocolo `wss://` em comparação a `ws://`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. No modelo HTTP, a comunicação é unidirecional por chamada (o cliente precisa pedir para o servidor responder e a conexão é fechada). No WebSocket, a conexão é permanente e bidirecional (*Full-Duplex*), permitindo que tanto o cliente quanto o servidor enviem dados a qualquer instante.
+
+  2. Porque o método `socket.send()` aceita apenas dados em formato bruto (strings, ArrayBuffer ou Blobs). Para transmitir objetos e estruturas de dados complexas, é necessário serializá-los para uma string JSON com `JSON.stringify()`.
+
+  3. O `wss://` (WebSocket Secure) é a versão criptografada do protocolo sobre TLS/SSL, assim como o `https://` é para o `http://`.
+</details>
+
+---
+
+## Desafio
+
+Crie uma classe `ChatSocket` que mantenha uma conexão com uma URL de WebSocket, possua um método `enviarMensagem(usuario, texto)` que valide se o socket está no estado `WebSocket.OPEN` antes de enviar e notifique no console caso a conexão não esteja pronta.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js
+  class ChatSocket {
+    constructor(url) {
+      this.socket = new WebSocket(url);
+    }
+
+    enviarMensagem(usuario, texto) {
+      if (this.socket.readyState === WebSocket.OPEN) {
+        const payload = JSON.stringify({ usuario, texto, timestamp: Date.now() });
+        this.socket.send(payload);
+        console.log('Mensagem enviada com sucesso!');
+      } else {
+        console.warn('Não foi possível enviar: a conexão WebSocket não está aberta.');
+      }
+    }
+  }
+
+  // Uso:
+  const chat = new ChatSocket('wss://echo.websocket.org');
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Estados da Conexão
+
+1. **Quais são os 4 estados possíveis da propriedade `socket.readyState`?**
+   <details>
+     <summary>Possível resposta</summary>
+     - `0 (CONNECTING)`: A conexão está sendo estabelecida.
+     - `1 (OPEN)`: A conexão está aberta e pronta para comunicação.
+     - `2 (CLOSING)`: A conexão está em processo de encerramento.
+     - `3 (CLOSED)`: A conexão foi fechada ou não pôde ser aberta.
+   </details>
+
+2. **Como encerrar voluntariamente uma conexão WebSocket pelo código do cliente?**
+   <details>
+     <summary>Possível resposta</summary>
+     Chamando o método `socket.close()`.
+   </details>
+
+---
+
+## Referências
+
+- [The WebSocket API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+- [WebSocket | MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+
+---
+
+## Próxima aula
+
+[Vibration API](../../browser/modern-apis/vibration/): Fornecendo feedback tátil e padrões de vibração em dispositivos móveis.

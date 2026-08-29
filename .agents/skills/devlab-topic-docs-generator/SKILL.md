@@ -218,6 +218,14 @@ Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai at
 
 **Obrigatoriedade de Recursos Visuais**: Sempre que a aula abordar conceitos abstratos, arquiteturas, fluxos de execução, hierarquias, eixos de layout (como Box Model, Flexbox, Grid, escopos, ciclo de vida) ou comparações de modelos, **é obrigatório incluir diagramas visuais ou recursos gráficos** para reforçar a didática.
 
+**Obrigatoriedade de Legenda / Caption**: **Todo diagrama, figura ou imagem deve obrigatoriamente possuir uma legenda ou título descritivo (`caption`)**.
+- Em diagramas `<Mermaid>`, o atributo `title="..."` é **obrigatório** (ex: `<Mermaid title="Fluxo de execução da Fetch API">`).
+- Em imagens ou figuras estáticas (`![...]`), inclua a legenda/descrição explicativa de forma clara no atributo `alt` e/ou em um texto de legenda associado.
+- Em blocos de código e saídas, forneça o atributo `title="..."` (ex: ````js title="Exemplo de manipulação do DOM"````).
+
+**Orientação Vertical de Diagramas (Responsividade)**: **Se um diagrama ou figura for muito extenso na horizontal, ele deve ser obrigatoriamente reestruturado na vertical**.
+- Em diagramas `<Mermaid>`, prefira `flowchart TD` (Top-Down) ou organize os nós em subgrafos empilhados para evitar vazamentos laterais e barra de rolagem em dispositivos móveis.
+
 1. **Diagramas Mermaid (`<Mermaid>`)**:
    Diagramas de fluxo, sequência, hierarquia, estado e entidade-relacionamento são escritos como texto usando o componente `<Mermaid>` (`@components/Mermaid.astro`), que se ajusta automaticamente ao tema claro/escuro da página:
 
@@ -260,7 +268,7 @@ Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai at
    Para tópicos de HTML/CSS que envolvem componentes visuais, utilize `<HtmlPreview path="examples/..." />` para exibir uma prévia viva renderizada.
 
 3. **Imagens e Ilustrações**:
-   Para capturas de tela ou esquemas gráficos estáticos, inclua imagens otimizadas com o atributo `alt` totalmente descritivo.
+   Para capturas de tela ou esquemas gráficos estáticos, inclua imagens otimizadas sempre com legenda/caption clara e o atributo `alt` totalmente descritivo.
 
 Diagramas Mermaid não funcionam nos slides Marp nem nos mapas mentais Markmap — lá continue com ASCII.
 
@@ -378,3 +386,5 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 12. **Parágrafo monolítico**: blocos de texto muito longos e densos dificultam a leitura — divida em mais parágrafos curtos para deixar a aula mais didática.
 13. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
 14. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
+15. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
+16. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
