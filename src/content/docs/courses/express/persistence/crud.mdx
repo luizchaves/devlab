@@ -1,0 +1,225 @@
+---
+title: "Express.js: CRUD com Prisma"
+description: Ligando o Prisma aos controllers e obtendo um CRUD completo e persistente.
+course: express
+project: express-prisma
+sidebar:
+  label: "CRUD com Prisma"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Esta é a última etapa da trilha: o mesmo CRUD da aula de [MVC](../../architecture/mvc/), agora
+gravando em banco. Note o que **não** muda — router, middlewares e o formato das
+respostas continuam idênticos.
+
+## Objetivo
+
+Trocar a camada de dados sem tocar nas demais camadas, comprovando na prática o valor
+da separação feita em MVC.
+
+## O que muda
+
+O model em memória desaparece; o controller passa a falar com o Prisma e a ser
+`async`:
+
+```js title="src/controllers/user-controller.js" del={1,4-5} ins={2,7-8}
+import * as User from '../models/user-model.js';
+import prisma from '../lib/prisma.js';
+
+export function index(req, res) {
+  res.json(User.findAll());
+}
+
+export async function index(req, res) {
+  const users = await prisma.user.findMany({ orderBy: { id: 'asc' } });
+
+  res.json(users);
+}
+```
+
+<Aside type="note" title="Sem try/catch em cada rota">
+  No Express 5, o erro lançado dentro de uma função `async` chega sozinho ao
+  `errorHandler`. Foi por isso que centralizamos o tratamento de erros lá atrás.
+</Aside>
+
+## O controller completo
+
+<SourceCode
+  path="examples/express/projects/prisma/src/controllers/user-controller.js"
+  title="src/controllers/user-controller.js"
+  showLineNumbers
+  mark="4"
+/>
+
+## As quatro operações
+
+<Tabs syncKey="crud">
+  <TabItem label="Create">
+    <SourceCode
+      path="examples/express/projects/prisma/src/controllers/user-controller.js"
+      title="store"
+      lines="24-34"
+      mark={['prisma.user.create']}
+    />
+  </TabItem>
+
+  <TabItem label="Read">
+    <SourceCode
+      path="examples/express/projects/prisma/src/controllers/user-controller.js"
+      title="index e show"
+      lines="5-22"
+      mark={['prisma.user.findMany', 'prisma.user.findUnique']}
+    />
+  </TabItem>
+
+  <TabItem label="Update">
+    <SourceCode
+      path="examples/express/projects/prisma/src/controllers/user-controller.js"
+      title="update"
+      lines="36-51"
+      mark={['prisma.user.update']}
+    />
+  </TabItem>
+
+  <TabItem label="Delete">
+    <SourceCode
+      path="examples/express/projects/prisma/src/controllers/user-controller.js"
+      title="destroy"
+      lines="53-63"
+      mark={['prisma.user.delete']}
+    />
+  </TabItem>
+</Tabs>
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto e instale:
+
+   ```bash
+   cd examples/express/projects/prisma
+   ```
+
+   <PackageManagerTabs />
+
+2. Crie o `.env` a partir do exemplo:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Crie as tabelas e popule o banco:
+
+   <PackageManagerTabs run="db:push" />
+
+   <PackageManagerTabs run="db:seed" />
+
+4. Suba o servidor:
+
+   <PackageManagerTabs run="dev" />
+
+</Steps>
+
+## Testando o ciclo completo
+
+### Listar
+
+<ApiRequest method="GET" path="/users" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  [
+    {
+      "id": 1,
+      "name": "Ana",
+      "email": "ana@example.com",
+      "createdAt": "2026-03-10T12:00:00.000Z"
+    }
+  ]
+`}
+</ApiResponse>
+
+### Buscar com os relacionamentos
+
+<ApiRequest method="GET" path="/users/1" baseUrl="http://localhost:3000" description="Usa include para trazer os posts" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "id": 1,
+    "name": "Ana",
+    "email": "ana@example.com",
+    "createdAt": "2026-03-10T12:00:00.000Z",
+    "posts": []
+  }
+`}
+</ApiResponse>
+
+### Criar
+
+<ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Carla",
+    "email": "carla@example.com"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": 3,
+    "name": "Carla",
+    "email": "carla@example.com",
+    "createdAt": "2026-03-10T12:05:00.000Z"
+  }
+`}
+</ApiResponse>
+
+### Remover
+
+<ApiRequest method="DELETE" path="/users/3" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={204} />
+
+Reinicie o servidor e liste novamente: os dados continuam lá. **É isso que persistência
+significa.**
+
+## Exercício
+
+Implemente o CRUD completo de `Post`, seguindo a mesma estrutura:
+`post-controller.js` e `post-router.js`, montado em `/posts`. Ao criar um post,
+valide que o `authorId` informado existe e responda `400` caso não exista.
+
+## Desafio
+
+O `POST /users` com um e-mail já cadastrado hoje resulta em `500`, porque o Prisma
+lança um erro de constraint `UNIQUE`. Trate esse caso no `errorHandler`, respondendo
+`409 Conflict` com uma mensagem clara.
+
+Dica: o erro tem `code === 'P2002'`.
+
+<ApiResponse status={409}>
+{`
+  {
+    "error": {
+      "status": 409,
+      "message": "E-mail já cadastrado"
+    }
+  }
+`}
+</ApiResponse>
+
+## Na prática
+
+O projeto executável desta aula é [Express + Prisma](../../practice/express-prisma/).
+
+## Próxima aula
+
+[Relações com Prisma](../relations/): modelagem e consulta de dados relacionados.
