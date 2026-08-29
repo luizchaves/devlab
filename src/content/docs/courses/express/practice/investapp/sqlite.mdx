@@ -1,0 +1,234 @@
+---
+title: "InvestApp: SQLite nativo"
+description: "Segunda etapa do InvestApp: persistência com node:sqlite, invólucro de promessas, migration, seeders e a camada de model com SQL — sem ORM."
+course: express
+sidebar:
+  label: "2. SQLite nativo"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Etapa **2 de 6** · Nível **Intermediário** · Node.js · Express.js · `node:sqlite`
+
+O array vira uma tabela. A API continua idêntica do lado de fora — o que muda é uma camada
+nova entre as rotas e os dados.
+
+<ProjectLinks repo="luizchaves/lp2-2026" branch="sqlite" path="classroom/back-end/investment-api" />
+
+## O que esta etapa acrescenta
+
+| Arquivo                          | Papel                                             |
+| -------------------------------- | ------------------------------------------------- |
+| `src/database/database.js`       | conexão e invólucro de promessas sobre `DatabaseSync` |
+| `src/database/migration.js`      | `CREATE TABLE` da tabela `investments`             |
+| `src/database/seeders.js` / `.json` | dados iniciais                                  |
+| `src/database/load.js`           | roda migration e seeders em sequência              |
+| `src/models/Investment.js`       | as consultas SQL, isoladas das rotas               |
+
+<FileTree>
+{`
+  investment-api/
+  ├── package.json                scripts db:load, db:drop, db:reload
+  ├── request.http
+  ├── public/
+  └── src/
+      ├── index.js
+      ├── routes.js               continua igual à etapa anterior
+      ├── database/
+      │   ├── database.js
+      │   ├── db.sqlite           gerado, fora do Git
+      │   ├── load.js
+      │   ├── migration.js
+      │   ├── seeders.js
+      │   └── seeders.json
+      └── models/
+          └── Investment.js
+`}
+</FileTree>
+
+## O invólucro de promessas
+
+`DatabaseSync` é síncrono; o resto da aplicação é `async`. O invólucro uniformiza:
+
+```js title="src/database/database.js" showLineNumbers {2,7,13,17}
+import { resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
+function createPromiseDatabase(database) {
+  return {
+    async run(sql, params) {
+      const result = database.prepare(sql).run(...parseParams(params));
+
+      return { changes: result.changes, lastID: Number(result.lastInsertRowid) };
+    },
+
+    async get(sql, params) {
+      return parseRow(database.prepare(sql).get(...parseParams(params)));
+    },
+
+    async all(sql, params) {
+      return database.prepare(sql).all(...parseParams(params)).map(parseRow);
+    },
+  };
+}
+
+export default {
+  async connect() {
+    return createPromiseDatabase(new DatabaseSync(resolve('src', 'database', 'db.sqlite')));
+  },
+};
+```
+
+<Aside type="tip" title="Três métodos bastam">
+  `run` para escrita, `get` para uma linha, `all` para várias. Toda a camada de model é
+  escrita com esses três — o mesmo vocabulário de qualquer driver SQL.
+</Aside>
+
+## O model
+
+Cada operação é uma consulta parametrizada. Repare que nenhum valor entra na string do SQL:
+
+```js title="src/models/Investment.js" showLineNumbers {6-11,13}
+async function create({ name, value }) {
+  const db = await Database.connect();
+
+  if (name && value) {
+    const sql = `
+      INSERT INTO
+        investments (name, value)
+      VALUES
+        (?, ?)
+    `;
+
+    const { lastID } = await db.run(sql, [name, value]);
+
+    return await readById(lastID);
+  } else {
+    throw new Error('Unable to create investment');
+  }
+}
+```
+
+<Aside type="danger" title="O `?` é o que separa dado de comando">
+  Interpolar `${name}` na consulta permitiria a um nome como `x'); DROP TABLE investments; --`
+  apagar a tabela. Com `?`, o valor viaja separado e nunca é interpretado como SQL.
+</Aside>
+
+## Migration e seeders
+
+Estrutura e dados são responsabilidades distintas, em arquivos distintos:
+
+```js title="src/database/migration.js" showLineNumbers {6-11}
+import Database from './database.js';
+
+async function up() {
+  const db = await Database.connect();
+
+  const investmentsSql = `
+    CREATE TABLE investments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name VARCHAR(50) NOT NULL,
+      value INTEGER NOT NULL
+    )
+  `;
+
+  await db.run(investmentsSql);
+}
+
+export default { up };
+```
+
+```json title="package.json" showLineNumbers {4-6}
+{
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "db:load": "node src/database/load.js",
+    "db:drop": "rm src/database/db.sqlite",
+    "db:reload": "npm run db:drop && npm run db:load"
+  }
+}
+```
+
+## Executando
+
+<Steps>
+
+1. Troque para a branch desta etapa:
+
+   ```bash title="Terminal"
+   git switch sqlite
+   npm install
+   ```
+
+2. Crie o banco e popule:
+
+   ```bash title="Terminal"
+   npm run db:load
+   ```
+
+3. Suba o servidor:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+4. Cadastre um investimento, derrube o servidor com <kbd>Ctrl</kbd>+<kbd>C</kbd>, suba de
+   novo e liste — os dados continuam lá.
+
+</Steps>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "CDB Inter",
+    "value": 15000
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201} description="O id agora vem do AUTOINCREMENT do banco">
+{`
+  {
+    "id": 3,
+    "name": "CDB Inter",
+    "value": 15000
+  }
+`}
+</ApiResponse>
+
+## O diff que importa
+
+```bash title="Terminal"
+git diff f476d6b sqlite -- classroom/back-end/investment-api/src
+```
+
+O `routes.js` praticamente não muda: as rotas continuam chamando `Investment.create`,
+`Investment.read` e `Investment.readById`. O que mudou foi **dentro** do model — que é
+exatamente o que a arquitetura em camadas promete.
+
+<Aside type="caution" title="O `db.sqlite` não vai para o Git">
+  É dado binário que muda a cada requisição e gera conflito em toda fusão. Migration e
+  seeders são o que se versiona — eles reconstroem o banco.
+</Aside>
+
+## Conceitos abordados
+
+- `node:sqlite` e `DatabaseSync`, sem dependências
+- Invólucro de promessas sobre uma API síncrona
+- *Statements* preparados e prevenção de injeção de SQL
+- Migration e seeders como scripts versionados
+- Camada de model isolando o SQL das rotas
+
+<Aside type="tip">
+  A aula correspondente é [SQL com Node.js](../../../persistence/node-sqlite/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: TypeScript em camadas](../typescript/) — tipos, controllers e erros
+centralizados.

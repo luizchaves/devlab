@@ -1,0 +1,249 @@
+---
+title: "InvestApp: TypeScript em camadas"
+description: "Terceira etapa do InvestApp: migração para TypeScript e reorganização em routes, controllers, models, middlewares e errors, com HttpError e tratamento centralizado."
+course: express
+sidebar:
+  label: "3. TypeScript em camadas"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Etapa **3 de 6** · Nível **Intermediário** · TypeScript · Express 5
+
+Duas mudanças de uma vez, e ambas estruturais: o projeto passa a TypeScript e o `routes.js`
+único se desdobra em camadas.
+
+<ProjectLinks repo="luizchaves/lp2-2026" branch="typescript" path="classroom/back-end/investment-api" />
+
+## O antes e o depois
+
+Na etapa anterior, um `routes.js` de trezentas linhas continha caminhos, validação, chamadas
+ao model e a classe de erro. Agora cada coisa tem o seu lugar:
+
+<Mermaid title="Camadas do InvestApp após a reorganização">
+{`
+flowchart TD
+  A["index.ts<br/>monta o app e a cadeia"] --> B["routes/*.routes.ts<br/>caminhos + middlewares"]
+  B --> C["controllers/*.controller.ts<br/>lê a requisição, escolhe o status"]
+  C --> D["models/*.ts<br/>as consultas SQL"]
+  D --> E[("database/database.ts")]
+  C -. "throw HttpError" .-> F["middlewares/errorHandlers.ts"]
+`}
+</Mermaid>
+
+<FileTree>
+{`
+  investment-api/
+  ├── package.json
+  ├── tsconfig.json
+  ├── request.http
+  ├── public/
+  └── src/
+      ├── index.ts
+      ├── controllers/
+      │   ├── brokers.controller.ts
+      │   ├── categories.controller.ts
+      │   └── investments.controller.ts
+      ├── database/
+      │   ├── database.ts
+      │   ├── migration.ts
+      │   ├── seeders.ts
+      │   └── seeders.json
+      ├── errors/
+      │   └── HttpError.ts
+      ├── middlewares/
+      │   ├── errorHandlers.ts        notFound + errorHandler
+      │   └── requireJsonContentType.ts
+      ├── models/
+      │   ├── Broker.ts
+      │   ├── Category.ts
+      │   └── Investment.ts
+      ├── routes/
+      │   ├── brokers.routes.ts
+      │   ├── categories.routes.ts
+      │   └── investments.routes.ts
+      └── types/
+          ├── Broker.d.ts
+          ├── Category.d.ts
+          └── Investment.d.ts
+`}
+</FileTree>
+
+## `HttpError`
+
+A classe que faz o controller escolher o status sem tocar em `res`:
+
+```ts title="src/errors/HttpError.ts" showLineNumbers
+class HttpError extends Error {
+  code: number;
+
+  constructor(message: string, code: number = 400) {
+    super(message);
+    this.code = code;
+  }
+}
+
+export default HttpError;
+```
+
+E o middleware que a traduz em resposta — o único lugar da aplicação que monta um erro:
+
+```ts title="src/middlewares/errorHandlers.ts" showLineNumbers {2,6}
+export const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof HttpError) {
+    return res.status(err.code).json({ error: err.message });
+  }
+
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+};
+```
+
+## O router e o controller
+
+O router passa a listar apenas caminhos e middlewares:
+
+```ts title="src/routes/investments.routes.ts" showLineNumbers {3,6}
+const router = Router();
+
+router.post('/investments', requireJson, InvestmentController.create);
+router.get('/investments', InvestmentController.read);
+router.get('/investments/:id', InvestmentController.readById);
+router.put('/investments/:id', requireJson, InvestmentController.update);
+router.delete('/investments/:id', InvestmentController.remove);
+
+export default router;
+```
+
+E o controller cuida de HTTP, delegando o resto:
+
+```ts title="src/controllers/investments.controller.ts" showLineNumbers {4,8}
+async function readById(req: Request<{ id: string }>, res: Response) {
+  try {
+    const { id } = req.params;
+    const investment = await Investment.readById(id);
+
+    res.json(investment);
+  } catch (error) {
+    throw new HttpError('Unable to find investment', 400);
+  }
+}
+```
+
+<Aside type="note" title="O `try`/`catch` aqui traduz, não repassa">
+  No Express 5 o erro de uma função `async` chega sozinho ao `errorHandler`. O `catch` existe
+  para converter o erro do banco — que traria detalhes internos — em um `HttpError` com
+  mensagem controlada.
+</Aside>
+
+## O `tsconfig.json`
+
+Esta etapa usa o alias `@/` com `tsx`, alternativa aos *subpath imports* do guia:
+
+```json title="tsconfig.json" showLineNumbers {6,10-13}
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2023",
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["src/**/*"]
+}
+```
+
+<Aside type="caution" title="`paths` exige `tsx` para executar">
+  O Node não lê `paths` do `tsconfig.json`: `import '@/models/Investment.ts'` quebraria em
+  `node src/index.ts`. Por isso o script `dev` desta etapa usa `tsx watch`. A alternativa sem
+  dependência é o `#` do `package.json`, mostrado em
+  [TypeScript no Express](../../../basics/typescript/).
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Troque para a branch e instale:
+
+   ```bash title="Terminal"
+   git switch typescript
+   npm install
+   ```
+
+2. Carregue o banco e suba:
+
+   ```bash title="Terminal"
+   npm run db:load
+   npm run dev
+   ```
+
+3. Verifique os tipos:
+
+   ```bash title="Terminal"
+   npx tsc --noEmit
+   ```
+
+</Steps>
+
+## Testando
+
+Os erros agora saem sempre no mesmo formato, venham de onde vierem:
+
+<ApiRequest method="GET" path="/api/investments/999" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={400}>
+{`
+  {
+    "error": "Unable to find investment"
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000" description="Content-Type ausente" />
+
+<ApiResponse status={400}>
+{`
+  {
+    "error": "Content-Type must be application/json"
+  }
+`}
+</ApiResponse>
+
+## O diff que importa
+
+```bash title="Terminal"
+git diff sqlite typescript -- classroom/back-end/investment-api/src
+```
+
+Nenhuma funcionalidade nova aparece nesse diff — só reorganização e tipos. É a melhor
+demonstração de que refatoração e funcionalidade devem viajar em commits separados.
+
+## Conceitos abordados
+
+- Migração de JavaScript para TypeScript em um projeto existente
+- Separação em routes, controllers, models, middlewares e errors
+- `HttpError` e tratamento de erro centralizado
+- `notFound` antes do `errorHandler`
+- Middleware de `Content-Type`
+- Tipos do domínio em `src/types/*.d.ts`
+
+<Aside type="tip">
+  As aulas correspondentes são [TypeScript no Express](../../../basics/typescript/),
+  [MVC](../../../architecture/mvc/) e
+  [Tratamento de Erros](../../../api/error-handling/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: Prisma ORM](../prisma/) — schema declarativo e relações.

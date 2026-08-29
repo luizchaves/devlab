@@ -141,6 +141,70 @@ Padrão do bloco de resposta:
 
 ---
 
+## 🔀 Página de conceito × página de projeto
+
+**Um tópico rende duas páginas, nunca uma só.** Conceito e projeto têm leitores e ritmos
+diferentes: quem estuda *o que é um JWT* não quer rolar por dez arquivos de um app real,
+e quem vai rodar o app não quer reler a teoria. Misturar os dois produz a página-despejo
+— um título seguido de dez `<SourceCode>` sem texto entre eles.
+
+| Página              | Onde vive                        | O que contém                                                                 |
+| ------------------- | -------------------------------- | ---------------------------------------------------------------------------- |
+| **Conceito**        | `<curso>/<categoria>/<topico>/`  | definição, diagrama, tabela comparativa, trechos **mínimos** e autocontidos, armadilhas, exercício, perguntas de revisão |
+| **Projeto**         | `<curso>/practice/<projeto>/`    | árvore de arquivos, código real completo via `<SourceCode>`, passo a passo de execução, rotas, capturas de tela |
+
+Regras de divisão:
+
+1. A página de conceito só mostra o trecho **que ilustra a ideia** — cinco a quinze linhas,
+   escritas à mão ou recortadas com `lines=` / `region=`. Nunca o arquivo inteiro.
+2. Todo código completo, `package.json`, `.env.example`, `requests.http`, árvore de
+   diretórios e captura de tela pertence à página de projeto.
+3. Cada uma linka a outra: a de conceito termina apontando "veja aplicado em
+   [Projeto X](../../practice/x/)"; a de projeto abre dizendo quais aulas ela aplica.
+4. Se um projeto aparece em duas aulas de conceito, ele continua tendo **uma** página de
+   projeto — as duas aulas apontam para ela.
+5. Materiais de turmas diferentes sobre a mesma aplicação (LP2, DW) viram **uma página de
+   projeto por aplicação**, não seções "Exemplo completo (LP2)" penduradas no fim da aula
+   de conceito.
+
+## 🔗 Botões de acesso ao código (GitHub e Codespaces)
+
+**Toda página de projeto abre com `<ProjectLinks>`.** O aluno precisa de dois caminhos:
+ler o código no GitHub e abrir um ambiente já configurado no GitHub Codespaces, sem
+instalar nada na máquina.
+
+```mdx
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+<ProjectLinks path="examples/express/projects/mvc" devcontainer="express-mvc" />
+```
+
+| Prop           | Uso |
+| -------------- | --- |
+| `path`         | caminho do projeto no repositório, sem barra inicial (obrigatório) |
+| `repo`         | repositório externo em `owner/name`; omita para o próprio DevLab |
+| `branch`       | branch a abrir — usada nos projetos que evoluem por branch |
+| `devcontainer` | pasta em `.devcontainer/`; omitida, é deduzida do último segmento de `path` (só no DevLab); `{false}` esconde o botão |
+| `preview`      | URL de uma demonstração publicada, quando existir |
+
+O botão do Codespaces só funciona se existir `.devcontainer/<pasta>/devcontainer.json` no
+repositório. Ao criar um projeto novo em `examples/`, crie também a pasta correspondente
+(copie a mais parecida e ajuste `name`, `workspaceFolder`, `postCreateCommand` e
+`postAttachCommand`) — o `.devcontainer/README.md` descreve cada campo. Sem a pasta,
+passe `devcontainer={false}` em vez de deixar um botão que leva a erro.
+
+Projetos que moram em outro repositório — o material de uma disciplina, por exemplo — usam
+as props `repo` e `branch`. É assim que uma aplicação que evolui por branch ganha uma página
+por etapa, cada uma abrindo o Codespaces já na branch certa:
+
+```mdx
+<ProjectLinks repo="luizchaves/lp2-2026" branch="sqlite" path="classroom/back-end/investment-api" />
+```
+
+Em repositório externo a pasta de `.devcontainer/` **não** é deduzida: sem a prop, o
+Codespaces sobe com a imagem padrão na branch indicada — suficiente para um projeto Node que
+só precisa de `npm install`.
+
 ## 📝 Regra do parágrafo de entrada e didática do texto
 
 **Nenhuma tabela ou bloco de código aparece logo abaixo de um título.** Sempre escreva ao
@@ -321,6 +385,7 @@ Do projeto (alias `@components`):
 | `<HtmlPreview path… height="24rem" serveFromPublic>` | preview vivo de HTML de `examples/` |
 | `<PackageManagerTabs package="…" dev run="…" exec="…" create="…">` | comandos npm/pnpm/yarn |
 | `<ApiRequest method="POST" path="/users" baseUrl="…">` / `<ApiResponse status={201}>` | aulas de API |
+| `<ProjectLinks path… devcontainer… preview…>` | botões "Ver no GitHub" e "Abrir no Codespaces" (obrigatório em páginas de projeto) |
 | `<ProjectCard {...project}>` | listagens em `projects/index.mdx` |
 
 Antes de criar componente novo, confira se o Starlight já resolve.
@@ -387,4 +452,11 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 13. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
 14. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
 15. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
-16. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
+16. **Página-despejo**: aula de conceito com "Exemplo completo (LP2)" no fim, despejando a
+    árvore de arquivos e dez `<SourceCode>` seguidos — isso é uma página de projeto
+    disfarçada; mova para `practice/` e deixe o link.
+17. **Página de projeto sem `<ProjectLinks>`**: o aluno fica sem o botão do GitHub e sem o
+    do Codespaces, e precisa caçar o caminho do projeto no repositório.
+18. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
+    do Codespaces — crie a pasta ou passe `devcontainer={false}`.
+19. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).

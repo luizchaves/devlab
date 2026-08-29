@@ -1,0 +1,332 @@
+---
+title: "Express.js: Documentação de API"
+description: "Descrição do contrato de uma API Express: arquivos .http executáveis, especificação OpenAPI, Swagger UI, geração a partir de schemas Zod e o que documentar além dos endpoints."
+course: express
+sidebar:
+  label: "Documentação de API"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Uma API sem documentação obriga quem a consome a ler o código do servidor — ou a adivinhar.
+Esta aula trata das duas formas de documentar que sobrevivem ao tempo: a que é executável e
+a que é lida por máquina.
+
+## Objetivo
+
+Ao final você saberá manter um arquivo `.http` executável junto do código, descrever a API
+em OpenAPI, publicar essa descrição com o Swagger UI e reconhecer o que precisa estar
+documentado além da lista de endpoints.
+
+## Documentação que apodrece
+
+Toda documentação escrita à mão em um `README` diverge do código na primeira alteração que
+alguém esquece de refletir. As formas que resistem têm uma característica em comum: **são
+verificáveis**.
+
+| Forma                    | Verificável?                        | Custo de manter                 |
+| ------------------------ | ----------------------------------- | ------------------------------- |
+| Tabela no `README`       | não — ninguém percebe se divergiu   | baixo, mas apodrece rápido       |
+| Arquivo `.http`          | sim — é executado                   | baixo                            |
+| OpenAPI escrito à mão    | parcial — validável, não executado  | médio                            |
+| OpenAPI gerado do schema | sim — sai da mesma fonte do código  | baixo depois de configurado      |
+| Testes de integração     | sim — quebram quando o contrato muda| médio                            |
+
+<Aside type="tip" title="A melhor documentação é a que quebra">
+  Um exemplo que ninguém executa não avisa quando fica errado. Prefira formas em que a
+  divergência entre documentação e código produza uma falha visível.
+</Aside>
+
+## Arquivos `.http`
+
+Um arquivo `requests.http` versionado junto do projeto é a documentação mais barata que
+existe: descreve cada endpoint **e** roda dentro do editor com a extensão
+[REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client).
+
+```http title="requests.http" showLineNumbers {1-2,7,17}
+@server = http://localhost:3000
+@token = {{signin.response.body.$.token}}
+
+### Login — guarda o token para as próximas requisições
+# @name signin
+POST {{server}}/auth/signin
+Content-Type: application/json
+
+{
+  "email": "ana@example.com",
+  "password": "senha-secreta"
+}
+
+### Lista os investimentos do usuário autenticado
+GET {{server}}/investments
+Authorization: Bearer {{token}}
+
+### Sem token (401)
+GET {{server}}/investments
+```
+
+Três recursos fazem toda a diferença:
+
+| Recurso                          | Para que serve                                          |
+| -------------------------------- | ------------------------------------------------------- |
+| `@variavel = valor`              | evita repetir a URL base em cada requisição              |
+| `# @name x`                      | nomeia a resposta para reaproveitá-la depois             |
+| `{{x.response.body.$.campo}}`    | encadeia requisições — login, criação, uso do id gerado  |
+
+<Aside type="note" title="Inclua os casos de erro">
+  Um `.http` que só tem o caminho feliz documenta metade do contrato. As requisições que
+  devem falhar — `401` sem token, `409` com e-mail duplicado, `422` com corpo inválido — são
+  as que mais economizam tempo de quem integra.
+</Aside>
+
+## OpenAPI
+
+O [OpenAPI](https://swagger.io/specification/) é um formato — YAML ou JSON — para descrever
+uma API HTTP de modo que ferramentas consigam ler: gerar cliente, gerar documentação
+navegável, validar requisições e alimentar testes de contrato.
+
+<Mermaid title="O que se obtém a partir de uma especificação OpenAPI">
+{`
+flowchart TD
+  A["openapi.yaml<br/>descrição do contrato"] --> B["Swagger UI<br/>documentação navegável"]
+  A --> C["Geradores de cliente<br/>TypeScript, Dart, Java"]
+  A --> D["Validação de requisição<br/>middleware"]
+  A --> E["Testes de contrato<br/>a resposta bate com o schema?"]
+`}
+</Mermaid>
+
+A estrutura mínima cobre servidor, caminhos e componentes reutilizáveis:
+
+```yaml title="openapi.yaml" showLineNumbers {8,15,26}
+openapi: 3.1.0
+info:
+  title: Investment API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+
+paths:
+  /investments:
+    get:
+      summary: Lista os investimentos do usuário autenticado
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+      responses:
+        '200':
+          description: Lista paginada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvestmentPage'
+        '401':
+          description: Token ausente ou inválido
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Investment:
+      type: object
+      required: [id, name, amount]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        amount: { type: integer }
+```
+
+## Publicando com Swagger UI
+
+O `swagger-ui-express` serve a documentação navegável a partir do arquivo, dentro da própria
+aplicação:
+
+<Steps>
+
+1. Instale os pacotes:
+
+   ```bash title="Terminal"
+   npm install swagger-ui-express yaml
+   ```
+
+2. Carregue a especificação e monte a rota:
+
+   ```ts title="src/app.ts" showLineNumbers {6,8}
+   import { readFileSync } from 'node:fs';
+   import swaggerUi from 'swagger-ui-express';
+   import { parse } from 'yaml';
+
+   const openapi = parse(readFileSync('openapi.yaml', 'utf8'));
+
+   app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+   ```
+
+3. Abra <code>http://localhost:3000/docs</code> e experimente as rotas pela interface.
+
+</Steps>
+
+<Aside type="caution" title="Documentação pública expõe a superfície de ataque">
+  Em uma API interna, `/docs` entrega a lista completa de endpoints e formatos a quem
+  encontrar a URL. Proteja a rota, restrinja por ambiente
+  (`if (!config.isProduction)`) ou publique a especificação apenas para quem integra.
+</Aside>
+
+## Gerando a partir dos schemas
+
+Manter `openapi.yaml` e os schemas de validação em paralelo é manter duas verdades. Quando a
+validação já usa Zod, a especificação pode sair dela:
+
+<Tabs syncKey="openapi-source">
+  <TabItem label="Uma fonte">
+    ```ts title="src/schemas/investment.ts" showLineNumbers {8}
+    import { z } from 'zod';
+
+    export const investmentSchema = z.object({
+      id: z.string(),
+      name: z.string().min(2),
+      amount: z.int().positive(),
+    });
+
+    // O mesmo schema valida a requisição e descreve o contrato.
+    export const investmentJsonSchema = z.toJSONSchema(investmentSchema);
+    ```
+  </TabItem>
+
+  <TabItem label="Duas fontes">
+    ```ts title="O que evitar"
+    // src/schemas/investment.ts  — usado na validação
+    // openapi.yaml               — escrito à mão, diverge no primeiro campo novo
+    ```
+  </TabItem>
+</Tabs>
+
+| Abordagem            | Vantagem                          | Custo                                  |
+| -------------------- | --------------------------------- | -------------------------------------- |
+| YAML à mão           | controle total sobre a descrição   | diverge do código com o tempo           |
+| Gerado dos schemas   | uma fonte de verdade               | menos controle sobre exemplos e textos  |
+| Anotações no código  | fica ao lado da rota               | polui o arquivo e depende do gerador    |
+
+## O que documentar além dos endpoints
+
+A lista de rotas é a parte fácil. O que costuma faltar — e é o que gera perguntas — é o
+contexto:
+
+| Item                           | Pergunta que responde                                  |
+| ------------------------------ | ------------------------------------------------------ |
+| Autenticação                   | como obtenho um token e por quanto tempo ele vale?      |
+| Formato de erro                | o que vem no corpo quando falha?                        |
+| Paginação                      | quais parâmetros, qual o teto, qual o padrão?           |
+| Limites de requisição          | quantas chamadas por minuto antes de `429`?             |
+| Versionamento                  | o que muda entre `/v1` e `/v2`, e até quando o `v1` vive?|
+| Ambientes                      | qual a URL de homologação e de produção?                |
+| Dados de exemplo               | com qual usuário eu testo?                              |
+
+<Aside type="tip" title="O `README` continua tendo um papel">
+  Ele não deve repetir a lista de endpoints — isso é trabalho do OpenAPI. Ele deve responder
+  "como subo isso na minha máquina em cinco minutos": pré-requisitos, `cp .env.example .env`,
+  comandos de banco, usuário de teste e o link para `/docs`.
+</Aside>
+
+## Exercício
+
+No projeto `express-auth`:
+
+1. Complete o `requests.http` com um caso de erro para cada rota.
+2. Escreva `openapi.yaml` descrevendo `POST /auth/signup`, `POST /auth/signin` e
+   `GET /investments`, incluindo o `securityScheme` de *bearer token*.
+3. Publique em `/docs` com `swagger-ui-express`, apenas fora de produção.
+4. Acrescente ao `README.md` a seção "Como rodar em cinco minutos".
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/app.ts" showLineNumbers {5}
+  import { config } from '#config.ts';
+
+  // A documentação fica disponível apenas em desenvolvimento.
+  if (!config.isProduction) {
+    const openapi = parse(readFileSync('openapi.yaml', 'utf8'));
+
+    app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+  }
+  ```
+
+  No `openapi.yaml`, `POST /auth/signin` responde `200` com `{ token }` e `401` com o objeto
+  de erro padrão — descrever o erro é tão importante quanto descrever o sucesso.
+</details>
+
+## Desafio
+
+Escreva um teste de contrato: leia `openapi.yaml`, extraia o schema da resposta de
+`GET /investments` e valide contra ele a resposta real da aplicação. Faça o teste falhar
+propositalmente removendo um campo do controller e confirme que a divergência é detectada.
+
+## Perguntas de revisão
+
+### Formas de documentar
+
+1. **Por que um arquivo `.http` envelhece melhor que uma tabela no `README`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque ele é executado: quando o contrato muda, a requisição falha e alguém corrige. A
+     tabela diverge em silêncio.
+   </details>
+
+2. **O que se ganha ao descrever a API em OpenAPI em vez de em prosa?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Ferramentas passam a ler o contrato: documentação navegável, geração de cliente,
+     validação de requisição e testes de contrato saem da mesma descrição.
+   </details>
+
+3. **Por que gerar a especificação a partir dos schemas de validação?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque elimina a segunda fonte de verdade. Com o YAML escrito à parte, o primeiro campo
+     acrescentado ao schema já deixa a documentação desatualizada.
+   </details>
+
+### Conteúdo
+
+4. **Por que expor `/docs` publicamente pode ser um problema?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque entrega a superfície de ataque completa — endpoints, parâmetros, formatos — a
+     qualquer pessoa que encontre a URL. Em API interna, a rota deve ser protegida ou
+     restrita a ambientes de desenvolvimento.
+   </details>
+
+5. **O que o `README` deve conter que o OpenAPI não cobre?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O caminho para rodar o projeto: pré-requisitos, configuração do `.env`, comandos de
+     banco, usuário de teste e onde encontrar a documentação. O OpenAPI descreve o contrato,
+     não o ambiente.
+   </details>
+
+## Referências
+
+- [OpenAPI Specification](https://swagger.io/specification/)
+- [`swagger-ui-express`](https://www.npmjs.com/package/swagger-ui-express)
+- [REST Client (VS Code)](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)
+- [Zod — JSON Schema](https://zod.dev/json-schema)
+
+## Próxima aula
+
+[Construção de API](../construction/): do requisito ao endpoint, e a integração com o
+front-end.

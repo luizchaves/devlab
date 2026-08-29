@@ -1,0 +1,334 @@
+---
+title: "Express.js: Tempo Real"
+description: "Atualização em tempo real a partir de uma API Express: polling, Server-Sent Events nativos, WebSocket, comparação entre as três abordagens e o que muda com várias instâncias."
+course: express
+sidebar:
+  label: "Tempo Real"
+---
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+HTTP foi desenhado para o cliente perguntar e o servidor responder. Quando o servidor precisa
+avisar primeiro — um ping que falhou, uma notificação, um valor que mudou — é preciso outra
+estratégia.
+
+## Objetivo
+
+Ao final você saberá escolher entre polling, Server-Sent Events e WebSocket, implementar SSE
+com o Express sem nenhuma dependência, e reconhecer o que muda quando a aplicação roda em
+mais de uma instância.
+
+## Três formas de atualizar o cliente
+
+<Mermaid title="Polling, Server-Sent Events e WebSocket comparados">
+{`
+flowchart TD
+  subgraph P["Polling"]
+    P1["Cliente pergunta a cada 5 s"] --> P2["Servidor responde<br/>(quase sempre 'nada mudou')"]
+  end
+  subgraph S["Server-Sent Events"]
+    S1["Cliente abre uma conexão"] --> S2["Servidor envia eventos<br/>quando quiser"]
+  end
+  subgraph W["WebSocket"]
+    W1["Cliente e servidor negociam upgrade"] --> W2["Canal aberto nos dois sentidos"]
+  end
+`}
+</Mermaid>
+
+| Critério                     | Polling            | SSE                        | WebSocket                |
+| ---------------------------- | ------------------ | -------------------------- | ------------------------ |
+| Direção                      | cliente pergunta   | servidor → cliente          | bidirecional             |
+| Protocolo                    | HTTP comum         | HTTP comum                  | `ws://` após upgrade     |
+| Dependência no servidor      | nenhuma            | nenhuma                     | pacote (`ws`, Socket.IO) |
+| Reconexão automática         | trivial            | nativa no navegador         | manual                   |
+| Passa por proxy e CDN        | sempre             | quase sempre                | exige configuração       |
+| Custo por cliente ocioso     | requisições vazias | uma conexão aberta          | uma conexão aberta       |
+| Bom para                     | dados que mudam devagar | notificações, painéis  | chat, colaboração, jogos |
+
+<Aside type="tip" title="Comece pelo mais simples que resolve">
+  Um painel que atualiza a cada 30 segundos não precisa de WebSocket. Polling custa algumas
+  requisições e não acrescenta nenhuma peça à arquitetura — e é reversível.
+</Aside>
+
+## Polling
+
+A abordagem mais simples é o cliente perguntar de novo. O cabeçalho `ETag`, que o Express já
+envia, torna a resposta repetida barata:
+
+```js title="public/js/main.js" showLineNumbers {2}
+setInterval(async () => {
+  // 304 Not Modified quando nada mudou: sem corpo trafegado.
+  const hosts = await api.list();
+
+  render(hosts);
+}, 5000);
+```
+
+<Aside type="caution" title="Polling agressivo é ataque contra si mesmo">
+  Cem clientes com intervalo de um segundo geram cem requisições por segundo, quase todas
+  desnecessárias. Ajuste o intervalo à velocidade real da mudança e pare o `setInterval`
+  quando a aba não estiver visível (`document.visibilityState`).
+</Aside>
+
+## Server-Sent Events
+
+SSE é um fluxo HTTP que nunca termina: o servidor mantém a resposta aberta e escreve eventos
+à medida que eles acontecem. Não há pacote envolvido — é `text/event-stream`.
+
+```ts title="src/routes/events-router.ts" showLineNumbers {5-9,12,18,23}
+const clientes = new Set<Response>();
+
+router.get('/events', authenticate, (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  res.flushHeaders();
+
+  // Comentário inicial: abre o fluxo e evita buffer de proxy.
+  res.write(': conectado\n\n');
+
+  clientes.add(res);
+
+  // Sem isso, a conexão fechada continuaria na lista para sempre.
+  req.on('close', () => {
+    clientes.delete(res);
+  });
+});
+
+export function publicar(evento: string, dados: unknown) {
+  const mensagem = `event: ${evento}\ndata: ${JSON.stringify(dados)}\n\n`;
+
+  for (const cliente of clientes) {
+    cliente.write(mensagem);
+  }
+}
+```
+
+O formato é texto simples, com uma linha em branco separando os eventos:
+
+```txt title="Fluxo text/event-stream"
+: conectado
+
+event: investment.created
+data: {"id":"b1c2","name":"CDB Inter","amount":15000}
+
+event: investment.removed
+data: {"id":"a9d2"}
+```
+
+No navegador, `EventSource` cuida da conexão e da reconexão automática:
+
+```js title="public/js/events.js" showLineNumbers {1,3,8}
+const source = new EventSource('/api/events');
+
+source.addEventListener('investment.created', (event) => {
+  const investment = JSON.parse(event.data);
+
+  adicionarNaLista(investment);
+});
+
+source.onerror = () => console.warn('Conexão perdida; o navegador vai reconectar sozinho.');
+```
+
+<Aside type="caution" title="`EventSource` não envia cabeçalhos personalizados">
+  Não dá para mandar `Authorization: Bearer …` — a API só aceita a URL. As saídas são cookie
+  de sessão ou um token de curta duração na query string. Um token na URL vai parar em logs
+  de acesso, então ele precisa ser específico para isso e expirar rápido.
+</Aside>
+
+Publicar um evento vira uma linha no controller, depois de a operação ter sido concluída:
+
+```ts title="src/controllers/investment-controller.ts" showLineNumbers {4}
+export async function store(req: Request, res: Response) {
+  const investment = await Investment.create({ ...dados, userId });
+
+  publicar('investment.created', investment);
+
+  res.status(201).json(investment);
+}
+```
+
+## WebSocket
+
+Quando o cliente também precisa **enviar** mensagens pelo canal — chat, edição colaborativa,
+jogo — o SSE não basta. O WebSocket abre um canal bidirecional a partir de um upgrade da
+conexão HTTP:
+
+<Tabs syncKey="websocket">
+  <TabItem label="Servidor">
+    ```ts title="src/server.ts" showLineNumbers {4,7,11}
+    import { createServer } from 'node:http';
+    import { WebSocketServer } from 'ws';
+
+    // O Express deixa de chamar listen: quem escuta é o servidor HTTP.
+    const server = createServer(app);
+    const wss = new WebSocketServer({ server });
+
+    wss.on('connection', (socket) => {
+      socket.on('message', (dados) => {
+        // Repassa a mensagem para todos os outros conectados.
+        for (const cliente of wss.clients) {
+          if (cliente !== socket) cliente.send(dados.toString());
+        }
+      });
+    });
+
+    server.listen(3000);
+    ```
+  </TabItem>
+
+  <TabItem label="Cliente">
+    ```js title="public/js/chat.js" showLineNumbers
+    const socket = new WebSocket('ws://localhost:3000');
+
+    socket.addEventListener('message', (event) => {
+      mostrarMensagem(event.data);
+    });
+
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      socket.send(input.value);
+    };
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note" title="O WebSocket não passa pelos middlewares do Express">
+  A conexão é estabelecida antes de qualquer rota: `authenticate`, `cors` e `errorHandler`
+  não são executados. Autenticação, autorização e tratamento de erro precisam ser refeitos
+  dentro do handler de `connection`.
+</Aside>
+
+## O problema das várias instâncias
+
+Tanto SSE quanto WebSocket guardam as conexões **na memória do processo**. Com duas
+instâncias atrás de um balanceador, o evento publicado em uma não alcança os clientes
+conectados na outra:
+
+<Mermaid title="Por que eventos se perdem com mais de uma instância">
+{`
+flowchart TD
+  A["Cliente A"] --> I1["Instância 1<br/>Set com o cliente A"]
+  B["Cliente B"] --> I2["Instância 2<br/>Set com o cliente B"]
+  C["POST /investments<br/>cai na instância 1"] --> I1
+  I1 -->|"publica"| A
+  I1 -.->|"não alcança"| B
+  I1 --> R[("Pub/Sub — Redis")]
+  R --> I2
+  I2 -->|"publica"| B
+`}
+</Mermaid>
+
+A solução é um canal de publicação compartilhado: cada instância assina o canal e repassa
+aos seus próprios clientes. É o que o adaptador de Redis do Socket.IO faz.
+
+| Cenário                        | Funciona sem estado compartilhado? |
+| ------------------------------ | ---------------------------------- |
+| Uma instância                  | sim                                 |
+| Várias instâncias, mesmo evento| não — precisa de pub/sub            |
+| Várias instâncias, sessão presa à instância | sim, com sessão aderente (frágil) |
+
+## Exercício
+
+No projeto `express-auth`:
+
+1. Crie `GET /api/events` como SSE, mantendo os clientes conectados em um `Set`.
+2. Publique `investment.created` no `store` e `investment.removed` no `destroy`.
+3. Consuma com `EventSource` em uma página simples e veja a lista atualizar sem recarregar.
+4. Feche a aba e confirme no log que o cliente saiu do `Set`.
+5. Envie um comentário `: ping` a cada 30 segundos para manter a conexão viva.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/routes/events-router.ts" showLineNumbers {2,7}
+  // Proxies costumam encerrar conexões ociosas: o ping mantém o fluxo vivo.
+  const keepAlive = setInterval(() => res.write(': ping\n\n'), 30_000);
+
+  clientes.add(res);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    clientes.delete(res);
+  });
+  ```
+
+  Sem o `clearInterval`, cada conexão encerrada deixa um temporizador rodando para sempre —
+  vazamento de memória que só aparece depois de horas em produção.
+</details>
+
+## Desafio
+
+Implemente a filtragem por usuário: cada cliente SSE só deve receber eventos dos próprios
+investimentos. Guarde o `userId` junto da resposta no `Set` e filtre em `publicar`. Depois,
+descreva o que precisaria mudar para isso continuar funcionando com duas instâncias.
+
+## Perguntas de revisão
+
+### Escolha
+
+1. **Quando SSE é suficiente e quando o WebSocket é necessário?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     SSE basta quando só o servidor precisa falar: notificações, painéis, atualizações de
+     lista. O WebSocket é necessário quando o cliente também envia pelo mesmo canal — chat,
+     colaboração, jogos.
+   </details>
+
+2. **Qual a vantagem do polling apesar de parecer primitivo?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Não acrescenta nenhuma peça à arquitetura: é HTTP comum, passa por qualquer proxy,
+     funciona com os middlewares existentes e é trivial de reverter. Para dados que mudam
+     devagar, é a escolha certa.
+   </details>
+
+### Implementação
+
+3. **Por que remover a conexão no evento `close`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a resposta permanece no `Set` depois de o cliente sair, e escrever nela vaza
+     memória e acumula erros. Cada aba fechada deixaria um registro morto.
+   </details>
+
+4. **Por que `EventSource` não envia `Authorization`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A API não permite cabeçalhos personalizados. Restam cookie de sessão ou um token curto
+     na query string — que aparece em logs de acesso e por isso deve ser específico e
+     expirar rápido.
+   </details>
+
+5. **Por que SSE e WebSocket quebram com várias instâncias?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque as conexões vivem na memória de um processo: um evento publicado em uma
+     instância não alcança clientes conectados na outra. É preciso um canal de publicação
+     compartilhado, como Redis.
+   </details>
+
+## Referências
+
+- [Server-Sent Events | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+- [`EventSource` | MDN](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)
+- [WebSocket API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+- [`ws`](https://www.npmjs.com/package/ws)
+- [Socket.IO — Redis adapter](https://socket.io/docs/v4/redis-adapter/)
+
+## Próxima aula
+
+[Chamada de Sistema](../system-call/): executar comandos do sistema operacional a partir de
+uma rota.

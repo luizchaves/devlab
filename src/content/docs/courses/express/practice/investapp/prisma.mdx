@@ -1,0 +1,273 @@
+---
+title: "InvestApp: Prisma ORM"
+description: "Quarta etapa do InvestApp: migração da camada de dados de node:sqlite para o Prisma, com schema declarativo, migrations versionadas e relações com Category e Broker."
+course: express
+sidebar:
+  label: "4. Prisma ORM"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Etapa **4 de 6** · Nível **Avançado** · TypeScript · Prisma · SQLite
+
+O SQL escrito à mão dá lugar a um schema declarativo. E, com o ORM, o InvestApp ganha as
+relações que faltavam: cada investimento passa a ter categoria e corretora.
+
+<ProjectLinks repo="luizchaves/lp2-2026" branch="prisma-js" path="classroom/back-end/investment-api" />
+
+## O schema
+
+Três models e duas relações um-para-muitos:
+
+```prisma title="prisma/schema.prisma" showLineNumbers {10-13,17,23}
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Investment {
+  id         String   @id @default(cuid())
+  name       String
+  amount     Int
+  interest   String
+  createdAt  DateTime @default(now())
+  dueDate    DateTime
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  brokerId   String
+  broker     Broker   @relation(fields: [brokerId], references: [id])
+}
+
+model Category {
+  id          String       @id @default(cuid())
+  name        String
+  color       String
+  investments Investment[]
+}
+
+model Broker {
+  id          String       @id @default(cuid())
+  name        String
+  investments Investment[]
+}
+```
+
+<Mermaid title="Modelo de dados do InvestApp após a introdução das relações">
+{`
+erDiagram
+  CATEGORY ||--o{ INVESTMENT : "classifica"
+  BROKER ||--o{ INVESTMENT : "custodia"
+
+  INVESTMENT {
+    string id PK
+    string name
+    int amount
+    string interest
+    datetime createdAt
+    datetime dueDate
+    string categoryId FK
+    string brokerId FK
+  }
+  CATEGORY {
+    string id PK
+    string name
+    string color
+  }
+  BROKER {
+    string id PK
+    string name
+  }
+`}
+</Mermaid>
+
+## Estrutura
+
+<FileTree>
+{`
+  investment-api/
+  ├── .env.example                DATABASE_URL
+  ├── prisma.config.ts            configuração do Prisma 7
+  ├── prisma/
+  │   ├── migrations/             histórico versionado
+  │   └── schema.prisma
+  ├── docs/
+  │   ├── erd.md                  diagrama gerado do schema
+  │   └── erd.png
+  └── src/
+      ├── database/
+      │   └── prisma.ts           instância única do client
+      ├── generated/prisma/       client gerado — fora do Git
+      ├── models/
+      │   ├── Broker.ts
+      │   ├── Category.ts
+      │   └── Investment.ts       findMany, include, create…
+      ├── controllers/
+      ├── routes/
+      └── types/
+`}
+</FileTree>
+
+## O client
+
+Uma instância só, criada uma vez e importada por todos os models:
+
+```ts title="src/database/prisma.ts" showLineNumbers {5-6}
+import 'dotenv/config';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
+import { PrismaClient } from '@/generated/prisma/client.ts';
+
+const adapter = new PrismaBetterSqlite3({ url: `${process.env.DATABASE_URL}` });
+const prisma = new PrismaClient({ adapter });
+
+export { prisma };
+```
+
+<Aside type="note" title="Prisma 7 exige um adapter">
+  A partir da versão 7, a `url` sai do `schema.prisma` e vai para o `prisma.config.ts`, e o
+  client passa a receber um *driver adapter*. Em Prisma 6, `new PrismaClient()` sem
+  argumentos ainda funciona.
+</Aside>
+
+## O model, antes e depois
+
+O contrato das funções não muda — `create`, `read`, `readById`, `update`, `remove`. O corpo,
+sim:
+
+```ts title="src/models/Investment.ts" del={1-8} ins={10-16}
+const sql = `
+  SELECT id, name, value
+  FROM investments
+  WHERE id = ?
+`;
+
+const investment = await db.get(sql, [id]);
+
+async function readById(id: string): Promise<Investment> {
+  return prisma.investment.findUniqueOrThrow({
+    where: { id },
+    include,
+  }) as Promise<Investment>;
+}
+```
+
+A definição do `include` fica em uma constante do próprio model, para que a entidade saia
+com o mesmo formato em todas as rotas:
+
+```ts title="src/models/Investment.ts" showLineNumbers {1-4}
+const include = {
+  category: true,
+  broker: true,
+};
+```
+
+## Migrations
+
+```bash title="Terminal"
+npx prisma migrate dev --name init
+npx prisma generate
+npx prisma studio
+```
+
+| Comando                 | Quando usar                                   |
+| ----------------------- | --------------------------------------------- |
+| `migrate dev`           | ao alterar o schema, em desenvolvimento        |
+| `migrate deploy`        | em produção — aplica sem gerar nem resetar     |
+| `migrate reset`         | recomeçar do zero (**apaga tudo**)             |
+| `db seed`               | popular com os dados iniciais                  |
+| `studio`                | inspecionar visualmente                        |
+
+## Executando
+
+<Steps>
+
+1. Troque para a branch e instale:
+
+   ```bash title="Terminal"
+   git switch prisma-js
+   npm install
+   cp .env.example .env
+   ```
+
+2. Crie o banco e popule:
+
+   ```bash title="Terminal"
+   npm run db:load
+   ```
+
+3. Suba o servidor:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+4. Inspecione os dados:
+
+   ```bash title="Terminal"
+   npm run db:studio
+   ```
+
+</Steps>
+
+## Testando
+
+A resposta agora traz as entidades relacionadas já resolvidas — o front-end não precisa de
+uma segunda chamada:
+
+<ApiRequest method="GET" path="/api/investments" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  [
+    {
+      "id": "b1c2d3",
+      "name": "Tesouro Selic 2029",
+      "amount": 20000,
+      "interest": "100% Selic",
+      "category": { "id": "8f14", "name": "Pós-fixado", "color": "#6366f1" },
+      "broker": { "id": "45c4", "name": "Banco Inter" }
+    }
+  ]
+`}
+</ApiResponse>
+
+## O diff que importa
+
+```bash title="Terminal"
+git diff typescript prisma-js -- classroom/back-end/investment-api/src/models
+git diff typescript prisma-js -- classroom/back-end/investment-api/src/controllers
+```
+
+O primeiro diff é grande: os models foram reescritos. O segundo é quase vazio — os
+controllers seguiram chamando as mesmas funções. É a terceira vez no projeto que a camada de
+dados é trocada sem que as camadas acima percebam.
+
+<Aside type="caution" title="`src/generated/` não vai para o Git">
+  O client é gerado a partir do schema por `prisma generate`, que roda no `postinstall`.
+  Versioná-lo cria conflitos enormes e não acrescenta nada.
+</Aside>
+
+## Conceitos abordados
+
+- Schema declarativo e geração do client tipado
+- Migrations versionadas e o histórico em `prisma/migrations/`
+- Instância única do `PrismaClient` com driver adapter
+- Relações um-para-muitos e `include` centralizado no model
+- Diagrama ER gerado a partir do schema
+
+<Aside type="tip">
+  As aulas correspondentes são [Prisma](../../../persistence/prisma/),
+  [CRUD com Prisma](../../../persistence/crud/) e
+  [Relações com Prisma](../../../persistence/relations/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: Cadastro de Usuário](../user/) — o model `User` e o hash de senha.

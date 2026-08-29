@@ -1,0 +1,269 @@
+---
+title: "Projeto: Monitor API"
+description: "Aplicação de monitoramento de hosts construída em etapas: API em memória, SQLite, Prisma com relações, cadastro de usuário e autenticação, com front-end separado servido pelo Vite."
+course: express
+sidebar:
+  label: "Monitor API"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Intermediário → Avançado** · Node.js · Express.js · Prisma · Vite
+
+O **Monitor App** cadastra hosts de rede e registra o resultado de cada `ping`. Ele percorre
+a mesma trilha do [InvestApp](../investapp/), com duas diferenças relevantes: o front-end
+roda em um servidor **separado** e o domínio inclui uma relação muitos-para-muitos.
+
+<ProjectLinks path="examples/express/codes/monitor-app-api" devcontainer={false} />
+
+## As etapas
+
+Cada etapa é um diretório próprio em `examples/express/codes/`, e mantém tudo que veio antes:
+
+| Etapa                       | Diretório                        | Novidade                                   |
+| --------------------------- | -------------------------------- | ------------------------------------------ |
+| 1. API em memória           | `monitor-app-api`                | rotas, JSON e o front consumindo a API      |
+| 2. Banco com SQL            | `monitor-app-db-simple`          | migration, seeders e model com SQL          |
+| 3. Camadas                  | `monitor-app-mvc`                | models, rotas e database separados          |
+| 4. Prisma                   | `monitor-app-prismajs-simple`    | schema declarativo e migrations             |
+| 5. Relações                 | `monitor-app-prismajs-relation`  | `Ping`, `Tag` e o muitos-para-muitos        |
+| 6. Cadastro de usuário      | `monitor-app-prismajs-user`      | model `User` e hash de senha                |
+| 7. Autenticação             | `monitor-app-prismajs-auth`      | login, JWT e rotas protegidas               |
+
+## Front-end separado
+
+É a diferença de arquitetura em relação ao InvestApp: aqui o front tem build próprio e roda
+no servidor de desenvolvimento do Vite, em outra porta.
+
+<Mermaid title="Duas origens: front no Vite, API no Express">
+{`
+flowchart TD
+  A["Navegador"] --> B["Vite<br/>localhost:5173<br/>front/"]
+  A --> C["Express<br/>localhost:3000<br/>back/"]
+  B -->|"proxy /api"| C
+  C --> D[("SQLite")]
+`}
+</Mermaid>
+
+<Tabs syncKey="monitor-origin">
+  <TabItem label="Proxy no Vite">
+    ```js title="front/vite.config.js" showLineNumbers {4-6}
+    export default {
+      server: {
+        proxy: {
+          '/api': { target: 'http://localhost:3000', changeOrigin: true },
+        },
+      },
+    };
+    ```
+
+    Em desenvolvimento, o navegador enxerga uma origem só — e o CORS não aparece.
+  </TabItem>
+
+  <TabItem label="CORS em produção">
+    ```js title="back/src/index.js" showLineNumbers {2}
+    // Publicados separadamente, front e API voltam a ser origens diferentes.
+    app.use(cors({ origin: process.env.FRONTEND_URL }));
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="note" title="Por que essa diferença importa">
+  O InvestApp serve o front por `express.static` e nunca precisa de CORS; o Monitor App
+  separa os dois desde o início. Comparar os dois projetos é a forma mais direta de entender
+  o que a aula de [CORS](../../security/cors/) descreve.
+</Aside>
+
+## Estrutura
+
+<FileTree>
+{`
+  monitor-app-prismajs-auth/
+  ├── back/
+  │   ├── prisma/
+  │   │   └── schema.prisma
+  │   ├── .env.example
+  │   ├── package.json
+  │   ├── requests.http
+  │   └── src/
+  │       ├── index.js
+  │       ├── routes.js
+  │       ├── routes.test.js
+  │       ├── database/
+  │       ├── lib/
+  │       ├── middleware/
+  │       │   └── auth.js
+  │       └── models/
+  └── front/
+      ├── vite.config.js
+      ├── home.html
+      ├── signin.html
+      ├── signup.html
+      ├── css/
+      └── js/
+          ├── components/
+          ├── lib/
+          └── services/
+`}
+</FileTree>
+
+## Etapa 1: a API em memória
+
+O ponto de partida é um CRUD de hosts sobre um array, com o contrato já definido:
+
+<SourceCode path="examples/express/codes/monitor-app-api/back/src/data/hosts.js" title="back/src/data/hosts.js" showLineNumbers />
+
+<SourceCode path="examples/express/codes/monitor-app-api/back/src/index.js" title="back/src/index.js" showLineNumbers />
+
+| Método | Caminho          | Corpo                 | Sucesso | Erros        |
+| ------ | ---------------- | --------------------- | ------- | ------------ |
+| GET    | `/api/hosts`     | —                     | `200`   | —            |
+| GET    | `/api/hosts/:id` | —                     | `200`   | `404`        |
+| POST   | `/api/hosts`     | `{ name, address }`   | `201`   | `400`        |
+| PUT    | `/api/hosts/:id` | `{ name, address }`   | `200`   | `400`, `404` |
+| DELETE | `/api/hosts/:id` | —                     | `204`   | `404`        |
+
+<ApiRequest method="POST" path="/api/hosts" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Google DNS",
+    "address": "8.8.8.8"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "1",
+    "name": "Google DNS",
+    "address": "8.8.8.8"
+  }
+`}
+</ApiResponse>
+
+## Etapa 5: as relações
+
+É onde o domínio fica interessante. Um host tem vários pings (um-para-muitos) e pode ter
+várias tags, que por sua vez rotulam vários hosts (muitos-para-muitos):
+
+<Mermaid title="Modelo de dados do Monitor App">
+{`
+erDiagram
+  USER ||--o{ HOST : "cadastra"
+  HOST ||--o{ PING : "gera histórico de"
+  HOST }|--|{ TAG : "rotulado por"
+
+  USER {
+    string id PK
+    string email UK
+    string password
+  }
+  HOST {
+    string id PK
+    string name
+    string address
+    string userId FK
+  }
+  PING {
+    string id PK
+    int latency
+    datetime createdAt
+    string hostId FK
+  }
+  TAG {
+    string id PK
+    string name UK
+  }
+`}
+</Mermaid>
+
+<SourceCode
+  path="examples/express/codes/monitor-app-prismajs-relation/back/prisma/schema.prisma"
+  title="back/prisma/schema.prisma"
+  showLineNumbers
+/>
+
+## Etapa 7: autenticação
+
+A última etapa protege as rotas e liga cada host ao usuário que o cadastrou:
+
+<SourceCode
+  path="examples/express/codes/monitor-app-prismajs-auth/back/src/middleware/auth.js"
+  title="back/src/middleware/auth.js"
+  showLineNumbers
+/>
+
+<Aside type="caution" title="Este material usa `jsonwebtoken` e `bcrypt`">
+  As etapas do Monitor App foram escritas com os pacotes clássicos. O guia hoje mostra as
+  versões nativas em [Senhas e Hash](../../auth/passwords/) e
+  [Autenticação](../../auth/authentication/) — o conceito é o mesmo, e comparar as duas
+  implementações é um bom exercício.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Suba a API:
+
+   ```bash title="Terminal"
+   cd examples/express/codes/monitor-app-prismajs-auth/back
+   npm install
+   cp .env.example .env
+   npx prisma migrate dev
+   npm run dev
+   ```
+
+2. Em outro terminal, suba o front:
+
+   ```bash title="Terminal"
+   cd examples/express/codes/monitor-app-prismajs-auth/front
+   npm install
+   npm run dev
+   ```
+
+3. Abra <code>http://localhost:5173</code>.
+
+</Steps>
+
+## Testes
+
+O projeto traz testes de integração das rotas desde a primeira etapa:
+
+<SourceCode
+  path="examples/express/codes/monitor-app-api/back/src/routes.test.js"
+  title="back/src/routes.test.js"
+  showLineNumbers
+  collapse="20-200"
+/>
+
+```bash title="Terminal"
+npm test
+npm run test:coverage
+```
+
+## Conceitos abordados
+
+- CRUD completo com contrato definido antes da implementação
+- Front-end com build próprio e proxy de desenvolvimento
+- Migração de SQL puro para Prisma sem tocar nas rotas
+- Relações um-para-muitos e muitos-para-muitos
+- Cadastro, login e rotas protegidas
+- Testes de integração cobrindo o contrato
+
+<Aside type="tip">
+  As aulas relacionadas são [Construção de API](../../api/construction/),
+  [Relações com Prisma](../../persistence/relations/), [CORS](../../security/cors/) e
+  [Testes](../../advanced/testing/).
+</Aside>
+
+## Projeto irmão
+
+[InvestApp](../investapp/) — a mesma trilha, com front na mesma origem e evolução por
+branches.

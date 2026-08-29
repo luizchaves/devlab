@@ -1,296 +1,447 @@
 ---
 title: "Express.js: Autenticação"
-description: "Fluxo de autenticação com JWT, middleware, rotas protegidas e integração com front-end."
+description: "Autenticação em uma API Express: sessão com estado versus token sem estado, anatomia de um JWT, assinatura HS256 com node:crypto, middleware de autenticação, expiração, logout e armazenamento no cliente."
 course: express
 sidebar:
   label: "Autenticação"
 ---
-import FileTree from '@components/FileTree.astro';
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
 import SourceCode from '@components/SourceCode.astro';
 
-<FileTree>
+Com o usuário cadastrado, falta responder à pergunta que toda requisição seguinte carrega:
+**quem está chamando?** Esta aula constrói essa resposta com JSON Web Tokens assinados por
+`node:crypto`.
+
+## Objetivo
+
+Ao final você saberá diferenciar autenticação de autorização, explicar o que um JWT é e o
+que ele não é, assinar e verificar tokens sem bibliotecas, proteger rotas com um middleware
+e reconhecer as armadilhas clássicas de sessões sem estado.
+
+## Autenticação não é autorização
+
+São duas perguntas distintas, respondidas por middlewares distintos e com status HTTP
+distintos:
+
+| Pergunta                    | Nome           | Status quando falha | Middleware        |
+| --------------------------- | -------------- | ------------------- | ----------------- |
+| Quem é você?                | Autenticação   | `401 Unauthorized`  | `authenticate`    |
+| O que você pode fazer?      | Autorização    | `403 Forbidden`     | `authorize`       |
+
+<Aside type="note" title="O nome `401 Unauthorized` é enganoso">
+  Apesar do nome, `401` significa **não autenticado** — "identifique-se". Quem está
+  identificado mas não tem permissão recebe `403`. A confusão vem da própria especificação
+  do HTTP, não do Express.
+</Aside>
+
+## Sessão com estado ou token sem estado
+
+Há duas formas de o servidor lembrar quem está do outro lado, e a escolha define a
+arquitetura:
+
+<Mermaid title="Sessão com estado no servidor versus token sem estado">
 {`
-monitor-app-prismajs-auth/
-    back/
-        .vscode/
-        prisma/
-        src/
-        temp/
-        .dockerignore
-        .env.example
-        .gitignore
-        docker-compose.debug.yml
-        docker-compose.yml
-        Dockerfile
-        package-lock.json
-        package.json
-        requests.http
-    front/
-        css/
-        js/
-        public/
-        .gitignore
-        home.html
-        package-lock.json
-        package.json
-        signin.html
-        signup.html
-        vite.config.js
-    screenshots/
-        home.png
-        signin.png
-    README.md
+flowchart TD
+  subgraph S["Sessão com estado"]
+    S1["Login válido"] --> S2["Servidor cria a sessão<br/>e guarda em memória ou Redis"]
+    S2 --> S3["Cliente recebe um cookie<br/>com o id da sessão"]
+    S3 --> S4["Cada requisição:<br/>servidor consulta o armazenamento"]
+  end
+  subgraph T["Token sem estado"]
+    T1["Login válido"] --> T2["Servidor assina um token<br/>com os dados dentro"]
+    T2 --> T3["Cliente guarda o token"]
+    T3 --> T4["Cada requisição:<br/>servidor só confere a assinatura"]
+  end
 `}
-</FileTree>
+</Mermaid>
 
-## JSON Web Token (JWT)
+| Critério                     | Sessão com estado          | Token (JWT)                     |
+| ---------------------------- | -------------------------- | ------------------------------- |
+| Onde o estado mora           | servidor (memória, Redis)  | no próprio token, com o cliente |
+| Consulta por requisição      | sim                        | não                             |
+| Escalar para várias instâncias | exige armazenamento compartilhado | trivial                |
+| Revogar imediatamente        | apagar a sessão            | **difícil** — o token é válido até expirar |
+| Tamanho por requisição       | um id curto                | o token inteiro                 |
+| Uso típico                   | aplicação web com servidor de páginas | API consumida por SPA e mobile |
 
-Fluxo de Requisição:
+<Aside type="tip" title="JWT não é sempre a resposta">
+  Para uma aplicação web com um único servidor, uma sessão em cookie é mais simples e
+  permite logout de verdade. O JWT brilha quando há várias instâncias, clientes móveis ou
+  serviços diferentes validando o mesmo token.
+</Aside>
 
-![](/lp2/imgs/expressjs/auth/jwt-request.png)
+## Anatomia de um JWT
 
-[jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken):
+Um JWT é apenas **texto**: três partes em Base64URL separadas por ponto.
 
-```bash
-$ npm install jsonwebtoken
+```txt title="Um JWT decomposto"
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzY0NDAwMDAwLCJleHAiOjE3NjQ0MDM2MDB9.qk3Xr6…
+└──────────── header ────────────┘ └──────────── payload ────────────┘ └── signature ──┘
+
+header  (base64url) => {"alg":"HS256","typ":"JWT"}
+payload (base64url) => {"sub":"1","iat":1764400000,"exp":1764403600}
+signature           => HMAC-SHA256("header.payload", segredo)
 ```
 
-Encode: jwt.sign(payload , privateKey, options)
+<Aside type="danger" title="O payload NÃO é criptografado">
+  Base64 é codificação, não cifra: qualquer pessoa cola o token em
+  [jwt.io](https://jwt.io/) e lê o conteúdo. **Nunca** coloque senha, CPF ou qualquer dado
+  sensível no payload. O que a assinatura garante é integridade — que ninguém alterou os
+  dados —, não sigilo.
+</Aside>
 
-[jwt.io debugger](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30.C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk):
+As chaves curtas do payload são padronizadas pela [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519.html):
 
-```js showLineNumbers title="Encode JWT"
-jwt.sign(
-  { userId: 1 },
-  'secret'
-);
-//=> eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30.C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk
+| Chave  | Nome        | Significado                                     |
+| ------ | ----------- | ----------------------------------------------- |
+| `sub`  | subject     | quem é o dono do token — o id do usuário         |
+| `iat`  | issued at   | quando foi emitido (segundos desde 1970)         |
+| `exp`  | expiration  | quando deixa de valer                            |
+| `iss`  | issuer      | quem emitiu                                      |
+| `aud`  | audience    | para qual serviço o token vale                   |
 
-//=> Header:    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-//=> Payload:   eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30
-//=> Signature: C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk
+## Assinando com `node:crypto`
 
-// base64 decoded
-//=> Header:     {"alg":"HS256","typ":"JWT"}
-//=> Payload:    {"userId":1,"iat":1728746643}
+Assinar é calcular um HMAC-SHA256 de `header.payload` com o segredo do servidor. São poucas
+linhas:
+
+<SourceCode
+  path="examples/express/projects/auth/src/utils/jwt.ts"
+  title="src/utils/jwt.ts"
+  lines="39-56"
+  showLineNumbers
+  mark="39-41,50-51,55"
+/>
+
+<Aside type="note" title="`base64url`, não `base64`">
+  O `base64` comum usa `+`, `/` e `=`, que têm significado especial em URLs e cabeçalhos. O
+  `base64url` troca por `-`, `_` e remove o preenchimento. O Node aceita `'base64url'`
+  diretamente em `Buffer.toString()`.
+</Aside>
+
+## Verificando
+
+A verificação é o inverso — e é onde moram as decisões de segurança:
+
+<SourceCode
+  path="examples/express/projects/auth/src/utils/jwt.ts"
+  title="src/utils/jwt.ts"
+  lines="58-87"
+  showLineNumbers
+  mark="66-72,76-78,82-84"
+/>
+
+Três checagens, três ataques evitados:
+
+| Checagem                          | Ataque que ela impede                                    |
+| --------------------------------- | -------------------------------------------------------- |
+| `timingSafeEqual` na assinatura   | ataque de temporização e token forjado                    |
+| `alg !== 'HS256'` recusado        | token com `"alg":"none"`, que dispensa assinatura         |
+| `exp < agora` recusado            | reuso indefinido de um token antigo                       |
+
+<Aside type="danger" title="O ataque `alg: none`">
+  Bibliotecas antigas confiavam no campo `alg` do **próprio token** para escolher como
+  verificar. Um atacante trocava `"alg":"none"`, removia a assinatura e era aceito. A regra
+  é fixar o algoritmo no servidor e recusar qualquer outro — nunca perguntar ao token.
+</Aside>
+
+## O login
+
+A rota de login é onde a senha aparece pela última vez. Ela verifica as credenciais e
+devolve o token:
+
+<SourceCode
+  path="examples/express/projects/auth/src/controllers/auth-controller.ts"
+  title="src/controllers/auth-controller.ts"
+  lines="28-52"
+  showLineNumbers
+  mark="39-42,44-49"
+/>
+
+<Aside type="caution" title="A mesma mensagem para os dois erros">
+  Responder "usuário não encontrado" e "senha incorreta" de formas diferentes entrega a
+  lista de e-mails cadastrados a quem estiver sondando. `401 Credenciais inválidas` cobre
+  os dois casos.
+</Aside>
+
+<ApiRequest method="POST" path="/auth/signin" baseUrl="http://localhost:3000">
+{`
+  {
+    "email": "ana@example.com",
+    "password": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={200}>
+{`
+  {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYTAyIiwibmFtZSI6IkFuYSJ9.qk3Xr6…"
+  }
+`}
+</ApiResponse>
+
+## O middleware de autenticação
+
+Ele lê o cabeçalho `Authorization`, valida o token e guarda o payload em `req.auth` para
+quem vier depois:
+
+<SourceCode
+  path="examples/express/projects/auth/src/middlewares/authenticate.ts"
+  title="src/middlewares/authenticate.ts"
+  showLineNumbers
+  mark="13,15-17,20"
+/>
+
+O esquema `Bearer` é o padrão da [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html):
+
+```http title="Requisição autenticada"
+GET /investments HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…
 ```
 
-[jwt.io debugger](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0Njc4NiwiZXhwIjoxNzI4NzUwMzg2fQ.V1eHtVYWaI5Rji8wd4onYIGqdTGlm6NAmUeIiw6G7Gw):
+Aplicá-lo a um router inteiro é mais seguro do que rota a rota — não há como esquecer uma:
 
-```js showLineNumbers title="Encode JWT"
-jwt.sign(
-  { userId: 1 },
-  'secret',
-  { expiresIn: 3600000 } // 1h
-);
-//=> eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0Njc4NiwiZXhwIjoxNzI4NzUwMzg2fQ.V1eHtVYWaI5Rji8wd4onYIGqdTGlm6NAmUeIiw6G7Gw
+<SourceCode
+  path="examples/express/projects/auth/src/routes/investment-router.ts"
+  title="src/routes/investment-router.ts"
+  showLineNumbers
+  mark="10"
+/>
 
-//=> Header:    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-//=> Payload:   eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0Njc4NiwiZXhwIjoxNzI4NzUwMzg2fQ
-//=> Signature: V1eHtVYWaI5Rji8wd4onYIGqdTGlm6NAmUeIiw6G7Gw
+<ApiRequest method="GET" path="/investments" baseUrl="http://localhost:3000" description="Sem o cabeçalho Authorization" />
 
-// base64 decoded
-//=> Header:     {"alg":"HS256","typ":"JWT"}
-//=> Payload:    {"userId":1,"iat":1728746786,"exp":1728750386}
+<ApiResponse status={401}>
+{`
+  {
+    "error": {
+      "status": 401,
+      "message": "Token de acesso ausente"
+    }
+  }
+`}
+</ApiResponse>
+
+## O ciclo completo
+
+<Mermaid title="Ciclo de autenticação por token em uma API Express">
+{`
+sequenceDiagram
+  participant C as Cliente
+  participant A as API Express
+  participant D as Banco
+  C->>A: POST /auth/signin { email, password }
+  A->>D: findByEmailWithPassword(email)
+  D-->>A: usuário + hash
+  A->>A: verifyPassword(senha, hash)
+  A->>A: signJwt({ sub, name, role })
+  A-->>C: 200 { token }
+  Note over C: guarda o token
+  C->>A: GET /investments<br/>Authorization: Bearer …
+  A->>A: verifyJwt(token) → req.auth
+  A->>D: findAllByUser(req.auth.sub)
+  D-->>A: investimentos do usuário
+  A-->>C: 200 [ … ]
+`}
+</Mermaid>
+
+## Onde o cliente guarda o token
+
+Não existe opção sem risco — existe a escolha do risco que se prefere:
+
+<Tabs syncKey="token-storage">
+  <TabItem label="localStorage">
+    ```js title="public/js/lib/session.js" showLineNumbers
+    export function setToken(token) {
+      localStorage.setItem('@app:token', token);
+    }
+
+    export function getAuthHeaders() {
+      const token = localStorage.getItem('@app:token');
+
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+    ```
+
+    Simples e funciona com API em outro domínio. Vulnerável a XSS: qualquer script injetado
+    na página lê o token.
+  </TabItem>
+
+  <TabItem label="Cookie httpOnly">
+    ```ts title="src/controllers/auth-controller.ts" showLineNumbers {2-5}
+    res.cookie('token', token, {
+      httpOnly: true,   // JavaScript da página não lê
+      secure: true,     // só trafega em HTTPS
+      sameSite: 'lax',  // mitiga CSRF
+      maxAge: 3600_000,
+    });
+    ```
+
+    Inacessível ao JavaScript, logo imune a XSS na leitura. Em troca, exige cuidado com
+    CSRF e configuração adicional quando a API está em outro domínio.
+  </TabItem>
+</Tabs>
+
+| Risco                        | `localStorage` | Cookie `httpOnly`         |
+| ---------------------------- | -------------- | ------------------------- |
+| XSS lê o token               | sim            | não                       |
+| CSRF                         | não            | sim — mitigado por `SameSite` |
+| API em outro domínio         | simples        | exige `credentials` e CORS |
+| Enviado automaticamente      | não            | sim                       |
+
+<Aside type="caution" title="Nem `localStorage` nem cookie salvam de XSS">
+  Com XSS ativo, o atacante não precisa ler o cookie: ele faz as requisições a partir da
+  própria página, e o navegador anexa o cookie sozinho. A defesa real é não ter XSS —
+  assunto de [Endurecimento](../../security/hardening/).
+</Aside>
+
+## Expiração, renovação e logout
+
+Um token sem estado não pode ser cancelado: enquanto a assinatura for válida e `exp` não
+tiver passado, ele funciona. Isso tem três consequências práticas.
+
+**Expiração curta.** Quanto menor o `exp`, menor a janela de um token roubado. Uma hora é um
+ponto de partida razoável para um token de acesso.
+
+**Renovação.** Para não obrigar o usuário a fazer login a cada hora, usa-se um par: um
+*access token* curto e um *refresh token* longo, guardado com mais cuidado e **este sim** com
+estado no servidor, para poder ser revogado.
+
+**Logout.** No cliente, logout é apagar o token. No servidor, o token continua válido até
+expirar:
+
+```js title="public/js/lib/session.js" showLineNumbers
+export function signOut() {
+  // Do lado do servidor, o token continua válido até o `exp`.
+  localStorage.removeItem('@app:token');
+  window.location.href = 'signin.html';
+}
 ```
 
-[jwt.io debugger](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0ODQ5NywiZXhwIjoxNzI4NzUyMDk3fQ.0m_bFbC337WRu0bqlabUJ1hN-hNwOXVJUHKBbSdmz7s):
+| Necessidade                     | Solução                                              |
+| ------------------------------- | ---------------------------------------------------- |
+| Reduzir a janela de risco       | `exp` curto (15 min a 1 h)                            |
+| Não pedir login o tempo todo    | refresh token com estado no servidor                  |
+| Revogar um token específico     | lista de revogação (`jti`) consultada a cada requisição|
+| Revogar todos de um usuário     | campo `tokenVersion` no usuário, comparado no payload  |
 
-```js showLineNumbers title="Encode JWT"
-jwt.sign(
-  { userId: 1 },
-  'abc',
-  { expiresIn: '1h' }
-);
-//=> eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0ODQ5NywiZXhwIjoxNzI4NzUyMDk3fQ.0m_bFbC337WRu0bqlabUJ1hN-hNwOXVJUHKBbSdmz7s
+<Aside type="note" title="Revogação devolve o estado que o JWT tirou">
+  Qualquer mecanismo de revogação exige consultar algo a cada requisição — exatamente o que
+  o token sem estado evitava. É um custo consciente, não uma falha de projeto.
+</Aside>
 
-//=> Header:    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-//=> Payload:   eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0ODQ5NywiZXhwIjoxNzI4NzUyMDk3fQ
-//=> Signature: 0m_bFbC337WRu0bqlabUJ1hN-hNwOXVJUHKBbSdmz7s
+## Exercício
 
-// base64 decoded
-//=> Header:     {"alg":"HS256","typ":"JWT"}
-//=> Payload:    {"userId":1,"iat":1728748497,"exp":1728752097}
-```
+No projeto `express-auth`:
 
-Observações:
+1. Faça login e cole o token em [jwt.io](https://jwt.io/) — leia o payload sem o segredo.
+2. Altere um caractere do payload, reenvie e confirme que a API responde `401`.
+3. Gere um token com `signJwt({ sub: '1' }, -1)` e confirme a recusa por expiração.
+4. Acrescente `iss: 'investment-api'` ao payload e valide-o em `verifyJwt`.
+5. Proteja `GET /users` com `authenticate` aplicado ao router inteiro e verifique que
+   nenhuma rota ficou de fora.
 
-- `iat` (`Issued At` ou `Gerado em`) é o timestamp de quando o token foi gerado;
-- A `signature` é gerado pela assinatura do `header.payload` + `privateKey` ([HMAC-SHA256 Hash Generator](https://www.devglan.com/online-tools/hmac-sha256-online));
-- expiresIn: expressed in seconds or a string describing a time span [vercel/ms](https://github.com/vercel/ms).
+<details>
+  <summary>Possível resposta</summary>
 
-Decode: jwt.verify(token, privateKey)
+  ```ts title="src/utils/jwt.ts" showLineNumbers {6-8}
+  const ISSUER = 'investment-api';
 
-[jwt.io - signature verified](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30.C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk):
+  export function verifyJwt(token: string): JwtPayload {
+    // … verificação da assinatura …
 
-```js showLineNumbers title="Decode JWT"
-jwt.verify(
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30.C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk',
-  'secret'
-);
-//=> { userId: 1, iat: 1728746643 }
-```
+    if (payload.iss !== ISSUER) {
+      throw new Error('Emissor inválido');
+    }
 
-[jwt.io - invalid signature](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30.C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk):
+    return payload;
+  }
+  ```
 
-```js showLineNumbers title="Decode JWT"
-jwt.verify(
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0NjY0M30.C1dDgnIRfWpJnqir_hyuVp_fnt7vpR6mKgHMdZoG4Rk',
-  'wrong'
-);
-//=> Uncaught JsonWebTokenError: invalid signature
-```
+  Alterar o payload invalida o token porque a assinatura foi calculada sobre
+  `header.payload`: qualquer byte diferente produz um HMAC diferente, e o
+  `timingSafeEqual` recusa.
+</details>
 
-[jwt.io - signature verified](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0Njc4NiwiZXhwIjoxNzI4NzUwMzg2fQ.V1eHtVYWaI5Rji8wd4onYIGqdTGlm6NAmUeIiw6G7Gw):
+## Desafio
 
-```js showLineNumbers title="Decode JWT"
-jwt.verify(
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcyODc0Njc4NiwiZXhwIjoxNzI4NzUwMzg2fQ.V1eHtVYWaI5Rji8wd4onYIGqdTGlm6NAmUeIiw6G7Gw',
-  'secret'
-);
-//=> { userId: 1, iat: 1728746786, exp: 1728750386 }
-```
+Implemente a revogação por `tokenVersion`: acrescente o campo ao usuário, inclua-o no payload
+do token e faça o `authenticate` recusar quando o valor do token for menor que o do banco.
+Use isso para implementar "sair de todos os dispositivos". Meça o custo: quantas consultas a
+mais por requisição?
 
-> Sabendo que o `privateKey` é `secret`, gere um novo token para o usuário de `id` igual a `2` com `1h` de expiração.
+## Perguntas de revisão
 
-## Middleware
+### Conceitos
 
-```text
-Express -> Middleware -> Router
-```
+1. **Qual a diferença entre autenticação e autorização?**
 
-<SourceCode path="examples/express/lp2/invest-app-auth/src/middleware/auth.js" mark="9" />
+   <details>
+     <summary>Possível resposta</summary>
 
-```ini title="codes/expressjs/invest-app-auth/.env.example" mark="10"
-# Environment variables declared in this file are automatically made available to Prisma.
-# See the documentation for more detail: https://pris.ly/d/prisma-schema#accessing-environment-variables-from-the-schema
+     Autenticação responde "quem é você" e falha com `401`. Autorização responde "o que você
+     pode fazer" e falha com `403`. São middlewares distintos, e o segundo pressupõe o
+     primeiro.
+   </details>
 
-# Prisma supports the native connection string format for PostgreSQL, MySQL, SQLite, SQL Server, MongoDB and CockroachDB.
-# See the documentation for all the connection string options: https://pris.ly/d/connection-strings
+2. **Por que um JWT não deve conter dados sensíveis?**
 
-DATABASE_URL="file:./dev.db"
+   <details>
+     <summary>Possível resposta</summary>
 
-# JWT
-JWT_SECRET=abc
+     Porque o payload é apenas Base64: qualquer pessoa com o token lê o conteúdo. A
+     assinatura garante que ninguém **alterou** os dados, não que ninguém os leia.
+   </details>
 
-# BCRYPT
-BCRYPT_SALT=10
-```
+3. **O que a assinatura garante, então?**
 
-```bash
-$ cp .env.example .env
-```
+   <details>
+     <summary>Possível resposta</summary>
 
-### Router (LP2)
+     Integridade e origem: o token foi emitido por quem tem o segredo e não foi modificado
+     desde então. Sem o segredo, não é possível produzir uma assinatura válida para um
+     payload alterado.
+   </details>
 
-<SourceCode path="examples/express/lp2/invest-app-auth/src/routes.js" mark="2-3,5,20,44,64,78,105,119,137,153-165,167-189" />
+### Operação
 
-<SourceCode path="examples/express/lp2/invest-app-auth/requests.http" mark="17-26,28-37,39-41,43-46,51,57,63,71,86,91,96,103,118" />
+4. **Por que logout não invalida um JWT no servidor?**
 
-### View (LP2)
+   <details>
+     <summary>Possível resposta</summary>
 
-Login:
+     Porque o servidor não guarda nada sobre o token: ele apenas confere a assinatura e a
+     expiração. Apagar o token no cliente impede o uso por aquele navegador, mas uma cópia
+     roubada continua funcionando até `exp`.
+   </details>
 
-![](/lp2/imgs/expressjs/auth/signin.png)
+5. **Qual o problema de um `exp` muito longo?**
 
-<SourceCode path="examples/express/lp2/invest-app-auth/public/signin.html" />
+   <details>
+     <summary>Possível resposta</summary>
 
-<SourceCode path="examples/express/lp2/invest-app-auth/public/js/signin.js" mark="13,15-19" />
+     A janela de exploração de um token roubado é a validade dele. Com um mês de `exp`, um
+     token vazado dá acesso por um mês — e não há como cancelá-lo sem reintroduzir estado no
+     servidor.
+   </details>
 
-<SourceCode path="examples/express/lp2/invest-app-auth/public/js/services/api.js" mark="5,30,49,71" />
+## Referências
 
-<SourceCode path="examples/express/lp2/invest-app-auth/public/js/lib/auth.js" mark="1,9,13,19" />
+- [RFC 7519 — JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519.html)
+- [RFC 6750 — Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)
+- [Node.js — `crypto.createHmac`](https://nodejs.org/api/crypto.html#cryptocreatehmacalgorithm-key-options)
+- [OWASP — JSON Web Token Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)
+- [jwt.io — depurador de tokens](https://jwt.io/)
 
-Home:
+## Na prática
 
-![](/lp2/imgs/expressjs/auth/home-profile.png)
+O projeto executável desta aula é [Express Auth](../../practice/express-auth/); a etapa
+correspondente do InvestApp é
+[InvestApp: Autenticação](../../practice/investapp/auth/).
 
-![](/lp2/imgs/expressjs/auth/home-form.png)
+## Próxima aula
 
-<SourceCode path="examples/express/lp2/invest-app-auth/public/home.html" mark="39-56" />
-
-<SourceCode path="examples/express/lp2/invest-app-auth/public/js/home.js" mark="240,242-252" />
-
-<SourceCode path="examples/express/lp2/invest-app-auth/public/js/lib/format.js" />
-
-## Router
-
-Fluxo de Requisição:
-
-![](/dw/imgs/expressjs/auth/jwt-request.png)
-
-[JSON Web Token (JWT)](https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTYzMzkxNDc3MiwiZXhwIjoxNjMzOTE1MDcyfQ.wGs4R42bIwKhTiFWVZrs-QGs_0bEWSc69rjylXj7nPE):
-
-![](/dw/imgs/expressjs/auth/jwt-token.png)
-
-```bash
-$ npm install jsonwebtoken
-```
-
-```ini title=".env.example" mark="13"
-# Environment variables declared in this file are automatically made available to Prisma.
-# See the documentation for more detail: https://pris.ly/d/prisma-schema#accessing-environment-variables-from-the-schema
-
-# Prisma supports the native connection string format for PostgreSQL, MySQL, SQLite, SQL Server, MongoDB and CockroachDB.
-# See the documentation for all the connection string options: https://pris.ly/d/connection-strings
-
-DATABASE_URL="file:./dev.db"
-
-# BCRYPT
-BCRYPT_SALT=10
-
-# JWT
-JWT_SECRET=abc
-```
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/back/src/middleware/auth.js" />
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/back/src/routes.js" mark="2,10,23,39,57,73,91,105,125,147,159,194" />
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/back/requests.http" mark="4,6-58,72" />
-
-## Teste
-
-[Jest](https://jestjs.io/), [Supertest](https://github.com/ladjs/supertest):
-
-```bash
-$ npm i jest supertest -D
-
-$ npm run test
-```
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/back/src/routes.test.js" mark="31-35,73" />
-
-.skip()
-
-```js
-describe.skip()
-
-it.skip()
-```
-
-Cobertura de Testes
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/back/package.json" />
-
-```bash
-$ npm run test:coverage
-```
-
-## View
-
-![](/dw/imgs/expressjs/auth/signin.png)
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/front/signup.html" />
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/front/js/signup.js" />
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/front/js/services/storage.js" />
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/front/js/services/auth.js" />
-
-![](/dw/imgs/expressjs/auth/home.png)
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/front/home.html" />
-
-<SourceCode path="examples/express/codes/monitor-app-prismajs-auth/front/js/home.js" />
+[Autorização](../authorization/): quem pode fazer o quê, depois de identificado.

@@ -57,6 +57,17 @@ export const projects: Project[] = [
     source: 'examples/express/projects/mvc',
   },
   {
+    id: 'express-typescript',
+    name: 'Express TypeScript',
+    description:
+      'A mesma API em camadas, migrada para TypeScript e executada nativamente pelo Node.',
+    level: 'Intermediário',
+    tech: ['Node.js', 'Express.js', 'TypeScript'],
+    concepts: ['Type stripping', 'Subpath imports', 'Tipagem de req e res', 'HttpError'],
+    docs: '/courses/express/practice/express-typescript/',
+    source: 'examples/express/projects/typescript',
+  },
+  {
     id: 'express-prisma',
     name: 'Express + Prisma',
     description:
@@ -66,6 +77,17 @@ export const projects: Project[] = [
     concepts: ['ORM', 'Schema', 'Migrations', 'CRUD assíncrono'],
     docs: '/courses/express/practice/express-prisma/',
     source: 'examples/express/projects/prisma',
+  },
+  {
+    id: 'express-auth',
+    name: 'Express Auth',
+    description:
+      'Cadastro, autenticação por JWT e autorização por posse e papel, usando apenas node:crypto.',
+    level: 'Avançado',
+    tech: ['Node.js', 'Express.js', 'TypeScript', 'node:crypto'],
+    concepts: ['Argon2id', 'JWT HS256', 'Autenticação', 'Autorização'],
+    docs: '/courses/express/practice/express-auth/',
+    source: 'examples/express/projects/auth',
   },
 ];
 

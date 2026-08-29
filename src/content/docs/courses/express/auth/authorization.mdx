@@ -1,0 +1,331 @@
+---
+title: "Express.js: Autorização"
+description: "Controle de acesso em uma API Express: 401 versus 403, autorização por posse do recurso, papéis (RBAC), middlewares de autorização, referência direta insegura a objeto e filtro por dono no model."
+course: express
+sidebar:
+  label: "Autorização"
+---
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Saber **quem** está chamando resolve metade do problema. A outra metade — o que essa pessoa
+pode fazer — é onde mora a falha de segurança mais comum em APIs.
+
+## Objetivo
+
+Ao final você saberá distinguir `401` de `403`, escrever middlewares de autorização por papel
+e por posse do recurso, e reconhecer a falha de referência direta insegura a objeto antes de
+ela chegar à produção.
+
+## A falha número um em APIs
+
+Uma API bem autenticada e mal autorizada é uma API aberta. O padrão é sempre o mesmo:
+
+```ts title="A rota que parece correta" del={4}
+router.get('/investments/:id', authenticate, async (req, res) => {
+  const investment = await Investment.findById(req.params.id);
+
+  // Autenticado, sim. Mas é o investimento DELE?
+  res.json(investment);
+});
+```
+
+Qualquer pessoa com uma conta válida troca o `:id` e lê o investimento de outra. Esse é o
+**BOLA** — *Broken Object Level Authorization* — o primeiro item da
+[OWASP API Security Top 10](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/).
+
+<Aside type="danger" title="Autenticar não autoriza">
+  `authenticate` garante que existe um usuário válido por trás da requisição. Não diz nada
+  sobre o recurso pedido. Toda rota que recebe um `:id` precisa responder à pergunta "este
+  recurso é desta pessoa?".
+</Aside>
+
+## `401` ou `403`?
+
+Os dois status significam coisas diferentes, e trocá-los confunde o cliente:
+
+| Situação                                       | Status | Significado                       |
+| ---------------------------------------------- | ------ | --------------------------------- |
+| Sem cabeçalho `Authorization`                   | `401`  | identifique-se                    |
+| Token inválido ou expirado                      | `401`  | identifique-se de novo            |
+| Autenticado, mas sem o papel exigido            | `403`  | você não pode fazer isso          |
+| Autenticado, mas o recurso é de outra pessoa    | `403` ou `404` | ver adiante              |
+
+<Aside type="note" title="Responder `401` para falta de permissão manda o cliente ao lugar errado">
+  Um front-end costuma tratar `401` fazendo logout e redirecionando para a tela de login.
+  Devolver `401` quando o problema é permissão faz o usuário refazer o login para receber o
+  mesmo erro — sem nunca entender o motivo.
+</Aside>
+
+## Os dois modelos de autorização
+
+Quase toda API precisa dos dois, e eles respondem a perguntas diferentes:
+
+<Mermaid title="Autorização por posse e por papel em uma requisição">
+{`
+flowchart TD
+  A["Requisição autenticada<br/>req.auth = { sub, role }"] --> B{"A rota exige<br/>um papel?"}
+  B -->|sim| C{"req.auth.role<br/>está na lista?"}
+  C -->|não| D["403 Forbidden"]
+  C -->|sim| E{"A rota age sobre<br/>um recurso específico?"}
+  B -->|não| E
+  E -->|não| F["Controller"]
+  E -->|sim| G{"recurso.userId<br/>=== req.auth.sub?"}
+  G -->|não| H["404 ou 403"]
+  G -->|sim| F
+`}
+</Mermaid>
+
+| Modelo             | Pergunta                                  | Exemplo                            |
+| ------------------ | ----------------------------------------- | ---------------------------------- |
+| Por posse          | este recurso pertence a quem está chamando?| meu investimento, meu perfil        |
+| Por papel (RBAC)   | esta pessoa tem o papel exigido?           | só `admin` lista todos os usuários  |
+| Por atributo (ABAC)| as condições do contexto permitem?         | editar só antes do vencimento       |
+
+## Autorização por posse
+
+A defesa mais robusta não é verificar depois — é **nunca buscar** o que não é da pessoa. O
+filtro entra no model, junto da consulta:
+
+<Tabs syncKey="ownership">
+  <TabItem label="Filtrar na consulta">
+    ```ts title="src/models/investment-model.ts" showLineNumbers {2}
+    export function findAllByUser(userId: string): Investment[] {
+      return investments.filter((investment) => investment.userId === userId);
+    }
+    ```
+
+    O recurso de outra pessoa nem entra na memória do processo. É a forma preferida para
+    listagens.
+  </TabItem>
+
+  <TabItem label="Verificar depois">
+    ```ts title="src/middlewares/authorize.ts" showLineNumbers {4}
+    export function requireInvestmentOwner(req, _res, next) {
+      const investment = Investment.findById(req.params.id);
+
+      if (!investment || investment.userId !== req.auth?.sub) {
+        throw new HttpError(404, 'Investimento nao encontrado');
+      }
+
+      next();
+    }
+    ```
+
+    Necessária quando a operação age sobre um `:id` específico. Vira middleware para não
+    ser esquecida.
+  </TabItem>
+</Tabs>
+
+<SourceCode
+  path="examples/express/projects/auth/src/middlewares/authorize.ts"
+  title="src/middlewares/authorize.ts"
+  lines="26-44"
+  showLineNumbers
+  mark="39-41"
+/>
+
+O detalhe mais importante desse middleware é o status: ele responde **`404`**, não `403`.
+
+<Aside type="tip" title="`404` esconde a existência do recurso">
+  `403` confirma que o id existe e pertence a outra pessoa — e permite enumerar os
+  investimentos alheios só pelos status das respostas. `404` não distingue "não existe" de
+  "não é seu". Use `403` apenas quando a existência do recurso já for pública.
+</Aside>
+
+O id do dono vem **sempre do token**, nunca do corpo ou da query:
+
+<SourceCode
+  path="examples/express/projects/auth/src/controllers/investment-controller.ts"
+  title="src/controllers/investment-controller.ts"
+  lines="7-14"
+  showLineNumbers
+/>
+
+<Aside type="danger" title="`userId` no corpo é uma porta aberta">
+  `Investment.create({ ...req.body })` com `userId` vindo do cliente permite criar um
+  registro em nome de outra pessoa — e, dependendo da regra, lê-lo depois. O dono é uma
+  decisão do servidor.
+</Aside>
+
+## Autorização por papel
+
+Um papel é apenas um campo do usuário, incluído no token no momento do login. O middleware
+de fábrica torna a exigência declarativa:
+
+<SourceCode
+  path="examples/express/projects/auth/src/middlewares/authorize.ts"
+  title="src/middlewares/authorize.ts"
+  lines="6-24"
+  showLineNumbers
+  mark="12,18-20"
+/>
+
+O uso fica legível na própria definição da rota:
+
+<SourceCode
+  path="examples/express/projects/auth/src/routes/user-router.ts"
+  title="src/routes/user-router.ts"
+  showLineNumbers
+  mark="9"
+/>
+
+<ApiRequest method="GET" path="/users" baseUrl="http://localhost:3000" description="Token de um usuário com role user" />
+
+<ApiResponse status={403}>
+{`
+  {
+    "error": {
+      "status": 403,
+      "message": "Sem permissao para esta operacao"
+    }
+  }
+`}
+</ApiResponse>
+
+Colocar `role` no payload do token evita uma consulta ao banco por requisição — e cria um atraso:
+promover ou rebaixar alguém só tem efeito no próximo login.
+
+| Onde ler o papel        | Custo por requisição | Mudança tem efeito     |
+| ----------------------- | -------------------- | ---------------------- |
+| Do payload do token     | zero                 | no próximo login       |
+| Do banco, a cada chamada| uma consulta         | imediato               |
+
+<Aside type="caution" title="Rebaixar alguém não invalida o token dele">
+  Se `role` está no token, quem foi rebaixado continua com poderes de administrador até o
+  `exp`. Para operações críticas, releia o papel do banco — ou use o mecanismo de revogação
+  discutido em [Autenticação](../authentication/).
+</Aside>
+
+## Onde a verificação deve ficar
+
+A mesma checagem pode morar em três lugares, com garantias diferentes:
+
+| Lugar        | Vantagem                                | Risco                                  |
+| ------------ | --------------------------------------- | -------------------------------------- |
+| Middleware   | declarativo, visível na definição da rota| esquecer de aplicar em uma rota nova   |
+| Controller   | acesso ao contexto completo              | repetição em cada função                |
+| Model        | vale para toda origem                    | menos explícito na leitura da rota      |
+
+A combinação que funciona: **filtro por dono no model** para listagens, **middleware** para
+operações sobre um `:id`, e `router.use(authenticate)` no topo para que nenhuma rota nova
+nasça desprotegida.
+
+```ts title="src/routes/investment-router.ts" showLineNumbers {2,6}
+// Autenticação para o router inteiro: rota nova já nasce protegida.
+router.use(authenticate);
+
+router.get('/', investmentController.index);
+router.post('/', investmentController.store);
+router.delete('/:id', requireInvestmentOwner, investmentController.destroy);
+```
+
+## Exercício
+
+No projeto `express-auth`:
+
+1. Faça login como `ana@example.com` e crie um investimento.
+2. Cadastre um segundo usuário, faça login com ele e tente apagar o investimento da Ana.
+   Confirme que a resposta é `404` e explique por quê.
+3. Acrescente `PUT /investments/:id` protegido por `requireInvestmentOwner`.
+4. Crie a rota `DELETE /users/:id` acessível apenas a `admin`.
+5. Escreva um teste que comprove que `GET /investments` de um usuário nunca traz registros
+   de outro.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/routes/user-router.ts" showLineNumbers {5}
+  router.get('/', authenticate, requireRole('admin'), userController.index);
+
+  router.delete(
+    '/:id',
+    authenticate,
+    requireRole('admin'),
+    userController.destroy,
+  );
+  ```
+
+  A tentativa de apagar o investimento alheio responde `404` porque
+  `requireInvestmentOwner` trata "não existe" e "não é seu" da mesma forma: distinguir os
+  dois permitiria descobrir quais ids existem no sistema.
+</details>
+
+## Desafio
+
+Implemente autorização por atributo: um investimento só pode ser editado antes da data de
+vencimento. Escreva `requireEditableInvestment` combinando posse **e** condição temporal, e
+decida qual status devolver quando a posse está correta mas o prazo passou — `403` ou `409`?
+Justifique.
+
+## Perguntas de revisão
+
+### Status e semântica
+
+1. **Quando usar `403` e quando usar `401`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `401` quando não se sabe quem está chamando — token ausente, inválido ou expirado.
+     `403` quando se sabe, mas essa pessoa não tem permissão. Trocar os dois faz o
+     front-end deslogar o usuário por um problema que não é de identidade.
+   </details>
+
+2. **Por que responder `404` em vez de `403` para um recurso de outra pessoa?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque `403` confirma que o id existe, permitindo enumerar recursos alheios pelos
+     status das respostas. `404` não distingue "não existe" de "não é seu".
+   </details>
+
+### Implementação
+
+3. **O que é BOLA e como se evita?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     É acessar o objeto de outro usuário trocando o `:id` em uma rota autenticada. Evita-se
+     filtrando por dono na própria consulta e exigindo um middleware de posse nas rotas que
+     agem sobre um id.
+   </details>
+
+4. **Por que o `userId` deve vir do token e não do corpo?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o corpo é controlado pelo cliente: com `userId` no corpo, qualquer pessoa cria
+     ou altera registros em nome de outra. O token é assinado pelo servidor e não pode ser
+     forjado.
+   </details>
+
+5. **Qual o custo de guardar o papel dentro do token?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Evita uma consulta por requisição, mas atrasa a mudança: quem foi rebaixado mantém os
+     poderes antigos até o token expirar. Para operações críticas, o papel deve ser relido
+     do banco.
+   </details>
+
+## Referências
+
+- [OWASP API Security Top 10 — Broken Object Level Authorization](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)
+- [OWASP — Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+- [403 Forbidden | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403)
+
+## Na prática
+
+O projeto executável desta aula é [Express Auth](../../practice/express-auth/).
+
+## Próxima aula
+
+[CORS](../../security/cors/): por que o navegador bloqueia a chamada da sua própria API.

@@ -1,576 +1,372 @@
 ---
 title: "Express.js: Construção de API"
-description: "Construção de uma API CRUD completa e integração com um front-end web."
+description: "Do requisito ao endpoint: modelagem de recursos, definição do contrato, implementação em camadas, teste com arquivos .http e integração com um front-end web."
 course: express
 sidebar:
   label: "Construção de API"
 ---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
-import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
-## Back-end Web
+As aulas anteriores apresentaram as peças isoladas. Esta mostra a ordem em que elas se
+encaixam quando se parte de um requisito em texto e se chega a uma API funcionando com um
+front-end consumindo.
 
-### Rotas do Host API
+## Objetivo
 
-| Método | Caminho       | Resposta                         |
-| ------ | ------------- | -------------------------------- |
-| POST   | `/hosts`      | Cria um novo host                |
-| GET    | `/hosts`      | Retorna todos os hosts           |
-| GET    | `/hosts?id=1` | Retorna o host com id igual a 1  |
-| GET    | `/hosts/1`    | Retorna o host com id igual a 1  |
-| PUT    | `/hosts/1`    | Atualiza o host com id igual a 1 |
-| DELETE | `/hosts/1`    | Exclui o host com id igual a 1   |
+Ao final você saberá conduzir a construção de uma API do requisito ao endpoint: identificar
+recursos, definir o contrato antes de implementar, distribuir o trabalho pelas camadas e
+ligar um front-end ao resultado.
 
-### HTTP Status Codes
+## Do requisito ao recurso
 
-[HTTP Status Codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
+Um requisito costuma vir como frase. O primeiro trabalho é extrair dele os **substantivos**
+(que viram recursos) e os **verbos** (que viram operações):
 
-  - Respostas de informação (100-199)
-  - Respostas de sucesso (200-299)
-  - Redirecionamentos (300-399)
-  - Erros do cliente (400-499)
-  - Erros do servidor (500-599)
+> "O usuário cadastra investimentos, cada um pertencente a uma categoria e a uma corretora,
+> e consegue listar, filtrar por nome, editar e excluir os seus."
 
-Exemplos de Códigos
+| Substantivo   | Recurso        | Observação                                    |
+| ------------- | -------------- | --------------------------------------------- |
+| usuário       | `/users`       | dono dos demais recursos                       |
+| investimento  | `/investments` | recurso principal                              |
+| categoria     | `/categories`  | tabela de apoio, provavelmente só leitura      |
+| corretora     | `/brokers`     | tabela de apoio                                |
 
-| Código | Nome                  | Significado                                                                     |
-| ------ | --------------------- | ------------------------------------------------------------------------------- |
-| `200`  | Ok                    | Solicitação gerada com sucesso                                                  |
-| `201`  | Created               | Solicitação gerada com sucesso e um novo recurso foi criado como resultado      |
-| `204`  | No Content            | Solicitação gerada com sucesso e não há conteúdo para ser enviado               |
-| `400`  | Bad Request           | Solicitação não compreendida por motivos de erro                                |
-| `401`  | Unauthorized          | Solicitação foi bloqueada porque não possui credenciais de autenticação válidas |
-| `404`  | Not Found             | O servidor não pode encontrar o recurso solicitado                              |
-| `500`  | Internal Server Error | O servidor encontrou uma situação com a qual não sabe lidar.                    |
+| Verbo do requisito | Operação                    |
+| ------------------ | --------------------------- |
+| cadastra           | `POST /investments`         |
+| listar             | `GET /investments`          |
+| filtrar por nome   | `GET /investments?name=`    |
+| editar             | `PUT /investments/:id`      |
+| excluir            | `DELETE /investments/:id`   |
+| "os seus"          | autenticação + posse        |
 
-### API de Investimentos
+<Aside type="tip" title="“Os seus” é um requisito de autorização">
+  Palavras como *seus*, *próprios*, *apenas o dono* mudam a arquitetura: elas exigem
+  autenticação em toda rota e filtro por usuário no model. Identificá-las cedo evita
+  reescrever o CRUD depois — é o assunto de [Autorização](../../auth/authorization/).
+</Aside>
+
+## O contrato antes do código
+
+Definir a tabela de endpoints antes de implementar tem um efeito prático imediato: o
+front-end pode começar em paralelo, e as decisões difíceis (status, formato do erro,
+paginação) aparecem enquanto ainda são baratas de mudar.
+
+| Método | Caminho             | Corpo                    | Sucesso | Erros                     |
+| ------ | ------------------- | ------------------------ | ------- | ------------------------- |
+| GET    | `/investments`      | —                        | `200`   | `401`                     |
+| GET    | `/investments/:id`  | —                        | `200`   | `401`, `404`              |
+| POST   | `/investments`      | `{ name, amount, … }`    | `201`   | `401`, `415`, `422`       |
+| PUT    | `/investments/:id`  | `{ name, amount, … }`    | `200`   | `401`, `404`, `415`, `422`|
+| DELETE | `/investments/:id`  | —                        | `204`   | `401`, `404`              |
+
+<Aside type="note" title="Contrato é acordo, não burocracia">
+  A tabela acima cabe em um arquivo `requests.http` executável e em um `openapi.yaml`, como
+  mostra a aula de [Documentação de API](../documentation/). O que não vale é o contrato
+  existir só na cabeça de quem implementou o servidor.
+</Aside>
+
+## A ordem de implementação
+
+Com o contrato definido, a construção percorre as camadas de dentro para fora — cada etapa
+testável antes da seguinte:
+
+<Mermaid title="Ordem de construção de um recurso em uma API Express">
+{`
+flowchart TD
+  A["1. Tipos<br/>src/types/investment.ts"] --> B["2. Model<br/>acesso aos dados"]
+  B --> C["3. Controller<br/>traduz HTTP em chamadas"]
+  C --> D["4. Router<br/>caminhos + middlewares"]
+  D --> E["5. Registro em app.ts"]
+  E --> F["6. requests.http<br/>caminho feliz e erros"]
+  F --> G["7. Front-end<br/>camada de serviço + tela"]
+`}
+</Mermaid>
+
+<Steps>
+
+1. **Tipos** — declare o que entra e o que sai. É o contrato em código.
+
+2. **Model** — implemente `create`, `read`, `readById`, `update` e `remove`. Nenhuma
+   referência a `req` ou `res` aqui.
+
+3. **Controller** — leia a requisição, chame o model, escolha o status. Lance `HttpError`
+   em vez de responder erro à mão.
+
+4. **Router** — encadeie os middlewares antes do controller: `requireJson`, `validate`,
+   `authenticate`.
+
+5. **Registro** — monte o router em `app.ts`, sempre **antes** de `notFound`.
+
+6. **`requests.http`** — escreva o caminho feliz e um caso para cada erro do contrato.
+
+7. **Front-end** — consuma pela camada de serviço, nunca com `fetch` espalhado pela tela.
+
+</Steps>
+
+## Servir o front-end junto ou separado
+
+Há duas formas de ligar a interface à API, e a escolha muda o que precisa ser configurado:
+
+<Tabs syncKey="frontend-hosting">
+  <TabItem label="Mesma origem">
+    ```ts title="src/app.ts" showLineNumbers {2,5}
+    // O Express serve os arquivos estáticos e a API no mesmo host e porta.
+    app.use(express.static('public'));
+
+    app.use('/api', investmentRouter);
+    ```
+
+    O front-end chama `fetch('/api/investments')` — caminho relativo, mesma origem, sem
+    CORS.
+  </TabItem>
+
+  <TabItem label="Origens separadas">
+    ```ts title="src/app.ts" showLineNumbers {2}
+    // O front-end roda em outro servidor (Vite, em outra porta ou domínio).
+    app.use(cors({ origin: 'http://localhost:5173' }));
+
+    app.use('/api', investmentRouter);
+    ```
+
+    O front-end chama `fetch('http://localhost:3000/api/investments')` e o navegador exige
+    os cabeçalhos de [CORS](../../security/cors/).
+  </TabItem>
+</Tabs>
+
+| Critério                  | Mesma origem                    | Origens separadas                    |
+| ------------------------- | ------------------------------- | ------------------------------------ |
+| CORS                      | não é necessário                | obrigatório                          |
+| Deploy                    | um serviço                      | dois serviços independentes           |
+| Ferramentas de front-end  | build precisa gerar em `public/`| servidor de desenvolvimento próprio   |
+| Cookie de sessão          | simples                         | exige `credentials` e `SameSite`      |
+
+<Aside type="tip" title="Em sala de aula, comece pela mesma origem">
+  Servir o front de `public/` elimina uma variável inteira do problema. Separe as origens
+  quando o front passar a ter build próprio (Vite, React) ou quando os dois forem publicados
+  separadamente.
+</Aside>
+
+## A camada de serviço no front-end
+
+Espalhar `fetch` pelas telas repete URL, cabeçalho e tratamento de erro em todo lugar. Uma
+camada fina isola isso:
+
+```js title="public/js/services/api.js" showLineNumbers {1,6,12}
+const BASE_URL = '/api';
+
+async function request(path, options = {}) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  });
+
+  if (!response.ok) {
+    const { error } = await response.json().catch(() => ({ error: {} }));
+
+    throw new Error(error.message ?? `Falha na requisição (${response.status})`);
+  }
+
+  // 204 não tem corpo: chamar .json() aqui lança.
+  return response.status === 204 ? null : response.json();
+}
+
+export const api = {
+  list: () => request('/investments'),
+  create: (data) => request('/investments', { method: 'POST', body: JSON.stringify(data) }),
+  remove: (id) => request(`/investments/${id}`, { method: 'DELETE' }),
+};
+```
+
+<Aside type="caution" title="`fetch` não lança em `4xx`">
+  Um `404` chega como resposta normal, com `response.ok === false`. Sem a verificação, o
+  `.json()` seguinte tenta interpretar o corpo de erro como se fosse o recurso — e a tela
+  mostra `undefined` em vez da mensagem.
+</Aside>
+
+## A estrutura resultante
+
+Servindo os dois do mesmo lugar, o projeto reúne API e interface:
 
 <FileTree>
 {`
-back/
-    src/
-        data/
-        index.js
-        routes.js
-        routes.test.js
-    .gitignore
-    package-lock.json
-    package.json
-    requests.http
+  investment-api/
+  ├── public/                      front-end servido por express.static
+  │   ├── index.html
+  │   ├── css/
+  │   │   └── style.css
+  │   └── js/
+  │       ├── services/
+  │       │   └── api.js           única camada que conhece fetch
+  │       ├── lib/
+  │       │   └── format.js
+  │       └── main.js
+  ├── src/
+  │   ├── app.ts
+  │   ├── server.ts
+  │   ├── controllers/
+  │   ├── middlewares/
+  │   ├── models/
+  │   ├── routes/
+  │   └── types/
+  ├── requests.http                contrato executável
+  └── package.json
 `}
 </FileTree>
 
-<SourceCode path="examples/express/codes/monitor-app-api/back/src/data/hosts.js" />
+## Verificando o contrato
 
-<SourceCode path="examples/express/codes/monitor-app-api/back/src/index.js" />
+Cada linha da tabela de contrato vira uma requisição. O caminho feliz:
 
-<SourceCode path="examples/express/codes/monitor-app-api/back/src/routes.js" />
-
-<SourceCode path="examples/express/codes/monitor-app-api/back/requests.http" />
-
-<SourceCode path="examples/express/codes/monitor-app-api/back/package.json" />
-
-#### Create
-
-![](/dw/imgs/expressjs/api/create-host.png)
-
-```js title="/codes/expressjs/invest-app-api/src/routes.js"
-router.post('/hosts', (req, res) => {
-  const { name, address } = req.body;
-
-  if (!name || !address) {
-    throw new HttpError('Error when passing parameters');
-  }
-
-  const id = uuidv4();
-
-  const newHost = { id, name, address };
-
-  hosts.push(newHost);
-
-  res.status(201).json(newHost);
-});
-```
-
-```http title="/codes/expressjs/invest-app-api/back/requests.http"
-@server=http://localhost:3000
-@createdHostId = {{createHost.response.body.$.id}}
-
-### Create a host
-# @name createHost
-POST {{server}}/hosts
-Content-Type: application/json
-
-{
-  "name": "DNS Server",
-  "address": "1.1.1.1"
-}
-
-### Create a host (bad params)
-# @name createHost
-POST {{server}}/hosts
-Content-Type: application/json
-
-{
-  "name": "DNS Server"
-}
-```
-
-#### Read
-
-![](/dw/imgs/expressjs/api/read-host.png)
-
-```js title="/codes/expressjs/invest-app-api/src/routes.js"
-router.get('/hosts', (req, res) => {
-  const where = req.query;
-
-  if (where) {
-    const field = Object.keys(where)[0];
-
-    const value = where[field];
-
-    const filteredHosts = hosts.filter((host) =>
-      host[field] instanceof String
-        ? host[field].toLowerCase().includes(value.toLowerCase())
-        : host[field] === value
-    );
-
-    return res.json(filteredHosts);
-  }
-
-  return res.json(hosts);
-});
-
-router.get('/hosts/:id', (req, res) => {
-  const { id } = req.params;
-
-  const index = hosts.findIndex((host) => host.id === id);
-
-  if (!hosts[index]) {
-    throw new HttpError('Unable to read a host');
-  }
-
-  return res.json(hosts[index]);
-});
-```
-
-```http title="/codes/expressjs/invest-app-api/back/requests.http"
-@server=http://localhost:3000
-
-### Read hosts
-GET {{server}}/hosts
-
-### Read a host by name
-GET {{server}}/hosts?name=Google%20DNS
-
-### Read a host by id
-GET {{server}}/hosts/{{createdHostId}}
-
-### Read a host by id (bad params)
-GET {{server}}/hosts/x
-```
-
-#### Update
-
-![](/dw/imgs/expressjs/api/update-host.png)
-
-```js title="/codes/expressjs/invest-app-api/src/routes.js"
-router.put('/hosts/:id', (req, res) => {
-  const { name, address } = req.body;
-
-  const { id } = req.params;
-
-  if (!name || !address) {
-    throw new HttpError('Error when passing parameters');
-  }
-
-  const newHost = { id, name, address };
-
-  const index = hosts.findIndex((host) => host.id === id);
-
-  if (!hosts[index]) {
-    throw new HttpError('Unable to update a host');
-  }
-
-  hosts[index] = newHost;
-
-  return res.json(newHost);
-});
-```
-
-```http title="/codes/expressjs/invest-app-api/back/@server=http://localhost:3000
-@createdHostId = {{createHost.response.body.$.id}}
-
-### Update a host
-PUT {{server}}/hosts/{{createdHostId}}
-Content-Type: application/json
-
-{
-  "name": "Cloudflare DNS",
-  "address": "1.1.1.1"
-}
-
-### Update a host (bad params)
-PUT {{server}}/hosts/{{createdHostId}}
-Content-Type: application/json
-
-{
-  "name": "Cloudflare DNS"
-}
-
-### Update a host (bad params)
-PUT {{server}}/hosts/x
-Content-Type: application/json
-
-{
-  "name": "Cloudflare DNS",
-  "address": "1.1.1.1"
-}
-```
-
-#### Delete
-
-![](/dw/imgs/expressjs/api/delete-host.png)
-
-```js title="/codes/expressjs/invest-app-api/src/routes.js"
-router.delete('/hosts/:id', (req, res) => {
-  const { id } = req.params;
-
-  const index = hosts.findIndex((host) => host.id === id);
-
-  if (!hosts[index]) {
-    throw new HttpError('Unable to delete a host');
-  }
-
-  hosts.splice(index, 1);
-
-  return res.send(204);
-});
-```
-
-```http title="/codes/expressjs/invest-app-api/back/requests.http"
-@server=http://localhost:3000
-@createdHostId = {{createHost.response.body.$.id}}
-
-### Delete a host
-DELETE {{server}}/hosts/{{createdHostId}}
-
-### Delete a host (bad params)
-DELETE {{server}}/hosts/x
-```
-
-### Teste
-
-[Jest](https://jestjs.io/), [Supertest](https://github.com/ladjs/supertest):
-
-```bash
-$ npm i jest supertest -D
-
-$ npm run test
-```
-
-<SourceCode path="examples/express/codes/monitor-app-api/back/src/routes.test.js" />
-
-.skip()
-
-```js
-describe.skip()
-
-it.skip()
-```
-
-Cobertura de Testes
-
-<SourceCode path="examples/express/codes/monitor-app-api/back/package.json" />
-
-```bash
-$ npm run test:coverage
-```
-
-## Front-end Web
-
-![](/dw/imgs/expressjs/api/monitor-app-crud.png)
-
-<FileTree>
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000">
 {`
-front/
-    css/
-        style.css
-    js/
-        components/
-        lib/
-        services/
-        main.js
-    public/
-        vite.svg
-    .gitignore
-    index.html
-    package-lock.json
-    package.json
-    vite.config.js
+  {
+    "name": "Tesouro Selic 2029",
+    "amount": 20000,
+    "categoryId": "8f14e45f"
+  }
 `}
-</FileTree>
+</ApiRequest>
 
-<SourceCode path="examples/express/codes/monitor-app-api/front/vite.config.js" />
-
-<SourceCode path="examples/express/codes/monitor-app-api/front/index.html" />
-
-<SourceCode path="examples/express/codes/monitor-app-api/front/css/style.css" />
-
-<SourceCode path="examples/express/codes/monitor-app-api/front/js/main.js" />
-
-<SourceCode path="examples/express/codes/monitor-app-api/front/js/services/storage.js" />
-
-## Exemplo completo: Invest API (LP2)
-
-A mesma API construída na disciplina de Linguagem de Programação II, com o roteiro
-de rotas, os status codes de cada operação e o CRUD completo.
-
-### Back-end Web
-
-### Rotas do Invest API
-
-| Método | Caminho                        | Parâmetro   | Status              | Resposta                                            |
-| ------ | ------------------------------ | ----------- | ------------------- | --------------------------------------------------- |
-| POST   | `/api/investments`             | Body        | `201`, `400`        | Cria um novo investimento                           |
-| GET    | `/api/investments`             | -           | `200`               | Retorna todas os investimentos                      |
-| GET    | `/api/investments?name=Salada` | Query       | `200`               | Retorna todas os investimentos com o nome `Tesouro` |
-| GET    | `/api/investments/X`           | Route       | `200`, `404`        | Retorna o investimento de ID X                      |
-| PUT    | `/api/investments/X`           | Body, Route | `200`, `400`, `404` | Atualiza o investimento de ID X                     |
-| DELETE | `/api/investments/X`           | Route       | `204`, `404`        | Exclui o investimento de ID X                       |
-
-### HTTP Status Codes
-
-[Classes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
-
-  - Respostas de informação (100-199)
-  - Respostas de sucesso (200-299)
-  - Redirecionamentos (300-399)
-  - Erros do cliente (400-499)
-  - Erros do servidor (500-599)
-
-Códigos do Invest API
-
-| Código | Nome                  | Significado                                                                |
-| ------ | --------------------- | -------------------------------------------------------------------------- |
-| `200`  | Ok                    | Solicitação gerada com sucesso                                             |
-| `201`  | Created               | Solicitação gerada com sucesso e um novo recurso foi criado como resultado |
-| `204`  | No Content            | Solicitação gerada com sucesso e não há conteúdo para ser enviado          |
-| `304`  | Not Modified          | O conteúdo da requisição já existe em cache e não foi modificado           |
-| `400`  | Bad Request           | Solicitação não compreendida por motivos de erro                           |
-| `401`  | Unauthorized          | A solicitação requer autenticação do usuário                               |
-| `404`  | Not Found             | O servidor não pode encontrar o recurso solicitado                         |
-| `500`  | Internal Server Error | O servidor encontrou uma situação com a qual não sabe lidar.               |
-
-### API de Investimentos
-
-<FileTree>
+<ApiResponse status={201}>
 {`
-invest-app-api-back-end/
-├── src/
-│   ├── data/
-│   │   └── investments.js
-│   ├── index.js
-│   └── routes.js
-├── .gitignore
-├── package-lock.json
-├── package.json
-└── requests.http
+  {
+    "id": "b1c2d3",
+    "name": "Tesouro Selic 2029",
+    "amount": 20000,
+    "categoryId": "8f14e45f"
+  }
 `}
-</FileTree>
+</ApiResponse>
 
-```bash
-$ npm install express morgan cors express-async-errors uuid
-```
+E o caso de erro previsto no contrato, que é o que costuma faltar nos testes manuais:
 
-```txt title="codes/expressjs/invest-app-api-back-end/.gitignore"
-node_modules
-```
-
-<SourceCode path="examples/express/lp2/invest-app-api-back-end/package.json" />
-
-<SourceCode path="examples/express/lp2/invest-app-api-back-end/src/data/investments.js" />
-
-<SourceCode path="examples/express/lp2/invest-app-api-back-end/src/routes.js" mark="14,30,44,56,78,93,98" />
-
-<SourceCode path="examples/express/lp2/invest-app-api-back-end/src/index.js" mark="5,23" />
-
-<SourceCode path="examples/express/lp2/invest-app-api-back-end/requests.http" />
-
-### Create
-
-![](/lp2/imgs/expressjs/api/create-investment-simple.png)
-
-```js showLineNumbers title="/codes/expressjs/invest-api/src/routes.js"
-router.post('/investments', (req, res) => {
-  const { name, value } = req.body;
-
-  if (!name || !value) {
-    throw new HttpError('Error when passing parameters');
-  }
-
-  const id = uuidv4();
-
-  const newInvestment = { name, value, id };
-
-  investments.push(newInvestment);
-
-  return res.status(201).json(newInvestment);
-});
-```
-
-```http showLineNumbers title="/codes/expressjs/invest-api/requests.http"
-@host = http://localhost:3000
-
-### Create Investment
-
-# @name createdInvestment
-POST {{host}}/investments
-Content-Type: application/json
-
-{
-  "name": "Tesouro Selic 2029",
-  "value": 10000
-}
-```
-
-### Read
-
-![](/lp2/imgs/expressjs/api/read-investments-simple.png)
-
-```js showLineNumbers title="/codes/expressjs/invest-api/src/routes.js"
-router.get('/investments', (req, res) => {
-  const { name } = req.query;
-
-  if (name) {
-    const filteredInvestments = investments.filter((investment) =>
-      investment.name.includes(name)
-    );
-
-    return res.json(filteredInvestments);
-  }
-
-  return res.json(investments);
-});
-```
-
-```http showLineNumbers title="/codes/expressjs/invest-api/requests.http"
-### Read Investments
-
-GET {{host}}/investments
-```
-
-### Update
-
-![](/lp2/imgs/expressjs/api/update-investment-simple.png)
-
-```js showLineNumbers title="/codes/expressjs/invest-api/src/routes.js"
-router.put('/investments/:id', (req, res) => {
-  const { name, value } = req.body;
-
-  const { id } = req.params;
-
-  if (!name || !value) {
-    throw new HttpError('Error when passing parameters');
-  }
-
-  const newInvestment = { name, value, id };
-
-  const index = investments.findIndex((investment) => investment.id === id);
-
-  if (!investments[index]) {
-    throw new HttpError('Investment not found', 404);
-  }
-
-  investments[index] = newInvestment;
-
-  return res.json(newInvestment);
-});
-```
-
-```http showLineNumbers title="/codes/expressjs/invest-api/requests.http"
-@host = http://localhost:3000
-@createdInvestmentId = {{createdInvestment.response.body.$.id}}
-
-### Update Investment
-
-PUT {{host}}/investments/{{createdInvestmentId}}
-Content-Type: application/json
-
-{
-  "name": "Tesouro Selic 2029",
-  "value": 25000
-}
-```
-
-### Delete
-
-![](/lp2/imgs/expressjs/api/delete-investment-simple.png)
-
-```js showLineNumbers title="/codes/expressjs/invest-api/src/routes.js"
-router.delete('/investments/:id', (req, res) => {
-  const { id } = req.params;
-
-  const index = investments.findIndex((investment) => investment.id === id);
-
-  if (!investments[index]) {
-    throw new HttpError('Investment not found', 404);
-  }
-
-  investments.splice(index, 1);
-
-  return res.sendStatus(204);
-});
-```
-
-```http showLineNumbers title="/codes/expressjs/invest-api/requests.http"
-@host = http://localhost:3000
-@createdInvestmentId = {{createdInvestment.response.body.$.id}}
-
-### Delete Investment
-
-DELETE {{host}}/investments/{{createdInvestmentId}}
-```
-
-### Front-end Web
-
-![](/lp2/imgs/expressjs/api/preview.png)
-
-![](/lp2/imgs/expressjs/api/form.png)
-
-<FileTree>
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000" description="Sem o campo amount">
 {`
-invest-app-api/
-├── public/
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   ├── lib/
-│   │   │   └── format.js
-│   │   ├── services/
-│   │   │   └── api.js
-│   │   └── index.js
-│   └── index.html
-├── src/
-│   ├── data/
-│   │   └── investments.js
-│   ├── index.js
-│   └── routes.js
-├── .gitignore
-├── package-lock.json
-├── package.json
-└── requests.http
+  {
+    "name": "Tesouro Selic 2029"
+  }
 `}
-</FileTree>
+</ApiRequest>
 
-<SourceCode path="examples/express/lp2/invest-app-api/src/index.js" mark="23" />
+<ApiResponse status={422}>
+{`
+  {
+    "error": {
+      "status": 422,
+      "message": "Dados inválidos",
+      "issues": {
+        "amount": "campo obrigatório"
+      }
+    }
+  }
+`}
+</ApiResponse>
 
-<SourceCode path="examples/express/lp2/invest-app-api/public/js/services/api.js" mark="3,20,28,45" />
+## Exercício
 
-<SourceCode path="examples/express/lp2/invest-app-api/public/index.html" />
+Parta do requisito abaixo e construa a API completa:
 
-<SourceCode path="examples/express/lp2/invest-app-api/public/css/style.css" />
+> "O usuário cadastra hosts para monitorar. Cada host tem nome e endereço, e pode ser
+> listado, editado e removido. É possível filtrar hosts pelo nome."
 
-<SourceCode path="examples/express/lp2/invest-app-api/public/js/index.js" />
+1. Extraia recursos e operações e escreva a tabela de contrato com status de sucesso e erro.
+2. Implemente na ordem tipos → model → controller → router → registro.
+3. Escreva o `requests.http` cobrindo o contrato inteiro, erros incluídos.
+4. Sirva um `public/index.html` que liste os hosts usando uma camada `services/api.js`.
 
-<SourceCode path="examples/express/lp2/invest-app-api/public/js/lib/format.js" />
+<details>
+  <summary>Possível resposta</summary>
+
+  | Método | Caminho      | Corpo               | Sucesso | Erros              |
+  | ------ | ------------ | ------------------- | ------- | ------------------ |
+  | GET    | `/hosts`     | —                   | `200`   | —                  |
+  | GET    | `/hosts?name=` | —                 | `200`   | —                  |
+  | GET    | `/hosts/:id` | —                   | `200`   | `404`              |
+  | POST   | `/hosts`     | `{ name, address }` | `201`   | `415`, `422`, `409`|
+  | PUT    | `/hosts/:id` | `{ name, address }` | `200`   | `404`, `415`, `422`|
+  | DELETE | `/hosts/:id` | —                   | `204`   | `404`              |
+
+  O `409` cobre o endereço já monitorado — decisão de contrato que precisa ser tomada antes
+  de implementar, não depois.
+</details>
+
+## Desafio
+
+Implemente o mesmo recurso nas duas topologias: front servido por `express.static` e front
+em um servidor Vite separado. Documente o que precisou mudar em cada lado — e o que aconteceu
+no navegador antes de configurar o CORS.
+
+## Perguntas de revisão
+
+### Modelagem
+
+1. **Como um requisito em texto vira uma lista de endpoints?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Os substantivos viram recursos (caminhos) e os verbos viram operações (métodos HTTP).
+     Palavras como "os seus" viram requisitos de autenticação e autorização.
+   </details>
+
+2. **Por que definir o contrato antes de implementar?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o front-end pode trabalhar em paralelo e porque as decisões de status, formato
+     de erro e paginação ficam explícitas enquanto ainda são baratas de mudar.
+   </details>
+
+### Integração
+
+3. **Por que implementar na ordem model → controller → router?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque cada camada só depende da anterior: o model é testável sem servidor, o
+     controller é testável com o model pronto, e o router só amarra o que já funciona.
+   </details>
+
+4. **Por que concentrar o `fetch` em uma camada de serviço no front-end?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque URL base, cabeçalhos, token e tratamento de erro passam a existir em um lugar
+     só. Mudar o prefixo da API ou acrescentar o cabeçalho de autenticação vira uma edição
+     em um arquivo.
+   </details>
+
+5. **Por que `fetch` não lança em resposta `404`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a requisição HTTP foi bem-sucedida — o servidor respondeu. `fetch` só rejeita em
+     falha de rede. O status precisa ser verificado com `response.ok`.
+   </details>
+
+## Referências
+
+- [Express — Serving static files](https://expressjs.com/en/starter/static-files.html)
+- [Fetch API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+- [HTTP response status codes | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
+
+## Na prática
+
+A construção completa, etapa por etapa, está em
+[InvestApp: API em memória](../../practice/investapp/api/) e em
+[Monitor API](../../practice/monitor-api/).
+
+## Próxima aula
+
+[SQL com Node.js](../../persistence/node-sqlite/): trocar o array em memória por um banco de
+verdade.

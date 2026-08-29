@@ -31,6 +31,13 @@ export default defineConfig({
    * preservam links de slides, mapas mentais, exercícios e material externo.
    */
   redirects: {
+    // Persistencia migrou do Guia de Banco de Dados para o Guia de Express.js.
+    '/courses/database/sql/node-sqlite': withBase('/courses/express/persistence/node-sqlite/'),
+    '/courses/database/prisma/introduction': withBase('/courses/express/persistence/prisma/'),
+    '/courses/database/prisma/crud': withBase('/courses/express/persistence/crud/'),
+    '/courses/database/prisma/relations': withBase('/courses/express/persistence/relations/'),
+    // Validacao saiu de "Recursos Avancados" para a trilha de APIs HTTP.
+    '/courses/express/advanced/validation': withBase('/courses/express/api/validation/'),
     '/courses/dw-cstrc-jp/html': withBase('/courses/html/basics/syntax-structure/'),
     '/courses/dw-cstrc-jp/html/web-importance': withBase('/courses/html/basics/web-importance/'),
     '/courses/dw-cstrc-jp/html/markup-languages': withBase(
@@ -106,11 +113,11 @@ export default defineConfig({
     ),
     '/courses/dw-cstrc-jp/database/dbms': withBase('/courses/database/basics/dbms/'),
     '/courses/dw-cstrc-jp/database/sql': withBase('/courses/database/sql/fundamentals/'),
-    '/courses/dw-cstrc-jp/database/sql-node': withBase('/courses/database/sql/node-sqlite/'),
-    '/courses/dw-cstrc-jp/database/prisma': withBase('/courses/database/prisma/introduction/'),
-    '/courses/dw-cstrc-jp/database/crud': withBase('/courses/database/prisma/crud/'),
+    '/courses/dw-cstrc-jp/database/sql-node': withBase('/courses/express/persistence/node-sqlite/'),
+    '/courses/dw-cstrc-jp/database/prisma': withBase('/courses/express/persistence/prisma/'),
+    '/courses/dw-cstrc-jp/database/crud': withBase('/courses/express/persistence/crud/'),
     '/courses/dw-cstrc-jp/database/prisma-relations': withBase(
-      '/courses/database/prisma/relations/'
+      '/courses/express/persistence/relations/'
     ),
     '/courses/dw-cstrc-jp/packages': withBase('/courses/packages/'),
     '/courses/dw-cstrc-jp/packages/vite': withBase('/courses/packages/build/vite/'),
@@ -195,18 +202,18 @@ export default defineConfig({
     ),
     '/courses/lp2-ctii-jp/expressjs/api': withBase('/courses/express/api/construction/'),
     '/courses/lp2-ctii-jp/expressjs/mvc': withBase('/courses/express/architecture/mvc/'),
-    '/courses/lp2-ctii-jp/expressjs/db-simple': withBase('/courses/database/sql/node-sqlite/'),
+    '/courses/lp2-ctii-jp/expressjs/db-simple': withBase('/courses/express/persistence/node-sqlite/'),
     '/courses/lp2-ctii-jp/expressjs/prismajs-simple': withBase(
-      '/courses/database/prisma/introduction/'
+      '/courses/express/persistence/prisma/'
     ),
     '/courses/lp2-ctii-jp/expressjs/prismajs-relation': withBase(
-      '/courses/database/prisma/relations/'
+      '/courses/express/persistence/relations/'
     ),
     '/courses/lp2-ctii-jp/expressjs/prismajs-user': withBase(
       '/courses/express/auth/user-registration/'
     ),
     '/courses/lp2-ctii-jp/expressjs/auth': withBase('/courses/express/auth/authentication/'),
-    '/courses/lp2-ctii-jp/expressjs/validation': withBase('/courses/express/advanced/validation/'),
+    '/courses/lp2-ctii-jp/expressjs/validation': withBase('/courses/express/api/validation/'),
     '/courses/lp2-ctii-jp/expressjs/email': withBase('/courses/express/advanced/email/'),
     '/courses/lp2-ctii-jp/expressjs/upload-file': withBase(
       '/courses/express/advanced/upload-file/'
@@ -733,40 +740,142 @@ export default defineConfig({
                   link: '/courses/express/basics/introduction/',
                 },
                 { label: 'Rotas', link: '/courses/express/basics/routes/' },
-                { label: 'Controllers', link: '/courses/express/basics/controllers/' },
+                {
+                  label: 'Requisição e Resposta',
+                  link: '/courses/express/basics/request-response/',
+                },
                 { label: 'Middleware', link: '/courses/express/basics/middleware/' },
+                { label: 'Controllers', link: '/courses/express/basics/controllers/' },
+                { label: 'TypeScript', link: '/courses/express/basics/typescript/' },
+              ],
+            },
+            {
+              label: 'Arquitetura',
+              items: [
+                { label: 'MVC', link: '/courses/express/architecture/mvc/' },
+                { label: 'Configuração', link: '/courses/express/architecture/config/' },
+                { label: 'Log', link: '/courses/express/architecture/logging/' },
+                {
+                  label: 'Observabilidade',
+                  link: '/courses/express/architecture/observability/',
+                },
               ],
             },
             {
               label: 'APIs HTTP',
               items: [
-                { label: 'REST API', link: '/courses/express/api/rest/' },
                 { label: 'Construção de API', link: '/courses/express/api/construction/' },
+                { label: 'REST API', link: '/courses/express/api/rest/' },
+                {
+                  label: 'Tratamento de Erros',
+                  link: '/courses/express/api/error-handling/',
+                },
+                { label: 'Validação', link: '/courses/express/api/validation/' },
+                { label: 'Paginação e Filtros', link: '/courses/express/api/pagination/' },
+                {
+                  label: 'Documentação de API',
+                  link: '/courses/express/api/documentation/',
+                },
               ],
             },
             {
-              label: 'Arquitetura e Recursos',
+              label: 'Persistência',
               items: [
-                { label: 'MVC', link: '/courses/express/architecture/mvc/' },
-                { label: 'Chamada de Sistema', link: '/courses/express/advanced/system-call/' },
+                {
+                  label: 'SQL com Node.js',
+                  link: '/courses/express/persistence/node-sqlite/',
+                },
+                { label: 'Prisma', link: '/courses/express/persistence/prisma/' },
+                { label: 'CRUD com Prisma', link: '/courses/express/persistence/crud/' },
+                {
+                  label: 'Relações com Prisma',
+                  link: '/courses/express/persistence/relations/',
+                },
+              ],
+            },
+            {
+              label: 'Autenticação',
+              items: [
+                { label: 'Senhas e Hash', link: '/courses/express/auth/passwords/' },
                 {
                   label: 'Cadastro de Usuário',
                   link: '/courses/express/auth/user-registration/',
                 },
                 { label: 'Autenticação', link: '/courses/express/auth/authentication/' },
-                { label: 'Validação', link: '/courses/express/advanced/validation/' },
+                { label: 'Autorização', link: '/courses/express/auth/authorization/' },
+              ],
+            },
+            {
+              label: 'Segurança',
+              items: [
+                { label: 'CORS', link: '/courses/express/security/cors/' },
+                { label: 'Endurecimento', link: '/courses/express/security/hardening/' },
+              ],
+            },
+            {
+              label: 'Recursos Avançados',
+              items: [
+                {
+                  label: 'Upload de Arquivo',
+                  link: '/courses/express/advanced/upload-file/',
+                },
                 { label: 'Envio de E-mail', link: '/courses/express/advanced/email/' },
-                { label: 'Upload de Arquivo', link: '/courses/express/advanced/upload-file/' },
+                { label: 'Tempo Real', link: '/courses/express/advanced/realtime/' },
+                {
+                  label: 'Chamada de Sistema',
+                  link: '/courses/express/advanced/system-call/',
+                },
                 { label: 'Testes', link: '/courses/express/advanced/testing/' },
+                { label: 'Deploy', link: '/courses/express/advanced/deploy/' },
               ],
             },
             {
               label: 'Na Prática',
               items: [
                 { label: 'Hello Express', link: '/courses/express/practice/hello-express/' },
+                { label: 'BMI API', link: '/courses/express/practice/bmi-api/' },
                 { label: 'Express Router', link: '/courses/express/practice/express-router/' },
                 { label: 'Express MVC', link: '/courses/express/practice/express-mvc/' },
+                {
+                  label: 'Express TypeScript',
+                  link: '/courses/express/practice/express-typescript/',
+                },
                 { label: 'Express + Prisma', link: '/courses/express/practice/express-prisma/' },
+                { label: 'Express Auth', link: '/courses/express/practice/express-auth/' },
+                {
+                  label: 'InvestApp',
+                  items: [
+                    {
+                      label: 'Visão geral',
+                      link: '/courses/express/practice/investapp/',
+                    },
+                    {
+                      label: '1. API em memória',
+                      link: '/courses/express/practice/investapp/api/',
+                    },
+                    {
+                      label: '2. SQLite nativo',
+                      link: '/courses/express/practice/investapp/sqlite/',
+                    },
+                    {
+                      label: '3. TypeScript em camadas',
+                      link: '/courses/express/practice/investapp/typescript/',
+                    },
+                    {
+                      label: '4. Prisma ORM',
+                      link: '/courses/express/practice/investapp/prisma/',
+                    },
+                    {
+                      label: '5. Cadastro de Usuário',
+                      link: '/courses/express/practice/investapp/user/',
+                    },
+                    {
+                      label: '6. Autenticação',
+                      link: '/courses/express/practice/investapp/auth/',
+                    },
+                  ],
+                },
+                { label: 'Monitor API', link: '/courses/express/practice/monitor-api/' },
               ],
             },
           ],
@@ -783,18 +892,21 @@ export default defineConfig({
               label: 'SQL',
               items: [
                 { label: 'Fundamentos de SQL', link: '/courses/database/sql/fundamentals/' },
-                { label: 'SQL com Node.js', link: '/courses/database/sql/node-sqlite/' },
               ],
             },
             {
-              label: 'Prisma ORM',
+              label: 'Acesso a dados na aplicação',
               items: [
                 {
-                  label: 'Introdução ao Prisma',
-                  link: '/courses/database/prisma/introduction/',
+                  label: 'SQL com Node.js',
+                  link: '/courses/express/persistence/node-sqlite/',
                 },
-                { label: 'CRUD com Prisma', link: '/courses/database/prisma/crud/' },
-                { label: 'Relações com Prisma', link: '/courses/database/prisma/relations/' },
+                { label: 'Prisma', link: '/courses/express/persistence/prisma/' },
+                { label: 'CRUD com Prisma', link: '/courses/express/persistence/crud/' },
+                {
+                  label: 'Relações com Prisma',
+                  link: '/courses/express/persistence/relations/',
+                },
               ],
             },
           ],

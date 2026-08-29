@@ -1,35 +1,38 @@
 ---
 title: "Express.js: MVC"
-description: Organizando uma aplicação Express com a arquitetura MVC — models, controllers, routes e middlewares.
+description: "Arquitetura em camadas de uma aplicação Express: model, controller, router e middleware, direção das dependências, o que cada arquivo pode conhecer e quando acrescentar uma camada de serviço."
 course: express
-project: express-mvc
 sidebar:
   label: "MVC"
 ---
-import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
 import PackageManagerTabs from '@components/PackageManagerTabs.astro';
 import SourceCode from '@components/SourceCode.astro';
 
+As aulas anteriores separaram rotas, controllers e middlewares por conveniência. Esta aula
+nomeia o resultado — **MVC** — e mostra por que a direção das dependências entre as camadas
+é o que dá valor à separação.
+
 ## Objetivo
 
-Reorganizar a aplicação de usuários seguindo **MVC**, de modo que cada arquivo tenha
-uma única responsabilidade — e trocar o armazenamento (memória hoje, banco de dados
-na próxima etapa) exija mudar **um** arquivo apenas.
+Ao final você saberá organizar uma aplicação Express em camadas com responsabilidade única,
+justificar em qual arquivo cada linha de código deve morar e trocar a camada de dados
+— memória por banco — sem tocar em nenhuma outra.
 
-Ao final você terá um CRUD completo de usuários com tratamento de erros centralizado.
-
-## Conceitos
+## As quatro peças
 
 <CardGrid>
   <Card title="Model" icon="database">
-    Guarda e recupera os dados. É o único que sabe *onde* eles estão.
+    Guarda e recupera os dados. É o único que sabe *onde* eles estão — array, SQLite ou
+    Prisma.
   </Card>
 
   <Card title="Controller" icon="puzzle">
-    Recebe a requisição, valida a entrada, chama o model e escolhe a resposta.
+    Traduz HTTP em chamadas de domínio: lê a requisição, chama o model e escolhe o status.
   </Card>
 
   <Card title="Router" icon="forward-slash">
@@ -37,158 +40,127 @@ Ao final você terá um CRUD completo de usuários com tratamento de erros centr
   </Card>
 
   <Card title="Middleware" icon="setting">
-    Comportamentos transversais: parsing de JSON, log e tratamento de erros.
+    Comportamentos transversais: leitura do corpo, log, autenticação e tratamento de erros.
   </Card>
 </CardGrid>
 
-## Arquitetura
+<Aside type="note" title="O “V” de View em uma API">
+  No MVC clássico a View renderiza HTML. Numa API REST, a representação é o JSON — e quem a
+  produz é o `res.json()` do controller. A camada existe; ela só não tem template.
+</Aside>
 
-```text
-    requisição HTTP
-          │
-          ▼
-     app.js  ──────► middlewares  (express.json, logger)
-          │
-          ▼
-     routes/  ─────► define os caminhos
-          │
-          ▼
-  controllers/ ────► valida a entrada e monta a resposta
-          │
-          ▼
-     models/  ─────► lê e grava os dados
-          │
-          ▼
-     resposta JSON        (erros ──► middlewares/error-handler.js)
-```
+## A direção das dependências
 
-A dependência aponta sempre em uma direção: o router conhece o controller, o
-controller conhece o model, e o model não conhece ninguém. É isso que permite trocar
-a camada de dados sem tocar nas outras.
+O que torna a separação útil não é ter quatro pastas, e sim o fato de as dependências
+apontarem **sempre no mesmo sentido**:
+
+<Mermaid title="Direção das dependências entre as camadas de uma aplicação Express">
+{`
+flowchart TD
+  A["Requisição HTTP"] --> B["app<br/>monta a aplicação e a cadeia de middlewares"]
+  B --> C["routes/<br/>quais caminhos existem"]
+  C --> D["controllers/<br/>lê a requisição e escolhe a resposta"]
+  D --> E["models/<br/>lê e grava os dados"]
+  E --> F[("Armazenamento<br/>memória, SQLite, Prisma")]
+  D --> G["Resposta JSON"]
+  D -. "erro" .-> H["middlewares/error-handler<br/>traduz o erro em resposta"]
+  H --> G
+`}
+</Mermaid>
+
+O router conhece o controller, o controller conhece o model e **o model não conhece
+ninguém**. Nenhuma seta sobe. É essa regra que permite trocar a camada de dados sem tocar
+nas outras — e é ela que a próxima aula, de [Prisma](../../persistence/prisma/), exercita.
+
+A tabela torna o limite de cada arquivo verificável em revisão de código:
+
+| Camada        | Pode importar            | Nunca deve conter                              |
+| ------------- | ------------------------ | ---------------------------------------------- |
+| `routes/`     | controllers, middlewares | lógica de negócio, acesso a dados               |
+| `controllers/`| models, erros, tipos     | SQL, `prisma.*`, HTML, o prefixo da rota        |
+| `models/`     | acesso a dados, tipos    | `req`, `res`, status HTTP                       |
+| `middlewares/`| erros, utilitários       | regra específica de um recurso                  |
+| `errors/`     | nada                     | qualquer dependência da aplicação               |
+
+<Aside type="caution" title="`req` dentro do model é o sintoma mais comum">
+  Um model que recebe `req` deixou de ser reaproveitável fora do HTTP: ele não pode ser
+  chamado por um seed, por um script de importação ou por um teste unitário. Passe os dados
+  já extraídos.
+</Aside>
 
 ## Estrutura de diretórios
 
+Cada pasta corresponde a uma camada, e o nome do arquivo diz de qual recurso ele trata:
+
 <FileTree>
 {`
-  express-mvc/
+  express-typescript/
   ├── package.json
+  ├── tsconfig.json
   └── src/
-      ├── app.js                       monta a aplicação
-      ├── server.js                    sobe o servidor
+      ├── app.ts                    monta a aplicação
+      ├── server.ts                 sobe o servidor
       ├── controllers/
-      │   └── user-controller.js
+      │   └── user-controller.ts
+      ├── errors/
+      │   └── HttpError.ts
       ├── middlewares/
-      │   └── error-handler.js
+      │   ├── error-handler.ts
+      │   └── require-json.ts
       ├── models/
-      │   └── user-model.js
-      └── routes/
-          └── user-router.js
+      │   └── user-model.ts
+      ├── routes/
+      │   └── user-router.ts
+      └── types/
+          └── user.ts
 `}
 </FileTree>
 
-## Instalação
+## A cadeia montada em `app.ts`
 
-<PackageManagerTabs package="express" />
-
-## O código
-
-Os arquivos abaixo são lidos diretamente de `examples/express/projects/mvc` no repositório —
-é exatamente o código que roda.
-
-<Tabs syncKey="express-mvc">
-  <TabItem label="app.js">
-    <SourceCode
-      path="examples/express/projects/mvc/src/app.js"
-      title="src/app.js"
-      showLineNumbers
-      mark="14"
-    />
-  </TabItem>
-
-  <TabItem label="user-router.js">
-    <SourceCode
-      path="examples/express/projects/mvc/src/routes/user-router.js"
-      title="src/routes/user-router.js"
-      showLineNumbers
-      mark={['userController']}
-    />
-  </TabItem>
-
-  <TabItem label="user-controller.js">
-    <SourceCode
-      path="examples/express/projects/mvc/src/controllers/user-controller.js"
-      title="src/controllers/user-controller.js"
-      showLineNumbers
-      mark="21-23"
-    />
-  </TabItem>
-
-  <TabItem label="user-model.js">
-    <SourceCode
-      path="examples/express/projects/mvc/src/models/user-model.js"
-      title="src/models/user-model.js"
-      showLineNumbers
-      collapse="1-8"
-    />
-  </TabItem>
-
-  <TabItem label="error-handler.js">
-    <SourceCode
-      path="examples/express/projects/mvc/src/middlewares/error-handler.js"
-      title="src/middlewares/error-handler.js"
-      showLineNumbers
-      mark="18"
-    />
-  </TabItem>
-
-  <TabItem label="server.js">
-    <SourceCode path="examples/express/projects/mvc/src/server.js" title="src/server.js" showLineNumbers />
-  </TabItem>
-</Tabs>
-
-## Destaques
-
-### A cadeia de middlewares
-
-Esta é a região `middleware` de `app.js`, carregada do arquivo real com a numeração
-original preservada:
+O `app.ts` é o único arquivo que enxerga a aplicação inteira. A ordem em que ele registra os
+middlewares **é** a arquitetura em execução:
 
 <SourceCode
-  path="examples/express/projects/mvc/src/app.js"
-  region="middleware"
-  title="src/app.js"
+  path="examples/express/projects/typescript/src/app.ts"
+  title="src/app.ts"
   showLineNumbers
+  mark="17,20-21"
 />
 
-<Aside type="caution" title="A ordem é a arquitetura">
-  `express.json()` precisa vir antes do router, senão `req.body` chega `undefined`.
-  E `errorHandler` precisa vir por último, senão nunca é alcançado.
+<Aside type="caution" title="A ordem não é estilo, é comportamento">
+  `express.json()` precisa vir antes do router, senão `req.body` chega `undefined`. O
+  `notFound` precisa vir depois de todas as rotas, senão bloqueia a API inteira. E o
+  `errorHandler` precisa ser o último, senão nunca é alcançado.
 </Aside>
 
-### O fim da cadeia
+## O controller nunca toca no armazenamento
+
+Ele conhece apenas as funções exportadas pelo model. Esta linha continua idêntica quando o
+array vira uma tabela:
 
 <SourceCode
-  path="examples/express/projects/mvc/src/app.js"
-  lines="16-18"
-  title="src/app.js"
+  path="examples/express/projects/typescript/src/controllers/user-controller.ts"
+  lines="24-32"
+  title="src/controllers/user-controller.ts"
+  showLineNumbers
+  mark={['User.findById']}
+/>
+
+E o model é o único que sabe onde os dados estão:
+
+<SourceCode
+  path="examples/express/projects/typescript/src/models/user-model.ts"
+  lines="1-14"
+  title="src/models/user-model.ts"
   showLineNumbers
 />
 
-### O controller nunca toca no array
+## O que mudou desde a aula de Rotas
 
-Ele conhece apenas as funções do model. Trocar memória por banco não muda essa linha:
+A rota deixou de responder e passou a apenas apontar:
 
-<SourceCode
-  path="examples/express/projects/mvc/src/controllers/user-controller.js"
-  lines="1-9"
-  title="src/controllers/user-controller.js"
-  showLineNumbers
-  mark={['User.findAll()']}
-/>
-
-### O que mudou desde a aula de Routes
-
-```js title="src/routes/user-router.js" del={2-4} ins={6}
+```ts title="src/routes/user-router.ts" del={2-4} ins={6}
 // antes: o router respondia
 router.get('/', (req, res) => {
   res.json(users);
@@ -197,9 +169,49 @@ router.get('/', (req, res) => {
 router.get('/', userController.index);
 ```
 
+## Quando acrescentar uma camada
+
+MVC não é o fim da linha. Duas camadas aparecem quando o projeto cresce:
+
+| Camada      | Aparece quando                                              | Exemplo                                     |
+| ----------- | ----------------------------------------------------------- | ------------------------------------------- |
+| `services/` | há regra de negócio que não é sobre HTTP nem sobre armazenamento | "não aportar acima do limite da categoria" |
+| `repositories/` | o mesmo domínio precisa de mais de uma fonte de dados   | cache em memória na frente do banco          |
+
+<Aside type="tip" title="Cerimônia tem custo">
+  Em um CRUD sem regra própria, um `service` que apenas repassa a chamada ao model
+  acrescenta um arquivo e nenhum significado. Crie a camada quando existir a regra.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto:
+
+   ```bash
+   cd examples/express/projects/typescript
+   ```
+
+2. Instale as dependências:
+
+   <PackageManagerTabs />
+
+3. Suba o servidor:
+
+   <PackageManagerTabs run="dev" />
+
+4. Confirme que responde:
+
+   ```bash
+   curl http://localhost:3000/users
+   ```
+
+</Steps>
+
 ## Testando a API
 
-### Listar usuários
+A listagem sai do model, sem que o controller saiba de onde:
 
 <ApiRequest method="GET" path="/users" baseUrl="http://localhost:3000" />
 
@@ -212,7 +224,7 @@ router.get('/', userController.index);
 `}
 </ApiResponse>
 
-### Criar um usuário
+A criação passa pelo middleware de `Content-Type`, pelo controller e pelo model:
 
 <ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000" description="Exige name e email">
 {`
@@ -233,26 +245,7 @@ router.get('/', userController.index);
 `}
 </ApiResponse>
 
-### Erro de validação
-
-<ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000">
-{`
-  {}
-`}
-</ApiRequest>
-
-<ApiResponse status={400} description="Resposta padronizada pelo error-handler">
-{`
-  {
-    "error": {
-      "status": 400,
-      "message": "Os campos \\"name\\" e \\"email\\" são obrigatórios"
-    }
-  }
-`}
-</ApiResponse>
-
-### Recurso inexistente
+E o erro sai no formato único definido pelo `errorHandler`, venha ele de onde vier:
 
 <ApiRequest method="GET" path="/users/99" baseUrl="http://localhost:3000" />
 
@@ -261,128 +254,145 @@ router.get('/', userController.index);
   {
     "error": {
       "status": 404,
-      "message": "Usuário não encontrado"
+      "message": "Usuario nao encontrado"
     }
   }
 `}
 </ApiResponse>
 
-## Executando
-
-<Steps>
-
-1. Entre no projeto:
-
-   ```bash
-   cd examples/express/projects/mvc
-   ```
-
-2. Instale as dependências:
-
-   <PackageManagerTabs />
-
-3. Suba o servidor:
-
-   <PackageManagerTabs run="dev" />
-
-4. Confirme que responde:
-
-   ```bash
-   curl http://localhost:3000/users
-   ```
-
-</Steps>
-
 ## Exercício
 
-Adicione o recurso **produtos** ao projeto, seguindo exatamente a mesma estrutura:
+Acrescente o recurso **produtos** ao projeto, seguindo exatamente a mesma estrutura:
 
-1. `src/models/product-model.js` com `findAll`, `findById`, `create` e `remove`;
-2. `src/controllers/product-controller.js` com `index`, `show`, `store` e `destroy`;
-3. `src/routes/product-router.js` apontando para o controller;
-4. registre o router em `app.js` sob o prefixo `/products`.
+1. `src/types/product.ts` com `Product` e `ProductInput`;
+2. `src/models/product-model.ts` com `findAll`, `findById`, `create` e `remove`;
+3. `src/controllers/product-controller.ts` com `index`, `show`, `store` e `destroy`;
+4. `src/routes/product-router.ts` apontando para o controller;
+5. registro em `app.ts` sob o prefixo `/products`.
 
-Um produto tem `id`, `name` e `price`. Rejeite com `400` a criação sem `name` ou com
-`price` negativo.
+Um produto tem `id`, `name` e `price`. Rejeite com `400` a criação sem `name` ou com `price`
+negativo, e responda `204` no `DELETE`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/types/product.ts"
+  export interface Product {
+    id: number;
+    name: string;
+    price: number;
+  }
+
+  export interface ProductInput {
+    name?: string;
+    price?: number;
+  }
+  ```
+
+  ```ts title="src/controllers/product-controller.ts" showLineNumbers
+  import type { Request, Response } from 'express';
+
+  import { HttpError } from '#errors/HttpError.ts';
+  import * as Product from '#models/product-model.ts';
+  import type { ProductInput } from '#types/product.ts';
+
+  export function store(req: Request, res: Response) {
+    const { name, price } = (req.body ?? {}) as ProductInput;
+
+    if (!name || typeof price !== 'number' || price < 0) {
+      throw new HttpError(400, 'Os campos "name" e "price" (>= 0) são obrigatórios');
+    }
+
+    res.status(201).json(Product.create({ name, price }));
+  }
+  ```
+
+  Em `app.ts`: `app.use('/products', productRouter);` — registrado **antes** do `notFound`.
+</details>
 
 ## Desafio
 
-Extraia a validação para um middleware reutilizável:
+Extraia a validação para um middleware de fábrica reutilizável pelos dois recursos:
 
-```js title="src/middlewares/validate.js"
-export function validate(camposObrigatorios) {
-  return (req, res, next) => {
+```ts title="src/middlewares/validate.ts"
+export function validate(camposObrigatorios: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
     // devolve um middleware que valida req.body
   };
 }
 ```
 
-Use-o nas rotas de criação dos dois recursos:
-
-```js title="src/routes/user-router.js" ins={1}
+```ts title="src/routes/user-router.ts" ins={1}
 router.post('/', validate(['name', 'email']), userController.store);
 ```
 
-O controller deve ficar sem nenhum `if` de validação. Pense: onde esse middleware
-precisa ser registrado para que o erro chegue ao `errorHandler`?
+Os controllers devem ficar sem nenhum `if` de validação. Pense: onde esse middleware precisa
+ser registrado para que o erro chegue ao `errorHandler`?
 
-## Exemplo completo: Invest App em camadas (LP2)
+## Perguntas de revisão
 
-A separação em camadas aplicada ao Invest App, com database, model, seed, loader e router.
+### Camadas
 
-![](/lp2/imgs/expressjs/mvc/mvc-csr.png)
+1. **Por que nenhuma seta do diagrama sobe?**
 
-<FileTree>
-{`
-invest-app-mvc/
-├── public/
-│   ├── css/
-│   │   └── style.css
-│   ├── js/
-│   │   ├── lib/
-│   │   │   └── format.js
-│   │   ├── services/
-│   │   │   └── api.js
-│   │   └── index.js
-│   └── index.html
-├── src/
-│   ├── database/
-│   │   ├── data.js
-│   │   ├── seeders.js
-│   │   └── seeders.json
-│   ├── models/
-│   │   └── Investment.js
-│   ├── index.js
-│   └── routes.js
-├── .gitignore
-├── package-lock.json
-├── package.json
-└── requests.http
-`}
-</FileTree>
+   <details>
+     <summary>Possível resposta</summary>
 
-### Database
+     Porque uma dependência de baixo para cima amarraria o model ao HTTP: ele deixaria de
+     poder ser usado por um seed, um script ou um teste. A direção única é o que permite
+     trocar a camada de dados sem tocar nas outras.
+   </details>
 
-<SourceCode path="examples/express/lp2/invest-app-mvc/src/database/data.js" />
+2. **Um model pode responder `404`?**
 
-### Model
+   <details>
+     <summary>Possível resposta</summary>
 
-<SourceCode path="examples/express/lp2/invest-app-mvc/src/models/Investment.js" mark="4,18,30,44,62" />
+     Não. `404` é um conceito HTTP e pertence ao controller. O model devolve `undefined` (ou
+     lança um erro de domínio) e o controller traduz isso em status.
+   </details>
 
-### Seed
+3. **O que dá errado se `express.json()` for registrado depois do router?**
 
-<SourceCode path="examples/express/lp2/invest-app-mvc/src/database/seeders.json" />
+   <details>
+     <summary>Possível resposta</summary>
 
-<SourceCode path="examples/express/lp2/invest-app-mvc/src/database/seeders.js" />
+     O router responde antes de o corpo ser interpretado, e `req.body` chega `undefined` em
+     todo `POST` e `PUT` — sem nenhum erro visível no servidor.
+   </details>
 
-### Loader
+### Evolução
 
-<SourceCode path="examples/express/lp2/invest-app-mvc/src/index.js" mark="28" />
+4. **Quando criar a pasta `services/`?**
 
-### Router
+   <details>
+     <summary>Possível resposta</summary>
 
-<SourceCode path="examples/express/lp2/invest-app-mvc/src/routes.js" mark="13,17,25,29,37,41,49,55,63,66" />
+     Quando existir regra de negócio que continuaria valendo fora do HTTP, ou que seja
+     compartilhada por mais de uma rota. Antes disso, o serviço só repassa chamadas.
+   </details>
+
+5. **Trocar array por Prisma exige mudar quais arquivos?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Apenas os de `models/` (e a configuração do client). Router, controllers, middlewares e
+     o formato das respostas permanecem idênticos — é exatamente o que a aula de
+     [CRUD com Prisma](../../persistence/crud/) demonstra.
+   </details>
+
+## Referências
+
+- [Express — Routing](https://expressjs.com/en/guide/routing.html)
+- [MVC | MDN Glossary](https://developer.mozilla.org/en-US/docs/Glossary/MVC)
+- [Node.js — Anti-patterns](https://nodejs.org/en/learn/getting-started/security-best-practices)
+
+## Na prática
+
+Os projetos executáveis desta aula são [Express MVC](../../practice/express-mvc/) (em
+JavaScript) e [Express TypeScript](../../practice/express-typescript/).
 
 ## Próxima aula
 
-[REST API](../../api/rest/) — os verbos, os status e as convenções que estamos seguindo.
+[Configuração e Ambiente](../config/): variáveis de ambiente, segredos e log estruturado.

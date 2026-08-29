@@ -1,0 +1,343 @@
+---
+title: "Express.js: CORS"
+description: "Compartilhamento de recursos entre origens em uma API Express: política de mesma origem, requisição simples e preflight, cabeçalhos Access-Control, implementação nativa e com o pacote cors, e credenciais."
+course: express
+sidebar:
+  label: "CORS"
+---
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O front-end roda em `localhost:5173`, a API em `localhost:3000`, e o navegador recusa a
+chamada com uma mensagem sobre CORS. Esta aula explica por que isso acontece — e por que o
+bloqueio é uma proteção, não um defeito.
+
+## Objetivo
+
+Ao final você entenderá a política de mesma origem, saberá distinguir uma requisição simples
+de uma com *preflight*, implementar os cabeçalhos de CORS à mão e configurar o pacote `cors`
+sem abrir a API para o mundo.
+
+## A política de mesma origem
+
+Por padrão, o navegador impede que uma página leia a resposta de outra **origem**. Origem é a
+tripla protocolo + host + porta — e basta um dos três diferir:
+
+| Origem da página            | Origem da API                | Mesma origem? | Por quê            |
+| --------------------------- | ---------------------------- | ------------- | ------------------ |
+| `http://localhost:3000`     | `http://localhost:3000/api`  | sim           | idêntica            |
+| `http://localhost:5173`     | `http://localhost:3000`      | **não**       | porta diferente     |
+| `https://app.exemplo.com`   | `https://api.exemplo.com`    | **não**       | host diferente      |
+| `http://exemplo.com`        | `https://exemplo.com`        | **não**       | protocolo diferente |
+
+<Aside type="note" title="Por que essa regra existe">
+  Sem ela, um site malicioso aberto em outra aba faria requisições ao seu banco usando os
+  seus cookies e **leria** a resposta. A política de mesma origem é o que impede que
+  qualquer página leia dados de qualquer serviço em que você esteja autenticado.
+</Aside>
+
+## O que o CORS realmente faz
+
+CORS não é uma restrição imposta pelo servidor: é um mecanismo pelo qual o servidor
+**afrouxa** a política do navegador, autorizando origens específicas.
+
+<Mermaid title="Onde o bloqueio de CORS acontece">
+{`
+flowchart TD
+  A["Página em localhost:5173<br/>fetch para localhost:3000"] --> B["Navegador envia a requisição"]
+  B --> C["Servidor Express processa<br/>e responde normalmente"]
+  C --> D{"A resposta traz<br/>Access-Control-Allow-Origin<br/>compatível?"}
+  D -->|sim| E["Navegador entrega<br/>a resposta ao JavaScript"]
+  D -->|não| F["Navegador bloqueia a leitura<br/>e registra o erro no console"]
+`}
+</Mermaid>
+
+Duas consequências que costumam surpreender:
+
+1. **A requisição chegou ao servidor.** Um `POST` sem CORS pode ter criado o registro — o
+   navegador apenas impediu o JavaScript de ler a resposta.
+2. **`curl` e Postman nunca dão erro de CORS.** A restrição é do navegador; fora dele, não
+   existe.
+
+<Aside type="caution" title="CORS não é autenticação">
+  Liberar uma origem não protege nada: qualquer cliente que não seja um navegador ignora a
+  política inteira. Quem protege a API é autenticação e autorização — CORS apenas decide
+  quais páginas podem falar com ela.
+</Aside>
+
+## Requisição simples e preflight
+
+Nem toda requisição entre origens é enviada direto. Quando ela sai do conjunto "simples", o
+navegador manda antes um `OPTIONS` para perguntar se pode:
+
+| Tipo         | Condições                                                                 | Envia `OPTIONS` antes? |
+| ------------ | ------------------------------------------------------------------------- | ---------------------- |
+| Simples      | `GET`, `HEAD` ou `POST` **e** `Content-Type` de formulário ou texto puro    | não                    |
+| Com preflight| qualquer outro método, `Content-Type: application/json`, ou cabeçalho customizado | sim              |
+
+Ou seja: praticamente **toda** requisição de uma API JSON dispara preflight — o `Content-Type:
+application/json` já basta, e o `Authorization` também.
+
+<Mermaid title="Requisição com preflight entre origens diferentes">
+{`
+sequenceDiagram
+  participant P as Página (5173)
+  participant N as Navegador
+  participant A as API (3000)
+  P->>N: fetch POST /investments<br/>Content-Type: application/json
+  N->>A: OPTIONS /investments<br/>Access-Control-Request-Method: POST<br/>Access-Control-Request-Headers: content-type
+  A-->>N: 204<br/>Allow-Origin, Allow-Methods, Allow-Headers, Max-Age
+  N->>A: POST /investments (a requisição real)
+  A-->>N: 201 + Access-Control-Allow-Origin
+  N-->>P: resposta entregue ao JavaScript
+`}
+</Mermaid>
+
+<Aside type="tip" title="`OPTIONS` que responde 404 é o sintoma">
+  Se a aplicação não trata `OPTIONS`, o preflight falha e a requisição real nunca é enviada
+  — o console mostra o erro de CORS, e o log do servidor mostra apenas um `OPTIONS` sem
+  resposta adequada.
+</Aside>
+
+## Os cabeçalhos
+
+| Cabeçalho                          | Enviado por | Significado                                        |
+| ---------------------------------- | ----------- | -------------------------------------------------- |
+| `Origin`                           | navegador   | de qual origem a página está chamando               |
+| `Access-Control-Allow-Origin`      | servidor    | qual origem pode ler a resposta                     |
+| `Access-Control-Allow-Methods`     | servidor    | métodos permitidos (resposta ao preflight)          |
+| `Access-Control-Allow-Headers`     | servidor    | cabeçalhos que o cliente pode enviar                |
+| `Access-Control-Allow-Credentials` | servidor    | permite cookies e `Authorization` com credenciais   |
+| `Access-Control-Expose-Headers`    | servidor    | cabeçalhos que o JavaScript pode **ler** da resposta|
+| `Access-Control-Max-Age`           | servidor    | por quantos segundos o preflight fica em cache      |
+
+## Implementando à mão
+
+Um middleware de trinta linhas cobre o caso completo — e deixa explícito o que cada
+cabeçalho faz:
+
+```ts title="src/middlewares/cors.ts" showLineNumbers {1,7,10-12,17,21}
+const ORIGENS_PERMITIDAS = ['http://localhost:5173', 'https://app.exemplo.com'];
+
+export function cors(req: Request, res: Response, next: NextFunction) {
+  const origin = req.get('origin');
+
+  // Ecoa a origem apenas se ela estiver na lista.
+  if (origin && ORIGENS_PERMITIDAS.includes(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    // Sem isso, um cache pode servir a resposta de uma origem para outra.
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Credentials', 'true');
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '86400');
+
+    // O preflight termina aqui: não precisa chegar às rotas.
+    return res.sendStatus(204);
+  }
+
+  next();
+}
+```
+
+```ts title="src/app.ts" showLineNumbers {2}
+// Antes de qualquer rota: o preflight precisa ser respondido primeiro.
+app.use(cors);
+
+app.use('/api', investmentRouter);
+```
+
+<Aside type="caution" title="O cabeçalho `Vary: Origin` não é opcional">
+  Sem ele, um cache intermediário pode guardar a resposta com
+  `Access-Control-Allow-Origin: https://a.com` e entregá-la a uma página de `https://b.com`.
+  Sempre que a resposta depende do cabeçalho `Origin`, declare-o em `Vary`.
+</Aside>
+
+## Com o pacote `cors`
+
+O pacote faz o mesmo com configuração declarativa e cobre casos de borda:
+
+<Tabs syncKey="cors-impl">
+  <TabItem label="Nativo">
+    ```ts title="src/app.ts" showLineNumbers
+    import { cors } from '#middlewares/cors.ts';
+
+    app.use(cors);
+    ```
+
+    Sem dependências, e cada decisão fica visível no código.
+  </TabItem>
+
+  <TabItem label="Pacote cors">
+    ```ts title="src/app.ts" showLineNumbers {4-7}
+    import cors from 'cors';
+
+    app.use(cors({
+      origin: ['http://localhost:5173', 'https://app.exemplo.com'],
+      credentials: true,
+      maxAge: 86400,
+    }));
+    ```
+
+    Trata `Vary`, preflight e variações de configuração por conta própria.
+  </TabItem>
+</Tabs>
+
+## `origin: '*'` e credenciais
+
+O curinga parece resolver tudo — e tem duas consequências:
+
+```ts title="O atalho perigoso" del={2}
+app.use(cors({ origin: '*' }));
+// Qualquer página da internet pode chamar esta API pelo navegador.
+```
+
+| Configuração                          | Qualquer origem lê? | Cookies e `Authorization` funcionam? |
+| ------------------------------------- | ------------------- | ------------------------------------ |
+| `origin: '*'`                         | sim                 | **não** — o navegador recusa          |
+| `origin: '*'` + `credentials: true`   | —                   | inválido: o navegador rejeita a resposta |
+| `origin: ['https://app.exemplo.com']` | só a listada        | sim                                   |
+
+<Aside type="danger" title="`*` com credenciais é proibido pela especificação">
+  O navegador recusa uma resposta que combine `Access-Control-Allow-Origin: *` com
+  `Access-Control-Allow-Credentials: true`. Para enviar cookies ou `Authorization`, a origem
+  precisa ser ecoada explicitamente — o que só é seguro com uma lista de permitidos.
+</Aside>
+
+Do lado do cliente, cookies entre origens exigem uma escolha explícita:
+
+```js title="public/js/services/api.js" showLineNumbers {3}
+fetch('https://api.exemplo.com/investments', {
+  // Sem isso, o navegador não envia cookies para outra origem.
+  credentials: 'include',
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+## Evitando o problema
+
+A forma mais simples de lidar com CORS é não ter o problema. Duas topologias eliminam a
+diferença de origem:
+
+| Estratégia                          | Como funciona                                                  |
+| ----------------------------------- | -------------------------------------------------------------- |
+| Servir o front pelo Express         | `express.static('public')` — mesma porta, mesma origem          |
+| Proxy no servidor de desenvolvimento| o Vite encaminha `/api` para `localhost:3000`; o navegador vê uma origem só |
+
+```js title="vite.config.js" showLineNumbers {4-7}
+export default {
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
+};
+```
+
+<Aside type="tip" title="O proxy vale só em desenvolvimento">
+  Em produção, o front costuma ser servido por um CDN e a API por outro domínio — e o CORS
+  volta. Configure a lista de origens por variável de ambiente para que desenvolvimento,
+  homologação e produção tenham valores diferentes.
+</Aside>
+
+## Exercício
+
+Com o projeto `express-auth` rodando em `localhost:3000`:
+
+1. Sirva um `index.html` por outro servidor (`npx serve -p 5173`) que faça
+   `fetch('http://localhost:3000/auth/signin')` e observe o erro no console.
+2. Confirme no log do servidor que a requisição **chegou**.
+3. Implemente o middleware de CORS liberando apenas `http://localhost:5173`.
+4. Verifique no DevTools que o `OPTIONS` aparece antes do `POST`.
+5. Troque a origem permitida por `http://localhost:9999` e confirme que o bloqueio volta.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A requisição aparece no log do servidor mesmo quando o navegador bloqueia — prova de que
+  o bloqueio é do lado do cliente:
+
+  ```txt title="Output"
+  OPTIONS /auth/signin 204 0.8ms
+  POST /auth/signin 200 61.4ms
+  ```
+
+  Se o `OPTIONS` não aparecer, o preflight falhou antes: o middleware de CORS foi registrado
+  depois das rotas, ou o `OPTIONS` caiu no `notFound`.
+</details>
+
+## Desafio
+
+Faça a lista de origens permitidas vir de `process.env.CORS_ORIGINS` (separadas por
+vírgula) e aceite qualquer `localhost` em desenvolvimento. Escreva um teste que confirme que,
+com `NODE_ENV=production` e a variável vazia, **nenhuma** origem é liberada.
+
+## Perguntas de revisão
+
+### Conceito
+
+1. **Quem bloqueia a requisição: o servidor ou o navegador?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O navegador. A requisição chega ao servidor e é processada; o que o navegador impede é
+     o JavaScript da página **ler** a resposta quando faltam os cabeçalhos de permissão.
+   </details>
+
+2. **Por que `curl` nunca dá erro de CORS?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a política de mesma origem é um mecanismo do navegador para proteger sessões de
+     usuários. Clientes fora do navegador simplesmente ignoram os cabeçalhos.
+   </details>
+
+3. **Por que uma API JSON quase sempre dispara preflight?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque `Content-Type: application/json` não está na lista de tipos "simples", e o
+     cabeçalho `Authorization` também exige preflight. Basta um dos dois.
+   </details>
+
+### Configuração
+
+4. **Por que `origin: '*'` não funciona com credenciais?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a especificação proíbe a combinação: uma resposta com `*` e
+     `Allow-Credentials: true` é rejeitada pelo navegador. Enviar credenciais exige ecoar a
+     origem específica.
+   </details>
+
+5. **Para que serve `Vary: Origin`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para que caches não sirvam a resposta de uma origem para outra. Sem ele, uma resposta
+     liberada para `a.com` pode ser entregue a uma página de `b.com`.
+   </details>
+
+## Referências
+
+- [CORS | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+- [Same-origin policy | MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
+- [Pacote `cors`](https://www.npmjs.com/package/cors)
+- [Fetch Standard — CORS protocol](https://fetch.spec.whatwg.org/#http-cors-protocol)
+
+## Próxima aula
+
+[Endurecimento](../hardening/): cabeçalhos de segurança, limite de requisições e as
+injeções que sobram.

@@ -1,97 +1,166 @@
 ---
 title: "Express.js: REST API"
-description: Verbos HTTP, status codes e as convenções de uma API REST.
+description: "Convenções REST em uma API Express: recursos em vez de ações, os verbos HTTP, status codes, idempotência, segurança dos métodos, subrecursos e versionamento."
 course: express
-project: express-mvc
 sidebar:
   label: "REST API"
 ---
 import { Aside } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
 import SourceCode from '@components/SourceCode.astro';
 
-REST é um conjunto de convenções para expor **recursos** por HTTP. Seguir essas
-convenções faz com que qualquer pessoa consiga usar a sua API sem ler documentação
-extensa.
+REST é um conjunto de convenções para expor **recursos** por HTTP. Seguir essas convenções
+faz com que qualquer pessoa consiga usar a sua API sem ler documentação extensa — e faz com
+que caches, proxies e clientes se comportem como esperado.
+
+## Objetivo
+
+Ao final você saberá modelar caminhos a partir de recursos, escolher o verbo e o status
+corretos para cada operação, e explicar por que idempotência e segurança dos métodos não são
+detalhes acadêmicos.
 
 ## Recursos, não ações
 
-O caminho identifica **o quê**; o método diz **o que fazer**.
+O caminho identifica **o quê**; o método diz **o que fazer**. Toda a diferença está aí.
 
-```text
+```text title="Caminhos como recursos"
 /users            coleção de usuários
 /users/1          um usuário
-/users/1/posts    posts daquele usuário
+/users/1/posts    os posts daquele usuário
 ```
 
-```text
-GET /listarUsuarios      ✗ ação no caminho
-GET /users               ✓ recurso no caminho
+Um verbo dentro do caminho duplica o que o método já diz, e multiplica os endpoints:
+
+```text title="Ação no caminho: o antipadrão"
+GET  /listarUsuarios      ✗   GET    /users
+POST /criarUsuario        ✗   POST   /users
+POST /deletarUsuario/1    ✗   DELETE /users/1
+POST /usuario/1/ativar    ✗   PATCH  /users/1  { "active": true }
 ```
 
-Use substantivos no plural e sem verbos.
+Use substantivos no plural, em minúsculas, sem verbos e sem extensão de arquivo.
+
+<Aside type="note" title="E quando a operação não é um CRUD?">
+  Algumas ações não cabem em nenhum verbo — "enviar e-mail de recuperação", "recalcular
+  saldo". A saída convencional é modelar a **própria ação como recurso**:
+  `POST /password-resets` cria um pedido de redefinição. Se ainda assim não couber, um
+  endpoint com verbo é aceitável; o que não vale é a API inteira ser feita deles.
+</Aside>
 
 ## Os cinco verbos
 
-| Método   | Caminho      | Ação      | Sucesso            |
-| -------- | ------------ | --------- | ------------------ |
-| `GET`    | `/users`     | Listar    | `200 OK`           |
-| `GET`    | `/users/:id` | Buscar um | `200 OK`           |
-| `POST`   | `/users`     | Criar     | `201 Created`      |
-| `PUT`    | `/users/:id` | Atualizar | `200 OK`           |
-| `DELETE` | `/users/:id` | Remover   | `204 No Content`   |
+O CRUD completo de um recurso cabe em cinco linhas de router:
 
-É exatamente o router do projeto MVC:
+| Método   | Caminho      | Ação      | Sucesso            | Corpo na resposta |
+| -------- | ------------ | --------- | ------------------ | ----------------- |
+| `GET`    | `/users`     | Listar    | `200 OK`           | array             |
+| `GET`    | `/users/:id` | Buscar um | `200 OK`           | objeto            |
+| `POST`   | `/users`     | Criar     | `201 Created`      | o recurso criado  |
+| `PUT`    | `/users/:id` | Substituir| `200 OK`           | o recurso alterado|
+| `PATCH`  | `/users/:id` | Alterar parte | `200 OK`       | o recurso alterado|
+| `DELETE` | `/users/:id` | Remover   | `204 No Content`   | nenhum            |
+
+É exatamente o router do projeto em TypeScript:
 
 <SourceCode
-  path="examples/express/projects/mvc/src/routes/user-router.js"
-  title="src/routes/user-router.js"
+  path="examples/express/projects/typescript/src/routes/user-router.ts"
+  title="src/routes/user-router.ts"
   showLineNumbers
-  lines="6-11"
+  lines="8-12"
 />
+
+### Segurança e idempotência
+
+Duas propriedades dos métodos definem o que um cliente pode fazer sem medo:
+
+| Método   | Seguro (não altera) | Idempotente (repetir não muda o resultado) |
+| -------- | ------------------- | ------------------------------------------ |
+| `GET`    | sim                 | sim                                        |
+| `HEAD`   | sim                 | sim                                        |
+| `PUT`    | não                 | sim                                        |
+| `DELETE` | não                 | sim                                        |
+| `POST`   | não                 | **não**                                    |
+| `PATCH`  | não                 | não necessariamente                        |
+
+Isso importa quando o cliente tem retentativa automática ou a conexão cai depois do envio:
+repetir um `PUT` leva ao mesmo estado final, mas dois `POST /users` criam dois usuários.
+
+<Aside type="caution" title="`GET` que altera dados quebra a web">
+  Navegadores, proxies e pré-carregadores tratam `GET` como seguro e podem chamá-lo sem que
+  o usuário peça. Um `GET /users/1/delete` pode ser disparado por um crawler.
+</Aside>
+
+### `PUT` ou `PATCH`?
+
+`PUT` substitui o recurso inteiro; `PATCH` altera apenas os campos enviados:
+
+<ApiRequest method="PUT" path="/users/3" baseUrl="http://localhost:3000" description="Substitui: campos omitidos são apagados">
+{`
+  {
+    "name": "Carla Souza",
+    "email": "carla@example.com"
+  }
+`}
+</ApiRequest>
+
+<ApiRequest method="PATCH" path="/users/3" baseUrl="http://localhost:3000" description="Altera só o nome; o e-mail permanece">
+{`
+  {
+    "name": "Carla Souza"
+  }
+`}
+</ApiRequest>
+
+Na prática, muita API implementa `PUT` com semântica de `PATCH`. Não é o fim do mundo, mas
+documente — o cliente que confia na substituição vai perder dados.
 
 ## Status codes
 
-| Faixa | Significado         | Exemplos                              |
-| ----- | ------------------- | ------------------------------------- |
-| `2xx` | Sucesso             | `200`, `201`, `204`                   |
-| `4xx` | Erro do cliente     | `400`, `401`, `403`, `404`, `409`     |
-| `5xx` | Erro do servidor    | `500`                                 |
+O status **é** a resposta: ele diz ao cliente o que aconteceu antes de qualquer leitura do
+corpo.
 
-Os que mais aparecem:
+| Faixa | Significado      | Quem errou           |
+| ----- | ---------------- | -------------------- |
+| `2xx` | Sucesso          | ninguém              |
+| `3xx` | Redirecionamento | ninguém              |
+| `4xx` | Erro do cliente  | quem chamou          |
+| `5xx` | Erro do servidor | a sua aplicação      |
 
-- **`200 OK`** — a requisição funcionou e há corpo na resposta.
-- **`201 Created`** — recurso criado; devolva o recurso criado no corpo.
-- **`204 No Content`** — funcionou e **não há corpo** (típico do `DELETE`).
-- **`400 Bad Request`** — a entrada é inválida.
-- **`404 Not Found`** — o recurso não existe.
-- **`409 Conflict`** — conflito de estado, como e-mail já cadastrado.
-- **`500 Internal Server Error`** — falha inesperada no servidor.
+Os que aparecem em praticamente toda API:
 
-<Aside type="caution" title="Nunca responda 200 para um erro">
-  `res.status(200).json({ erro: 'não encontrado' })` obriga todo cliente a inspecionar
-  o corpo para descobrir o que aconteceu. O status **é** a resposta.
+| Código | Nome                  | Quando usar                                              |
+| ------ | --------------------- | -------------------------------------------------------- |
+| `200`  | OK                    | leitura ou atualização bem-sucedida, com corpo            |
+| `201`  | Created               | recurso criado — devolva-o no corpo e o `Location`        |
+| `204`  | No Content            | sucesso sem corpo, típico do `DELETE`                     |
+| `304`  | Not Modified          | o cliente já tem a versão atual (via `ETag`)              |
+| `400`  | Bad Request           | entrada malformada ou inválida                            |
+| `401`  | Unauthorized          | falta autenticação — na prática, "não identificado"       |
+| `403`  | Forbidden             | autenticado, mas sem permissão                            |
+| `404`  | Not Found             | o recurso não existe                                      |
+| `409`  | Conflict              | conflito de estado, como e-mail já cadastrado             |
+| `415`  | Unsupported Media Type| `Content-Type` que a rota não aceita                      |
+| `422`  | Unprocessable Content | sintaxe correta, semântica inválida                       |
+| `429`  | Too Many Requests     | limite de requisições excedido                            |
+| `500`  | Internal Server Error | falha inesperada — nunca detalhe o motivo ao cliente      |
+
+<Aside type="caution" title="Nunca responda `200` para um erro">
+  `res.status(200).json({ erro: 'não encontrado' })` obriga todo cliente a inspecionar o
+  corpo para descobrir o que aconteceu, e impede que o navegador, o cache e o monitoramento
+  reajam corretamente.
 </Aside>
 
-### Referência rápida de status codes
-
-Os códigos que aparecem com mais frequência em uma API REST:
-
-| Código | Nome                  | Significado                                                                |
-| ------ | --------------------- | -------------------------------------------------------------------------- |
-| `200`  | Ok                    | Solicitação gerada com sucesso                                             |
-| `201`  | Created               | Solicitação gerada com sucesso e um novo recurso foi criado como resultado |
-| `204`  | No Content            | Solicitação gerada com sucesso e não há conteúdo para ser enviado          |
-| `304`  | Not Modified          | O conteúdo da requisição já existe em cache e não foi modificado           |
-| `400`  | Bad Request           | Solicitação não compreendida por motivos de erro                           |
-| `401`  | Unauthorized          | A solicitação requer autenticação do usuário                               |
-| `404`  | Not Found             | O servidor não pode encontrar o recurso solicitado                         |
-| `500`  | Internal Server Error | O servidor encontrou uma situação com a qual não sabe lidar.               |
+<Aside type="note" title="`401` e `403` têm nomes trocados na especificação">
+  `401 Unauthorized` significa **não autenticado** — "identifique-se". `403 Forbidden`
+  significa autenticado, mas sem permissão. A aula de
+  [Autorização](../../auth/authorization/) volta ao ponto.
+</Aside>
 
 ## Um ciclo completo
 
-### Criar
+Criar devolve `201` com o recurso e o cabeçalho `Location` apontando para ele:
 
 <ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000">
 {`
@@ -102,7 +171,7 @@ Os códigos que aparecem com mais frequência em uma API REST:
 `}
 </ApiRequest>
 
-<ApiResponse status={201} description="O corpo traz o recurso criado, já com id">
+<ApiResponse status={201} description="Location: /users/3">
 {`
   {
     "id": 3,
@@ -112,75 +181,179 @@ Os códigos que aparecem com mais frequência em uma API REST:
 `}
 </ApiResponse>
 
-### Atualizar
+Remover devolve `204` — e o cliente não deve tentar ler o corpo:
 
-<ApiRequest method="PUT" path="/users/3" baseUrl="http://localhost:3000">
+<ApiRequest method="DELETE" path="/users/3" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={204} description="Sem corpo: não chame .json() no cliente" />
+
+E o conflito de estado tem status próprio, diferente de `400`:
+
+<ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000" description="E-mail já cadastrado">
 {`
   {
-    "name": "Carla Souza"
+    "name": "Ana de novo",
+    "email": "ana@example.com"
   }
 `}
 </ApiRequest>
 
-<ApiResponse status={200}>
-{`
-  {
-    "id": 3,
-    "name": "Carla Souza",
-    "email": "carla@example.com"
-  }
-`}
-</ApiResponse>
-
-### Remover
-
-<ApiRequest method="DELETE" path="/users/3" baseUrl="http://localhost:3000" />
-
-<ApiResponse status={204} description="Sem corpo — não chame .json() no cliente" />
-
-## Erros padronizados
-
-Uma API previsível responde erros sempre no mesmo formato. É o que o
-`error-handler.js` garante:
-
-<SourceCode
-  path="examples/express/projects/mvc/src/middlewares/error-handler.js"
-  title="src/middlewares/error-handler.js"
-  showLineNumbers
-  collapse="1-17"
-  mark="25-30"
-/>
-
-<ApiResponse status={404}>
+<ApiResponse status={409}>
 {`
   {
     "error": {
-      "status": 404,
-      "message": "Usuário não encontrado"
+      "status": 409,
+      "message": "E-mail já cadastrado"
     }
   }
 `}
 </ApiResponse>
 
-<Aside type="tip" title="Não vaze detalhes internos">
-  Repare que erros `5xx` respondem uma mensagem genérica: stack traces e mensagens de
-  banco vão para o log do servidor, nunca para o cliente.
+## Subrecursos e relações
+
+Quando um recurso só existe dentro de outro, o caminho reflete isso:
+
+```text title="Aninhamento"
+GET  /users/1/investments        investimentos daquele usuário
+POST /users/1/investments        cria um investimento para ele
+GET  /investments/42             o mesmo recurso, por id próprio
+```
+
+<Aside type="tip" title="Um nível de aninhamento basta">
+  `/users/1/investments/42/transactions/7` é difícil de ler e de manter. A convenção é
+  aninhar apenas para **listar e criar**, e expor o recurso por id próprio para ler,
+  atualizar e remover.
 </Aside>
 
-## Idempotência
+## Versionamento
 
-- `GET`, `PUT` e `DELETE` são **idempotentes**: repetir a chamada leva ao mesmo
-  estado final.
-- `POST` **não** é: dois `POST /users` criam dois usuários.
+Uma mudança que quebra clientes existentes — remover um campo, mudar o tipo, alterar o
+formato do erro — exige uma versão nova. O caminho é a forma mais simples e visível:
 
-Isso importa quando o cliente tem retry automático.
+<Mermaid title="Versionamento de API por prefixo de caminho">
+{`
+flowchart TD
+  A["app"] --> B["app.use('/api/v1', v1Router)"]
+  A --> C["app.use('/api/v2', v2Router)"]
+  B --> D["Clientes antigos<br/>continuam funcionando"]
+  C --> E["Clientes novos<br/>formato revisado"]
+`}
+</Mermaid>
+
+```ts title="src/app.ts" showLineNumbers
+app.use('/api/v1', v1Router);
+app.use('/api/v2', v2Router);
+```
+
+Acrescentar um campo opcional **não** quebra ninguém e não exige versão nova. Remover ou
+renomear, sim.
+
+## Erros padronizados
+
+Uma API previsível responde erro sempre no mesmo formato — é o que o middleware de erro
+garante, venha a falha de onde vier:
+
+<SourceCode
+  path="examples/express/projects/typescript/src/middlewares/error-handler.ts"
+  title="src/middlewares/error-handler.ts"
+  showLineNumbers
+  lines="14-27"
+/>
+
+<Aside type="tip" title="Não vaze detalhes internos">
+  Erros `5xx` respondem uma mensagem genérica: stack traces e mensagens do banco vão para o
+  log do servidor, nunca para o cliente. Uma mensagem de erro de SQL entrega o nome das
+  tabelas a quem estiver sondando a API.
+</Aside>
 
 ## Exercício
 
-Documente, em uma tabela, todos os endpoints do recurso **produtos** que você criou
-no exercício da aula de MVC: método, caminho, corpo esperado, status de sucesso e
-status de erro possíveis.
+Documente, em uma tabela, todos os endpoints do recurso **produtos** criado no exercício de
+MVC. Para cada um: método, caminho, corpo esperado, status de sucesso e todos os status de
+erro possíveis. Depois, responda para cada endpoint se ele é seguro e se é idempotente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  | Método | Caminho          | Corpo                    | Sucesso | Erros              | Seguro | Idempotente |
+  | ------ | ---------------- | ------------------------ | ------- | ------------------ | ------ | ----------- |
+  | GET    | `/products`      | —                        | `200`   | —                  | sim    | sim         |
+  | GET    | `/products/:id`  | —                        | `200`   | `400`, `404`       | sim    | sim         |
+  | POST   | `/products`      | `{ name, price }`        | `201`   | `400`, `409`, `415`| não    | não         |
+  | PUT    | `/products/:id`  | `{ name, price }`        | `200`   | `400`, `404`, `415`| não    | sim         |
+  | DELETE | `/products/:id`  | —                        | `204`   | `400`, `404`       | não    | sim         |
+
+  O `400` de `/products/:id` cobre o id não numérico; o `409`, o nome já cadastrado.
+</details>
+
+## Desafio
+
+Modele os endpoints de um recurso que não é CRUD: "reenviar o e-mail de confirmação de uma
+conta". Proponha duas soluções — uma modelando a ação como recurso e outra com verbo no
+caminho — e justifique qual você escolheria e por quê.
+
+## Perguntas de revisão
+
+### Recursos e verbos
+
+1. **Por que `GET /listarUsuarios` é pior que `GET /users`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque duplica no caminho a informação que o método já carrega, e multiplica os
+     endpoints: cada operação passa a exigir um caminho novo em vez de reaproveitar o mesmo
+     recurso com verbos diferentes.
+   </details>
+
+2. **Qual a diferença prática entre `PUT` e `PATCH`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `PUT` substitui o recurso inteiro — campos omitidos são apagados. `PATCH` altera apenas
+     os campos enviados. Implementar `PUT` com semântica de `PATCH` sem documentar surpreende
+     quem confia na substituição.
+   </details>
+
+3. **Por que `POST` não é idempotente?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque cada chamada cria um recurso novo: repetir depois de um timeout gera duplicatas.
+     É por isso que clientes com retentativa automática precisam de cuidado extra em `POST`.
+   </details>
+
+### Status
+
+4. **Quando usar `409` em vez de `400`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Quando a requisição está bem formada, mas conflita com o estado atual do servidor — um
+     e-mail já cadastrado, por exemplo. `400` é sobre a entrada; `409`, sobre o estado.
+   </details>
+
+5. **Por que uma resposta `5xx` não deve conter a mensagem original do erro?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque ela costuma revelar estrutura interna — nomes de tabelas, caminhos de arquivo,
+     versões de biblioteca — que ajudam quem estiver sondando a API. O detalhe vai para o
+     log; o cliente recebe uma mensagem genérica.
+   </details>
+
+## Referências
+
+- [HTTP request methods | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods)
+- [HTTP response status codes | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
+- [Idempotent | MDN Glossary](https://developer.mozilla.org/en-US/docs/Glossary/Idempotent)
+- [RFC 9110 — HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110.html)
 
 ## Próxima aula
 
-[Banco de Dados → SQL](../../../database/sql/fundamentals/) — persistindo os dados de verdade.
+[Tratamento de Erros](../error-handling/): como todo erro da aplicação vira uma resposta
+consistente.

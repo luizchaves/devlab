@@ -1,19 +1,130 @@
 ---
 title: "Express.js: Chamada de Sistema"
-description: "Execução de comandos de sistema a partir do Node.js e encapsulamento em rotas Express."
+description: "Execução de comandos do sistema operacional a partir de uma rota Express: exec, execFile e spawn, injeção de comando, tempo limite, extração da saída com expressões regulares e quando usar uma biblioteca."
 course: express
 sidebar:
   label: "Chamada de Sistema"
 ---
-import FileTree from '@components/FileTree.astro';
-import SourceCode from '@components/SourceCode.astro';
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
 
-## Ping com Regex
+Algumas funcionalidades não têm equivalente em JavaScript: verificar se um host responde,
+converter um vídeo, consultar o estado do sistema. Nesses casos a rota executa um programa do
+sistema operacional e transforma a saída em JSON.
 
-Comando Ping:
+## Objetivo
 
-```sh
-$ ping 8.8.8.8 -c 3
+Ao final você saberá executar comandos externos com segurança a partir de uma rota Express,
+escolher entre `exec`, `execFile` e `spawn`, impor tempo limite e extrair dados estruturados
+da saída de texto.
+
+## O módulo `node:child_process`
+
+O Node oferece três formas de criar um processo filho, com garantias diferentes:
+
+| Função      | Passa por um shell? | Saída                   | Use quando                             |
+| ----------- | ------------------- | ----------------------- | -------------------------------------- |
+| `exec`      | **sim**             | tudo de uma vez, string | precisa de pipe, `&&` ou redirecionamento |
+| `execFile`  | não                 | tudo de uma vez, string | é o caso normal — argumentos em array  |
+| `spawn`     | não                 | fluxo, aos poucos       | saída longa ou processo demorado       |
+
+<Aside type="danger" title="`exec` é injeção de comando esperando acontecer">
+  `exec` entrega a string a um shell, que interpreta `;`, `|`, `&&` e `$()`. Um parâmetro do
+  usuário no meio dessa string é execução remota de código no seu servidor.
+</Aside>
+
+## Injeção de comando
+
+O exemplo é curto e vale mais que qualquer explicação:
+
+<Tabs syncKey="child-process">
+  <TabItem label="Vulnerável">
+    ```ts title="Nunca faça isso" showLineNumbers {4}
+    import { exec } from 'node:child_process';
+
+    // req.query.host === "8.8.8.8; cat /etc/passwd"
+    exec(`ping -c 3 ${req.query.host}`, (erro, saida) => {
+      res.json({ saida });
+    });
+    ```
+
+    O shell vê dois comandos separados por `;` e executa os dois.
+  </TabItem>
+
+  <TabItem label="Seguro">
+    ```ts title="Argumentos em array" showLineNumbers {4}
+    import { execFile } from 'node:child_process';
+
+    // O valor vira UM argumento, nunca comando.
+    execFile('ping', ['-c', '3', String(req.query.host)], (erro, saida) => {
+      res.json({ saida });
+    });
+    ```
+
+    Sem shell no caminho, `;` é apenas um caractere estranho dentro do argumento.
+  </TabItem>
+</Tabs>
+
+<Mermaid title="Por que execFile impede injeção de comando">
+{`
+flowchart TD
+  A["Entrada: 8.8.8.8; cat /etc/passwd"] --> B{"Como o processo é criado?"}
+  B -->|"exec: string única"| C["Shell interpreta<br/>e vê dois comandos"]
+  B -->|"execFile: array"| D["Sistema recebe programa<br/>+ lista de argumentos"]
+  C --> E["ping executa<br/>e cat também"]
+  D --> F["ping recebe um host<br/>com caracteres inválidos e falha"]
+`}
+</Mermaid>
+
+Validar a entrada continua sendo necessário — `execFile` protege o **shell**, não o programa
+chamado:
+
+```ts title="src/validators/host.ts" showLineNumbers {1,4}
+const HOST = /^[a-zA-Z0-9.-]{1,253}$/;
+
+export function assertHost(valor: unknown): string {
+  if (typeof valor !== 'string' || !HOST.test(valor)) {
+    throw new HttpError(422, 'Host inválido');
+  }
+
+  return valor;
+}
+```
+
+## Tempo limite e limite de saída
+
+Um comando externo pode travar, e a requisição trava com ele. Duas opções resolvem os dois
+cenários:
+
+```ts title="src/services/ping-service.ts" showLineNumbers {1,6-9}
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const run = promisify(execFile);
+
+export async function ping(host: string) {
+  const { stdout } = await run('ping', ['-c', '3', host], {
+    timeout: 10_000, //         mata o processo depois de 10 s
+    maxBuffer: 1024 * 64, //    recusa saídas absurdamente grandes
+  });
+
+  return parsePing(stdout);
+}
+```
+
+<Aside type="caution" title="Sem `timeout`, um processo travado segura a requisição">
+  E, pior, segura um descritor de arquivo e um processo filho. Algumas dezenas desses e o
+  servidor para de aceitar conexões — sem nenhum erro visível no log.
+</Aside>
+
+## Extraindo dados da saída
+
+O comando devolve texto pensado para humanos; a API precisa devolver JSON. Expressões
+regulares com grupos nomeados fazem a ponte:
+
+```txt title="Saída de ping -c 3 8.8.8.8"
 PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
 64 bytes from 8.8.8.8: icmp_seq=1 ttl=54 time=82.8 ms
 64 bytes from 8.8.8.8: icmp_seq=2 ttl=54 time=82.2 ms
@@ -24,67 +135,195 @@ PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
 rtt min/avg/max/mdev = 82.194/83.019/84.095/0.796 ms
 ```
 
-[Regexp](../../../ecmascript/stdlib/regex/) ([regex101](https://regex101.com/)):
+```ts title="src/services/parse-ping.ts" showLineNumbers {1,4,9}
+const PACOTE = /icmp_seq=(?<seq>\d+) ttl=(?<ttl>\d+) time=(?<time>[\d.]+)/g;
 
-```js
-// ip
-/\(([\d\.]+)\)/
+const ESTATISTICA =
+  /(?<transmitted>\d+) packets transmitted, (?<received>\d+) (?:packets )?received/;
 
-//packets
-/icmp_seq=(?<seq>\d+) ttl=(?<ttl>\d+) time=(?<time>[\d\.]+)/g
+export function parsePing(saida: string) {
+  const pacotes = [...saida.matchAll(PACOTE)].map(({ groups }) => ({
+    seq: Number(groups?.seq),
+    ttl: Number(groups?.ttl),
+    time: Number(groups?.time),
+  }));
 
-// statistics
-/(?<transmitted>\d+) packets transmitted, (?<received>\d+) (packets received|received)/
-/min\/avg\/max\/(stddev|mdev) = (?<min>[\d.]+)\/(?<avg>[\d.]+)\/(?<max>[\d.]+)\/(?<stddev>[\d.]+)/
+  const { groups } = saida.match(ESTATISTICA) ?? {};
+
+  return {
+    pacotes,
+    transmitidos: Number(groups?.transmitted ?? 0),
+    recebidos: Number(groups?.received ?? 0),
+  };
+}
 ```
 
-Ping API:
+<Aside type="caution" title="A saída muda entre sistemas">
+  O `ping` do macOS escreve `stddev`; o do Linux, `mdev`; o do Windows, em português,
+  escreve outra coisa. Uma expressão regular calibrada na sua máquina quebra no servidor —
+  motivo suficiente para preferir uma biblioteca quando ela existir.
+</Aside>
 
-![](/dw/imgs/expressjs/ping-command/flow.png)
+<ApiRequest method="GET" path="/api/ping?host=8.8.8.8" baseUrl="http://localhost:3000" />
 
-<FileTree>
+<ApiResponse status={200}>
 {`
-ping-command/
-    src/
-        lib/
-        index.js
-    .gitignore
-    package-lock.json
-    package.json
-    requests.http
+  {
+    "host": "8.8.8.8",
+    "transmitidos": 3,
+    "recebidos": 3,
+    "pacotes": [
+      { "seq": 1, "ttl": 54, "time": 82.8 },
+      { "seq": 2, "ttl": 54, "time": 82.2 },
+      { "seq": 3, "ttl": 54, "time": 84.1 }
+    ]
+  }
 `}
-</FileTree>
+</ApiResponse>
 
-<SourceCode path="examples/express/codes/system-call/ping-command/src/lib/ping.js" mark="10" />
+## Saída longa: `spawn`
 
-<SourceCode path="examples/express/codes/system-call/ping-command/src/index.js" />
+`exec` e `execFile` acumulam toda a saída em memória antes de entregar. Para um processo que
+escreve continuamente — um `ping` sem `-c`, uma conversão de vídeo — `spawn` entrega em
+fluxo:
 
-<SourceCode path="examples/express/codes/system-call/ping-command/requests.http" />
+```ts title="Acompanhando a saída em tempo real" showLineNumbers {1,4,8}
+const processo = spawn('ping', [host]);
 
-## Ping Package
+processo.stdout.on('data', (pedaco) => {
+  publicar('ping.linha', pedaco.toString());   // SSE, da aula anterior
+});
 
-[node-ping](https://github.com/danielzzz/node-ping)
-
-```sh
-$ npm i ping
+processo.on('close', (codigo) => {
+  publicar('ping.fim', { codigo });
+});
 ```
 
-Ping API:
+## Quando usar uma biblioteca
 
-![](/dw/imgs/expressjs/ping-package/flow.png)
+Chamar um binário externo traz três dependências invisíveis: o programa precisa existir, a
+versão precisa ser compatível e a saída precisa ter o formato esperado.
 
-<FileTree>
-{`
-ping-package/
-    src/
-        index.js
-    .gitignore
-    package-lock.json
-    package.json
-    requests.http
-`}
-</FileTree>
+| Abordagem              | Vantagem                        | Custo                                    |
+| ---------------------- | ------------------------------- | ---------------------------------------- |
+| Comando + regex        | funciona com qualquer ferramenta| frágil entre sistemas; exige o binário   |
+| Biblioteca (ex.: `ping`)| saída já estruturada           | uma dependência; menos controle          |
+| Implementação em Node  | sem processo externo            | nem sempre possível (ICMP exige privilégio)|
 
-<SourceCode path="examples/express/codes/system-call/ping-package/src/index.js" mark="4,27" />
+```bash title="Terminal"
+npm install ping
+```
 
-<SourceCode path="examples/express/codes/system-call/ping-package/requests.http" />
+```ts title="Com a biblioteca" showLineNumbers {3}
+import ping from 'ping';
+
+const { alive, time } = await ping.promise.probe(host, { timeout: 10 });
+```
+
+<Aside type="tip" title="A biblioteca também chama o comando">
+  A maioria desses pacotes faz exatamente o que esta aula descreve — e mantém as expressões
+  regulares de cada sistema operacional. O ganho é não ter de manter isso você mesmo.
+</Aside>
+
+## Exercício
+
+Crie uma rota `GET /api/ping?host=`:
+
+1. Valide o host com a expressão regular da aula, respondendo `422` quando inválido.
+2. Execute com `execFile`, com `timeout: 10_000`.
+3. Extraia pacotes e estatísticas da saída e responda em JSON.
+4. Responda `504` quando o comando estourar o tempo limite.
+5. Tente `?host=8.8.8.8;id` e confirme que nada além do `ping` é executado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/controllers/ping-controller.ts" showLineNumbers {6-8}
+  export async function show(req: Request, res: Response) {
+    const host = assertHost(req.query.host);
+
+    try {
+      res.json({ host, ...(await ping(host)) });
+    } catch (error) {
+      // `killed` indica que o processo foi encerrado pelo timeout.
+      if ((error as { killed?: boolean }).killed) {
+        throw new HttpError(504, 'O comando demorou demais');
+      }
+
+      throw new HttpError(502, 'Falha ao executar o comando');
+    }
+  }
+  ```
+
+  Com `?host=8.8.8.8;id`, a validação já recusa com `422` — e, mesmo sem ela, `execFile`
+  passaria a string inteira como um único argumento do `ping`.
+</details>
+
+## Desafio
+
+Reescreva a rota com `spawn` e transmita a saída ao cliente por Server-Sent Events, linha a
+linha, enquanto o comando ainda está rodando. Trate o encerramento e garante que o processo
+filho seja morto quando o cliente desconectar.
+
+## Perguntas de revisão
+
+### Execução
+
+1. **Qual a diferença entre `exec` e `execFile`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `exec` entrega a string a um shell, que interpreta `;`, `|` e `$()`. `execFile` chama o
+     programa diretamente com uma lista de argumentos: nada é interpretado como comando.
+   </details>
+
+2. **Quando `spawn` é preferível?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Quando a saída é longa ou contínua: `exec` e `execFile` acumulam tudo em memória antes
+     de entregar, enquanto `spawn` emite os dados em fluxo.
+   </details>
+
+### Segurança e robustez
+
+3. **`execFile` dispensa validar a entrada?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Não. Ele protege contra a interpretação pelo shell, mas o argumento ainda chega ao
+     programa — que pode ter o próprio comportamento inesperado. A validação continua sendo
+     a primeira barreira.
+   </details>
+
+4. **Por que `timeout` é obrigatório?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque um comando travado segura a requisição, um processo filho e um descritor de
+     arquivo indefinidamente. Alguns desses e o servidor para de aceitar conexões.
+   </details>
+
+5. **Por que extrair a saída com regex é frágil?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o formato varia entre sistemas operacionais, versões e idiomas. Uma expressão
+     calibrada em uma máquina pode não casar nada em outra — e a falha é silenciosa.
+   </details>
+
+## Referências
+
+- [Node.js — `child_process`](https://nodejs.org/api/child_process.html)
+- [OWASP — Command Injection](https://owasp.org/www-community/attacks/Command_Injection)
+- [Expressões Regulares](../../../ecmascript/stdlib/regex/)
+- [`ping`](https://www.npmjs.com/package/ping)
+
+## Próxima aula
+
+[Testes](../testing/): garantir que tudo isso continue funcionando amanhã.

@@ -1,134 +1,442 @@
 ---
 title: "Express.js: Testes"
-description: "Teste de Software - material da disciplina Linguagem de Programação II."
+description: "Testes de uma API Express: node:test nativo, testes de unidade e de integração com supertest, banco de testes isolado, cobertura e testes de ponta a ponta com Playwright."
 course: express
 sidebar:
   label: "Testes"
 ---
-import FileTree from '@components/FileTree.astro';
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
 import SourceCode from '@components/SourceCode.astro';
 
-<FileTree>
+Testar manualmente com o `requests.http` funciona até a décima rota. Depois disso, cada
+alteração exige repetir o mesmo roteiro — e é aí que as regressões passam. Esta aula
+automatiza essa verificação.
+
+## Objetivo
+
+Ao final você saberá escrever testes de unidade e de integração com o executor nativo do
+Node, fazer requisições ao `app` sem subir servidor, isolar o banco de testes e medir
+cobertura.
+
+## Os três níveis
+
+Cada nível responde a uma pergunta diferente e tem um custo diferente:
+
+<Mermaid title="Pirâmide de testes de uma API Express">
 {`
-invest-app-test/
-├── playwright-report/
-│   ├── data/
-│   │   └── 75b40c2386620633a9b40f9cb0c79a8ffd10fe32.zip
-│   ├── trace/
-│   │   ├── assets/
-│   │   │   ├── codeMirrorModule-CyuxU5C-.js
-│   │   │   └── defaultSettingsView-5nVJRt0A.js
-│   │   ├── codeMirrorModule.C3UTv-Ge.css
-│   │   ├── codicon.DCmgc-ay.ttf
-│   │   ├── defaultSettingsView.2xeEXCXv.css
-│   │   ├── index.CFOW-Ezb.css
-│   │   ├── index.html
-│   │   ├── index.qVn2ZnpC.js
-│   │   ├── playwright-logo.svg
-│   │   ├── snapshot.html
-│   │   ├── sw.bundle.js
-│   │   ├── uiMode.BatfzHMG.css
-│   │   ├── uiMode.html
-│   │   ├── uiMode.m4IPRPOd.js
-│   │   └── xtermModule.Beg8tuEN.css
-│   └── index.html
-├── prisma/
-│   ├── migrations/
-│   │   ├── 20230826214323_init/
-│   │   │   └── migration.sql
-│   │   ├── 20230902014613_create_category/
-│   │   │   └── migration.sql
-│   │   ├── 20230902065351_create_user/
-│   │   │   └── migration.sql
-│   │   ├── 20230902111235_create_investment_broker_interest_created_at/
-│   │   │   └── migration.sql
-│   │   ├── 20230902131930_create_investment_user_cascade/
-│   │   │   └── migration.sql
-│   │   ├── 20230905183705_user_image/
-│   │   │   └── migration.sql
-│   │   └── migration_lock.toml
-│   ├── dev.db
-│   ├── schema.prisma
-│   ├── seed.js
-│   └── seeders.json
-├── public/
-│   ├── css/
-│   │   └── style.css
-│   ├── imgs/
-│   │   ├── profile/
-│   │   │   ├── 9948180954ee1846a214c710ada7a2a5-avatar.png
-│   │   │   └── avatar.png
-│   │   └── .DS_Store
-│   ├── js/
-│   │   ├── lib/
-│   │   │   ├── auth.js
-│   │   │   └── format.js
-│   │   ├── services/
-│   │   │   └── api.js
-│   │   ├── home.js
-│   │   ├── profile.js
-│   │   ├── signin.js
-│   │   └── signup.js
-│   ├── home.html
-│   ├── profile.html
-│   ├── signin.html
-│   └── signup.html
-├── src/
-│   ├── config/
-│   │   ├── mail.js
-│   │   └── multer.js
-│   ├── database/
-│   │   └── database.js
-│   ├── middleware/
-│   │   ├── auth.js
-│   │   └── validate.js
-│   ├── models/
-│   │   ├── Category.js
-│   │   ├── Image.js
-│   │   ├── Investment.js
-│   │   └── User.js
-│   ├── services/
-│   │   └── SendMail.js
-│   ├── index.js
-│   ├── routes.js
-│   └── routes.test.js
-├── test-results/
-│   └── invest-app-Invest-App-shou-ecda9-n-in-and-manage-investments-chromium/
-│       └── trace.zip
-├── tests/
-│   └── invest-app.spec.js
-├── .env
-├── .env.example
-├── .gitignore
-├── package-lock.json
-├── package.json
-├── playwright.config.js
-└── requests.http
+flowchart TD
+  A["Ponta a ponta (poucos)<br/>navegador → front → API → banco"] --> B["Integração (vários)<br/>requisição HTTP → rota → model → banco"]
+  B --> C["Unidade (muitos)<br/>uma função pura, sem I/O"]
 `}
-</FileTree>
+</Mermaid>
 
-## Back-end
+| Nível        | O que exercita                     | Velocidade | Ferramenta            |
+| ------------ | ---------------------------------- | ---------- | --------------------- |
+| Unidade      | uma função isolada                  | ms         | `node:test`           |
+| Integração   | rota + middlewares + model + banco  | dezenas de ms | `node:test` + `supertest` |
+| Ponta a ponta| navegador operando a interface      | segundos   | Playwright            |
 
-```bash
-$ npm install supertest -D
+<Aside type="tip" title="Em uma API, o teste de integração é o que mais paga">
+  Ele cobre o caminho completo — validação, autorização, status, formato da resposta — com
+  custo baixo. Testes de unidade valem para lógica pura (hash, JWT, cálculo); os de ponta a
+  ponta, para os dois ou três fluxos críticos.
+</Aside>
+
+## O executor nativo
+
+Desde o Node 20, `node --test` é estável: não há Jest, Vitest nem configuração para
+instalar.
+
+```json title="package.json" showLineNumbers {3-5}
+{
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "test:coverage": "node --test --experimental-test-coverage"
+  }
+}
 ```
 
-<SourceCode path="examples/express/lp2/invest-app-test/src/routes.test.js" />
+O vocabulário é o mesmo de qualquer framework de testes:
 
-```bash
-$ node --test **/*.test.js
-$ npm run test
+<SourceCode
+  path="examples/express/projects/auth/src/utils/jwt.test.ts"
+  title="src/utils/jwt.test.ts"
+  showLineNumbers
+  mark="1-2,12-18"
+/>
+
+```bash title="Terminal"
+npm test
 ```
 
-## Front-end
-
-```bash
-$ npm init playwright
+```txt title="Output"
+▶ verifyJwt
+  ✔ devolve o payload de um token valido (0.19ms)
+  ✔ rejeita um token adulterado (0.18ms)
+  ✔ rejeita um token expirado (0.07ms)
+✔ verifyJwt (0.54ms)
+ℹ tests 9
+ℹ pass 9
+ℹ fail 0
 ```
 
-<SourceCode path="examples/express/lp2/invest-app-test/tests/invest-app.spec.js" />
+<Aside type="note" title="`node:assert/strict` em vez de `expect`">
+  `assert.equal` já compara com `===`, `assert.deepEqual` compara estruturas e
+  `assert.throws` verifica exceções. A API é menor que a de um framework — e não precisa ser
+  instalada.
+</Aside>
 
-```bash
-$ npx playwright test --ui
-$ npm run e2e
+## Teste de unidade
+
+O melhor candidato é a função pura, sem I/O. As funções de senha e de token da aula de
+[Senhas e Hash](../../auth/passwords/) são exemplos exatos:
+
+<SourceCode
+  path="examples/express/projects/auth/src/utils/password.test.ts"
+  title="src/utils/password.test.ts"
+  lines="6-15"
+  showLineNumbers
+/>
+
+Repare que o teste verifica **propriedades**, não valores fixos: o hash muda a cada execução,
+então comparar com uma constante seria impossível.
+
+## Teste de integração com `supertest`
+
+O [`supertest`](https://www.npmjs.com/package/supertest) faz requisições diretamente ao
+`app`, sem abrir porta — é por isso que `app.ts` e `server.ts` são arquivos separados desde a
+aula de [Rotas](../../basics/routes/).
+
+```bash title="Terminal"
+npm install --save-dev supertest @types/supertest
 ```
+
+```ts title="src/routes/user-router.test.ts" showLineNumbers {6,10,13,17-19}
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import request from 'supertest';
+
+import app from '#app.ts';
+
+describe('GET /users', () => {
+  it('responde 200 com a lista', async () => {
+    const response = await request(app).get('/users');
+
+    assert.equal(response.status, 200);
+    assert.ok(Array.isArray(response.body));
+  });
+});
+
+describe('POST /users', () => {
+  it('cria e devolve 201 com o recurso', async () => {
+    const response = await request(app)
+      .post('/users')
+      .send({ name: 'Carla', email: 'carla@example.com' });
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.name, 'Carla');
+    // A resposta não pode conter a senha, nem mesmo em hash.
+    assert.equal(response.body.password, undefined);
+  });
+
+  it('responde 422 sem os campos obrigatórios', async () => {
+    const response = await request(app).post('/users').send({});
+
+    assert.equal(response.status, 422);
+  });
+});
+```
+
+<Aside type="tip" title="Teste o erro tanto quanto o sucesso">
+  Um teste que só cobre o caminho feliz não percebe quando a validação some. A regra prática:
+  para cada rota, um teste de sucesso e um por status de erro previsto no contrato.
+</Aside>
+
+## Testando rotas protegidas
+
+O token é obtido no próprio teste, com o mesmo fluxo que o cliente usa:
+
+```ts title="src/routes/investment-router.test.ts" showLineNumbers {4,10,17}
+async function login(email = 'ana@example.com', password = 'senha-secreta') {
+  const { body } = await request(app).post('/auth/signin').send({ email, password });
+
+  return body.token as string;
+}
+
+describe('GET /investments', () => {
+  it('responde 401 sem token', async () => {
+    const response = await request(app).get('/investments');
+
+    assert.equal(response.status, 401);
+  });
+
+  it('responde 200 com token válido', async () => {
+    const token = await login();
+
+    const response = await request(app)
+      .get('/investments')
+      .set('Authorization', `Bearer ${token}`);
+
+    assert.equal(response.status, 200);
+  });
+});
+```
+
+E o teste que realmente importa em uma API multiusuário — o de autorização:
+
+```ts title="src/routes/investment-router.test.ts" showLineNumbers {8}
+it('não devolve investimentos de outro usuário', async () => {
+  const tokenDaAna = await login('ana@example.com', 'senha-secreta');
+  const tokenDoBruno = await login('bruno@example.com', 'outra-senha');
+
+  const { body: criado } = await request(app)
+    .post('/investments')
+    .set('Authorization', `Bearer ${tokenDaAna}`)
+    .send({ name: 'CDB', amount: 15000 });
+
+  const response = await request(app)
+    .delete(`/investments/${criado.id}`)
+    .set('Authorization', `Bearer ${tokenDoBruno}`);
+
+  assert.equal(response.status, 404);
+});
+```
+
+## Isolando o banco
+
+Um teste que grava no banco de desenvolvimento apaga os dados de quem está desenvolvendo — e
+falha na segunda execução. Três estratégias:
+
+<Tabs syncKey="test-db">
+  <TabItem label="Banco separado">
+    ```ini title=".env.test"
+    DATABASE_URL="file:./test.db"
+    ```
+
+    ```json title="package.json"
+    { "scripts": { "test": "node --env-file=.env.test --test" } }
+    ```
+
+    Estrutura real, dados descartáveis. É o padrão para projetos com Prisma.
+  </TabItem>
+
+  <TabItem label="SQLite em memória">
+    ```ini title=".env.test"
+    DATABASE_URL="file::memory:?cache=shared"
+    ```
+
+    Rápido e sem resíduo em disco; some ao final do processo.
+  </TabItem>
+
+  <TabItem label="Estado por teste">
+    ```ts title="src/routes/user-router.test.ts" showLineNumbers {2}
+    beforeEach(async () => {
+      await resetDatabase();   // limpa tabelas e reaplica o seed
+    });
+    ```
+
+    Garante que a ordem dos testes não importe.
+  </TabItem>
+</Tabs>
+
+<Aside type="caution" title="Teste que depende da ordem é teste quebrado">
+  Se o segundo teste só passa porque o primeiro criou um registro, o conjunto falha ao rodar
+  em paralelo ou isolado. `beforeEach` com estado conhecido resolve — e é o que permite usar
+  `--test-concurrency`.
+</Aside>
+
+## Cobertura
+
+O Node mede cobertura sem ferramenta adicional:
+
+```bash title="Terminal"
+npm run test:coverage
+```
+
+```txt title="Output"
+# start of coverage report
+# file                          | line % | branch % | funcs %
+# src/controllers/…controller.ts |  92.31 |    83.33 |  100.00
+# src/middlewares/authorize.ts   |  76.47 |    62.50 |  100.00
+# src/utils/password.ts          | 100.00 |   100.00 |  100.00
+# all files                      |  88.14 |    79.17 |   97.06
+# end of coverage report
+```
+
+<Aside type="caution" title="Cobertura alta não é qualidade">
+  Ela mede quais linhas **executaram**, não se o comportamento está correto. Um teste sem
+  nenhum `assert` produz cobertura idêntica a um teste rigoroso. Use o número para achar o
+  que **não** foi testado — nunca como meta.
+</Aside>
+
+Duas ferramentas de foco ajudam durante o desenvolvimento:
+
+```ts title="Isolando e pulando testes"
+it.only('só este roda no arquivo', () => {});
+
+it.skip('ignorado, mas ainda aparece no relatório', () => {});
+
+it.todo('ainda a escrever');
+```
+
+## Ponta a ponta com Playwright
+
+O teste de ponta a ponta abre um navegador real e opera a interface — front-end, API e banco
+juntos:
+
+```bash title="Terminal"
+npm init playwright@latest
+```
+
+```ts title="tests/investimentos.spec.ts" showLineNumbers {5,10,14}
+import { expect, test } from '@playwright/test';
+
+test('cadastra um investimento pela interface', async ({ page }) => {
+  await page.goto('/signin.html');
+  await page.fill('#email', 'ana@example.com');
+  await page.fill('#password', 'senha-secreta');
+  await page.click('button[type="submit"]');
+
+  await page.goto('/home.html');
+  await page.fill('#name', 'Tesouro Selic 2029');
+  await page.fill('#amount', '20000');
+  await page.click('#salvar');
+
+  await expect(page.locator('.investment-list')).toContainText('Tesouro Selic 2029');
+});
+```
+
+<Aside type="note" title="Poucos, e nos fluxos que importam">
+  Testes de ponta a ponta são lentos e mais frágeis: uma mudança de layout os quebra. Dois ou
+  três — login, o fluxo principal, o pagamento — dão a maior parte da confiança.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Rode a suíte completa:
+
+   ```bash title="Terminal"
+   npm test
+   ```
+
+2. Deixe rodando enquanto desenvolve:
+
+   ```bash title="Terminal"
+   npm run test:watch
+   ```
+
+3. Veja o que ficou sem cobertura:
+
+   ```bash title="Terminal"
+   npm run test:coverage
+   ```
+
+</Steps>
+
+## Exercício
+
+No projeto `express-auth`:
+
+1. Instale o `supertest` e escreva `src/routes/auth-router.test.ts`.
+2. Cubra: cadastro com sucesso (`201`), senha curta (`422`), e-mail duplicado (`409`), login
+   correto (`200` com token) e senha errada (`401`).
+3. Escreva um teste que confirme que **nenhuma** resposta contém a chave `password`.
+4. Escreva o teste de autorização: um usuário não apaga o investimento de outro.
+5. Rode com cobertura e identifique qual arquivo está menos coberto.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/routes/auth-router.test.ts" showLineNumbers {8-10}
+  describe('POST /auth/signup', () => {
+    it('não devolve a senha em nenhuma forma', async () => {
+      const response = await request(app).post('/auth/signup').send({
+        name: 'Teste',
+        email: `teste-${Date.now()}@example.com`,
+        password: 'senha-secreta',
+      });
+
+      assert.equal(response.status, 201);
+      assert.equal(response.body.password, undefined);
+      assert.ok(!JSON.stringify(response.body).includes('argon2'));
+    });
+  });
+  ```
+
+  O `Date.now()` no e-mail evita colisão entre execuções — alternativa a limpar o estado no
+  `beforeEach`.
+</details>
+
+## Desafio
+
+Configure a suíte para rodar em uma GitHub Action a cada push: `npm ci`, `npm run typecheck`
+e `npm test`, com `DATABASE_URL` apontando para um banco de teste. Faça a ação falhar
+propositalmente removendo uma validação e confirme que o teste correspondente acusa.
+
+## Perguntas de revisão
+
+### Níveis
+
+1. **Por que o teste de integração é o mais valioso em uma API?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque exercita o caminho completo — validação, autorização, status, formato da
+     resposta — com custo baixo. É onde moram as regressões que mais afetam quem consome a
+     API.
+   </details>
+
+2. **Por que `app.ts` precisa ser separado de `server.ts` para testar?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o `supertest` importa o `app` e faz requisições sem abrir porta. Com o `listen`
+     no mesmo arquivo, cada arquivo de teste tentaria subir um servidor na mesma porta.
+   </details>
+
+### Prática
+
+3. **Por que testar os status de erro, e não só o sucesso?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a validação e a autorização são exatamente o que some sem ninguém perceber. Um
+     teste que só cobre o caminho feliz continua passando com a API aberta.
+   </details>
+
+4. **O que 100% de cobertura garante?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Que todas as linhas executaram durante os testes — nada além disso. Um teste sem
+     `assert` produz a mesma cobertura que um rigoroso. O número serve para achar o que não
+     foi testado.
+   </details>
+
+5. **Por que um teste não deve depender de outro?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a suíte deixa de funcionar isolada ou em paralelo, e a falha de um teste passa a
+     derrubar vários outros — escondendo a causa real.
+   </details>
+
+## Referências
+
+- [Node.js — Test runner](https://nodejs.org/api/test.html)
+- [Node.js — `assert`](https://nodejs.org/api/assert.html)
+- [`supertest`](https://www.npmjs.com/package/supertest)
+- [Playwright](https://playwright.dev/)
+
+## Próxima aula
+
+[Deploy](../deploy/): colocar tudo isso no ar.

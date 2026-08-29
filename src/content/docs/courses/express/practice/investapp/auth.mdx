@@ -1,0 +1,338 @@
+---
+title: "InvestApp: Autenticação"
+description: "Sexta etapa do InvestApp: login com JWT assinado por node:crypto, middleware isAuthenticated, investimentos filtrados por dono e sessão no front-end com localStorage."
+course: express
+sidebar:
+  label: "6. Autenticação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Etapa **6 de 6** · Nível **Avançado** · TypeScript · Prisma · JWT nativo
+
+A última etapa fecha o ciclo: o usuário faz login, recebe um token, e cada investimento passa
+a pertencer a quem o criou.
+
+<ProjectLinks repo="luizchaves/lp2-2026" branch="main" path="classroom/back-end/investment-api" />
+
+## O fluxo
+
+<Mermaid title="Ciclo de autenticação do InvestApp">
+{`
+sequenceDiagram
+  participant F as Front (public/)
+  participant A as API Express
+  participant D as Banco (Prisma)
+  F->>A: POST /api/signin { email, password }
+  A->>D: readByEmailWithPassword(email)
+  D-->>A: usuário + hash Argon2id
+  A->>A: verifyPassword → signJwt
+  A-->>F: { auth: true, token }
+  Note over F: localStorage guarda o token
+  F->>A: GET /api/investments<br/>Authorization: Bearer …
+  A->>A: isAuthenticated → req.userId
+  A->>D: findMany({ where: { userId } })
+  D-->>A: só os investimentos do dono
+  A-->>F: 200 [ … ]
+`}
+</Mermaid>
+
+## O login
+
+Uma rota nova, e ela é a única que ainda toca em senha:
+
+```ts title="src/controllers/auth.controller.ts" showLineNumbers {6,8,14-19}
+async function signin(req: Request, res: Response) {
+  const { email, password } = req.body as UserInput;
+
+  try {
+    const user = await User.readByEmailWithPassword(email);
+
+    if (!verifyPassword(password, user.password)) {
+      throw new Error('Invalid credentials');
+    }
+
+    const { password: _password, ...signedUser } = user;
+
+    const token = signJwt({
+      userId: signedUser.id,
+      name: signedUser.name,
+      email: signedUser.email,
+    });
+
+    return res.json({ auth: true, token });
+  } catch (error) {
+    // A mesma resposta para e-mail inexistente e senha errada.
+    throw new HttpError('Invalid credentials', 401);
+  }
+}
+```
+
+## O token
+
+Assinado com HMAC-SHA256 do `node:crypto` — sem `jsonwebtoken`:
+
+```ts title="src/utils/jwt.ts" showLineNumbers {1,4,10}
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+function sign(data: string): string {
+  return toBase64Url(createHmac('sha256', JWT_SECRET).update(data).digest());
+}
+
+export function signJwt(payload, expiresInSeconds = DEFAULT_EXPIRES_IN_SECONDS): string {
+  const now = Math.floor(Date.now() / 1000);
+  const encodedHeader = toBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const encodedPayload = toBase64Url(JSON.stringify({ ...payload, iat: now, exp: now + expiresInSeconds }));
+  const data = `${encodedHeader}.${encodedPayload}`;
+
+  return `${data}.${sign(data)}`;
+}
+```
+
+## O middleware
+
+Ele lê o cabeçalho, valida o token e guarda o dono em `req.userId`:
+
+```ts title="src/middlewares/auth.ts" showLineNumbers {2,8,12}
+export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  const authorization = req.headers.authorization;
+  const [, token] = authorization?.split(' ') ?? [];
+
+  if (!token) {
+    return res.status(401).json({ auth: false, message: 'Token required.' });
+  }
+
+  try {
+    const payload = verifyJwt(token);
+
+    req.userId = payload.userId;
+
+    return next();
+  } catch (error) {
+    return res.status(401).json({ auth: false, message: 'Token invalid.' });
+  }
+}
+```
+
+Para o TypeScript aceitar `req.userId`, o `Request` do Express é estendido:
+
+```ts title="src/types/express.d.ts" showLineNumbers {4}
+declare global {
+  namespace Express {
+    interface Request {
+      userId?: string;
+    }
+  }
+}
+
+export {};
+```
+
+## Investimentos por dono
+
+Todas as rotas do recurso passam pelo middleware, e o `userId` vem do **token**:
+
+```ts title="src/routes/investments.routes.ts" showLineNumbers {1,3}
+router.post('/investments', isAuthenticated, requireJson, InvestmentController.create);
+router.get('/investments', isAuthenticated, InvestmentController.read);
+router.get('/investments/:id', isAuthenticated, InvestmentController.readById);
+router.put('/investments/:id', isAuthenticated, requireJson, InvestmentController.update);
+router.delete('/investments/:id', isAuthenticated, InvestmentController.remove);
+```
+
+```ts title="src/controllers/investments.controller.ts" showLineNumbers {3,6,13}
+async function read(req: Request, res: Response) {
+  const { name } = req.query as { name?: string };
+  const userId = getUserId(req);
+
+  // O filtro por dono entra na consulta, não depois dela.
+  const filters = name ? { name, userId } : { userId };
+
+  res.json(await Investment.read(filters));
+}
+
+async function readById(req: Request<{ id: string }>, res: Response) {
+  const investment = await Investment.readById(req.params.id);
+
+  if (investment.userId !== getUserId(req)) {
+    throw new HttpError('Unauthorized', 403);
+  }
+
+  res.json(investment);
+}
+```
+
+<Aside type="danger" title="`userId` vem do token, nunca do corpo">
+  Aceitar `userId` em `req.body` permitiria criar e ler investimentos em nome de outra
+  pessoa. O único lugar confiável é o payload do token, que foi assinado pelo servidor.
+</Aside>
+
+## A sessão no front-end
+
+O front guarda o token em `localStorage` e decodifica o payload para saber quem está logado —
+sem consultar a API:
+
+```js title="public/js/lib/session.js" showLineNumbers {4,10,16}
+const TOKEN_STORAGE_KEY = '@invest-app:token';
+
+export function getAuthHeaders() {
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export function getCurrentUser() {
+  const payload = decodeJwtPayload(getToken());
+  const now = Math.floor(Date.now() / 1000);
+
+  if (!payload?.userId || !payload?.exp || payload.exp < now) {
+    clearToken();
+    return null;
+  }
+
+  return { id: payload.userId, name: payload.name, email: payload.email };
+}
+```
+
+<Aside type="caution" title="Decodificar não é validar">
+  O front lê o payload só para decidir o que exibir. Quem valida a assinatura é o servidor —
+  um token adulterado passaria na leitura do navegador e seria recusado na primeira chamada à
+  API.
+</Aside>
+
+## Estrutura
+
+<FileTree>
+{`
+  investment-api/
+  ├── docs/
+  │   └── auth.excalidraw          diagrama do fluxo
+  ├── public/
+  │   ├── home.html
+  │   ├── signin.html
+  │   ├── signup.html
+  │   └── js/
+  │       ├── lib/
+  │       │   └── session.js       token, usuário atual e menu
+  │       ├── home.js
+  │       ├── signin.js
+  │       └── signup.js
+  └── src/
+      ├── controllers/
+      │   └── auth.controller.ts
+      ├── middlewares/
+      │   └── auth.ts
+      ├── routes/
+      │   └── auth.routes.ts
+      ├── types/
+      │   └── express.d.ts
+      └── utils/
+          ├── jwt.ts
+          └── password.ts
+`}
+</FileTree>
+
+## Executando
+
+<Steps>
+
+1. Troque para a branch principal e instale:
+
+   ```bash title="Terminal"
+   git switch main
+   npm install
+   cp .env.example .env
+   ```
+
+2. Recrie o banco com o usuário administrador do seed:
+
+   ```bash title="Terminal"
+   npm run db:reload
+   ```
+
+3. Suba e entre em <code>http://localhost:3000/signin.html</code>:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+</Steps>
+
+Usuário do seed: `admin@email.com` / `admin`.
+
+## Testando
+
+<ApiRequest method="POST" path="/api/signin" baseUrl="http://localhost:3000">
+{`
+  {
+    "email": "admin@email.com",
+    "password": "admin"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={200}>
+{`
+  {
+    "auth": true,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…"
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="GET" path="/api/investments" baseUrl="http://localhost:3000" description="Sem o cabeçalho Authorization" />
+
+<ApiResponse status={401}>
+{`
+  {
+    "auth": false,
+    "message": "Token required."
+  }
+`}
+</ApiResponse>
+
+O `request.http` do projeto encadeia as requisições: o token do `signin` é reaproveitado
+automaticamente nas seguintes.
+
+```http title="request.http" showLineNumbers {2,6}
+@server = http://localhost:3000
+@token = {{signin.response.body.$.token}}
+
+### Read authenticated user
+GET {{server}}/api/users/me
+Authorization: Bearer {{token}}
+```
+
+## O diff que importa
+
+```bash title="Terminal"
+git diff create-user main -- classroom/back-end/investment-api
+```
+
+Aparecem o `utils/jwt.ts`, o `middlewares/auth.ts`, a rota de login e — o mais importante —
+o filtro por `userId` em todas as consultas de investimento. Autenticar sem esse filtro
+deixaria a API aberta a quem tivesse qualquer conta.
+
+## Conceitos abordados
+
+- Login com verificação de senha em tempo constante
+- JWT HS256 assinado e verificado com `node:crypto`
+- Middleware de autenticação populando `req.userId`
+- Extensão do `Request` do Express por *declaration merging*
+- Filtro por dono na consulta e verificação de posse por id
+- Sessão no front-end com `localStorage` e leitura do payload
+
+<Aside type="tip">
+  As aulas correspondentes são [Autenticação](../../../auth/authentication/) e
+  [Autorização](../../../auth/authorization/).
+</Aside>
+
+## Onde continuar
+
+O InvestApp está completo do ponto de vista do guia. Os próximos passos naturais são
+[Validação](../../../api/validation/) com schemas, [Testes](../../../advanced/testing/) de
+integração cobrindo o contrato e [Deploy](../../../advanced/deploy/).
