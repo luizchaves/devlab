@@ -1,7 +1,231 @@
 ---
 title: "Pacotes: Supabase Auth"
-description: "Supabase Auth - material da disciplina Programação para Web 2."
+description: "Autenticação de usuários com Supabase Auth: cadastro, login com e-mail e senha, gestão de sessão JWT e proteção de rotas."
 course: packages
 sidebar:
   label: "Supabase Auth"
 ---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Supabase Auth** é o serviço integrado de gestão de identidades e autenticação do Supabase. Ele fornece autenticação completa por e-mail/senha, links mágicos de acesso (*Magic Links*), provedores sociais (Google, GitHub, Apple) e emissão automática de tokens **JWT** (*JSON Web Tokens*) integrados diretamente com as políticas de segurança RLS do PostgreSQL.
+
+## Objetivo
+
+Compreender o funcionamento da autenticação no Supabase, implementar fluxos de registro de novos usuários (`signUp`), login (`signInWithPassword`), logout (`signOut`), escuta de mudanças no estado da sessão com `onAuthStateChange` e integração de permissões por usuário no banco de dados.
+
+---
+
+## Arquitetura de Autenticação do Supabase
+
+O Supabase Auth lida com a emissão e renovação automática dos tokens JWT no cliente:
+
+<Mermaid title="Fluxo de Autenticação com Supabase Auth">
+{`
+flowchart TD
+  User["Usuário (Formulário de Login)"] -- "email + senha" --> SDK["supabase.auth.signInWithPassword()"]
+  SDK -- "Autentica via GoTrue API" --> AuthServer["Supabase Auth Server"]
+  AuthServer -- "Retorna JWT AccessToken + User Object" --> SDK
+  SDK -- "Persiste JWT no localStorage" --> Browser["Sessão Ativa no Navegador"]
+  Browser -- "Requisições com Header Authorization: Bearer JWT" --> Postgres[(PostgreSQL com RLS auth.uid())]
+`}
+</Mermaid>
+
+<Aside type="tip" title="Integração com RLS no Banco de Dados">
+Quando um usuário se autentica com o Supabase Auth, o token JWT gerado carrega a chave `auth.uid()`. Essa chave é lida diretamente pelo PostgreSQL nas regras de RLS, permitindo criar políticas como: *"O usuário só pode ver e alterar os seus próprios investimentos"*.
+</Aside>
+
+---
+
+## 1. Métodos de Autenticação no Front-End
+
+### Cadastro de Novo Usuário (`signUp`)
+
+O método `signUp` cria um novo usuário no banco de dados do Supabase (`auth.users`):
+
+```js title="Cadastrando um usuário com e-mail e senha"
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  import.meta.env.VITE_APP_SUPABASE_URL,
+  import.meta.env.VITE_APP_SUPABASE_KEY
+);
+
+async function cadastrarUsuario(email, password) {
+  const { data, error } = await supabase.auth.signUp({
+    email: email,
+    password: password,
+  });
+
+  if (error) {
+    console.error('Erro ao cadastrar:', error.message);
+    return null;
+  }
+
+  console.log('Usuário criado com sucesso:', data.user);
+  return data.user;
+}
+```
+
+---
+
+### Autenticação com E-mail e Senha (`signInWithPassword`)
+
+O método `signInWithPassword` valida as credenciais e armazena automaticamente a sessão JWT no cliente:
+
+```js title="Realizando o login de um usuário"
+async function realizarLogin(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email,
+    password: password,
+  });
+
+  if (error) {
+    console.error('Falha no login:', error.message);
+    throw error;
+  }
+
+  console.log('Sessão iniciada:', data.session);
+  return data.user;
+}
+```
+
+---
+
+### Encerrar Sessão (`signOut`)
+
+O método `signOut` invalida a sessão atual e limpa os tokens armazenados localmente:
+
+```js title="Realizando o logout do usuário"
+async function realizarLogout() {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error('Erro ao encerrar sessão:', error.message);
+  } else {
+    console.log('Sessão encerrada com sucesso.');
+    window.location.href = '/login';
+  }
+}
+```
+
+---
+
+## 2. Verificação de Usuário Ativo e Escuta de Eventos
+
+### Obter o Usuário Atual (`getUser`)
+
+Para verificar se existe um usuário logado na inicialização da página:
+
+```js title="Verificando se o usuário está autenticado"
+async function verificarUsuarioLogado() {
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    console.log('Nenhum usuário autenticado.');
+    return null;
+  }
+
+  console.log('Usuário ativo:', user.email);
+  return user;
+}
+```
+
+### Escutando Mudanças de Sessão em Tempo Real (`onAuthStateChange`)
+
+Utilize `onAuthStateChange` para reagir automaticamente a eventos de login, logout e renovação de token:
+
+```js title="Escutando eventos de autenticação"
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Evento de Autenticação:', event);
+
+  if (event === 'SIGNED_IN') {
+    console.log('Usuário logou:', session.user.email);
+  } else if (event === 'SIGNED_OUT') {
+    console.log('Usuário deslogou');
+  }
+});
+```
+
+---
+
+## 3. Protegendo Dados com RLS e `auth.uid()`
+
+Para vincular os registros de uma tabela ao usuário logado, adicione uma coluna `user_id` na tabela e aplique uma regra de RLS:
+
+```sql title="Criando tabela de tarefas vinculada ao usuário"
+create table todos (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id) default auth.uid(),
+  title text not null,
+  completed boolean default false
+);
+
+-- Habilita RLS na tabela
+alter table todos enable row level security;
+
+-- Política: Usuário só pode acessar seus próprios registros
+create policy "Usuários gerenciam suas próprias tarefas"
+  on todos
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+---
+
+## Executando
+
+Siga os passos para rodar o fluxo de autenticação:
+
+<Steps>
+1. Abra o painel do Supabase, acesse **Authentication > Providers** e certifique-se de que o provedor **Email** está ativado.
+2. No seu projeto front-end, crie uma tela de login simples com campos de e-mail e senha.
+3. Invoque `supabase.auth.signUp()` para registrar um usuário de teste.
+4. Execute `supabase.auth.signInWithPassword()` para autenticar e verificar o token gerado no `localStorage`.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual função do Supabase Auth é utilizada para autenticar um usuário usando e-mail e senha no cliente?
+2. Como o banco de dados PostgreSQL do Supabase descobre o ID do usuário autenticado para aplicar regras de segurança em políticas RLS?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A função `supabase.auth.signInWithPassword({ email, password })`.
+
+  2. Através da função utilitária `auth.uid()`, que extrai a chave primária do usuário a partir do token JWT enviado no cabeçalho `Authorization: Bearer <token>` da requisição.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é a vantagem de utilizar `onAuthStateChange` em vez de checar a sessão manualmente em cada página?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `onAuthStateChange` escuta alterações de estado global em tempo real (como login, logout, expiração ou renovação de token) e permite atualizar a interface automaticamente.
+   </details>
+
+2. **Onde o SDK do Supabase armazena a sessão e o token JWT por padrão no navegador?**
+   <details>
+     <summary>Possível resposta</summary>
+     No `localStorage` do navegador.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)
+- [Supabase Auth Javascript Reference](https://supabase.com/docs/reference/javascript/auth-signup)
+- [Row Level Security & Supabase Auth](https://supabase.com/docs/guides/auth/row-level-security)
+
+---
+
+## Próxima aula
+
+[Cloud Firestore](../firebase-firestore/): Banco de dados NoSQL em tempo real e persistência na nuvem com o Firebase.

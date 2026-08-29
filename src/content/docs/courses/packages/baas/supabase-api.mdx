@@ -1,33 +1,47 @@
 ---
 title: "Pacotes: Supabase API"
-description: "Supabase API - material da disciplina Programação para Web 2."
+description: "Construção e consumo de APIs REST automatizadas no Supabase via PostgREST: SQL, políticas de segurança RLS, filtros de URL e requisições HTTP."
 course: packages
 sidebar:
   label: "Supabase API"
 ---
+import { Aside, Steps } from '@astrojs/starlight/components';
 import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
-## Serviços para Dados
+O **Supabase** é uma plataforma de *Backend as a Service* (BaaS) open-source construída sobre o poderoso banco de dados relacional **PostgreSQL**. Um dos seus maiores recursos é a geração automática de uma **API RESTful de altíssimo desempenho** através do motor **PostgREST**, permitindo consultar, inserir, atualizar e deletar dados do banco diretamente via requisições HTTP sem escrever código no servidor.
 
-[Serveless API](https://supabase.com/docs/guides/api):
-- [REST API](https://supabase.com/docs/guides/api#rest-api-overview)
-  - [PostgREST](https://postgrest.org/en/stable/)
-    - [Tables and Views](https://postgrest.org/en/stable/references/api/tables_views.html#)
-  - [Build an API](https://supabase.com/docs/guides/api/quickstart)
-- GraphQL API
-- Realtime API
+## Objetivo
 
-## Finance API
+Compreender como o Supabase expõe tabelas do PostgreSQL como rotas REST com o PostgREST, configurar tabelas e políticas de segurança RLS (Row Level Security), utilizar filtros avançados na URL e realizar chamadas CRUD usando clientes HTTP e cURL.
 
-### Banco de Dados
+---
 
-https://supabase.com/dashboard/projects
+## Arquitetura do Supabase API
 
-Projeto invest-app (Table Editor)
+O PostgREST lê o esquema das tabelas do PostgreSQL e expõe endpoints HTTP nativos instantaneamente:
 
-![](/pw2/imgs/package/supabase-api/database.png)
+<Mermaid title="Arquitetura de API Automática do Supabase com PostgREST">
+{`
+flowchart TD
+  Client["Cliente HTTP (cURL / REST Client / Front-End)"] -- "GET /rest/v1/investments?value=gt.10000" --> PostgREST["Engine PostgREST (Supabase)"]
+  PostgREST -- "Valida Permissões RLS" --> RLS["Row Level Security Policy"]
+  RLS -- "Executa Consulta SQL Nativa" --> Postgres[(Banco de Dados PostgreSQL)]
+  Postgres -- "Retorna Linhas em JSON" --> Client
+`}
+</Mermaid>
 
-```sql
+<Aside type="tip" title="Serveless e Instantâneo">
+Qualquer tabela ou visão (*view*) criada no painel do Supabase torna-se imediatamente um endpoint REST documentado com suporte a filtros, ordenação e relatórios.
+</Aside>
+
+---
+
+## 1. Criando a Tabela no Banco de Dados
+
+No dashboard do Supabase (**Table Editor** ou **SQL Editor**), executamos o script DDL para criar a tabela de investimentos do projeto `invest-app`:
+
+```sql title="Criação da tabela investments no PostgreSQL"
 create table investments (
   id uuid not null default gen_random_uuid (),
   name character varying null,
@@ -36,119 +50,174 @@ create table investments (
   category character varying null,
   interest character varying null,
   created_at timestamp with time zone not null default now(),
+  constraint investments_pkey primary key (id)
 );
 ```
 
-```sql
+### Inserção de Dados Iniciais (Seed)
+
+```sql title="Inserindo registros iniciais para teste"
 insert into investments (name, value, origin, category, interest)
 values
   ('Tesouro Selic 2029', 100000, 'Tesouro Nacional', 'Pós', '100% Selic'),
   ('Tesouro IPCA 2029', 10000, 'Tesouro Nacional', 'Pós', 'IPCA + 6,10%');
 ```
 
-### Permitir Acesso Anônimo
+---
 
-[Row Level Security](https://supabase.com/docs/guides/auth/row-level-security) (Authentication > Configuration > Policies):
+## 2. Configurando Permissões de Acesso (RLS)
 
-```text
+Por padrão, o Supabase bloqueia todas as requisições públicas às tabelas por motivos de segurança através do **Row Level Security (RLS)**. Para permitir o acesso de leitura/escrita anônima em nosso ambiente de estudo, criamos uma política permissiva:
+
+```sql title="Habilitando política de acesso público no RLS"
 CREATE POLICY "Allow public access"
   ON "public"."investments"
-  as PERMISSIVE
   FOR ALL
   TO public
   USING (true)
   WITH CHECK (true);
 ```
 
-### Rotas
+---
 
-[Código Fonte (Requisição | Rest Client)](https://github.com/ifpb/pw2/tree/main/public/codes/package/supabase-api/)
+## 3. Mapeamento de Rotas e Filtros de URL (PostgREST)
 
-| Método | Caminho                               | Status | Resposta                                       |
-| ------ | ------------------------------------- | ------ | ---------------------------------------------- |
-| POST   | `/rest/v1/investments`                | `201`  | Cria um novo investimento                      |
-| GET    | `/rest/v1/investments?select=*`       | `200`  | Retorna todos os investimentos                 |
-| GET    | `/rest/v1/investments?value=gt.10000` | `200`  | Retorna todos os investimentos maior que 10000 |
-| GET    | `/rest/v1/investments?id=eq.1`        | `200`  | Retorna o investimento com id igual a 1        |
-| PATCH  | `/rest/v1/investments?id=eq.1`        | `200`  | Atualiza o investimento com id igual a 1       |
-| DELETE | `/rest/v1/investments?id=eq.1`        | `204`  | Exclui o investimento com id igual a 1         |
+O PostgREST mapeia os operadores de comparação SQL diretamente em parâmetros de consulta na URL:
 
-### Create a investment
+| Método | Caminho da URL | Status | Operação Realizada |
+| --- | --- | --- | --- |
+| **`POST`** | `/rest/v1/investments` | `201` | Cria um novo registro de investimento |
+| **`GET`** | `/rest/v1/investments?select=*` | `200` | Retorna todos os investimentos e todas as colunas |
+| **`GET`** | `/rest/v1/investments?value=gt.10000` | `200` | Filtra investimentos com valor maior que 10.000 (`gt`) |
+| **`GET`** | `/rest/v1/investments?id=eq.1` | `200` | Filtra investimento pelo campo `id` igual a 1 (`eq`) |
+| **`PATCH`** | `/rest/v1/investments?id=eq.1` | `200` | Atualiza parcialmente o investimento 1 |
+| **`DELETE`** | `/rest/v1/investments?id=eq.1` | `204` | Exclui o investimento com `id` igual a 1 |
 
-![](/pw2/imgs/package/supabase-api/post-investment.png)
+---
 
-[PostgREST - Table and Views - Insert](https://postgrest.org/en/stable/references/api/tables_views.html#insert)
+## 4. Testando as Requisições HTTP
 
-Return
-- `Prefer: return=minimal`
-- `Prefer: return=headers-only`
-- `Prefer: return=representation`
+Para autenticar com o Supabase, todas as requisições HTTP devem enviar o cabeçalho `apikey` com a chave anônima da aplicação:
 
-```ini title="codes/package/supabase-api/.env.example"
-SUPABASE_KEY=
-SUPABASE_URL=
+```ini title=".env.example"
+SUPABASE_KEY=sua_chave_anon_aqui
+SUPABASE_URL=https://seu-projeto.supabase.co
 ```
 
-#### REST Client
+### Criar um Investimento (POST)
 
-<SourceCode path="examples/packages/baas/supabase-api/create-investment.http" title="package/supabase-api/create-investment.http" />
+Controle de retorno de dados com o cabeçalho `Prefer`:
+- `Prefer: return=minimal` (Retorna 204 No Content sem corpo)
+- `Prefer: return=representation` (Retorna 201 Created contendo o objeto inserido)
 
-#### cURL
+#### REST Client (`create-investment.http`)
 
-<SourceCode path="examples/packages/baas/supabase-api/create-investment.sh" title="package/supabase-api/create-investment.sh" />
+<SourceCode path="examples/packages/baas/supabase-api/create-investment.http" title="create-investment.http" />
 
-### Read investments
+#### cURL (`create-investment.sh`)
 
-![](/pw2/imgs/package/supabase-api/get-investments.png)
+<SourceCode path="examples/packages/baas/supabase-api/create-investment.sh" title="create-investment.sh" />
 
-[PostgREST - Table and Views - Read](https://postgrest.org/en/stable/references/api/tables_views.html#read)
+---
 
-#### REST Client
+### Listar Todos os Investimentos (GET)
 
-<SourceCode path="examples/packages/baas/supabase-api/read-investments.http" title="package/supabase-api/read-investments.http" />
+#### REST Client (`read-investments.http`)
 
-#### cURL
+<SourceCode path="examples/packages/baas/supabase-api/read-investments.http" title="read-investments.http" />
 
-<SourceCode path="examples/packages/baas/supabase-api/read-investments.sh" title="package/supabase-api/read-investments.sh" />
+#### cURL (`read-investments.sh`)
 
-### Read a investment
+<SourceCode path="examples/packages/baas/supabase-api/read-investments.sh" title="read-investments.sh" />
 
-![](/pw2/imgs/package/supabase-api/get-investment.png)
+---
 
-[PostgREST - Table and Views - Read](https://postgrest.org/en/stable/references/api/tables_views.html#read)
+### Obter um Único Investimento por Filtro (GET com `eq`)
 
-#### REST Client
+#### REST Client (`read-investment.http`)
 
-<SourceCode path="examples/packages/baas/supabase-api/read-investment.http" title="package/supabase-api/read-investment.http" />
+<SourceCode path="examples/packages/baas/supabase-api/read-investment.http" title="read-investment.http" />
 
-#### cURL
+#### cURL (`read-investment.sh`)
 
-<SourceCode path="examples/packages/baas/supabase-api/read-investment.sh" title="package/supabase-api/read-investment.sh" />
+<SourceCode path="examples/packages/baas/supabase-api/read-investment.sh" title="read-investment.sh" />
 
-### Update a investment
+---
 
-![](/pw2/imgs/package/supabase-api/patch-investment.png)
+### Atualizar um Investimento (PATCH)
 
-[PostgREST - Table and Views - Update](https://postgrest.org/en/stable/references/api/tables_views.html#update)
+#### REST Client (`update-investment.http`)
 
-#### REST Client
+<SourceCode path="examples/packages/baas/supabase-api/update-investment.http" title="update-investment.http" />
 
-<SourceCode path="examples/packages/baas/supabase-api/update-investment.http" title="package/supabase-api/update-investment.http" />
+#### cURL (`update-investment.sh`)
 
-#### cURL
+<SourceCode path="examples/packages/baas/supabase-api/update-investment.sh" title="update-investment.sh" />
 
-<SourceCode path="examples/packages/baas/supabase-api/update-investment.sh" title="package/supabase-api/update-investment.sh" />
+---
 
-### Delete a investment
+### Remover um Investimento (DELETE)
 
-![](/pw2/imgs/package/supabase-api/delete-investment.png)
+#### REST Client (`delete-investment.http`)
 
-[PostgREST - Table and Views - Delete](https://postgrest.org/en/stable/references/api/tables_views.html#delete)
+<SourceCode path="examples/packages/baas/supabase-api/delete-investment.http" title="delete-investment.http" />
 
-#### REST Client
+#### cURL (`delete-investment.sh`)
 
-<SourceCode path="examples/packages/baas/supabase-api/delete-investment.http" title="package/supabase-api/delete-investment.http" />
+<SourceCode path="examples/packages/baas/supabase-api/delete-investment.sh" title="delete-investment.sh" />
 
-#### cURL
+---
 
-<SourceCode path="examples/packages/baas/supabase-api/delete-investment.sh" title="package/supabase-api/delete-investment.sh" />
+## Executando
+
+<Steps>
+1. Crie uma conta e um projeto no [Supabase Console](https://supabase.com/dashboard).
+2. Acesse o SQL Editor e execute o script de criação da tabela `investments` e a política RLS.
+3. Copie a `SUPABASE_URL` e a `SUPABASE_KEY` (anon public key) das configurações do projeto.
+4. Execute as chamadas cURL ou `.http` no seu editor para verificar as respostas JSON retornadas pelo PostgREST.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual cabeçalho HTTP é obrigatório em todas as requisições REST ao Supabase para autenticar a chave da aplicação?
+2. Como se faz uma consulta no Supabase API para filtrar apenas registros onde a coluna `category` seja exatamente igual a `'Fixa'`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O cabeçalho `apikey: SUA_CHAVE_ANON` (e opcionalmente `Authorization: Bearer SUA_CHAVE_ANON`).
+
+  2. Adicionando o parâmetro de URL `?category=eq.Fixa` no endpoint (ex: `/rest/v1/investments?category=eq.Fixa`).
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é o papel do motor PostgREST na arquitetura do Supabase?**
+   <details>
+     <summary>Possível resposta</summary>
+     O PostgREST lê a estrutura de tabelas, visões e relacionamentos do PostgreSQL e gera automaticamente uma API RESTful de alta performance sem necessidade de backend customizado.
+   </details>
+
+2. **Para que serve o cabeçalho `Prefer: return=representation` em uma requisição `POST`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele instrui o PostgREST a retornar o registro recém-criado no corpo da resposta HTTP (incluindo o `id` e campos auto-gerados como `created_at`).
+   </details>
+
+---
+
+## Referências
+
+- [Supabase API Overview](https://supabase.com/docs/guides/api)
+- [PostgREST Official Documentation](https://postgrest.org/en/stable/)
+- [Supabase Row Level Security (RLS)](https://supabase.com/docs/guides/auth/row-level-security)
+
+---
+
+## Próxima aula
+
+[Supabase Client](../supabase-client/): Utilizando a biblioteca cliente oficial do Supabase no front-end JavaScript.

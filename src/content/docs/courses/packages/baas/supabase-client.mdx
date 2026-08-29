@@ -1,40 +1,75 @@
 ---
 title: "Pacotes: Supabase Client"
-description: "Supabase Client - material da disciplina Programação para Web 2."
+description: "Uso da biblioteca cliente oficial @supabase/supabase-js para operações CRUD assíncronas, consultas fluentes e integração no front-end."
 course: packages
 sidebar:
   label: "Supabase Client"
 ---
+import { Aside, Steps } from '@astrojs/starlight/components';
 import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
 
-## Supabase JavaScript Client
+O SDK cliente oficial **`@supabase/supabase-js`** fornece uma API fluente, tipada e assíncrona para interagir com todos os serviços do Supabase (Banco de Dados, Autenticação, Storage e Realtime) diretamente do front-end ou de projetos Node.js sem a necessidade de compor requisições HTTP manuais.
 
-JavaScript Client Library: [@supabase/supabase-js](https://supabase.com/docs/reference/javascript/introduction)
+## Objetivo
 
-```bash
-$ npm install @supabase/supabase-js
+Dominar a instalação e inicialização do cliente `@supabase/supabase-js`, implementar o padrão de repositório de dados (*Service/Storage*) para operações CRUD e gerenciar o tratamento de erros em aplicações web reais.
+
+---
+
+## Arquitetura do Supabase JS Client
+
+O SDK cliente do Supabase abstrai as chamadas HTTP do PostgREST através de uma interface encadeada baseada em Promises:
+
+<Mermaid title="Fluxo de Dados com o Supabase JS Client">
+{`
+flowchart TD
+  App["Aplicação Front-End (main.js)"] -- "supabase.from('investments').select()" --> SDK["@supabase/supabase-js Client"]
+  SDK -- "Compõe HTTP + Header apikey" --> API["PostgREST API (Supabase Cloud)"]
+  API -- "Executa Query no Postgres" --> DB[(PostgreSQL)]
+  DB -- "Retorna { data, error }" --> App
+`}
+</Mermaid>
+
+---
+
+## 1. Instalação e Inicialização
+
+Instale a biblioteca cliente oficial no projeto através do gerenciador de pacotes:
+
+```bash title="Instalando a biblioteca do Supabase"
+npm install @supabase/supabase-js
 ```
 
-Exemplo:
+### Inicialização Básica
 
-```js
+Para instanciar o cliente, forneça a URL do projeto e a chave anônima pública (*anon key*):
+
+```js title="Exemplo básico de inicialização"
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  'https://xyz.supabase.co',
-  'public-anon-key'
-);
+const API_URL = 'https://xyz.supabase.co';
+const API_KEY = 'public-anon-key';
 
+const supabase = createClient(API_URL, API_KEY);
+
+// Consulta dados da tabela investments
 const { data, error } = await supabase
   .from('investments')
   .select();
 
-console.log(data);
+if (error) {
+  console.error('Erro na consulta:', error.message);
+} else {
+  console.log('Investimentos:', data);
+}
 ```
 
-## Invest-app (CRUD)
+---
 
-[Código Fonte](https://github.com/ifpb/pw2/tree/main/public/codes/package/supabase-client/invest-app/)
+## 2. Estrutura do Projeto `Invest-app`
+
+Na aplicação `Invest-app`, centralizamos toda a lógica de comunicação com o Supabase dentro de um módulo de serviço (`services/storage.js`):
 
 <FileTree>
 {`
@@ -65,29 +100,26 @@ invest-app/
 `}
 </FileTree>
 
-```js title="/codes/package/supabase-client/invest-app/js/services/storage.js"
+---
+
+## 3. Implementação do Módulo de Serviço CRUD (`storage.js`)
+
+Configuração inicial das variáveis de ambiente usando o Vite (`import.meta.env`):
+
+```js title="js/services/storage.js (Inicialização do Cliente)"
 import { createClient } from '@supabase/supabase-js';
 
 const API_KEY = import.meta.env.VITE_APP_SUPABASE_KEY;
 const API_URL = import.meta.env.VITE_APP_SUPABASE_URL;
 
 const supabase = createClient(API_URL, API_KEY);
-
-async function create(resource, data) {}
-async function read(resource, id) {}
-async function update(resource, id, data) {}
-async function remove(resource, id) {}
-
-export default { create, read, update, remove };
 ```
 
-### Create a investment
+### Operação de Criação (`create`)
 
-![](/pw2/imgs/package/supabase-api/post-investment.png)
+O método `.insert()` aceita um objeto ou array de objetos. Adicionamos `.select('*')` para receber o item recém-criado com o `id` gerado:
 
-[Supabase - JavaScript Client - Insert](https://supabase.com/docs/reference/javascript/insert)
-
-```js title="/codes/package/supabase-client/invest-app/js/services/storage.js"
+```js title="js/services/storage.js (Criar investimento)"
 async function create(resource, data) {
   const { data: createdData, error } = await supabase
     .from(resource)
@@ -98,59 +130,37 @@ async function create(resource, data) {
     throw error;
   }
 
-  return createdData?.[0];
+  return createdData[0];
 }
 ```
 
-```js
-import Storage from './services/storage.js';
+### Operação de Leitura (`read`)
 
-const investment = {
-  name: "Tesouro Selic 2029",
-  value: 10000,
-  origin: "Tesouro Direto",
-  category: "Pós",
-  interest: "100% Selic",
-  created_at: "2021-09-10T00:00:00-03:00",
-};
+O método `.select()` permite buscar todos os registros ou aplicar filtros encadeados como `.eq()`:
 
-Storage.create('investments', investment);
-```
-
-### Read investments
-
-![](/pw2/imgs/package/supabase-api/get-investments.png)
-
-[Supabase - JavaScript Client - Fetch data](https://supabase.com/docs/reference/javascript/select)
-
-```js title="/codes/package/supabase-client/invest-app/js/services/storage.js"
+```js title="js/services/storage.js (Ler investimentos)"
 async function read(resource, id) {
-  const { data, error } = id
-    ? await supabase.from(resource).select('*').eq('id', id)
-    : await supabase.from(resource).select('*');
+  let query = supabase.from(resource).select('*');
+
+  if (id) {
+    query = query.eq('id', id);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw error;
   }
 
-  return data;
+  return id ? data[0] : data;
 }
 ```
 
-```js
-import Storage from './services/storage.js';
+### Operação de Atualização (`update`)
 
-Storage.read('investments');
-Storage.read('investments', 1);
-```
+O método `.update()` atualiza os campos informados filtrando pelo `id`:
 
-### Update a investment
-
-![](/pw2/imgs/package/supabase-api/patch-investment.png)
-
-[Supabase - JavaScript Client - Update](https://supabase.com/docs/reference/javascript/update)
-
-```js title="/codes/package/supabase-client/invest-app/js/services/storage.js"
+```js title="js/services/storage.js (Atualizar investimento)"
 async function update(resource, id, data) {
   const { data: updatedData, error } = await supabase
     .from(resource)
@@ -162,36 +172,89 @@ async function update(resource, id, data) {
     throw error;
   }
 
-  return updatedData?.[0];
+  return updatedData[0];
 }
 ```
 
-```js
-import Storage from './services/storage.js';
+### Operação de Remoção (`remove`)
 
-Storage.update('investments', 1, { value: 15000 });
-```
+O método `.delete()` exclui o registro correspondente ao `id`:
 
-### Delete a investment
-
-![](/pw2/imgs/package/supabase-api/delete-investment.png)
-
-[Supabase - JavaScript Client - Delete](https://supabase.com/docs/reference/javascript/delete)
-
-```js title="/codes/package/supabase-client/invest-app/js/services/storage.js"
+```js title="js/services/storage.js (Remover investimento)"
 async function remove(resource, id) {
-  const { error } = await supabase.from(resource).delete().eq('id', id);
+  const { error } = await supabase
+    .from(resource)
+    .delete()
+    .eq('id', id);
 
   if (error) {
     throw error;
-  } else {
-    return true;
   }
+
+  return true;
 }
+
+export default { create, read, update, remove };
 ```
 
-```js
-import Storage from './services/storage.js';
+---
 
-Storage.remove('investments', 1);
-```
+## Executando
+
+Siga os passos para testar a integração do Supabase Client:
+
+<Steps>
+1. Configure o arquivo `.env` do seu projeto front-end com as chaves do Supabase:
+   ```ini
+   VITE_APP_SUPABASE_URL=https://seu-projeto.supabase.co
+   VITE_APP_SUPABASE_KEY=sua_chave_anon
+   ```
+2. Instale o pacote: `npm install @supabase/supabase-js`.
+3. Inicie o servidor de desenvolvimento Vite: `npm run dev`.
+4. Abra o console do navegador e confirme o carregamento e salvamento de dados na nuvem.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual objeto retornado pelas chamadas do `@supabase/supabase-js` contém a mensagem de erro caso uma operação falhe no banco de dados?
+2. Por que é necessário chamar `.select('*')` logo após um `.insert(data)` se desejamos obter o objeto completo criado com o `id` retornado?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A propriedade `error` (desestruturada da resposta `{ data, error }`).
+
+  2. Por padrão, o `.insert()` apenas executa a inserção. Chamar `.select('*')` força o Supabase a retornar o registro em sua forma final com os campos calculados e gerados pelo banco (como `id` e `created_at`).
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Como encadear múltiplos filtros em uma consulta com o Supabase Client (ex: valor maior que 1000 e categoria igual a 'Pós')?**
+   <details>
+     <summary>Possível resposta</summary>
+     Encadeando métodos na consulta: `supabase.from('investments').select('*').gt('value', 1000).eq('category', 'Pós')`.
+   </details>
+
+2. **Qual a diferença entre a chave `anon public key` e a chave `service_role key` no Supabase?**
+   <details>
+     <summary>Possível resposta</summary>
+     A chave `anon` respeita todas as regras de segurança RLS e deve ser usada no front-end. A chave `service_role` ignora o RLS e tem acesso administrativo total, devendo ser mantida estritamente secreta no servidor backend.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase JavaScript Client Docs](https://supabase.com/docs/reference/javascript/introduction)
+- [Supabase Select Reference](https://supabase.com/docs/reference/javascript/select)
+- [Supabase Insert Reference](https://supabase.com/docs/reference/javascript/insert)
+
+---
+
+## Próxima aula
+
+[Supabase Auth](../supabase-auth/): Gerenciamento de usuários, cadastro, login e sessões de autenticação com Supabase Auth.

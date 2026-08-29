@@ -1,7 +1,201 @@
 ---
 title: "Pacotes: Firebase Auth"
-description: "Firebase Auth - material da disciplina Programação para Web 2."
+description: "Autenticação de usuários com o Firebase Auth: cadastro com e-mail/senha, login, gestão de sessão e observadores de estado no front-end."
 course: packages
 sidebar:
   label: "Firebase Auth"
 ---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Firebase Auth** é o serviço completo de gestão de identidade e autenticação do **Google Firebase**. Ele oferece SDKs prontos para gerenciar o cadastro e a autenticação de usuários via e-mail e senha, links sem senha, telefone e provedores federados de identidade (Google, GitHub, Facebook e Microsoft), cuidando da segurança e tokens de sessão.
+
+## Objetivo
+
+Aprender a integrar o Firebase Auth em uma aplicação web, implementar fluxos de registro (`createUserWithEmailAndPassword`), login (`signInWithEmailAndPassword`), logout (`signOut`) e observar mudanças no estado de autenticação do usuário com `onAuthStateChanged`.
+
+---
+
+## Arquitetura do Firebase Auth
+
+O Firebase Auth gerencia automaticamente a persistência dos tokens de acesso e notifica a aplicação sobre mudanças no estado da sessão:
+
+<Mermaid title="Fluxo de Autenticação com Firebase Auth">
+{`
+flowchart TD
+  User["Usuário (Formulário Front-End)"] -- "email + senha" --> SDK["signInWithEmailAndPassword()"]
+  SDK -- "Autentica na Nuvem" --> FBAuth["Firebase Auth Backend"]
+  FBAuth -- "Retorna ID Token + User" --> SDK
+  SDK -- "Dispara Evento em Tempo Real" --> Listener["onAuthStateChanged(auth, (user) => ...)" ]
+  Listener -- "Atualiza UI (Logado/Deslogado)" --> DOM["Navegador"]
+`}
+</Mermaid>
+
+<Aside type="tip" title="Sessão Persistente Automática">
+O SDK do Firebase Auth gerencia e renova automaticamente os tokens de autenticação no navegador (armazenados em `indexedDB`/`localStorage`), mantendo o usuário conectado mesmo após fechar a aba.
+</Aside>
+
+---
+
+## 1. Inicializando o Firebase Auth
+
+No módulo de configuração da aplicação (`services/api.js`), instancie o serviço de autenticação com `getAuth()`:
+
+```js title="js/services/api.js (Configuração do Firebase Auth)"
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_APP_APIKEY,
+  authDomain: import.meta.env.VITE_APP_AUTHDOAMIN,
+  projectId: import.meta.env.VITE_APP_PROJECTID,
+  storageBucket: import.meta.env.VITE_APP_STORAGEBUCKET,
+  messagingSenderId: import.meta.env.VITE_APP_MESSAGINGSENDERID,
+  appId: import.meta.env.VITE_APP_APPID,
+};
+
+const app = initializeApp(firebaseConfig);
+
+// Instância global do serviço de autenticação
+export const auth = getAuth(app);
+```
+
+---
+
+## 2. Métodos Principais de Autenticação
+
+### Cadastro de Usuário com E-mail e Senha (`createUserWithEmailAndPassword`)
+
+```js title="Cadastrando um novo usuário no Firebase Auth"
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from './services/api.js';
+
+async function cadastrarUsuario(email, password) {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    console.log('Usuário cadastrado com sucesso:', user.uid);
+    return user;
+  } catch (error) {
+    console.error('Erro no cadastro:', error.code, error.message);
+    throw error;
+  }
+}
+```
+
+---
+
+### Autenticação / Login (`signInWithEmailAndPassword`)
+
+```js title="Autenticando um usuário existente"
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from './services/api.js';
+
+async function realizarLogin(email, password) {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    console.log('Login realizado com sucesso:', userCredential.user.email);
+    return userCredential.user;
+  } catch (error) {
+    console.error('Erro no login:', error.code, error.message);
+    throw error;
+  }
+}
+```
+
+---
+
+### Encerrar Sessão (`signOut`)
+
+```js title="Realizando o logout do usuário"
+import { signOut } from 'firebase/auth';
+import { auth } from './services/api.js';
+
+async function realizarLogout() {
+  try {
+    await signOut(auth);
+    console.log('Sessão encerrada com sucesso.');
+  } catch (error) {
+    console.error('Erro ao realizar logout:', error.message);
+  }
+}
+```
+
+---
+
+## 3. Escutando o Estado de Autenticação em Tempo Real
+
+A melhor prática para saber se o usuário está logado ao carregar qualquer página é registrar um observador com `onAuthStateChanged`:
+
+```js title="Monitorando o estado de login na inicialização da página"
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './services/api.js';
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // Usuário está logado
+    console.log('Sessão ativa para o usuário:', user.email, 'UID:', user.uid);
+    document.getElementById('user-info').textContent = `Bem-vindo, ${user.email}`;
+  } else {
+    // Usuário está deslogado
+    console.log('Nenhum usuário logado.');
+    document.getElementById('user-info').textContent = 'Visitante (não autenticado)';
+  }
+});
+```
+
+---
+
+## Executando
+
+<Steps>
+1. Abra o [Firebase Console](https://console.firebase.google.com/) e acesse seu projeto.
+2. Na seção **Authentication > Sign-in method**, ative o provedor **E-mail/senha**.
+3. No código da sua aplicação front-end, chame `createUserWithEmailAndPassword` em um formulário para registrar um usuário de teste.
+4. Teste o login e verifique no console do Firebase se o novo registro apareceu na aba **Users**.
+</Steps>
+
+---
+
+## Exercício
+
+1. Qual função do Firebase Auth deve ser registrada para atualizar a interface do usuário automaticamente quando a sessão é iniciada ou encerrada?
+2. O que a propriedade `userCredential.user.uid` representa no Firebase Auth?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A função `onAuthStateChanged(auth, callback)`.
+
+  2. O identificador único e exclusivo (UID) gerado pelo Firebase para aquele usuário cadastrado.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Como capturar mensagens de erro específicas do Firebase Auth durante a tentativa de login (como senha incorreta ou usuário não encontrado)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Inspecionando a propriedade `error.code` no bloco `catch` (ex: `auth/wrong-password` ou `auth/user-not-found`).
+   </details>
+
+2. **Como obter o token JWT do usuário autenticado no Firebase para enviá-lo a um backend customizado?**
+   <details>
+     <summary>Possível resposta</summary>
+     Chamando o método `await user.getIdToken()` no objeto do usuário logado.
+   </details>
+
+---
+
+## Referências
+
+- [Firebase Auth Official Documentation](https://firebase.google.com/docs/auth)
+- [Firebase Auth: Password-based Authentication](https://firebase.google.com/docs/auth/web/password-auth)
+- [Firebase Auth Reference (Web)](https://firebase.google.com/docs/reference/js/auth)
+
+---
+
+## Próxima aula
+
+[Vite](../../build/vite/): Servidor de desenvolvimento e build tool para aplicações web modernas.

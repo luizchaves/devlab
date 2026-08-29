@@ -844,13 +844,25 @@ export default defineConfig({
               items: [{ label: 'Chart.js', link: '/courses/packages/ui/chartjs/' }],
             },
             {
-              label: 'Backend as a Service',
+              label: 'Backend as a Service (BaaS)',
               items: [
-                { label: 'Supabase API', link: '/courses/packages/baas/supabase-api/' },
-                { label: 'Supabase Client', link: '/courses/packages/baas/supabase-client/' },
-                { label: 'Supabase Auth', link: '/courses/packages/baas/supabase-auth/' },
-                { label: 'Cloud Firestore', link: '/courses/packages/baas/firebase-firestore/' },
-                { label: 'Firebase Auth', link: '/courses/packages/baas/firebase-auth/' },
+                {
+                  label: 'Firebase',
+                  items: [
+                    { label: 'Visão geral do Firebase', link: '/courses/packages/baas/firebase/' },
+                    { label: 'Cloud Firestore', link: '/courses/packages/baas/firebase-firestore/' },
+                    { label: 'Firebase Auth', link: '/courses/packages/baas/firebase-auth/' },
+                  ],
+                },
+                {
+                  label: 'Supabase',
+                  items: [
+                    { label: 'Visão geral do Supabase', link: '/courses/packages/baas/supabase/' },
+                    { label: 'Supabase API', link: '/courses/packages/baas/supabase-api/' },
+                    { label: 'Supabase Client', link: '/courses/packages/baas/supabase-client/' },
+                    { label: 'Supabase Auth', link: '/courses/packages/baas/supabase-auth/' },
+                  ],
+                },
               ],
             },
           ],
