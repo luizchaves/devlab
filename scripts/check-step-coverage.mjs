@@ -17,6 +17,16 @@
  *      exibi-los seria ruído. Para esses, basta que a página cite o arquivo
  *      pelo nome, deixando claro que ele muda e por quê. Ver `ISENTOS`.
  *
+ * Há ainda a válvula de escape, para arquivos repetitivos em que exibir tudo
+ * ensina menos do que exibir um bloco representativo. A página declara o motivo
+ * em um comentário MDX, que este script aceita e lista ao final:
+ *
+ *     {|* cobertura: src/docs/openapi.ts — os quatro caminhos repetem o
+ *        formato do bloco acima *|}
+ *
+ * (troque `|` por `/` na sintaxe real). É uma exceção deliberada e greppável,
+ * não um silêncio.
+ *
  * A medição é sobre LINHAS ALTERADAS, não sobre o arquivo inteiro: um
  * `openapi.ts` de 400 linhas que muda dez precisa explicar dez, não 400. Um
  * arquivo renomeado ou movido é comparado com a sua origem, e não conta como
@@ -62,9 +72,9 @@ const ISENTOS = [
   { padrao: /(^|\/)\.env(\.example)?$/, rotulo: '.env' },
 ];
 
-/** Nunca entram na conta: gerados, binários ou irrelevantes para a aula. */
+/** Nunca entram na conta: gerados, binários ou fora do assunto da aula (`.gitignore`). */
 const IGNORADOS =
-  /(^|\/)(package-lock\.json|app\.css|\.DS_Store)$|\.(db|db-journal|log|png|jpe?g|gif|ico|webp|woff2?|ttf)$/;
+  /(^|\/)(package-lock\.json|app\.css|\.DS_Store|\.gitignore)$|\.(db|db-journal|log|png|jpe?g|gif|ico|webp|woff2?|ttf)$/;
 const PASTAS_IGNORADAS = new Set([
   'node_modules',
   '.git',
@@ -242,6 +252,7 @@ function isencao(caminho) {
 }
 
 const problemas = [];
+const excecoes = [];
 const resumo = [];
 
 for (const trilha of TRILHAS) {
@@ -260,6 +271,14 @@ for (const trilha of TRILHAS) {
       pagina += `\n${ler(join(projectRoot, PAGINAS, trilha.paginas, `${extra}.mdx`)) ?? ''}`;
     }
     const blocos = blocosDaPagina(pagina);
+
+    // Exceções declaradas na própria página, com o motivo por extenso.
+    const declaracoes = new Map();
+    for (const anotacao of pagina.matchAll(
+      /\{\/\*\s*cobertura:\s*([^\s—-]+)\s*[—-]\s*([\s\S]*?)\*\/\}/g
+    )) {
+      declaracoes.set(anotacao[1].trim(), anotacao[2].replace(/\s+/g, ' ').trim());
+    }
 
     // Um arquivo movido ou renomeado nao e codigo novo: procuramos a origem.
     const removidos = anterior
@@ -321,9 +340,14 @@ for (const trilha of TRILHAS) {
           );
         }
       } else if (cobertas / alteradas.size < MINIMO_EXIBIDO) {
-        problemas.push(
-          `${trilha.nome} etapa ${numero} (${slug}): \`${arquivo}\` muda ${alteradas.size} linha(s) e a pagina exibe ${cobertas}.`
-        );
+        const declarado = declaracoes.get(arquivo);
+        if (declarado) {
+          excecoes.push(`${trilha.nome} etapa ${numero}: ${arquivo} — ${declarado}`);
+        } else {
+          problemas.push(
+            `${trilha.nome} etapa ${numero} (${slug}): \`${arquivo}\` muda ${alteradas.size} linha(s) e a pagina exibe ${cobertas}.`
+          );
+        }
       }
 
       if (detalhado) {
@@ -366,6 +390,11 @@ if (problemas.length) {
       'daquela etapa, ou — para os arquivos isentos — citada pelo nome no texto.'
   );
   process.exit(1);
+}
+
+if (excecoes.length) {
+  console.log(`\n${excecoes.length} excecao(oes) declarada(s) na propria pagina:\n`);
+  for (const excecao of excecoes) console.log(`  - ${excecao}`);
 }
 
 console.log('\nToda mudanca de codigo das trilhas esta exibida ou declarada.');
