@@ -76,6 +76,7 @@ usuário em vez de mexer nos artefatos de `public/`.
 | `.devcontainer/`            | Uma pasta por projeto, para o botão "Abrir no Codespaces"      |
 | `docs/PRD.md`               | Especificação de Requisitos do Produto (visão geral DevLab)   |
 | `docs/TODO.md`              | Lista de tarefas e roadmap com IDs (`TASK-XXX`)               |
+| `specs/`                    | Especificações e planos de engenharia (`active/` e `executed/`) |
 | `.agents/skills/`           | Skills do repositório (ver abaixo)                             |
 | `scripts/`                  | Builds de materiais e validadores (`check-links`, `check-doc-lines`) |
 | `astro.config.mjs`          | Sidebar explícita de todos os cursos (~1.200 linhas)           |
