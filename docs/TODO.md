@@ -54,7 +54,7 @@
 - [ ] **[TASK-015] Análise de Cobertura e Passo a Passo:**
   - [x] `[TASK-015.1]` Analisar etapa a etapa para ver se é possível criar o projeto final seguindo apenas o que está disponível no passo a passo, sem precisar de conhecimento prévio — **não é**: viável até a etapa 6, seis bloqueadores da etapa 7 em diante (ver [spec](../specs/active/COBERTURA-INVESTAPP-MONITORAPP.md))
   - [x] `[TASK-015.2]` Percorrer todas as linhas de código para analisar se as tarefas atuais cobrem todas as linhas ou se precisam ser atualizadas — **não cobrem**: InvestApp exibe 30% e MonitorApp 52% das linhas de cada delta; precisam ser atualizadas (ver [spec](../specs/active/COBERTURA-INVESTAPP-MONITORAPP.md))
-  - [ ] `[TASK-015.3]` Avaliar o conteúdo dos projetos e o acesso/execução dos códigos (avaliar se trechos são suficientes ou se deve haver um projeto completo; identificar pontos de melhoria didática e de codificação)
+  - [ ] `[TASK-015.3]` Avaliar o conteúdo dos projetos e o acesso/execução dos códigos (avaliar se trechos são suficientes; identificar pontos de melhoria didática e de codificação; existem boas práticas que ficaram de fora; existem trechos que podem ser simplificados; existem trechos que podem ser melhor explicados; existem trechos que podem ser melhor documentados; existem trechos que podem ser melhor testados; existem trechos que podem ser melhor estruturados (Por exemplo, no teste tem vários requests sem explicação))
 - [ ] **[TASK-016] Estruturação e Documentação dos Projetos:**
   - [ ] `[TASK-016.1]` Criar `PRD.md` com as features e o `README`
   - [ ] `[TASK-016.2]` Definir Requisitos Não Funcionais (RNF), garantindo um bom design responsivo (Mobile-First / layout adaptável)
