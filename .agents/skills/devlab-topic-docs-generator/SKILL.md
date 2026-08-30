@@ -141,6 +141,35 @@ Padrão do bloco de resposta:
 
 ---
 
+## 🧪 Seções de Teste e Didática de Testes
+
+Ao escrever ou atualizar seções de testes em aulas de conceito ou de projetos práticos:
+
+1. **Parágrafos explicativos obrigatórios por teste**: Sempre inclua um parágrafo (`<p>` ou texto Markdown) antes de cada bloco de código ou caso de teste individual. Explique explicitamente a intenção do teste, o cenário avaliado, o código HTTP esperado e a razão de cada asserção.
+2. **Requisições `.http` recolhíveis (`<details>`)**: Em testes de endpoints de API, forneça o trecho correspondente do arquivo `requests.http` em um bloco recolhível `<details><summary>Requisição .http correspondente</summary>...</details>`.
+
+Exemplo:
+
+```mdx
+O teste a seguir valida a rota de cadastro. Ele garante que um payload válido retorna status `201 Created` e que dados sensíveis como a senha não são retornados no corpo da resposta.
+
+<details>
+  <summary>Requisição .http correspondente</summary>
+
+  ```http
+  POST http://localhost:3000/api/users
+  Content-Type: application/json
+
+  {
+    "name": "Ana Maria",
+    "email": "ana@example.com"
+  }
+  ```
+</details>
+```
+
+---
+
 ## 🔀 Página de conceito × página de projeto
 
 **Um tópico rende duas páginas, nunca uma só.** Conceito e projeto têm leitores e ritmos

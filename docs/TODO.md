@@ -30,9 +30,9 @@
   - [ ] `[TASK-003.12]` Markdown para documentação
   - [ ] `[TASK-003.13]` Propostas de interface: citar Figma, Pencil, Pen
   - [ ] `[TASK-003.14]` Qualidade de código: Code Review, Pair Programming, Mob Programming, TDD, BDD, DDD, Clean Code, Clean Architecture, SOLID, Design Patterns
-- [ ] **[TASK-004] Melhorias Didáticas nas Seções de Teste:**
-  - [ ] `[TASK-004.1]` Usar parágrafos `<p>` para comentar e explicar a intenção de cada teste individualmente
-  - [ ] `[TASK-004.2]` Avaliar a inclusão do recorte da requisição `.http` correspondente em formato recolhível (`<details>` / collapsed) em cada teste
+- [x] **[TASK-004] Melhorias Didáticas nas Seções de Teste:**
+  - [x] `[TASK-004.1]` Usar parágrafos `<p>` para comentar e explicar a intenção de cada teste individualmente
+  - [x] `[TASK-004.2]` Avaliar a inclusão do recorte da requisição `.http` correspondente em formato recolhível (`<details>` / collapsed) em cada teste
 - [ ] **[TASK-005]** Aperfeiçoar o conteúdo dos cursos e guias (exemplos práticos, exercícios, quizzes e desafios)
 - [x] **[TASK-006]** Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
 - [ ] **[TASK-007]** Gerar slides das páginas de cada curso e guia
