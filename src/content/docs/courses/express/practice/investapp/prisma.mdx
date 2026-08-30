@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
@@ -97,9 +98,10 @@ seção detalhada logo em seguida.
 <Steps>
 
 1. **TK07.1 · Instalar Prisma e criar `prisma/schema.prisma`**: Declaração do schema ORM com tabelas e relacionamentos.
-2. **TK07.2 · Criar `src/database/database.js`**: Conexão singleton reutilizável do `PrismaClient`.
-3. **TK07.3 · Modificar `src/models/Investment.js`**: Substituição de SQL cru por consultas autocompletadas do ORM.
-4. **TK07.4 · Remover `src/database/migration.js` e `seeders.js`**: Remoção da camada SQL manual legada.
+2. **TK07.2 · Substituir `src/database/database.ts`**: Conexão singleton reutilizável do `PrismaClient`.
+3. **TK07.3 · Modificar `src/models/Investment.ts`**: Substituição de SQL cru por consultas autocompletadas do ORM.
+4. **TK07.4 · Remover `src/database/migration.ts`, `seeders.ts` e `load.ts`**: Remoção da camada SQL manual legada.
+5. **TK07.5 · Criar os recursos `Category` e `Broker`**: As duas entidades novas ganham tipo, model, controller, schema e rota.
 
 </Steps>
 
@@ -250,6 +252,73 @@ O seeder ficou mais curto e mais seguro: o `upsert` das linhas 14 a 18 grava a c
   e não mais da pasta do schema. É por isso que o `.env` desta etapa escreve o caminho completo
   a partir da raiz do projeto.
 </Aside>
+
+### TK07.5 · Criar os recursos `Category` e `Broker` (Duas entidades, cinco camadas cada)
+
+O `schema.prisma` da TK07.1 declarou `Category` e `Broker`, e o formulário do front passou a ter
+um `<select>` de categoria. Falta o que alimenta esse `select`: as duas entidades precisam
+existir como recurso HTTP, e cada uma percorre as mesmas cinco camadas que `Investment` já
+percorria desde a etapa 3.
+
+São dez arquivos, mas apenas dois padrões — o de `Category` e o de `Broker` são idênticos, com o
+nome trocado. Ambas as entidades são **somente leitura** pela API: quem as cria é o `seed.ts` da
+TK07.4, e no caso da corretora também o `connectOrCreate` do model de investimento.
+
+| Camada | Category | Broker | O que faz |
+| ------ | -------- | ------ | --------- |
+| Tipo | `types/Category.d.ts` | `types/Broker.d.ts` | a forma da entidade no TypeScript |
+| Model | `models/Category.ts` | `models/Broker.ts` | as consultas ao Prisma, sem HTTP |
+| Controller | `controllers/categories.controller.ts` | `controllers/brokers.controller.ts` | traduz a consulta em resposta e erro |
+| Schema | `schemas/category.schema.ts` | `schemas/broker.schema.ts` | valida `params` e `query` |
+| Rota | `routes/categories.routes.ts` | `routes/brokers.routes.ts` | liga o caminho ao controller |
+
+O model tem duas funções. O `read` da linha 4 aceita um filtro opcional por nome e o converte em
+`{ name: { contains: where.name } }` na linha 5 — o mesmo `contains` que o investimento usa. O
+`readById` da linha 10 lança `Error` quando não encontra: o model não conhece status HTTP, e é o
+controller que traduz isso em 404.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/invest-app-prismajs-relation/src/models/Category.ts', label: 'models/Category.ts', mark: '5,13-15' },
+    { path: 'examples/courses/express/projects/invest-app-prismajs-relation/src/models/Broker.ts', label: 'models/Broker.ts', mark: '5,13-15' },
+  ]}
+/>
+
+O controller é a tradução para HTTP. O `read` da linha 6 devolve a lista e o seu `catch` da linha
+11 vira `400`; o `readById` da linha 16 transforma o `Error` do model em um `HttpError` de `404`
+na linha 20. É a mesma divisão de responsabilidade da etapa 3, agora aplicada a duas entidades
+novas.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-relation/src/controllers/categories.controller.ts"
+  title="src/controllers/categories.controller.ts"
+  showLineNumbers
+  mark="10,12,18,20"
+/>
+
+O schema e a rota fecham o recurso. O `params` da linha 4 exige um UUID válido e o `query` da
+linha 8 recusa um filtro `name` vazio; a rota aplica os dois pelo `validate` das linhas 9 e 10,
+que já existia desde a etapa 4. O `.d.ts` é a forma da entidade no TypeScript, e é o que o model
+promete devolver.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/invest-app-prismajs-relation/src/schemas/category.schema.ts', label: 'category.schema.ts', mark: '4,8' },
+    { path: 'examples/courses/express/projects/invest-app-prismajs-relation/src/routes/categories.routes.ts', label: 'categories.routes.ts', mark: '9-10' },
+    { path: 'examples/courses/express/projects/invest-app-prismajs-relation/src/types/Category.d.ts', label: 'Category.d.ts' },
+  ]}
+/>
+
+Por fim, o `src/index.ts` importa os dois roteadores nas linhas 5 e 6 e os monta junto do de
+investimentos, sob o mesmo prefixo `/api`. É o que faz o `select` do formulário encontrar
+`GET /api/categories`.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-relation/src/index.ts"
+  title="src/index.ts"
+  showLineNumbers
+  mark="5-6"
+/>
 
 ## O model, antes e depois
 
