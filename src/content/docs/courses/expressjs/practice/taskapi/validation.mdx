@@ -1,0 +1,290 @@
+---
+title: "TaskAPI: validação e paginação"
+description: "Quinta etapa da TaskAPI: schemas Zod validando body, params e query, com filtros, ordenação e paginação na listagem."
+course: expressjs
+sidebar:
+  label: "5. Validação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Intermediário** · Node.js · Express.js · TypeScript · Zod
+
+Nenhum dado inválido chega ao controller. E a listagem deixa de devolver tudo.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-validation" devcontainer="task-api-validation" />
+
+## O que muda nesta etapa
+
+| Antes (etapa 4) | Agora (etapa 5) |
+| --------------- | --------------- |
+| `if (!title)` dentro do controller | `src/schemas/task.ts` com Zod |
+| `parseId` convertendo à mão | `z.coerce.number()` no schema |
+| Campo extra no corpo era ignorado | `strictObject` responde `422` |
+| `GET /tasks` devolvia o array inteiro | `page`, `perPage`, `done`, `priority`, `q` e `sort` |
+| Erro só com `message` | erro com `issues`, campo a campo |
+
+A tarefa também cresce: ganha `description`, `priority`, `dueDate` e `createdAt`.
+
+## Estrutura
+
+<FileTree>
+{`
+  task-api-validation/
+  ├── package.json
+  ├── tsconfig.json
+  ├── requests.http
+  └── src/
+      ├── app.ts
+      ├── server.ts
+      ├── controllers/
+      │   └── task-controller.ts
+      ├── errors/
+      │   └── HttpError.ts     agora carrega issues
+      ├── middlewares/
+      │   ├── error-handler.ts
+      │   ├── require-json.ts
+      │   └── validate.ts      novo
+      ├── models/
+      │   └── task-model.ts    filtro, ordenação e paginação
+      ├── routes/
+      │   └── task-router.ts
+      ├── schemas/
+      │   └── task.ts          novo
+      └── types/
+          ├── express.d.ts     novo
+          └── task.ts
+`}
+</FileTree>
+
+## O schema é o contrato
+
+Cada regra do schema vira uma mensagem que o cliente lê. Escrever a validação é, na
+prática, escrever a documentação executável da rota:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/schemas/task.ts"
+  title="src/schemas/task.ts"
+  region="body"
+/>
+
+`strictObject` é o que separa "validação" de "validação estrita": um `PUT` com
+`{ "hacker": 1 }` é recusado com `422` em vez de ser silenciosamente descartado.
+
+A `query` chega sempre como string — `?page=2` é `'2'`, não `2`. `z.coerce` converte antes
+de validar, e o `default` garante que o controller receba números mesmo quando o cliente
+não manda nada:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/schemas/task.ts"
+  title="src/schemas/task.ts"
+  region="query"
+/>
+
+## O middleware de fábrica
+
+`validate` recebe o schema e devolve o middleware — o mesmo padrão de `express.json()`.
+Ele valida as três fontes de uma vez e guarda o resultado em `req.valid`:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/middlewares/validate.ts"
+  title="src/middlewares/validate.ts"
+  region="validate"
+/>
+
+O resultado não volta para `req.params` nem para `req.query` porque os tipos do Express
+declaram os dois como `string`, e gravar um número ali seria uma mentira que o TypeScript
+aceitaria. Em vez disso, `req.valid` é declarado por *declaration merging* e lido por um
+acessor que devolve o tipo do próprio schema:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/middlewares/validate.ts"
+  title="src/middlewares/validate.ts"
+  region="validated"
+/>
+
+## O controller emagrece
+
+Sem nenhum `if` de formato: o que chega já está validado e convertido. Sobra apenas a
+regra que o schema não tem como saber — se a tarefa existe, se o título já foi usado:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/controllers/task-controller.ts"
+  title="src/controllers/task-controller.ts"
+  region="read"
+/>
+
+## Filtro, ordenação e página
+
+O model recebe a query já validada e aplica as três operações em ordem: filtra, ordena e
+só então corta a página. Inverter isso pagina o conjunto errado:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="paginate"
+/>
+
+<Aside type="tip" title="`total` é da coleção filtrada, não da tabela">
+  `meta.total` conta os itens que passaram no filtro — é ele que o cliente usa para
+  desenhar a paginação. Devolver o total da coleção inteira faria a última página aparecer
+  vazia.
+</Aside>
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-validation"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-validation/src/schemas/task.ts', title: 'src/schemas/task.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-validation/src/middlewares/validate.ts', title: 'src/middlewares/validate.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-validation/src/routes/task-router.ts', title: 'src/routes/task-router.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-validation/src/controllers/task-controller.ts', title: 'src/controllers/task-controller.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-validation/src/models/task-model.ts', title: 'src/models/task-model.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-validation/src/middlewares/error-handler.ts', title: 'src/middlewares/error-handler.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-validation/src/types/express.d.ts', title: 'src/types/express.d.ts', showLineNumbers: true },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-validation
+   ```
+
+2. <PackageManagerTabs />
+
+3. <PackageManagerTabs run="dev" />
+
+</Steps>
+
+## Rotas
+
+| Método | Caminho      | Sucesso | Erros                |
+| ------ | ------------ | ------- | -------------------- |
+| GET    | `/health`    | `200`   | —                    |
+| GET    | `/tasks`     | `200`   | `422`                |
+| GET    | `/tasks/:id` | `200`   | `404`, `422`         |
+| POST   | `/tasks`     | `201`   | `409`, `415`, `422`  |
+| PUT    | `/tasks/:id` | `200`   | `404`, `415`, `422`  |
+| DELETE | `/tasks/:id` | `204`   | `404`, `422`         |
+
+Os parâmetros aceitos por `GET /tasks`:
+
+| Parâmetro  | Valores                                                           | Padrão        |
+| ---------- | ----------------------------------------------------------------- | ------------- |
+| `page`     | inteiro positivo                                                   | `1`           |
+| `perPage`  | inteiro de 1 a 100                                                 | `10`          |
+| `done`     | `true` ou `false`                                                  | sem filtro    |
+| `priority` | `low`, `medium` ou `high`                                          | sem filtro    |
+| `q`        | texto buscado no título                                            | sem filtro    |
+| `sort`     | `title`, `dueDate`, `createdAt` — com `-` na frente para descendente | `-createdAt`  |
+
+## Testando
+
+A listagem devolve um envelope com os dados e os metadados da página. Sem nenhum
+parâmetro, valem os `default` do schema:
+
+<ApiRequest method="GET" path="/tasks?perPage=1" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "data": [
+      {
+        "id": 2,
+        "title": "Escrever a primeira API",
+        "description": null,
+        "done": false,
+        "priority": "medium",
+        "dueDate": null,
+        "createdAt": "2026-03-02T09:00:00.000Z"
+      }
+    ],
+    "meta": { "page": 1, "perPage": 1, "total": 2, "totalPages": 2 }
+  }
+`}
+</ApiResponse>
+
+Um corpo com dois problemas devolve os dois de uma vez, cada um com o caminho do campo —
+o cliente consegue marcar os dois inputs no formulário:
+
+<details>
+  <summary>Requisição .http correspondente</summary>
+
+  ```http
+  ### Criar com titulo curto e prioridade invalida
+  POST http://localhost:3000/tasks
+  Content-Type: application/json
+
+  {
+    "title": "ab",
+    "priority": "urgentissima"
+  }
+  ```
+</details>
+
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
+{`
+  {
+    "title": "ab",
+    "priority": "urgentissima"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={422}>
+{`
+  {
+    "error": {
+      "status": 422,
+      "message": "Dados invalidos",
+      "issues": [
+        {
+          "code": "too_small",
+          "path": ["body", "title"],
+          "message": "O titulo deve ter no minimo 3 caracteres"
+        },
+        {
+          "code": "invalid_value",
+          "path": ["body", "priority"],
+          "message": "Invalid option: expected one of \\"low\\"|\\"medium\\"|\\"high\\""
+        }
+      ]
+    }
+  }
+`}
+</ApiResponse>
+
+E um `perPage` acima do teto é recusado antes de o model ser chamado — é assim que a
+validação vira também proteção contra abuso:
+
+<ApiRequest method="GET" path="/tasks?perPage=500" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={422} description="perPage tem máximo de 100 no schema" />
+
+## Conceitos abordados
+
+- Schemas Zod para `body`, `params` e `query` na mesma validação
+- `strictObject` e a recusa de campos não declarados
+- `z.coerce` e valores padrão em parâmetros de query
+- Middleware de fábrica e *declaration merging* para `req.valid`
+- Erro `422` com `issues` por campo
+- Filtro, ordenação e paginação com envelope `data` + `meta`
+
+<Aside type="tip">
+  As aulas correspondentes são [Validação](../../../api/validation/) e
+  [Paginação e Filtros](../../../api/pagination/).
+</Aside>
+
+## Próxima etapa
+
+[Documentação](../openapi/) — o mesmo schema que valida passa a gerar o contrato OpenAPI.

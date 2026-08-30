@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Uma API sem documentação obriga quem a consome a ler o código do servidor — ou a adivinhar.
 Esta aula trata das duas formas de documentar que sobrevivem ao tempo: a que é executável e
@@ -60,12 +61,12 @@ Content-Type: application/json
   "password": "senha-secreta"
 }
 
-### Lista os investimentos do usuário autenticado
-GET {{server}}/investments
+### Lista as tarefas do usuário autenticado
+GET {{server}}/tasks
 Authorization: Bearer {{token}}
 
 ### Sem token (401)
-GET {{server}}/investments
+GET {{server}}/tasks
 ```
 
 Três recursos fazem toda a diferença:
@@ -91,7 +92,7 @@ navegável, validar requisições e alimentar testes de contrato.
 <Mermaid title="O que se obtém a partir de uma especificação OpenAPI">
 {`
 flowchart TD
-  A["openapi.yaml<br/>descrição do contrato"] --> B["Swagger UI<br/>documentação navegável"]
+  A["Documento OpenAPI<br/>descrição do contrato"] --> B["Swagger UI<br/>documentação navegável"]
   A --> C["Geradores de cliente<br/>TypeScript, Dart, Java"]
   A --> D["Validação de requisição<br/>middleware"]
   A --> E["Testes de contrato<br/>a resposta bate com o schema?"]
@@ -103,15 +104,15 @@ A estrutura mínima cobre servidor, caminhos e componentes reutilizáveis:
 ```yaml title="openapi.yaml" showLineNumbers {8,15,26}
 openapi: 3.1.0
 info:
-  title: Investment API
+  title: TaskAPI
   version: 1.0.0
 servers:
   - url: http://localhost:3000
 
 paths:
-  /investments:
+  /tasks:
     get:
-      summary: Lista os investimentos do usuário autenticado
+      summary: Lista as tarefas do usuário autenticado
       security:
         - bearerAuth: []
       parameters:
@@ -124,7 +125,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InvestmentPage'
+                $ref: '#/components/schemas/TaskPage'
         '401':
           description: Token ausente ou inválido
 
@@ -135,13 +136,13 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
-    Investment:
+    Task:
       type: object
-      required: [id, name, amount]
+      required: [id, title, done]
       properties:
-        id: { type: string }
-        name: { type: string }
-        amount: { type: integer }
+        id: { type: integer }
+        title: { type: string }
+        done: { type: boolean }
 ```
 
 ## Publicando com Swagger UI
@@ -151,23 +152,28 @@ aplicação:
 
 <Steps>
 
-1. Instale os pacotes:
+1. Instale o pacote:
 
-   <PackageManagerTabs package="swagger-ui-express yaml" />
+   <PackageManagerTabs package="swagger-ui-express" />
 
-2. Carregue a especificação e monte a rota:
+2. Monte as duas rotas — o documento cru para ferramentas, a interface para pessoas:
 
-   ```ts title="src/app.ts" showLineNumbers {6,8}
-   import { readFileSync } from 'node:fs';
-   import swaggerUi from 'swagger-ui-express';
-   import { parse } from 'yaml';
+   <SourceCode
+     path="examples/courses/express/projects/task-api-openapi/src/routes/docs-router.ts"
+     title="src/routes/docs-router.ts"
+     region="routes"
+   />
 
-   const openapi = parse(readFileSync('openapi.yaml', 'utf8'));
+3. Registre o router depois das rotas da API e **antes** do `notFound`, senão o 404
+   responde primeiro:
 
-   app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
-   ```
+   <SourceCode
+     path="examples/courses/express/projects/task-api-openapi/src/app.ts"
+     title="src/app.ts"
+     region="docs"
+   />
 
-3. Abra <code>http://localhost:3000/docs</code> e experimente as rotas pela interface.
+4. Abra <code>http://localhost:3000/docs</code> e experimente as rotas pela interface.
 
 </Steps>
 
@@ -180,31 +186,35 @@ aplicação:
 ## Gerando a partir dos schemas
 
 Manter `openapi.yaml` e os schemas de validação em paralelo é manter duas verdades. Quando a
-validação já usa Zod, a especificação pode sair dela:
+validação já usa Zod, a especificação pode sair dela — e o Zod 4 converte sozinho, sem
+biblioteca auxiliar:
 
 <Tabs syncKey="openapi-source">
   <TabItem label="Uma fonte">
-    ```ts title="src/schemas/investment.ts" showLineNumbers {8}
-    import { z } from 'zod';
-
-    export const investmentSchema = z.object({
-      id: z.string(),
-      name: z.string().min(2),
-      amount: z.int().positive(),
-    });
-
-    // O mesmo schema valida a requisição e descreve o contrato.
-    export const investmentJsonSchema = z.toJSONSchema(investmentSchema);
-    ```
+    <SourceCode
+      path="examples/courses/express/projects/task-api-openapi/src/docs/openapi.ts"
+      title="src/docs/openapi.ts"
+      region="to-json-schema"
+    />
   </TabItem>
 
   <TabItem label="Duas fontes">
     ```ts title="O que evitar"
-    // src/schemas/investment.ts  — usado na validação
-    // openapi.yaml               — escrito à mão, diverge no primeiro campo novo
+    // src/schemas/task.ts  — usado na validação
+    // openapi.yaml         — escrito à mão, diverge no primeiro campo novo
     ```
   </TabItem>
 </Tabs>
+
+Com os schemas convertidos, o documento é montado em volta deles: o corpo do `POST` vira o
+`requestBody`, a `query` vira a lista de `parameters`, e mudar `min(3)` no schema muda, na
+mesma linha, o que a API recusa e o que a documentação promete.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-openapi/src/docs/openapi.ts"
+  title="src/docs/openapi.ts"
+  region="components"
+/>
 
 | Abordagem            | Vantagem                          | Custo                                  |
 | -------------------- | --------------------------------- | -------------------------------------- |
@@ -235,37 +245,39 @@ contexto:
 
 ## Exercício
 
-No projeto `express-auth`:
+Partindo da [etapa 6 da TaskAPI](../../practice/taskapi/openapi/):
 
 1. Complete o `requests.http` com um caso de erro para cada rota.
-2. Escreva `openapi.yaml` descrevendo `POST /auth/signup`, `POST /auth/signin` e
-   `GET /investments`, incluindo o `securityScheme` de *bearer token*.
-3. Publique em `/docs` com `swagger-ui-express`, apenas fora de produção.
+2. Acrescente ao documento OpenAPI o `securityScheme` de *bearer token*, antecipando a
+   autenticação da etapa 9.
+3. Faça `/docs` responder `404` em produção, mantendo `/openapi.json` sempre disponível.
 4. Acrescente ao `README.md` a seção "Como rodar em cinco minutos".
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/app.ts" showLineNumbers {5}
-  import { config } from '#config.ts';
+  ```ts showLineNumbers {5}
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // A documentação fica disponível apenas em desenvolvimento.
-  if (!config.isProduction) {
-    const openapi = parse(readFileSync('openapi.yaml', 'utf8'));
+  router.get('/openapi.json', (_req, res) => {
+    res.json(openapi);
+  });
 
-    app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+  // A interface navegável fica disponível apenas fora de produção.
+  if (!isProduction) {
+    router.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi));
   }
   ```
 
-  No `openapi.yaml`, `POST /auth/signin` responde `200` com `{ token }` e `401` com o objeto
-  de erro padrão — descrever o erro é tão importante quanto descrever o sucesso.
+  No documento, `POST /tasks` responde `201` com a tarefa e `422` com o objeto de erro
+  padrão — descrever o erro é tão importante quanto descrever o sucesso.
 </details>
 
 ## Desafio
 
-Escreva um teste de contrato: leia `openapi.yaml`, extraia o schema da resposta de
-`GET /investments` e valide contra ele a resposta real da aplicação. Faça o teste falhar
-propositalmente removendo um campo do controller e confirme que a divergência é detectada.
+Escreva um teste de contrato: leia `GET /openapi.json`, extraia o schema da resposta de
+`GET /tasks` e valide contra ele a resposta real da aplicação. Faça o teste falhar
+propositalmente removendo um campo do model e confirme que a divergência é detectada.
 
 ## Perguntas de revisão
 
@@ -326,6 +338,12 @@ propositalmente removendo um campo do controller e confirme que a divergência �
 - [`swagger-ui-express`](https://www.npmjs.com/package/swagger-ui-express)
 - [REST Client (VS Code)](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)
 - [Zod — JSON Schema](https://zod.dev/json-schema)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 6 da TaskAPI](../../practice/taskapi/openapi/), onde o contrato publicado em `/docs`
+é gerado dos mesmos schemas Zod que validam as requisições.
 
 ## Próxima aula
 

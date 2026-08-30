@@ -7,6 +7,7 @@ sidebar:
 ---
 import { Aside } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Um **controller** é a função que responde a uma requisição. Tirá-la de dentro do router
 deixa o arquivo de rotas com uma única responsabilidade: dizer *quais caminhos existem*.
@@ -22,21 +23,22 @@ ponto de pedir uma camada de serviço.
 ## O problema
 
 Quando o handler cresce, o arquivo de rotas passa a misturar caminho, validação, acesso a
-dados e formatação da resposta — quatro motivos diferentes para o mesmo arquivo mudar:
+dados e formatação da resposta — quatro motivos diferentes para o mesmo arquivo mudar. É o
+que a etapa 2 da TaskAPI ainda faz, se a rota crescer:
 
-```js title="src/routes/user-router.js" {3-12}
+```js {3-12}
 router.post('/', (req, res) => {
-  const { name, email } = req.body ?? {};
+  const { title } = req.body ?? {};
 
-  if (!name || !email) {
-    return res.status(400).json({ message: 'Campos obrigatórios' });
+  if (!title) {
+    return res.status(400).json({ message: 'O campo "title" é obrigatório' });
   }
 
-  const user = { id: nextId, name, email };
+  const task = { id: nextId, title, done: false };
   nextId += 1;
-  users.push(user);
+  tasks.push(task);
 
-  res.status(201).json(user);
+  res.status(201).json(task);
 });
 ```
 
@@ -47,46 +49,32 @@ todas elas.
 
 O router passa a apontar para funções nomeadas, e volta a caber em uma tela:
 
-```js title="src/routes/user-router.js" ins={1,5-7}
-import * as userController from '../controllers/user-controller.js';
-
-const router = Router();
-
-router.get('/', userController.index);
-router.get('/:id', userController.show);
-router.post('/', userController.store);
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-mvc/src/routes/task-router.js"
+  title="src/routes/task-router.js"
+  region="routes"
+/>
 
 O controller fica com a lógica — e com a decisão de qual status responder:
 
-```js title="src/controllers/user-controller.js" showLineNumbers
-export function index(req, res) {
-  res.json(User.findAll());
-}
-
-export function show(req, res) {
-  const user = User.findById(Number(req.params.id));
-
-  if (!user) {
-    throw new HttpError(404, 'Usuário não encontrado');
-  }
-
-  res.json(user);
-}
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-mvc/src/controllers/task-controller.js"
+  title="src/controllers/task-controller.js"
+  region="read"
+/>
 
 ## Nomes convencionais
 
 Usar sempre os mesmos nomes torna qualquer controller previsível: quem abre
-`product-controller.js` pela primeira vez já sabe o que vai encontrar.
+`tag-controller.js` pela primeira vez já sabe o que vai encontrar.
 
 | Função    | Método HTTP | Caminho      | Ação        |
 | --------- | ----------- | ------------ | ----------- |
-| `index`   | GET         | `/users`     | Lista todos |
-| `show`    | GET         | `/users/:id` | Busca um    |
-| `store`   | POST        | `/users`     | Cria        |
-| `update`  | PUT         | `/users/:id` | Atualiza    |
-| `destroy` | DELETE      | `/users/:id` | Remove      |
+| `index`   | GET         | `/tasks`     | Lista todos |
+| `show`    | GET         | `/tasks/:id` | Busca um    |
+| `store`   | POST        | `/tasks`     | Cria        |
+| `update`  | PUT         | `/tasks/:id` | Atualiza    |
+| `destroy` | DELETE      | `/tasks/:id` | Remove      |
 
 <Aside type="note" title="Outros dialetos da mesma convenção">
   Rails usa `index/show/create/update/destroy`; Laravel, `index/show/store/update/destroy`;
@@ -124,7 +112,7 @@ O controller **não deve**:
 - saber em qual caminho está montado — quem define o prefixo é o `app.use()`.
 
 <Aside type="tip" title="Um controller por recurso">
-  `user-controller.js`, `product-controller.js`, `order-controller.js`. Se um controller
+  `task-controller.js`, `tag-controller.js`, `user-controller.js`. Se um controller
   precisa importar outro, normalmente falta um model ou um serviço: a regra que os dois
   compartilham não é sobre HTTP.
 </Aside>
@@ -135,19 +123,19 @@ O sinal de que o controller engordou demais é ele conter regra de negócio — 
 continuaria valendo se a aplicação virasse um script de linha de comando:
 
 ```js title="Controller gordo" del={5-11}
-export async function store(req, res) {
-  const { amount, categoryId } = req.body;
+export async function update(req, res) {
+  const { done } = req.body;
 
   // Regra de negócio dentro do controller: não é sobre HTTP.
-  const category = await Category.findById(categoryId);
-  const limite = category.limitePorAporte;
-  const total = await Investment.sumByCategory(categoryId);
+  const task = await Task.findById(Number(req.params.id));
+  const subtarefas = await Task.findChildren(task.id);
+  const abertas = subtarefas.filter((item) => !item.done);
 
-  if (total + amount > limite) {
-    throw new HttpError(409, 'Limite da categoria excedido');
+  if (done && abertas.length > 0) {
+    throw new HttpError(409, 'Há subtarefas em aberto');
   }
 
-  res.status(201).json(await Investment.create(req.body));
+  res.json(await Task.update(task.id, req.body));
 }
 ```
 
@@ -155,12 +143,12 @@ A mesma rota com a regra extraída para um serviço fica assim — e a regra pas
 testável sem subir servidor:
 
 ```js title="Controller magro + serviço" ins={1,4}
-import * as InvestmentService from '../services/investment-service.js';
+import * as TaskService from '../services/task-service.js';
 
-export async function store(req, res) {
-  const investment = await InvestmentService.criarRespeitandoLimite(req.body);
+export async function update(req, res) {
+  const task = await TaskService.concluirSeSubtarefasFechadas(req.params.id, req.body);
 
-  res.status(201).json(investment);
+  res.json(task);
 }
 ```
 
@@ -171,46 +159,46 @@ export async function store(req, res) {
 
 ## Exercício
 
-Partindo do projeto `router`:
+Partindo da [etapa 2 da TaskAPI](../../practice/taskapi/router/):
 
-1. Crie `src/controllers/product-controller.js` com `index`, `show`, `store` e `destroy`.
-2. Deixe `product-router.js` apenas com os cinco `router.<verbo>` apontando para o controller.
-3. Faça `store` responder `201` com o produto criado e `400` quando `price` for negativo.
+1. Crie `src/controllers/tag-controller.js` com `index`, `show`, `store` e `destroy`.
+2. Deixe `tag-router.js` apenas com os `router.<verbo>` apontando para o controller.
+3. Faça `store` responder `201` com a tag criada e `400` quando `color` não for `#rrggbb`.
 4. Faça `destroy` responder `204` sem corpo.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```js title="src/controllers/product-controller.js" showLineNumbers
-  import * as Product from '../models/product-model.js';
+  ```js showLineNumbers
+  import * as Tag from '../models/tag-model.js';
 
   export function index(req, res) {
-    res.json(Product.findAll());
+    res.json(Tag.findAll());
   }
 
   export function show(req, res) {
-    const product = Product.findById(Number(req.params.id));
+    const tag = Tag.findById(Number(req.params.id));
 
-    if (!product) {
-      return res.status(404).json({ message: 'Produto não encontrado' });
+    if (!tag) {
+      return res.status(404).json({ message: 'Tag não encontrada' });
     }
 
-    res.json(product);
+    res.json(tag);
   }
 
   export function store(req, res) {
-    const { name, price } = req.body ?? {};
+    const { name, color } = req.body ?? {};
 
-    if (!name || typeof price !== 'number' || price < 0) {
-      return res.status(400).json({ message: '"name" e "price" (>= 0) são obrigatórios' });
+    if (!name || !/^#[0-9a-f]{6}$/i.test(color ?? '')) {
+      return res.status(400).json({ message: '"name" e "color" (#rrggbb) são obrigatórios' });
     }
 
-    res.status(201).json(Product.create({ name, price }));
+    res.status(201).json(Tag.create({ name, color }));
   }
 
   export function destroy(req, res) {
-    if (!Product.remove(Number(req.params.id))) {
-      return res.status(404).json({ message: 'Produto não encontrado' });
+    if (!Tag.remove(Number(req.params.id))) {
+      return res.status(404).json({ message: 'Tag não encontrada' });
     }
 
     res.status(204).end();
@@ -221,8 +209,8 @@ Partindo do projeto `router`:
 ## Desafio
 
 Reescreva `store` de forma que o controller não tenha nenhum `if` de validação: mova a
-checagem para um middleware de fábrica `validate(['name', 'price'])` e a regra de preço não
-negativo para o model, que passa a lançar `HttpError`. Compare os dois controllers.
+checagem para um middleware de fábrica `validate(['name', 'color'])` e a regra do formato de
+cor para o model, que passa a lançar `HttpError`. Compare os dois controllers.
 
 ## Perguntas de revisão
 
@@ -243,8 +231,8 @@ negativo para o model, que passa a lançar `HttpError`. Compare os dois controll
    <details>
      <summary>Possível resposta</summary>
 
-     Porque o prefixo é decidido no `app.use()`. Um controller que monta URLs com `/users`
-     fixo impede remontar o mesmo router em `/api/v1/users`.
+     Porque o prefixo é decidido no `app.use()`. Um controller que monta URLs com `/tasks`
+     fixo impede remontar o mesmo router em `/api/v1/tasks`.
    </details>
 
 ### Organização
@@ -271,6 +259,12 @@ negativo para o model, que passa a lançar `HttpError`. Compare os dois controll
 
 - [Express — Routing](https://expressjs.com/en/guide/routing.html)
 - [MVC | MDN Glossary](https://developer.mozilla.org/en-US/docs/Glossary/MVC)
+
+## Na prática
+
+Os projetos executáveis desta aula são a
+[etapa 2 da TaskAPI](../../practice/taskapi/router/), onde o router ainda responde, e a
+[etapa 3](../../practice/taskapi/mvc/), onde ele apenas aponta.
 
 ## Próxima aula
 

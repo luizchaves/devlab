@@ -153,8 +153,9 @@ componentes do projeto são camadas finas sobre eles:
 Detalhes de props, regiões `#region`, `mark`/`ins`/`del`/`collapse` e as ressalvas do
 Expressive Code estão no README, seção "Componentes".
 
-Ao usar `lines` ou `region`, os intervalos de `mark` referem-se às linhas do **trecho
-exibido**, não à numeração original da régua.
+Ao usar `lines` ou `region`, escreva os intervalos de `mark`/`ins`/`del` com a
+**numeração original do arquivo** — a mesma que a régua mostra. O `<SourceCode>` os
+reposiciona sozinho e descarta o que cai fora do trecho.
 
 ## Projetos em `examples/`
 

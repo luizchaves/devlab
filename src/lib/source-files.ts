@@ -133,13 +133,13 @@ const LANGUAGE_BY_FILENAME: Record<string, string> = {
   makefile: 'makefile',
 };
 
-/** `examples/courses/express/projects/mvc/src/app.js` -> `app.js` */
+/** `examples/courses/express/projects/task-api-mvc/src/app.js` -> `app.js` */
 export function inferFileName(path: string): string {
   const segments = normalizeSourcePath(path).split('/');
   return segments[segments.length - 1] ?? path;
 }
 
-/** `examples/courses/express/projects/mvc/src/app.js` -> `js` */
+/** `examples/courses/express/projects/task-api-mvc/src/app.js` -> `js` */
 export function inferLanguage(path: string): string {
   const fileName = inferFileName(path);
   const byName = LANGUAGE_BY_FILENAME[fileName.toLowerCase()];

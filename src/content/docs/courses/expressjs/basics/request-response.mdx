@@ -9,6 +9,7 @@ import { Aside } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Uma requisição HTTP é mais do que caminho e corpo: ela traz cabeçalhos que dizem quem
 chama, o que aceita receber e em que formato enviou os dados. Esta aula percorre `req` e
@@ -31,16 +32,16 @@ opcional. O Express expõe cada parte em uma propriedade diferente.
 {`
 flowchart TD
   subgraph REQ["Requisição"]
-    R1["POST /api/users?draft=1 HTTP/1.1<br/>req.method · req.path · req.query"]
+    R1["POST /api/tasks?draft=1 HTTP/1.1<br/>req.method · req.path · req.query"]
     R2["Host, Content-Type, Accept, Authorization<br/>req.headers · req.get()"]
-    R3["{ 'name': 'Ana' }<br/>req.body"]
+    R3["{ 'title': 'Estudar' }<br/>req.body"]
   end
   REQ --> APP["Handler Express"]
   APP --> RES
   subgraph RES["Resposta"]
     S1["HTTP/1.1 201 Created<br/>res.status()"]
     S2["Content-Type, Location, Cache-Control<br/>res.set()"]
-    S3["{ 'id': 3, 'name': 'Ana' }<br/>res.json()"]
+    S3["{ 'id': 3, 'title': 'Estudar' }<br/>res.json()"]
   end
 `}
 </Mermaid>
@@ -52,8 +53,8 @@ Além de `params`, `query` e `body`, o objeto `req` descreve o contexto da chama
 | Propriedade         | Contém                                                            |
 | ------------------- | ----------------------------------------------------------------- |
 | `req.method`        | verbo HTTP em maiúsculas (`'GET'`)                                 |
-| `req.path`          | caminho sem a query string (`'/users'`)                            |
-| `req.originalUrl`   | caminho completo como chegou, com a query (`'/users?page=2'`)      |
+| `req.path`          | caminho sem a query string (`'/tasks'`)                            |
+| `req.originalUrl`   | caminho completo como chegou, com a query (`'/tasks?page=2'`)      |
 | `req.baseUrl`       | prefixo sob o qual o router foi montado (`'/api'`)                 |
 | `req.protocol`      | `'http'` ou `'https'`                                              |
 | `req.hostname`      | host pedido pelo cliente                                           |
@@ -65,7 +66,7 @@ Além de `params`, `query` e `body`, o objeto `req` descreve o contexto da chama
 
 Na prática, esses membros aparecem em middlewares de log e de controle de acesso:
 
-```js title="src/middlewares/logger.js" showLineNumbers {2,5}
+```js showLineNumbers {2,5}
 export function logger(req, res, next) {
   const agent = req.get('user-agent') ?? 'desconhecido';
 
@@ -88,17 +89,17 @@ O cliente diz o que aceita no cabeçalho `Accept`; o servidor escolhe o formato.
 faz a escolha e devolve `406 Not Acceptable` quando nenhuma opção serve:
 
 ```js title="Respondendo em vários formatos" showLineNumbers {3,7,11}
-app.get('/users/:id', (req, res) => {
-  const user = { id: 1, name: 'Ana' };
+app.get('/tasks/:id', (req, res) => {
+  const task = { id: 1, title: 'Estudar rotas do Express', done: true };
 
   res.format({
-    'application/json': () => res.json(user),
+    'application/json': () => res.json(task),
 
-    'text/html': () => res.send(`<h1>${user.name}</h1>`),
+    'text/html': () => res.send(`<h1>${task.title}</h1>`),
 
     'text/csv': () => {
       res.type('text/csv');
-      res.send(`id,name\n${user.id},${user.name}`);
+      res.send(`id,title,done\n${task.id},${task.title},${task.done}`);
     },
   });
 });
@@ -106,15 +107,11 @@ app.get('/users/:id', (req, res) => {
 
 Do outro lado, `req.is()` protege o handler de um corpo em formato inesperado:
 
-```js title="src/middlewares/require-json.js" showLineNumbers {2}
-export function requireJson(req, res, next) {
-  if (!req.is('application/json')) {
-    return res.status(415).json({ message: 'Content-Type precisa ser application/json' });
-  }
-
-  next();
-}
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-typescript/src/middlewares/require-json.ts"
+  title="src/middlewares/require-json.ts"
+  lines="11-17"
+/>
 
 <Aside type="caution" title="415 não é 400">
   `400 Bad Request` diz "o conteúdo está errado"; `415 Unsupported Media Type` diz "o
@@ -146,8 +143,8 @@ Encadear é o padrão mais comum, porque os métodos de configuração devolvem 
 ```js title="Encadeamento" showLineNumbers
 res
   .status(201)
-  .set('Location', `/users/${user.id}`)
-  .json(user);
+  .set('Location', `/tasks/${task.id}`)
+  .json(task);
 ```
 
 <Aside type="danger" title="Só se responde uma vez">
@@ -155,13 +152,13 @@ res
   `ERR_HTTP_HEADERS_SENT`. A causa quase sempre é um `if` sem `return`:
 
   ```js del={3} ins={4}
-  app.get('/users/:id', (req, res) => {
-    if (!user) {
-      res.status(404).json({ message: 'Não encontrado' });
-      return res.status(404).json({ message: 'Não encontrado' });
+  app.get('/tasks/:id', (req, res) => {
+    if (!task) {
+      res.status(404).json({ message: 'Não encontrada' });
+      return res.status(404).json({ message: 'Não encontrada' });
     }
 
-    res.json(user);
+    res.json(task);
   });
   ```
 </Aside>
@@ -179,10 +176,10 @@ muda o comportamento do cliente:
 | `307`  | Temporary Redirect | como o `302`, mas preservando o método original            |
 
 ```js title="Redirecionamento após POST" showLineNumbers {4}
-app.post('/users', (req, res) => {
-  const user = createUser(req.body);
+app.post('/tasks', (req, res) => {
+  const task = createTask(req.body);
 
-  res.redirect(303, `/users/${user.id}`);
+  res.redirect(303, `/tasks/${task.id}`);
 });
 ```
 
@@ -191,7 +188,7 @@ app.post('/users', (req, res) => {
 `express.static()` publica um diretório inteiro. É um middleware, então a ordem de registro
 importa: o que ele encontra no disco é respondido antes de qualquer rota abaixo dele.
 
-```js title="src/app.js" showLineNumbers {2,5}
+```js showLineNumbers {2,5}
 // public/index.html passa a responder em GET /
 app.use(express.static('public'));
 
@@ -224,17 +221,17 @@ Respostas de leitura ganham desempenho com dois cabeçalhos. O Express já envia
 automaticamente para `res.json()` e `res.send()`; `Cache-Control` é escolha da aplicação:
 
 ```js title="Cache de uma listagem pública" showLineNumbers {2}
-app.get('/categories', (req, res) => {
+app.get('/tags', (req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
 
-  res.json(categories);
+  res.json(tags);
 });
 ```
 
 Com o `ETag` guardado, o cliente reenvia `If-None-Match` e o Express responde `304 Not
 Modified` sem corpo — a rede transporta apenas os cabeçalhos.
 
-<ApiRequest method="GET" path="/categories" baseUrl="http://localhost:3000" description='Com o cabeçalho If-None-Match: "a1b2c3"' />
+<ApiRequest method="GET" path="/tags" baseUrl="http://localhost:3000" description='Com o cabeçalho If-None-Match: "a1b2c3"' />
 
 <ApiResponse status={304} description="Sem corpo: o cliente reaproveita a cópia que já tem" />
 
@@ -252,7 +249,7 @@ Depois explique por que o cabeçalho `X-Response-Time` **não** pode ser definid
 <details>
   <summary>Possível resposta</summary>
 
-  ```js title="src/middlewares/response-time.js" showLineNumbers
+  ```js showLineNumbers
   export function responseTime(req, res, next) {
     const start = process.hrtime.bigint();
 
@@ -273,7 +270,7 @@ Depois explique por que o cabeçalho `X-Response-Time` **não** pode ser definid
 
 ## Desafio
 
-Implemente `GET /users/:id` respondendo em JSON, HTML e CSV por negociação de conteúdo, e
+Implemente `GET /tasks/:id` respondendo em JSON, HTML e CSV por negociação de conteúdo, e
 devolvendo `406` quando o cliente pedir um formato não suportado. Teste com
 `curl -H "Accept: text/csv"` e `curl -H "Accept: application/xml"`.
 
@@ -336,6 +333,12 @@ devolvendo `406` quando o cliente pedir um formato não suportado. Teste com
 - [Express — Serving static files](https://expressjs.com/en/starter/static-files.html)
 - [HTTP headers | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers)
 - [Content negotiation | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 1 da TaskAPI](../../practice/taskapi/hello/), onde `req.params`, `req.body`,
+`res.status()` e `res.json()` aparecem juntos em quatro rotas.
 
 ## Próxima aula
 

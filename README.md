@@ -600,8 +600,11 @@ Nas props do `<SourceCode>`, os equivalentes:
 > vírgulas (`"7-12"`, `"1,3-5"`) vira intervalo de linhas, e qualquer outra string
 > continua sendo marcador de texto. Regexes e objetos passam intactos.
 >
-> Ao usar `lines` ou `region`, os intervalos de `mark` referem-se às linhas do
-> **trecho exibido** (1-based), não à numeração original mostrada na régua.
+> Ao usar `lines` ou `region`, escreva os intervalos de `mark`/`ins`/`del` com a
+> **numeração original do arquivo** — a mesma que a régua mostra. O `<SourceCode>`
+> reposiciona os marcadores internamente (`offsetMarkers`) e descarta os que caem
+> fora do trecho. A exceção é `preserveLineNumbers={false}`: sem a régua original,
+> a contagem volta a ser a do trecho exibido (1-based).
 
 ## Tailwind CSS
 

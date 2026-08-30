@@ -97,26 +97,37 @@ O Express é uma dependência de produção, instalada dentro de um projeto Node
 
 Três linhas já sobem uma aplicação: criar o `app`, registrar uma rota e escutar uma porta.
 
-<ProjectLinks path="examples/courses/express/projects/hello" devcontainer="express-hello" />
+<ProjectLinks path="examples/courses/express/projects/task-api-hello" devcontainer="task-api-hello" />
 
 <FileTree>
 {`
-  express-hello/
+  task-api-hello/
   ├── package.json
+  ├── requests.http
   └── src/
       └── server.js
 `}
 </FileTree>
 
 <SourceCode
-  path="examples/courses/express/projects/hello/src/server.js"
+  path="examples/courses/express/projects/task-api-hello/src/server.js"
   title="src/server.js"
-  showLineNumbers
-  mark="7"
+  region="setup"
 />
 
-A linha destacada é o único middleware do arquivo. Sem `express.json()`, `req.body` chega
-`undefined`: alguém precisa ler o corpo da requisição e convertê-lo em objeto JavaScript.
+`express.json()` é o único middleware do arquivo. Sem ele, `req.body` chega `undefined`:
+alguém precisa ler o corpo da requisição e convertê-lo em objeto JavaScript.
+
+A primeira rota da API não depende do domínio nenhum — ela só diz que o processo está de
+pé. Toda API em produção tem uma, e esta volta no guia inteiro, com log em
+[Log](../../architecture/logging/) e como *readiness probe* em
+[Deploy](../../advanced/deploy/):
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hello/src/server.js"
+  title="src/server.js"
+  region="health"
+/>
 
 <Aside type="tip" title="Modo watch sem dependências">
   `node --watch src/server.js` reinicia o processo a cada arquivo salvo. Até o Node 18 esse
@@ -131,7 +142,7 @@ middlewares registrados, encontra (ou não) uma rota e volta como resposta.
 <Mermaid title="Ciclo requisição/resposta de uma aplicação Express">
 {`
 flowchart TD
-  A["Cliente<br/>GET /hello/Ana"] --> B["node:http<br/>recebe a conexão"]
+  A["Cliente<br/>GET /tasks/1"] --> B["node:http<br/>recebe a conexão"]
   B --> C["app<br/>middlewares globais"]
   C --> D{"Alguma rota casa<br/>método + caminho?"}
   D -->|sim| E["Handler<br/>(req, res) => …"]
@@ -151,14 +162,14 @@ esperando.
 Uma rota é a associação entre um método HTTP, um caminho e a função que responde:
 
 ```js title="Anatomia de app.get()"
-app.get('/hello/:name', (req, res) => {
-  res.json({ message: `Hello ${req.params.name}` });
+app.get('/tasks/:id', (req, res) => {
+  res.json({ id: req.params.id });
 });
-//  │    │              │     │
-//  │    │              │     └─ res: como responder
-//  │    │              └─────── req: o que chegou
-//  │    └────────────────────── caminho (com parâmetro nomeado)
-//  └─────────────────────────── método HTTP
+//  │    │           │     │
+//  │    │           │     └─ res: como responder
+//  │    │           └─────── req: o que chegou
+//  │    └─────────────────── caminho (com parâmetro nomeado)
+//  └──────────────────────── método HTTP
 ```
 
 O `app` expõe um método para cada verbo HTTP, além de dois casos especiais:
@@ -173,7 +184,7 @@ O `app` expõe um método para cada verbo HTTP, além de dois casos especiais:
 
 <Aside type="caution" title="A ordem de registro é a ordem de avaliação">
   O Express testa as rotas de cima para baixo e para na primeira que casar. Registrar
-  `app.get('/users/:id')` antes de `app.get('/users/novo')` faz `/users/novo` cair na
+  `app.get('/tasks/:id')` antes de `app.get('/tasks/novo')` faz `/tasks/novo` cair na
   primeira rota, com `req.params.id === 'novo'`.
 </Aside>
 
@@ -183,7 +194,7 @@ Praticamente toda aula daqui para a frente gira em torno de cinco membros de `re
 
 | Objeto            | Contém                                                    |
 | ----------------- | --------------------------------------------------------- |
-| `req.params`      | parâmetros nomeados da rota (`/users/:id` → `{ id: '1' }`) |
+| `req.params`      | parâmetros nomeados da rota (`/tasks/:id` → `{ id: '1' }`) |
 | `req.query`       | query string já convertida em objeto (`?page=1`)           |
 | `req.body`        | corpo da requisição — exige `express.json()`               |
 | `res.status(201)` | define o status; devolve o próprio `res`, então encadeia   |
@@ -198,7 +209,7 @@ A aula de [Requisição e Resposta](../request-response/) detalha cada um deles.
 1. Entre no projeto de exemplo:
 
    ```bash
-   cd examples/courses/express/projects/hello
+   cd examples/courses/express/projects/task-api-hello
    ```
 
 2. Instale as dependências:
@@ -212,11 +223,11 @@ A aula de [Requisição e Resposta](../request-response/) detalha cada um deles.
 4. Confirme que ele responde:
 
    ```bash
-   curl http://localhost:3000/hello/Ana
+   curl http://localhost:3000/health
    ```
 
    ```txt title="Output"
-   {"message":"Hello Ana"}
+   {"status":"ok","uptime":1.204}
    ```
 
 </Steps>
@@ -225,47 +236,52 @@ A aula de [Requisição e Resposta](../request-response/) detalha cada um deles.
 
 Esta seção demonstra o comportamento da aplicação em execução. Cada teste envia uma requisição simulada e verifica a estrutura da resposta HTTP retornada.
 
-Uma rota com parâmetro de rota (`/hello/:name`) captura o valor informado na URL (`/hello/Ana`) e o retorna formatado com status `200 OK`:
+Uma rota com parâmetro de rota (`/tasks/:id`) captura o valor informado na URL e devolve
+a tarefa correspondente com status `200 OK`:
 
 <details>
   <summary>Requisição .http correspondente</summary>
 
   ```http
-  ### Testar rota Hello com parâmetro
-  GET http://localhost:3000/hello/Ana
+  ### Buscar uma tarefa pelo parametro de rota
+  GET http://localhost:3000/tasks/1
   ```
 </details>
 
-<ApiRequest method="GET" path="/hello/Ana" baseUrl="http://localhost:3000" />
+<ApiRequest method="GET" path="/tasks/1" baseUrl="http://localhost:3000" />
 
 <ApiResponse status={200}>
 {`
   {
-    "message": "Hello Ana"
+    "id": 1,
+    "title": "Estudar rotas do Express",
+    "done": true
   }
 `}
 </ApiResponse>
 
-Já a rota de eco `POST /echo` recebe um documento JSON no corpo da requisição e devolve os mesmos dados com status `201 Created`. Essa leitura do payload só é possível porque o middleware `express.json()` foi registrado antes das rotas:
+Já `POST /tasks` recebe um documento JSON no corpo da requisição e devolve a tarefa
+criada com status `201 Created`. Essa leitura do payload só é possível porque o
+middleware `express.json()` foi registrado antes das rotas:
 
 <details>
   <summary>Requisição .http correspondente</summary>
 
   ```http
-  ### Testar rota POST /echo com JSON
-  POST http://localhost:3000/echo
+  ### Criar uma tarefa com corpo JSON
+  POST http://localhost:3000/tasks
   Content-Type: application/json
 
   {
-    "curso": "Desenvolvimento Web"
+    "title": "Ler a documentacao do Express"
   }
   ```
 </details>
 
-<ApiRequest method="POST" path="/echo" baseUrl="http://localhost:3000" description="Devolve o corpo recebido">
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
 {`
   {
-    "curso": "Desenvolvimento Web"
+    "title": "Ler a documentação do Express"
   }
 `}
 </ApiRequest>
@@ -273,9 +289,9 @@ Já a rota de eco `POST /echo` recebe um documento JSON no corpo da requisição
 <ApiResponse status={201}>
 {`
   {
-    "received": {
-      "curso": "Desenvolvimento Web"
-    }
+    "id": 3,
+    "title": "Ler a documentação do Express",
+    "done": false
   }
 `}
 </ApiResponse>
@@ -288,37 +304,38 @@ Já a rota de eco `POST /echo` recebe um documento JSON no corpo da requisição
 
 ## Exercício
 
-Partindo do projeto `hello`:
+Partindo da [etapa 1 da TaskAPI](../../practice/taskapi/hello/):
 
-1. Adicione `GET /soma?a=2&b=3` lendo os valores de `req.query` e respondendo
-   `{ "resultado": 5 }`.
-2. Responda `400` quando `a` ou `b` não forem numéricos.
-3. Adicione `GET /hello` (sem parâmetro) devolvendo `{ "message": "Hello World" }` e
-   verifique se ela conflita com `GET /hello/:name`.
+1. Adicione `GET /tasks/count?done=true` lendo o filtro de `req.query` e respondendo
+   `{ "total": 1 }`.
+2. Responda `400` quando `done` vier com qualquer valor diferente de `true` ou `false`.
+3. Verifique se `GET /tasks/count` conflita com `GET /tasks/:id` e explique por quê.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```js title="src/server.js"
-  app.get('/soma', (req, res) => {
-    const a = Number(req.query.a);
-    const b = Number(req.query.b);
+  ```js
+  app.get('/tasks/count', (req, res) => {
+    const { done } = req.query;
 
-    if (Number.isNaN(a) || Number.isNaN(b)) {
-      return res.status(400).json({ message: 'Os parâmetros "a" e "b" devem ser numéricos' });
+    if (done !== 'true' && done !== 'false') {
+      return res.status(400).json({ message: 'O parâmetro "done" deve ser true ou false' });
     }
 
-    res.json({ resultado: a + b });
+    const total = tasks.filter((task) => task.done === (done === 'true')).length;
+
+    res.json({ total });
   });
   ```
 
-  `GET /hello` e `GET /hello/:name` **não** conflitam: são caminhos com número diferente de
-  segmentos, e `/hello/:name` exige exatamente um segmento depois de `/hello`.
+  As duas rotas **conflitam**: `/tasks/count` casa com `/tasks/:id`, então `count` chega
+  como `req.params.id`. `GET /tasks/count` precisa ser registrada **antes** de
+  `GET /tasks/:id`.
 </details>
 
 ## Desafio
 
-Reescreva o `GET /hello/:name` usando apenas `node:http`, sem Express: faça o roteamento
+Reescreva o `GET /tasks/:id` usando apenas `node:http`, sem Express: faça o roteamento
 manualmente, devolva `404` para qualquer outro caminho e responda com
 `Content-Type: application/json`. Compare o número de linhas com a versão em Express.
 
@@ -367,13 +384,13 @@ manualmente, devolva `404` para qualquer outro caminho e responda com
      `/x` — é o registro usado por middlewares e routers.
    </details>
 
-5. **Por que `app.get('/users/:id')` antes de `app.get('/users/novo')` é um problema?**
+5. **Por que `app.get('/tasks/:id')` antes de `app.get('/tasks/count')` é um problema?**
 
    <details>
      <summary>Possível resposta</summary>
 
-     O Express para na primeira rota que casa. `/users/novo` casa com `/users/:id`, então a
-     rota específica nunca é alcançada e `req.params.id` vale `'novo'`.
+     O Express para na primeira rota que casa. `/tasks/count` casa com `/tasks/:id`, então a
+     rota específica nunca é alcançada e `req.params.id` vale `'count'`.
    </details>
 
 ## Referências
@@ -385,7 +402,8 @@ manualmente, devolva `404` para qualquer outro caminho e responda com
 
 ## Na prática
 
-O projeto executável desta aula é [Hello Express](../../practice/hello-express/).
+O projeto executável desta aula é a [etapa 1 da TaskAPI](../../practice/taskapi/hello/), o projeto modelo que atravessa
+o guia inteiro.
 
 ## Próxima aula
 

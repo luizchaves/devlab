@@ -9,8 +9,9 @@ import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
-`GET /investments` funciona muito bem com vinte registros. Com duzentos mil, a mesma rota
+`GET /tasks` funciona muito bem com vinte registros. Com duzentos mil, a mesma rota
 derruba o servidor, a rede e o navegador. Esta aula trata dos parâmetros que fazem uma
 coleção crescer sem quebrar.
 
@@ -42,37 +43,48 @@ Uma listagem sem limite tem três custos simultâneos, e todos crescem junto com
 
 É a forma mais direta: pular `N` registros e pegar os próximos `M`.
 
-```ts title="src/controllers/investment-controller.ts" showLineNumbers {2-3,5}
-export async function index(req: Request, res: Response) {
-  const page = Math.max(1, Number(req.query.page ?? 1));
-  const perPage = Math.min(100, Math.max(1, Number(req.query.perPage ?? 20)));
+O limite e o padrão não precisam morar no controller: no projeto modelo eles são parte do
+schema que valida a query, então chegam ao model já convertidos e dentro da faixa
+permitida.
 
-  const [items, total] = await Investment.paginate({ skip: (page - 1) * perPage, take: perPage });
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/schemas/task.ts"
+  title="src/schemas/task.ts"
+  region="query"
+/>
 
-  res.json({
-    data: items,
-    meta: { page, perPage, total, totalPages: Math.ceil(total / perPage) },
-  });
-}
-```
+Com isso, o model recebe números confiáveis e faz o corte. A ordem importa: filtra, ordena
+e **só então** corta a página — inverter isso pagina o conjunto errado.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="paginate"
+/>
 
 O envelope separa os dados dos metadados, e é o que permite ao front-end desenhar a
 paginação:
 
-<ApiRequest method="GET" path="/investments?page=2&perPage=2" baseUrl="http://localhost:3000" />
+<ApiRequest method="GET" path="/tasks?page=1&perPage=1" baseUrl="http://localhost:3000" />
 
 <ApiResponse status={200}>
 {`
   {
     "data": [
-      { "id": "c3f1", "name": "CDB Inter", "amount": 15000 },
-      { "id": "a9d2", "name": "LCI Banco X", "amount": 8000 }
+      {
+        "id": 2,
+        "title": "Escrever a primeira API",
+        "done": false,
+        "priority": "medium",
+        "dueDate": null,
+        "createdAt": "2026-03-02T09:00:00.000Z"
+      }
     ],
     "meta": {
-      "page": 2,
-      "perPage": 2,
-      "total": 37,
-      "totalPages": 19
+      "page": 1,
+      "perPage": 1,
+      "total": 2,
+      "totalPages": 2
     }
   }
 `}
@@ -110,9 +122,9 @@ export async function index(req: Request, res: Response) {
   const { cursor, limit = '20' } = req.query as { cursor?: string; limit?: string };
   const take = Math.min(100, Number(limit));
 
-  const items = await prisma.investment.findMany({
+  const items = await prisma.task.findMany({
     take: take + 1, // um a mais: revela se existe próxima página
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    ...(cursor ? { cursor: { id: Number(cursor) }, skip: 1 } : {}),
     orderBy: { id: 'asc' },
   });
 
@@ -147,26 +159,26 @@ condições incrementalmente resolve:
     ```ts title="Difícil de estender" showLineNumbers
     let where = {};
 
-    if (req.query.name) {
-      where = { ...where, name: { contains: req.query.name } };
+    if (req.query.q) {
+      where = { ...where, title: { contains: req.query.q } };
     }
 
-    if (req.query.categoryId) {
-      where = { ...where, categoryId: req.query.categoryId };
+    if (req.query.priority) {
+      where = { ...where, priority: req.query.priority };
     }
 
-    if (req.query.minAmount) {
-      where = { ...where, amount: { gte: Number(req.query.minAmount) } };
+    if (req.query.done) {
+      where = { ...where, done: req.query.done === 'true' };
     }
     ```
   </TabItem>
 
   <TabItem label="Mapa de filtros">
-    ```ts title="src/filters/investment.ts" showLineNumbers {8}
+    ```ts showLineNumbers {8}
     const FILTROS = {
-      name: (valor: string) => ({ name: { contains: valor } }),
-      categoryId: (valor: string) => ({ categoryId: valor }),
-      minAmount: (valor: string) => ({ amount: { gte: Number(valor) } }),
+      q: (valor: string) => ({ title: { contains: valor } }),
+      priority: (valor: string) => ({ priority: valor }),
+      done: (valor: string) => ({ done: valor === 'true' }),
     } as const;
 
     export function buildWhere(query: Record<string, unknown>) {
@@ -189,13 +201,13 @@ Ordenação é o parâmetro mais perigoso da consulta, porque o valor vira **nom
 Repassá-lo direto permite ordenar por qualquer campo — inclusive `password` — e, em SQL
 montado por concatenação, injetar comandos:
 
-```ts title="src/sorting.ts" showLineNumbers {1,7,11}
-const CAMPOS_ORDENAVEIS = ['name', 'amount', 'createdAt', 'dueDate'] as const;
+```ts showLineNumbers {1,7,11}
+const CAMPOS_ORDENAVEIS = ['title', 'priority', 'createdAt', 'dueDate'] as const;
 
 type CampoOrdenavel = (typeof CAMPOS_ORDENAVEIS)[number];
 
 export function buildOrderBy(sort?: string) {
-  // ?sort=-amount  ->  amount desc
+  // ?sort=-dueDate  ->  dueDate desc
   const desc = sort?.startsWith('-') ?? false;
   const campo = sort?.replace(/^-/, '') as CampoOrdenavel;
 
@@ -228,19 +240,25 @@ Reunindo tudo, a rota de listagem aceita quatro grupos de parâmetros:
 | ------------ | -------------------- | ----------------------------------------- |
 | `page`       | `?page=2`            | página, começando em 1                     |
 | `perPage`    | `?perPage=50`        | tamanho da página, limitado a 100          |
-| `sort`       | `?sort=-amount`      | campo permitido; `-` inverte a ordem       |
-| filtros      | `?name=CDB&minAmount=1000` | condições combináveis por `AND`      |
+| `sort`       | `?sort=-dueDate`     | campo permitido; `-` inverte a ordem       |
+| filtros      | `?q=api&priority=high` | condições combináveis por `AND`          |
 
-<ApiRequest method="GET" path="/investments?page=1&perPage=2&sort=-amount&minAmount=10000" baseUrl="http://localhost:3000" />
+<ApiRequest method="GET" path="/tasks?page=1&perPage=2&sort=title&done=false" baseUrl="http://localhost:3000" />
 
 <ApiResponse status={200}>
 {`
   {
     "data": [
-      { "id": "b1c2", "name": "Tesouro Selic 2029", "amount": 20000 },
-      { "id": "c3f1", "name": "CDB Inter", "amount": 15000 }
+      {
+        "id": 2,
+        "title": "Escrever a primeira API",
+        "done": false,
+        "priority": "medium",
+        "dueDate": null,
+        "createdAt": "2026-03-02T09:00:00.000Z"
+      }
     ],
-    "meta": { "page": 1, "perPage": 2, "total": 2, "totalPages": 1 }
+    "meta": { "page": 1, "perPage": 2, "total": 1, "totalPages": 1 }
   }
 `}
 </ApiResponse>
@@ -253,36 +271,40 @@ Reunindo tudo, a rota de listagem aceita quatro grupos de parâmetros:
 
 ## Exercício
 
-Na rota `GET /users` do projeto `express-typescript`:
+Na rota `GET /tasks` da [etapa 4 da TaskAPI](../../practice/taskapi/typescript/), que ainda
+devolve o array inteiro e sem validação:
 
 1. Aceite `page` e `perPage`, com padrão 20 e teto 100.
 2. Responda no envelope `{ data, meta }`.
-3. Aceite `?name=` filtrando por trecho do nome, sem diferenciar maiúsculas.
-4. Aceite `?sort=` restrito a `name` e `email`, com `-` invertendo a ordem.
-5. Garanta que `?page=0`, `?perPage=9999` e `?sort=password` não quebrem nem exponham nada.
+3. Aceite `?q=` filtrando por trecho do título, sem diferenciar maiúsculas.
+4. Aceite `?sort=` restrito a `title` e `createdAt`, com `-` invertendo a ordem.
+5. Garanta que `?page=0`, `?perPage=9999` e `?sort=constructor` não quebrem nem exponham nada.
+
+Depois compare com a [etapa 5](../../practice/taskapi/validation/), que resolve os cinco
+pontos dentro do schema Zod em vez de dentro do controller.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/controllers/user-controller.ts" showLineNumbers
-  const CAMPOS_ORDENAVEIS = ['name', 'email'] as const;
+  ```ts showLineNumbers
+  const CAMPOS_ORDENAVEIS = ['title', 'createdAt'] as const;
 
   export function index(req: Request, res: Response) {
     const page = Math.max(1, Number(req.query.page ?? 1) || 1);
     const perPage = Math.min(100, Math.max(1, Number(req.query.perPage ?? 20) || 20));
-    const name = String(req.query.name ?? '').toLowerCase();
+    const termo = String(req.query.q ?? '').toLowerCase();
 
     const sort = String(req.query.sort ?? '');
     const desc = sort.startsWith('-');
     const campo = sort.replace(/^-/, '');
-    const ordenarPor = CAMPOS_ORDENAVEIS.includes(campo) ? campo : 'name';
+    const ordenarPor = CAMPOS_ORDENAVEIS.includes(campo) ? campo : 'createdAt';
 
-    const filtrados = User.findAll()
-      .filter((user) => user.name.toLowerCase().includes(name))
+    const filtradas = Task.findAll()
+      .filter((task) => task.title.toLowerCase().includes(termo))
       .sort((a, b) => (desc ? -1 : 1) * a[ordenarPor].localeCompare(b[ordenarPor]));
 
-    const total = filtrados.length;
-    const data = filtrados.slice((page - 1) * perPage, page * perPage);
+    const total = filtradas.length;
+    const data = filtradas.slice((page - 1) * perPage, page * perPage);
 
     res.json({
       data,
@@ -298,7 +320,7 @@ Na rota `GET /users` do projeto `express-typescript`:
 ## Desafio
 
 Implemente a paginação por cursor na mesma rota, devolvendo `meta.nextCursor`, e escreva um
-teste que comprove a diferença: inserir um usuário no topo entre a leitura da página 1 e da
+teste que comprove a diferença: inserir uma tarefa no topo entre a leitura da página 1 e da
 página 2 faz o offset repetir um registro, mas não o cursor.
 
 ## Perguntas de revisão
@@ -360,6 +382,12 @@ página 2 faz o offset repetir um registro, mas não o cursor.
 - [Prisma — Pagination](https://www.prisma.io/docs/orm/prisma-client/queries/pagination)
 - [RFC 8288 — Web Linking (cabeçalho `Link`)](https://www.rfc-editor.org/rfc/rfc8288.html)
 - [OWASP — Mass Assignment Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 5 da TaskAPI](../../practice/taskapi/validation/), onde `page`, `perPage`, `sort` e
+os filtros são declarados no schema e aplicados pelo model.
 
 ## Próxima aula
 

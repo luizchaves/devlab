@@ -38,6 +38,17 @@ export default defineConfig({
     '/courses/database/prisma/introduction': withBase('/courses/expressjs/persistence/prisma/'),
     '/courses/database/prisma/crud': withBase('/courses/expressjs/persistence/crud/'),
     '/courses/database/prisma/relations': withBase('/courses/expressjs/persistence/relations/'),
+    // Os projetos soltos do guia viraram as etapas da trilha TaskAPI.
+    '/courses/expressjs/practice/hello-express': withBase(
+      '/courses/expressjs/practice/taskapi/hello/'
+    ),
+    '/courses/expressjs/practice/express-router': withBase(
+      '/courses/expressjs/practice/taskapi/router/'
+    ),
+    '/courses/expressjs/practice/express-mvc': withBase('/courses/expressjs/practice/taskapi/mvc/'),
+    '/courses/expressjs/practice/express-typescript': withBase(
+      '/courses/expressjs/practice/taskapi/typescript/'
+    ),
     // O Monitor API virou o trilho completo do MonitorApp, em treze etapas.
     '/courses/expressjs/practice/monitor-api': withBase('/courses/expressjs/practice/monitorapp/'),
     // Validacao saiu de "Recursos Avancados" para a trilha de APIs HTTP.
@@ -965,13 +976,39 @@ export default defineConfig({
             {
               label: 'Na Prática',
               items: [
-                { label: 'Hello Express', link: '/courses/expressjs/practice/hello-express/' },
                 { label: 'BMI API', link: '/courses/expressjs/practice/bmi-api/' },
-                { label: 'Express Router', link: '/courses/expressjs/practice/express-router/' },
-                { label: 'Express MVC', link: '/courses/expressjs/practice/express-mvc/' },
                 {
-                  label: 'Express TypeScript',
-                  link: '/courses/expressjs/practice/express-typescript/',
+                  label: 'TaskAPI',
+                  items: [
+                    {
+                      label: 'Visão geral',
+                      link: '/courses/expressjs/practice/taskapi/',
+                    },
+                    {
+                      label: '1. Primeiro servidor',
+                      link: '/courses/expressjs/practice/taskapi/hello/',
+                    },
+                    {
+                      label: '2. Rotas em módulos',
+                      link: '/courses/expressjs/practice/taskapi/router/',
+                    },
+                    {
+                      label: '3. Camadas MVC',
+                      link: '/courses/expressjs/practice/taskapi/mvc/',
+                    },
+                    {
+                      label: '4. TypeScript',
+                      link: '/courses/expressjs/practice/taskapi/typescript/',
+                    },
+                    {
+                      label: '5. Validação',
+                      link: '/courses/expressjs/practice/taskapi/validation/',
+                    },
+                    {
+                      label: '6. Documentação',
+                      link: '/courses/expressjs/practice/taskapi/openapi/',
+                    },
+                  ],
                 },
                 { label: 'Express + Prisma', link: '/courses/expressjs/practice/express-prisma/' },
                 { label: 'Express Auth', link: '/courses/expressjs/practice/express-auth/' },

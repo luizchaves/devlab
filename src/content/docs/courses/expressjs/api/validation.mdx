@@ -9,6 +9,7 @@ import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Todo dado que chega pela rede é hostil até prova em contrário: pode faltar, vir com o tipo
 errado, com o tamanho errado ou com conteúdo malicioso. Esta aula trata de barrar isso antes
@@ -53,7 +54,7 @@ flowchart TD
 O padrão de fábrica da aula de [Middleware](../../basics/middleware/) resolve o caso mais
 comum — campos obrigatórios — sem nenhuma dependência:
 
-```ts title="src/middlewares/validate.ts" showLineNumbers {1,4,10}
+```ts showLineNumbers {1,4,10}
 export function requireFields(...campos: string[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -69,28 +70,28 @@ export function requireFields(...campos: string[]) {
 }
 ```
 
-```ts title="src/routes/user-router.ts" showLineNumbers {1}
-router.post('/', requireJson, requireFields('name', 'email', 'password'), userController.store);
+```ts showLineNumbers {1}
+router.post('/', requireJson, requireFields('title'), taskController.store);
 ```
 
 Regras de formato também cabem em funções pequenas e testáveis:
 
-```ts title="src/validators/user.ts" showLineNumbers {5,9}
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+```ts showLineNumbers {5,9}
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
-export function validateUser(body: UserInput): string[] {
+export function validateTask(body: TaskInput): string[] {
   const erros: string[] = [];
 
-  if (!body.name || body.name.trim().length < 2) {
-    erros.push('name: informe ao menos 2 caracteres');
+  if (!body.title || body.title.trim().length < 3) {
+    erros.push('title: informe ao menos 3 caracteres');
   }
 
-  if (!body.email || !EMAIL.test(body.email)) {
-    erros.push('email: formato inválido');
+  if (body.dueDate && !DATA.test(body.dueDate)) {
+    erros.push('dueDate: use o formato YYYY-MM-DD');
   }
 
-  if (!body.password || body.password.length < 8) {
-    erros.push('password: mínimo de 8 caracteres');
+  if (body.priority && !['low', 'medium', 'high'].includes(body.priority)) {
+    erros.push('priority: use low, medium ou high');
   }
 
   return erros;
@@ -110,81 +111,61 @@ Quando as regras crescem, descrevê-las declarativamente evita dezenas de `if`. 
 [Zod](https://zod.dev/) define o formato uma vez e ainda **infere o tipo TypeScript** a
 partir dele.
 
-Antes de chegar ao schema, porém, falta uma peça: um erro capaz de carregar o mapa de campos,
-já que o `HttpError` leva apenas uma mensagem.
+No projeto modelo, o `HttpError` ganha um terceiro parâmetro opcional — os detalhes por
+campo — em vez de uma subclasse só para isso:
 
-```ts title="src/errors/ValidationError.ts" showLineNumbers {2,5}
-import { HttpError } from '#errors/HttpError.ts';
-
-export class ValidationError extends HttpError {
-  issues: Record<string, string>;
-
-  constructor(issues: Record<string, string>) {
-    super(422, 'Dados inválidos');
-    this.name = 'ValidationError';
-    this.issues = issues;
-  }
-}
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/errors/HttpError.ts"
+  title="src/errors/HttpError.ts"
+  region="class"
+/>
 
 O `errorHandler` passa a incluir `issues` quando ele existir:
 
-```ts title="src/middlewares/error-handler.ts" ins={4}
-res.status(status).json({
-  error: {
-    status,
-    ...(error instanceof ValidationError ? { issues: error.issues } : {}),
-    message: status >= 500 ? 'Erro interno do servidor' : error.message,
-  },
-});
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/middlewares/error-handler.ts"
+  title="src/middlewares/error-handler.ts"
+  region="handler"
+/>
 
-Com isso resolvido, o schema descreve as regras e o middleware apenas o executa:
+Com isso resolvido, o schema descreve as regras e o middleware apenas o executa. Repare que
+o schema não valida só o corpo: `body`, `params` e `query` entram na mesma passagem, porque
+os três vêm do cliente e os três podem mentir.
 
 <Tabs syncKey="validation">
   <TabItem label="Schema">
-    ```ts title="src/schemas/user.ts" showLineNumbers {12}
-    import { z } from 'zod';
-
-    export const createUserSchema = z.object({
-      name: z.string().trim().min(2, 'informe ao menos 2 caracteres'),
-      email: z.email('formato inválido'),
-      password: z.string().min(8, 'mínimo de 8 caracteres'),
-      role: z.enum(['user', 'admin']).default('user'),
-    });
-
-    // O tipo sai do schema: uma fonte de verdade, não duas.
-    export type CreateUserInput = z.infer<typeof createUserSchema>;
-    ```
+    <SourceCode
+      path="examples/courses/express/projects/task-api-validation/src/schemas/task.ts"
+      title="src/schemas/task.ts"
+      region="schemas"
+    />
   </TabItem>
 
   <TabItem label="Middleware">
-    ```ts title="src/middlewares/validate.ts" showLineNumbers {5,8,14}
-    import type { ZodType } from 'zod';
-
-    export function validate(schema: ZodType) {
-      return (req: Request, _res: Response, next: NextFunction) => {
-        const resultado = schema.safeParse(req.body);
-
-        if (!resultado.success) {
-          throw new ValidationError(formatIssues(resultado.error));
-        }
-
-        // O corpo validado substitui o original: tipos garantidos daqui em diante.
-        req.body = resultado.data;
-
-        next();
-      };
-    }
-    ```
+    <SourceCode
+      path="examples/courses/express/projects/task-api-validation/src/middlewares/validate.ts"
+      title="src/middlewares/validate.ts"
+      region="validate"
+    />
   </TabItem>
 
   <TabItem label="Uso">
-    ```ts title="src/routes/user-router.ts" showLineNumbers {1}
-    router.post('/', requireJson, validate(createUserSchema), userController.store);
-    ```
+    <SourceCode
+      path="examples/courses/express/projects/task-api-validation/src/routes/task-router.ts"
+      title="src/routes/task-router.ts"
+      region="routes"
+    />
   </TabItem>
 </Tabs>
+
+`strictObject` é o que transforma "validação" em **validação estrita**: um corpo com um
+campo que o schema não declara é recusado, em vez de ter o campo silenciosamente removido.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-validation/src/schemas/task.ts"
+  title="src/schemas/task.ts"
+  region="body"
+/>
 
 | Critério                     | Validação manual        | Zod                                |
 | ---------------------------- | ----------------------- | ---------------------------------- |
@@ -206,12 +187,11 @@ Com isso resolvido, o schema descreve as regras e o middleware apenas o executa:
 Um erro de validação precisa dizer **qual campo** falhou — senão o front-end não consegue
 destacar o input. Uma mensagem única em texto obriga a adivinhação:
 
-<ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000">
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
 {`
   {
-    "name": "A",
-    "email": "nao-e-email",
-    "password": "123"
+    "title": "ab",
+    "priority": "urgentissima"
   }
 `}
 </ApiRequest>
@@ -221,23 +201,32 @@ destacar o input. Uma mensagem única em texto obriga a adivinhação:
   {
     "error": {
       "status": 422,
-      "message": "Dados inválidos",
-      "issues": {
-        "name": "informe ao menos 2 caracteres",
-        "email": "formato inválido",
-        "password": "mínimo de 8 caracteres"
-      }
+      "message": "Dados invalidos",
+      "issues": [
+        {
+          "code": "too_small",
+          "path": ["body", "title"],
+          "message": "O titulo deve ter no minimo 3 caracteres"
+        },
+        {
+          "code": "invalid_value",
+          "path": ["body", "priority"],
+          "message": "Invalid option: expected one of \\"low\\"|\\"medium\\"|\\"high\\""
+        }
+      ]
     }
   }
 `}
 </ApiResponse>
 
-A conversão das *issues* do Zod para esse mapa cabe em uma função:
+O `path` é um array porque o schema valida as três fontes de uma vez: o primeiro elemento
+diz **de onde** veio o campo (`body`, `params` ou `query`) e o resto é o caminho dentro
+dela. Um front-end que precise de um mapa plano converte em uma linha:
 
-```ts title="src/middlewares/validate.ts" showLineNumbers {4}
+```ts showLineNumbers {3}
 function formatIssues(error: ZodError): Record<string, string> {
   return Object.fromEntries(
-    error.issues.map((issue) => [issue.path.join('.'), issue.message]),
+    error.issues.map((issue) => [issue.path.slice(1).join('.'), issue.message]),
   );
 }
 ```
@@ -263,55 +252,60 @@ uma consulta manual. É por isso que ela não é opcional:
 | `FOREIGN KEY`            | a referência existe                    | `@relation(...)`                 |
 
 ```sql title="Restrições na criação da tabela" showLineNumbers {3,5,7}
-CREATE TABLE "User" (
-  "id"        TEXT     NOT NULL PRIMARY KEY,
-  "name"      TEXT     NOT NULL,
-  "email"     TEXT     NOT NULL,
-  "password"  TEXT     NOT NULL CHECK (LENGTH(password) >= 8),
+CREATE TABLE "Task" (
+  "id"        INTEGER  NOT NULL PRIMARY KEY,
+  "title"     TEXT     NOT NULL CHECK (LENGTH(title) >= 3),
+  "done"      BOOLEAN  NOT NULL DEFAULT 0,
+  "priority"  TEXT     NOT NULL DEFAULT 'medium'
+                       CHECK (priority IN ('low', 'medium', 'high')),
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX "Task_title_key" ON "Task"("title");
 ```
 
 A violação chega ao Express como erro da biblioteca e precisa de tradução — `UNIQUE` vira
 `409`, como visto em [Tratamento de Erros](../error-handling/).
 
 <Aside type="caution" title="A checagem prévia não substitui a restrição">
-  `if (await User.existsByEmail(email))` antes do `INSERT` deixa uma janela entre a consulta
-  e a escrita: dois cadastros simultâneos passam pelos dois `if` e gravam o mesmo e-mail.
+  `if (Task.findByTitle(title))` antes do `INSERT` deixa uma janela entre a consulta e a
+  escrita: duas requisições simultâneas passam pelos dois `if` e gravam o mesmo título.
   Só o índice `UNIQUE` impede de verdade — a checagem prévia serve para a mensagem bonita.
 </Aside>
 
 ## Exercício
 
-No projeto `express-typescript`:
+Partindo da [etapa 4 da TaskAPI](../../practice/taskapi/typescript/), que ainda valida com
+`if` dentro do controller:
 
-1. Escreva `requireFields` conforme a aula e aplique-o em `POST /users`.
-2. Acrescente `validateUser` com as regras de nome, e-mail e senha.
+1. Escreva `requireFields` conforme a aula e aplique-o em `POST /tasks`.
+2. Acrescente `validateTask` com as regras de título, data e prioridade.
 3. Faça a resposta de erro trazer o mapa `issues` com um campo por chave.
 4. Responda `422`, e não `400`, para a falha de validação.
-5. Confirme com `curl` que enviar `{}` lista os três campos de uma vez, e não apenas o
+5. Confirme com `curl` que enviar `{}` lista todos os campos de uma vez, e não apenas o
    primeiro.
+
+Depois compare o resultado com a [etapa 5](../../practice/taskapi/validation/), que faz o
+mesmo com Zod.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/middlewares/validate.ts" showLineNumbers
+  ```ts showLineNumbers
   import type { NextFunction, Request, Response } from 'express';
 
-  import { ValidationError } from '#errors/ValidationError.ts';
-  import { validateUser } from '#validators/user.ts';
+  import { HttpError } from '#errors/HttpError.ts';
+  import { validateTask } from '#validators/task.ts';
 
-  export function validateUserBody(req: Request, _res: Response, next: NextFunction) {
-    const erros = validateUser((req.body ?? {}) as UserInput);
+  export function validateTaskBody(req: Request, _res: Response, next: NextFunction) {
+    const erros = validateTask((req.body ?? {}) as TaskInput);
 
     if (erros.length > 0) {
       const issues = Object.fromEntries(
         erros.map((erro) => erro.split(': ') as [string, string]),
       );
 
-      throw new ValidationError(issues);
+      throw new HttpError(422, 'Dados inválidos', issues);
     }
 
     next();
@@ -324,10 +318,10 @@ No projeto `express-typescript`:
 
 ## Desafio
 
-Adapte o middleware `validate(schema)` para validar também `req.params` e `req.query`,
-recebendo um objeto `{ body?, params?, query? }` de schemas. Trate o caso de `?page=2`:
-a query chega como string e precisa virar número — compare fazer isso à mão com usar
-`z.coerce.number()`.
+Acrescente à etapa 5 um schema para o recurso `tags`, com `name` obrigatório e `color` no
+formato `#rrggbb`, e uma rota `POST /tags` validada por ele. Depois faça o `errorHandler`
+converter as `issues` do Zod para o mapa plano `{ campo: mensagem }` antes de responder, e
+avalie: o que o front-end ganha e o que perde com essa conversão?
 
 ## Perguntas de revisão
 
@@ -389,6 +383,12 @@ a query chega como string e precisa virar número — compare fazer isso à mão
 - [Express — Error handling](https://expressjs.com/en/guide/error-handling.html)
 - [OWASP — Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)
 - [422 Unprocessable Content | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/422)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 5 da TaskAPI](../../practice/taskapi/validation/), onde os schemas Zod validam
+`body`, `params` e `query` antes de qualquer controller.
 
 ## Próxima aula
 
