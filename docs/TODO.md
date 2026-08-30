@@ -4,79 +4,79 @@
 
 ### Guias e Tecnologias
 
-- [ ] **Derivação e expansão de guias:**
-  - Alternativas ao Express.js no Node.js e em outras linguagens (Flask, Spring Boot, Django, Gin, etc.)
-  - Guias de novas linguagens (Java, Go) e infraestrutura (Docker + Docker Compose)
-  - Tópicos avançados: Autenticação (JWT, OAuth2, OpenID Connect, 2FA, Passkeys, Refresh Token), GraphQL, WebSockets
-  - Segurança Web, OWASP Top 10 e prevenção de vulnerabilidades (CSRF, XSS, SQL Injection, SameSite cookies, CORS, etc.)
-  - Opções de deploy (Vercel, Railway, Render, Fly.io, Heroku, AWS, GCP, Azure — Free Tier vs Pago)
-  - Guia de Uso de IA para desenvolvimento e especificação
-- [ ] **Guia de Banco de Dados:**
-  - Adicionar seção sobre modelagem de dados (normalização, relacionamentos, chaves primárias e estrangeiras, índices)
-  - Exemplos práticos de modelagem para diferentes tipos de aplicações (e-commerce, redes sociais, sistemas financeiros, etc.)
-  - Comparativo entre paradigmas (relacional, NoSQL, grafos, etc.)
-- [ ] **Guias Práticos / Tópicos de Fundamentos:**
-  - Git e GitHub: desenvolvimento com branches, PRs e code review
-  - Desenvolvimento orientado a Specs, Planning e Agents (SKILLS, MCP)
-  - CI/CD com GitHub Actions
-  - Docker e Docker Compose para desenvolvimento local
-  - Supabase para banco de dados e autenticação
-  - Prisma ORM para modelagem e operações CRUD
-  - Jest para testes unitários e de integração
-  - React para front-end e Next.js para SSR/SSG
-  - TailwindCSS para estilização
-  - Diagramas de arquitetura para planejamento de sistemas (microserviços, monolitos, etc.)
-  - Text2diagram (Mermaid, PlantUML), Draw.io, etc.
-  - Markdown para documentação
-  - Propostas de interface: citar Figma, Pencil, Pen
-  - Qualidade de código: Code Review, Pair Programming, Mob Programming, TDD, BDD, DDD, Clean Code, Clean Architecture, SOLID, Design Patterns
-- [ ] **Melhorias Didáticas nas Seções de Teste:**
-  - Usar parágrafos `<p>` para comentar e explicar a intenção de cada teste individualmente
-  - Avaliar a inclusão do recorte da requisição `.http` correspondente em formato recolhível (`<details>` / collapsed) em cada teste
-- [ ] Aperfeiçoar o conteúdo dos cursos e guias (exemplos práticos, exercícios, quizzes e desafios)
-- [ ] Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
-- [ ] Gerar slides das páginas de cada curso e guia
-- [ ] Gerar `book.pdf` por guia ou curso
+- [ ] **[TASK-001] Derivação e expansão de guias:**
+  - [ ] `[TASK-001.1]` Alternativas ao Express.js no Node.js e em outras linguagens (Flask, Spring Boot, Django, Gin, etc.)
+  - [ ] `[TASK-001.2]` Guias de novas linguagens (Java, Go) e infraestrutura (Docker + Docker Compose)
+  - [ ] `[TASK-001.3]` Tópicos avançados: Autenticação (JWT, OAuth2, OpenID Connect, 2FA, Passkeys, Refresh Token), GraphQL, WebSockets
+  - [ ] `[TASK-001.4]` Segurança Web, OWASP Top 10 e prevenção de vulnerabilidades (CSRF, XSS, SQL Injection, SameSite cookies, CORS, etc.)
+  - [ ] `[TASK-001.5]` Opções de deploy (Vercel, Railway, Render, Fly.io, Heroku, AWS, GCP, Azure — Free Tier vs Pago)
+  - [ ] `[TASK-001.6]` Guia de Uso de IA para desenvolvimento e especificação
+- [ ] **[TASK-002] Guia de Banco de Dados:**
+  - [ ] `[TASK-002.1]` Adicionar seção sobre modelagem de dados (normalização, relacionamentos, chaves primárias e estrangeiras, índices)
+  - [ ] `[TASK-002.2]` Exemplos práticos de modelagem para diferentes tipos de aplicações (e-commerce, redes sociais, sistemas financeiros, etc.)
+  - [ ] `[TASK-002.3]` Comparativo entre paradigmas (relacional, NoSQL, grafos, etc.)
+- [ ] **[TASK-003] Guias Práticos / Tópicos de Fundamentos:**
+  - [ ] `[TASK-003.1]` Git e GitHub: desenvolvimento com branches, PRs e code review
+  - [ ] `[TASK-003.2]` Desenvolvimento orientado a Specs, Planning e Agents (SKILLS, MCP)
+  - [ ] `[TASK-003.3]` CI/CD com GitHub Actions
+  - [ ] `[TASK-003.4]` Docker e Docker Compose para desenvolvimento local
+  - [ ] `[TASK-003.5]` Supabase para banco de dados e autenticação
+  - [ ] `[TASK-003.6]` Prisma ORM para modelagem e operações CRUD
+  - [ ] `[TASK-003.7]` Jest para testes unitários e de integração
+  - [ ] `[TASK-003.8]` React para front-end e Next.js para SSR/SSG
+  - [ ] `[TASK-003.9]` TailwindCSS para estilização
+  - [ ] `[TASK-003.10]` Diagramas de arquitetura para planejamento de sistemas (microserviços, monolitos, etc.)
+  - [ ] `[TASK-003.11]` Text2diagram (Mermaid, PlantUML), Draw.io, etc.
+  - [ ] `[TASK-003.12]` Markdown para documentação
+  - [ ] `[TASK-003.13]` Propostas de interface: citar Figma, Pencil, Pen
+  - [ ] `[TASK-003.14]` Qualidade de código: Code Review, Pair Programming, Mob Programming, TDD, BDD, DDD, Clean Code, Clean Architecture, SOLID, Design Patterns
+- [ ] **[TASK-004] Melhorias Didáticas nas Seções de Teste:**
+  - [ ] `[TASK-004.1]` Usar parágrafos `<p>` para comentar e explicar a intenção de cada teste individualmente
+  - [ ] `[TASK-004.2]` Avaliar a inclusão do recorte da requisição `.http` correspondente em formato recolhível (`<details>` / collapsed) em cada teste
+- [ ] **[TASK-005]** Aperfeiçoar o conteúdo dos cursos e guias (exemplos práticos, exercícios, quizzes e desafios)
+- [ ] **[TASK-006]** Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
+- [ ] **[TASK-007]** Gerar slides das páginas de cada curso e guia
+- [ ] **[TASK-008]** Gerar `book.pdf` por guia ou curso
 
 ### Concluídos (Conteúdo)
 
-- [x] O path dos cursos em `/courses/` agora usam o prefixo da sigla primeiro (`dw-cstrc-jp`, `pw2-csbes-jp`, `lp2-ctii-jp`)
-- [x] TS e JS centralizados
-- [x] Comparativo entre TypeScript e JavaScript
-- [x] Comparativo entre Python e JavaScript
-- [x] Casos bizarros de JS (`NaN !== NaN`, `typeof null === 'object'`, `0.1 + 0.2 !== 0.3`, etc.)
-- [x] Revisar os cursos e guias para incluir Mermaid caso necessário (ex: objeto de JS)
+- [x] **[TASK-009]** O path dos cursos em `/courses/` agora usam o prefixo da sigla primeiro (`dw-cstrc-jp`, `pw2-csbes-jp`, `lp2-ctii-jp`)
+- [x] **[TASK-010]** TS e JS centralizados
+- [x] **[TASK-011]** Comparativo entre TypeScript e JavaScript
+- [x] **[TASK-012]** Comparativo entre Python e JavaScript
+- [x] **[TASK-013]** Casos bizarros de JS (`NaN !== NaN`, `typeof null === 'object'`, `0.1 + 0.2 !== 0.3`, etc.)
+- [x] **[TASK-014]** Revisar os cursos e guias para incluir Mermaid caso necessário (ex: objeto de JS)
 
 ---
 
 ## 🚀 Projetos Práticos (InvestApp, MonitorApp, etc.)
 
-- [ ] **Análise de Cobertura e Passo a Passo:**
-  - Analisar etapa a etapa para ver se é possível criar o projeto final seguindo apenas o que está disponível no passo a passo, sem precisar de conhecimento prévio
-  - Percorrer todas as linhas de código para analisar se as tarefas atuais cobrem todas as linhas ou se precisam ser atualizadas
-  - Avaliar o conteúdo dos projetos e o acesso/execução dos códigos (avaliar se trechos são suficientes ou se deve haver um projeto completo; identificar pontos de melhoria didática e de codificação)
-- [ ] **Estruturação e Documentação dos Projetos:**
-  - Criar `PRD.md` com as features e o `README`
-  - Definir Requisitos Não Funcionais (RNF), garantindo um bom design responsivo (Mobile-First / layout adaptável)
-  - Verificar e Auditar a segurança dos projetos contra vulnerabilidades comuns (ex: CSRF, XSS, CORS mal configurado, SQL Injection)
-  - Definir spec gradual e plan por etapa
-  - Incluir .agents/, SKILLs, `AGENT.md`…
-  - Ajustar projetos com boas práticas
-- [ ] **Página Final do Projeto (Desafios & Evolução):**
-  - Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
-  - Exemplos de melhorias: migração do front vanilla para React/Vue/Svelte, implementação de GraphQL, testes automatizados, integração com serviços externos, performance e escalabilidade, linter e formatter, CI/CD, monitoramento e logging, segurança, autenticação/autorização, otimização de queries e caching
-- [ ] **Divulgação & Apoio Visual:**
-  - Fazer o OpenGraph para o projeto final (título, descrição, imagem e URL)
-  - Criar mindmap para as tarefas e etapas do projeto final
+- [ ] **[TASK-015] Análise de Cobertura e Passo a Passo:**
+  - [ ] `[TASK-015.1]` Analisar etapa a etapa para ver se é possível criar o projeto final seguindo apenas o que está disponível no passo a passo, sem precisar de conhecimento prévio
+  - [ ] `[TASK-015.2]` Percorrer todas as linhas de código para analisar se as tarefas atuais cobrem todas as linhas ou se precisam ser atualizadas
+  - [ ] `[TASK-015.3]` Avaliar o conteúdo dos projetos e o acesso/execução dos códigos (avaliar se trechos são suficientes ou se deve haver um projeto completo; identificar pontos de melhoria didática e de codificação)
+- [ ] **[TASK-016] Estruturação e Documentação dos Projetos:**
+  - [ ] `[TASK-016.1]` Criar `PRD.md` com as features e o `README`
+  - [ ] `[TASK-016.2]` Definir Requisitos Não Funcionais (RNF), garantindo um bom design responsivo (Mobile-First / layout adaptável)
+  - [ ] `[TASK-016.3]` Verificar e Auditar a segurança dos projetos contra vulnerabilidades comuns (ex: CSRF, XSS, CORS mal configurado, SQL Injection)
+  - [ ] `[TASK-016.4]` Definir spec gradual e plan por etapa
+  - [ ] `[TASK-016.5]` Incluir .agents/, SKILLs, `AGENT.md`…
+  - [ ] `[TASK-016.6]` Ajustar projetos com boas práticas
+- [ ] **[TASK-017] Página Final do Projeto (Desafios & Evolução):**
+  - [ ] `[TASK-017.1]` Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
+  - [ ] `[TASK-017.2]` Exemplos de melhorias: migração do front vanilla para React/Vue/Svelte, implementação de GraphQL, testes automatizados, integração com serviços externos, performance e escalabilidade, linter e formatter, CI/CD, monitoramento e logging, segurança, autenticação/autorização, otimização de queries e caching
+- [ ] **[TASK-018] Divulgação & Apoio Visual:**
+  - [ ] `[TASK-018.1]` Fazer o OpenGraph para o projeto final (título, descrição, imagem e URL)
+  - [ ] `[TASK-018.2]` Criar mindmap para as tarefas e etapas do projeto final
 
 ---
 
 ## 🛠️ Tooling, DX, Linters e Automações com IA
 
-- [ ] Adicionar formatter, linter, Husky e GitHub Action CI no repositório TypeScript
-- [ ] Sugerir prompts de IA para cada etapa (ex: skill para criar branch de uma task e abrir PR com template)
-- [ ] Prompt/skill para montar um PR a partir de uma task, com template de PR, checklist de revisão, etc.
-- [x] Skill: usar mais `<p>` para deixar o texto mais didático
+- [ ] **[TASK-019]** Adicionar formatter, linter, Husky e GitHub Action CI no repositório TypeScript
+- [ ] **[TASK-020]** Sugerir prompts de IA para cada etapa (ex: skill para criar branch de uma task e abrir PR com template)
+- [ ] **[TASK-021]** Prompt/skill para montar um PR a partir de uma task, com template de PR, checklist de revisão, etc.
+- [x] **[TASK-022]** Skill: usar mais `<p>` para deixar o texto mais didático
 
 ---
 
