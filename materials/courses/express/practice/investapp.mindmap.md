@@ -224,3 +224,24 @@ markmap:
       - TK13.2 `.dockerignore`
       - TK13.3 `compose.yaml`
       - TK13.4 Volumes nomeados
+
+## Etapas de Construção (Visão Sequencial da Trilha)
+
+### Etapas 1 a 4 (Front, API & Validação)
+- 1. Front estático (HTML/Tailwind)
+- 2. API em memória (Express)
+- 3. TypeScript (Camadas e tipos)
+- 4. Validação Zod (Query/Body/Params)
+
+### Etapas 5 a 8 (Docs, DB & Usuário)
+- 5. OpenAPI / Swagger
+- 6. SQLite nativo (node:sqlite)
+- 7. Prisma ORM (Category & Broker)
+- 8. Cadastro de Usuário (Argon2id)
+
+### Etapas 9 a 13 (Auth, Mídia, Testes & Docker)
+- 9. JWT & Escopo de Carteira
+- 10. E-mail Nodemailer (Boas-vindas)
+- 11. Upload Multer (Avatar)
+- 12. Suíte de Testes (Vitest & Playwright)
+- 13. Containerização Docker Compose

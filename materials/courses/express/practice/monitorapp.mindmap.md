@@ -224,3 +224,24 @@ markmap:
       - TK13.2 `Dockerfile` e `nginx.conf` do front
       - TK13.3 `.dockerignore`
       - TK13.4 `compose.yaml` e volume
+
+## Etapas de Construção (Visão Sequencial da Trilha)
+
+### Etapas 1 a 4 (Base & Contrato)
+- 1. Front estático (HTML/Tailwind)
+- 2. API de Hosts em memória
+- 3. TypeScript (Camadas e Tipos)
+- 4. Schemas Zod (Validação estrita)
+
+### Etapas 5 a 8 (Docs, DB & Ping)
+- 5. OpenAPI & Swagger UI
+- 6. SQLite nativo (node:sqlite)
+- 7. Serviço de Ping ICMP/HTTP
+- 8. Gestão de Usuários (Argon2id)
+
+### Etapas 9 a 13 (Auth, Realtime, Testes & Ops)
+- 9. Autenticação JWT
+- 10. Alertas por E-mail
+- 11. WebSockets / Eventos em Tempo Real
+- 12. Testes de Integração e E2E
+- 13. Docker & Docker Compose
