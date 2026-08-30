@@ -63,13 +63,15 @@ const LINHAS_DECLARAVEIS = 2;
  * - migrations: geradas por `prisma migrate`, o aluno roda um comando;
  * - package.json: quase sempre versão de dependência, já coberta pelo
  *   `npm install` que a etapa mostra;
- * - .env: o `<SourceCode>` lê `examples/` por `import.meta.glob`, que ignora
- *   arquivos ocultos — exibi-los exigiria um bloco escrito à mão.
+ * - arquivos ocultos (`.env`, `.dockerignore`): o `<SourceCode>` lê `examples/`
+ *   por `import.meta.glob`, cujo padrão não alcança nomes iniciados por ponto —
+ *   e o `.env` ainda é excluído de propósito, para não expor segredo. Exibi-los
+ *   exigiria um bloco escrito à mão, que a regra 1 do AGENTS.md evita.
  */
 const ISENTOS = [
   { padrao: /\/migrations\/.*\.(sql|toml)$/, rotulo: 'migration gerada' },
   { padrao: /(^|\/)package\.json$/, rotulo: 'package.json' },
-  { padrao: /(^|\/)\.env(\.example)?$/, rotulo: '.env' },
+  { padrao: /(^|\/)\.[^/]+$/, rotulo: 'arquivo oculto, fora do alcance do SourceCode' },
 ];
 
 /** Nunca entram na conta: gerados, binários ou fora do assunto da aula (`.gitignore`). */
