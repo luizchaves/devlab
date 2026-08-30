@@ -33,7 +33,6 @@ export default defineConfig({
   redirects: {
     // Redirecionamento legado do Guia de Express para expressjs.
     '/courses/express': withBase('/courses/expressjs/'),
-    '/courses/expressjs/': withBase('/courses/expressjs/'),
     // Persistencia migrou do Guia de Banco de Dados para o Guia de Express.js.
     '/courses/database/sql/node-sqlite': withBase('/courses/expressjs/persistence/node-sqlite/'),
     '/courses/database/prisma/introduction': withBase('/courses/expressjs/persistence/prisma/'),
