@@ -66,9 +66,9 @@
 - [ ] **[TASK-017] Página Final do Projeto (Desafios & Evolução):**
   - [x] `[TASK-017.1]` Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
   - [ ] `[TASK-017.2]` Exemplos de melhorias: migração do front vanilla para React/Vue/Svelte, implementação de GraphQL, testes automatizados, integração com serviços externos, performance e escalabilidade, linter e formatter, CI/CD, monitoramento e logging, segurança, autenticação/autorização, otimização de queries e caching
-- [ ] **[TASK-018] Divulgação & Apoio Visual:**
+- [x] **[TASK-018] Divulgação & Apoio Visual:**
   - [x] `[TASK-018.1]` Fazer o OpenGraph para o projeto final (título, descrição, imagem e URL)
-  - [ ] `[TASK-018.2]` Criar mindmap para as tarefas e etapas do projeto final
+  - [x] `[TASK-018.2]` Criar mindmap para as tarefas e etapas do projeto final do projeto (InvestApp e MonitorApp) e adicionar o link na página de backlog do projeto
 
 ---
 
