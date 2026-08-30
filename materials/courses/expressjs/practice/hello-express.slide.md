@@ -8,34 +8,58 @@ style: |
   }
 lang: pt-BR
 title: "Projeto: Hello Express"
-description: "Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON."
+description: "Primeiro servidor HTTP construído com Express.js"
 ---
 
 <!-- _class: lead -->
 
-# Projeto: Hello Express
+# Hello Express
 
-Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+Construção do primeiro servidor HTTP em Node.js com a biblioteca Express.js.
 
 ---
 
-## Estrutura e Execução
+## Visão Geral do Projeto
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- **Objetivo**: Inicializar uma aplicação Node.js, configurar o Express e expor requisições HTTP básicas.
+- **Conceitos Chave**:
+  - Instalação de dependências (`express`).
+  - Instanciação da aplicação (`const app = express()`).
+  - Escuta de portas com `app.listen(port, callback)`.
+  - Retorno de respostas JSON com `res.json()`.
+- **Repositório**: `examples/courses/express/projects/hello-express`
 
 ---
 
-## Resumo
+## Estrutura Mínima do Servidor
 
-- **Projeto: Hello Express**: Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
-- Prática guiada e evolutiva da trilha Express.js
+```typescript
+import express from 'express';
+
+const app = express();
+const PORT = 3000;
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
+});
+```
+
+---
+
+## Resposta HTTP e Status Codes
+
+- **HTTP 200 OK**: Retornado por padrão quando o manipulador de rota responde com sucesso.
+- **Cabeçalho Content-Type**: O Express define automaticamente `application/json; charset=utf-8` ao usar `res.json()`.
+- **Script de Execução**: `npm run dev` utilizando `tsx` para recompilação instantânea.
+
+---
+
+## Resumo e Boas Práticas
+
+- Mantenha rotas separadas por responsabilidades funcionais.
+- Utilize variáveis de ambiente para a porta do servidor.
+- Teste seus endpoints via arquivo `requests.http` ou utilitários CLI (`curl`).

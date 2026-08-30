@@ -8,34 +8,51 @@ style: |
   }
 lang: pt-BR
 title: "Projeto: Express Router"
-description: "Rotas separadas em módulos com express.Router()."
+description: "Modularização de rotas com express.Router"
 ---
 
 <!-- _class: lead -->
 
-# Projeto: Express Router
+# Modularização com Express Router
 
-Rotas separadas em módulos com express.Router().
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+Dividindo rotas de aplicações grandes em módulos isolados e reutilizáveis.
 
 ---
 
-## Estrutura e Execução
+## O Problema do Arquivo Único
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- À medida que a aplicação cresce, ter todas as rotas no `server.ts` inviabiliza a manutenção.
+- **Solução**: Utilizar `express.Router()` para criar mini-aplicações de roteamento por domínio (ex: usuários, produtos).
 
 ---
 
-## Resumo
+## Criando um Roteador Modular
 
-- **Projeto: Express Router**: Rotas separadas em módulos com express.Router().
-- Prática guiada e evolutiva da trilha Express.js
+```typescript
+// src/routes/user.routes.ts
+import { Router } from 'express';
+
+const router = Router();
+
+router.get('/', (req, res) => { /* listar usuários */ });
+router.post('/', (req, res) => { /* criar usuário */ });
+
+export default router;
+```
+
+```typescript
+// src/app.ts
+import express from 'express';
+import userRoutes from './routes/user.routes.ts';
+
+const app = express();
+app.use('/api/users', userRoutes);
+```
+
+---
+
+## Vantagens da Modularização
+
+- Prefixo centralizado de caminhos no `app.use('/api/recurso', router)`.
+- Aplicação de middlewares específicos apenas para um conjunto determinado de rotas.
+- Facilidade para realização de testes de integração por domínio funcional.

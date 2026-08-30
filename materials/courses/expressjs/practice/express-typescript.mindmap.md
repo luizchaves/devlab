@@ -1,23 +1,18 @@
 ---
-title: 'Projeto: Express TypeScript'
+title: 'Projeto: Express com TypeScript'
 markmap:
   colorFreezeLevel: 2
   initialExpandLevel: 2
 ---
 
-# Projeto: Express TypeScript
+# Express com TypeScript
 
-## Ideia Central
+## Tipagem Nativa
 
-- **Projeto**: Projeto: Express TypeScript
-- **Escopo**: API de usuários em TypeScript executada nativamente pelo Node, com camadas, tipos do domínio e erros centralizados.
+- Interfaces `Request`, `Response`, `NextFunction`
+- Extensão do tipo `Request` para dados de contexto
 
-## Arquitetura & Código
+## Tooling & Configuração
 
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
-
-## Boas Práticas
-
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Pacote de tipos `@types/express`
+- Compilador `tsc` e executor `tsx` em dev

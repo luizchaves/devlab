@@ -7,35 +7,45 @@ style: |
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
   }
 lang: pt-BR
-title: "Projeto: Express + Prisma"
-description: "CRUD persistente com Express, Prisma ORM e SQLite."
+title: "Projeto: Express + Prisma ORM"
+description: "Persistência com Prisma ORM no Express.js"
 ---
 
 <!-- _class: lead -->
 
-# Projeto: Express + Prisma
+# Express.js + Prisma ORM
 
-CRUD persistente com Express, Prisma ORM e SQLite.
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+Integração de persistência tipada em banco de dados relacional.
 
 ---
 
-## Estrutura e Execução
+## O que é o Prisma ORM?
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- Ferramenta de mapeamento objeto-relacional com suporte total a TypeScript.
+- **Componentes**:
+  - `schema.prisma`: Definição de modelos e fonte de dados.
+  - `PrismaClient`: Cliente tipado autogerado para consultas SQL.
+  - **Prisma Migrate**: Gerenciamento de alterações na estrutura do banco.
 
 ---
 
-## Resumo
+## Instanciação e Uso nas Rotas
 
-- **Projeto: Express + Prisma**: CRUD persistente com Express, Prisma ORM e SQLite.
-- Prática guiada e evolutiva da trilha Express.js
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+app.get('/api/users', async (req, res) => {
+  const users = await prisma.user.findMany();
+  res.json(users);
+});
+```
+
+---
+
+## Boas Práticas de Persistência
+
+- Reutilize a mesma instância do `PrismaClient` (Padrão Singleton).
+- Trate erros de violação de chave única (`P2002`) retornando HTTP 409 Conflict.
+- Utilize migrations (`npx prisma migrate dev`) para sincronizar a base.

@@ -1,23 +1,19 @@
 ---
-title: 'Projeto: Express + Prisma'
+title: 'Projeto: Express + Prisma ORM'
 markmap:
   colorFreezeLevel: 2
   initialExpandLevel: 2
 ---
 
-# Projeto: Express + Prisma
+# Express + Prisma ORM
 
-## Ideia Central
+## Componentes do Prisma
 
-- **Projeto**: Projeto: Express + Prisma
-- **Escopo**: CRUD persistente com Express, Prisma ORM e SQLite.
+- Modelagem em `schema.prisma`
+- Gerador de cliente tipado `PrismaClient`
+- Controle de versão com Prisma Migrate
 
-## Arquitetura & Código
+## Integração no Express
 
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
-
-## Boas Práticas
-
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Padrão Singleton para conexão
+- Tratamento de códigos de erro do Prisma (ex: P2002)

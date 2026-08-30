@@ -5,19 +5,21 @@ markmap:
   initialExpandLevel: 2
 ---
 
-# Projeto: Hello Express
+# Hello Express
 
-## Ideia Central
+## Conceitos Fundamentais
 
-- **Projeto**: Projeto: Hello Express
-- **Escopo**: Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
+- Instalação do pacote `express`
+- Instanciação da aplicação (`express()`)
+- Mapeamento de rotas HTTP (`app.get`, `app.post`)
 
-## Arquitetura & Código
+## Resposta HTTP
 
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
+- Método `res.json()` nativo
+- Definição automática de `Content-Type: application/json`
+- Escuta de conexões na porta TCP via `app.listen()`
 
-## Boas Práticas
+## Ferramentas de Desenvolvimento
 
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Execução com `tsx` / `nodemon`
+- Testes com `requests.http` e `curl`

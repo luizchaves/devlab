@@ -5,19 +5,19 @@ markmap:
   initialExpandLevel: 2
 ---
 
-# Projeto: BMI API
+# BMI API
 
-## Ideia Central
+## Lógica de Negócio
 
-- **Projeto**: Projeto: BMI API
-- **Escopo**: O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de rota e corpo da requisição — para comparar as origens de dados de uma requisição.
+- Cálculo matemático: $IMC = peso / altura^2$
+- Classificação em faixas de IMC
 
-## Arquitetura & Código
+## Validação de Entrada
 
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
+- Verificação de campos obrigatórios
+- Garantia de números positivos
+- HTTP 400 Bad Request para dados inválidos
 
-## Boas Práticas
+## Estrutura da Resposta
 
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Retorno em JSON contendo parâmetros originais, IMC calculado e categoria

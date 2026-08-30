@@ -5,19 +5,15 @@ markmap:
   initialExpandLevel: 2
 ---
 
-# Projeto: Express MVC
+# Express MVC
 
-## Ideia Central
+## Estrutura em Camadas
 
-- **Projeto**: Projeto: Express MVC
-- **Escopo**: Aplicação Express organizada em MVC, com CRUD completo e tratamento de erros centralizado.
-
-## Arquitetura & Código
-
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
+- **Routes**: Mapeamento de endpoints
+- **Controllers**: Orquestração de requisição/resposta
+- **Models**: Regras de dados e acesso à persistência
 
 ## Boas Práticas
 
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Controllers magros (Thin Controllers)
+- Desacoplamento entre protocolo HTTP e acesso a dados

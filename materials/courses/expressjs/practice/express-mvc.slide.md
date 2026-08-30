@@ -8,34 +8,42 @@ style: |
   }
 lang: pt-BR
 title: "Projeto: Express MVC"
-description: "Aplicação Express organizada em MVC, com CRUD completo e tratamento de erros centralizado."
+description: "Arquitetura Model-View-Controller no Express.js"
 ---
 
 <!-- _class: lead -->
 
-# Projeto: Express MVC
+# Arquitetura MVC com Express
 
-Aplicação Express organizada em MVC, com CRUD completo e tratamento de erros centralizado.
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+Separação clara de responsabilidades em camadas no desenvolvimento Web Back-end.
 
 ---
 
-## Estrutura e Execução
+## As Três Camadas do MVC
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- **Model**: Gerencia dados, esquemas e regras de persistência.
+- **View (ou JSON Response)**: Apresentação ou resposta formatada ao cliente.
+- **Controller**: Intercepta a requisição, coordena os Models e escolhe a resposta.
 
 ---
 
-## Resumo
+## Fluxo da Requisição no MVC
 
-- **Projeto: Express MVC**: Aplicação Express organizada em MVC, com CRUD completo e tratamento de erros centralizado.
-- Prática guiada e evolutiva da trilha Express.js
+```mermaid
+flowchart LR
+    A[Cliente] --> B[Routes]
+    B --> C[Controller]
+    C --> D[Model]
+    D --> E[(Banco de Dados)]
+    D --> C
+    C --> F[JSON Response / View]
+    F --> A
+```
+
+---
+
+## Responsabilidades dos Controllers
+
+- Controllers **não** acessam bancos de dados diretamente.
+- Controllers **não** contêm lógicas complexas de validação ou cálculo.
+- Controllers recebem `req`, acionam serviços/models e encerram com `res.json()`.

@@ -7,35 +7,62 @@ style: |
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
   }
 lang: pt-BR
-title: "Projeto: InvestApp"
-description: "Aplicação de controle de investimentos construída em treze etapas: front estático, API em memória, TypeScript, validação, SQLite, Prisma, usuário, autenticação, e-mail, upload de avatar, testes e Docker."
+title: "InvestApp: Visão Geral"
+description: "Aplicação de controle de investimentos em treze etapas evolutivas."
 ---
 
 <!-- _class: lead -->
 
-# Projeto: InvestApp
+# InvestApp — Visão Geral
 
-Aplicação de controle de investimentos construída em treze etapas: front estático, API em memória, TypeScript, validação, SQLite, Prisma, usuário, autenticação, e-mail, upload de avatar, testes e Docker.
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+Aplicação de controle de investimentos em treze etapas evolutivas.
 
 ---
 
-## Estrutura e Execução
+## Visão Geral & Objetivos
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- **Escopo**: Implementar **Visão Geral** na aplicação evolutiva **InvestApp**.
+- **Desafio Didático**: Aplicar boas práticas de arquitetura web desacoplada.
+- **Entregáveis**:
+  - Código-fonte funcional em `examples/courses/express/projects/`.
+  - Contratos de rotas e manipuladores de exceção alinhados à etapa.
+  - Testes e validações de requisições HTTP em `requests.http`.
 
 ---
 
-## Resumo
+## Arquitetura & Fluxo dos Dados
 
-- **Projeto: InvestApp**: Aplicação de controle de investimentos construída em treze etapas: front estático, API em memória, TypeScript, validação, SQLite, Prisma, usuário, autenticação, e-mail, upload de avatar, testes e Docker.
-- Prática guiada e evolutiva da trilha Express.js
+```mermaid
+flowchart LR
+    A[Cliente HTTP] --> B[Roteador Express]
+    B --> C[Middlewares de Contexto]
+    C --> D[Controller da Etapa]
+    D --> E[Camada de Dados / Serviço]
+    E --> F[Persistência / Memória]
+```
+
+- Manutenção da separação de responsabilidade em camadas.
+- Handlers enxutos com repasse de erros para middlewares centralizados.
+
+---
+
+## Regras e Decisões de Implementação
+
+- **Tipagem**: TypeScript com interfaces estritas para entradas e saídas.
+- **Tratamento de Erros**: Erros conhecidos capturados e formatados em JSON padrão.
+- **Manutenibilidade**: Código limpo, sem duplicação de regras em controllers.
+
+---
+
+## Execução & Testes Práticos
+
+1. Inicie o servidor localmente com os scripts do projeto.
+2. Dispare as requisições HTTP predefinidas.
+3. Verifique os status codes (`200`, `201`, `400`, `401`, `404`) e os payloads.
+
+---
+
+## Resumo e Próximos Passos
+
+- A etapa de **Visão Geral** eleva a maturidade do **InvestApp**.
+- O código resulta em um módulo pronto e testado para os próximos avanços.

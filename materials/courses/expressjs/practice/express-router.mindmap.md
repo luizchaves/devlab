@@ -5,19 +5,16 @@ markmap:
   initialExpandLevel: 2
 ---
 
-# Projeto: Express Router
+# Express Router
 
-## Ideia Central
+## Arquitetura de Rotas
 
-- **Projeto**: Projeto: Express Router
-- **Escopo**: Rotas separadas em módulos com express.Router().
+- Instanciação de `express.Router()`
+- Agrupamento de rotas por entidade/domínio
+- Centralização de prefixos de URL no `app.use()`
 
-## Arquitetura & Código
+## Benefícios
 
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
-
-## Boas Práticas
-
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Código desacoplado e manutenível
+- Middlewares aplicados a escopos restritos
+- Testabilidade isolada de módulos

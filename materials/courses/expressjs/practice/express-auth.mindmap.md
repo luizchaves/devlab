@@ -1,23 +1,19 @@
 ---
-title: 'Projeto: Express Auth'
+title: 'Projeto: Express Autenticação'
 markmap:
   colorFreezeLevel: 2
   initialExpandLevel: 2
 ---
 
-# Projeto: Express Auth
+# Express Autenticação
 
-## Ideia Central
+## Proteção de Rotas
 
-- **Projeto**: Projeto: Express Auth
-- **Escopo**: Cadastro, autenticação por JWT e autorização por posse e papel, com hash Argon2id — tudo usando apenas node:crypto.
+- Assinatura e verificação de JWT
+- Middleware de inspeção do cabeçalho `Authorization: Bearer`
+- Resposta HTTP 401 Unauthorized para acessos inválidos
 
-## Arquitetura & Código
+## Segurança de Credenciais
 
-- **Estrutura**: Módulos e rotas organizados
-- **Execução**: Dependências e scripts de desenvolvimento
-
-## Boas Práticas
-
-- Testar todos os cenários de sucesso e erro
-- Manter o código limpo e alinhado com o guia da disciplina
+- Hash de senhas seguro
+- Expiração temporal configurável em tokens

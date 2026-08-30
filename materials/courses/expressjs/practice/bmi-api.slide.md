@@ -7,35 +7,53 @@ style: |
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
   }
 lang: pt-BR
-title: "Projeto: BMI API"
-description: "O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de rota e corpo da requisição — para comparar as origens de dados de uma requisição."
+title: "Projeto: BMI API (Cálculo de IMC)"
+description: "API de cálculo de IMC e validação numérica de parâmetros"
 ---
 
 <!-- _class: lead -->
 
-# Projeto: BMI API
+# BMI API (Calculadora de IMC)
 
-O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de rota e corpo da requisição — para comparar as origens de dados de uma requisição.
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+API RESTful para processamento de métricas de saúde e cálculo de Índice de Massa Corporal.
 
 ---
 
-## Estrutura e Execução
+## Objetivos e Regras de Negócio
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- **Fórmula**: $IMC = \frac{peso}{altura^2}$
+- **Parâmetros**:
+  - `weight` (Peso em quilogramas, numérico positivo).
+  - `height` (Altura em metros, numérico positivo).
+- **Classificações**:
+  - $< 18.5$: Abaixo do peso
+  - $18.5 - 24.9$: Peso normal
+  - $25.0 - 29.9$: Sobrepeso
+  - $\ge 30.0$: Obesidade
 
 ---
 
-## Resumo
+## Tratamento de Validação e Erros
 
-- **Projeto: BMI API**: O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de rota e corpo da requisição — para comparar as origens de dados de uma requisição.
-- Prática guiada e evolutiva da trilha Express.js
+```typescript
+app.post('/api/bmi', (req, res) => {
+  const { weight, height } = req.body;
+
+  if (!weight || !height || weight <= 0 || height <= 0) {
+    return res.status(400).json({ error: 'Peso e altura válidos são obrigatórios.' });
+  }
+
+  const bmi = Number((weight / (height * height)).toFixed(2));
+  const category = getBmiCategory(bmi);
+
+  return res.json({ weight, height, bmi, category });
+});
+```
+
+---
+
+## Resumo e Práticas
+
+- Rejeite dados de requisições malformadas com o código HTTP **400 Bad Request**.
+- Separe lógicas de cálculo matemáticos em funções utilitárias puras.
+- Teste limites de fronteira (ex: valores negativos, zero ou strings não numéricas).

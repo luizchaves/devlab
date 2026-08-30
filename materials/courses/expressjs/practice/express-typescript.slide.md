@@ -7,35 +7,39 @@ style: |
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
   }
 lang: pt-BR
-title: "Projeto: Express TypeScript"
-description: "API de usuários em TypeScript executada nativamente pelo Node, com camadas, tipos do domínio e erros centralizados."
+title: "Projeto: Express com TypeScript"
+description: "Tipagem estrita e desenvolvimento seguro no Express.js"
 ---
 
 <!-- _class: lead -->
 
-# Projeto: Express TypeScript
+# Express.js com TypeScript
 
-API de usuários em TypeScript executada nativamente pelo Node, com camadas, tipos do domínio e erros centralizados.
-
----
-
-## Objetivo do Projeto
-
-- Construir e validar o projeto de acordo com as especificações da aula
-- Compreender a organização do repositório em `examples/courses/express/projects/`
-- Executar os testes e requisições HTTP para validar os endpoints esperados
+Adicionando checagem estática de tipos e autocompletar profissional em APIs Node.js.
 
 ---
 
-## Estrutura e Execução
+## Tipos Fundamentais do Express
 
-- **Código-fonte**: Projeto completo executável no repositório DevLab
-- **Ambiente**: Node.js com scripts `dev` e `start` configurados
-- **Testes HTTP**: Arquivo `requests.http` ou requisições via `curl`
+- Importe os tipos nativos do pacote `@types/express`:
+  - `Request`: Representa a requisição HTTP.
+  - `Response`: Representa a resposta HTTP.
+  - `NextFunction`: Função para encadeamento de middlewares.
+
+```typescript
+import { Request, Response, NextFunction } from 'express';
+
+export function loggerMiddleware(req: Request, res: Response, next: NextFunction) {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+}
+```
 
 ---
 
-## Resumo
+## Configuração do `tsconfig.json`
 
-- **Projeto: Express TypeScript**: API de usuários em TypeScript executada nativamente pelo Node, com camadas, tipos do domínio e erros centralizados.
-- Prática guiada e evolutiva da trilha Express.js
+- `strict: true`: Habilita verificações estritas de nulidade.
+- `target: ES2022`: Recursos modernos de JavaScript.
+- `moduleResolution: node16` / `nodenext`: Suporte a módulos ECMAScript.
+- Execução rápida em ambiente de desenvolvimento via `tsx`.
