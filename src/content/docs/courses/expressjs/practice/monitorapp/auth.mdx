@@ -6,6 +6,7 @@ sidebar:
   label: "10. Autenticação"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
+import CodeTabs from '@components/CodeTabs.astro';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
@@ -371,6 +372,69 @@ a opção `{ auth: false }` da linha 14 comunica.
   showLineNumbers
   mark="14-16"
 />
+
+O `index.js` fecha o cerco pelo outro lado. O `loadHandleSignout` liga o botão "Sair" do
+cabeçalho, e as chamadas de carregamento passam a rodar dentro de um `if` — sem token, a página
+não tenta buscar nada, porque o `isAuthenticated` do `lib/auth.js` já redirecionou. O `host.js`
+recebe o mesmo tratamento.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/monitor-app-auth/front/js/index.js', label: 'index.js', lines: '118-135' },
+    { path: 'examples/courses/express/projects/monitor-app-auth/front/js/host.js', label: 'host.js', lines: '110-130' },
+  ]}
+/>
+
+### TK10.6 · Proteger as rotas e dar um dono aos dados iniciais
+
+O `isAuthenticated` da TK10.2 precisa ser registrado rota a rota, e é a mudança mais espalhada da
+etapa. As três famílias de rota recebem o mesmo tratamento, sempre **antes** do `validate`: não
+faz sentido validar o corpo de uma requisição que nem deveria chegar ao controller.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/monitor-app-auth/back/src/routes/pings.routes.ts', label: 'pings.routes.ts', mark: '4,12,19' },
+    { path: 'examples/courses/express/projects/monitor-app-auth/back/src/routes/tags.routes.ts', label: 'tags.routes.ts', mark: '4' },
+    { path: 'examples/courses/express/projects/monitor-app-auth/back/src/routes/auth.routes.ts', label: 'auth.routes.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-auth/back/src/schemas/auth.schema.ts', label: 'auth.schema.ts' },
+  ]}
+/>
+
+O roteador de autenticação é o único que fica de fora da proteção — é a porta de entrada de quem
+ainda não tem token. E o `auth.schema.ts` valida só e-mail e senha, sem `minlength`: conferir o
+tamanho da senha no login apenas diria ao atacante quando ele acertou o formato.
+
+O `Host.d.ts` acompanha, com o `userId` obrigatório na linha 9 e o opcional na 19 — o comentário
+ali registra a regra que a TK10.4 impõe: o dono vem do token, nunca do corpo.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-auth/back/src/types/Host.d.ts"
+  title="back/src/types/Host.d.ts"
+  showLineNumbers
+  mark="9,19-20"
+/>
+
+Por fim, o `seed.ts` precisa de um dono para os hosts iniciais. As linhas 18 a 24 criam a conta de
+demonstração com `upsert`, o que torna o seed repetível, e passam a senha pelo `hashPassword` da
+etapa 9 — o seed não grava senha em texto limpo, como nenhuma outra parte do sistema.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-auth/back/src/database/seed.ts"
+  title="back/src/database/seed.ts"
+  lines="1-30"
+  showLineNumbers
+  mark="5,8,18-24"
+/>
+
+{/* cobertura: back/src/docs/openapi.ts — acrescenta o caminho /signin e a resposta 401 às rotas
+    já documentadas, repetindo o formato dos blocos das etapas 5 e 7 */}
+{/* cobertura: back/prisma/migrations/20260303000000_host_owner/migration.sql — gerada pelo
+    prisma migrate a partir do userId obrigatório da TK10.4 */}
+{/* cobertura: front/signin.html — ganha o id do formulário e o parágrafo de feedback, no mesmo
+    formato do signup.html da etapa 9 */}
+{/* cobertura: front/js/signup.js — passa a redirecionar para o login usando o helper do
+    lib/auth.js */}
+{/* cobertura: back/src/index.ts — monta o roteador de autenticação sob o prefixo /api */}
 
 ## Testando
 
