@@ -1,54 +1,226 @@
 ---
-title: 'MonitorApp: Trilha Prática'
+title: 'MonitorApp: Trilha Prática & Backlog'
 markmap:
   colorFreezeLevel: 2
   initialExpandLevel: 2
 ---
 
-# MonitorApp: Trilha Prática
+# MonitorApp: Trilha Prática & Backlog
 
-## Épicos do Produto
+## Épicos e Decomposição (EP ➔ FT ➔ US ➔ CA & TK)
 
-### EP01 Monitoramento de Hosts
-- FT01 Dashboard e Status de Hosts (Etapa 1 - Front static)
-- FT02 Cadastro de Hosts (Etapa 2 - API em memória)
-- FT03 Métricas e Latência (Etapa 7 - Ping Service)
+### EP01 Inventário e Observação
+- FT01 Telas do sistema (Etapa 1 - Front static)
+  - US01 Conhecer o sistema antes de usá-lo
+    - Critérios de Aceitação (CA)
+      - CA01.1 Sobe só com o Vite
+      - CA01.2 Links navegáveis
+      - CA01.3 Atributos name
+      - CA01.4 Sem JS
+    - Tasks de Implementação (TK)
+      - TK01.1 `index.html`
+      - TK01.2 `css/tailwind.css`
+      - TK01.3 `host.html`
+      - TK01.4 `signin.html` e `signup.html`
+      - TK01.5 `vite.config.js`
+- FT02 CRUD de hosts (Etapa 2 - API em memória)
+  - US02 Manter o inventário de hosts
+    - Critérios de Aceitação (CA)
+      - CA02.1 Listar hosts
+      - CA02.2 Filtro por nome
+      - CA02.3 POST 201 com id
+      - CA02.4 Corpo incompleto 400
+      - CA02.5 ID inexistente 404
+      - CA02.6 DELETE 204
+      - CA02.7 Fetch no front
+      - CA02.8 Proxy sem CORS
+      - CA02.9 Reset no restart
+    - Tasks de Implementação (TK)
+      - TK02.1 Server Express e CORS
+      - TK02.2 Array em memória
+      - TK02.3 Rotas CRUD
+      - TK02.4 Proxy no Vite
+      - TK02.5 `api.js` e `index.js`
+      - TK02.6 `requests.http`
+- FT03 Classificação e histórico (Etapa 7 - Prisma)
+  - US07 Organizar e comparar os hosts
+    - Critérios de Aceitação (CA)
+      - CA07.1 `prisma migrate dev`
+      - CA07.2 Include tags e pings
+      - CA07.3 Tag criada na hora
+      - CA07.4 Filtro `?tag=`
+      - CA07.5 Cascade no histórico
+      - CA07.6 Tag duplicada 409
+    - Tasks de Implementação (TK)
+      - TK07.1 `schema.prisma`
+      - TK07.2 Singleton Prisma e seed
+      - TK07.3 Models Host, Tag e Ping
+      - TK07.4 Rotas de tags e pings
+      - TK07.5 Front com tags e histórico
 
-### EP02 Alertas e Notificações
-- FT04 Alertas por E-mail (Etapa 10 - Email alerts)
-- FT05 Métricas em Tempo Real (Etapa 11 - WebSockets)
+### EP02 Coleta e Tempo Real
+- FT04 Coleta automática e sob demanda (Etapa 8 - Ping real)
+  - US08 Saber se o host está no ar sem abrir o terminal
+    - Critérios de Aceitação (CA)
+      - CA08.1 `POST /pings` 201
+      - CA08.2 Latência em ms
+      - CA08.3 Falha grava `latency` nulo
+      - CA08.4 Sem shell (`execFile`)
+      - CA08.5 Rodada periódica
+      - CA08.6 Rodada tolerante a falha
+    - Tasks de Implementação (TK)
+      - TK08.1 `lib/ping.ts`
+      - TK08.2 `Ping.check`
+      - TK08.3 Agendador
+      - TK08.4 Botão "Medir agora"
+- FT05 Painel ao vivo (Etapa 11 - Tempo real)
+  - US12 Ver a rede mudando ao vivo
+    - Critérios de Aceitação (CA)
+      - CA12.1 `GET /api/events` stream
+      - CA12.2 Bloco `event: ping`
+      - CA12.3 Cartão muda sem reload
+      - CA12.4 Eventos só do dono
+      - CA12.5 Ouvinte removido ao fechar
+      - CA12.6 Token em cabeçalho
+    - Tasks de Implementação (TK)
+      - TK11.1 Barramento de eventos
+      - TK11.2 Rota SSE
+      - TK11.3 Emissão em `Ping.check`
+      - TK11.4 `lib/events.js` no front
+- FT06 Alertas de indisponibilidade (Backlog)
+  - US15 Ser avisado quando um host cair
+    - Critérios de Aceitação (CA)
+      - CA15.1 Regra de N falhas seguidas
+      - CA15.2 Notificação enviada uma vez
+      - CA15.3 Aviso de recuperação
+    - Tasks de Implementação (TK)
+      - TK15.1 Model `Alert`
+      - TK15.2 Detector de transição de estado
+      - TK15.3 Serviço de envio
+      - TK15.4 Tela de preferências
+      - TK15.5 Suíte de testes
 
-### EP03 Fundação Técnica
-- FT06 Tipagem strict (Etapa 3 - TypeScript)
-- FT07 Validação Zod (Etapa 4 - Validação)
-- FT08 OpenAPI Docs (Etapa 5 - Swagger)
-- FT09 Persistência SQLite (Etapa 6 - SQLite)
+### EP03 Identidade e Acesso
+- FT07 Cadastro de conta (Etapa 9 - User)
+  - US09 Ter um inventário próprio
+    - Critérios de Aceitação (CA)
+      - CA09.1 `POST /api/users` 201
+      - CA09.2 E-mail duplicado 409
+      - CA09.3 Confirmação de senha 400
+      - CA09.4 Hash `$argon2id$`
+      - CA09.5 Salts individuais
+      - CA09.6 Redirect para signin
+    - Tasks de Implementação (TK)
+      - TK09.1 Model `User` e migration
+      - TK09.2 Util Argon2id
+      - TK09.3 Rota `POST /users`
+      - TK09.4 Form `signup.js`
+- FT08 Login, sessão e isolamento (Etapa 10 - Auth)
+  - US10 Entrar no sistema
+    - Critérios de Aceitação (CA)
+      - CA10.1 `POST /api/signin` JWT
+      - CA10.2 Mensagem única 401
+      - CA10.3 Header ausente 401
+      - CA10.4 Token adulterado 401
+      - CA10.5 Token no `localStorage`
+    - Tasks de Implementação (TK)
+      - TK10.1 Util JWT
+      - TK10.2 `isAuthenticated`
+      - TK10.3 Rota `POST /signin`
+      - TK10.5 Front com Auth header
+  - US11 Ver apenas os meus hosts
+    - Critérios de Aceitação (CA)
+      - CA11.1 Lista isolada por dono
+      - CA11.2 Host de outro dono 404
+      - CA11.3 Histórico de outro dono 404
+      - CA11.4 `userId` oriundo do token
+    - Tasks de Implementação (TK)
+      - TK10.4 Queries escopadas por `userId`
 
-### EP04 Autenticação e Segurança
-- FT10 Registro de Operadores (Etapa 8 - User)
-- FT11 Autenticação JWT (Etapa 9 - Auth)
+### EP04 Fundação Técnica
+- FT09 Arquitetura em camadas e tipos (Etapa 3 - TS)
+  - US03 Mudar o código sem medo
+    - Critérios de Aceitação (CA)
+      - CA03.1 `npm run typecheck`
+      - CA03.2 Sem `.js` em `src/`
+      - CA03.3 Roteador limpo
+      - CA03.4 Desacoplamento
+      - CA03.5 `errorHandler`
+      - CA03.6 Compatibilidade HTTP
+    - Tasks de Implementação (TK)
+      - TK03.1 `tsconfig.json`
+      - TK03.2 Entrypoint TS
+      - TK03.3 Tipos do domínio
+      - TK03.4 Model assíncrono
+      - TK03.5 Controller HTTP
+      - TK03.6 `HttpError.ts`
+      - TK03.7 Router modular
+- FT10 Validação de entrada (Etapa 4 - Validação)
+  - US04 Saber exatamente o que corrigir
+    - Critérios de Aceitação (CA)
+      - CA04.1 Issues Zod (400)
+      - CA04.2 Path body/params/query
+      - CA04.3 Endereço IP ou domínio
+      - CA04.4 URL completa 400
+      - CA04.5 ID não-UUID 400
+      - CA04.6 Query vazia 400
+      - CA04.7 Sem `if` em controllers
+    - Tasks de Implementação (TK)
+      - TK04.1 Middleware Zod
+      - TK04.2 `host.schema.ts`
+      - TK04.3 `HttpError` com issues
+- FT11 Documentação da API (Etapa 5 - Documentação)
+  - US05 Integrar sem ler o código
+    - Critérios de Aceitação (CA)
+      - CA05.1 `/api/docs`
+      - CA05.2 `/api/openapi.json`
+      - CA05.3 Sincronia com schema
+      - CA05.4 Atualização automática
+      - CA05.5 Sem duplicar contrato
+    - Tasks de Implementação (TK)
+      - TK05.1 Generator OpenAPI
+      - TK05.2 Rota Swagger UI
+- FT12 Persistência de dados (Etapa 6 - SQLite)
+  - US06 Não perder o inventário ao fechar o sistema
+    - Critérios de Aceitação (CA)
+      - CA06.1 `npm run db:load`
+      - CA06.2 Persistência SQLite
+      - CA06.3 SQL parametrizado (`?`)
+      - CA06.4 UUIDs mantidos
+      - CA06.5 Controllers intactos
+    - Tasks de Implementação (TK)
+      - TK06.1 Driver `node:sqlite`
+      - TK06.2 Migration e seeders
+      - TK06.3 Model SQL
 
-### EP05 Qualidade e Deploy
-- FT12 Testes Automatizados (Etapa 12 - Testes)
-- FT13 Containerização (Etapa 13 - Docker)
-
-## Etapas de Construção
-
-### Etapas 1 a 4 (Base & Contrato)
-- 1. Front estático (HTML/Tailwind)
-- 2. API de Hosts em memória
-- 3. TypeScript (Camadas e Tipos)
-- 4. Schemas Zod (Validação estrita)
-
-### Etapas 5 a 8 (Docs, DB & Ping)
-- 5. OpenAPI & Swagger UI
-- 6. SQLite nativo (node:sqlite)
-- 7. Serviço de Ping ICMP/HTTP
-- 8. Gestão de Usuários (Argon2id)
-
-### Etapas 9 a 13 (Auth, Realtime, Testes & Ops)
-- 9. Autenticação JWT
-- 10. Alertas por E-mail
-- 11. WebSockets / Eventos em Tempo Real
-- 12. Testes de Integração e E2E
-- 13. Docker & Docker Compose
+### EP05 Qualidade e Operação
+- FT13 Suíte de testes e cobertura (Etapa 12 - Testes)
+  - US13 Alterar sem quebrar o existente
+    - Critérios de Aceitação (CA)
+      - CA13.1 `npm test` isolado
+      - CA13.2 Front test em jsdom
+      - CA13.3 Idempotência nos testes
+      - CA13.4 Threshold de cobertura
+      - CA13.5 Teste de isolamento por dono
+      - CA13.6 Export `app` no index
+    - Tasks de Implementação (TK)
+      - TK12.1 Testes unitários
+      - TK12.2 Testes com `supertest`
+      - TK12.3 Testes de front no Vitest
+      - TK12.4 E2E Playwright
+      - TK12.5 Configurações de teste
+- FT14 Empacotamento e deploy (Etapa 13 - Docker)
+  - US14 Subir a aplicação em qualquer máquina
+    - Critérios de Aceitação (CA)
+      - CA14.1 `docker compose up`
+      - CA14.2 Auto-migrations
+      - CA14.3 Env vars via Compose
+      - CA14.4 Usuário não-root (`node`)
+      - CA14.5 Persistência via volume
+      - CA14.6 `ping` na imagem
+      - CA14.7 Nginx no lugar do proxy
+    - Tasks de Implementação (TK)
+      - TK13.1 `Dockerfile` da API
+      - TK13.2 `Dockerfile` e `nginx.conf` do front
+      - TK13.3 `.dockerignore`
+      - TK13.4 `compose.yaml` e volume
