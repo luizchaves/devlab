@@ -204,7 +204,9 @@ export default defineConfig({
     ),
     '/courses/lp2-ctii-jp/expressjs/api': withBase('/courses/express/api/construction/'),
     '/courses/lp2-ctii-jp/expressjs/mvc': withBase('/courses/express/architecture/mvc/'),
-    '/courses/lp2-ctii-jp/expressjs/db-simple': withBase('/courses/express/persistence/node-sqlite/'),
+    '/courses/lp2-ctii-jp/expressjs/db-simple': withBase(
+      '/courses/express/persistence/node-sqlite/'
+    ),
     '/courses/lp2-ctii-jp/expressjs/prismajs-simple': withBase(
       '/courses/express/persistence/prisma/'
     ),
@@ -634,7 +636,10 @@ export default defineConfig({
             {
               label: 'Ambiente e Navegador',
               items: [
-                { label: 'APIs Modernas do Navegador', link: '/courses/web-api/browser/modern-apis/' },
+                {
+                  label: 'APIs Modernas do Navegador',
+                  link: '/courses/web-api/browser/modern-apis/',
+                },
                 { label: 'Ciclo de Vida da Página', link: '/courses/web-api/browser/lifecycle/' },
               ],
             },
@@ -643,8 +648,14 @@ export default defineConfig({
               items: [
                 { label: 'Objetos do Navegador (BOM)', link: '/courses/web-api/browser/objects/' },
                 { label: 'History API (Navegação SPA)', link: '/courses/web-api/browser/history/' },
-                { label: 'Dialog API (Modais Nativos)', link: '/courses/web-api/browser/modern-apis/dialog/' },
-                { label: 'Fullscreen API (Tela Cheia)', link: '/courses/web-api/browser/modern-apis/fullscreen/' },
+                {
+                  label: 'Dialog API (Modais Nativos)',
+                  link: '/courses/web-api/browser/modern-apis/dialog/',
+                },
+                {
+                  label: 'Fullscreen API (Tela Cheia)',
+                  link: '/courses/web-api/browser/modern-apis/fullscreen/',
+                },
               ],
             },
             {
@@ -659,31 +670,61 @@ export default defineConfig({
             {
               label: 'Desenho e Mídia',
               items: [
-                { label: 'Canvas API (Desenho 2D)', link: '/courses/web-api/browser/modern-apis/canvas/' },
-                { label: 'Web Speech API (Voz)', link: '/courses/web-api/browser/modern-apis/web-speech/' },
+                {
+                  label: 'Canvas API (Desenho 2D)',
+                  link: '/courses/web-api/browser/modern-apis/canvas/',
+                },
+                {
+                  label: 'Web Speech API (Voz)',
+                  link: '/courses/web-api/browser/modern-apis/web-speech/',
+                },
               ],
             },
             {
               label: 'Entrada e Transferência',
               items: [
-                { label: 'Clipboard API (Copiar e Colar)', link: '/courses/web-api/browser/modern-apis/clipboard/' },
-                { label: 'Drag and Drop API (Arrastar)', link: '/courses/web-api/browser/modern-apis/drag-and-drop/' },
+                {
+                  label: 'Clipboard API (Copiar e Colar)',
+                  link: '/courses/web-api/browser/modern-apis/clipboard/',
+                },
+                {
+                  label: 'Drag and Drop API (Arrastar)',
+                  link: '/courses/web-api/browser/modern-apis/drag-and-drop/',
+                },
               ],
             },
             {
               label: 'Dispositivo e Sistema',
               items: [
-                { label: 'Geolocation API (Localização)', link: '/courses/web-api/browser/modern-apis/geolocation/' },
-                { label: 'Notification API (Notificações)', link: '/courses/web-api/browser/modern-apis/notification/' },
-                { label: 'Vibration API (Feedback Tátil)', link: '/courses/web-api/browser/modern-apis/vibration/' },
-                { label: 'Web Workers API (Multi-threading)', link: '/courses/web-api/browser/workers/' },
+                {
+                  label: 'Geolocation API (Localização)',
+                  link: '/courses/web-api/browser/modern-apis/geolocation/',
+                },
+                {
+                  label: 'Notification API (Notificações)',
+                  link: '/courses/web-api/browser/modern-apis/notification/',
+                },
+                {
+                  label: 'Vibration API (Feedback Tátil)',
+                  link: '/courses/web-api/browser/modern-apis/vibration/',
+                },
+                {
+                  label: 'Web Workers API (Multi-threading)',
+                  link: '/courses/web-api/browser/workers/',
+                },
               ],
             },
             {
               label: 'Armazenamento Client-Side',
               items: [
-                { label: 'Local Storage e Web Storage', link: '/courses/web-api/storage/local-storage/' },
-                { label: 'Web Storage API (Exemplo)', link: '/courses/web-api/browser/modern-apis/web-storage/' },
+                {
+                  label: 'Local Storage e Web Storage',
+                  link: '/courses/web-api/storage/local-storage/',
+                },
+                {
+                  label: 'Web Storage API (Exemplo)',
+                  link: '/courses/web-api/browser/modern-apis/web-storage/',
+                },
                 { label: 'Cookies e Sessão', link: '/courses/web-api/storage/cookies/' },
               ],
             },
@@ -693,7 +734,10 @@ export default defineConfig({
                 { label: 'Server-Side Rendering (SSR)', link: '/courses/web-api/browser/ssr/' },
                 { label: 'WebSockets API (Tempo Real)', link: '/courses/web-api/http/websockets/' },
                 { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
-                { label: 'Fetch API (Exemplo)', link: '/courses/web-api/browser/modern-apis/fetch/' },
+                {
+                  label: 'Fetch API (Exemplo)',
+                  link: '/courses/web-api/browser/modern-apis/fetch/',
+                },
                 { label: 'CORS e Segurança', link: '/courses/web-api/http/cors/' },
                 { label: 'Clientes HTTP', link: '/courses/web-api/http/clients/' },
                 { label: 'REST API', link: '/courses/web-api/http/rest/' },
@@ -703,7 +747,10 @@ export default defineConfig({
             {
               label: 'Na Prática',
               items: [
-                { label: 'MonitorApp (DOM e Storage)', link: '/courses/web-api/practice/monitor-app/' },
+                {
+                  label: 'MonitorApp (DOM e Storage)',
+                  link: '/courses/web-api/practice/monitor-app/',
+                },
                 { label: 'InvestApp (Fetch e API)', link: '/courses/web-api/practice/invest-app/' },
               ],
             },
@@ -911,6 +958,10 @@ export default defineConfig({
                       label: 'Especificação da API',
                       link: '/courses/express/practice/investapp/api-spec/',
                     },
+                    {
+                      label: 'Próximos passos',
+                      link: '/courses/express/practice/investapp/next-steps/',
+                    },
                   ],
                 },
                 {
@@ -979,6 +1030,10 @@ export default defineConfig({
                     {
                       label: 'Especificação da API',
                       link: '/courses/express/practice/monitorapp/api-spec/',
+                    },
+                    {
+                      label: 'Próximos passos',
+                      link: '/courses/express/practice/monitorapp/next-steps/',
                     },
                   ],
                 },
@@ -1097,7 +1152,10 @@ export default defineConfig({
                   label: 'Firebase',
                   items: [
                     { label: 'Visão geral do Firebase', link: '/courses/packages/baas/firebase/' },
-                    { label: 'Cloud Firestore', link: '/courses/packages/baas/firebase-firestore/' },
+                    {
+                      label: 'Cloud Firestore',
+                      link: '/courses/packages/baas/firebase-firestore/',
+                    },
                     { label: 'Firebase Auth', link: '/courses/packages/baas/firebase-auth/' },
                   ],
                 },

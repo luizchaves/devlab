@@ -101,7 +101,7 @@ seção detalhada logo em seguida.
 A imagem contém código, dependências e migrations. Os dados que mudam em runtime ficam fora
 da imagem, em volumes gerenciados pelo Docker Compose:
 
-<ProjectLinks path="examples/express/projects/invest-app-test" />
+<ProjectLinks path="examples/courses/express/projects/invest-app-test" />
 
 <FileTree>
 {`
@@ -139,27 +139,33 @@ Abaixo estão detalhadas as tarefas de implementação desta etapa, com orienta�
 
 ### TK13.1 · Criar `Dockerfile` (Receita da imagem do aplicativo)
 
-O arquivo tem dezoito linhas e dois estágios, separados pelo segundo `FROM` da linha 6.
+O arquivo tem trinta e uma linhas e três estágios, separados pelos `FROM` das linhas 7 e 15.
 
-O **primeiro estágio** (linhas 1 a 4), apelidado de `deps`, existe só para instalar dependências. Ele copia apenas o `package*.json` (linha 3) antes de rodar o `npm ci` (linha 4), e essa ordem é deliberada: o Docker guarda o resultado de cada linha em cache, e como o `package.json` muda muito menos que o código, uma alteração em `src/` não refaz a instalação. O `--omit=dev` deixa `vitest`, `supertest` e Playwright de fora da imagem final.
+O **primeiro estágio** (linhas 1 a 5), apelidado de `deps`, existe só para instalar dependências. Ele copia apenas o `package*.json` (linha 4) antes de rodar o `npm ci` (linha 5), e essa ordem é deliberada: o Docker guarda o resultado de cada linha em cache, e como o `package.json` muda muito menos que o código, uma alteração em `src/` não refaz a instalação. O `--omit=dev` deixa `vitest`, `supertest` e Playwright de fora da imagem final.
 
-O **segundo estágio** (linhas 6 a 18) monta a imagem que será publicada. A linha 10 traz o `node_modules` já pronto do estágio anterior com `COPY --from=deps`; o `COPY . .` da linha 11 traz o código; e o `npx prisma generate` da linha 12 gera o client — ele precisa rodar **dentro** da imagem, porque o client é específico da plataforma.
+O **segundo estágio** (linhas 7 a 13) compila o front. Ele instala as dependências **sem** o `--omit=dev`, porque o Vite é uma `devDependency`, e roda `npm run build` na linha 13. Nada deste estágio vai para a imagem final além do `dist/`.
 
-As linhas 14 e 15 são a parte de segurança: criam as pastas de dados e de uploads, passam a posse para o usuário `node` e trocam o processo para ele. Sem esse `USER node`, a aplicação rodaria como `root` dentro do contêiner.
+O **terceiro estágio** (linhas 15 a 31) monta a imagem que será publicada. A linha 19 traz o `node_modules` de produção do primeiro estágio; o `COPY . .` da linha 20 traz o código; a linha 22 traz o front já compilado do estágio de build; e o `npx prisma generate` da linha 24 gera o client — ele precisa rodar **dentro** da imagem, porque o client é específico da plataforma.
 
-Por fim, o `CMD` da linha 18 encadeia duas coisas: `npx prisma migrate deploy` aplica as migrations pendentes no banco do volume e, só então, `npm start` sobe o servidor. É por isso que subir o contêiner pela primeira vez já entrega o banco com o schema correto.
+As linhas 26 e 27 são a parte de segurança: criam as pastas de dados e de uploads, passam a posse para o usuário `node` e trocam o processo para ele. Sem esse `USER node`, a aplicação rodaria como `root` dentro do contêiner.
+
+Por fim, o `CMD` da linha 31 encadeia duas coisas: `npx prisma migrate deploy` aplica as migrations pendentes no banco do volume e, só então, `npm start` sobe o servidor. É por isso que subir o contêiner pela primeira vez já entrega o banco com o schema correto.
 
 <SourceCode
-  path="examples/express/projects/invest-app-test/Dockerfile"
+  path="examples/courses/express/projects/invest-app-test/Dockerfile"
   title="Dockerfile"
   showLineNumbers
-  mark="3-4,10,12,14-15,18"
+  mark="3-5,9-13,19-22,26-27,31"
 />
 
-<Aside type="note" title="Por que dois estágios">
+<Aside type="note" title="Por que três estágios">
   O `--omit=dev` já reduz bastante a imagem, mas o multi-estágio garante que nada do processo
-  de instalação — cache do npm, ferramentas de build nativas — vá para a imagem final. Só o que
-  a linha 10 copia explicitamente sobrevive.
+  de instalação — cache do npm, ferramentas de build nativas, o próprio Vite — vá para a imagem
+  final. Só o que as linhas 19, 20 e 22 copiam explicitamente sobrevive.
+
+  O estágio do meio existe por um motivo específico: o front precisa das `devDependencies` para
+  ser compilado, e elas não podem acompanhar a imagem publicada. Separar o build da execução é o
+  que permite ter as duas coisas.
 </Aside>
 
 ### TK13.2 · Criar `.dockerignore` (Exclusão de arquivos no contexto de build)
@@ -199,7 +205,7 @@ O Compose documenta, em dezessete linhas, o comando de execução completo que n
 O serviço `investapp` da linha 2 é construído a partir do próprio diretório (`build: .`, linha 3) e publica a porta 3000 na linha 5. O bloco `environment` das linhas 6 a 10 é onde entram os valores que ficaram fora da imagem: o `DATABASE_URL` da linha 8 aponta para `/app/data/dev.db` — dentro do volume, e não dentro da imagem — e o `JWT_SECRET` da linha 9 traz um `change-me-in-production` que é exatamente o que o nome diz.
 
 <SourceCode
-  path="examples/express/projects/invest-app-test/compose.yaml"
+  path="examples/courses/express/projects/invest-app-test/compose.yaml"
   title="compose.yaml"
   showLineNumbers
   mark="5,8,11-13,15-17"
@@ -220,7 +226,7 @@ Repare que o banco fica em `/app/data`, e não em `/app/prisma`. Montar um volum
 1. Entre na pasta da etapa final:
 
    ```bash title="Terminal"
-   cd examples/express/projects/invest-app-test
+   cd examples/courses/express/projects/invest-app-test
    ```
 
 2. Construa e suba com Compose:
@@ -268,8 +274,8 @@ em regra de negócio:
 
 ```bash title="Terminal"
 git diff --no-index -- \
-  examples/express/projects/invest-app-upload \
-  examples/express/projects/invest-app-test || true
+  examples/courses/express/projects/invest-app-upload \
+  examples/courses/express/projects/invest-app-test || true
 ```
 
 Como as etapas 12 e 12 compartilham a mesma pasta, esse comando mostra as duas de uma vez. Na
@@ -282,7 +288,7 @@ separam uma imagem que funciona de uma que só funciona na sua máquina:
 
 | Linha | Onde | Por quê |
 | ----- | ---- | ------- |
-| `RUN npm ci --omit=dev` | `Dockerfile`, linha 4 | instala pelo lockfile, sem dependências de teste |
+| `RUN npm ci --omit=dev` | `Dockerfile`, linha 5 | instala pelo lockfile, sem dependências de teste |
 | `RUN npx prisma generate` | `Dockerfile`, linha 12 | o client precisa ser gerado para a plataforma da imagem |
 | `CMD [... migrate deploy && npm start]` | `Dockerfile`, linha 18 | aplica migrations antes de servir |
 | `DATABASE_URL: file:/app/data/dev.db` | `compose.yaml`, linha 8 | aponta o banco para o volume, não para a imagem |

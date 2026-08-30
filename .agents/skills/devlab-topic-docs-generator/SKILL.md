@@ -176,7 +176,7 @@ instalar nada na máquina.
 ```mdx
 import ProjectLinks from '@components/ProjectLinks.astro';
 
-<ProjectLinks path="examples/express/projects/mvc" devcontainer="express-mvc" />
+<ProjectLinks path="examples/courses/express/projects/mvc" devcontainer="express-mvc" />
 ```
 
 | Prop           | Uso |

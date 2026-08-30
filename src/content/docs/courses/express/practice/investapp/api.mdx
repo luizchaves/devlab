@@ -98,7 +98,7 @@ seção detalhada logo em seguida.
 
 O front-end desta etapa vive dentro de `public/` e é servido pelo próprio Express através do middleware `express.static('public')`. Ao mesmo tempo, as rotas sob `/api/investments` expõem os dados dinâmicos a partir de um array em memória. Como front e API compartilham a mesma origem, o navegador não precisa de CORS para conversar com o servidor — o middleware `cors` continua registrado apenas para permitir chamadas de fora, como as do `requests.http`.
 
-<ProjectLinks path="examples/express/projects/invest-app-api" />
+<ProjectLinks path="examples/courses/express/projects/invest-app-api" />
 
 <FileTree>
 {`
@@ -144,21 +144,34 @@ Abaixo estão detalhadas as tarefas de implementação desta etapa, com orienta�
 ### TK02.1 · Instalar dependências e criar `src/index.js` (Servidor Express)
 
 ```bash title="Terminal: instalação das dependências"
-npm install express cors morgan uuid
+npm install express cors morgan
 ```
 
-O arquivo monta o app registrando middlewares em ordem. A linha 9 liga o log de requisições com `morgan('tiny')`, e as linhas 11 a 19 configuram o `cors` — necessário apenas quando o cliente vem de outra origem, o que não é o caso do front servido pelo próprio Express.
+O arquivo monta o app registrando middlewares em ordem. A linha 8 liga o log de requisições com `morgan('tiny')`, e as linhas 10 a 18 configuram o `cors` — necessário apenas quando o cliente vem de outra origem, o que não é o caso do front servido pelo próprio Express.
 
-O trecho destacado nas linhas 21 a 25 é o coração da etapa. O `express.json()` da linha 21 transforma o corpo JSON de `POST` e `PUT` em `req.body`; o `express.static('public')` da linha 23 serve o front-end direto do disco; e o `server.use('/api', router)` da linha 25 prefixa todas as rotas do `routes.js`, de onde vem o caminho final `/api/investments`.
+O trecho destacado nas linhas 20 a 27 é o coração da etapa. O `express.json()` da linha 20 transforma o corpo JSON de `POST` e `PUT` em `req.body`; o `express.static` das linhas 24 e 25 serve o front-end direto do disco; e o `server.use('/api', router)` da linha 27 prefixa todas as rotas do `routes.js`, de onde vem o caminho final `/api/investments`.
+
+São **dois** middlewares de estático, e a ordem entre eles importa. Em desenvolvimento só o da linha 25 atua, entregando `public/` como está. Em produção o da linha 24 entra na frente e serve o `dist/` que o `npm run build` gerou — com os módulos empacotados e o hash de cache no nome dos arquivos. O `public/` continua atrás, porque nem tudo passa pelo build: os avatares enviados na etapa 11, por exemplo, são gravados nele em tempo de execução.
 
 Como o front e a API passam a viver na mesma origem (`http://localhost:3000`), o navegador não dispara preflight de CORS durante o desenvolvimento.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/src/index.js"
+  path="examples/courses/express/projects/invest-app-api/src/index.js"
   title="src/index.js"
   showLineNumbers
-  mark="21-25"
+  mark="20-27"
 />
+
+<Aside type="note" title="`randomUUID()` em vez do pacote `uuid`">
+  O `node:crypto` gera UUID v4 nativamente desde o Node 14.17, e é ele que o projeto usa. O
+  pacote `uuid` do npm continua sendo uma escolha legítima — resolve outras versões do padrão e
+  roda em ambientes sem `crypto` —, mas aqui não acrescenta nada que o runtime já não faça.
+
+  É o mesmo critério que reaparece na [etapa 8](../user/), quando o hash de senha é feito com
+  `argon2Sync` em vez de `bcrypt`, e na [etapa 9](../auth/), quando o JWT é assinado com
+  `createHmac` em vez de `jsonwebtoken`: cada dependência é código de terceiro dentro do seu
+  processo, e só entra quando economiza mais do que custa manter.
+</Aside>
 
 <Aside type="note" title="Express 5 dispensa o `express-async-errors`">
   No Express 4 era preciso instalar o pacote `express-async-errors`: um `throw` dentro de um
@@ -187,7 +200,7 @@ Repare que o `id` é uma string, e não um número sequencial. Essa escolha ante
 Como é um array exportado por um módulo ES, todas as rotas manipulam a **mesma** referência: o `push` de uma rota é visível na leitura da outra. É o suficiente para exercitar o ciclo completo de leitura e escrita sem banco de dados.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/src/data/investments.js"
+  path="examples/courses/express/projects/invest-app-api/src/data/investments.js"
   title="src/data/investments.js"
   showLineNumbers
 />
@@ -198,14 +211,14 @@ Este é o arquivo mais longo da etapa, e vale lê-lo em quatro partes.
 
 A classe `HttpError` das linhas 5 a 10 estende `Error` e acrescenta o campo `code`. É ela que permite escrever `throw new HttpError('Investment not found', 404)` no meio de uma rota e ainda assim responder com o status certo.
 
-O bloco destacado nas linhas 14 a 28 é o `POST /investments` e serve de modelo para as demais rotas: lê `name` e `value` de `req.body` (linha 15), rejeita entrada incompleta com `400` (linhas 17 a 19), gera o identificador com `uuidv4()` (linha 21), empurra o objeto para o array (linha 25) e responde `201` com o recurso criado (linha 27).
+O bloco destacado nas linhas 14 a 28 é o `POST /investments` e serve de modelo para as demais rotas: lê `name` e `value` de `req.body` (linha 15), rejeita entrada incompleta com `400` (linhas 17 a 19), gera o identificador com `randomUUID()` do `node:crypto` (linha 21), empurra o objeto para o array (linha 25) e responde `201` com o recurso criado (linha 27).
 
 As leituras vêm em seguida: o `GET /investments` das linhas 30 a 40 aceita o filtro opcional `req.query.name` (linha 31) e devolve o array inteiro quando ele não vem; o `GET /investments/:id` das linhas 42 a 52 usa `findIndex` e responde `404` quando o índice não existe. O `PUT` (linhas 54 a 74) e o `DELETE` (linhas 76 a 88) repetem exatamente esse par de verificações e por isso aparecem recolhidos.
 
 Fecham o arquivo os dois middlewares finais: o das linhas 91 a 93 responde `404` para qualquer caminho não declarado, e o das linhas 96 a 104 é o manipulador de erros — ele converte um `HttpError` no status guardado em `err.code` e transforma qualquer outra exceção em `500`. É esse par que sustenta o contrato de status codes da tabela a seguir.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/src/routes.js"
+  path="examples/courses/express/projects/invest-app-api/src/routes.js"
   title="src/routes.js"
   showLineNumbers
   mark="14-28"
@@ -230,7 +243,7 @@ O front é dividido em duas responsabilidades, e essa separação é o ponto did
 O `services/api.js` é essa camada fina. As quatro funções — `create`, `read`, `update` e `remove` — montam a URL a partir da constante `domain = '/api'` da linha 1 e diferem apenas no método e no corpo. O `read` da linha 20 é o caso mais simples, sem objeto `config`; o `create` da linha 3 mostra o trio que sempre acompanha um envio de JSON: `method: 'POST'`, `body: JSON.stringify(data)` e o cabeçalho `Content-Type` da linha 11. Já o `remove` da linha 45 não chama `res.json()`, porque a rota responde `204 No Content`, sem corpo.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/public/js/services/api.js"
+  path="examples/courses/express/projects/invest-app-api/public/js/services/api.js"
   title="public/js/services/api.js"
   showLineNumbers
   mark="1,20-26"
@@ -241,7 +254,7 @@ Com essa camada pronta, o `index.js` cuida só da tela. O trecho destacado nas l
 O gerador de HTML `InvestmentCard()` (linhas 10 a 44) e os manipuladores de edição e remoção (linhas 98 a 146) estão recolhidos: são detalhes de interface que repetem o mesmo padrão de `document.querySelector` mais `onclick`. As três chamadas das linhas 148 a 152 são o que efetivamente inicia a página.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/public/js/index.js"
+  path="examples/courses/express/projects/invest-app-api/public/js/index.js"
   title="public/js/index.js"
   showLineNumbers
   mark="56-96"
@@ -257,7 +270,7 @@ O trecho destacado nas linhas 1 a 13 mostra o mecanismo que torna o arquivo enca
 O restante do arquivo, recolhido, exercita justamente os caminhos de erro do contrato: criação sem `value` para provocar `400`, leitura por um id inválido para provocar `404` e assim por diante. Rodar o arquivo de cima a baixo valida a API inteira sem abrir o navegador.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/requests.http"
+  path="examples/courses/express/projects/invest-app-api/requests.http"
   title="requests.http"
   showLineNumbers
   mark="1-13"
@@ -271,7 +284,7 @@ O restante do arquivo, recolhido, exercita justamente os caminhos de erro do con
 1. Entre no projeto local desta etapa:
 
    ```bash title="Terminal"
-   cd examples/express/projects/invest-app-api
+   cd examples/courses/express/projects/invest-app-api
    ```
 
 2. Instale e suba em modo watch:
@@ -336,7 +349,7 @@ ou mudar o tratamento de erro em um único arquivo. Na etapa 9, quando o token J
 alteração acontece só dentro de `services/api.js`.
 
 <SourceCode
-  path="examples/express/projects/invest-app-api/public/js/lib/format.js"
+  path="examples/courses/express/projects/invest-app-api/public/js/lib/format.js"
   title="public/js/lib/format.js"
   showLineNumbers
 />

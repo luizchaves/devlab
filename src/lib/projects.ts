@@ -33,7 +33,7 @@ export const projects: Project[] = [
     tech: ['Node.js', 'Express.js'],
     concepts: ['Servidor HTTP', 'Rotas', 'JSON'],
     docs: '/courses/express/practice/hello-express/',
-    source: 'examples/express/projects/hello',
+    source: 'examples/courses/express/projects/hello',
   },
   {
     id: 'express-router',
@@ -43,7 +43,7 @@ export const projects: Project[] = [
     tech: ['Node.js', 'Express.js'],
     concepts: ['express.Router()', 'Modularização', 'Parâmetros de rota'],
     docs: '/courses/express/practice/express-router/',
-    source: 'examples/express/projects/router',
+    source: 'examples/courses/express/projects/router',
   },
   {
     id: 'express-mvc',
@@ -54,7 +54,7 @@ export const projects: Project[] = [
     tech: ['Node.js', 'Express.js', 'MVC'],
     concepts: ['Separação de responsabilidades', 'Controllers', 'Models', 'Middleware de erro'],
     docs: '/courses/express/practice/express-mvc/',
-    source: 'examples/express/projects/mvc',
+    source: 'examples/courses/express/projects/mvc',
   },
   {
     id: 'express-typescript',
@@ -65,7 +65,7 @@ export const projects: Project[] = [
     tech: ['Node.js', 'Express.js', 'TypeScript'],
     concepts: ['Type stripping', 'Subpath imports', 'Tipagem de req e res', 'HttpError'],
     docs: '/courses/express/practice/express-typescript/',
-    source: 'examples/express/projects/typescript',
+    source: 'examples/courses/express/projects/typescript',
   },
   {
     id: 'express-prisma',
@@ -76,7 +76,7 @@ export const projects: Project[] = [
     tech: ['Node.js', 'Express.js', 'Prisma', 'SQLite'],
     concepts: ['ORM', 'Schema', 'Migrations', 'CRUD assíncrono'],
     docs: '/courses/express/practice/express-prisma/',
-    source: 'examples/express/projects/prisma',
+    source: 'examples/courses/express/projects/prisma',
   },
   {
     id: 'express-auth',
@@ -87,7 +87,7 @@ export const projects: Project[] = [
     tech: ['Node.js', 'Express.js', 'TypeScript', 'node:crypto'],
     concepts: ['Argon2id', 'JWT HS256', 'Autenticação', 'Autorização'],
     docs: '/courses/express/practice/express-auth/',
-    source: 'examples/express/projects/auth',
+    source: 'examples/courses/express/projects/auth',
   },
 ];
 
