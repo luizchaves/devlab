@@ -25,6 +25,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         home: resolve(raiz, 'home.html'),
+        profile: resolve(raiz, 'profile.html'),
         signin: resolve(raiz, 'signin.html'),
         signup: resolve(raiz, 'signup.html'),
       },

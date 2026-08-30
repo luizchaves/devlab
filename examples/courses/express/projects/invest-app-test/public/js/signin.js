@@ -27,7 +27,7 @@ function showToast(message) {
   const toast = document.querySelector('#liveToast');
 
   toast.querySelector('strong').innerText = message;
-  toast.classList.add('show');
+  toast.classList.remove('hidden');
 
-  setTimeout(() => toast.classList.remove('show'), 4000);
+  setTimeout(() => toast.classList.add('hidden'), 4000);
 }

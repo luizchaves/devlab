@@ -3,47 +3,65 @@ import API from './services/api.js';
 
 let removedHostId;
 
-const bsOffcanvas = new bootstrap.Offcanvas('.offcanvas');
+const offcanvas = document.querySelector('.offcanvas');
+const modal = document.querySelector('.modal');
 
-const confirmModal = new bootstrap.Modal('.modal');
+// O painel lateral e o dialogo sao dois elementos com o utilitario `hidden`
+// alternado por estes dois objetos — nao ha biblioteca de componentes no
+// projeto, e o Tailwind faz o resto.
+const bsOffcanvas = {
+  show() {
+    offcanvas.classList.remove('hidden');
+    offcanvas.setAttribute('aria-hidden', 'false');
+  },
+  hide() {
+    offcanvas.classList.add('hidden');
+    offcanvas.setAttribute('aria-hidden', 'true');
+  },
+};
+
+const confirmModal = {
+  show() {
+    modal.classList.remove('hidden');
+  },
+  hide() {
+    modal.classList.add('hidden');
+  },
+};
 
 function InvestmentCard(investment) {
-  return `<div class="col" id="investment-${investment.id}">
-    <div class="card">
-      <div class="card-header">
-        <span class="investment-name">
-          ${investment.name}
-        </span>
-        <span class="float-end">
-          <span class="icon-trash" >
-            <span
-              class="iconify"
-              data-icon="solar:trash-bin-minimalistic-broken"
-            >
-            </span>
-          </span>
-          <span class="icon-pencil">
-            <span
-              class="iconify"
-              data-icon="tabler:pencil"
-            >
-            </span>
-          </span>
-        </span>
+  return `<article class="card investment-card p-5" id="investment-${investment.id}">
+    <header class="flex items-start justify-between gap-4">
+      <div>
+        <span class="investment-name block text-xl font-extrabold">${investment.name}</span>
       </div>
-      <div class="card-body">
-        <div>
-          <span class="fw-bold">Valor:</span>
-          <span class="investment-value">
-            ${formatCurrency(investment.value / 100)}
-          </span>
-        </div>
-      </div>
+      <span class="flex items-center gap-2">
+        <button class="icon-button icon-trash" type="button" aria-label="Remover investimento">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z" fill="currentColor" />
+            <path d="M7 9h10l-.7 11H7.7L7 9Z" fill="currentColor" />
+          </svg>
+        </button>
+        <button class="icon-button icon-pencil" type="button" aria-label="Editar investimento">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4 17.5V21h3.5L18.1 10.4l-3.5-3.5L4 17.5Zm16.7-9.8a1 1 0 0 0 0-1.4l-2-2a1 1 0 0 0-1.4 0l-1.2 1.2 3.5 3.5 1.1-1.3Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      </span>
+    </header>
+    <div>
+      <span class="text-sm font-bold">Valor</span>
+      <div class="investment-value text-2xl font-extrabold">${formatCurrency(investment.value / 100)}</div>
     </div>
-  </div>`;
+  </article>`;
 }
 
 function createInvestmentCard(investment) {
+  document.querySelector('.investments p').style.display = 'none';
+
   const investmentContainer = document.querySelector(`#investment-grid`);
 
   investmentContainer.insertAdjacentHTML('beforeend', InvestmentCard(investment));
@@ -59,6 +77,8 @@ async function loadInvestmentCards() {
   for (const investment of investments) {
     createInvestmentCard(investment);
   }
+
+  updatePortfolioTotal(investments);
 }
 
 function updateInvestmentCard({ id, name, value }) {
@@ -92,6 +112,8 @@ function loadHandleFormSubmit(type, id) {
     form.reset();
 
     document.querySelector('#offcanvas-close').click();
+
+    loadPortfolioTotal();
   };
 }
 
@@ -136,13 +158,33 @@ function loadHandleConfirmModal(id) {
 function loadHandleRemoveInvestment() {
   const confirmBtn = document.querySelector('.modal .btn-primary');
 
-  confirmBtn.onclick = () => {
-    API.remove(`/investments/${removedHostId}`);
+  confirmBtn.onclick = async () => {
+    await API.remove(`/investments/${removedHostId}`);
 
     document.querySelector(`#investment-${removedHostId}`).remove();
 
     confirmModal.hide();
+
+    loadPortfolioTotal();
   };
+}
+
+document.querySelector('#offcanvas-close').onclick = () => bsOffcanvas.hide();
+
+document.querySelectorAll('[data-dismiss="modal"]').forEach((button) => {
+  button.onclick = () => confirmModal.hide();
+});
+
+async function loadPortfolioTotal() {
+  const investments = await API.read('/investments');
+
+  updatePortfolioTotal(investments);
+}
+
+function updatePortfolioTotal(investments) {
+  const total = investments.reduce((sum, investment) => sum + investment.value, 0);
+
+  document.querySelector('#portfolio-total').innerText = formatCurrency(total / 100);
 }
 
 loadInvestmentCards();

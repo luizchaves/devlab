@@ -10,27 +10,27 @@ const modal = document.querySelector('.modal');
 
 const bsOffcanvas = {
   show() {
-    offcanvas.classList.add('is-open');
+    offcanvas.classList.remove('hidden');
     offcanvas.setAttribute('aria-hidden', 'false');
   },
   hide() {
-    offcanvas.classList.remove('is-open');
+    offcanvas.classList.add('hidden');
     offcanvas.setAttribute('aria-hidden', 'true');
   },
 };
 
 const confirmModal = {
   show() {
-    modal.classList.add('is-open');
+    modal.classList.remove('hidden');
   },
   hide() {
-    modal.classList.remove('is-open');
+    modal.classList.add('hidden');
   },
 };
 
 function InvestmentCard(investment) {
-  return `<article class="card investment-card" id="investment-${investment.id}">
-    <header>
+  return `<article class="card investment-card p-5" id="investment-${investment.id}">
+    <header class="flex items-start justify-between gap-4">
       <div>
         <span
           class="badge investment-category"
@@ -38,9 +38,9 @@ function InvestmentCard(investment) {
         >
           ${investment.category.name}
         </span>
-        <span class="investment-name">${investment.name}</span>
+        <span class="investment-name mt-1 block text-xl font-extrabold">${investment.name}</span>
       </div>
-      <span class="actions">
+      <span class="flex items-center gap-2">
         <button class="icon-button icon-trash" type="button" aria-label="Remover investimento">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z" fill="currentColor" />
@@ -57,24 +57,24 @@ function InvestmentCard(investment) {
         </button>
       </span>
     </header>
-    <div class="form-grid">
+    <div class="grid gap-4">
       <div>
-        <span class="label">Valor</span>
-        <div class="investment-value">${formatCurrency(investment.value / 100)}</div>
+        <span class="text-sm font-bold">Valor</span>
+        <div class="investment-value text-2xl font-extrabold">${formatCurrency(investment.value / 100)}</div>
       </div>
-      <div class="field-row">
+      <div class="flex items-start justify-between gap-4">
         <div>
-          <span class="label">Taxa</span>
-          <span class="investment-interest">${investment.interest}</span>
+          <span class="text-sm font-bold">Taxa</span>
+          <span class="investment-interest block">${investment.interest}</span>
         </div>
         <div>
-          <span class="label">Data</span>
-          <span class="investment-created-at">${formatDate(investment.createdAt)}</span>
+          <span class="text-sm font-bold">Data</span>
+          <span class="investment-created-at block">${formatDate(investment.createdAt)}</span>
         </div>
       </div>
       <div>
-        <span class="label">Corretora</span>
-        <span class="investment-broker">${investment.broker.name}</span>
+        <span class="text-sm font-bold">Corretora</span>
+        <span class="investment-broker block">${investment.broker.name}</span>
       </div>
     </div>
   </article>`;

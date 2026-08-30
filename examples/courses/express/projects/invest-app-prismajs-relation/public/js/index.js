@@ -4,72 +4,79 @@ import API from './services/api.js';
 let removedHostId;
 
 const form = document.querySelector('form');
+const offcanvas = document.querySelector('.offcanvas');
+const modal = document.querySelector('.modal');
 
-const bsOffcanvas = new bootstrap.Offcanvas('.offcanvas');
+const bsOffcanvas = {
+  show() {
+    offcanvas.classList.remove('hidden');
+    offcanvas.setAttribute('aria-hidden', 'false');
+  },
+  hide() {
+    offcanvas.classList.add('hidden');
+    offcanvas.setAttribute('aria-hidden', 'true');
+  },
+};
 
-const confirmModal = new bootstrap.Modal('.modal');
+const confirmModal = {
+  show() {
+    modal.classList.remove('hidden');
+  },
+  hide() {
+    modal.classList.add('hidden');
+  },
+};
 
 function InvestmentCard(investment) {
-  return `<div class="col" id="investment-${investment.id}">
-    <div class="card">
-      <div class="card-header">
-        <span class="investment-name">
-          ${investment.name}
+  return `<article class="card investment-card p-5" id="investment-${investment.id}">
+    <header class="flex items-start justify-between gap-4">
+      <div>
+        <span
+          class="badge investment-category"
+          style="background-color: ${investment.category.color}"
+        >
+          ${investment.category.name}
         </span>
-        <span class="float-end">
-          <span class="icon-trash" >
-            <span
-              class="iconify"
-              data-icon="solar:trash-bin-minimalistic-broken"
-            >
-            </span>
-          </span>
-          <span class="icon-pencil">
-            <span
-              class="iconify"
-              data-icon="tabler:pencil"
-            >
-            </span>
-          </span>
-        </span>
+        <span class="investment-name mt-1 block text-xl font-extrabold">${investment.name}</span>
       </div>
-      <div class="card-body">
+      <span class="flex items-center gap-2">
+        <button class="icon-button icon-trash" type="button" aria-label="Remover investimento">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z" fill="currentColor" />
+            <path d="M7 9h10l-.7 11H7.7L7 9Z" fill="currentColor" />
+          </svg>
+        </button>
+        <button class="icon-button icon-pencil" type="button" aria-label="Editar investimento">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4 17.5V21h3.5L18.1 10.4l-3.5-3.5L4 17.5Zm16.7-9.8a1 1 0 0 0 0-1.4l-2-2a1 1 0 0 0-1.4 0l-1.2 1.2 3.5 3.5 1.1-1.3Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      </span>
+    </header>
+    <div class="grid gap-4">
+      <div>
+        <span class="text-sm font-bold">Valor</span>
+        <div class="investment-value text-2xl font-extrabold">${formatCurrency(investment.value / 100)}</div>
+      </div>
+      <div class="flex items-start justify-between gap-4">
         <div>
-          <span class="fw-bold">Valor:</span>
-          <span class="investment-value">
-            ${formatCurrency(investment.value / 100)}
-          </span>
+          <span class="text-sm font-bold">Taxa</span>
+          <span class="investment-interest block">${investment.interest}</span>
         </div>
         <div>
-          <span class="fw-bold">Taxa:</span>
-          <span class="investment-interest">
-            ${investment.interest}
-          </span>
+          <span class="text-sm font-bold">Data</span>
+          <span class="investment-created-at block">${formatDate(investment.createdAt)}</span>
         </div>
-        <div>
-          <span class="fw-bold">Data:</span>
-          <span class="investment-created-at">
-            ${formatDate(investment.createdAt)}
-          </span>
-        </div>
-        <div>
-          <span class="fw-bold">Corretora:</span>
-          <span class="investment-broker">
-            ${investment.broker.name}
-          </span>
-        </div>
-        <div>
-          <span class="fw-bold">Categoria:</span>
-          <span
-            class="badge investment-category"
-            style="background-color: ${investment.category.color}"
-          >
-            ${investment.category.name}
-          </span>
-        </div>
+      </div>
+      <div>
+        <span class="text-sm font-bold">Corretora</span>
+        <span class="investment-broker block">${investment.broker.name}</span>
       </div>
     </div>
-  </div>`;
+  </article>`;
 }
 
 function createInvestmentCard(investment) {
@@ -90,6 +97,8 @@ async function loadInvestmentCards() {
   for (const investment of investments) {
     createInvestmentCard(investment);
   }
+
+  updatePortfolioTotal(investments);
 }
 
 function updateInvestmentCard({ id, name, value, createdAt, category, broker, interest }) {
@@ -109,6 +118,8 @@ function updateInvestmentCard({ id, name, value, createdAt, category, broker, in
     category.color;
 
   document.querySelector(`#investment-${id} .investment-category`).innerText = category.name;
+
+  loadPortfolioTotal();
 }
 
 function loadHandleFormSubmit(type, id) {
@@ -123,6 +134,8 @@ function loadHandleFormSubmit(type, id) {
       const createdInvestment = await API.create('/investments', investment);
 
       createInvestmentCard(createdInvestment);
+
+      loadPortfolioTotal();
     } else if (type === 'update') {
       const updatedInvestment = await API.update(`/investments/${id}`, investment);
 
@@ -186,12 +199,14 @@ function loadHandleConfirmModal(id) {
 function loadHandleRemoveInvestment() {
   const confirmBtn = document.querySelector('.modal .btn-primary');
 
-  confirmBtn.onclick = () => {
-    API.remove(`/investments/${removedHostId}`);
+  confirmBtn.onclick = async () => {
+    await API.remove(`/investments/${removedHostId}`);
 
     document.querySelector(`#investment-${removedHostId}`).remove();
 
     confirmModal.hide();
+
+    loadPortfolioTotal();
   };
 }
 
@@ -205,6 +220,25 @@ async function loadCategoriesSelect() {
 
     select.insertAdjacentHTML('beforeend', option);
   }
+}
+
+
+document.querySelector('#offcanvas-close').onclick = () => bsOffcanvas.hide();
+
+document.querySelectorAll('[data-dismiss="modal"]').forEach((button) => {
+  button.onclick = () => confirmModal.hide();
+});
+
+async function loadPortfolioTotal() {
+  const investments = await API.read('/investments');
+
+  updatePortfolioTotal(investments);
+}
+
+function updatePortfolioTotal(investments) {
+  const total = investments.reduce((sum, investment) => sum + investment.value, 0);
+
+  document.querySelector('#portfolio-total').innerText = formatCurrency(total / 100);
 }
 
 loadInvestmentCards();

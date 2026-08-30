@@ -24,7 +24,10 @@ async function handleSubmit(event) {
 }
 
 function showToast(message) {
-  document.querySelector('.toast-header strong').innerText = message;
-  const toast = new bootstrap.Toast(document.querySelector('#liveToast'));
-  toast.show();
+  const toast = document.querySelector('#liveToast');
+
+  toast.querySelector('strong').innerText = message;
+  toast.classList.remove('hidden');
+
+  setTimeout(() => toast.classList.add('hidden'), 4000);
 }

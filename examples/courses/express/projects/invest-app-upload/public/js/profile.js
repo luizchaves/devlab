@@ -5,6 +5,8 @@ const form = document.querySelector('form');
 
 let formMethod;
 
+window.signout = Auth.signout;
+
 async function loadProfile() {
   const user = await API.read('/users/me');
 
