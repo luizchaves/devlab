@@ -10,7 +10,7 @@ async function create(req: Request, res: Response) {
     const investment = req.body as InvestmentInput;
 
     // Andaime desta etapa: ainda nao existe login, entao o investimento e
-    // atribuido ao usuario padrao do seed. Na etapa 8 o dono vem do token.
+    // atribuido ao usuario padrao do seed. Na etapa 9 o dono vem do token.
     const [admin] = await User.read({ email: 'admin@email.com' });
 
     const createdInvestment = await Investment.create({ ...investment, userId: admin?.id });

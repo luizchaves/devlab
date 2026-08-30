@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
 import FileTree from '@components/FileTree.astro';
 import HtmlPreview from '@components/HtmlPreview.astro';
 import Mermaid from '@components/Mermaid.astro';
@@ -106,6 +107,7 @@ seção detalhada logo em seguida.
 2. **TK09.2 · Criar a rota `POST /api/signin`**: Verificação das credenciais e emissão do token JWT.
 3. **TK09.3 · Modificar `src/models/Investment.ts`**: Consultas escopadas pelo `userId` do dono.
 4. **TK09.4 · Modificar o front**: Token em `localStorage` e cabeçalho `Authorization` na camada de API.
+5. **TK09.5 · Proteger as rotas e expor `GET /api/users/me`**: `isAuthenticated` em cada rota privada e o perfil de quem chama.
 
 </Steps>
 
@@ -273,6 +275,82 @@ Por fim, o `services/api.js` passa a anexar o token sozinho, e trata o caminho o
 
 É aqui que a separação feita na etapa 2 se paga: nenhuma tela precisou aprender o que é um
 token. A mudança inteira coube no único arquivo que conhece `fetch`.
+
+### TK09.5 · Proteger as rotas e expor `GET /api/users/me`
+
+O middleware da TK09.1 não protege nada sozinho: ele precisa ser registrado rota a rota. É essa
+a mudança mais espalhada da etapa — quatro roteadores passam a exigir o token, e um deles ganha
+uma rota nova.
+
+O padrão é sempre o mesmo, e a ordem importa: `isAuthenticated` vem **antes** do `validate`. Não
+faz sentido validar o corpo de uma requisição que nem deveria chegar ao controller, e devolver
+`400` antes de `401` entrega ao cliente anônimo informação sobre o formato esperado.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-auth/src/routes/investments.routes.ts"
+  title="src/routes/investments.routes.ts"
+  lines="14-35"
+  showLineNumbers
+  mark="19,24,25,28,33"
+/>
+
+As rotas de categoria e de corretora recebem o mesmo tratamento: a carteira inteira passa a ser
+território de quem está autenticado.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/invest-app-auth/src/routes/categories.routes.ts', label: 'categories.routes.ts', mark: '4,10-11' },
+    { path: 'examples/courses/express/projects/invest-app-auth/src/routes/brokers.routes.ts', label: 'brokers.routes.ts', mark: '4,10-11' },
+  ]}
+/>
+
+O roteador de usuários é o único que fica dividido, e os comentários das linhas 11 e 14 explicam
+por quê. O `POST /users` da linha 12 continua público — quem se cadastra ainda não tem conta para
+se autenticar. Já o `GET /users/me` da linha 16 é privado por definição: ele devolve o dono do
+token.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-auth/src/routes/users.routes.ts"
+  title="src/routes/users.routes.ts"
+  showLineNumbers
+  mark="11-12,14-16"
+/>
+
+O `readMe` do controller é curto e vale pela linha 28: o id vem de `req.userId`, escrito pelo
+`isAuthenticated` a partir do token, e **nunca** da URL. É a diferença entre "meu perfil" e "o
+perfil de quem eu pedir" — a segunda seria uma rota administrativa, com outra autorização.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-auth/src/controllers/users.controller.ts"
+  title="src/controllers/users.controller.ts"
+  lines="25-36"
+  showLineNumbers
+  mark="28"
+/>
+
+Por fim, o `src/index.ts` monta o roteador de autenticação na linha 23, antes dos demais. Repare
+que ele entra **depois** do `express.static` da linha 19: as telas de login e cadastro precisam
+ser servidas a quem ainda não tem token.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-auth/src/index.ts"
+  title="src/index.ts"
+  lines="16-28"
+  showLineNumbers
+  mark="19,23"
+/>
+
+No contrato, duas adições. As linhas 77 e 78 descrevem o corpo do `POST /signin` a partir do
+`signinSchema`, e as linhas 92 a 100 declaram a resposta `401` que agora qualquer rota privada
+pode devolver — é a peça que faz o Swagger UI mostrar o cadeado nas rotas protegidas.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-auth/src/docs/openapi.ts"
+  title="src/docs/openapi.ts — login e resposta 401"
+  lines="77-100"
+  showLineNumbers
+  mark="92-100"
+/>
 
 ## O fluxo
 

@@ -20,7 +20,7 @@ async function main() {
   }
 
   // Usuario padrao para a etapa poder criar investimentos antes de existir
-  // login. A partir da etapa 8 o dono vem do token.
+  // login. A partir da etapa 9 o dono vem do token.
   const existing = await prisma.user.findUnique({ where: { email: 'admin@email.com' } });
 
   if (!existing) {

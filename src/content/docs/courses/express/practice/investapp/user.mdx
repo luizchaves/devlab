@@ -82,6 +82,7 @@ seção detalhada logo em seguida.
 2. **TK08.2 · Criar `src/utils/password.ts` e `src/models/User.ts`**: Hash Argon2id com `node:crypto` e `select` sem o hash.
 3. **TK08.3 · Criar a rota `POST /api/users`**: Controller, schema e roteador do auto-cadastro.
 4. **TK08.4 · Modificar `public/js/signup.js`**: Conexão do formulário HTML com o endpoint de registro.
+5. **TK08.5 · Ligar o investimento ao dono**: `userId` obrigatório no model, no tipo e no seed, com um usuário padrão até o login existir.
 
 </Steps>
 
@@ -238,6 +239,78 @@ Quando a resposta traz o `email`, o cadastro deu certo e o front redireciona par
 <SourceCode
   path="examples/courses/express/projects/invest-app-prismajs-user/public/js/signup.js"
   title="public/js/signup.js"
+  showLineNumbers
+/>
+
+### TK08.5 · Ligar o investimento ao dono (`userId` no model, no tipo e no seed)
+
+Criar a entidade `User` não basta: o `schema.prisma` da TK08.1 declarou que todo `Investment`
+pertence a um `User`, e essa relação é obrigatória. Sem mais nada, a rota de criação da etapa 7
+passa a falhar — o banco recusa um investimento sem dono.
+
+Quatro arquivos mudam por causa disso, e todos pelo mesmo motivo.
+
+O tipo é o primeiro. O `userId` da linha 12 entra no `Investment`, e a versão opcional da linha
+24 entra no `InvestmentInput` — opcional porque quem envia o formulário não escolhe o dono.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-user/src/types/Investment.d.ts"
+  title="src/types/Investment.d.ts"
+  showLineNumbers
+  mark="12,24"
+/>
+
+No model, o `userId` entra na desestruturação da linha 20 e na guarda da linha 22, ao lado dos
+outros campos obrigatórios. A linha 33 é a que grava a relação: `user: { connect: { id: userId } }`
+segue exatamente o padrão que a categoria já usava na linha 32.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-user/src/models/Investment.ts"
+  title="src/models/Investment.ts"
+  lines="13-40"
+  showLineNumbers
+  mark="20,22,33"
+/>
+
+O controller é onde mora o andaime desta etapa. Ainda não existe login, então não há de onde tirar
+o dono da requisição: as linhas 12 a 16 buscam o usuário `admin@email.com` criado pelo seed e o
+atribuem ao investimento. O comentário das linhas 12 e 13 marca a dívida explicitamente, e a
+etapa 9 a paga trocando essas quatro linhas pelo `req.userId` que vem do token.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-user/src/controllers/investments.controller.ts"
+  title="src/controllers/investments.controller.ts"
+  lines="1-22"
+  showLineNumbers
+  mark="5,12-16"
+/>
+
+Para que esse `admin@email.com` exista, o `seed.ts` ganha as linhas 21 a 28: elas procuram o
+usuário e o criam se não houver, passando pelo `User.create` da TK08.2 — o que garante que a
+senha do seed também nasça com hash Argon2id, e não em texto limpo.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-user/src/database/seed.ts"
+  title="src/database/seed.ts"
+  lines="18-30"
+  showLineNumbers
+  mark="21-28"
+/>
+
+<Aside type="caution" title="Um andaime declarado é diferente de um erro">
+  Atribuir todo investimento ao mesmo usuário é errado como produto e certo como etapa: ele
+  isola a chegada do `User` do problema de descobrir **quem** está pedindo, que é o assunto da
+  [etapa 9](../auth/). O critério `CA10.1` — carteira isolada por dono — só é cobrado lá.
+</Aside>
+
+O contrato também cresce: as linhas 64 a 74 do `openapi.ts` descrevem o recurso de usuário a
+partir do `createUserSchema` da TK08.3. Repare que não há campo `password` na saída — o
+`PublicUser` do model é quem define isso, e a documentação herda a decisão.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-prismajs-user/src/docs/openapi.ts"
+  title="src/docs/openapi.ts — o recurso de usuário"
+  lines="64-74"
   showLineNumbers
 />
 
