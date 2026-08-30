@@ -1,0 +1,255 @@
+---
+title: "TaskAPI: Prisma e relações"
+description: "Oitava etapa da TaskAPI: o SQL escrito à mão vira um schema declarativo com Prisma 7 e driver adapter, migrações versionadas e uma relação muitos-para-muitos entre tarefa e tag."
+course: expressjs
+sidebar:
+  label: "8. Prisma"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Avançado** · Node.js · Express.js · TypeScript · Prisma 7 · SQLite
+
+O schema descreve o modelo, o Prisma escreve o SQL — e a tarefa finalmente tem tags.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-prisma" devcontainer="task-api-prisma" />
+
+## O que muda nesta etapa
+
+| Antes (etapa 7) | Agora (etapa 8) |
+| --------------- | --------------- |
+| `CREATE TABLE` escrito à mão | `prisma/schema.prisma` declarativo |
+| Migração como script que roda uma vez | Migrações versionadas em `prisma/migrations/` |
+| SQL em string no model | `findMany`, `create`, `update`, `deleteMany` |
+| Tipos do banco escritos à mão (`TaskRow`) | Tipos gerados do schema |
+| Só a tabela `tasks` | `Task` e `Tag`, com relação muitos-para-muitos |
+| — | `prisma.config.ts` e `db:studio` |
+
+## O modelo
+
+Duas entidades e uma relação. A tabela de junção que o muitos-para-muitos exige não é
+declarada: o Prisma a cria e a mantém sozinho.
+
+<Mermaid title="Modelo de dados da TaskAPI na etapa 8">
+{`
+erDiagram
+  TASK {
+    int id PK
+    string title UK
+    string description
+    boolean done
+    string priority
+    string dueDate
+    datetime createdAt
+  }
+  TAG {
+    int id PK
+    string name UK
+    string color
+  }
+  TASK }o--o{ TAG : "recebe"
+`}
+</Mermaid>
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/prisma/schema.prisma"
+  title="prisma/schema.prisma"
+  showLineNumbers
+/>
+
+## O client recebe um driver
+
+A mudança mais visível do Prisma 7 é esta: quem fala com o banco é um **driver adapter**,
+e não mais um binário do próprio Prisma.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/database/prisma.ts"
+  title="src/database/prisma.ts"
+  region="adapter"
+/>
+
+E a string de conexão saiu do `schema.prisma`: ela agora vive no `prisma.config.ts`, junto
+com o caminho das migrações e o comando de seed. O schema descreve o **modelo**; a
+configuração descreve o **ambiente**.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/prisma.config.ts"
+  title="prisma.config.ts"
+  showLineNumbers
+/>
+
+<Aside type="tip" title="Sem `dotenv`">
+  `process.loadEnvFile()` no `prisma.config.ts` e a flag `--env-file` nos scripts cobrem a
+  leitura do `.env`. O Node faz isso nativamente desde a 20.6.
+</Aside>
+
+## Relação não vem por acidente
+
+`task.tags` só existe no resultado se a consulta pedir. Isso é uma decisão de desempenho
+do Prisma: sem `include`, ele não faz o `JOIN`.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="select"
+/>
+
+`Prisma.TaskGetPayload<{ include: typeof withTags }>` é o tipo exato daquele resultado —
+com as tags dentro. Mudar o `include` muda o tipo, e o TypeScript acusa quem lia um campo
+que não vem mais.
+
+## Filtros viram objeto
+
+O `WHERE` montado com string e parâmetros da etapa anterior vira um objeto. Quem escapa
+valores é o Prisma:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="where"
+/>
+
+A listagem e a contagem usam o mesmo `where` e rodam em paralelo, porque uma não depende
+da outra:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="find-all"
+/>
+
+<Aside type="caution" title="`update` lança quando o id não existe">
+  Diferente do `UPDATE` em SQL, que apenas afeta zero linhas, `prisma.update` lança
+  `P2025`. O model usa `.catch(() => null)` para transformar isso no `undefined` que o
+  controller já sabe traduzir em `404`. `deleteMany` não tem esse problema: devolve a
+  contagem.
+</Aside>
+
+## O seed é idempotente
+
+`upsert` deixa o seed seguro para rodar mais de uma vez, e `connect` liga a tarefa a tags
+que já existem em vez de criar duplicatas:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/database/seed.ts"
+  title="src/database/seed.ts"
+  lines="29-41"
+/>
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-prisma"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-prisma/prisma/schema.prisma', title: 'prisma/schema.prisma', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-prisma/prisma.config.ts', title: 'prisma.config.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-prisma/src/database/prisma.ts', title: 'src/database/prisma.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-prisma/src/database/seed.ts', title: 'src/database/seed.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-prisma/src/models/task-model.ts', title: 'src/models/task-model.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-prisma/src/types/task.ts', title: 'src/types/task.ts', showLineNumbers: true },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-prisma
+   ```
+
+2. <PackageManagerTabs />
+
+3. Copie o arquivo de ambiente:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Crie o banco e aplique as migrações:
+
+   <PackageManagerTabs run="db:migrate" />
+
+5. Popule o banco:
+
+   <PackageManagerTabs run="db:seed" />
+
+6. <PackageManagerTabs run="dev" />
+
+</Steps>
+
+`db:studio` abre uma interface web para inspecionar as tabelas sem escrever SQL.
+
+## Testando
+
+A tarefa agora vem com as tags carregadas pelo `include`:
+
+<ApiRequest method="GET" path="/tasks/1" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "id": 1,
+    "title": "Estudar rotas do Express",
+    "description": "Parametros de rota, query string e corpo",
+    "done": true,
+    "priority": "high",
+    "dueDate": "2026-03-10",
+    "createdAt": "2026-03-01T09:00:00.000Z",
+    "tags": [
+      { "id": 1, "name": "estudo", "color": "#2563eb" }
+    ]
+  }
+`}
+</ApiResponse>
+
+Atualizar um id inexistente devolve `404` — o `P2025` do Prisma virou `undefined` no model
+e `HttpError` no controller:
+
+<ApiRequest method="PUT" path="/tasks/999" baseUrl="http://localhost:3000">
+{`
+  {
+    "done": true
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={404}>
+{`
+  {
+    "error": {
+      "status": 404,
+      "message": "Tarefa nao encontrada"
+    }
+  }
+`}
+</ApiResponse>
+
+## Conceitos abordados
+
+- Schema declarativo e migrações versionadas
+- Prisma 7 com driver adapter (`@prisma/adapter-better-sqlite3`)
+- `prisma.config.ts` separando modelo de ambiente
+- Relação muitos-para-muitos e a tabela de junção implícita
+- `include` explícito e o tipo gerado pelo `TaskGetPayload`
+- `upsert` e `connect` em um seed idempotente
+- `P2025` traduzido para `404`
+
+<Aside type="tip">
+  As aulas correspondentes são [Prisma](../../../persistence/prisma/),
+  [CRUD com Prisma](../../../persistence/crud/) e
+  [Relações com Prisma](../../../persistence/relations/).
+</Aside>
+
+## Próxima etapa
+
+A etapa 9 (autenticação) está em construção. Enquanto isso, o
+[InvestApp](../../investapp/auth/) e o [MonitorApp](../../monitorapp/auth/) já mostram a
+mesma camada aplicada a uma aplicação completa.

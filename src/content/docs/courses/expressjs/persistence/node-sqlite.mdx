@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Até aqui os dados moravam em um array e desapareciam a cada reinício. Esta aula troca o
 model em memória por um banco SQLite real — usando o módulo `node:sqlite`, que vem com o
@@ -47,16 +48,16 @@ import { DatabaseSync } from 'node:sqlite';
 
 const db = new DatabaseSync('src/database/db.sqlite');
 
-db.exec(`CREATE TABLE IF NOT EXISTS investments (
-  id     INTEGER PRIMARY KEY AUTOINCREMENT,
-  name   TEXT    NOT NULL,
-  amount INTEGER NOT NULL
+db.exec(`CREATE TABLE IF NOT EXISTS tasks (
+  id    INTEGER PRIMARY KEY,
+  title TEXT    NOT NULL,
+  done  INTEGER NOT NULL DEFAULT 0
 )`);
 
-const insert = db.prepare('INSERT INTO investments (name, amount) VALUES (?, ?)');
-const { lastInsertRowid } = insert.run('Tesouro Selic 2029', 20000);
+const insert = db.prepare('INSERT INTO tasks (title) VALUES (?)');
+const { lastInsertRowid } = insert.run('Guardar em SQLite');
 
-const rows = db.prepare('SELECT * FROM investments').all();
+const rows = db.prepare('SELECT * FROM tasks').all();
 ```
 
 | Método                | Devolve                                    | Use para              |
@@ -81,8 +82,8 @@ um invadido:
 <Tabs syncKey="sql-injection">
   <TabItem label="Vulnerável">
     ```ts title="Nunca faça isso" showLineNumbers {2}
-    // req.query.name === "x'; DROP TABLE investments; --"
-    const sql = `SELECT * FROM investments WHERE name = '${name}'`;
+    // req.query.q === "x'; DROP TABLE tasks; --"
+    const sql = `SELECT * FROM tasks WHERE title = '${q}'`;
 
     db.exec(sql); // executa os dois comandos
     ```
@@ -90,10 +91,10 @@ um invadido:
 
   <TabItem label="Seguro">
     ```ts title="Statement preparado" showLineNumbers {1,3}
-    const stmt = db.prepare('SELECT * FROM investments WHERE name = ?');
+    const stmt = db.prepare('SELECT * FROM tasks WHERE title = ?');
 
     // O valor é enviado separado do comando: nunca vira SQL.
-    const rows = stmt.all(name);
+    const rows = stmt.all(q);
     ```
   </TabItem>
 </Tabs>
@@ -113,10 +114,10 @@ Parâmetros também podem ser nomeados, o que ajuda em consultas com muitos camp
 
 ```ts title="Parâmetros nomeados" showLineNumbers
 const stmt = db.prepare(
-  'INSERT INTO investments (name, amount) VALUES (:name, :amount)',
+  'INSERT INTO tasks (title, priority) VALUES (:title, :priority)',
 );
 
-stmt.run({ name: 'CDB Inter', amount: 15000 });
+stmt.run({ title: 'Guardar em SQLite', priority: 'high' });
 ```
 
 <Aside type="danger" title="O que `?` não protege">
@@ -130,37 +131,11 @@ stmt.run({ name: 'CDB Inter', amount: 15000 });
 O restante da aplicação é `async`. Envolver o `DatabaseSync` em uma interface de promessas
 mantém o model uniforme e permite trocar o driver depois sem mexer nos chamadores:
 
-```ts title="src/database/database.ts" showLineNumbers {8,14,20}
-import { DatabaseSync } from 'node:sqlite';
-
-function wrap(database: DatabaseSync) {
-  return {
-    async run(sql: string, params: unknown[] = []) {
-      const { changes, lastInsertRowid } = database.prepare(sql).run(...params);
-
-      return { changes, lastId: Number(lastInsertRowid) };
-    },
-
-    async get<T>(sql: string, params: unknown[] = []) {
-      return database.prepare(sql).get(...params) as T | undefined;
-    },
-
-    async all<T>(sql: string, params: unknown[] = []) {
-      return database.prepare(sql).all(...params) as T[];
-    },
-
-    async close() {
-      database.close();
-    },
-  };
-}
-
-export const Database = {
-  async connect(file = 'src/database/db.sqlite') {
-    return wrap(new DatabaseSync(file));
-  },
-};
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/database/database.ts"
+  title="src/database/database.ts"
+  region="wrapper"
+/>
 
 ## Migrations e seeders
 
@@ -171,51 +146,34 @@ Duas responsabilidades distintas, e confundi-las causa perda de dados:
 | Migration   | cria e altera a **estrutura**        | ao evoluir o schema              |
 | Seeder      | insere **dados** iniciais            | ao preparar um ambiente de teste |
 
-```ts title="src/database/migration.ts" showLineNumbers
-import { Database } from '#database/database.ts';
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/database/migration.ts"
+  title="src/database/migration.ts"
+  region="up"
+/>
 
-export async function up() {
-  const db = await Database.connect();
+O seeder insere os dados iniciais. `INSERT OR IGNORE` o deixa idempotente: rodar duas vezes
+não duplica nada, porque o índice `UNIQUE` do título barra a segunda inserção.
 
-  await db.run(`
-    CREATE TABLE IF NOT EXISTS investments (
-      id        INTEGER  PRIMARY KEY AUTOINCREMENT,
-      name      TEXT     NOT NULL,
-      amount    INTEGER  NOT NULL CHECK (amount > 0),
-      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-}
-```
-
-```ts title="src/database/seeders.ts" showLineNumbers {6}
-import seeders from '#database/seeders.json' with { type: 'json' };
-import { Database } from '#database/database.ts';
-
-export async function seed() {
-  const db = await Database.connect();
-  const sql = 'INSERT INTO investments (name, amount) VALUES (?, ?)';
-
-  for (const { name, amount } of seeders.investments) {
-    await db.run(sql, [name, amount]);
-  }
-}
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/database/seed.ts"
+  title="src/database/seed.ts"
+  lines="24-34"
+/>
 
 Os scripts do `package.json` transformam isso em comandos memorizáveis:
 
-```json title="package.json" showLineNumbers {3-6}
+```json title="package.json" showLineNumbers {3-5}
 {
   "scripts": {
-    "db:migrate": "node src/database/migrate.ts",
+    "db:migrate": "node src/database/migration.ts",
     "db:seed": "node src/database/seed.ts",
-    "db:load": "npm run db:migrate && npm run db:seed",
-    "db:drop": "node --eval \"require('node:fs').rmSync('src/database/db.sqlite', { force: true })\""
+    "db:reset": "rm -f src/database/db.sqlite && npm run db:migrate && npm run db:seed"
   }
 }
 ```
 
-<Aside type="caution" title="`db:drop` apaga tudo, sem perguntar">
+<Aside type="caution" title="`db:reset` apaga tudo, sem perguntar">
   Em desenvolvimento é conveniente; apontado para um banco de produção, é catastrófico.
   Scripts destrutivos devem depender de `DATABASE_URL` e não de um caminho fixo — veja
   [Configuração](../../architecture/config/).
@@ -226,54 +184,48 @@ Os scripts do `package.json` transformam isso em comandos memorizáveis:
 Esta é a prova de que a arquitetura em camadas valeu a pena: **só o model muda**. Controller,
 router e middlewares permanecem intactos.
 
-```ts title="src/models/investment-model.ts" del={1-3} ins={5-11}
-export function findAll() {
-  return investments;
+```ts title="src/models/task-model.ts" del={1-3} ins={5-9}
+export function findById(id: number) {
+  return tasks.find((task) => task.id === id);
 }
 
-export async function findAll(): Promise<Investment[]> {
-  const db = await Database.connect();
+export async function findById(id: number): Promise<Task | undefined> {
+  const db = await connect();
+  const row = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
 
-  return db.all<Investment>('SELECT * FROM investments ORDER BY id');
-}
-```
+  await db.close();
 
-O CRUD completo cabe em quatro consultas:
-
-```ts title="src/models/investment-model.ts" showLineNumbers {4,10,17,24}
-export async function findById(id: number) {
-  const db = await Database.connect();
-
-  return db.get<Investment>('SELECT * FROM investments WHERE id = ?', [id]);
-}
-
-export async function create({ name, amount }: InvestmentInput) {
-  const db = await Database.connect();
-
-  const { lastId } = await db.run(
-    'INSERT INTO investments (name, amount) VALUES (?, ?)',
-    [name, amount],
-  );
-
-  return findById(lastId);
-}
-
-export async function update(id: number, { name, amount }: InvestmentInput) {
-  const db = await Database.connect();
-
-  await db.run('UPDATE investments SET name = ?, amount = ? WHERE id = ?', [name, amount, id]);
-
-  return findById(id);
-}
-
-export async function remove(id: number) {
-  const db = await Database.connect();
-
-  const { changes } = await db.run('DELETE FROM investments WHERE id = ?', [id]);
-
-  return changes > 0;
+  return row ? toTask(row) : undefined;
 }
 ```
+
+A escrita segue a mesma forma. `lastInsertRowid` devolve o id gerado, e reler a linha
+garante que os valores calculados pelo banco — o `DEFAULT` de `done`, por exemplo — voltem
+na resposta:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="create"
+/>
+
+Remover devolve um booleano, e não a linha apagada: `changes` diz quantas linhas o `DELETE`
+atingiu, e é isso que o controller traduz em `204` ou `404`.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="remove"
+/>
+
+O SQLite não tem tipo booleano: `done` vai e volta como `0` ou `1`. A conversão mora no
+model, para que nem o controller nem a resposta HTTP vejam o formato do banco:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="row"
+/>
 
 <Aside type="tip" title="O controller nem percebe">
   As funções continuam se chamando `findAll`, `findById`, `create`, `update` e `remove`. O
@@ -285,23 +237,22 @@ export async function remove(id: number) {
 
 <FileTree>
 {`
-  investment-api/
-  ├── package.json                 scripts db:migrate, db:seed, db:load
+  task-api-sqlite/
+  ├── package.json                 scripts db:migrate, db:seed, db:reset
   └── src/
       ├── app.ts
       ├── server.ts
       ├── controllers/
-      │   └── investment-controller.ts
+      │   └── task-controller.ts
       ├── database/
       │   ├── database.ts          conexão e invólucro de promessas
       │   ├── db.sqlite            o banco (fora do Git)
       │   ├── migration.ts         estrutura
-      │   ├── seeders.json         dados iniciais
-      │   └── seeders.ts
+      │   └── seed.ts              dados iniciais
       ├── models/
-      │   └── investment-model.ts  as consultas SQL
+      │   └── task-model.ts        as consultas SQL
       └── routes/
-          └── investment-router.ts
+          └── task-router.ts
 `}
 </FileTree>
 
@@ -317,7 +268,7 @@ export async function remove(id: number) {
 1. Crie a estrutura e popule com os dados iniciais:
 
    ```bash title="Terminal"
-   npm run db:load
+   npm run db:migrate && npm run db:seed
    ```
 
 2. Suba o servidor:
@@ -326,7 +277,7 @@ export async function remove(id: number) {
    npm run dev
    ```
 
-3. Confirme que os dados sobrevivem ao reinício: crie um investimento, derrube o servidor
+3. Confirme que os dados sobrevivem ao reinício: crie uma tarefa, derrube o servidor
    com <kbd>Ctrl</kbd>+<kbd>C</kbd>, suba de novo e liste.
 
 4. Inspecione o arquivo com a extensão
@@ -337,41 +288,45 @@ export async function remove(id: number) {
 
 ## Exercício
 
-Partindo do projeto `express-typescript`:
+Partindo da [etapa 6 da TaskAPI](../../practice/taskapi/openapi/), que ainda guarda tudo
+em memória:
 
 1. Crie `src/database/database.ts` com o invólucro de promessas.
-2. Escreva a migration da tabela `users` com `email` `UNIQUE` e `NOT NULL`.
-3. Reescreva `user-model.ts` usando SQL, mantendo os nomes das funções.
+2. Escreva a migration da tabela `tags` com `name` `UNIQUE` e `NOT NULL`.
+3. Escreva `tag-model.ts` usando SQL, com os mesmos nomes de função do `task-model.ts`.
 4. Ajuste o controller para `await` — e confirme que nada mais precisou mudar.
-5. Provoque a violação de `UNIQUE` cadastrando o mesmo e-mail duas vezes e observe o erro
+5. Provoque a violação de `UNIQUE` cadastrando a mesma tag duas vezes e observe o erro
    que chega ao `errorHandler`.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/models/user-model.ts" showLineNumbers
-  export async function create({ name, email }: Required<UserInput>): Promise<User> {
-    const db = await Database.connect();
+  ```ts showLineNumbers
+  export async function create({ name, color }: Required<TagInput>): Promise<Tag> {
+    const db = await connect();
 
-    const { lastId } = await db.run(
-      'INSERT INTO users (name, email) VALUES (?, ?)',
-      [name, email],
+    const { lastInsertRowid } = await db.run(
+      'INSERT INTO tags (name, color) VALUES (?, ?)',
+      [name, color],
     );
 
-    return { id: lastId, name, email };
+    await db.close();
+
+    return { id: lastInsertRowid, name, color };
   }
   ```
 
-  A segunda inserção do mesmo e-mail lança um erro com código
+  A segunda inserção da mesma tag lança um erro com código
   `SQLITE_CONSTRAINT_UNIQUE`. Sem tradução, ele vira `500`; traduzido no `errorHandler`,
   vira `409` — como descrito em [Tratamento de Erros](../../api/error-handling/).
 </details>
 
 ## Desafio
 
-Implemente `findAll` com paginação e filtro por nome montando o SQL dinamicamente — sem
+Implemente `findAll` com paginação e filtro por título montando o SQL dinamicamente — sem
 concatenar valores. Dica: monte um array de condições e um array de parâmetros em paralelo, e
-junte as condições com `' AND '`.
+junte as condições com `' AND '`. Depois compare com o `buildWhere` da
+[etapa 7](../../practice/taskapi/sqlite/).
 
 ## Perguntas de revisão
 
@@ -436,8 +391,9 @@ junte as condições com `' AND '`.
 
 ## Na prática
 
-A etapa correspondente do projeto é
-[InvestApp: SQLite nativo](../../practice/investapp/sqlite/).
+O projeto executável desta aula é a
+[etapa 7 da TaskAPI](../../practice/taskapi/sqlite/). A mesma camada aplicada a uma
+aplicação completa está em [InvestApp: SQLite nativo](../../practice/investapp/sqlite/).
 
 ## Próxima aula
 

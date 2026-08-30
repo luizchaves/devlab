@@ -2,7 +2,7 @@
 title: "Express.js: Prisma"
 description: "Modelagem declarativa e acesso a dados com o Prisma ORM em uma API Express: schema, migrations, client único, consultas equivalentes ao SQL e seed."
 course: expressjs
-project: express-prisma
+project: task-api
 sidebar:
   label: "Prisma"
 ---
@@ -71,34 +71,36 @@ O `init` cria `prisma/schema.prisma` e acrescenta `DATABASE_URL` ao `.env`.
 
 O schema tem três blocos: de onde vem o banco, o que gerar e como são os dados.
 
-<ProjectLinks path="examples/courses/express/projects/prisma" devcontainer="express-prisma" />
+<ProjectLinks path="examples/courses/express/projects/task-api-prisma" devcontainer="task-api-prisma" />
 
 <FileTree>
 {`
-  express-prisma/
+  task-api-prisma/
   ├── package.json
+  ├── prisma.config.ts
   ├── prisma/
   │   ├── schema.prisma
-  │   └── seed.js
+  │   └── migrations/
   └── src/
-      ├── app.js
-      ├── server.js
+      ├── app.ts
+      ├── server.ts
+      ├── database/
+      │   ├── prisma.ts
+      │   └── seed.ts
       ├── controllers/
-      │   └── user-controller.js
-      ├── lib/
-      │   └── prisma.js
-      ├── middlewares/
-      │   └── error-handler.js
+      │   └── task-controller.ts
+      ├── models/
+      │   └── task-model.ts
       └── routes/
-          └── user-router.js
+          └── task-router.ts
 `}
 </FileTree>
 
 <SourceCode
-  path="examples/courses/express/projects/prisma/prisma/schema.prisma"
+  path="examples/courses/express/projects/task-api-prisma/prisma/schema.prisma"
   title="prisma/schema.prisma"
   showLineNumbers
-  mark={[15, "23-24"]}
+  mark={["@id", "@unique", "@relation"]}
 />
 
 Compare com o `CREATE TABLE` da aula anterior: é a mesma modelagem, declarada de forma mais
@@ -129,21 +131,19 @@ PORT=3000
   `.gitignore` — como visto em [Configuração](../../architecture/config/).
 </Aside>
 
-<Aside type="note" title="Prisma 6 e Prisma 7">
-  O projeto de exemplo usa **Prisma 6**. A partir do **Prisma 7** a configuração mudou: a
-  `url` sai do `schema.prisma` e vai para um `prisma.config.ts`, e o `PrismaClient` passa a
-  exigir um *driver adapter*:
+No Prisma 7 a `url` deixou de morar no `schema.prisma` e passou para um
+`prisma.config.ts`, junto com o caminho das migrações e o comando de seed. O schema
+descreve o **modelo**; a configuração descreve o **ambiente**:
 
-  ```ts title="src/database/prisma.ts — Prisma 7" showLineNumbers {5-6}
-  import 'dotenv/config';
-  import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-  import { PrismaClient } from '#generated/prisma/client.ts';
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/prisma.config.ts"
+  title="prisma.config.ts"
+  showLineNumbers
+/>
 
-  const adapter = new PrismaBetterSqlite3({ url: `${process.env.DATABASE_URL}` });
-  export const prisma = new PrismaClient({ adapter });
-  ```
-
-  O modelo de dados e as consultas permanecem os mesmos.
+<Aside type="tip" title="Sem `dotenv`">
+  `process.loadEnvFile()` no `prisma.config.ts` e a flag `--env-file` nos scripts cobrem a
+  leitura do `.env` — o Node faz isso nativamente desde a 20.6.
 </Aside>
 
 ## Migrations
@@ -154,8 +154,8 @@ histórico delas é o que permite reconstruir o banco do zero em qualquer máqui
 <Mermaid title="Fluxo de uma alteração de schema com Prisma Migrate">
 {`
 flowchart TD
-  A["Edita prisma/schema.prisma"] --> B["prisma migrate dev --name add_user"]
-  B --> C["Gera prisma/migrations/<timestamp>_add_user/migration.sql"]
+  A["Edita prisma/schema.prisma"] --> B["prisma migrate dev --name add_tag"]
+  B --> C["Gera prisma/migrations/&lt;timestamp&gt;_add_tag/migration.sql"]
   C --> D["Aplica no banco local"]
   D --> E["prisma generate<br/>client tipado atualizado"]
   E --> F["O editor já conhece os campos novos"]
@@ -192,7 +192,11 @@ flowchart TD
 O `PrismaClient` gerencia um pool de conexões. A aplicação inteira precisa compartilhar
 **uma** instância:
 
-<SourceCode path="examples/courses/express/projects/prisma/src/lib/prisma.js" title="src/lib/prisma.js" showLineNumbers />
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/database/prisma.ts"
+  title="src/database/prisma.ts"
+  region="adapter"
+/>
 
 <Aside type="danger" title="Nunca crie um client por requisição">
   Cada `new PrismaClient()` abre o próprio pool. Instanciar dentro de um controller esgota as
@@ -204,72 +208,78 @@ O `PrismaClient` gerencia um pool de conexões. A aplicação inteira precisa co
 
 Cada método do client corresponde a um comando SQL. O comentário mostra o que é gerado:
 
-```js title="consultas.js" showLineNumbers
-// SELECT * FROM User
-const todos = await prisma.user.findMany();
+```ts title="consultas.ts" showLineNumbers
+// SELECT * FROM Task
+const todas = await prisma.task.findMany();
 
-// SELECT * FROM User WHERE id = 1
-const um = await prisma.user.findUnique({ where: { id: 1 } });
+// SELECT * FROM Task WHERE id = 1
+const uma = await prisma.task.findUnique({ where: { id: 1 } });
 
 // SELECT … LIMIT 1  — lança se não existir
-const obrigatorio = await prisma.user.findUniqueOrThrow({ where: { id: 1 } });
+const obrigatoria = await prisma.task.findUniqueOrThrow({ where: { id: 1 } });
 
-// INSERT INTO User (name, email) VALUES (…)
-const novo = await prisma.user.create({
-  data: { name: 'Ana', email: 'ana@example.com' },
+// INSERT INTO Task (title, priority) VALUES (…)
+const nova = await prisma.task.create({
+  data: { title: 'Modelar com Prisma', priority: 'high' },
 });
 
-// UPDATE User SET name = 'Ana Silva' WHERE id = 1
-const alterado = await prisma.user.update({
+// UPDATE Task SET done = 1 WHERE id = 1
+const alterada = await prisma.task.update({
   where: { id: 1 },
-  data: { name: 'Ana Silva' },
+  data: { done: true },
 });
 
-// DELETE FROM User WHERE id = 1
-await prisma.user.delete({ where: { id: 1 } });
+// DELETE FROM Task WHERE id = 1
+await prisma.task.delete({ where: { id: 1 } });
 ```
 
 Filtros, ordenação, paginação e junções seguem a mesma forma declarativa:
 
-```js title="avancado.js" showLineNumbers {2,10,15}
-const filtrados = await prisma.user.findMany({
-  where: { name: { startsWith: 'A' } },
-  orderBy: { name: 'asc' },
+```ts title="avancado.ts" showLineNumbers {2,10,15}
+const filtradas = await prisma.task.findMany({
+  where: { title: { startsWith: 'Estudar' } },
+  orderBy: { createdAt: 'desc' },
   take: 10, //  LIMIT 10
   skip: 20, //  OFFSET 20
 });
 
-// Equivalente a um JOIN: traz o usuário com os posts dele
-const comPosts = await prisma.user.findUnique({
+// Equivalente a um JOIN: traz a tarefa com as tags dela
+const comTags = await prisma.task.findUnique({
   where: { id: 1 },
-  include: { posts: true },
+  include: { tags: true },
 });
 
 // Seleciona apenas algumas colunas — o resto nem sai do banco
-const nomes = await prisma.user.findMany({ select: { id: true, name: true } });
+const titulos = await prisma.task.findMany({ select: { id: true, title: true } });
 ```
 
 <Aside type="tip" title="`select` não é só economia de rede">
-  Em uma tabela de usuários, `select: { id: true, name: true, email: true }` garante que a
-  coluna `password` **nunca** saia do banco. É a diferença entre esquecer de remover o campo
-  e ele não existir na resposta — voltaremos a isso em
+  Quando a etapa 9 acrescentar a tabela de usuários, `select: { id: true, name: true }`
+  garante que a coluna `password` **nunca** saia do banco. É a diferença entre esquecer de
+  remover o campo e ele não existir na resposta — voltaremos a isso em
   [Cadastro de Usuário](../../auth/user-registration/).
 </Aside>
 
 ## Seed
 
-O seed popula o banco com os dados mínimos para a aplicação funcionar: categorias, papéis,
-um usuário administrador.
+O seed popula o banco com os dados mínimos para a aplicação funcionar: tags, papéis, um
+usuário administrador.
 
-<SourceCode path="examples/courses/express/projects/prisma/prisma/seed.js" title="prisma/seed.js" showLineNumbers collapse="16-21" />
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/database/seed.ts"
+  title="src/database/seed.ts"
+  lines="29-41"
+/>
 
-```json title="package.json" showLineNumbers {4}
-{
-  "prisma": { "seed": "node prisma/seed.js" },
-  "scripts": {
-    "db:seed": "prisma db seed"
-  }
-}
+No Prisma 7, o comando de seed é declarado no `prisma.config.ts`, e não mais em uma chave
+`prisma` do `package.json`:
+
+```ts showLineNumbers {3}
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: { path: 'prisma/migrations', seed: 'node src/database/seed.ts' },
+  datasource: { url: process.env.DATABASE_URL },
+});
 ```
 
 <Aside type="caution" title="Seed precisa ser idempotente">
@@ -281,24 +291,25 @@ um usuário administrador.
 
 <FileTree>
 {`
-  express-prisma/
+  task-api-prisma/
   ├── .env.example                   DATABASE_URL
   ├── package.json
+  ├── prisma.config.ts               ambiente: conexão, migrações e seed
   ├── prisma/
   │   ├── migrations/                histórico versionado
-  │   ├── schema.prisma              o modelo de dados
-  │   └── seed.js                    dados iniciais
+  │   └── schema.prisma              o modelo de dados
   └── src/
-      ├── app.js
-      ├── server.js
-      ├── lib/
-      │   └── prisma.js              instância única do client
+      ├── app.ts
+      ├── server.ts
+      ├── database/
+      │   ├── prisma.ts              instância única do client
+      │   └── seed.ts                dados iniciais
       ├── controllers/
-      │   └── user-controller.js
-      ├── middlewares/
-      │   └── error-handler.js
+      │   └── task-controller.ts
+      ├── models/
+      │   └── task-model.ts
       └── routes/
-          └── user-router.js
+          └── task-router.ts
 `}
 </FileTree>
 
@@ -306,9 +317,9 @@ um usuário administrador.
 
 <Steps>
 
-1. Aplique o schema ao banco:
+1. Crie o banco e aplique as migrações:
 
-   <PackageManagerTabs run="db:push" />
+   <PackageManagerTabs run="db:migrate" />
 
 2. Popule com dados iniciais:
 
@@ -326,55 +337,54 @@ um usuário administrador.
 
 ## Exercício
 
-No projeto `express-prisma`:
+Na [etapa 8 da TaskAPI](../../practice/taskapi/prisma/):
 
-1. Acrescente ao schema um model `Category` com `id`, `name` (`@unique`) e `color`.
-2. Relacione `Category` a `Post`: uma categoria tem vários posts.
-3. Rode `prisma migrate dev --name add_category` e observe o SQL gerado.
-4. Atualize o seed criando três categorias com `upsert`.
-5. Escreva uma consulta que liste os posts publicados com o nome do autor e o da categoria.
+1. Acrescente ao schema um model `Project` com `id`, `name` (`@unique`) e `color`.
+2. Relacione `Project` a `Task`: um projeto tem várias tarefas.
+3. Rode `prisma migrate dev --name add_project` e observe o SQL gerado.
+4. Atualize o seed criando três projetos com `upsert`.
+5. Escreva uma consulta que liste as tarefas abertas com o nome do projeto e as tags.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```prisma title="prisma/schema.prisma" showLineNumbers
-  model Category {
+  ```prisma showLineNumbers
+  model Project {
     id    Int    @id @default(autoincrement())
     name  String @unique
     color String
-    posts Post[]
+    tasks Task[]
   }
 
-  model Post {
-    id         Int      @id @default(autoincrement())
-    title      String
-    published  Boolean  @default(false)
-    authorId   Int
-    author     User     @relation(fields: [authorId], references: [id])
-    categoryId Int?
-    category   Category? @relation(fields: [categoryId], references: [id])
+  model Task {
+    id        Int      @id @default(autoincrement())
+    title     String   @unique
+    done      Boolean  @default(false)
+    projectId Int?
+    project   Project? @relation(fields: [projectId], references: [id])
+    tags      Tag[]    @relation("TaskTags")
   }
   ```
 
-  ```js title="Consulta" showLineNumbers
-  const posts = await prisma.post.findMany({
-    where: { published: true },
+  ```ts showLineNumbers
+  const tarefas = await prisma.task.findMany({
+    where: { done: false },
     select: {
       title: true,
-      author: { select: { name: true } },
-      category: { select: { name: true } },
+      project: { select: { name: true } },
+      tags: { select: { name: true } },
     },
   });
   ```
 
-  `categoryId` é opcional (`Int?`) para não invalidar os posts já existentes na migration.
+  `projectId` é opcional (`Int?`) para não invalidar as tarefas já existentes na migration.
 </details>
 
 ## Desafio
 
-Compare o SQL gerado por `include: { posts: true }` e por duas consultas separadas. Ative o
-log do client com `new PrismaClient({ log: ['query'] })` e observe quantas consultas cada
-abordagem dispara ao listar dez usuários com os posts de cada um.
+Compare o SQL gerado por `include: { tags: true }` e por duas consultas separadas. Ative o
+log do client com `new PrismaClient({ adapter, log: ['query'] })` e observe quantas consultas
+cada abordagem dispara ao listar dez tarefas com as tags de cada uma.
 
 ## Perguntas de revisão
 
@@ -438,8 +448,9 @@ abordagem dispara ao listar dez usuários com os posts de cada um.
 
 ## Na prática
 
-A etapa correspondente do projeto é
-[InvestApp: Prisma ORM](../../practice/investapp/prisma/).
+O projeto executável desta aula é a
+[etapa 8 da TaskAPI](../../practice/taskapi/prisma/). A mesma camada aplicada a uma
+aplicação completa está em [InvestApp: Prisma ORM](../../practice/investapp/prisma/).
 
 ## Próxima aula
 

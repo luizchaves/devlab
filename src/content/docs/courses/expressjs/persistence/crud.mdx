@@ -2,7 +2,7 @@
 title: "Express.js: CRUD com Prisma"
 description: Ligando o Prisma aos controllers e obtendo um CRUD completo e persistente.
 course: expressjs
-project: express-prisma
+project: task-api
 sidebar:
   label: "CRUD com Prisma"
 ---
@@ -25,22 +25,21 @@ da separação feita em MVC.
 
 ## O que muda
 
-O model em memória desaparece; o controller passa a falar com o Prisma e a ser
-`async`:
+Só o model. O controller da etapa 7 e o da etapa 8 são **o mesmo arquivo** — é o que a
+separação em camadas comprou lá atrás:
 
-```js title="src/controllers/user-controller.js" del={1,4-5} ins={2,7-8}
-import * as User from '../models/user-model.js';
-import prisma from '../lib/prisma.js';
+```ts title="src/models/task-model.ts" del={1,4-5} ins={2,7-11}
+import { connect } from '#database/database.ts';
+import { prisma } from '#database/prisma.ts';
 
-export function index(req, res) {
-  res.json(User.findAll());
-}
+const db = await connect();
+const rows = await db.all('SELECT * FROM tasks WHERE done = ?', [0]);
 
-export async function index(req, res) {
-  const users = await prisma.user.findMany({ orderBy: { id: 'asc' } });
-
-  res.json(users);
-}
+const records = await prisma.task.findMany({
+  where: { done: false },
+  include: { tags: true },
+  orderBy: { createdAt: 'desc' },
+});
 ```
 
 <Aside type="note" title="Sem try/catch em cada rota">
@@ -48,54 +47,61 @@ export async function index(req, res) {
   `errorHandler`. Foi por isso que centralizamos o tratamento de erros lá atrás.
 </Aside>
 
-## O controller completo
-
-<SourceCode
-  path="examples/courses/express/projects/prisma/src/controllers/user-controller.js"
-  title="src/controllers/user-controller.js"
-  showLineNumbers
-  mark="4"
-/>
-
 ## As quatro operações
 
 <Tabs syncKey="crud">
   <TabItem label="Create">
     <SourceCode
-      path="examples/courses/express/projects/prisma/src/controllers/user-controller.js"
-      title="store"
-      lines="24-34"
-      mark={['prisma.user.create']}
+      path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+      title="src/models/task-model.ts"
+      region="create"
+      mark={['prisma.task.create']}
     />
   </TabItem>
 
   <TabItem label="Read">
     <SourceCode
-      path="examples/courses/express/projects/prisma/src/controllers/user-controller.js"
-      title="index e show"
-      lines="5-22"
-      mark={['prisma.user.findMany', 'prisma.user.findUnique']}
+      path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+      title="src/models/task-model.ts"
+      region="find-by"
+      mark={['prisma.task.findUnique']}
     />
   </TabItem>
 
   <TabItem label="Update">
     <SourceCode
-      path="examples/courses/express/projects/prisma/src/controllers/user-controller.js"
-      title="update"
-      lines="36-51"
-      mark={['prisma.user.update']}
+      path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+      title="src/models/task-model.ts"
+      region="update"
+      mark={['prisma.task']}
     />
   </TabItem>
 
   <TabItem label="Delete">
     <SourceCode
-      path="examples/courses/express/projects/prisma/src/controllers/user-controller.js"
-      title="destroy"
-      lines="53-63"
-      mark={['prisma.user.delete']}
+      path="examples/courses/express/projects/task-api-prisma/src/models/task-model.ts"
+      title="src/models/task-model.ts"
+      region="remove"
+      mark={['prisma.task.deleteMany']}
     />
   </TabItem>
 </Tabs>
+
+Duas escolhas ali merecem explicação. `update` lança `P2025` quando o id não existe — ao
+contrário do `UPDATE` em SQL, que apenas afeta zero linhas —, então o `.catch(() => null)`
+o converte no `undefined` que o controller já sabe traduzir em `404`. E `delete` também
+lança; `deleteMany` não, porque devolve a contagem.
+
+## O controller não mudou
+
+Ele continua conhecendo apenas as funções do model. Compare com a
+[etapa 3](../../practice/taskapi/mvc/): mudaram as palavras `async` e `await`, e nada mais.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-prisma/src/controllers/task-controller.ts"
+  title="src/controllers/task-controller.ts"
+  region="read"
+/>
 
 ## Executando
 
@@ -104,7 +110,7 @@ export async function index(req, res) {
 1. Entre no projeto e instale:
 
    ```bash
-   cd examples/courses/express/projects/prisma
+   cd examples/courses/express/projects/task-api-prisma
    ```
 
    <PackageManagerTabs />
@@ -117,7 +123,7 @@ export async function index(req, res) {
 
 3. Crie as tabelas e popule o banco:
 
-   <PackageManagerTabs run="db:push" />
+   <PackageManagerTabs run="db:migrate" />
 
    <PackageManagerTabs run="db:seed" />
 
@@ -133,66 +139,82 @@ Nesta seção, testamos o CRUD completo persistido em banco de dados via Prisma 
 
 ### Listar
 
-O endpoint `GET /users` retorna a lista de todos os usuários cadastrados no banco de dados com status `200 OK`:
+`GET /tasks` devolve a página de tarefas, com o mesmo envelope `data` + `meta` das etapas
+anteriores — a troca do armazenamento não vazou para o contrato:
 
 <details>
   <summary>Requisição .http correspondente</summary>
 
   ```http
-  ### Listar usuários com Prisma
-  GET http://localhost:3000/users
+  ### Listar as tarefas com Prisma
+  GET http://localhost:3000/tasks
   ```
 </details>
 
-<ApiRequest method="GET" path="/users" baseUrl="http://localhost:3000" />
+<ApiRequest method="GET" path="/tasks?perPage=1" baseUrl="http://localhost:3000" />
 
 <ApiResponse status={200}>
 {`
-  [
-    {
-      "id": 1,
-      "name": "Ana",
-      "email": "ana@example.com",
-      "createdAt": "2026-03-10T12:00:00.000Z"
-    }
-  ]
+  {
+    "data": [
+      {
+        "id": 2,
+        "title": "Escrever a primeira API",
+        "description": null,
+        "done": false,
+        "priority": "medium",
+        "dueDate": null,
+        "createdAt": "2026-03-02T09:00:00.000Z",
+        "tags": [
+          { "id": 1, "name": "estudo", "color": "#2563eb" },
+          { "id": 2, "name": "urgente", "color": "#dc2626" }
+        ]
+      }
+    ],
+    "meta": { "page": 1, "perPage": 1, "total": 2, "totalPages": 2 }
+  }
 `}
 </ApiResponse>
 
 ### Buscar com os relacionamentos
 
-A busca por ID `GET /users/1` utiliza a instrução `include` do Prisma para carregar o usuário juntamente com seus relacionamentos (ex: posts), retornando status `200 OK`:
+`GET /tasks/1` usa o `include` do model para trazer a tarefa junto com as tags dela:
 
 <details>
   <summary>Requisição .http correspondente</summary>
 
   ```http
-  ### Buscar usuário por ID com relacionamentos
-  GET http://localhost:3000/users/1
+  ### Buscar uma tarefa por id, com as tags
+  GET http://localhost:3000/tasks/1
   ```
 </details>
 
-<ApiRequest method="GET" path="/users/1" baseUrl="http://localhost:3000" description="Usa include para trazer os posts" />
+<ApiRequest method="GET" path="/tasks/1" baseUrl="http://localhost:3000" description="Usa include para trazer as tags" />
 
 <ApiResponse status={200}>
 {`
   {
     "id": 1,
-    "name": "Ana",
-    "email": "ana@example.com",
-    "createdAt": "2026-03-10T12:00:00.000Z",
-    "posts": []
+    "title": "Estudar rotas do Express",
+    "description": "Parametros de rota, query string e corpo",
+    "done": true,
+    "priority": "high",
+    "dueDate": "2026-03-10",
+    "createdAt": "2026-03-01T09:00:00.000Z",
+    "tags": [
+      { "id": 1, "name": "estudo", "color": "#2563eb" }
+    ]
   }
 `}
 </ApiResponse>
 
 ### Criar
 
-<ApiRequest method="POST" path="/users" baseUrl="http://localhost:3000">
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
 {`
   {
-    "name": "Carla",
-    "email": "carla@example.com"
+    "title": "Modelar com Prisma",
+    "priority": "high"
   }
 `}
 </ApiRequest>
@@ -201,16 +223,20 @@ A busca por ID `GET /users/1` utiliza a instrução `include` do Prisma para car
 {`
   {
     "id": 3,
-    "name": "Carla",
-    "email": "carla@example.com",
-    "createdAt": "2026-03-10T12:05:00.000Z"
+    "title": "Modelar com Prisma",
+    "description": null,
+    "done": false,
+    "priority": "high",
+    "dueDate": null,
+    "createdAt": "2026-08-30T23:41:02.118Z",
+    "tags": []
   }
 `}
 </ApiResponse>
 
 ### Remover
 
-<ApiRequest method="DELETE" path="/users/3" baseUrl="http://localhost:3000" />
+<ApiRequest method="DELETE" path="/tasks/3" baseUrl="http://localhost:3000" />
 
 <ApiResponse status={204} />
 
@@ -219,15 +245,16 @@ significa.**
 
 ## Exercício
 
-Implemente o CRUD completo de `Post`, seguindo a mesma estrutura:
-`post-controller.js` e `post-router.js`, montado em `/posts`. Ao criar um post,
-valide que o `authorId` informado existe e responda `400` caso não exista.
+Implemente o CRUD completo de `Tag`, seguindo a mesma estrutura: `tag-model.ts`,
+`tag-controller.ts` e `tag-router.ts`, montado em `/tags`. Ao remover uma tag que ainda
+está associada a alguma tarefa, responda `409` em vez de apagá-la em silêncio.
 
 ## Desafio
 
-O `POST /users` com um e-mail já cadastrado hoje resulta em `500`, porque o Prisma
-lança um erro de constraint `UNIQUE`. Trate esse caso no `errorHandler`, respondendo
-`409 Conflict` com uma mensagem clara.
+Hoje o `409` de título repetido vem de uma consulta prévia no controller, o que deixa uma
+janela entre a checagem e a escrita: duas requisições simultâneas passam pelas duas
+checagens. Remova a consulta prévia e trate o erro de constraint `UNIQUE` no
+`errorHandler`, respondendo `409 Conflict` com uma mensagem clara.
 
 Dica: o erro tem `code === 'P2002'`.
 
@@ -236,7 +263,7 @@ Dica: o erro tem `code === 'P2002'`.
   {
     "error": {
       "status": 409,
-      "message": "E-mail já cadastrado"
+      "message": "Ja existe uma tarefa com esse titulo"
     }
   }
 `}
@@ -244,7 +271,8 @@ Dica: o erro tem `code === 'P2002'`.
 
 ## Na prática
 
-O projeto executável desta aula é [Express + Prisma](../../practice/express-prisma/).
+O projeto executável desta aula é a
+[etapa 8 da TaskAPI](../../practice/taskapi/prisma/).
 
 ## Próxima aula
 

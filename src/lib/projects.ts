@@ -73,19 +73,6 @@ export const projects: Project[] = [
     source: 'examples/courses/express/projects/task-api-typescript',
   },
   {
-    id: 'express-prisma',
-    name: 'Express + Prisma',
-    description:
-      'Persistência real em SQLite com Prisma ORM e um CRUD completo sobre a estrutura MVC.',
-    level: 'Avançado',
-    category: 'express',
-    featured: true,
-    tech: ['Node.js', 'Express.js', 'Prisma', 'SQLite'],
-    concepts: ['ORM', 'Schema', 'Migrations', 'CRUD assíncrono'],
-    docs: '/courses/expressjs/practice/express-prisma/',
-    source: 'examples/courses/express/projects/prisma',
-  },
-  {
     id: 'express-auth',
     name: 'Express Auth',
     description:

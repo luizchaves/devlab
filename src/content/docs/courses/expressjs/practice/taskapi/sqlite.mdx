@@ -1,0 +1,239 @@
+---
+title: "TaskAPI: SQLite nativo"
+description: "Sétima etapa da TaskAPI: os dados saem da memória para um arquivo SQLite usando o módulo nativo node:sqlite, com migração, seed e as restrições no próprio banco."
+course: expressjs
+sidebar:
+  label: "7. SQLite"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Intermediário** · Node.js · Express.js · TypeScript · `node:sqlite`
+
+Os dados param de sumir quando o servidor reinicia — e sem instalar nada.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-sqlite" devcontainer="task-api-sqlite" />
+
+## O que muda nesta etapa
+
+| Antes (etapa 6) | Agora (etapa 7) |
+| --------------- | --------------- |
+| Array em memória | Arquivo `db.sqlite` |
+| Model síncrono | Model `async`, e os controllers com `await` |
+| Filtro, ordenação e página em JavaScript | `WHERE`, `ORDER BY`, `LIMIT`/`OFFSET` |
+| Regras só no schema Zod | Restrições também no `CREATE TABLE` |
+| — | `db:migrate`, `db:seed` e `db:reset` |
+
+Nenhuma rota muda, e nenhuma resposta muda de formato. É de propósito: a troca da camada
+de dados não deveria vazar para o contrato da API.
+
+## Estrutura
+
+<FileTree>
+{`
+  task-api-sqlite/
+  ├── package.json
+  ├── tsconfig.json
+  ├── requests.http
+  └── src/
+      ├── app.ts
+      ├── server.ts
+      ├── database/            novo
+      │   ├── database.ts      invólucro assíncrono sobre DatabaseSync
+      │   ├── migration.ts     cria a tabela tasks
+      │   ├── seed.ts          popula duas tarefas
+      │   └── db.sqlite        gerado, fora do versionamento
+      ├── controllers/
+      │   └── task-controller.ts
+      ├── docs/
+      │   └── openapi.ts
+      ├── errors/
+      ├── middlewares/
+      ├── models/
+      │   └── task-model.ts    SQL no lugar do array
+      ├── routes/
+      ├── schemas/
+      └── types/
+`}
+</FileTree>
+
+## Um invólucro assíncrono
+
+`DatabaseSync` do `node:sqlite` é **síncrono**, e o resto da aplicação é `async`.
+Uniformizar isso em três métodos — `run` para escrita, `get` para uma linha, `all` para
+várias — mantém o model igual ao que ele seria com qualquer outro banco:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/database/database.ts"
+  title="src/database/database.ts"
+  region="wrapper"
+/>
+
+## As restrições moram no banco
+
+O schema Zod protege o que passa pela API. O `CREATE TABLE` protege o que entra por
+qualquer caminho — seed, script, consulta manual — e é a única camada que resolve duas
+requisições simultâneas tentando gravar o mesmo título:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/database/migration.ts"
+  title="src/database/migration.ts"
+  region="up"
+/>
+
+<Aside type="note" title="O SQLite não tem booleano">
+  `done` é gravado como `0` ou `1`, com um `CHECK` garantindo que não vire outra coisa. A
+  conversão para `true`/`false` acontece no model, de modo que nem o controller nem a
+  resposta HTTP vejam o formato do banco.
+</Aside>
+
+## Filtrar sem concatenar
+
+Cada filtro vira um pedaço de `WHERE` **e** um parâmetro. O valor nunca entra na string
+do SQL, e é isso que fecha a porta para injeção:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="where"
+/>
+
+A ordenação é o caso perigoso, porque o valor vira **nome de coluna** e não pode ser
+parametrizado. A defesa é a lista de permitidos — checar antes de interpolar:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="order"
+/>
+
+<Aside type="danger" title="Lista de permitidos, nunca de proibidos">
+  Bloquear alguns nomes e liberar o resto falha na primeira coluna sensível que alguém
+  acrescentar. A lista de permitidos é segura por construção: coluna nova só entra quando
+  alguém decide colocá-la lá.
+</Aside>
+
+## Contar e paginar
+
+O `COUNT` usa exatamente o mesmo `WHERE` da listagem e **não** usa `LIMIT` — é ele que diz
+quantas páginas existem. A listagem é a mesma consulta com `LIMIT` e `OFFSET`:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="find-all"
+/>
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-sqlite"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-sqlite/src/database/database.ts', title: 'src/database/database.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-sqlite/src/database/migration.ts', title: 'src/database/migration.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-sqlite/src/database/seed.ts', title: 'src/database/seed.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-sqlite/src/models/task-model.ts', title: 'src/models/task-model.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-sqlite/src/controllers/task-controller.ts', title: 'src/controllers/task-controller.ts', showLineNumbers: true },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-sqlite
+   ```
+
+2. <PackageManagerTabs />
+
+3. Crie a tabela:
+
+   <PackageManagerTabs run="db:migrate" />
+
+4. Popule o banco:
+
+   <PackageManagerTabs run="db:seed" />
+
+5. <PackageManagerTabs run="dev" />
+
+</Steps>
+
+`db:reset` apaga o arquivo e refaz migração e seed — útil quando o banco fica em um
+estado estranho durante os testes.
+
+## Testando
+
+A resposta é idêntica à da etapa 6, com uma diferença que só aparece ao reiniciar o
+servidor: a tarefa criada continua lá.
+
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
+{`
+  {
+    "title": "Guardar em SQLite",
+    "priority": "high"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": 3,
+    "title": "Guardar em SQLite",
+    "description": null,
+    "done": false,
+    "priority": "high",
+    "dueDate": null,
+    "createdAt": "2026-08-30T20:14:03.221Z"
+  }
+`}
+</ApiResponse>
+
+Repetir o mesmo título é barrado — e por dois motivos, não um: o controller consulta antes
+e responde `409`, mas o índice `UNIQUE` continua lá para o caso de duas requisições
+chegarem juntas.
+
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
+{`
+  {
+    "title": "Guardar em SQLite"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={409}>
+{`
+  {
+    "error": {
+      "status": 409,
+      "message": "Ja existe uma tarefa com esse titulo"
+    }
+  }
+`}
+</ApiResponse>
+
+## Conceitos abordados
+
+- `node:sqlite` e `DatabaseSync`, sem dependência externa
+- Invólucro assíncrono sobre uma API síncrona
+- Migração e seed como scripts do projeto
+- Consultas parametrizadas e a defesa contra injeção
+- Lista de permitidos para `ORDER BY`
+- `COUNT` com os mesmos filtros da listagem
+- Restrições `NOT NULL`, `UNIQUE`, `CHECK` e `DEFAULT`
+
+<Aside type="tip">
+  A aula correspondente é [SQL com Node.js](../../../persistence/node-sqlite/).
+</Aside>
+
+## Próxima etapa
+
+[Prisma](../prisma/) — o SQL escrito à mão vira um schema declarativo, e a tarefa ganha
+tags numa relação muitos-para-muitos.
