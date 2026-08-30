@@ -84,6 +84,14 @@ usuário em vez de mexer nos artefatos de `public/`.
 
 Aliases disponíveis: `@components/*`, `@lib/*`, `@assets/*`.
 
+## Especificações e Planejamento (`specs/`)
+
+Ao planejar refatorações de grande porte, migrações ou novas funcionalidades complexas:
+
+1. **Criar a spec em `specs/active/<nome-da-spec>.md`**: documente o diagnóstico, os objetivos, o planejamento por etapas e a validação esperada.
+2. **Executar as tarefas**: realize as alterações de forma incremental com commits atômicos (referenciando as tarefas em `docs/TODO.md`).
+3. **Mover ao concluir**: ao finalizar todas as etapas, atualize o status da spec para concluído e mova o arquivo para `specs/executed/<nome-da-spec>.md` (`git mv specs/active/... specs/executed/...`).
+
 ## Fluxo para criar ou alterar uma aula
 
 1. Localize o arquivo em `src/content/docs/courses/<curso>/<categoria>/<topico>.mdx`.
