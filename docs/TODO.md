@@ -34,7 +34,7 @@
   - [ ] `[TASK-004.1]` Usar parágrafos `<p>` para comentar e explicar a intenção de cada teste individualmente
   - [ ] `[TASK-004.2]` Avaliar a inclusão do recorte da requisição `.http` correspondente em formato recolhível (`<details>` / collapsed) em cada teste
 - [ ] **[TASK-005]** Aperfeiçoar o conteúdo dos cursos e guias (exemplos práticos, exercícios, quizzes e desafios)
-- [ ] **[TASK-006]** Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
+- [x] **[TASK-006]** Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
 - [ ] **[TASK-007]** Gerar slides das páginas de cada curso e guia
 - [ ] **[TASK-008]** Gerar `book.pdf` por guia ou curso
 
