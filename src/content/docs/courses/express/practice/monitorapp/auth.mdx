@@ -1,0 +1,472 @@
+---
+title: "MonitorApp: Autenticação"
+description: "Décima etapa do MonitorApp: login com credenciais, JWT HS256 assinado com node:crypto, middleware de autorização e o inventário de hosts isolado por dono."
+course: express
+sidebar:
+  label: "10. Autenticação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **10 de 13** · Nível **Avançado** · JWT HS256 · Autorização por dono
+
+A etapa 9 criou contas que ainda não servem para nada: o inventário continua global. Esta etapa
+fecha o ciclo com duas histórias que caminham juntas — **entrar** no sistema e **ver apenas o
+que é seu**.
+
+São dois problemas diferentes, e vale nomeá-los: *autenticação* é descobrir **quem** está
+chamando; *autorização* é decidir **o que** essa pessoa pode ver. O primeiro é resolvido por um
+token; o segundo, por um `WHERE`.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Autenticação e autorização**: veja [Autenticação](../../../auth/authentication/) e [Autorização](../../../auth/authorization/)
+  - **Segurança**: veja [Hardening](../../../security/hardening/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP03 · Identidade e Acesso** › **Feature FT08 · Login, sessão e isolamento**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF06** Autenticação & Sessão | `POST /api/signin` e o token JWT | atendido |
+| **RF07** Isolamento por Dono | `userId` em toda consulta de host | atendido |
+| **RNF02** Criptografia & Segurança | assinatura HS256 com `node:crypto` | atendido |
+
+### US10 — Entrar no sistema · RF06
+
+> **Como** usuário cadastrado,
+> **quero** entrar com e-mail e senha e permanecer autenticado,
+> **para** usar a aplicação sem me identificar a cada requisição.
+
+```gherkin
+Cenário: CA10.1 - Login com credenciais válidas
+  Quando envio POST /api/signin com e-mail e senha corretos
+  Então recebo o status 200
+  E o corpo traz auth verdadeiro e um token
+
+Cenário: CA10.2 - Credenciais inválidas
+  Quando envio um e-mail que não existe
+  Então recebo 401 com a mensagem "Invalid credentials"
+  E quando envio a senha errada de um e-mail existente
+  Então recebo exatamente a mesma resposta
+
+Cenário: CA10.3 - Requisição sem token
+  Quando envio GET /api/hosts sem o cabeçalho Authorization
+  Então recebo o status 401
+
+Cenário: CA10.4 - Token adulterado
+  Dado um token válido com um caractere alterado
+  Quando o uso em GET /api/hosts
+  Então recebo o status 401
+
+Cenário: CA10.5 - A sessão no navegador
+  Quando entro pela tela de login
+  Então o token fica guardado no localStorage
+  E acompanha as requisições seguintes como Bearer
+```
+
+### US11 — Ver apenas os meus hosts · RF07
+
+> **Como** usuário autenticado,
+> **quero** que o sistema me mostre somente os hosts que eu cadastrei,
+> **para** ter certeza de que o meu inventário não vaza para outra conta.
+
+```gherkin
+Cenário: CA11.1 - A lista é do dono
+  Dadas duas contas com hosts cadastrados
+  Quando a conta A envia GET /api/hosts
+  Então recebe apenas os hosts que ela cadastrou
+
+Cenário: CA11.2 - Host de outra conta
+  Quando a conta A envia GET /api/hosts/{id} com o id de um host da conta B
+  Então recebe o status 404
+  E não 403
+
+Cenário: CA11.3 - Histórico de outra conta
+  Quando a conta A envia GET /api/hosts/{id}/pings com o id de um host da conta B
+  Então recebe o status 404
+
+Cenário: CA11.4 - O dono vem do token
+  Quando envio POST /api/hosts com um userId no corpo
+  Então o host é criado no nome do dono do token
+  E o userId enviado é ignorado
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK10.1 · Criar `src/utils/jwt.ts`**: `signJwt` e `verifyJwt` com HMAC-SHA256.
+2. **TK10.2 · Criar `src/middlewares/isAuthenticated.ts`**: extrai o token e preenche `req.userId`.
+3. **TK10.3 · Criar a rota `POST /api/signin`**: controller, schema e roteador.
+4. **TK10.4 · Escopar as consultas por `userId`**: o model e os controllers de host e de ping.
+5. **TK10.5 · Ligar o front**: `lib/auth.js`, o `Bearer` em `api.js` e a tela de login.
+
+</Steps>
+
+## Estrutura da aplicação
+
+Os arquivos novos se dividem entre as duas histórias da etapa. `utils/jwt.ts`,
+`middlewares/isAuthenticated.ts`, `controllers/auth.controller.ts` e `routes/auth.routes.ts`
+resolvem **quem** está chamando; o `models/Host.ts` reescrito e a migration `host_owner`
+resolvem **o que** essa pessoa vê. O `types/express.d.ts` é a ponte entre os dois: é ele que
+declara o `req.userId` que o middleware preenche e o model consome.
+
+<ProjectLinks path="examples/express/projects/monitor-app-auth" />
+
+<FileTree>
+{`
+  monitor-app-auth/
+  ├── back/
+  │   ├── .env.example                   + JWT_SECRET e JWT_EXPIRES_IN
+  │   ├── prisma/
+  │   │   ├── schema.prisma              userId deixa de ser opcional
+  │   │   ├── seeders.json               + a conta de demonstração
+  │   │   └── migrations/
+  │   │       └── 20260303000000_host_owner/
+  │   └── src/
+  │       ├── utils/
+  │       │   └── jwt.ts                 NOVO
+  │       ├── middlewares/
+  │       │   └── isAuthenticated.ts     NOVO
+  │       ├── controllers/
+  │       │   └── auth.controller.ts     NOVO
+  │       ├── routes/
+  │       │   └── auth.routes.ts         NOVO
+  │       ├── schemas/
+  │       │   └── auth.schema.ts         NOVO
+  │       ├── types/
+  │       │   └── express.d.ts           NOVO — req.userId
+  │       └── models/Host.ts             toda consulta escopada
+  └── front/
+      ├── index.html                     + botão Sair
+      ├── host.html                      + botão Sair
+      └── js/
+          ├── lib/auth.js                NOVO — token e redirecionamentos
+          ├── signin.js                  NOVO
+          └── services/api.js            + Authorization e tratamento de 401
+`}
+</FileTree>
+
+O diagrama mostra os dois passos na ordem em que acontecem dentro de uma requisição. Repare que
+eles não são intercambiáveis: o primeiro pode **recusar** a requisição inteira com `401`, e o
+segundo nunca recusa — ele apenas estreita o conjunto de dados que a consulta enxerga.
+
+<Mermaid title="Autenticação e autorização, dois passos distintos">
+{`
+flowchart LR
+  Req["GET /api/hosts<br/>Authorization: Bearer …"] --> IA["isAuthenticated<br/>verifyJwt → req.userId"]
+  IA -->|"401"| Fim(("token ausente,<br/>adulterado ou expirado"))
+  IA --> V["validate(schema)"]
+  V --> C["controller<br/>passa req.userId adiante"]
+  C --> M["model<br/>WHERE userId = ?"]
+  M --> DB[("apenas os hosts do dono")]
+`}
+</Mermaid>
+
+É por isso que um host de outra conta responde `404`, e não `403`: quando a requisição chega ao
+model, ela já é legítima. O que falta não é permissão — é o registro, que para aquele `userId`
+não existe.
+
+## O que muda nesta etapa
+
+| Etapa 9 (`monitor-app-user`) | Etapa 10 (`monitor-app-auth`) |
+| ---------------------------- | ----------------------------- |
+| `Host.userId` opcional | obrigatório, com índice e nova migration |
+| todas as rotas públicas | só `POST /api/users` e `POST /api/signin` continuam públicas |
+| `Host.read()` sem filtro de dono | `Host.read({ userId })` — o filtro não é opcional |
+| `findUnique({ where: { id } })` | `findFirst({ where: { id, userId } })` |
+| front sem sessão | token no `localStorage`, `Bearer` em toda chamada |
+| — | `req.userId` disponível em qualquer rota protegida |
+
+## Descrição das tarefas
+
+### TK10.1 · Criar `src/utils/jwt.ts` (O token, sem biblioteca)
+
+Nenhuma dependência: `node:crypto` já tem tudo. Um JWT é mais simples do que costuma parecer —
+três partes em Base64URL separadas por ponto:
+
+```text title="A anatomia de um JWT"
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YjFkZWI0ZCIsImV4cCI6MTc3Mn0.Xr2mQ...
+└──────────────┬──────────────────┘ └──────────────┬───────────────────────┘ └──┬──┘
+        header (alg, typ)                  payload (sub, iat, exp)          assinatura
+```
+
+O `sign` da linha 37 é a função que sustenta tudo: um HMAC-SHA256 do texto `header.payload` com o
+segredo do servidor. O `signJwt` das linhas 42 a 55 monta as duas primeiras partes, acrescenta
+`iat` e `exp`, e concatena com a assinatura.
+
+O `verifyJwt` das linhas 57 a 85 faz o caminho inverso, e a ordem das checagens é deliberada:
+primeiro a assinatura (linha 68), depois o cabeçalho, depois a expiração. Verificar a validade do
+conteúdo antes de conferir a assinatura seria confiar em dados que ainda não se sabe se foram
+adulterados.
+
+A comparação da linha 68 usa `timingSafeEqual`, pelo mesmo motivo do `verifyPassword` da etapa 9.
+E o comprimento é comparado **antes**, porque a função exige buffers do mesmo tamanho — um token
+com assinatura de tamanho diferente lançaria exceção em vez de responder `401`.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/utils/jwt.ts"
+  title="back/src/utils/jwt.ts"
+  showLineNumbers
+  mark="37-39,57-72"
+  collapse="1-36"
+/>
+
+<Aside type="caution" title="O payload não é secreto">
+  Base64URL é codificação, não criptografia. Cole qualquer token em um decodificador e o `sub`,
+  o `email` e o `exp` aparecem em texto claro. O que a assinatura garante é apenas que ninguém
+  **alterou** o conteúdo sem conhecer o segredo. Nunca coloque em um JWT algo que o portador não
+  possa ler.
+</Aside>
+
+### TK10.2 · Criar `src/middlewares/isAuthenticated.ts`
+
+Vinte e três linhas que fazem três coisas. A linha 7 extrai o token do cabeçalho
+`Authorization: Bearer <token>` com uma desestruturação que descarta a primeira parte. A linha 14
+verifica. E a linha 17 grava o `sub` em `req.userId`.
+
+Essa última linha é o ponto do arquivo: a partir daqui, **qualquer rota sabe quem está
+chamando** sem reler o cabeçalho nem repetir a verificação. Os controllers das próximas tarefas
+só leem `req.userId`.
+
+Repare que tanto o token ausente quanto o inválido respondem `401`, com mensagens diferentes mas
+o mesmo status. Distinguir os dois casos por status não ajudaria um cliente legítimo e ajudaria
+um atacante a mapear o comportamento.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/middlewares/isAuthenticated.ts"
+  title="back/src/middlewares/isAuthenticated.ts"
+  showLineNumbers
+  mark="7,14-19"
+/>
+
+O TypeScript precisa saber que `req.userId` existe. O `types/express.d.ts` amplia a interface do
+Express por *declaration merging* — o campo passa a existir para o compilador em todo o projeto.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/types/express.d.ts"
+  title="back/src/types/express.d.ts"
+  showLineNumbers
+/>
+
+### TK10.3 · Criar a rota `POST /api/signin`
+
+O controller é curto, e cada linha carrega uma decisão de segurança.
+
+A linha 12 usa a única função do model que devolve o hash — `readByEmailWithPassword`, escrita na
+etapa 9 exatamente para este consumidor. A linha 16 chama `verifyPassword`, que não desfaz o hash:
+refaz o cálculo com os parâmetros gravados e compara em tempo constante.
+
+O `catch` da linha 23 é o detalhe mais importante do arquivo. Ele engloba **os dois** caminhos de
+falha — e-mail inexistente e senha errada — e responde a mesma coisa. Diferenciar entregaria a um
+atacante a lista de e-mails cadastrados, transformando o login em um oráculo de contas.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/controllers/auth.controller.ts"
+  title="back/src/controllers/auth.controller.ts"
+  showLineNumbers
+  mark="12-20,23-27"
+/>
+
+### TK10.4 · Escopar as consultas por `userId`
+
+Aqui a autenticação vira autorização. A mudança é pequena em número de linhas e grande em
+consequência.
+
+No schema, o `userId` deixa de ser opcional, e a migration `20260303000000_host_owner` faz a
+transição. No model, o parâmetro `where` do `read` (linha 38) deixou de ser opcional: **não
+existe** mais uma forma de listar hosts sem dizer de quem. A linha 40 escreve `userId` como o
+primeiro filtro, antes dos opcionais.
+
+O `readById` da linha 49 traz a mudança mais sutil de toda a etapa: `findFirst` no lugar de
+`findUnique`. A razão é que a chave da busca deixou de ser o `id` — passou a ser o **par**
+`id` + `userId`. E `findUnique` só aceita chaves declaradas como únicas no schema.
+
+O efeito colateral é o que o critério `CA11.2` descreve: o host de outra conta simplesmente não
+é encontrado, e o controller traduz isso em `404`. Não é um `403` disfarçado — é a resposta
+honesta de um sistema para o qual aquele recurso, do ponto de vista de quem pergunta, não existe.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/models/Host.ts"
+  title="back/src/models/Host.ts"
+  showLineNumbers
+  mark="38-47,49-58"
+  collapse="1-22,60-88"
+/>
+
+No controller, a linha 13 é a que impede a falsificação de dono: o `userId` é acrescentado
+**depois** do espalhamento de `req.body`. Um cliente que envie `{"userId": "outra-conta"}` tem o
+valor sobrescrito pelo do token.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/controllers/hosts.controller.ts"
+  title="back/src/controllers/hosts.controller.ts"
+  showLineNumbers
+  mark="7-19,33-45"
+  collapse="47-76"
+/>
+
+O controller de pings recebe a mesma proteção, e o comentário registra o motivo: sem a checagem
+de dono antes de ler o histórico, o id de um host alheio devolveria as medições dele.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/controllers/pings.controller.ts"
+  title="back/src/controllers/pings.controller.ts"
+  showLineNumbers
+  mark="7-17"
+/>
+
+Nas rotas, o `isAuthenticated` vem **antes** de tudo. A ordem economiza trabalho — sem token, a
+validação nem chega a rodar — e evita um vazamento sutil: uma requisição sem token com corpo
+inválido responderia `400` em vez de `401`, revelando que o schema foi avaliado.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/src/routes/hosts.routes.ts"
+  title="back/src/routes/hosts.routes.ts"
+  showLineNumbers
+  mark="17-28"
+  collapse="1-14"
+/>
+
+### TK10.5 · Ligar o front (sessão no navegador)
+
+O `lib/auth.js` concentra tudo que o front sabe sobre sessão: onde o token mora, como se entra e
+como se sai. O `isAuthenticated` da linha 4 é a porta das páginas privadas — sem token, ele
+redireciona para o login antes de qualquer `fetch`.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/front/js/lib/auth.js"
+  title="front/js/lib/auth.js"
+  showLineNumbers
+  mark="4-12"
+/>
+
+O `services/api.js` foi reorganizado em torno de duas funções auxiliares. O `headers` da linha 9
+monta os cabeçalhos em um lugar só — é a promessa que a etapa 2 fez, quando disse que acrescentar
+`Authorization` mexeria em um arquivo apenas. O `handleUnauthorized` da linha 17 trata o `401`
+como fim de sessão: token expirado derruba o usuário para a tela de login, em vez de deixar a
+tela quebrada.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/front/js/services/api.js"
+  title="front/js/services/api.js"
+  showLineNumbers
+  mark="5-24"
+  collapse="26-61"
+/>
+
+O `signin.js` é a única chamada do sistema que sai **sem** token — ele ainda não existe. É o que
+a opção `{ auth: false }` da linha 14 comunica.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/front/js/signin.js"
+  title="front/js/signin.js"
+  showLineNumbers
+  mark="14-16"
+/>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/signin" baseUrl="http://localhost:3000">
+{`
+  {
+    "email": "ana@exemplo.com",
+    "password": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={200}>
+{`
+  {
+    "auth": true,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YjFkZWI0ZCJ9.Xr2..."
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="GET" path="/api/hosts" baseUrl="http://localhost:3000" description="Sem o cabeçalho Authorization" />
+
+<ApiResponse status={401}>
+{`
+  {
+    "error": "Token required"
+  }
+`}
+</ApiResponse>
+
+O `requests.http` desta etapa automatiza o encadeamento: a requisição nomeada `# @name signin`
+alimenta a variável `@token`, e todos os blocos seguintes a usam em `Authorization: Bearer
+{{token}}`. Os três últimos blocos exercitam justamente os caminhos de negação — sem token, com
+token adulterado e com o id de um host de outra conta.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-auth/back/requests.http"
+  title="back/requests.http"
+  showLineNumbers
+  mark="1-15"
+  collapse="27-135"
+/>
+
+## Executando
+
+<Steps>
+
+1. Aplique a migration, semeie e suba a API:
+
+   ```bash title="Terminal 1"
+   cd examples/express/projects/monitor-app-auth/back
+   npm install
+   cp .env.example .env
+   npm run db:migrate
+   npm run db:seed
+   npm run dev
+   ```
+
+   O seed cria a conta `ana@exemplo.com` com a senha `senha-secreta` e os hosts pertencentes a
+   ela.
+
+2. Suba o front:
+
+   ```bash title="Terminal 2"
+   cd examples/express/projects/monitor-app-auth/front
+   npm install
+   npm run dev
+   ```
+
+3. Abra <code>http://localhost:5173</code>. Sem token, você é levado direto para o login.
+
+4. Crie uma segunda conta em `signup.html`, entre com ela e confirme: o inventário está vazio,
+   mesmo com os hosts da primeira conta no banco.
+
+</Steps>
+
+<Aside type="caution" title="`JWT_SECRET` em produção">
+  O valor padrão de desenvolvimento existe para o projeto rodar sem configuração. Em produção,
+  quem conhece o segredo consegue **forjar** qualquer token, para qualquer usuário — trocá-lo por
+  um valor longo e aleatório não é opcional. A [etapa 13](../docker/) mostra a variável no
+  `compose.yaml`, ainda com um valor de exemplo marcado como `change-me-in-production`.
+</Aside>
+
+## Conceitos abordados
+
+- JWT HS256 assinado e verificado com `node:crypto`
+- Codificação Base64URL não é criptografia
+- Middleware que preenche `req.userId` para as camadas seguintes
+- *Declaration merging* para ampliar o `Request` do Express
+- Resposta única para credenciais inválidas
+- `findFirst` por `id` + `userId` no lugar de `findUnique`
+- `404` em vez de `403` para recurso de outra conta
+- Dono vindo do token, jamais do corpo da requisição
+
+## Próxima etapa
+
+[MonitorApp: Tempo real](../realtime/) — o painel deixa de ser uma fotografia e passa a se
+atualizar sozinho.

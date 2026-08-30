@@ -36,6 +36,8 @@ export default defineConfig({
     '/courses/database/prisma/introduction': withBase('/courses/express/persistence/prisma/'),
     '/courses/database/prisma/crud': withBase('/courses/express/persistence/crud/'),
     '/courses/database/prisma/relations': withBase('/courses/express/persistence/relations/'),
+    // O Monitor API virou o trilho completo do MonitorApp, em treze etapas.
+    '/courses/express/practice/monitor-api': withBase('/courses/express/practice/monitorapp/'),
     // Validacao saiu de "Recursos Avancados" para a trilha de APIs HTTP.
     '/courses/express/advanced/validation': withBase('/courses/express/api/validation/'),
     '/courses/dw-cstrc-jp/html': withBase('/courses/html/basics/syntax-structure/'),
@@ -901,9 +903,85 @@ export default defineConfig({
                       label: '13. Docker',
                       link: '/courses/express/practice/investapp/docker/',
                     },
+                    {
+                      label: 'Backlog do produto',
+                      link: '/courses/express/practice/investapp/backlog/',
+                    },
+                    {
+                      label: 'Especificação da API',
+                      link: '/courses/express/practice/investapp/api-spec/',
+                    },
                   ],
                 },
-                { label: 'Monitor API', link: '/courses/express/practice/monitor-api/' },
+                {
+                  label: 'MonitorApp',
+                  items: [
+                    {
+                      label: 'Visão geral',
+                      link: '/courses/express/practice/monitorapp/',
+                    },
+                    {
+                      label: '1. Front estático',
+                      link: '/courses/express/practice/monitorapp/front-static/',
+                    },
+                    {
+                      label: '2. API em memória',
+                      link: '/courses/express/practice/monitorapp/api/',
+                    },
+                    {
+                      label: '3. TypeScript em camadas',
+                      link: '/courses/express/practice/monitorapp/typescript/',
+                    },
+                    {
+                      label: '4. Validação',
+                      link: '/courses/express/practice/monitorapp/validation/',
+                    },
+                    {
+                      label: '5. Documentação da API',
+                      link: '/courses/express/practice/monitorapp/swagger/',
+                    },
+                    {
+                      label: '6. SQLite nativo',
+                      link: '/courses/express/practice/monitorapp/sqlite/',
+                    },
+                    {
+                      label: '7. Prisma e Relações',
+                      link: '/courses/express/practice/monitorapp/prisma/',
+                    },
+                    {
+                      label: '8. Ping Real',
+                      link: '/courses/express/practice/monitorapp/ping/',
+                    },
+                    {
+                      label: '9. Cadastro de Usuário',
+                      link: '/courses/express/practice/monitorapp/user/',
+                    },
+                    {
+                      label: '10. Autenticação',
+                      link: '/courses/express/practice/monitorapp/auth/',
+                    },
+                    {
+                      label: '11. Tempo Real',
+                      link: '/courses/express/practice/monitorapp/realtime/',
+                    },
+                    {
+                      label: '12. Testes de Software',
+                      link: '/courses/express/practice/monitorapp/testing/',
+                    },
+                    {
+                      label: '13. Docker',
+                      link: '/courses/express/practice/monitorapp/docker/',
+                    },
+                    {
+                      label: 'Backlog do produto',
+                      link: '/courses/express/practice/monitorapp/backlog/',
+                    },
+                    {
+                      label: 'Especificação da API',
+                      link: '/courses/express/practice/monitorapp/api-spec/',
+                    },
+                  ],
+                },
               ],
             },
           ],
@@ -914,12 +992,41 @@ export default defineConfig({
             { label: 'Visão geral', link: '/courses/database/' },
             {
               label: 'Fundamentos',
-              items: [{ label: 'SGBD', link: '/courses/database/basics/dbms/' }],
+              items: [
+                {
+                  label: 'Conceito e Arquitetura',
+                  link: '/courses/database/basics/introduction/',
+                },
+                {
+                  label: 'SGBDs e Administração',
+                  link: '/courses/database/basics/dbms/',
+                },
+              ],
+            },
+            {
+              label: 'Projeto e Modelagem',
+              items: [
+                {
+                  label: 'Modelo Conceitual e Lógico',
+                  link: '/courses/database/modeling/conceptual-logical/',
+                },
+                {
+                  label: 'Normalização de Dados',
+                  link: '/courses/database/modeling/normalization/',
+                },
+              ],
             },
             {
               label: 'SQL',
               items: [
-                { label: 'Fundamentos de SQL', link: '/courses/database/sql/fundamentals/' },
+                {
+                  label: 'SQL DDL e DML',
+                  link: '/courses/database/sql/fundamentals/',
+                },
+                {
+                  label: 'Junções e Agregações',
+                  link: '/courses/database/sql/joins-aggregations/',
+                },
               ],
             },
             {

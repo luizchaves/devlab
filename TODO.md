@@ -6,9 +6,9 @@
 - [x] page: comparativo entre typescript e javascript
 - [x] page: comparativo entre python e javascript
 - [x] page: casos "bizarros" de js: NaN !== NaN, typeof null === 'object', 0.1 + 0.2 !== 0.3, etc.
-- [ ] page: criar derivação de guides (guia express para guia flask, spring boot, para guia django, stack web go, etc.), criar mais guias de fundamentos como docker + docker compose, e de novas lang como Java, Go; Autenticação (JWT, OAuth2, OpenID Connect), GraphQL, WebSockets, etc; Guide de uso de IA para dev e spec;
 - [x] page: revisar os course e guide para incluir mermaid caso necessário (acho que object de JS seria um candidato)
 - [x] skill: use mais p para deixar o texto mais didático
+- [ ] page: criar derivação de guides (guia express para guia flask, spring boot, para guia django, stack web go, etc.), criar mais guias de fundamentos como docker + docker compose, e de novas lang como Java, Go; Autenticação (JWT, OAuth2, OpenID Connect), GraphQL, WebSockets, etc; Guide de uso de IA para dev e spec;
 
 Analise etapa a etapa para ver se é possível criar o projeto final seguindo apenas o que está disponível no passo a passo, sem precisar de conhecimento prévio. Se não for possível, adicionar mais conteúdo para que seja possível.
 tipos de autenicação

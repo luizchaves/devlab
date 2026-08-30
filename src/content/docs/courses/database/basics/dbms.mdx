@@ -1,112 +1,106 @@
 ---
-title: "Banco de Dados: SGBD"
-description: "Sistemas gerenciadores de banco de dados, servidores, clientes, tipos e operações iniciais."
+title: "Banco de Dados: SGBDs e Administração"
+description: "Sistemas gerenciadores de banco de dados, motores (MySQL, PostgreSQL, SQLite, MongoDB), Docker Compose, comandos CLI, controle de acessos (GRANTS) e comparação de tipos."
 course: database
 sidebar:
-  label: "SGBD"
+  label: "SGBDs e Administração"
 ---
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
-## SGBD
+Esta aula apresenta os principais Sistemas Gerenciadores de Banco de Dados (SGBD) do mercado: MySQL, PostgreSQL, SQLite e MongoDB. Você aprenderá como subir instâncias completas usando Docker e Docker Compose, utilizar interfaces de linha de comando (CLI), gerenciar usuários e permissões de segurança e comparar os tipos de dados nativos de cada motor.
 
-- [Understanding Database Types | ByteByteGo](https://blog.bytebytego.com/p/understanding-database-types)
-- [DB-Engines Ranking](https://db-engines.com/en/ranking)
+---
+
+## Objetivo
+
+Dominar o provisionamento, a administração básica e o gerenciamento de permissões nos principais motores de banco de dados relacionais e NoSQL, compreendendo os fluxos de execução via Docker e as tabelas comparativas de comandos e tipos.
+
+---
+
+## Tipos de SGBD e Motores
+
+Os SGBDs modernos dividem-se principalmente entre motores baseados em servidor (cliente-servidor) e motores embutidos em arquivos (*file-based*). 
+
+A ilustração abaixo compara o modelo Cliente-Servidor utilizado pelo MySQL e PostgreSQL contra o modelo Embutido do SQLite:
+
+<Mermaid title="Comparação de Arquiteturas de SGBD">
+{`
+flowchart TD
+    subgraph ClienteServidor ["Modelo Cliente-Servidor (MySQL / Postgres)"]
+        C1[Aplicação Node.js] -->|Rede / TCP Port 3306| S1[Servidor SGBD Processo Independente]
+        S1 --> D1[(Arquivos de Dados)]
+    end
+
+    ClienteServidor ~~~ Embutido
+
+    subgraph Embutido ["Modelo Embutido (SQLite)"]
+        C2[Aplicação Node.js com Lib SQLite] -->|Acesso Direto| D2[(Arquivo banco.db no Disco)]
+    end
+`}
+</Mermaid>
+
+---
+
+## Instalação e Operação com Docker
+
+A forma mais prática e limpa de rodar motores de banco de dados em ambiente de desenvolvimento é utilizar contêineres Docker.
 
 ### MySQL Server
 
-- Servidor (3306)
-  - [MySQL Server](https://www.mysql.com/) ([install mysql](https://dev.mysql.com/doc/refman/8.0/en/installing.html))
-  - [Docker MySQL](https://hub.docker.com/_/mysql)
-- Cliente
-  - [MySQL Workbench](https://www.mysql.com/products/workbench/)
-  - [DBeaver](https://dbeaver.io/)
-  - [Adminer](https://www.adminer.org/) ([docker adminer](https://hub.docker.com/_/adminer))
-  - [mysql (CLI)](https://dev.mysql.com/doc/refman/8.0/en/mysql.html)
-  - VSCode:
-    - [SQLTools](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools)
-    - [SQLTools MySQL/MariaDB](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools-driver-mysql)
-    - [Docker](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
+O MySQL é um dos bancos de dados relacionais mais populares do mundo, utilizando a porta padrão **3306**.
 
-[MySQL Docker](https://hub.docker.com/_/mysql):
+#### Execução rápida via Docker CLI
 
-```bash
-$ docker run -d \
-  --name mysql \
-  -e MYSQL_ROOT_PASSWORD=secret \
-  mysql:8.3
+O comando a seguir inicia um contêiner MySQL de forma desanexada (`-d`), definindo a senha do usuário root:
 
-$ docker exec -it mysql mysql -u root -p
-Enter password:
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 8
-Server version: 8.3.0 MySQL Community Server - GPL
-
-Copyright (c) 2000, 2024, Oracle and/or its affiliates.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-mysql> quit
-Bye
-
-$ docker stop $(docker ps -a -q -f name=mysql ) && docker rm $(docker ps -a -q -f name=mysql )
-```
-
-Habilitar root para acesso externo:
-
-```bash
-$ docker run -d \
+```bash title="Terminal"
+docker run -d \
   --name mysql \
   -e MYSQL_ROOT_PASSWORD=secret \
   -p 3306:3306 \
   mysql:8.3
 ```
 
-```bash
-$ docker exec -it mysql mysql -u root -p \
-  -e "ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'secret'; FLUSH PRIVILEGES;"
-Enter password:
+Para conectar interativamente no terminal interativo do MySQL dentro do contêiner:
+
+```bash title="Terminal"
+docker exec -it mysql mysql -u root -p
 ```
 
-```bash
-$ mysql -h 127.0.0.1 -u root -p
-Enter password:
+```txt title="Output"
+Enter password: 
 Welcome to the MySQL monitor.  Commands end with ; or \g.
 Your MySQL connection id is 8
 Server version: 8.3.0 MySQL Community Server - GPL
 
-Copyright (c) 2000, 2024, Oracle and/or its affiliates.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
+mysql> SHOW DATABASES;
 mysql> quit
 Bye
 ```
 
-Volume:
+#### Persistência com Volume
 
-```bash
-$ docker volume create mysql-data
+Para garantir que os dados não sejam perdidos ao remover o contêiner, associe um volume do Docker:
 
-$ docker run -d \
+```bash title="Terminal"
+docker volume create mysql-data
+
+docker run -d \
   --name mysql \
   -e MYSQL_ROOT_PASSWORD=secret \
   -v mysql-data:/var/lib/mysql \
   mysql:8.3
 ```
 
-Docker Compose ([MySQL](https://hub.docker.com/_/mysql), [Adminer](https://hub.docker.com/_/adminer)):
+#### Orquestração com Docker Compose
+
+Em projetos reais, é comum rodar o banco junto com uma ferramenta gráfica de administração (como o Adminer). Veja o arquivo de orquestração a seguir:
 
 <SourceCode path="examples/database/servers/mysql-server/docker-compose.yml" />
 
-Ao criar este arquivo `.env.example` renomei para `.env`:
+Crie o arquivo de variáveis de ambiente `.env` a partir do modelo abaixo:
 
 ```ini title=".env.example"
 MYSQL_ROOT_PASSWORD=secret
@@ -115,973 +109,127 @@ MYSQL_USER=devuser
 MYSQL_PASSWORD=secret
 ```
 
-Instalar [docker compose plugin](https://docs.docker.com/compose/install/linux/) e verifique localmente:
+Suba o ambiente completo e verifique os serviços ativos com os seguintes comandos:
 
-```bash
-$ docker compose version
-Docker Compose version vxxxx
-
-$ ls -a
-.  ..  .env  docker-compose.yml
-
-$ docker compose up -d
-[+] Building 0.0s (0/0)                                docker:default
-[+] Running 3/3
- ✔ Network mysql-server_app-tier     Created                     0.0s
- ✔ Container mysql-server-mysql-1    Started                     0.1s
- ✔ Container mysql-server-adminer-1  Started                     0.1s
-
-$ docker compose ps
-NAME                     IMAGE         COMMAND                  SERVICE   CREATED          STATUS          PORTS
-mysql-server-adminer-1   adminer:4.7   "entrypoint.sh docke…"   adminer   11 seconds ago   Up 10 seconds   0.0.0.0:8080->8080/tcp
-mysql-server-mysql-1     mysql:8.0     "docker-entrypoint.s…"   mysql     11 seconds ago   Up 10 seconds   0.0.0.0:3306->3306/tcp, 33060/tcp
-
-$ docker compose exec mysql mysql -u root -p
-Enter password:
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 8
-Server version: 8.0.31 MySQL Community Server - GPL
-
-Copyright (c) 2000, 2022, Oracle and/or its affiliates.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-mysql> quit
-Bye
-
-$ docker compose down
-[+] Running 3/3
- ✔ Container mysql-server-adminer-1  Removed                     0.3s
- ✔ Container mysql-server-mysql-1    Removed                     1.4s
- ✔ Network mysql-server_app-tier     Removed                     0.2s
+```bash title="Terminal"
+docker compose up -d
+docker compose ps
 ```
 
-Create Database
+---
 
-```bash
-$ docker compose exec mysql mysql -u root -p
-Enter password:
-Welcome to the MySQL monitor.  Commands end with ; or \g.
-Your MySQL connection id is 8
-Server version: 8.0.31 MySQL Community Server - GPL
+### PostgreSQL Server
 
-Copyright (c) 2000, 2022, Oracle and/or its affiliates.
+O PostgreSQL é um SGBD relacional objeto-relacional avançado, de código aberto, focado em conformidade com padrões e extensibilidade. Utiliza a porta padrão **5432**.
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
+#### Execução via Docker CLI
 
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+Suba uma instância do PostgreSQL 16 configurando um volume para dados:
 
-mysql> CREATE DATABASE monitor_db;
-Query OK, 1 row affected (0.01 sec)
-
-mysql> SHOW DATABASES;
-+--------------------+
-| Database           |
-+--------------------+
-| example            |
-| information_schema |
-| monitor_db         |
-| mysql              |
-| performance_schema |
-| sys                |
-+--------------------+
-6 rows in set (0.01 sec)
-
-mysql> USE monitor_db;
-Database changed
-
-mysql> CREATE TABLE hosts (
-    ->   id INT AUTO_INCREMENT PRIMARY KEY,
-    ->   name VARCHAR(255) NOT NULL,
-    ->   address VARCHAR(255) NOT NULL
-    -> );
-Query OK, 0 rows affected (0.04 sec)
-
-mysql> SHOW TABLES;
-+----------------------+
-| Tables_in_monitor_db |
-+----------------------+
-| hosts                |
-+----------------------+
-1 row in set (0.00 sec)
-
-mysql> DESCRIBE hosts;
-+---------+--------------+------+-----+---------+----------------+
-| Field   | Type         | Null | Key | Default | Extra          |
-+---------+--------------+------+-----+---------+----------------+
-| id      | int          | NO   | PRI | NULL    | auto_increment |
-| name    | varchar(255) | NO   |     | NULL    |                |
-| address | varchar(255) | NO   |     | NULL    |                |
-+---------+--------------+------+-----+---------+----------------+
-3 rows in set (0.00 sec)
-
-mysql> INSERT INTO hosts (name, address) VALUES ('Google DNS', '8.8.8.8');
-Query OK, 1 row affected (0.02 sec)
-
-mysql> SELECT * FROM hosts;
-+----+------------+---------+
-| id | name       | address |
-+----+------------+---------+
-|  1 | Google DNS | 8.8.8.8 |
-+----+------------+---------+
-1 row in set (0.00 sec)
-
-mysql> quit
-Bye
-
-$ docker compose down
-[+] Running 3/3
- ✔ Container mysql-server-adminer-1  Removed                     0.3s
- ✔ Container mysql-server-mysql-1    Removed                     1.4s
- ✔ Network mysql-server_app-tier     Removed                     0.2s
-```
-
-Backup
-
-```bash
-$ docker compose exec mysql mysqldump -u root -p monitor_db > database.sql
-
-$ docker compose exec mysql mysqldump -u root -p --all-databases > database.sql
-```
-
-Recovery
-
-```bash
-$ docker compose exec mysql mysql -u root -p monitor_db < database.sql
-
-$ docker compose exec mysql mysql -u root -p < database.sql
-```
-
-Criar usuário:
-
-```sql
--- Criar usuário local
-CREATE USER 'nome_usuario'@'localhost' IDENTIFIED BY 'senha';
-
--- Criar usuário para qualquer host
-CREATE USER 'nome_usuario'@'*' IDENTIFIED BY 'senha';
-
--- Exemplo
-CREATE USER 'developer'@'localhost' IDENTIFIED BY 'dev123';
-```
-
-Deletar usuário:
-
-```sql
-DROP USER 'nome_usuario'@'localhost';
-
--- Exemplo
-DROP USER 'developer'@'localhost';
-```
-
-Grant (Conceder Permissões):
-
-```sql
--- Conceder todas as permissões em um banco
-GRANT ALL PRIVILEGES ON nome_banco.* TO 'nome_usuario'@'localhost';
-
--- Conceder permissões específicas
-GRANT SELECT, INSERT, UPDATE, DELETE ON nome_banco.* TO 'nome_usuario'@'localhost';
-
--- Conceder permissões em tabela específica
-GRANT SELECT ON nome_banco.tabela TO 'nome_usuario'@'localhost';
-
--- Conceder todas as permissões em todos os bancos
-GRANT ALL PRIVILEGES ON *.* TO 'nome_usuario'@'localhost';
-
--- Exemplos
-GRANT ALL PRIVILEGES ON monitor_db.* TO 'developer'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON monitor_db.usuarios TO 'developer'@'localhost';
-```
-
-Revoke (Revogar Permissões):
-
-```sql
--- Revogar todas as permissões em um banco
-REVOKE ALL PRIVILEGES ON nome_banco.* FROM 'nome_usuario'@'localhost';
-
--- Revogar permissões específicas
-REVOKE SELECT, INSERT, UPDATE, DELETE ON nome_banco.* FROM 'nome_usuario'@'localhost';
-
--- Revogar permissões em tabela específica
-REVOKE DELETE ON nome_banco.tabela FROM 'nome_usuario'@'localhost';
-
--- Exemplos
-REVOKE DELETE ON monitor_db.* FROM 'developer'@'localhost';
-REVOKE UPDATE ON monitor_db.usuarios FROM 'developer'@'localhost';
-```
-
-Aplicar alterações:
-
-```sql
--- Recarregar as permissões
-FLUSH PRIVILEGES;
-
--- Verificar permissões de um usuário
-SHOW GRANTS FOR 'nome_usuario'@'localhost';
-
--- Exemplo
-SHOW GRANTS FOR 'developer'@'localhost';
-```
-
-Listar usuários:
-
-```sql
-SELECT user, host FROM mysql.user;
-```
-
-### Postgres Server
-
-- Server
-  - [Postgres](https://www.postgresql.org/) ([install](https://www.postgresql.org/download/))
-  - [Docker Postgres](https://hub.docker.com/_/postgres)
-- Client
-  - [pgAdmin](https://www.pgadmin.org/) ([dpage/pgadmin4](https://hub.docker.com/r/dpage/pgadmin4/))
-  - [DBeaver](https://dbeaver.io/)
-  - [Adminer](https://www.adminer.org/) ([docker adminer](https://hub.docker.com/_/adminer))
-  - [psql (CLI)](https://www.postgresql.org/docs/current/app-psql.html)
-  - VSCode
-    - [SQLTools](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools)
-    - [PostgreSQL](https://marketplace.visualstudio.com/items?itemName=ckolkman.vscode-postgres)
-
-[Postgres Docker](https://hub.docker.com/_/postgres):
-
-```bash
-$ docker run -d \
-  --name postgres \
-  -e POSTGRES_PASSWORD=secret \
-  postgres:16.2
-
-$ docker exec -it postgres psql -U postgres
-psql (16.2 (Debian 16.2-1.pgdg120+2))
-Type "help" for help.
-
-postgres=# \q
-```
-
-Volume:
-
-```bash
-$ docker run -d \
+```bash title="Terminal"
+docker run -d \
   --name postgres \
   -e POSTGRES_PASSWORD=secret \
   -v pgdata:/var/lib/postgresql/data \
+  -p 5432:5432 \
   postgres:16.2
 ```
 
-Docker Compose ([Postgres](https://hub.docker.com/_/postgres), [PgAdmin 4](https://hub.docker.com/r/dpage/pgadmin4/)):
+Para conectar no terminal interativo `psql`:
+
+```bash title="Terminal"
+docker exec -it postgres psql -U postgres
+```
+
+#### Docker Compose com PgAdmin / Adminer
+
+O arquivo `docker-compose.yml` abaixo sobe o PostgreSQL integrado ao Adminer para gerenciamento via navegador na porta **8080**:
 
 <SourceCode path="examples/database/servers/postgres-server/docker-compose.yml" />
 
-```ini title=".env.example"
-POSTGRES_PASSWORD=secret
+#### Comandos Úteis do `psql`
 
-PGADMIN_EMAIL=user@email.com
-PGADMIN_PASSWORD=secret
-```
+A tabela abaixo resume os principais comandos utilitários (*dot-commands*) do terminal interativo `psql`:
 
-```bash
-$ ls -a
-.  ..  .env  docker-compose.yml
+| Comando | Descrição Didática |
+| :--- | :--- |
+| `\h` ou `help` | Exibe a ajuda geral e sintaxe de comandos SQL. |
+| `\l` | Lista todos os bancos de dados criados no servidor. |
+| `\c <banco>` | Conecta ao banco de dados especificado. |
+| `\d` | Lista todas as tabelas e visões do banco atual. |
+| `\d <table>` | Exibe a estrutura de colunas e tipos da tabela informada. |
+| `\du` | Lista todos os usuários e papéis (*roles*) cadastrados. |
+| `\q` | Sai do terminal `psql`. |
 
-$ docker compose up -d
-[+] Building 0.0s (0/0)                                                                                             docker:default
-[+] Running 3/3
- ✔ Network postgres-server_app-tier     Created                                                                               0.0s
- ✔ Container postgres                   Started                                                                               0.1s
- ✔ Container postgres-server-adminer-1  Started                                                                               0.1s
-
-$ docker compose ps
-NAME                        IMAGE           COMMAND                  SERVICE    CREATED          STATUS          PORTS
-postgres                    postgres:16.2   "docker-entrypoint.s…"   postgres   37 seconds ago   Up 36 seconds   0.0.0.0:5432->5432/tcp
-postgres-server-adminer-1   adminer:4.8.1   "entrypoint.sh php -…"   adminer    37 seconds ago   Up 36 seconds   0.0.0.0:8080->8080/tcp
-
-$ docker compose exec postgres psql -U postgres
-psql (16.2 (Debian 16.2-1.pgdg120+2))
-Type "help" for help.
-
-postgres=# \q
-
-$ docker compose down
-[+] Running 3/3
- ✔ Container postgres-server-adminer-1  Removed                                                                               0.4s
- ✔ Container postgres                   Removed                                                                               0.4s
- ✔ Network postgres-server_app-tier     Removed                                                                               0.2s
-```
-
-PostgreSQL Client Applications
-
-- clusterdb — cluster a PostgreSQL database
-- createdb — create a new PostgreSQL database
-- createuser — define a new PostgreSQL user account
-- dropdb — remove a PostgreSQL database
-- dropuser — remove a PostgreSQL user account
-- ecpg — embedded SQL C preprocessor
-- pg_amcheck — checks for corruption in one or more PostgreSQL databases
-- pg_basebackup — take a base backup of a PostgreSQL cluster
-- pgbench — run a benchmark test on PostgreSQL
-- pg_config — retrieve information about the installed version of PostgreSQL
-- pg_dump — extract a PostgreSQL database into a script file or other archive file
-- pg_dumpall — extract a PostgreSQL database cluster into a script file
-- pg_isready — check the connection status of a PostgreSQL server
-- pg_receivewal — stream write-ahead logs from a PostgreSQL server
-- pg_recvlogical — control PostgreSQL logical decoding streams
-- pg_restore — restore a PostgreSQL database from an archive file created by pg_dump
-- pg_verifybackup — verify the integrity of a base backup of a PostgreSQL cluster
-- psql — PostgreSQL interactive terminal
-- reindexdb — reindex a PostgreSQL database
-- vacuumdb — garbage-collect and analyze a PostgreSQL database
-
-psql
-
-| Command         | Description                    |
-| --------------- | ------------------------------ |
-| `help`, `\h`    | Help                           |
-| `\q`            | Quit                           |
-| `\l`            | List databases                 |
-| `\c <database>` | Connect to a database          |
-| `\d`            | List tables in database        |
-| `\d <table>`    | Show table                     |
-| `\d+ <table>`   | More detailed table definition |
-| `\dt *.*`       | List tables from all schemas   |
-| `\du`           | List users                     |
-| `\dn`           | List schemas                   |
-| `\df`           | List functions                 |
-
-Create Database
-
-```bash
-$ ls -a
-.  ..  .env  docker-compose.yml
-
-$ docker compose up -d
-[+] Building 0.0s (0/0)                                                                                             docker:default
-[+] Running 3/3
- ✔ Network postgres-server_app-tier     Created                                                                               0.0s
- ✔ Container postgres                   Started                                                                               0.1s
- ✔ Container postgres-server-adminer-1  Started                                                                               0.1s
-
-$ docker compose ps
-NAME                        IMAGE           COMMAND                  SERVICE    CREATED          STATUS          PORTS
-postgres                    postgres:16.2   "docker-entrypoint.s…"   postgres   37 seconds ago   Up 36 seconds   0.0.0.0:5432->5432/tcp
-postgres-server-adminer-1   adminer:4.8.1   "entrypoint.sh php -…"   adminer    37 seconds ago   Up 36 seconds   0.0.0.0:8080->8080/tcp
-
-$ docker compose exec postgres psql -U postgres
-psql (16.2 (Debian 16.2-1.pgdg120+2))
-Type "help" for help.
-
-postgres=# CREATE DATABASE monitor_db;
-
-monitor_db=# \l
- monitor_db | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           |
- postgres   | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           |
- template0  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +
-            |          |          |                 |            |            |            |           | postgres=CTc/postgres
- template1  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +
-            |          |          |                 |            |            |            |           | postgres=CTc/postgres
-
-postgres=# \c monitor_db
-
-monitor_db=# CREATE TABLE hosts (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  address VARCHAR(255) NOT NULL
-);
-
-monitor_db=# \dt public.*
- public | hosts | table | postgres
-
-monitor_db=# \d hosts
- id       | integer                |           | not null | nextval('hosts_id_seq'::regclass)
- name     | character varying(255) |           | not null |
- address  | character varying(255) |           | not null |
-
-postgres=# \q
-
-$ docker compose down
-[+] Running 3/3
- ✔ Container postgres-server-adminer-1  Removed                                                                               0.4s
- ✔ Container postgres                   Removed                                                                               0.4s
- ✔ Network postgres-server_app-tier     Removed                                                                               0.2s
-```
-
-Backup
-
-```bash
-$ psql -l -U postgres
-
-$ pg_dump database_name_here > database.sql
-
-$ pg_dump -Fc database_name_here > database.bak # compressed binary format
-
-$ pg_dump -Ft database_name_here > database.tar # tarball
-```
-
-Recovery
-
-```bash
-$ psql -d database_name_here < database.sql
-
-$ psql -d database_name_here -f database.sql
-
-$ pg_restore database.sql
-
-$ pg_restore -Fc database.bak # restore compressed binary format
-
-$ pg_restore -Fc -C database.bak # create the database before restoring into it
-
-$ pg_restore -Ft database.tar # restore tarball
-```
-
-Criar usuário:
-
-```sql
--- Criar usuário
-CREATE USER nome_usuario WITH PASSWORD 'senha';
-
--- Criar usuário com opções
-CREATE USER nome_usuario WITH PASSWORD 'senha' CREATEDB CREATEROLE;
-
--- Exemplo
-CREATE USER developer WITH PASSWORD 'dev123';
-```
-
-Deletar usuário:
-
-```sql
-DROP USER nome_usuario;
-
--- Ou reassumir propriedade antes de deletar
-DROP USER IF EXISTS nome_usuario;
-
--- Exemplo
-DROP USER developer;
-```
-
-Grant (Conceder Permissões):
-
-```sql
--- Conceder todas as permissões em um banco
-GRANT ALL PRIVILEGES ON DATABASE nome_banco TO nome_usuario;
-
--- Conceder permissões específicas em um banco
-GRANT CONNECT, CREATE ON DATABASE nome_banco TO nome_usuario;
-
--- Conceder permissões em esquema
-GRANT ALL PRIVILEGES ON SCHEMA public TO nome_usuario;
-
--- Conceder permissões em tabela específica
-GRANT SELECT, INSERT, UPDATE, DELETE ON nome_banco.tabela TO nome_usuario;
-
--- Conceder todas as permissões em tabelas
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO nome_usuario;
-
--- Exemplos
-GRANT ALL PRIVILEGES ON DATABASE monitor_db TO developer;
-GRANT SELECT, INSERT, UPDATE ON public.hosts TO developer;
-```
-
-Revoke (Revogar Permissões):
-
-```sql
--- Revogar todas as permissões em um banco
-REVOKE ALL PRIVILEGES ON DATABASE nome_banco FROM nome_usuario;
-
--- Revogar permissões específicas em um banco
-REVOKE CONNECT, CREATE ON DATABASE nome_banco FROM nome_usuario;
-
--- Revogar permissões em esquema
-REVOKE ALL PRIVILEGES ON SCHEMA public FROM nome_usuario;
-
--- Revogar permissões em tabela específica
-REVOKE DELETE ON nome_banco.tabela FROM nome_usuario;
-
--- Exemplos
-REVOKE DELETE ON public.hosts FROM developer;
-REVOKE ALL PRIVILEGES ON DATABASE monitor_db FROM developer;
-```
-
-Verificar permissões:
-
-```sql
--- Listar usuários
-\du
-
--- Verificar permissões de um usuário
-SELECT grantee, privilege_type
-FROM information_schema.role_table_grants
-WHERE table_name = 'hosts';
-
--- Listar permissões em banco de dados
-SELECT datname, datacl
-FROM pg_database
-WHERE datname = 'monitor_db';
-```
+---
 
 ### SQLite
 
-- [SQLite](https://www.sqlite.org/index.html)
-- [Docker SQLite](https://hub.docker.com/r/linuxserver/sqlitebrowser)
-- client
-  - [DB Browser for SQLite](https://sqlitebrowser.org/)
-  - [DBeaver](https://dbeaver.io/)
-  - [Adminer](https://www.adminer.org/) ([docker adminer](https://hub.docker.com/_/adminer))
-  - [sqlitebrowser](https://hub.docker.com/r/linuxserver/sqlitebrowser)
-  - [sqlite3 (CLI)](https://www.sqlite.org/cli.html)
-  - VSCode
-    - [SQLite](https://marketplace.visualstudio.com/items?itemName=alexcvzz.vscode-sqlite)
-    - [SQlite Viewer](https://marketplace.visualstudio.com/items?itemName=qwtel.sqlite-viewer)
+O SQLite é uma biblioteca em linguagem C que implementa um mecanismo de banco de dados SQL autônomo, sem servidor e sem necessidade de configuração.
 
-SQLite Docker:
+#### Dockerfile para SQLite
+
+O exemplo abaixo demonstra como empacotar uma imagem leve de SQLite:
 
 <SourceCode path="examples/database/servers/sqlite/Dockerfile" />
 
-```bash
-$ docker build -t sqlite:1.0 .
+#### Comandos do `sqlite3` CLI
 
-$ docker run -it --rm -v ./data:/db sqlite:1.0 sh
-/db # sqlite3
-SQLite version 3.44.2 2023-11-24 11:41:44
-Enter ".help" for usage hints.
-Connected to a transient in-memory database.
-Use ".open FILENAME" to reopen on a persistent database.
-sqlite> .quit
+Principais utilitários no terminal do SQLite:
 
-/db # sqlite3 database.db
-SQLite version 3.44.2 2023-11-24 11:41:44
-Enter ".help" for usage hints.
-sqlite> .quit
+- `.databases`: Lista os arquivos de bancos de dados anexados.
+- `.tables`: Lista o nome de todas as tabelas.
+- `.schema <table>`: Exibe a instrução `CREATE TABLE` usada para criar a tabela.
+- `.dump`: Exporta todo o banco em formato de script SQL.
+- `.quit`: Encerra o interpretador do SQLite.
 
-/db # exit
-```
+---
 
-sqlite3 ([dot-commands](https://sqlite.org/cli.html#special_commands_to_sqlite3_dot_commands_))
+### MongoDB Server (NoSQL)
 
-- `.databases`: List names and files of attached databases
-- `.dump`: Dump database in SQL text format
-- `.help`: Show help
-- `.quit`: Stop interpreting input stream
-- `.schema`: Show the CREATE statements
-- `.show`:	Displays current settings for various parameters
-- `.tables`: List names of tables
+O MongoDB é um banco de dados Não-Relacional orientado a documentos JSON/BSON, que opera na porta **27017**.
 
-Data Types:
+#### Docker Compose para MongoDB e Mongo Express
 
-- `NULL`
-- `INTEGER`: signed integer (1, 2, 3, 4, 6, 8 bytes)
-- `REAL`: floating point value (8-byte IEEE floating point number)
-- `TEXT`: text string (UTF-8, UTF-16BE or UTF-16LE)
-- `BLOB`: blob of data
+Abaixo está o comando para subir o MongoDB em contêiner com suporte a autenticação:
 
-Create Database
-
-```bash
-$ docker run -it --rm -v ./data:/db sqlite:1.0 sh
-/db # sqlite3 database.db
-SQLite version 3.44.2 2023-11-24 11:41:44
-Enter ".help" for usage hints.
-sqlite> .databases
-main: /db/database.db r/w
-
-sqlite> CREATE TABLE hosts (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  address TEXT NOT NULL
-);
-
-sqlite> .tables
-hosts
-
-sqlite> .schema hosts
-CREATE TABLE hosts (
-  id INTEGER PRIMARY KEY,
-   name TEXT NOT NULL,
-   address TEXT NOT NULL
- );
-
-sqlite> .quit
-
-/db # exit
-```
-
-Backup
-
-```bash
-$ sqlite3 ./dev.db
-SQLite version 3.37.2 2022-01-06 13:25:41
-Enter ".help" for usage hints.
-sqlite> .schema
-sqlite> .schema table_name
-sqlite> .dump
-sqlite> .dump table_name
-sqlite> .output ./backup.sql
-sqlite> .exit
-
-$ sqlite3 dev.db .dump > dev.sql
-```
-
-Recovery
-
-```bash
-$ sqlite3 ./restore.db
-SQLite version 3.37.2 2022-01-06 13:25:41
-Enter ".help" for usage hints.
-sqlite> .read ./backup.sql
-sqlite> .exit
-
-$ sqlite3 restore.db < backup.sql
-```
-
-{/* Referências
-
-- [How to Run and use SQLite Database with Docker Containers](https://thriveread.com/sqlite-docker-container-and-docker-compose/) */}
-
-### MongoDB Server
-
-- Server
-  - [MongoDB](https://www.mongodb.com/) ([install](https://docs.mongodb.com/manual/installation/))
-  - [Docker Mongo](https://hub.docker.com/_/mongo)
-  - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
-- Client
-  - [MongoDB Compass](https://www.mongodb.com/products/compass)
-  - [DBeaver](https://dbeaver.io/)
-  - [Adminer](https://www.adminer.org/) ([docker adminer](https://hub.docker.com/_/adminer))
-  - [mongo-express](https://hub.docker.com/_/mongo-express)
-  - [MongoDB Shell - mongosh (CLI)](https://docs.mongodb.com/mongodb-shell/)
-  - VSCode
-    - [MongoDB for VS Code](https://marketplace.visualstudio.com/items?itemName=mongodb.mongodb-vscode)
-- Guias
-  - [bradtraversy/mongodb_cheat_sheet.md](https://gist.github.com/bradtraversy/f407d642bdc3b31681bc7e56d95485b6)
-  - [SQL to MongoDB Mapping Chart](https://gist.github.com/aponxi/4380516)
-
-[Mongo Docker](https://hub.docker.com/_/mongo):
-
-```bash
-$ docker run --name mongo -d mongo:7.0
-
-$ docker exec -it mongo mongosh
-Current Mongosh Log ID: 65de1e4556e305af36af7b82
-Connecting to:          mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.1.4
-Using MongoDB:          7.0.5
-Using Mongosh:          2.1.4
-
-For mongosh info see: https://docs.mongodb.com/mongodb-shell/
-
-To help improve our products, anonymous usage data is collected and sent to MongoDB periodically (https://www.mongodb.com/legal/privacy-policy).
-You can opt-out by running the disableTelemetry() command.
-
-test>exit
-```
-
-Volume:
-
-```bash
-$ docker run -d \
+```bash title="Terminal"
+docker run -d \
   --name mongo \
-  -e MONGO_ROOT_USERNAME=root MONGO_ROOT_PASSWORD=secret \
+  -e MONGO_ROOT_USERNAME=root \
+  -e MONGO_ROOT_PASSWORD=secret \
   -v mongodata:/data/db \
+  -p 27017:27017 \
   mongo:7.0
 ```
 
-Docker Compose ([Mongo](https://hub.docker.com/_/mongo), [Mongo Express](https://hub.docker.com/_/mongo-express)):
+Conecte-se ao Shell do MongoDB (`mongosh`):
 
-```bash
-$ docker compose up -d
-[+] Building 0.0s (0/0)                                                                                             docker:default
-[+] Running 3/3
- ✔ Network mongo-server_app-tier  Created                                                                                     0.1s
- ✔ Container mongo                Started                                                                                     0.7s
- ✔ Container mongo-express        Started                                                                                     0.1s
-
-$ docker compose exec mongo mongosh -u root -p
-Enter password: ******
-Current Mongosh Log ID: 65de236628a45b1cc031174b
-Connecting to:          mongodb://<credentials>@127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.1.4
-Using MongoDB:          7.0.5
-Using Mongosh:          2.1.4
-
-For mongosh info see: https://docs.mongodb.com/mongodb-shell/
-
-------
-   The server generated these startup warnings when booting
-   2024-02-27T17:59:07.794+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
-   2024-02-27T17:59:08.592+00:00: /sys/kernel/mm/transparent_hugepage/enabled is 'always'. We suggest setting it to 'never'
-   2024-02-27T17:59:08.592+00:00: vm.max_map_count is too low
-------
-
-test>exit
-
-$docker compose down
-[+] Running 3/3
- ✔ Container mongo-express        Removed                                                                                     0.0s
- ✔ Container mongo                Removed                                                                                     0.5s
- ✔ Network mongo-server_app-tier  Removed                                                                                     0.2s
+```bash title="Terminal"
+docker exec -it mongo mongosh -u root -p secret
 ```
 
-mongosh
+```javascript title="Shell do MongoDB (mongosh)"
+// Alternar ou criar banco de dados
+use monitor_db
 
-- `use`: Set current database
-- `show`
-  - `show databases`, `show dbs`: Print a list of all available databases.
-  - `show collections`, `show tables`: Print a list of all collections for current database.
-  - `show profile`: Prints system.profile information.
-  - `show users`: Print a list of all users for current database.
-  - `show roles`: Print a list of all roles for current database.
-  - `show logs`: Print all logs.
-
-Create Database (CRUD)
-
-- Create
-  - `db.<collection>.insertOne()`
-  - `db.<collection>.insertMany()`
-  - `db.<collection>.bulkWrite()`
-- Read
-  - `db.<collection>.find()`
-  - `db.<collection>.aggregate()`
-- Update
-  - `db.<collection>.updateOne()`
-  - `db.<collection>.updateMany()`
-  - `db.<collection>.findOneAndUpdate()`
-- Delete
-  - `db.<collection>.deleteOne()`
-  - `db.<collection>.deleteMany()`
-  - `db.<collection>.findOneAndDelete()`
-
-```bash
-$ docker compose exec mongo mongosh -u root -p
-Enter password: ******
-Current Mongosh Log ID: 65de236628a45b1cc031174b
-Connecting to:          mongodb://<credentials>@127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.1.4
-Using MongoDB:          7.0.5
-Using Mongosh:          2.1.4
-
-For mongosh info see: https://docs.mongodb.com/mongodb-shell/
-
-------
-   The server generated these startup warnings when booting
-   2024-02-27T17:59:07.794+00:00: Using the XFS filesystem is strongly recommended with the WiredTiger storage engine. See http://dochub.mongodb.org/core/prodnotes-filesystem
-   2024-02-27T17:59:08.592+00:00: /sys/kernel/mm/transparent_hugepage/enabled is 'always'. We suggest setting it to 'never'
-   2024-02-27T17:59:08.592+00:00: vm.max_map_count is too low
-------
-
-test> show dbs
-admin   100.00 KiB
-config   12.00 KiB
-local    72.00 KiB
-
-test> use monitor_db
-switched to db monitor_db
-
-monitor_db> show dbs
-admin       100.00 KiB
-config       12.00 KiB
-local        72.00 KiB
-
-monitor_db> db.getCollectionNames()
-[]
-
-monitor_db> db.hosts.insertOne(
-...   {
-...     name: 'Google DNS',
-...     address: '8.8.8.8'
-...   }
-... )
-{
-  acknowledged: true,
-  insertedId: ObjectId('66de735b5e9174c5eec76a8c')
-}
-
-monitor_db> show dbs
-admin       100.00 KiB
-config       12.00 KiB
-local        72.00 KiB
-monitor_db   40.00 KiB
-
-monitor_db> db.getCollectionNames()
-[ 'hosts' ]
-
-monitor_db> db.hosts.find()
-[
-  {
-    _id: ObjectId('66de735b5e9174c5eec76a8c'),
-    name: 'Google DNS',
-    address: '8.8.8.8'
-  }
-]
-
-monitor_db> exit
-```
-
-Criar usuário:
-
-```javascript
-// Criar usuário com senha
-db.createUser({
-  user: "nome_usuario",
-  pwd: "senha",
-  roles: [
-    { role: "readWrite", db: "monitor_db" }
-  ]
+// Inserir um documento na coleção 'hosts'
+db.hosts.insertOne({
+  name: 'Google DNS',
+  address: '8.8.8.8'
 });
 
-// Criar usuário administrador
-db.createUser({
-  user: "admin_user",
-  pwd: passwordPrompt(),
-  roles: [
-    { role: "root", db: "admin" }
-  ]
-});
-
-// Exemplo
-db.createUser({
-  user: "developer",
-  pwd: passwordPrompt(),
-  roles: [
-    { role: "readWrite", db: "monitor_db" },
-    { role: "read", db: "admin" }
-  ]
-});
+// Consultar documentos da coleção
+db.hosts.find()
 ```
 
-Deletar usuário:
+---
 
-```javascript
-// Deletar usuário do banco atual
-db.dropUser("nome_usuario");
+## Gestão de Usuários e Permissões
 
-// Exemplo
-db.dropUser("developer");
-```
+Por questões de segurança, aplicações em produção nunca devem utilizar o usuário superadministrador (`root` ou `postgres`). É essencial criar usuários dedicados com privilégios limitados.
 
-Grant (Conceder Permissões):
-
-```javascript
-// Conceder permissões a usuário existente
-db.grantRolesToUser("nome_usuario", [
-  { role: "readWrite", db: "monitor_db" },
-  { role: "dbAdmin", db: "monitor_db" }
-]);
-
-// Exemplo
-db.grantRolesToUser("developer", [
-  { role: "readWrite", db: "monitor_db" }
-]);
-```
-
-Revoke (Revogar Permissões):
-
-```javascript
-// Revogar permissões de um usuário
-db.revokeRolesFromUser("nome_usuario", [
-  { role: "readWrite", db: "monitor_db" }
-]);
-
-// Exemplo
-db.revokeRolesFromUser("developer", [
-  { role: "dbAdmin", db: "monitor_db" }
-]);
-```
-
-Verificar permissões:
-
-```javascript
-// Listar usuários do banco atual
-show users
-
-// ou
-
-db.getUsers()
-
-// Verificar permissões de um usuário específico
-db.getUser("nome_usuario")
-
-// Exemplo
-db.getUser("developer")
-```
-
-Roles comuns no MongoDB:
-
-| Role        | Descrição                                                      |
-| ----------- | -------------------------------------------------------------- |
-| `read`      | Permissão apenas leitura em um banco de dados                  |
-| `readWrite` | Permissão de leitura e escrita em um banco de dados            |
-| `dbAdmin`   | Permissões administrativas do banco (criar índices, etc)       |
-| `userAdmin` | Permissão para gerenciar usuários do banco                     |
-| `dbOwner`   | Combinação de `readWrite`, `dbAdmin` e `userAdmin`             |
-| `root`      | Acesso total a todos os bancos (super usuário)                 |
-
-## Databases
-
-| Database | Create Database                  | Use Database               | Create Table                     | Insert table                       |
-| -------- | -------------------------------- | -------------------------- | -------------------------------- | ---------------------------------- |
-| MySQL    | `CREATE DATABASE database_name;` | `USE database_name;`       | `CREATE TABLE table_name (...);` | `INSERT INTO table_name ...;`      |
-| Postgres | `CREATE DATABASE database_name;` | `\c database_name`         | `CREATE TABLE table_name (...);` | `INSERT INTO table_name ...;`      |
-| SQLite   |                                  | `sqlite3 database_name.db` | `CREATE TABLE table_name (...);` | `INSERT INTO table_name ...;`      |
-| MongoDB  | `use database_name;`             | `use database_name;`       |                                  | `db.collection_name.insertOne();`  |
-
-SQL (CREATE TABLE)
-
-<table>
-  <thead>
-    <tr>
-      <th>Banco de Dados</th>
-      <th>Comando SQL</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>MySQL</td>
-      <td>
-
-```sql
-CREATE TABLE hosts (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  address VARCHAR(255) NOT NULL
-);
-```
-
-      </td>
-    </tr>
-    <tr>
-      <td>PostgreSQL</td>
-      <td>
-
-```sql
-CREATE TABLE hosts (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  address VARCHAR(255) NOT NULL
-);
-```
-
-      </td>
-    </tr>
-    <tr>
-      <td>SQLite</td>
-      <td>
-
-```sql
-CREATE TABLE hosts (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  address TEXT NOT NULL
-);
-```
-
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-Usuários (CREATE USER, GRANT e REVOKE)
+A tabela a seguir compara o ciclo de vida de controle de acesso nos três principais SGBDs com suporte a usuários:
 
 <table>
   <thead>
@@ -1096,250 +244,224 @@ Usuários (CREATE USER, GRANT e REVOKE)
     <tr>
       <td><strong>Criar Usuário</strong></td>
       <td>
-
-```sql
-CREATE USER 'user'@'localhost'
-IDENTIFIED BY 'senha';
-```
-
+        ```sql
+        CREATE USER 'dev'@'localhost'
+        IDENTIFIED BY 'senha123';
+        ```
       </td>
       <td>
-
-```sql
-CREATE USER user WITH
-PASSWORD 'senha';
-```
-
+        ```sql
+        CREATE USER dev WITH
+        PASSWORD 'senha123';
+        ```
       </td>
       <td>
-
-```javascript
-db.createUser({
-  user: "user",
-  pwd: passwordPrompt(),
-  roles: [...]
-});
-```
-
+        ```javascript
+        db.createUser({
+          user: "dev",
+          pwd: "senha123",
+          roles: [...]
+        });
+        ```
       </td>
     </tr>
     <tr>
-      <td><strong>Deletar Usuário</strong></td>
+      <td><strong>Conceder Permissão (Grant)</strong></td>
       <td>
-
-```sql
-DROP USER 'user'@'localhost';
-```
-
+        ```sql
+        GRANT SELECT, INSERT
+        ON monitor_db.*
+        TO 'dev'@'localhost';
+        ```
       </td>
       <td>
-
-```sql
-DROP USER user;
-```
-
+        ```sql
+        GRANT SELECT, INSERT
+        ON ALL TABLES IN SCHEMA public
+        TO dev;
+        ```
       </td>
       <td>
-
-```javascript
-db.dropUser("user");
-```
-
-      </td>
-    </tr>
-    <tr>
-      <td><strong>Grant (Banco)</strong></td>
-      <td>
-
-```sql
-GRANT ALL PRIVILEGES
-ON database.*
-TO 'user'@'localhost';
-```
-
-      </td>
-      <td>
-
-```sql
-GRANT ALL PRIVILEGES
-ON DATABASE database
-TO user;
-```
-
-      </td>
-      <td>
-
-```javascript
-db.grantRolesToUser("user", [
-  { role: "readWrite",
-    db: "database" }
-]);
-```
-
+        ```javascript
+        db.grantRolesToUser("dev", [
+          { role: "readWrite", db: "monitor_db" }
+        ]);
+        ```
       </td>
     </tr>
     <tr>
-      <td><strong>Grant (Tabela)</strong></td>
+      <td><strong>Revogar Permissão (Revoke)</strong></td>
       <td>
-
-```sql
-GRANT SELECT, INSERT
-ON database.table
-TO 'user'@'localhost';
-```
-
+        ```sql
+        REVOKE DELETE
+        ON monitor_db.*
+        FROM 'dev'@'localhost';
+        ```
       </td>
       <td>
-
-```sql
-GRANT SELECT, INSERT
-ON database.table
-TO user;
-```
-
+        ```sql
+        REVOKE DELETE
+        ON ALL TABLES IN SCHEMA public
+        FROM dev;
+        ```
       </td>
       <td>
-
-```javascript
-// Não há grant por tabela
-// Use read/readWrite no db
-```
-
+        ```javascript
+        db.revokeRolesFromUser("dev", [
+          { role: "readWrite", db: "monitor_db" }
+        ]);
+        ```
       </td>
     </tr>
     <tr>
-      <td><strong>Revoke (Banco)</strong></td>
+      <td><strong>Remover Usuário</strong></td>
       <td>
-
-```sql
-REVOKE ALL PRIVILEGES
-ON database.*
-FROM 'user'@'localhost';
-```
-
+        ```sql
+        DROP USER 'dev'@'localhost';
+        ```
       </td>
       <td>
-
-```sql
-REVOKE ALL PRIVILEGES
-ON DATABASE database
-FROM user;
-```
-
+        ```sql
+        DROP USER dev;
+        ```
       </td>
       <td>
-
-```javascript
-db.revokeRolesFromUser("user", [
-  { role: "readWrite",
-    db: "database" }
-]);
-```
-
-      </td>
-    </tr>
-    <tr>
-      <td><strong>Revoke (Tabela)</strong></td>
-      <td>
-
-```sql
-REVOKE SELECT, INSERT
-ON database.table
-FROM 'user'@'localhost';
-```
-
-      </td>
-      <td>
-
-```sql
-REVOKE SELECT, INSERT
-ON database.table
-FROM user;
-```
-
-      </td>
-      <td>
-
-```javascript
-// Não há revoke por tabela
-```
-
-      </td>
-    </tr>
-    <tr>
-      <td><strong>Aplicar Permissões</strong></td>
-      <td>
-
-```sql
-FLUSH PRIVILEGES;
-```
-
-      </td>
-      <td>
-
-```sql
--- Automático
--- (sem comando necessário)
-```
-
-      </td>
-      <td>
-
-```javascript
-// Automático
-// (sem comando necessário)
-```
-
-      </td>
-    </tr>
-    <tr>
-      <td><strong>Listar Usuários</strong></td>
-      <td>
-
-```sql
-SELECT user, host
-FROM mysql.user;
-```
-
-      </td>
-      <td>
-
-```sql
-\du
-```
-
-      </td>
-      <td>
-
-```javascript
-show users
-// ou
-db.getUsers()
-```
-
+        ```javascript
+        db.dropUser("dev");
+        ```
       </td>
     </tr>
   </tbody>
 </table>
 
-## Tipos de Dados
+<Aside type="tip" title="Aplicando Alterações no MySQL">
+  No MySQL, após executar comandos de privilégios manuais, execute `FLUSH PRIVILEGES;` para recalcular as tabelas de acesso na memória do servidor.
+</Aside>
 
-| Types              | MySQL                                                                                                              | Postgres                                                                                                                                                               | SQLite                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Character          | `CHAR(n)`, `VARCHAR(n)`, `TINYTEXT(n)`, `TEXT(n)`, `MEDIUMTEXT(n)`, `LONGTEXT(n)`, `BINARY(n)`, `VARBINARY(n)`     | `CHARACTER (N)`, `CHAR(n)`, `CHARACTER VARYING (N)`, `VARCHAR(n)`, `TEXT`                                                                                              | `TEXT`                       |
-| Numeric            | `BIT`, `TINYINT`, `SMALLINT`, `MEDIUMINT`, `INT`, `BIGINT`, `DECIMAL`, `FLOAT`, `DOUBLE`, `BOOLEAN` (`TINYINT(1)`) | `SMALLINT`, `INTEGER`, `BIGINT`, `DECIMAL`, `NUMERIC`, `REAL`, `DOUBLE`, `SMALLSERIAL`, `SERIAL`, `BIGSERIAL`,                                                         | `NUMERIC`, `INTEGER`, `REAL` |
-| Date/Time          | `DATE`, `DATETIME`, `TIMESTAMP`, `TIME`, `YEAR`                                                                    | `DATE`, `INTERVAL `, `TIMESTAMP`, `TIME`                                                                                                                               |                              |
-| Large Object (LOB) | `TINYBLOB`, `BLOB(n)`, `MEDIUMBLOB`, `LONGTEXT`                                                                    | `BYTEA`                                                                                                                                                                | `BLOB`                       |
-| Especial           | Espacial (`POINTS`, `LINES`), `JSON`                                                                               | `MONEY`, `BOOLEAN`, `ENUM`, Espacial (`POINTS`, `LINES`), Network (`INET`, `CIDR`, `MACADDR`), `TSQUERY` , `UUID`, `XML`, `JSON`, `JSONB`, `ARRAY`, `TYPE`, `NUMRANGE` |                              |
+---
+
+## Tabela Comparativa de Tipos de Dados
+
+Cada motor possui sua especificação de tipos de dados. A tabela abaixo compara os equivalentes mais comuns entre MySQL, PostgreSQL e SQLite:
+
+| Categoria | Tipo Abstrato | MySQL | PostgreSQL | SQLite |
+| :--- | :--- | :--- | :--- | :--- |
+| **Texto** | String curta | `VARCHAR(n)` | `VARCHAR(n)` ou `TEXT` | `TEXT` |
+| **Texto** | Texto longo | `TEXT`, `LONGTEXT` | `TEXT` | `TEXT` |
+| **Inteiro** | Chave Auto-Incremento | `INT AUTO_INCREMENT` | `SERIAL` ou `BIGSERIAL` | `INTEGER PRIMARY KEY` |
+| **Decimal** | Valor Financeiro | `DECIMAL(10,2)` | `NUMERIC(10,2)` | `REAL` ou `NUMERIC` |
+| **Data/Hora** | Data e Horário | `DATETIME` / `TIMESTAMP` | `TIMESTAMP` | `TEXT` (ISO8601) / `INTEGER` |
+| **Booleano** | Verdadeiro / Falso | `TINYINT(1)` / `BOOLEAN` | `BOOLEAN` | `INTEGER` (0 ou 1) |
+| **Binário** | Arquivos / BLOB | `LONGBLOB` | `BYTEA` | `BLOB` |
+
+---
+
+## Backup e Restauração
+
+Garantir rotinas de cópia de segurança é premissa básica de administração de SGBD:
+
+<Tabs>
+  <TabItem label="MySQL">
+    ```bash title="Terminal (Backup e Restore)"
+    # Exportar banco completo em SQL
+    docker exec mysql mysqldump -u root -p monitor_db > backup.sql
+
+    # Restaurar script SQL
+    docker exec -i mysql mysql -u root -p monitor_db < backup.sql
+    ```
+  </TabItem>
+  <TabItem label="PostgreSQL">
+    ```bash title="Terminal (Backup e Restore)"
+    # Exportar usando pg_dump
+    docker exec postgres pg_dump -U postgres monitor_db > backup.sql
+
+    # Restaurar usando psql
+    docker exec -i postgres psql -U postgres monitor_db < backup.sql
+    ```
+  </TabItem>
+  <TabItem label="SQLite">
+    ```bash title="Terminal (Backup e Restore)"
+    # Gerar cópia física ou dump SQL
+    sqlite3 banco.db .dump > backup.sql
+
+    # Restaurar
+    sqlite3 banco_restaurado.db < backup.sql
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Exercício
+
+1. Crie um arquivo `docker-compose.yml` que suba uma instância do PostgreSQL e uma instância do Adminer.
+2. Escreva o comando SQL para criar um usuário `gestor` no PostgreSQL com acesso apenas de leitura (`SELECT`) em todas as tabelas do esquema público.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. **Docker Compose**:
+     ```yaml
+     version: '3.8'
+     services:
+       db:
+         image: postgres:16
+         environment:
+           POSTGRES_PASSWORD: secret
+       adminer:
+         image: adminer
+         ports:
+           - "8080:8080"
+     ```
+
+  2. **Comando SQL**:
+     ```sql
+     CREATE USER gestor WITH PASSWORD 'senha123';
+     GRANT CONNECT ON DATABASE monitor_db TO gestor;
+     GRANT USAGE ON SCHEMA public TO gestor;
+     GRANT SELECT ON ALL TABLES IN SCHEMA public TO gestor;
+     ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a diferença fundamental entre a arquitetura do MySQL/Postgres e a do SQLite?**
+   <details><summary>Possível resposta</summary>MySQL e Postgres utilizam arquitetura Cliente-Servidor com processos independentes escutando em portas de rede. O SQLite é embutido (*file-based*), rodando no próprio processo da aplicação.</details>
+
+2. **Qual é a porta de rede padrão do MySQL, PostgreSQL e MongoDB?**
+   <details><summary>Possível resposta</summary>MySQL: 3306. PostgreSQL: 5432. MongoDB: 27017.</details>
+
+3. **Para que serve a instrução `FLUSH PRIVILEGES;` no MySQL?**
+   <details><summary>Possível resposta</summary>Recarrega as permissões de acesso da tabela de concedimentos na memória RAM do servidor MySQL imediatamente.</details>
+
+4. **Como o SQLite lida nativamente com o tipo de dado Booleano?**
+   <details><summary>Possível resposta</summary>O SQLite armazena booleanos como inteiros, usando 0 para falso e 1 para verdadeiro.</details>
+
+5. **Qual utilitário de linha de comando é usado para fazer backup de um banco PostgreSQL?**
+   <details><summary>Possível resposta</summary>O utilitário `pg_dump` (ou `pg_dumpall` para todos os bancos do cluster).</details>
+
+6. **No PostgreSQL, o que faz a coluna com o tipo de dado `SERIAL`?**
+   <details><summary>Possível resposta</summary>Cria um inteiro com incremento automático vinculado a uma sequência (*sequence*).</details>
+
+7. **Qual é o comando do MongoDB Shell para listar as coleções do banco atual?**
+   <details><summary>Possível resposta</summary>`show collections` ou `db.getCollectionNames()`.`</details>
+
+8. **Por que é recomendável usar volumes do Docker ao executar contêineres de SGBD?**
+   <details><summary>Possível resposta</summary>Para garantir a persistência dos dados gravados no banco mesmo quando o contêiner for destruído ou atualizado.</details>
+
+---
 
 ## Referências
 
-- SGBD
-  - [MySQL](https://www.mysql.com/)
-  - [Postgres](https://www.postgresql.org/)
-  - [MongoDB](https://www.mongodb.com/)
-  - [SQLite](https://www.sqlite.org/)
-- Tipo de dados
-  - [MySQL](https://dev.mysql.com/doc/refman/8.0/en/data-types.html)
-  - [Postgres](https://www.postgresql.org/docs/current/datatype.html)
-  - [SQLite](https://www.sqlite.org/datatype3.html)
+- [MySQL 8.3 Reference Manual](https://dev.mysql.com/doc/refman/8.3/en/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/current/)
+- [SQLite Documentation](https://www.sqlite.org/docs.html)
+- [MongoDB Manual](https://www.mongodb.com/docs/manual/)
+
+---
+
+## Próxima aula
+
+[Modelo Conceitual e Lógico](../../modeling/conceptual-logical/): Requisitos, Modelo Entidade-Relacionamento (MER/DER) e conversão para tabelas relacionais.

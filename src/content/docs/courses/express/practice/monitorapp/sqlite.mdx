@@ -1,0 +1,270 @@
+---
+title: "MonitorApp: SQLite nativo"
+description: "Sexta etapa do MonitorApp: o array em memória dá lugar a um banco SQLite com o módulo node:sqlite, com migration, seeders e um model escrito em SQL parametrizado."
+course: express
+sidebar:
+  label: "6. SQLite nativo"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **6 de 13** · Nível **Intermediário** · `node:sqlite` · SQL
+
+Até aqui, um `Ctrl+C` apagava o inventário. Esta etapa resolve isso com o banco relacional mais
+simples possível — um arquivo SQLite — e sem instalar nenhuma dependência: o módulo `node:sqlite`
+faz parte do Node desde a versão 22.
+
+A escolha de fazer isso **sem ORM** é deliberada. Escrever o SQL à mão uma vez deixa claro o que
+o Prisma vai passar a fazer na etapa 7, e por que ele vale a pena.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Persistência**: veja [SQLite Nativo](../../../persistence/node-sqlite/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP04 · Fundação Técnica** › **Feature FT12 · Persistência de dados**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF01** Gestão de Hosts | o CRUD agora sobrevive ao reinício | atendido |
+| **RNF03** Persistência Relacional | tabela `hosts` em SQLite, sem ORM | parcial — faltam as relações |
+
+### US06 — Não perder o inventário ao fechar o sistema · RF01, RNF03
+
+> **Como** responsável pela rede,
+> **quero** que os hosts cadastrados continuem lá depois de reiniciar o servidor,
+> **para** não precisar recadastrar tudo a cada execução.
+
+```gherkin
+Cenário: CA06.1 - Preparar o banco
+  Quando executo npm run db:load
+  Então a tabela hosts é criada
+  E os registros iniciais são inseridos
+
+Cenário: CA06.2 - Os dados sobrevivem ao reinício
+  Dado um host cadastrado pela API
+  Quando reinicio o servidor
+  E envio GET /api/hosts
+  Então o host continua na lista
+
+Cenário: CA06.3 - Nenhum valor entra concatenado no SQL
+  Dado o arquivo models/Host.ts
+  Então todo valor vindo da requisição entra por um marcador ?
+
+Cenário: CA06.4 - Os ids continuam UUIDs
+  Quando cadastro um host
+  Então o id gerado tem o mesmo formato da etapa 2
+
+Cenário: CA06.5 - As camadas de cima não mudaram
+  Dado o diff da etapa anterior para esta
+  Então controllers, rotas e schemas estão intactos
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK06.1 · Criar `src/database/database.ts`**: o invólucro assíncrono sobre `node:sqlite`.
+2. **TK06.2 · Criar `migration.ts`, `seeders.ts` e `load.ts`**: a preparação do banco em um comando.
+3. **TK06.3 · Reescrever `src/models/Host.ts`**: as cinco operações em SQL parametrizado.
+
+</Steps>
+
+## Estrutura da aplicação
+
+A pasta `src/data/` sai inteira e dá lugar a `src/database/`, com quatro arquivos que separam
+três responsabilidades distintas: **conectar** (`database.ts`), **criar o esquema**
+(`migration.ts`) e **popular** (`seeders.ts`, com os dados em `seeders.json`). O `load.ts` só
+encadeia os dois últimos em um comando.
+
+<ProjectLinks path="examples/express/projects/monitor-app-db-simple" />
+
+<FileTree>
+{`
+  monitor-app-db-simple/
+  ├── back/
+  │   └── src/
+  │       ├── database/                  NOVO — substitui data/
+  │       │   ├── database.ts            conexão e os três métodos
+  │       │   ├── migration.ts           CREATE TABLE
+  │       │   ├── seeders.ts             carga inicial
+  │       │   ├── seeders.json           os dados da carga
+  │       │   └── load.ts                migration + seeders
+  │       └── models/
+  │           └── Host.ts                agora fala SQL
+  └── front/                    inalterado nesta etapa
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+Esta é a primeira das duas **remoções** do trilho. A pasta `src/data/` sai inteira, porque o
+array que ela exportava foi substituído pelo banco.
+
+| Etapa 5 (`monitor-app-swagger`) | Etapa 6 (`monitor-app-db-simple`) |
+| ------------------------------- | --------------------------------- |
+| `src/data/hosts.ts` com o array | `src/database/` com conexão, migration e seeders |
+| `hosts.push(newHost)` | `INSERT INTO hosts (…) VALUES (?, ?, ?)` |
+| `hosts.findIndex(…)` | `SELECT … WHERE id = ?` |
+| dados voltam ao estado inicial a cada reinício | dados vivem em `src/database/db.sqlite` |
+| — | scripts `db:load`, `db:drop` e `db:reload` |
+
+Controllers, rotas, schemas e o documento OpenAPI **não mudaram**. É a prova de que a divisão em
+camadas da etapa 3 valeu a pena: a troca de armazenamento ficou contida em um arquivo.
+
+## Descrição das tarefas
+
+### TK06.1 · Criar `src/database/database.ts` (A conexão)
+
+Nenhum `npm install` aqui: o `node:sqlite` já vem no Node.
+
+O módulo expõe a classe `DatabaseSync`, e o nome não é acidente — a API dele é **síncrona**.
+Todo o resto da aplicação, porém, é `async` desde a etapa 3. Em vez de espalhar essa diferença
+pelo model, este arquivo a resolve em um lugar só.
+
+O trecho destacado nas linhas 23 a 46 é esse invólucro. Ele expõe exatamente três operações, que
+cobrem tudo que um CRUD precisa: `run` para escrita (linha 25), devolvendo o número de linhas
+afetadas; `get` para uma linha (linha 31); e `all` para várias (linha 35). O `parseRow` da linha
+12 copia cada resultado para um objeto simples, porque o que o driver devolve não é um objeto
+literal comum.
+
+O `dbFile` da linha 4 aponta para um arquivo dentro do próprio `src/database/` — e é por isso
+que ele aparece no `.gitignore`. Um banco de desenvolvimento não pertence ao repositório.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-db-simple/back/src/database/database.ts"
+  title="back/src/database/database.ts"
+  showLineNumbers
+  mark="23-46"
+/>
+
+### TK06.2 · Criar `migration.ts`, `seeders.ts` e `load.ts` (A preparação do banco)
+
+A migration é o esquema, escrito em SQL. O `CREATE TABLE IF NOT EXISTS` das linhas 6 a 12
+descreve a única tabela desta etapa, com os mesmos três campos que o array tinha. O `id` é
+`TEXT`, e não `INTEGER PRIMARY KEY AUTOINCREMENT`, porque quem gera o identificador continua
+sendo a aplicação, com `randomUUID()`.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-db-simple/back/src/database/migration.ts"
+  title="back/src/database/migration.ts"
+  showLineNumbers
+  mark="6-14"
+/>
+
+O seeder faz a carga inicial, e faz isso **pelo model**, não por `INSERT` direto. A consequência
+é que os dados semeados passam pelas mesmas regras que os dados criados pela API — inclusive a
+geração do UUID.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-db-simple/back/src/database/seeders.ts"
+  title="back/src/database/seeders.ts"
+  showLineNumbers
+/>
+
+O `load.ts` só encadeia os dois, e é ele que o script `npm run db:load` executa:
+
+<SourceCode
+  path="examples/express/projects/monitor-app-db-simple/back/src/database/load.ts"
+  title="back/src/database/load.ts"
+  showLineNumbers
+/>
+
+```bash title="Terminal: os três scripts novos"
+npm run db:load     # cria a tabela e semeia
+npm run db:drop     # apaga o arquivo do banco
+npm run db:reload   # recomeça do zero
+```
+
+<Aside type="caution" title="Isto ainda não é migration de verdade">
+  Um `CREATE TABLE IF NOT EXISTS` resolve o primeiro dia e nada mais. Ele não sabe evoluir um
+  esquema existente: acrescentar uma coluna significaria apagar o banco. A etapa 7 troca este
+  arquivo por migrations versionadas do Prisma, que registram cada alteração como um passo
+  aplicável em ordem.
+</Aside>
+
+### TK06.3 · Reescrever `src/models/Host.ts` (O model em SQL)
+
+A assinatura das cinco funções é **idêntica** à da etapa 3 — mesmos parâmetros, mesmos retornos,
+mesmos `throw new Error`. Só o miolo mudou.
+
+O `mapRow` da linha 6 é a primeira novidade: o banco devolve linhas genéricas, e alguém precisa
+convertê-las no tipo `Host`. Concentrar isso em uma função evita repetir a conversão em cada
+consulta.
+
+O `create` destacado nas linhas 14 a 34 mostra o padrão do arquivo. O SQL vive em um template
+literal (linhas 23 a 28), legível e indentado, e os valores **não** aparecem nele: entram como
+array no segundo argumento de `db.run` (linha 31). Essa separação é o que impede injeção de SQL —
+o driver envia comando e dados por caminhos diferentes, e um valor como `'; DROP TABLE hosts; --`
+é gravado como texto, não interpretado.
+
+A linha 33 fecha o `create` com `return await readById(id)`: em vez de montar o objeto de
+resposta na mão, o model relê o registro gravado. É mais uma ida ao banco, e é o que garante que
+a resposta reflita exatamente o que ficou persistido, inclusive valores preenchidos por padrão.
+
+O `read` das linhas 36 a 54 traz o filtro com `LIKE ?` e os curingas aplicados no **parâmetro**
+(linha 46), nunca na string do SQL. E o `update` e o `remove` (linhas 74 a 106) inauguram um novo
+jeito de detectar ausência: em vez de procurar um índice, eles conferem `changes !== 1` — o
+número de linhas que a operação realmente afetou.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-db-simple/back/src/models/Host.ts"
+  title="back/src/models/Host.ts"
+  showLineNumbers
+  mark="14-34"
+  collapse="56-106"
+/>
+
+## Executando
+
+<Steps>
+
+1. Prepare o banco e suba a API:
+
+   ```bash title="Terminal 1"
+   cd examples/express/projects/monitor-app-db-simple/back
+   npm install
+   npm run db:load
+   npm run dev
+   ```
+
+2. Suba o front:
+
+   ```bash title="Terminal 2"
+   cd examples/express/projects/monitor-app-db-simple/front
+   npm install
+   npm run dev
+   ```
+
+3. Cadastre um host pela tela, pare a API com `Ctrl+C`, suba de novo e recarregue a página. O
+   host continua lá.
+
+</Steps>
+
+<Aside type="tip" title="Compare com a etapa anterior">
+  ```bash title="Terminal"
+  git diff --no-index -- \
+    examples/express/projects/monitor-app-swagger/back/src \
+    examples/express/projects/monitor-app-db-simple/back/src || true
+  ```
+
+  O diff toca `database/`, `models/Host.ts` e nada mais. Controllers, rotas, schemas e a
+  documentação passaram inteiros pela troca de armazenamento.
+</Aside>
+
+## Conceitos abordados
+
+- `node:sqlite` sem dependência externa
+- Invólucro assíncrono sobre uma API síncrona
+- SQL parametrizado com `?` e a defesa contra injeção
+- Migration e seeders como scripts do projeto
+- `changes` como forma de detectar recurso inexistente
+- Reler o registro gravado em vez de montar a resposta na mão
+
+## Próxima etapa
+
+[MonitorApp: Prisma e relações](../prisma/) — schema declarativo, migrations versionadas e o
+domínio ganha `Ping` e `Tag`.

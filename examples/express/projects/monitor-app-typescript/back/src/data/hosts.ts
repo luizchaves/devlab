@@ -1,0 +1,14 @@
+import type { Host } from '@/types/Host.d.ts';
+
+export const hosts: Host[] = [
+  {
+    id: 'e4cfb6bb-4431-42a9-b660-d5701b2f49cd',
+    name: 'Google DNS',
+    address: '8.8.8.8',
+  },
+  {
+    id: 'a2bb615a-6153-41bf-8cbe-0bfb538ce511',
+    name: 'Portal da instituição',
+    address: 'www.ifpb.edu.br',
+  },
+];

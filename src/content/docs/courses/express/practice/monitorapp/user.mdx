@@ -1,0 +1,380 @@
+---
+title: "MonitorApp: Cadastro de usuário"
+description: "Nona etapa do MonitorApp: entidade User, hash de senha com Argon2id usando apenas node:crypto, rota de cadastro e o formulário de signup ligado à API."
+course: express
+sidebar:
+  label: "9. Cadastro de usuário"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **9 de 13** · Nível **Avançado** · Argon2id · `node:crypto`
+
+O inventário do MonitorApp é global até aqui: qualquer pessoa que abra o front vê todos os
+hosts. As duas próximas etapas mudam isso — esta cria a conta, e a etapa 10 faz o inventário
+pertencer a ela.
+
+O tema central é o armazenamento de senha. A regra é simples de enunciar e fácil de errar: a
+senha **nunca** é gravada, nem criptografada. O que se guarda é o resultado de uma função de
+derivação que não tem volta.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Cadastro e senhas**: veja [Cadastro de Usuários](../../../auth/user-registration/) e [Senhas e Hash](../../../auth/passwords/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP03 · Identidade e Acesso** › **Feature FT07 · Cadastro de conta**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF05** Cadastro de Usuários | `POST /api/users` e a tela de signup | atendido |
+| **RNF02** Criptografia & Segurança | hash Argon2id com salt por registro | parcial — falta a sessão |
+
+### US09 — Ter um inventário próprio · RF05, RNF02
+
+> **Como** visitante,
+> **quero** criar uma conta com nome, e-mail e senha,
+> **para** ter um inventário de hosts que é só meu.
+
+```gherkin
+Cenário: CA09.1 - Criar a conta
+  Quando envio POST /api/users com nome, e-mail e senha válidos
+  Então recebo o status 201
+  E o corpo traz id, name e email
+  E não traz a senha, nem em texto nem como hash
+
+Cenário: CA09.2 - E-mail já cadastrado
+  Dado um e-mail já usado por outra conta
+  Quando envio POST /api/users com esse e-mail
+  Então recebo o status 409
+
+Cenário: CA09.3 - Confirmação de senha
+  Quando envio password e confirmationPassword diferentes
+  Então recebo o status 400
+  E a issue aponta o campo confirmationPassword
+
+Cenário: CA09.4 - O formato do hash
+  Dado um usuário recém-criado
+  Quando inspeciono o campo password no banco
+  Então o valor começa com $argon2id$
+  E traz os parâmetros de custo e o sal
+
+Cenário: CA09.5 - Sal por registro
+  Dadas duas contas criadas com a mesma senha
+  Então os hashes gravados são diferentes
+
+Cenário: CA09.6 - O front conclui o fluxo
+  Quando envio o formulário de signup com dados válidos
+  Então sou levado para a tela de entrar
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK09.1 · Acrescentar `User` ao schema e gerar a migration**: a entidade e a chave estrangeira em `Host`.
+2. **TK09.2 · Criar `src/utils/password.ts`**: `hashPassword` e `verifyPassword` com `node:crypto`.
+3. **TK09.3 · Criar a rota `POST /api/users`**: model, schema, controller e roteador.
+4. **TK09.4 · Ligar `signup.html` à API**: `front/js/signup.js`.
+
+</Steps>
+
+## Estrutura da aplicação
+
+O `User` repete o mesmo conjunto de camadas das entidades da etapa 7 — tipo, model, schema,
+controller e rota —, e acrescenta uma pasta que ainda não existia: `utils/`, para o código que
+não é regra de negócio nem HTTP. É lá que mora o hash de senha, e é lá que o JWT da etapa 10 vai
+entrar.
+
+<ProjectLinks path="examples/express/projects/monitor-app-user" />
+
+<FileTree>
+{`
+  monitor-app-user/
+  ├── back/
+  │   ├── prisma/
+  │   │   ├── schema.prisma              + model User, + userId em Host
+  │   │   └── migrations/
+  │   │       └── 20260302000000_create_user/
+  │   └── src/
+  │       ├── utils/
+  │       │   └── password.ts            NOVO — Argon2id com node:crypto
+  │       ├── models/
+  │       │   └── User.ts                NOVO
+  │       ├── schemas/
+  │       │   └── user.schema.ts         NOVO
+  │       ├── controllers/
+  │       │   └── users.controller.ts    NOVO
+  │       └── routes/
+  │           └── users.routes.ts        NOVO
+  └── front/
+      ├── signup.html                    o botão vira submit
+      └── js/
+          └── signup.js                  NOVO
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+| Etapa 8 (`monitor-app-ping`) | Etapa 9 (`monitor-app-user`) |
+| ---------------------------- | ---------------------------- |
+| três entidades | quatro: `User` entra |
+| `Host` sem dono | `Host.userId` opcional, preparando a etapa 10 |
+| nenhuma senha no sistema | hash Argon2id em `utils/password.ts` |
+| `signup.html` sem comportamento | formulário enviando `POST /api/users` |
+| três recursos na API | quatro: `users` entra |
+
+## Descrição das tarefas
+
+### TK09.1 · Acrescentar `User` ao schema e gerar a migration
+
+O `model User` das linhas 11 a 18 tem quatro campos e uma relação. O `@unique` do `email` na
+linha 14 é o que faz a API responder `409` — a garantia está no banco, não em uma consulta prévia
+da aplicação, que teria uma janela de corrida entre a checagem e a gravação.
+
+O `Host` ganha o par das linhas 26 e 27. Repare nas interrogações: `User?` e `String?`, ambos
+**opcionais** nesta etapa. É uma decisão de migração — os hosts que já existem no banco não têm
+dono, e uma coluna obrigatória quebraria a aplicação de imediato. A etapa 10 aperta essa regra
+com uma segunda migration, agora que já existirá um usuário para atribuir.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/back/prisma/schema.prisma"
+  title="back/prisma/schema.prisma"
+  showLineNumbers
+  mark="11-18,26-27"
+  collapse="34-49"
+/>
+
+```bash title="Terminal: dentro de back/"
+npm run db:migrate
+```
+
+O comando gera a pasta `20260302000000_create_user/`. Esta é a diferença prática que a etapa 7
+prometeu: o banco existente **evolui**, sem ser apagado — algo que o `CREATE TABLE IF NOT EXISTS`
+da etapa 6 não conseguiria fazer.
+
+### TK09.2 · Criar `src/utils/password.ts` (Argon2id sem dependência)
+
+Nenhum `npm install`. O `node:crypto` expõe `argon2Sync` nativamente, e é ele que este arquivo
+embrulha.
+
+O bloco das linhas 14 a 23 são os parâmetros de custo, e cada um tem um papel:
+
+| Constante | Valor | Papel |
+| --------- | ----- | ----- |
+| `MEMORY_KIB` | 65536 (64 MiB) | Memória exigida por derivação. É o que torna o ataque em GPU caro, porque GPU tem muito núcleo e pouca memória por núcleo |
+| `PASSES` | 3 | Passagens sobre a memória; aumenta o custo em tempo |
+| `PARALLELISM` | 4 | Threads usadas em paralelo |
+| `TAG_LENGTH` | 32 | Tamanho do hash resultante, em bytes |
+
+O `hashPassword` das linhas 33 a 47 gera um **sal novo a cada chamada** (linha 34). É por isso
+que duas contas com a mesma senha produzem hashes diferentes — e é o que inutiliza tabelas
+pré-computadas.
+
+O formato de saída merece atenção. A string devolvida não é só o hash: é o **PHC string format**,
+o mesmo que a biblioteca `argon2` produz.
+
+```text title="O que fica gravado no banco"
+$argon2id$v=19$m=65536,t=3,p=4$c2FsdGVzdGVzYWx0$aGFzaGVzdGVoYXNoZXN0ZWhhc2hlc3Rl
+ └──┬───┘ └─┬─┘ └──────┬─────┘ └──────┬───────┘ └──────────────┬───────────────┘
+ algoritmo versão   parâmetros        sal                     hash
+```
+
+Guardar tudo junto resolve um problema real de manutenção: quando os custos forem endurecidos no
+futuro, os registros antigos continuam verificáveis, porque cada hash carrega os parâmetros com
+que foi gerado.
+
+O `verifyPassword` das linhas 54 a 79 usa exatamente isso. Ele **não** desfaz o hash — não há
+volta. Ele lê os parâmetros da string gravada, refaz o cálculo com a senha recebida (linha 66) e
+compara. A comparação da linha 75 usa `timingSafeEqual`, que percorre os dois buffers inteiros
+sempre: um `===` comum pararia no primeiro byte diferente, e a diferença de microssegundos
+permitiria descobrir o hash byte a byte.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/back/src/utils/password.ts"
+  title="back/src/utils/password.ts"
+  showLineNumbers
+  mark="33-47,75"
+  collapse="1-32"
+/>
+
+<Aside type="caution" title="Por que não `bcrypt` nem `jsonwebtoken`">
+  Os dois pacotes clássicos resolvem o mesmo problema, e materiais mais antigos do MonitorApp os
+  usavam. A versão atual prefere `node:crypto` por dois motivos: o Argon2id é o algoritmo
+  recomendado hoje para senhas — o bcrypt não é parametrizável em memória —, e uma dependência a
+  menos é uma superfície de ataque a menos. O conceito é o mesmo, e comparar as duas
+  implementações é um bom exercício.
+</Aside>
+
+### TK09.3 · Criar a rota `POST /api/users`
+
+O `User.ts` tem uma decisão em cada uma das primeiras vinte linhas.
+
+O `select` da linha 9 é a mais importante: ele lista os campos públicos e **omite o hash**. Como
+todas as leituras do model usam esse mesmo objeto, a senha nunca sai do banco por acidente —
+nenhuma rota precisa lembrar de apagá-la antes de responder.
+
+A linha 18 deriva o hash **dentro do model**, e não no controller. Assim qualquer origem que crie
+usuário — a rota, um seeder, um script de importação — passa obrigatoriamente por esse caminho.
+
+O arquivo tem ainda uma quarta função, `readByEmailWithPassword`, que é a única a devolver o
+hash. Ela existe para um consumidor só: o login da etapa 10.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/back/src/models/User.ts"
+  title="back/src/models/User.ts"
+  showLineNumbers
+  mark="9,18"
+  collapse="23-42"
+/>
+
+O schema traz a única regra desta etapa que envolve dois campos ao mesmo tempo. O `.refine()` das
+linhas 12 a 16 confere a confirmação de senha — e o `path: ['confirmationPassword']` da linha 15
+é o que faz a issue apontar o campo certo do formulário, e não o `password`.
+
+Repare que `confirmationPassword` é `.optional()`. Ela é uma exigência da **interface**, não do
+domínio: um cliente que não seja o nosso formulário pode cadastrar sem ela.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/back/src/schemas/user.schema.ts"
+  title="back/src/schemas/user.schema.ts"
+  showLineNumbers
+  mark="11-17"
+/>
+
+O controller descarta a confirmação na desestruturação da linha 8 — ela não pode chegar ao model
+— e traduz a violação de unicidade em `409` na linha 18, distinguindo-a de qualquer outra falha
+de gravação.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/back/src/controllers/users.controller.ts"
+  title="back/src/controllers/users.controller.ts"
+  showLineNumbers
+  mark="8-10,17-19"
+/>
+
+A rota é pública, e o comentário no arquivo registra o porquê: quem se cadastra ainda não tem
+conta para se autenticar. Na etapa 10, quando todas as outras rotas ganharem `isAuthenticated`,
+esta e o `signin` serão as duas exceções.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/back/src/routes/users.routes.ts"
+  title="back/src/routes/users.routes.ts"
+  showLineNumbers
+  mark="10-11"
+/>
+
+### TK09.4 · Ligar `signup.html` à API
+
+O `signup.js` é curto e mostra o caminho de volta do erro de validação até a tela. A função
+`firstIssue` lê a lista `issues` que o `errorHandler` da etapa 4 produz e devolve a primeira
+mensagem — o suficiente para orientar quem está preenchendo o formulário sem transformar a tela
+em um relatório de erros.
+
+Concluído o cadastro, a linha final leva para `signin.html`. É onde a etapa 10 continua.
+
+<SourceCode
+  path="examples/express/projects/monitor-app-user/front/js/signup.js"
+  title="front/js/signup.js"
+  showLineNumbers
+/>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/users" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Ana Souza",
+    "email": "ana@exemplo.com",
+    "password": "senha-secreta",
+    "confirmationPassword": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "name": "Ana Souza",
+    "email": "ana@exemplo.com"
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="POST" path="/api/users" baseUrl="http://localhost:3000" description="Confirmação diferente da senha">
+{`
+  {
+    "name": "Ana Souza",
+    "email": "outra@exemplo.com",
+    "password": "senha-secreta",
+    "confirmationPassword": "senha-errada"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={400}>
+{`
+  {
+    "error": "Validation error",
+    "issues": [
+      {
+        "code": "custom",
+        "path": ["body", "confirmationPassword"],
+        "message": "As senhas não conferem"
+      }
+    ]
+  }
+`}
+</ApiResponse>
+
+## Executando
+
+<Steps>
+
+1. Aplique a migration e suba a API:
+
+   ```bash title="Terminal 1"
+   cd examples/express/projects/monitor-app-user/back
+   npm install
+   npm run db:migrate
+   npm run dev
+   ```
+
+2. Suba o front e abra `signup.html`:
+
+   ```bash title="Terminal 2"
+   cd examples/express/projects/monitor-app-user/front
+   npm install
+   npm run dev
+   ```
+
+3. Confira o hash gravado:
+
+   ```bash title="Terminal"
+   npm run db:studio
+   ```
+
+   Crie duas contas com a **mesma** senha e compare os dois valores da coluna `password`. Eles
+   são diferentes, e é o sal que faz isso.
+
+</Steps>
+
+## Conceitos abordados
+
+- Argon2id nativo em `node:crypto`, sem dependência externa
+- PHC string format: parâmetros e sal viajam junto do hash
+- Sal por registro e o que ele inutiliza
+- `timingSafeEqual` e ataques por tempo de resposta
+- `select` no model como garantia de que a senha não vaza
+- Regra entre dois campos com `.refine()` e `path`
+- Migration que evolui um banco existente
+
+## Próxima etapa
+
+[MonitorApp: Autenticação](../auth/) — login, JWT nativo e o inventário isolado por dono.

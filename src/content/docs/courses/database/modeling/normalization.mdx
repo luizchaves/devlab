@@ -1,0 +1,253 @@
+---
+title: "Banco de Dados: Normalização"
+description: "Normalização de banco de dados, eliminação de anomalias de inserção, alteração e exclusão, Formas Normais (1FN, 2FN, 3FN, FNBC) e desnormalização consciente."
+course: database
+sidebar:
+  label: "Normalização de Dados"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Esta aula apresenta o processo formal de **Normalização de Banco de Dados**. Você aprenderá a identificar redundâncias e anomalias de atualização, estruturar tabelas de acordo com a Primeira (1FN), Segunda (2FN) e Terceira Forma Normal (3FN), além de compreender quando utilizar a desnormalização consciente por motivos de desempenho.
+
+---
+
+## Objetivo
+
+Compreender o conceito de dependência funcional, aplicar rigorosamente os critérios de normalização até a 3FN para eliminar anomalias de banco de dados e ponderar os trade-offs entre integridade relacional e performance.
+
+---
+
+## Por que Normalizar?
+
+A **Normalização** é uma técnica sistemática de análise de tabelas para organizar colunas e relacionamentos de forma a minimizar a redundância de dados e evitar **anomalias de atualização**.
+
+Sem normalização, um banco de dados mal projetado sofre de três anomalias clássicas:
+
+1. **Anomalia de Inserção**: Impossibilidade de adicionar dados sobre uma entidade sem adicionar dados sobre outra não relacionada (ex: não conseguir cadastrar um curso sem cadastrar um aluno primeiro).
+2. **Anomalia de Alteração**: Alterar um dado (como o endereço de um cliente) exige atualizar dezenas de linhas duplicadas. Se uma linha for esquecida, o banco fica inconsistente.
+3. **Anomalia de Exclusão**: Ao apagar um registro (ex: remover a compra de um cliente), apagam-se sem querer dados históricos importantes (como as informações do próprio produto).
+
+---
+
+## As Formas Normais (FN)
+
+As Formas Normais são regras cumulativas. Para uma tabela estar na 3FN, ela precisa obrigatoriamente estar na 1FN e na 2FN.
+
+O fluxo de evolução entre as formas normais pode ser visualizado abaixo:
+
+<Mermaid title="Evolução do processo de normalização">
+{`
+flowchart TD
+    A[Tabela Não-Normalizada UNF] -->|1. Garantir valores atômicos e remover vetores| B[1ª Forma Normal - 1FN]
+    B -->|2. Eliminar dependências parciais de chave composta| C[2ª Forma Normal - 2FN]
+    C -->|3. Eliminar dependências transitivas entre não-chaves| D[3ª Forma Normal - 3FN]
+    D -->|Opcional para casos complexos| E[Forma Normal de Boyce-Codd - FNBC]
+`}
+</Mermaid>
+
+---
+
+## 1ª Forma Normal (1FN): Valores Atômicos
+
+Uma tabela está na **1FN** quando todos os seus atributos contêm apenas valores **atômicos** (indivisíveis) e não existem colunas multivaloradas ou grupos repetitivos.
+
+### Problema (Não-Normalizada)
+
+Veja a tabela `Pedidos_Desorganizados` com telefones multivalorados e itens em lista:
+
+| Pedido_ID | Cliente | Telefones | Produtos |
+| :--- | :--- | :--- | :--- |
+| **101** | Ana Silva | (83) 9999-1111, (83) 8888-2222 | Notebook, Mouse |
+| **102** | Bruno Souza | (11) 9777-3333 | Teclado |
+
+### Solução (1FN)
+
+Para colocar na 1FN, dividimos os telefones e produtos em linhas únicas ou tabelas separadas, garantindo que cada célula contenha exatamente um valor atômico:
+
+```sql title="1fn-tabelas.sql"
+-- Tabela de Clientes com atributos atômicos
+CREATE TABLE Cliente (
+    id INT PRIMARY KEY AUTOINCREMENT,
+    nome VARCHAR(100) NOT NULL
+);
+
+-- Tabela separada para Telefones (eliminando o multivalorado)
+CREATE TABLE Cliente_Telefone (
+    cliente_id INT NOT NULL,
+    telefone VARCHAR(20) NOT NULL,
+    PRIMARY KEY (cliente_id, telefone),
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
+);
+```
+
+---
+
+## 2ª Forma Normal (2FN): Dependência Funcional Total
+
+Uma tabela está na **2FN** quando está na 1FN e **todos os atributos não-chave dependem totalmente da Chave Primária inteira** (não apenas de parte de uma chave primária composta).
+
+<Aside type="note" title="Requisito de Aplicabilidade da 2FN">
+  Se uma tabela possui uma Chave Primária simples (de uma única coluna, como um `id INT AUTOINCREMENT`), ela **já está automaticamente na 2FN**. A 2FN só é violada em tabelas com chaves primárias compostas.
+</Aside>
+
+### Problema (Violando a 2FN)
+
+Dada a tabela `Item_Pedido` com chave composta por `(Pedido_ID, Produto_ID)`:
+
+| Pedido_ID (PK) | Produto_ID (PK) | Quantidade | Produto_Nome |
+| :--- | :--- | :--- | :--- |
+| **101** | **1** | 2 | Notebook |
+| **101** | **2** | 1 | Mouse |
+
+*Análise*: A `Quantidade` depende de qual produto está em qual pedido (depende de `Pedido_ID` + `Produto_ID`). Porém, o `Produto_Nome` depende **apenas** do `Produto_ID` (dependência parcial da chave).
+
+### Solução (2FN)
+
+Removemos o atributo que depende de parte da chave para uma tabela própria:
+
+```sql title="2fn-tabelas.sql"
+-- Tabela de Produtos (depende apenas de Produto_ID)
+CREATE TABLE Produto (
+    id INT PRIMARY KEY AUTOINCREMENT,
+    nome VARCHAR(100) NOT NULL,
+    preco DECIMAL(10,2) NOT NULL
+);
+
+-- Tabela de Itens (Quantidade depende da chave composta inteira)
+CREATE TABLE Item_Pedido (
+    pedido_id INT NOT NULL,
+    produto_id INT NOT NULL,
+    quantidade INT NOT NULL,
+    PRIMARY KEY (pedido_id, produto_id),
+    FOREIGN KEY (pedido_id) REFERENCES Pedido(id),
+    FOREIGN KEY (produto_id) REFERENCES Produto(id)
+);
+```
+
+---
+
+## 3ª Forma Normal (3FN): Eliminar Dependências Transitivas
+
+Uma tabela está na **3FN** quando está na 2FN e **nenhum atributo não-chave depende de outro atributo não-chave**. Em termos simples: *"Cada atributo deve depender da chave, de toda a chave e de nada mais além da chave."*
+
+### Problema (Violando a 3FN)
+
+Considere a tabela `Funcionario`:
+
+| ID (PK) | Nome | CEP | Cidade | Estado |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | Carlos Andrade | 58000-000 | João Pessoa | Paraíba |
+| **2** | Maria Clara | 58000-000 | João Pessoa | Paraíba |
+
+*Análise*: `ID` é a PK. O `Nome` depende do `ID`. O `CEP` depende do `ID`. Porém, `Cidade` e `Estado` dependem do `CEP` (um atributo não-chave depende de outro atributo não-chave). Isso é uma **dependência transitiva**.
+
+### Solução (3FN)
+
+Separamos as informações de endereço em uma tabela de CEPs:
+
+```sql title="3fn-tabelas.sql"
+-- Tabela de Endereços por CEP (3FN)
+CREATE TABLE Endereco (
+    cep VARCHAR(9) PRIMARY KEY,
+    cidade VARCHAR(100) NOT NULL,
+    estado VARCHAR(50) NOT NULL
+);
+
+-- Tabela de Funcionários sem dependência transitiva
+CREATE TABLE Funcionario (
+    id INT PRIMARY KEY AUTOINCREMENT,
+    nome VARCHAR(100) NOT NULL,
+    cep VARCHAR(9) NOT NULL,
+    FOREIGN KEY (cep) REFERENCES Endereco(cep)
+);
+```
+
+---
+
+## Desnormalização Consciente
+
+Embora a 3FN garanta integridade perfeita, o excesso de tabelas exige a execução de múltiplos `JOINs` em cada consulta, o que pode desacelerar sistemas de leitura massiva (como dashboards de relatórios e relatórios analíticos - OLAP).
+
+A **Desnormalização** é a decisão deliberada de introduzir redundância controlada em um banco de dados já normalizado para otimizar o desempenho de leitura.
+
+| Abordagem | Vantagens | Desvantagens |
+| :--- | :--- | :--- |
+| **Normalizado (3FN)** | Sem duplicidade, gravações ultra-rápidas, zero anomalias de integridade. | Leitura mais lenta devido a múltiplos `JOINs`. |
+| **Desnormalizado** | Consultas `SELECT` ultra-rápidas, sem necessidade de `JOINs`. | Gravação e atualização mais lentas, risco de inconsistência se não gerenciado pela aplicação. |
+
+<Aside type="caution" title="Regra de Ouro">
+  Sempre comece o projeto de banco de dados na **3FN**. Só aplique a desnormalização quando houver evidências reais de gargalo de performance em consultas críticas.
+</Aside>
+
+---
+
+## Exercício
+
+Considere a tabela `Fatura`: `(Fatura_ID, Cliente_ID, Cliente_Nome, Data, Total)`.
+
+1. Identifique a violação de forma normal presente nesta tabela.
+2. Escreva os scripts SQL corrigindo a tabela para a 3FN.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. **Violação**: Violação da **3FN** (Dependência Transitiva). O `Cliente_Nome` depende do `Cliente_ID`, que é um atributo não-chave na tabela `Fatura`.
+
+  2. **Solução 3FN**:
+     ```sql
+     CREATE TABLE Cliente (
+         id INT PRIMARY KEY AUTOINCREMENT,
+         nome VARCHAR(100) NOT NULL
+     );
+
+     CREATE TABLE Fatura (
+         id INT PRIMARY KEY AUTOINCREMENT,
+         cliente_id INT NOT NULL,
+         data_emissao DATE NOT NULL,
+         total DECIMAL(10,2) NOT NULL,
+         FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
+     );
+     ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que é uma anomalia de atualização num banco de dados?**
+   <details><summary>Possível resposta</summary>É um problema que ocorre ao inserir, alterar ou deletar dados em tabelas mal projetadas, levando à inconsistência ou perda involuntária de informações.</details>
+
+2. **O que exige a Primeira Forma Normal (1FN)?**
+   <details><summary>Possível resposta</summary>Exige que todos os atributos sejam atômicos (sem vetores ou valores separados por vírgula) e que não existam colunas repetitivas.</details>
+
+3. **Qual a condição para uma tabela estar na Segunda Forma Normal (2FN)?**
+   <details><summary>Possível resposta</summary>Estar na 1FN e garantir que nenhum atributo não-chave dependa parcialmente de uma chave primária composta.</details>
+
+4. **Resuma a regra memorável para a Terceira Forma Normal (3FN).**
+   <details><summary>Possível resposta</summary>Cada atributo deve depender da chave primária, de toda a chave primária e de nada mais além da chave primária.</details>
+
+5. **Por que uma tabela com chave primária simples de coluna única nunca viola a 2FN?**
+   <details><summary>Possível resposta</summary>Porque é impossível ter dependência parcial quando a chave não é composta.</details>
+
+6. **O que é dependência transitiva?**
+   <details><summary>Possível resposta</summary>Ocorre quando um atributo não-chave depende de outro atributo não-chave em vez de depender diretamente da chave primária.</details>
+
+7. **Qual é o principal objetivo da desnormalização consciente?**
+   <details><summary>Possível resposta</summary>Otimizar a velocidade de consultas de leitura (SELECT), reduzindo a quantidade de junções (JOINs) necessárias.</details>
+
+8. **O que é a Forma Normal de Boyce-Codd (FNBC)?**
+   <details><summary>Possível resposta</summary>É uma versão ligeiramente mais estrita da 3FN que resolve anomalias quando existem múltiplas chaves candidatas sobrepostas.</details>
+
+---
+
+## Referências
+
+- [Codd, E. F. "Further Normalization of the Data Base Relational Model." 1972.](https://dl.acm.org/doi/10.5555/1243751.1243754)
+- [Database Normalization Guide | DBMS Study](https://www.studytonight.com/dbms/database-normalization.php)
+
+---
+
+## Próxima aula
+
+[SQL DDL e DML](../../sql/fundamentals/): Definição de tabelas, restrições e operações CRUD básicas em SQL.

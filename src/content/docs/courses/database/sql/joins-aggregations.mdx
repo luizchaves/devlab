@@ -1,0 +1,264 @@
+---
+title: "Banco de Dados: Junções e Agregações em SQL"
+description: "Junções de tabelas (INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN), funções de agregação, agrupamentos com GROUP BY/HAVING e subconsultas em SQL."
+course: database
+sidebar:
+  label: "Junções e Agregações"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Esta aula apresenta o poder das consultas relacionais avançadas em **SQL**. Você aprenderá como combinar registros de múltiplas tabelas usando diferentes tipos de **JOINs**, resumir grandes volumes de dados através de **Funções de Agregação** e aplicar agrupamentos condicionais com `GROUP BY` e `HAVING`.
+
+---
+
+## Objetivo
+
+Dominar a sintaxe e a semântica dos diferentes tipos de junções (`INNER`, `LEFT`, `RIGHT`, `FULL`), aplicar funções agregadoras (`COUNT`, `SUM`, `AVG`), estruturar agrupamentos refinados e criar visões reutilizáveis (`VIEW`).
+
+---
+
+## Junções de Tabelas (JOINs)
+
+Em um banco de dados relacional normalizado, as informações sobre entidades relacionadas ficam divididas em tabelas separadas. A cláusula `JOIN` permite combinar dados dessas tabelas em um único conjunto de resultados (*result set*), conectando Chaves Primárias e Chaves Estrangeiras.
+
+### Diagrama Teórico de Junções
+
+O diagrama a seguir resume a lógica de interseção de conjuntos dos quatro principais tipos de junções relacionais:
+
+<Mermaid title="Comportamento dos tipos de JOIN relacionais">
+{`
+flowchart TD
+    subgraph IJ ["INNER JOIN"]
+        direction LR
+        A1[A] ---|Apenas Interseção A ∩ B| B1[B]
+    end
+
+    subgraph LJ ["LEFT JOIN"]
+        direction LR
+        A2[Tudo de A] --->|Mais correspondentes de B| B2[B]
+    end
+
+    subgraph RJ ["RIGHT JOIN"]
+        direction LR
+        A3[A] <---|Mais tudo de B| B3[Tudo de B]
+    end
+
+    subgraph FJ ["FULL JOIN"]
+        direction LR
+        A4[Tudo de A] <--->|Mais tudo de B| B4[Tudo de B]
+    end
+`}
+</Mermaid>
+
+---
+
+## Tipos de JOIN na Prática
+
+Para ilustrar as consultas, considere duas tabelas: `User` (autores) e `Post` (publicações).
+
+### 1. `INNER JOIN` (Interseção Exata)
+
+Retorna apenas as linhas que possuem correspondência **em ambas as tabelas**. Se um usuário não escreveu nenhum post, ele não aparecerá no resultado.
+
+```sql title="inner-join.sql" {4}
+SELECT User.name AS autor, Post.title AS titulo
+FROM Post
+INNER JOIN User ON Post.authorId = User.id
+WHERE Post.published = 1;
+```
+
+### 2. `LEFT JOIN` (Preserva a Tabela da Esquerda)
+
+Retorna **todas as linhas da tabela da esquerda** (`User`), acompanhadas dos dados correspondentes da tabela da direita (`Post`). Se o usuário não tiver posts, as colunas do post virão preenchidas com `NULL`.
+
+```sql title="left-join.sql" {3}
+SELECT User.name AS autor, Post.title AS titulo
+FROM User
+LEFT JOIN Post ON User.id = Post.authorId;
+```
+
+<Aside type="tip" title="Identificando Registros Sem Relacionamento">
+  O `LEFT JOIN` combinado com `WHERE Post.id IS NULL` é a técnica padrão para encontrar autores que **nunca** escreveram nenhum post.
+</Aside>
+
+### 3. `RIGHT JOIN` e `FULL OUTER JOIN`
+
+- `RIGHT JOIN`: Retorna todas as linhas da tabela da direita, trazendo `NULL` para a esquerda quando não houver correspondência.
+- `FULL OUTER JOIN`: Combina o efeito do `LEFT` e do `RIGHT JOIN`, trazendo todas as linhas de ambas as tabelas, vinculadas ou não.
+
+<Aside type="note" title="Suporte no SQLite">
+  O SQLite suporta nativamente `INNER JOIN` e `LEFT JOIN`. O suporte a `RIGHT JOIN` e `FULL OUTER JOIN` foi adicionado nas versões mais recentes (3.39+).
+</Aside>
+
+---
+
+## Funções de Agregação
+
+As funções de agregação processam um conjunto de valores em uma coluna e retornam um único valor resumido.
+
+As cinco funções de agregação fundamentais são:
+
+| Função | O que faz | Exemplo de Uso |
+| :--- | :--- | :--- |
+| `COUNT()` | Conta a quantidade de linhas ou valores não nulos. | `SELECT COUNT(*) FROM User;` |
+| `SUM()` | Soma todos os valores numéricos de uma coluna. | `SELECT SUM(price) FROM Product;` |
+| `AVG()` | Calcula a média aritmética dos valores numéricos. | `SELECT AVG(price) FROM Product;` |
+| `MIN()` | Retorna o menor valor de uma coluna. | `SELECT MIN(price) FROM Product;` |
+| `MAX()` | Retorna o maior valor de uma coluna. | `SELECT MAX(price) FROM Product;` |
+
+Exemplo de consulta agregada simples:
+
+```sql title="agregacoes.sql"
+SELECT 
+    COUNT(*) AS total_posts,
+    AVG(views) AS media_visualizacoes
+FROM Post;
+```
+
+---
+
+## Agrupamento de Dados (`GROUP BY` e `HAVING`)
+
+### Cláusula `GROUP BY`
+
+A cláusula `GROUP BY` agrupa linhas que possuem os mesmos valores em colunas especificadas, permitindo executar funções de agregação para cada grupo individualmente.
+
+```sql title="group-by.sql"
+-- Contar quantos posts cada autor escreveu
+SELECT authorId, COUNT(*) AS total_posts
+FROM Post
+GROUP BY authorId;
+```
+
+### Filtrando Grupos (`HAVING`)
+
+Enquanto o `WHERE` filtra **linhas individuais** antes do agrupamento, a cláusula `HAVING` filtra **os grupos resultantes** após a execução da agregação.
+
+```sql title="having.sql" {4}
+-- Listar apenas autores que possuem mais de 5 posts publicados
+SELECT authorId, COUNT(*) AS total_posts
+FROM Post
+GROUP BY authorId
+HAVING COUNT(*) > 5;
+```
+
+---
+
+## Subconsultas (Subqueries)
+
+Uma **Subconsulta** é uma instrução `SELECT` aninhada dentro de outra consulta principal. Podem ser usadas na cláusula `WHERE`, `FROM` ou `SELECT`:
+
+```sql title="subqueries.sql"
+-- 1. Subconsulta escalar (retorna um único valor)
+-- Buscar produtos com preço acima da média geral
+SELECT name, price 
+FROM Product 
+WHERE price > (SELECT AVG(price) FROM Product);
+
+-- 2. Subconsulta com operador IN (retorna um vetor de valores)
+-- Buscar usuários que possuem posts na categoria 'Tecnologia'
+SELECT name 
+FROM User 
+WHERE id IN (
+    SELECT DISTINCT authorId 
+    FROM Post 
+    WHERE category = 'Tecnologia'
+);
+```
+
+---
+
+## Visões (`CREATE VIEW`)
+
+Uma **Visão (View)** é uma tabela virtual baseada no resultado de uma consulta SQL complexa. Elas simplificam o acesso a dados agregados ou com múltiplos `JOINs`, sem duplicar o armazenamento no disco.
+
+```sql title="views.sql"
+-- Criar uma visão simplificada de relatórios de autores
+CREATE VIEW RelatorioAutores AS
+SELECT 
+    User.id AS autor_id,
+    User.name AS autor_nome,
+    COUNT(Post.id) AS total_posts
+FROM User
+LEFT JOIN Post ON User.id = Post.authorId
+GROUP BY User.id;
+
+-- Consultar a visão como se fosse uma tabela comum
+SELECT * FROM RelatorioAutores WHERE total_posts > 0;
+```
+
+---
+
+## Exercício
+
+Considere duas tabelas: `Department` (id, name) e `Employee` (id, name, salary, department_id).
+
+1. Escreva uma consulta SQL usando `INNER JOIN` para listar o nome do funcionário, seu salário e o nome do departamento.
+2. Escreva uma consulta usando `GROUP BY` e `HAVING` para exibir a média salarial por departamento, listando apenas os departamentos com média salarial superior a R$ 5.000,00.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. **Consulta com INNER JOIN**:
+     ```sql
+     SELECT 
+       Employee.name AS funcionario,
+       Employee.salary AS salario,
+       Department.name AS departamento
+     FROM Employee
+     INNER JOIN Department ON Employee.department_id = Department.id;
+     ```
+
+  2. **Consulta com GROUP BY e HAVING**:
+     ```sql
+     SELECT 
+       Department.name AS departamento,
+       AVG(Employee.salary) AS media_salarial
+     FROM Employee
+     INNER JOIN Department ON Employee.department_id = Department.id
+     GROUP BY Department.id
+     HAVING AVG(Employee.salary) > 5000;
+     ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a diferença fundamental entre `INNER JOIN` e `LEFT JOIN`?**
+   <details><summary>Possível resposta</summary>`INNER JOIN` retorna apenas linhas que possuem correspondência nas duas tabelas. `LEFT JOIN` retorna todas as linhas da tabela da esquerda, mesmo sem correspondência na direita (preenchendo com `NULL`).</details>
+
+2. **Qual é a diferença entre as cláusulas `WHERE` e `HAVING`?**
+   <details><summary>Possível resposta</summary>`WHERE` filtra linhas antes do agrupamento. `HAVING` filtra os grupos já consolidados após a execução do `GROUP BY` e das funções de agregação.</details>
+
+3. **O que faz a função de agregação `COUNT(*)` vs `COUNT(coluna)`?**
+   <details><summary>Possível resposta</summary>`COUNT(*)` conta todas as linhas do grupo/tabela. `COUNT(coluna)` conta apenas as linhas onde aquela coluna possui valor não-nulo (`NOT NULL`).</details>
+
+4. **O que é uma Subconsulta (Subquery)?**
+   <details><summary>Possível resposta</summary>É uma instrução `SELECT` aninhada dentro de outra instrução SQL para fornecer dados intermediários à consulta principal.</details>
+
+5. **Para que serve uma Visão (`VIEW`) num banco de dados relacional?**
+   <details><summary>Possível resposta</summary>Para encapsular uma consulta complexa (com múltiplos JOINs ou agregações) em uma tabela virtual reutilizável, simplificando o acesso aos dados.</details>
+
+6. **Como é possível encontrar registros da tabela A que não possuem nenhum vínculo com a tabela B usando JOIN?**
+   <details><summary>Possível resposta</summary>Utilizando `LEFT JOIN` da tabela A para B e adicionando a condição `WHERE B.id IS NULL`.</details>
+
+7. **O que é um Autorrelacionamento (Self-Join)?**
+   <details><summary>Possível resposta</summary>É uma junção de uma tabela com ela mesma (ex: relacionar uma tabela `Funcionario` com o seu supervisor na mesma tabela).</details>
+
+8. **A criação de uma `VIEW` consome espaço de armazenamento adicional para os dados?**
+   <details><summary>Possível resposta</summary>Não. A `VIEW` guarda apenas a definição da consulta. Os dados continuam armazenados exclusivamente nas tabelas de origem.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL JOIN Documentation](https://www.postgresql.org/docs/current/queries-table-expressions.html#QUERIES-FROM)
+- [SQLite Aggregate Functions](https://www.sqlite.org/lang_aggfunc.html)
+
+---
+
+## Próxima aula
+
+[SQL com Node.js](../../../express/persistence/node-sqlite/): Integrando o banco de dados relacional SQLite com aplicações em Node.js e Express.js.
