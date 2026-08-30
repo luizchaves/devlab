@@ -35,7 +35,7 @@ Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
 3. **Nunca edite artefatos gerados**: `dist/`, `.astro/`, `public/slides/`,
    `public/mindmaps/`, `public/examples/`. Eles saem do build — edite a origem
    (`materials/`, `examples/`, `src/`).
-4. **Escreva em português do Brasil** para conteúdo didático, páginas de aula, comentários de código e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**. **Especificações (`specs/`) e mensagens de commit devem ser escritas em inglês.**
+4. **Escreva em português do Brasil** para conteúdo didático, páginas de aula, comentários de código e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**. **Especificações (`specs/`) e mensagens de commit devem ser escritas em inglês.** No código (variáveis, funções, tipos e rotas), use o **inglês** ao máximo, a não ser que sejam textos de interface do usuário (front-end em PT-BR) ou termos específicos de domínio.
 5. **`examples/` não faz parte do workspace.** Cada projeto tem `package.json` e
    `node_modules` próprios; o build da documentação e o CI não instalam Express,
    Prisma nem nada de lá. Não adicione esses projetos ao workspace raiz.
@@ -208,6 +208,7 @@ arquivos `.excalidraw`: eles não são copiados para `public/`.
   em vez de cores fixas, para que dark/light funcione sozinho.
 - `examples/` fica fora do Biome e do `tsconfig` da raiz — cada projeto tem as
   próprias regras.
+- **Idioma dos identificadores de código**: Use inglês ao máximo para nomes de variáveis, funções, classes, métodos, tipos e rotas, reservando o português do Brasil para textos de interface de usuário (front-end) ou termos de domínio específicos.
 
 ## Commits e Mensagens
 
