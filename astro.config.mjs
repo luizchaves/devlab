@@ -235,6 +235,80 @@ export default defineConfig({
         root: { label: 'Português', lang: 'pt-BR' },
       },
       social: [{ icon: 'github', label: 'GitHub', href: REPO_URL }],
+      head: [
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:site_name',
+            content: 'DevLab',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:title',
+            content: 'DevLab — Portal de Disciplinas e Guias de Programação',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:description',
+            content:
+              'Portal de disciplinas de programação com guias interativos, projetos executáveis, slides e mapas mentais.',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:type',
+            content: 'website',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:url',
+            content: `${SITE_URL}${BASE_PATH}`,
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image',
+            content: `${SITE_URL}${BASE_PATH === '/' ? '' : BASE_PATH}/og-image.png`,
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:card',
+            content: 'summary_large_image',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:title',
+            content: 'DevLab — Portal de Disciplinas e Guias de Programação',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:description',
+            content:
+              'Portal de disciplinas de programação com guias interativos, projetos executáveis, slides e mapas mentais.',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image',
+            content: `${SITE_URL}${BASE_PATH === '/' ? '' : BASE_PATH}/og-image.png`,
+          },
+        },
+      ],
       editLink: {
         baseUrl: `${REPO_URL}/edit/main/`,
       },

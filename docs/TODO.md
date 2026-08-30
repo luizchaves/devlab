@@ -64,10 +64,10 @@
   - [ ] `[TASK-016.5]` Incluir .agents/, SKILLs, `AGENT.md`…
   - [ ] `[TASK-016.6]` Ajustar projetos com boas práticas
 - [ ] **[TASK-017] Página Final do Projeto (Desafios & Evolução):**
-  - [ ] `[TASK-017.1]` Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
+  - [x] `[TASK-017.1]` Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
   - [ ] `[TASK-017.2]` Exemplos de melhorias: migração do front vanilla para React/Vue/Svelte, implementação de GraphQL, testes automatizados, integração com serviços externos, performance e escalabilidade, linter e formatter, CI/CD, monitoramento e logging, segurança, autenticação/autorização, otimização de queries e caching
 - [ ] **[TASK-018] Divulgação & Apoio Visual:**
-  - [ ] `[TASK-018.1]` Fazer o OpenGraph para o projeto final (título, descrição, imagem e URL)
+  - [x] `[TASK-018.1]` Fazer o OpenGraph para o projeto final (título, descrição, imagem e URL)
   - [ ] `[TASK-018.2]` Criar mindmap para as tarefas e etapas do projeto final
 
 ---
