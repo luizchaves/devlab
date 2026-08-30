@@ -35,8 +35,7 @@ Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
 3. **Nunca edite artefatos gerados**: `dist/`, `.astro/`, `public/slides/`,
    `public/mindmaps/`, `public/examples/`. Eles saem do build — edite a origem
    (`materials/`, `examples/`, `src/`).
-4. **Escreva em português do Brasil**, inclusive comentários de código, mensagens de
-   commit e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**.
+4. **Escreva em português do Brasil** para conteúdo didático, páginas de aula, comentários de código e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**. **Especificações (`specs/`) e mensagens de commit devem ser escritas em inglês.**
 5. **`examples/` não faz parte do workspace.** Cada projeto tem `package.json` e
    `node_modules` próprios; o build da documentação e o CI não instalam Express,
    Prisma nem nada de lá. Não adicione esses projetos ao workspace raiz.
@@ -88,9 +87,9 @@ Aliases disponíveis: `@components/*`, `@lib/*`, `@assets/*`.
 
 Ao planejar refatorações de grande porte, migrações ou novas funcionalidades complexas:
 
-1. **Criar a spec em `specs/active/<nome-da-spec>.md`**: documente o diagnóstico, os objetivos, o planejamento por etapas e a validação esperada.
-2. **Executar as tarefas**: realize as alterações de forma incremental com commits atômicos (referenciando as tarefas em `docs/TODO.md`).
-3. **Mover ao concluir**: ao finalizar todas as etapas, atualize o status da spec para concluído e mova o arquivo para `specs/executed/<nome-da-spec>.md` (`git mv specs/active/... specs/executed/...`).
+1. **Criar a spec em inglês em `specs/active/<nome-da-spec-kebab-case>.md`**: documente em inglês o diagnóstico, os objetivos, o planejamento por etapas e a validação esperada.
+2. **Executar as tarefas**: realize as alterações de forma incremental com commits atômicos em inglês (referenciando as tarefas em `docs/TODO.md`).
+3. **Mover ao concluir**: ao finalizar todas as etapas, atualize o status da spec para concluído e mova o arquivo para `specs/executed/<nome-da-spec-kebab-case>.md` (`git mv specs/active/... specs/executed/...`).
 
 ## Fluxo para criar ou alterar uma aula
 
@@ -213,7 +212,7 @@ arquivos `.excalidraw`: eles não são copiados para `public/`.
 ## Commits e Mensagens
 
 - **Commits granulares e atômicos**: Faça commits pequenos, focados e frequentes à medida que conclui etapas lógicas ou tarefas, sem acumular grandes volumes de edições em um único commit.
-- **Prefixos padronizados (Conventional Commits)** em português do Brasil:
+- **Prefixos padronizados (Conventional Commits) em inglês**:
   - `feat:` nova funcionalidade, página de aula ou componente.
   - `fix:` correção de erro, bug ou link quebrado.
   - `docs:` atualizações em documentação, textos de aula, `TODO.md` ou `AGENTS.md`.
@@ -221,7 +220,7 @@ arquivos `.excalidraw`: eles não são copiados para `public/`.
   - `refactor:` reestruturação de código sem alteração de comportamento.
   - `test:` criação ou ajuste de testes.
   - `chore:` manutenção de scripts, dependências ou configurações do projeto.
-- **Referência a Tasks**: Sempre que o commit estiver associado a uma tarefa de [`docs/TODO.md`](docs/TODO.md), inclua a tag do ID no commit (ex: `docs: [TASK-001.1] adiciona guia de express`).
+- **Mensagens e referências a Tasks em inglês**: Sempre escreva a mensagem do commit em inglês. Quando o commit estiver associado a uma tarefa de [`docs/TODO.md`](docs/TODO.md), inclua a tag do ID no commit (ex: `docs: [TASK-001.1] add express guide`).
 
 ## Antes de terminar
 
