@@ -1,0 +1,455 @@
+---
+title: "Express.js: Relações com Prisma"
+description: "Modelagem de relacionamentos com Prisma em uma API Express: um-para-muitos, muitos-para-muitos, chave estrangeira, include e select aninhados, criação encadeada e comportamento na exclusão."
+course: expressjs
+sidebar:
+  label: "Relações com Prisma"
+---
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Um investimento pertence a uma categoria, a uma corretora e a um usuário. Nenhuma entidade
+de um sistema real vive sozinha — esta aula trata de declarar essas ligações no schema e de
+consultá-las sem disparar cem consultas.
+
+## Objetivo
+
+Ao final você saberá modelar relações um-para-muitos e muitos-para-muitos, carregar dados
+relacionados com `include` e `select`, criar registros ligados em uma única chamada e
+escolher o comportamento correto na exclusão.
+
+## O modelo de dados
+
+Antes do schema vem o diagrama. As cardinalidades definem onde fica a chave estrangeira:
+
+<Mermaid title="Diagrama entidade-relacionamento do InvestApp">
+{`
+erDiagram
+  USER ||--o{ INVESTMENT : "possui"
+  CATEGORY ||--o{ INVESTMENT : "classifica"
+  BROKER ||--o{ INVESTMENT : "custodia"
+
+  USER {
+    string id PK
+    string name
+    string email UK
+    string password
+  }
+  INVESTMENT {
+    string id PK
+    string name
+    int amount
+    datetime dueDate
+    string userId FK
+    string categoryId FK
+    string brokerId FK
+  }
+  CATEGORY {
+    string id PK
+    string name UK
+    string color
+  }
+  BROKER {
+    string id PK
+    string name UK
+  }
+`}
+</Mermaid>
+
+| Cardinalidade      | Onde fica a chave estrangeira            | Exemplo                       |
+| ------------------ | ---------------------------------------- | ----------------------------- |
+| Um-para-muitos     | no lado "muitos"                          | `Investment.categoryId`       |
+| Muitos-para-muitos | em uma tabela de junção                   | `Host` ↔ `Tag`                |
+| Um-para-um         | em qualquer lado, com `@unique`           | `User` ↔ `Profile`            |
+
+## Um-para-muitos
+
+A relação é declarada nos dois models, mas só um deles guarda a coluna:
+
+```prisma title="prisma/schema.prisma" showLineNumbers {5-6,12}
+model Investment {
+  id         String   @id @default(cuid())
+  name       String
+  amount     Int
+  categoryId String                                              // a coluna real
+  category   Category @relation(fields: [categoryId], references: [id])
+}
+
+model Category {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  investments Investment[]                                       // o lado virtual
+}
+```
+
+<Aside type="note" title="Só um lado vira coluna">
+  `categoryId` existe na tabela; `category` e `investments` são campos **virtuais** que o
+  Prisma usa para navegar. `Investment[]` em `Category` não cria nada no banco — quem guarda
+  a ligação é sempre o lado "muitos".
+</Aside>
+
+## Muitos-para-muitos
+
+Quando os dois lados podem ter vários do outro, é preciso uma tabela de junção. O Prisma
+oferece as duas formas:
+
+<Tabs syncKey="many-to-many">
+  <TabItem label="Implícita">
+    ```prisma title="prisma/schema.prisma" showLineNumbers {4,9}
+    model Host {
+      id   String @id @default(cuid())
+      name String
+      tags Tag[]
+    }
+
+    model Tag {
+      id    String @id @default(cuid())
+      name  String @unique
+      hosts Host[]
+    }
+    ```
+
+    O Prisma cria e gerencia a tabela `_HostToTag` sozinho. Simples — mas não dá para
+    guardar nada além da ligação.
+  </TabItem>
+
+  <TabItem label="Explícita">
+    ```prisma title="prisma/schema.prisma" showLineNumbers {12-13,15}
+    model Host {
+      id   String    @id @default(cuid())
+      tags HostTag[]
+    }
+
+    model Tag {
+      id    String    @id @default(cuid())
+      hosts HostTag[]
+    }
+
+    model HostTag {
+      host      Host     @relation(fields: [hostId], references: [id])
+      hostId    String
+      tag       Tag      @relation(fields: [tagId], references: [id])
+      tagId     String
+      createdAt DateTime @default(now())   // atributo da própria ligação
+
+      @@id([hostId, tagId])
+    }
+    ```
+
+    Necessária assim que a ligação tiver dados próprios — quando foi criada, por quem, com
+    qual peso.
+  </TabItem>
+</Tabs>
+
+<Aside type="tip" title="Comece implícita, migre quando precisar">
+  A forma implícita cobre o caso "apenas ligar A e B". No momento em que aparecer o primeiro
+  atributo da ligação, a migração para a forma explícita é inevitável — e é uma migration de
+  dados, não só de estrutura.
+</Aside>
+
+## Carregando dados relacionados
+
+Por padrão, uma consulta traz apenas as colunas do próprio model. Trazer o relacionado é uma
+escolha explícita:
+
+```ts title="include: acrescenta ao resultado completo" showLineNumbers {3-6}
+const investments = await prisma.investment.findMany({
+  include: {
+    category: true,
+    broker: true,
+    user: { select: { id: true, name: true } },   // sem a senha
+  },
+});
+```
+
+```ts title="select: escolhe exatamente o que sai" showLineNumbers {2-8}
+const investments = await prisma.investment.findMany({
+  select: {
+    id: true,
+    name: true,
+    amount: true,
+    category: { select: { name: true, color: true } },
+  },
+});
+```
+
+| Critério                        | `include`                     | `select`                        |
+| ------------------------------- | ----------------------------- | ------------------------------- |
+| Campos do próprio model         | todos                         | só os listados                  |
+| Relacionamentos                 | acrescentados                 | acrescentados                   |
+| Coluna sensível (`password`)    | **vem junto**                 | fica de fora por construção     |
+| Podem ser combinados            | não no mesmo nível            | —                               |
+
+A resposta com relações aninhadas é o que o front-end costuma precisar para renderizar sem
+uma segunda chamada:
+
+<ApiRequest method="GET" path="/api/investments" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  [
+    {
+      "id": "b1c2",
+      "name": "Tesouro Selic 2029",
+      "amount": 20000,
+      "category": { "id": "8f14", "name": "Pós-fixado", "color": "#6366f1" },
+      "broker": { "id": "45c4", "name": "Banco Inter" }
+    }
+  ]
+`}
+</ApiResponse>
+
+<Aside type="caution" title="Definir o `include` no model, não no controller">
+  Espalhar `include` pelos controllers faz a mesma entidade sair com formatos diferentes
+  dependendo da rota. Concentre a definição em uma constante no model:
+
+  ```ts title="src/models/investment-model.ts"
+  const include = {
+    category: true,
+    broker: true,
+    user: { select: { id: true, name: true, email: true } },
+  };
+  ```
+</Aside>
+
+## Filtrando por relação
+
+O `where` navega pelos relacionamentos com três operadores:
+
+```ts title="Filtros relacionais" showLineNumbers {3,9,15}
+// Investimentos cuja categoria se chama "Pós-fixado"
+await prisma.investment.findMany({
+  where: { category: { name: 'Pós-fixado' } },
+});
+
+// Usuários que têm ao menos um investimento acima de 10000
+await prisma.user.findMany({
+  where: { investments: { some: { amount: { gt: 10000 } } } },
+});
+
+// Usuários sem nenhum investimento
+await prisma.user.findMany({
+  where: { investments: { none: {} } },
+});
+```
+
+| Operador | Significado                                  |
+| -------- | -------------------------------------------- |
+| `some`   | ao menos um relacionado satisfaz a condição   |
+| `every`  | todos os relacionados satisfazem              |
+| `none`   | nenhum relacionado satisfaz                   |
+
+## Criando registros ligados
+
+Há três formas de estabelecer a ligação na criação, e a escolha depende de o outro registro
+já existir:
+
+```ts title="connect, create e connectOrCreate" showLineNumbers {5,10,17}
+// 1. O relacionado já existe: apenas ligue.
+await prisma.investment.create({
+  data: {
+    name: 'CDB Inter',
+    amount: 15000,
+    category: { connect: { id: categoryId } },
+  },
+});
+
+// 2. Criar os dois de uma vez, em uma transação implícita.
+await prisma.user.create({
+  data: {
+    name: 'Ana',
+    email: 'ana@example.com',
+    investments: {
+      create: [{ name: 'Tesouro Selic', amount: 20000, categoryId, brokerId }],
+    },
+  },
+});
+
+// 3. Ligar se existir, criar se não existir — ideal em seeds.
+await prisma.investment.create({
+  data: {
+    name: 'LCI',
+    amount: 8000,
+    category: { connectOrCreate: { where: { name: 'IPCA' }, create: { name: 'IPCA', color: '#f43f5e' } } },
+  },
+});
+```
+
+<Aside type="tip" title="Passar `categoryId` direto também funciona">
+  `data: { categoryId }` é equivalente a `category: { connect: { id } }` e é mais curto. A
+  forma com `connect` fica melhor quando a criação é aninhada em vários níveis.
+</Aside>
+
+## O que acontece na exclusão
+
+Apagar uma categoria que tem investimentos não é uma decisão do banco — é uma decisão de
+produto, declarada no schema:
+
+| `onDelete`  | Efeito ao apagar o pai                          | Quando usar                        |
+| ----------- | ----------------------------------------------- | ---------------------------------- |
+| `Restrict`  | impede a exclusão (padrão em campos obrigatórios)| categorias, corretoras             |
+| `Cascade`   | apaga os filhos junto                            | investimentos de um usuário apagado|
+| `SetNull`   | zera a chave estrangeira (exige campo opcional)  | autor de um post que sai do sistema|
+
+```prisma title="prisma/schema.prisma" showLineNumbers {3,7}
+model Investment {
+  // O usuário sai, os investimentos dele saem junto.
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+
+  // A categoria não pode ser apagada enquanto houver investimentos nela.
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryId String
+}
+```
+
+<Aside type="danger" title="`Cascade` apaga em silêncio">
+  Um `DELETE /users/1` com cascata pode remover milhares de linhas sem nenhum aviso. Use-o
+  onde o filho realmente não faz sentido sem o pai, e prefira `Restrict` quando a exclusão
+  precisar ser uma decisão consciente.
+</Aside>
+
+## O problema N+1
+
+Buscar a lista e depois o relacionado de cada item dispara uma consulta por registro — dez
+usuários viram onze consultas:
+
+```ts title="N+1: uma consulta por usuário" del={4-6}
+const users = await prisma.user.findMany();
+
+for (const user of users) {
+  user.investments = await prisma.investment.findMany({
+    where: { userId: user.id },
+  });
+}
+```
+
+```ts title="Com include: o Prisma resolve em duas consultas" ins={2}
+const users = await prisma.user.findMany({
+  include: { investments: true },
+});
+```
+
+<Aside type="tip" title="Ligue o log e conte">
+  `new PrismaClient({ log: ['query'] })` imprime cada consulta executada. É a forma mais
+  direta de descobrir um N+1 escondido — e de confirmar que o `include` o resolveu.
+</Aside>
+
+## Exercício
+
+No projeto `express-prisma`:
+
+1. Acrescente `Category` e relacione-a a `Post` (uma categoria, vários posts).
+2. Acrescente uma relação muitos-para-muitos entre `Post` e um novo model `Tag`.
+3. Defina `onDelete: Cascade` de `User` para `Post` e `onDelete: Restrict` de `Category` para
+   `Post`.
+4. Faça `GET /posts` devolver título, nome do autor, nome da categoria e as tags — sem a
+   senha do autor.
+5. Crie um post já ligado a duas tags existentes em uma única chamada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/models/post-model.js" showLineNumbers
+  const include = {
+    author: { select: { id: true, name: true } },
+    category: { select: { name: true } },
+    tags: { select: { name: true } },
+  };
+
+  export function findAll() {
+    return prisma.post.findMany({ include });
+  }
+
+  export function create({ title, authorId, categoryId, tagIds }) {
+    return prisma.post.create({
+      data: {
+        title,
+        authorId,
+        categoryId,
+        tags: { connect: tagIds.map((id) => ({ id })) },
+      },
+      include,
+    });
+  }
+  ```
+
+  O `select` em `author` é o que impede a senha de sair — com `author: true` ela viria junto.
+</details>
+
+## Desafio
+
+Implemente `GET /categories/summary` devolvendo, para cada categoria, o total investido e a
+quantidade de investimentos. Compare duas soluções: `include` com agregação em JavaScript e
+`prisma.investment.groupBy`. Meça quantas consultas cada uma dispara.
+
+## Perguntas de revisão
+
+### Modelagem
+
+1. **Em uma relação um-para-muitos, qual lado guarda a chave estrangeira?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O lado "muitos". `Investment.categoryId` é uma coluna real; `Category.investments` é um
+     campo virtual que o Prisma usa para navegar e não existe no banco.
+   </details>
+
+2. **Quando a relação muitos-para-muitos precisa ser explícita?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Assim que a ligação tiver atributos próprios — data de criação, autor, peso. A forma
+     implícita só armazena o par de identificadores.
+   </details>
+
+### Consultas
+
+3. **Qual a diferença entre `include` e `select`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `include` acrescenta relacionamentos ao resultado completo, trazendo todas as colunas do
+     model. `select` lista exatamente o que sai — e é a forma de garantir que uma coluna
+     sensível não seja retornada.
+   </details>
+
+4. **O que é o problema N+1?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Buscar uma lista e, para cada item, disparar outra consulta pelo relacionado: uma
+     consulta mais N. O `include` resolve tudo em um número fixo de consultas.
+   </details>
+
+5. **Por que `onDelete: Cascade` exige cuidado?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque apaga silenciosamente todos os registros dependentes — um `DELETE` em um usuário
+     pode remover milhares de linhas. `Restrict` torna a exclusão uma decisão consciente.
+   </details>
+
+## Referências
+
+- [Prisma — Relations](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations)
+- [Prisma — Select fields](https://www.prisma.io/docs/orm/prisma-client/queries/select-fields)
+- [Prisma — Nested writes](https://www.prisma.io/docs/orm/prisma-client/queries/relation-queries)
+- [Prisma — Referential actions](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/referential-actions)
+
+## Na prática
+
+A etapa correspondente do projeto é
+[InvestApp: Prisma ORM](../../practice/investapp/prisma/), que acrescenta `Category` e
+`Broker` ao InvestApp.
+
+## Próxima aula
+
+[Senhas e Hash](../../auth/passwords/): como guardar uma senha sem poder lê-la de volta.

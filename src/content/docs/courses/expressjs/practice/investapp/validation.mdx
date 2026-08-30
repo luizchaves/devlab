@@ -1,0 +1,430 @@
+---
+title: "InvestApp: Validação"
+description: "Quarta etapa do InvestApp: validação de body, query string e parâmetros de rota com Zod, e como ela se relaciona com a validação no front-end e as restrições do banco."
+course: expressjs
+sidebar:
+  label: "4. Validação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **4 de 13** · Nível **Intermediário** · TypeScript · Express.js · Zod
+
+Depois da separação em camadas, o InvestApp ganha uma barreira explícita na entrada da API.
+Antes de controller, model ou banco receberem dados, um schema verifica `body`, `query` e
+`params`.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Validação e Resiliência**: veja [Validação de Requisições](../../../api/validation/) e [Tratamento de Erros](../../../api/error-handling/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP04 · Fundação Técnica** › **Feature FT10 · Validação de entrada**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF01** Validação Estrita de Dados | `body`, `query` e `params` validados por schema antes do handler | atendido |
+
+### US04 — Saber exatamente o que corrigir · RNF01
+
+> **Como** investidor,
+> **quero** uma mensagem que diga qual campo está errado e por quê,
+> **para** corrigir o cadastro sem adivinhar.
+
+```gherkin
+Cenário: CA04.1 - Rejeitar corpo inválido
+  Quando envio POST /api/investments com nome de 2 letras e valor negativo
+  Então recebo o status 400
+  E o corpo traz a lista de problemas encontrados pelo Zod
+
+Cenário: CA04.2 - Resposta diz qual campo falhou
+  Quando o Zod rejeita a requisição
+  Então a resposta indica se a falha veio de body, query ou params
+  E aponta o nome do campo com erro
+
+Cenário: CA04.3 - Parâmetro de rota é validado antes do handler
+  Quando envio GET /api/investments/abc com um id que não é UUID
+  Então recebo o status 400
+  E o armazenamento não chega a ser consultado
+
+Cenário: CA04.4 - Recurso ausente é diferente de formato inválido
+  Quando envio GET /api/investments/{uuid} com um UUID válido e inexistente
+  Então recebo o status 404
+
+Cenário: CA04.5 - Filtro opcional, mas nunca vazio
+  Quando envio GET /api/investments sem query string
+  Então recebo o status 200
+  Mas quando envio GET /api/investments?name=
+  Então recebo o status 400
+
+Cenário: CA04.6 - A validação sai dos controllers
+  Quando abro qualquer controller
+  Então não existe nenhum if de validação de entrada
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US04 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts`**: Middleware genérico que valida `body`, `query` e `params` contra um schema.
+2. **TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas**: Um schema por fonte de dados, composto pelas rotas que os usam.
+
+</Steps>
+
+## Estrutura da aplicação
+
+A etapa acrescenta dois arquivos e altera um: entram `src/middlewares/validate.ts` e
+`src/schemas/investment.schema.ts`, e o roteador passa a compor os schemas nas rotas. Todo o
+resto vem intacto da etapa 3.
+
+<ProjectLinks path="examples/courses/express/projects/invest-app-validation" />
+
+<FileTree>
+{`
+  invest-app-validation/
+  ├── package.json
+  ├── tsconfig.json
+  ├── requests.http
+  ├── public/
+  └── src/
+      ├── index.ts
+      ├── controllers/
+      ├── data/
+      ├── errors/
+      ├── models/
+      ├── types/
+      ├── middlewares/
+      │   ├── errorHandlers.ts
+      │   ├── requireJsonContentType.ts
+      │   └── validate.ts           novo: o middleware genérico desta etapa
+      ├── routes/
+      │   └── investments.routes.ts nas rotas entram os schemas
+      └── schemas/
+          └── investment.schema.ts  novo: body, params e query
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+A etapa anterior organizou o código. Esta etapa aproveita essa organização para encaixar um
+middleware de validação entre a rota e o handler:
+
+```diff title="Etapa 3 → 4: a verificação sai do handler e vira contrato" showLineNumbers
+ // src/routes/investments.routes.ts
++import { validate } from '@/middlewares/validate.ts';
++import { createInvestmentSchema } from '@/schemas/investment.schema.ts';
+
+-router.post('/investments', requireJson, InvestmentController.create);
++router.post(
++  '/investments',
++  requireJson,
++  validate(createInvestmentSchema),
++  InvestmentController.create,
++);
+```
+
+O ponto importante é que a rota passa a declarar o contrato que aceita. Dado inválido não
+fica espalhado em `if` dentro do controller.
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts` (Middleware genérico de validação)
+
+```bash title="Terminal: instalação do Zod"
+npm install zod
+```
+
+A função `validate` da linha 11 não é um middleware: ela **devolve** um. Esse padrão é o que permite escrever `validate(createInvestmentSchema)` na declaração da rota e ainda assim entregar ao Express a assinatura `(req, res, next)` que ele espera.
+
+O `safeParse` das linhas 13 a 17 é o coração do arquivo. Repare que ele não valida `req.body` sozinho: monta um objeto com as **três** fontes de dados de uma requisição — `body`, `query` e `params` — e valida o conjunto. É por isso que todo schema desta etapa começa com uma dessas três chaves.
+
+O restante é a bifurcação. Dados inválidos viram um `HttpError` com as issues do Zod anexadas (linha 20), e quem transforma isso em resposta é o `errorHandler` que a etapa 3 já tinha — nenhum middleware novo monta resposta de erro. Dados válidos seguem para o handler com o `next()` da linha 23.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-validation/src/middlewares/validate.ts"
+  title="src/middlewares/validate.ts"
+  showLineNumbers
+  mark="11,13-17,20,23"
+/>
+
+### TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas
+
+O schema é montado em duas camadas, e essa separação é o ponto didático da etapa.
+
+Primeiro, uma constante por **fonte de dados**: `body` nas linhas 4 a 8, com nome de no mínimo 3 caracteres e valor positivo; `params` nas linhas 9 a 11, exigindo que o `:id` da URL seja um UUID; e `query` nas linhas 13 a 15, com o filtro `name` opcional mas nunca vazio.
+
+Depois, um schema por **rota**, composto só com o que aquela rota realmente recebe (linhas 17 a 25). O `createInvestmentSchema` leva apenas `body`; o `readInvestmentByIdSchema`, apenas `params`; e o `updateInvestmentSchema` leva os dois, porque o `PUT` recebe corpo **e** parâmetro de rota.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-validation/src/schemas/investment.schema.ts"
+  title="src/schemas/investment.schema.ts"
+  showLineNumbers
+  mark="4-8,9-11,13-15,17-25"
+/>
+
+No roteador, cada rota ganha o seu `validate`. Compare com a etapa 3: a lista de rotas continua sendo uma tabela de método, caminho e controller — só que agora cada linha também declara **o contrato de entrada** que aceita.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-validation/src/routes/investments.routes.ts"
+  title="src/routes/investments.routes.ts"
+  showLineNumbers
+  mark="19,22,23,27,30"
+/>
+
+Repare no que **não** mudou: os controllers e o model vieram intactos da etapa 3. A verificação não foi movida para dentro deles — ela vive na fronteira, e o handler só executa depois que o schema aprova.
+
+## As três camadas de validação
+
+O schema desta etapa protege a API, mas ele não é a única barreira de um sistema — nem deveria
+ser. Validação aparece em três lugares, com propósitos diferentes, e confundi-los é a origem de
+duas falhas clássicas: achar que o front protege, e achar que o servidor basta.
+
+| Camada | Onde roda | Serve para | Um atacante contorna? |
+| ------ | --------- | ---------- | --------------------- |
+| Front-end | navegador | dar retorno imediato a quem digita | sim, trivialmente |
+| API (esta etapa) | servidor | recusar dado inválido antes da regra de negócio | não |
+| Banco de dados | SGBD | impedir estado inválido, venha de onde vier | não |
+
+As três se sobrepõem de propósito. A repetição não é desperdício: cada uma falha de um jeito
+diferente, e a de baixo é a última que resta quando as outras falham.
+
+### No front-end: retorno imediato, nunca proteção
+
+O HTML já valida sem uma linha de JavaScript. Os campos do formulário da etapa 1 podem declarar
+as mesmas regras do schema:
+
+```html title="public/index.html — validação nativa do navegador"
+<input class="input" type="text" name="name" required minlength="3" />
+<input class="input" type="number" name="value" required min="1" step="1" />
+```
+
+O navegador bloqueia o envio e exibe a mensagem sozinho. Para mensagens próprias, a API de
+validação de formulário do DOM dá o estado de cada campo:
+
+```js title="public/js/index.js — mensagens próprias"
+form.onsubmit = (event) => {
+  const campo = form.querySelector('[name="name"]');
+
+  if (!campo.checkValidity()) {
+    event.preventDefault();
+    // `validity` diz *qual* regra quebrou: tooShort, valueMissing, rangeUnderflow…
+    campo.setCustomValidity(
+      campo.validity.tooShort ? 'O nome deve ter no mínimo 3 caracteres' : ''
+    );
+    campo.reportValidity();
+  }
+};
+```
+
+O ganho é de experiência: o usuário descobre o erro enquanto digita, sem esperar a ida ao
+servidor. O ganho de segurança é **zero** — o `minlength` é um atributo do HTML na máquina de
+quem acessa, e some com um clique no DevTools ou com um `curl` que ignora o formulário.
+
+<Aside type="danger" title="Validação de front nunca protege a API">
+  Qualquer cliente pode chamar `POST /api/investments` sem passar pelo formulário. É por isso
+  que a etapa 4 existe: as regras do front são uma cópia por conveniência, e a cópia que vale é
+  a do servidor.
+</Aside>
+
+### No banco: a última linha de defesa
+
+O schema do Zod protege quem entra **pela API**. O banco continua exposto a tudo o mais: um
+seeder, um script de migração de dados, um `INSERT` no terminal, ou um segundo serviço que
+compartilhe a base no futuro.
+
+Por isso as mesmas regras aparecem uma terceira vez, agora como restrições da tabela. Na etapa
+6, quando o SQLite entrar, o `CREATE TABLE` já traz as primeiras:
+
+```sql title="Restrições que vivem na tabela"
+CREATE TABLE investments (
+  id    TEXT PRIMARY KEY,                    -- unicidade garantida pelo banco
+  name  TEXT NOT NULL,                       -- obrigatoriedade
+  value INTEGER NOT NULL CHECK (value > 0)   -- a mesma regra do z.number().positive()
+);
+```
+
+Cada uma tem um equivalente do lado da aplicação:
+
+| Regra | No Zod | No banco |
+| ----- | ------ | -------- |
+| campo obrigatório | ausência de `.optional()` | `NOT NULL` |
+| valor positivo | `z.number().positive()` | `CHECK (value > 0)` |
+| e-mail único | consulta prévia, sujeita a corrida | `UNIQUE` |
+| dono existente | nenhuma | `FOREIGN KEY` |
+
+A linha do e-mail merece atenção, porque é onde a diferença entre as camadas fica visível.
+Verificar na aplicação se o e-mail já existe **não** garante unicidade: entre a consulta e a
+inserção, outra requisição pode gravar o mesmo endereço. Só o `UNIQUE` do banco fecha essa
+janela, porque a checagem acontece dentro da transação. É por isso que a etapa 8 declara
+`email String @unique` no schema do Prisma e trata a violação como `409`, em vez de confiar
+em um `if`.
+
+<Aside type="tip" title="A regra de bolso">
+  Valide **cedo** para a experiência e **fundo** para a integridade. O front avisa, a API
+  recusa, o banco impede. Quando as três discordam, quem manda é a de baixo — e é por isso que
+  a mensagem amigável tem que estar em cima.
+</Aside>
+
+Para que essas issues cheguem ao cliente, duas peças da etapa 3 crescem três linhas cada. O
+`HttpError` ganha o campo opcional `issues` na linha 3 e o terceiro parâmetro do construtor na
+linha 5; o `errorHandler` passa a espalhá-lo na resposta, e o `...(err.issues ? ... : {})` da
+linha 26 é o que mantém as respostas antigas intactas — sem issues, o corpo continua sendo só
+`{ error }`.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/invest-app-validation/src/errors/HttpError.ts', label: 'HttpError.ts', mark: '3,5,8' },
+    { path: 'examples/courses/express/projects/invest-app-validation/src/middlewares/errorHandlers.ts', label: 'errorHandlers.ts', mark: '24-26' },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. Entre no exemplo desta etapa:
+
+   ```bash title="Terminal"
+   cd examples/courses/express/projects/invest-app-validation
+   npm install
+   ```
+
+2. Suba a API em modo watch:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+3. Confira os tipos:
+
+   ```bash title="Terminal"
+   npm run typecheck
+   ```
+
+</Steps>
+
+## Testando
+
+As três fontes são verificadas antes de o handler rodar — nada chega ao model. Comece pelo
+corpo, com nome curto demais e valor negativo:
+
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000" description="Corpo inválido em dois campos">
+{`
+  {
+    "name": "TS",
+    "value": -100
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={400}>
+{`
+  {
+    "error": "Validation error",
+    "issues": [
+      { "code": "too_small", "message": "O nome deve ter no minimo 3 caracteres", "path": ["body", "name"] },
+      { "code": "too_small", "message": "O valor deve ser positivo", "path": ["body", "value"] }
+    ]
+  }
+`}
+</ApiResponse>
+
+Agora o parâmetro de rota. Um `:id` que não é UUID nem chega a ser procurado no banco:
+
+<ApiRequest method="GET" path="/api/investments/abc" baseUrl="http://localhost:3000" description="Parâmetro de rota inválido" />
+
+<ApiResponse status={400}>
+{`
+  {
+    "error": "Validation error",
+    "issues": [
+      { "validation": "uuid", "message": "O id deve ser um UUID valido", "path": ["params", "id"] }
+    ]
+  }
+`}
+</ApiResponse>
+
+E a query string. O filtro `name` é opcional, mas se vier não pode ser vazio:
+
+<ApiRequest method="GET" path="/api/investments?name=" baseUrl="http://localhost:3000" description="Filtro presente e vazio" />
+
+<ApiResponse status={400}>
+{`
+  {
+    "error": "Validation error",
+    "issues": [
+      { "code": "too_small", "message": "O filtro name nao pode ser vazio", "path": ["query", "name"] }
+    ]
+  }
+`}
+</ApiResponse>
+
+Repare no `path` de cada issue: ele começa em `"body"`, `"params"` ou `"query"` justamente
+porque o middleware valida o objeto `{ body, query, params }` inteiro. É esse caminho que
+permite ao front destacar o campo exato que falhou, sem adivinhação.
+
+Note também a diferença entre `400` e `404` nas duas leituras por id. `GET /api/investments/abc`
+é `400`: o formato do id está errado. Já um UUID bem formado que não existe no banco é `404` —
+o pedido faz sentido, o recurso é que não está lá.
+
+## O diff que importa
+
+Compare esta etapa com a anterior procurando só a entrada da API:
+
+```bash title="Terminal"
+git diff --no-index -- \
+  examples/courses/express/projects/invest-app-typescript/src \
+  examples/courses/express/projects/invest-app-validation/src || true
+```
+
+O padrão esperado é sempre o mesmo: onde havia `if` manual dentro do handler, passa a haver um
+`validate(schema)` na assinatura da rota. Compare a criação de investimento na etapa 2, quando
+tudo morava junto, com a mesma rota agora.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/src/routes.js"
+  title="Etapa 2 — a verificação mora dentro do handler"
+  lines="14-28"
+  showLineNumbers
+  mark="17-19"
+/>
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-validation/src/routes/investments.routes.ts"
+  title="Etapa 4 — a verificação vira contrato declarado na rota"
+  lines="16-21"
+  showLineNumbers
+  mark="19"
+/>
+
+Quem lê a rota já sabe o que ela aceita sem abrir o handler — e o handler, que na etapa 2 tinha
+quinze linhas, agora é uma referência a um controller de três.
+
+## Conceitos abordados
+
+- Validação de `body`, `query` e `params` com um único middleware
+- Schemas com Zod, compostos por fonte de dados
+- Erro `400` antes de a requisição chegar ao model
+- Contrato da API declarado na própria rota
+- As três camadas: front para a experiência, API para o contrato, banco para a integridade
+- Por que verificar unicidade na aplicação não substitui o `UNIQUE` do banco
+
+<Aside type="tip">
+  A aula correspondente é [Validação](../../../api/validation/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: Documentação da API](../swagger/) — o mesmo schema que valida passa a
+documentar, em OpenAPI.

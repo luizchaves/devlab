@@ -1,0 +1,365 @@
+---
+title: "Express.js: Paginação, Filtros e Ordenação"
+description: "Parâmetros de consulta em coleções que crescem: paginação por offset e por cursor, envelope de resposta, filtros combináveis, ordenação com lista de campos permitidos e limites de segurança."
+course: expressjs
+sidebar:
+  label: "Paginação e Filtros"
+---
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+`GET /investments` funciona muito bem com vinte registros. Com duzentos mil, a mesma rota
+derruba o servidor, a rede e o navegador. Esta aula trata dos parâmetros que fazem uma
+coleção crescer sem quebrar.
+
+## Objetivo
+
+Ao final você saberá paginar por offset e por cursor, escolher entre os dois, combinar
+filtros opcionais sem uma cascata de `if`, e permitir ordenação sem abrir a porta para
+consultas arbitrárias.
+
+## Por que não devolver tudo
+
+Uma listagem sem limite tem três custos simultâneos, e todos crescem junto com a tabela:
+
+| Custo         | Efeito                                                          |
+| ------------- | --------------------------------------------------------------- |
+| Banco         | varredura completa da tabela a cada chamada                      |
+| Memória       | o processo carrega o resultado inteiro antes de serializar       |
+| Rede          | megabytes trafegados para exibir dez linhas na tela              |
+
+<Aside type="danger" title="Limite padrão não é opcional">
+  Uma rota de listagem sem limite padrão é uma negação de serviço esperando acontecer: basta
+  a tabela crescer. Defina um padrão (20 ou 50) e um teto (100), independentemente do que o
+  cliente peça.
+</Aside>
+
+## Paginação por offset
+
+É a forma mais direta: pular `N` registros e pegar os próximos `M`.
+
+```ts title="src/controllers/investment-controller.ts" showLineNumbers {2-3,5}
+export async function index(req: Request, res: Response) {
+  const page = Math.max(1, Number(req.query.page ?? 1));
+  const perPage = Math.min(100, Math.max(1, Number(req.query.perPage ?? 20)));
+
+  const [items, total] = await Investment.paginate({ skip: (page - 1) * perPage, take: perPage });
+
+  res.json({
+    data: items,
+    meta: { page, perPage, total, totalPages: Math.ceil(total / perPage) },
+  });
+}
+```
+
+O envelope separa os dados dos metadados, e é o que permite ao front-end desenhar a
+paginação:
+
+<ApiRequest method="GET" path="/investments?page=2&perPage=2" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "data": [
+      { "id": "c3f1", "name": "CDB Inter", "amount": 15000 },
+      { "id": "a9d2", "name": "LCI Banco X", "amount": 8000 }
+    ],
+    "meta": {
+      "page": 2,
+      "perPage": 2,
+      "total": 37,
+      "totalPages": 19
+    }
+  }
+`}
+</ApiResponse>
+
+<Aside type="caution" title="Envelope muda o contrato">
+  Trocar um array puro por `{ data, meta }` quebra todo cliente que fazia
+  `response.json().map(...)`. Se a API já está em uso, ou se versiona
+  ([REST API](../rest/)), ou se colocam os metadados em cabeçalhos — `X-Total-Count` e
+  `Link` — mantendo o corpo como array.
+</Aside>
+
+## Paginação por cursor
+
+O offset tem dois problemas que só aparecem em escala: `OFFSET 100000` ainda faz o banco
+contar cem mil linhas, e um registro inserido entre duas páginas desloca todos os demais —
+o usuário vê o mesmo item duas vezes ou pula um.
+
+<Mermaid title="Offset versus cursor quando um registro é inserido entre duas páginas">
+{`
+flowchart TD
+  subgraph OFF["Offset: SKIP 20 LIMIT 10"]
+    O1["Página 1 lida"] --> O2["Alguém insere um registro no topo"]
+    O2 --> O3["Página 2 desloca<br/>o item 20 aparece de novo"]
+  end
+  subgraph CUR["Cursor: WHERE id > 'último'"]
+    C1["Página 1 lida<br/>guarda o último id"] --> C2["Alguém insere um registro no topo"]
+    C2 --> C3["Página 2 continua do id guardado<br/>sem repetição"]
+  end
+`}
+</Mermaid>
+
+```ts title="Paginação por cursor" showLineNumbers {2,6-8}
+export async function index(req: Request, res: Response) {
+  const { cursor, limit = '20' } = req.query as { cursor?: string; limit?: string };
+  const take = Math.min(100, Number(limit));
+
+  const items = await prisma.investment.findMany({
+    take: take + 1, // um a mais: revela se existe próxima página
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    orderBy: { id: 'asc' },
+  });
+
+  const hasNext = items.length > take;
+  const data = hasNext ? items.slice(0, take) : items;
+
+  res.json({ data, meta: { nextCursor: hasNext ? data.at(-1)?.id : null } });
+}
+```
+
+| Critério                        | Offset (`page`/`perPage`) | Cursor (`cursor`/`limit`)   |
+| ------------------------------- | ------------------------- | --------------------------- |
+| "Ir para a página 7"            | sim                       | não                         |
+| Total de páginas                | sim                       | não (exigiria contar tudo)  |
+| Desempenho em página distante   | degrada                   | constante                   |
+| Estável com inserções           | não                       | sim                         |
+| Uso típico                      | tabela administrativa     | *feed*, rolagem infinita    |
+
+<Aside type="tip" title="Comece por offset">
+  Offset é mais simples, permite "ir para a página N" e resolve a maioria dos casos de sala
+  de aula e de painéis administrativos. Migre para cursor quando a listagem for um feed ou
+  quando a tabela passar de algumas centenas de milhares de linhas.
+</Aside>
+
+## Filtros combináveis
+
+Filtros são opcionais por natureza, e uma cascata de `if` cresce mal. Montar o objeto de
+condições incrementalmente resolve:
+
+<Tabs syncKey="filters">
+  <TabItem label="Cascata de if">
+    ```ts title="Difícil de estender" showLineNumbers
+    let where = {};
+
+    if (req.query.name) {
+      where = { ...where, name: { contains: req.query.name } };
+    }
+
+    if (req.query.categoryId) {
+      where = { ...where, categoryId: req.query.categoryId };
+    }
+
+    if (req.query.minAmount) {
+      where = { ...where, amount: { gte: Number(req.query.minAmount) } };
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Mapa de filtros">
+    ```ts title="src/filters/investment.ts" showLineNumbers {8}
+    const FILTROS = {
+      name: (valor: string) => ({ name: { contains: valor } }),
+      categoryId: (valor: string) => ({ categoryId: valor }),
+      minAmount: (valor: string) => ({ amount: { gte: Number(valor) } }),
+    } as const;
+
+    export function buildWhere(query: Record<string, unknown>) {
+      return Object.entries(FILTROS).reduce((where, [chave, montar]) => {
+        const valor = query[chave];
+
+        return valor ? { ...where, ...montar(String(valor)) } : where;
+      }, {});
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+O mapa também define o que é aceito: um parâmetro fora dele é simplesmente ignorado, e não
+há como o cliente inventar uma condição.
+
+## Ordenação com lista de permitidos
+
+Ordenação é o parâmetro mais perigoso da consulta, porque o valor vira **nome de coluna**.
+Repassá-lo direto permite ordenar por qualquer campo — inclusive `password` — e, em SQL
+montado por concatenação, injetar comandos:
+
+```ts title="src/sorting.ts" showLineNumbers {1,7,11}
+const CAMPOS_ORDENAVEIS = ['name', 'amount', 'createdAt', 'dueDate'] as const;
+
+type CampoOrdenavel = (typeof CAMPOS_ORDENAVEIS)[number];
+
+export function buildOrderBy(sort?: string) {
+  // ?sort=-amount  ->  amount desc
+  const desc = sort?.startsWith('-') ?? false;
+  const campo = sort?.replace(/^-/, '') as CampoOrdenavel;
+
+  if (!CAMPOS_ORDENAVEIS.includes(campo)) {
+    return { createdAt: 'desc' as const }; // padrão previsível
+  }
+
+  return { [campo]: desc ? ('desc' as const) : ('asc' as const) };
+}
+```
+
+<Aside type="danger" title="Nunca use lista de proibidos">
+  Bloquear `password` e liberar o resto falha no primeiro campo sensível que alguém
+  acrescentar ao schema. A lista de **permitidos** é segura por construção: campo novo só
+  entra quando alguém decide colocá-lo lá.
+</Aside>
+
+O mesmo vale para a ordenação estável: dois registros com o mesmo `createdAt` podem trocar
+de posição entre páginas. Acrescentar o `id` como critério de desempate resolve:
+
+```ts title="Ordenação estável"
+orderBy: [{ createdAt: 'desc' }, { id: 'asc' }]
+```
+
+## O contrato completo
+
+Reunindo tudo, a rota de listagem aceita quatro grupos de parâmetros:
+
+| Parâmetro    | Exemplo              | Efeito                                    |
+| ------------ | -------------------- | ----------------------------------------- |
+| `page`       | `?page=2`            | página, começando em 1                     |
+| `perPage`    | `?perPage=50`        | tamanho da página, limitado a 100          |
+| `sort`       | `?sort=-amount`      | campo permitido; `-` inverte a ordem       |
+| filtros      | `?name=CDB&minAmount=1000` | condições combináveis por `AND`      |
+
+<ApiRequest method="GET" path="/investments?page=1&perPage=2&sort=-amount&minAmount=10000" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "data": [
+      { "id": "b1c2", "name": "Tesouro Selic 2029", "amount": 20000 },
+      { "id": "c3f1", "name": "CDB Inter", "amount": 15000 }
+    ],
+    "meta": { "page": 1, "perPage": 2, "total": 2, "totalPages": 1 }
+  }
+`}
+</ApiResponse>
+
+<Aside type="note" title="O `total` custa uma consulta a mais">
+  Devolver `total` exige um `COUNT(*)` com os mesmos filtros — uma segunda consulta a cada
+  listagem. Em tabelas grandes, é comum omiti-lo e devolver apenas `hasNext`, ou calculá-lo
+  de forma aproximada.
+</Aside>
+
+## Exercício
+
+Na rota `GET /users` do projeto `express-typescript`:
+
+1. Aceite `page` e `perPage`, com padrão 20 e teto 100.
+2. Responda no envelope `{ data, meta }`.
+3. Aceite `?name=` filtrando por trecho do nome, sem diferenciar maiúsculas.
+4. Aceite `?sort=` restrito a `name` e `email`, com `-` invertendo a ordem.
+5. Garanta que `?page=0`, `?perPage=9999` e `?sort=password` não quebrem nem exponham nada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/controllers/user-controller.ts" showLineNumbers
+  const CAMPOS_ORDENAVEIS = ['name', 'email'] as const;
+
+  export function index(req: Request, res: Response) {
+    const page = Math.max(1, Number(req.query.page ?? 1) || 1);
+    const perPage = Math.min(100, Math.max(1, Number(req.query.perPage ?? 20) || 20));
+    const name = String(req.query.name ?? '').toLowerCase();
+
+    const sort = String(req.query.sort ?? '');
+    const desc = sort.startsWith('-');
+    const campo = sort.replace(/^-/, '');
+    const ordenarPor = CAMPOS_ORDENAVEIS.includes(campo) ? campo : 'name';
+
+    const filtrados = User.findAll()
+      .filter((user) => user.name.toLowerCase().includes(name))
+      .sort((a, b) => (desc ? -1 : 1) * a[ordenarPor].localeCompare(b[ordenarPor]));
+
+    const total = filtrados.length;
+    const data = filtrados.slice((page - 1) * perPage, page * perPage);
+
+    res.json({
+      data,
+      meta: { page, perPage, total, totalPages: Math.ceil(total / perPage) },
+    });
+  }
+  ```
+
+  O `|| 1` e o `|| 20` cobrem `?page=abc`, em que `Number()` devolve `NaN` e `Math.max` o
+  propagaria.
+</details>
+
+## Desafio
+
+Implemente a paginação por cursor na mesma rota, devolvendo `meta.nextCursor`, e escreva um
+teste que comprove a diferença: inserir um usuário no topo entre a leitura da página 1 e da
+página 2 faz o offset repetir um registro, mas não o cursor.
+
+## Perguntas de revisão
+
+### Paginação
+
+1. **Por que uma listagem sem limite é um risco, e não apenas uma lentidão?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o custo cresce com a tabela, sem que ninguém precise atacar: uma única chamada
+     pode esgotar a memória do processo. É uma negação de serviço que a própria aplicação
+     habilita.
+   </details>
+
+2. **Quando o cursor é melhor que o offset?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Em feeds e listas muito grandes: o desempenho não degrada em páginas distantes e a
+     paginação permanece estável quando registros são inseridos. Em troca, perde-se "ir para
+     a página N" e o total de páginas.
+   </details>
+
+3. **Por que devolver `total` custa caro?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque exige um `COUNT(*)` com os mesmos filtros — uma segunda consulta a cada
+     listagem, que em tabelas grandes percorre muitas linhas.
+   </details>
+
+### Filtros e ordenação
+
+4. **Por que a ordenação precisa de lista de campos permitidos?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o valor vira nome de coluna. Sem a lista, o cliente ordena por qualquer campo —
+     inclusive `password`, o que permite inferir dados — e, em SQL concatenado, injetar
+     comandos.
+   </details>
+
+5. **Por que acrescentar `id` como critério de desempate na ordenação?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque registros com o mesmo valor no campo ordenado não têm ordem garantida entre
+     consultas: eles podem trocar de posição e aparecer duas vezes ou sumir na paginação.
+   </details>
+
+## Referências
+
+- [Prisma — Pagination](https://www.prisma.io/docs/orm/prisma-client/queries/pagination)
+- [RFC 8288 — Web Linking (cabeçalho `Link`)](https://www.rfc-editor.org/rfc/rfc8288.html)
+- [OWASP — Mass Assignment Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html)
+
+## Próxima aula
+
+[Documentação de API](../documentation/): descrever o contrato de forma que outra pessoa
+consiga usar a API sem perguntar nada.

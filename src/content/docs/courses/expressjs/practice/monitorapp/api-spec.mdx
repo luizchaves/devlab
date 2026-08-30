@@ -1,0 +1,506 @@
+---
+title: "MonitorApp: Especificação da API"
+description: "Contrato completo da API do MonitorApp: convenções, autenticação, recursos hosts, pings, tags, users e o fluxo de eventos, com corpos, status codes e formato de erro."
+course: expressjs
+sidebar:
+  label: "Especificação da API"
+---
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este documento é o **contrato** da API do MonitorApp no seu estado final, ao fim da etapa 13. Ele
+descreve o que o servidor aceita e o que devolve, independentemente de como está implementado por
+dentro. A [visão geral](../) trata do produto; o [backlog](../backlog/) trata do trabalho; esta
+página trata da interface entre o front-end e o servidor.
+
+<Aside type="tip" title="Esta página e o documento OpenAPI">
+  Da [etapa 5](../swagger/) em diante o mesmo contrato é publicado em OpenAPI 3, gerado a partir
+  dos schemas Zod que validam as requisições: `GET /api/openapi.json` devolve o documento, e
+  `GET /api/docs` o serve navegável. Esta página é a leitura humana desse contrato, com as
+  regras de negócio que o JSON Schema não expressa.
+</Aside>
+
+## Convenções gerais
+
+| Aspecto | Regra |
+| ------- | ----- |
+| **Base** | `http://localhost:3000/api` em desenvolvimento; em produção, `/api` na mesma origem do front, repassado pelo Nginx |
+| **Formato** | JSON em requisição e resposta, exceto `GET /api/events`, que é `text/event-stream` |
+| **Content-Type** | Toda requisição com corpo deve enviar `application/json`; o servidor responde `400` caso contrário |
+| **Identificadores** | UUID v4 gerados pelo servidor; enviar `id` no corpo não tem efeito |
+| **Datas** | ISO 8601 em UTC, no formato `2026-03-01T12:00:00.000Z` |
+| **Autenticação** | `Authorization: Bearer <token>` em todas as rotas, exceto `POST /api/users` e `POST /api/signin` |
+| **Paginação** | Não há. O histórico é limitado no servidor às 50 medições mais recentes |
+
+### Formato de erro
+
+Toda falha responde com um objeto que tem sempre a chave `error`. Quando a falha veio da
+validação, vem junto a lista `issues`, no formato do Zod:
+
+<Tabs>
+  <TabItem label="Erro simples">
+    ```json title="404 Not Found"
+    {
+      "error": "Host not found"
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Erro de validação">
+    ```json title="400 Bad Request"
+    {
+      "error": "Validation error",
+      "issues": [
+        {
+          "code": "custom",
+          "path": ["body", "address"],
+          "message": "O endereço deve ser um IPv4 ou um nome de domínio"
+        }
+      ]
+    }
+    ```
+
+    O `path` começa pela **fonte** da requisição (`body`, `params` ou `query`), o que permite ao
+    cliente destacar o campo certo do formulário sem inferir nada.
+  </TabItem>
+</Tabs>
+
+### Status codes usados
+
+| Código | Quando |
+| ------ | ------ |
+| `200` | Leitura bem-sucedida, ou atualização que devolve o recurso |
+| `201` | Recurso criado — inclusive uma medição gravada |
+| `204` | Remoção concluída, sem corpo na resposta |
+| `400` | Corpo, query ou parâmetro que não passou no schema; `Content-Type` ausente |
+| `401` | Token ausente, malformado, adulterado ou expirado; credenciais inválidas |
+| `404` | Recurso inexistente **ou pertencente a outra conta** |
+| `409` | Conflito de unicidade: e-mail já cadastrado, tag já existente |
+| `500` | Falha não prevista; o corpo nunca expõe detalhes internos |
+
+<Aside type="caution" title="Por que `404` e não `403` para o recurso de outra conta">
+  Responder `403` confirmaria que o recurso existe. Como a existência de um host também é
+  informação do dono, a API trata "não é seu" e "não existe" como a mesma resposta. Isso é uma
+  decisão de contrato, e está coberta pelo critério `CA11.2` do [backlog](../backlog/).
+</Aside>
+
+## Autenticação
+
+O ciclo é o mesmo em todas as rotas privadas: o cliente troca credenciais por um token e o
+reapresenta a cada requisição.
+
+<Mermaid title="Do login à requisição autenticada">
+{`
+sequenceDiagram
+  participant F as Front
+  participant A as API
+  participant D as SQLite
+
+  F->>A: POST /api/signin { email, password }
+  A->>D: busca o usuário pelo e-mail
+  D-->>A: registro com o hash Argon2id
+  A->>A: verifyPassword em tempo constante
+  A-->>F: 200 { auth: true, token }
+  Note over F: guarda o token no localStorage
+  F->>A: GET /api/hosts (Authorization: Bearer …)
+  A->>A: verifyJwt → req.userId
+  A->>D: SELECT ... WHERE userId = ?
+  D-->>A: apenas os hosts do dono
+  A-->>F: 200 [ … ]
+`}
+</Mermaid>
+
+O token é um JWT HS256 com o seguinte payload. Ele **não é criptografado**: qualquer pessoa
+consegue lê-lo, e o que a assinatura garante é apenas que ele não foi alterado.
+
+```json title="Payload do token"
+{
+  "sub": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd",
+  "name": "Ana Souza",
+  "email": "ana@exemplo.com",
+  "iat": 1772409600,
+  "exp": 1772413200
+}
+```
+
+| Campo | Significado |
+| ----- | ----------- |
+| `sub` | O dono do token. É este valor que vira `req.userId` e entra em toda consulta |
+| `iat` | Instante de emissão, em segundos desde a época |
+| `exp` | Instante de expiração; passado esse ponto, a rota responde `401` |
+
+## Mapa dos endpoints
+
+| Método | Caminho | Autenticado | Sucesso | Erros |
+| ------ | ------- | ----------- | ------- | ----- |
+| POST | `/api/users` | não | `201` | `400`, `409` |
+| POST | `/api/signin` | não | `200` | `400`, `401` |
+| GET | `/api/hosts` | sim | `200` | `400`, `401` |
+| GET | `/api/hosts?name=&tag=` | sim | `200` | `400`, `401` |
+| POST | `/api/hosts` | sim | `201` | `400`, `401` |
+| GET | `/api/hosts/:id` | sim | `200` | `400`, `401`, `404` |
+| PUT | `/api/hosts/:id` | sim | `200` | `400`, `401`, `404` |
+| DELETE | `/api/hosts/:id` | sim | `204` | `400`, `401`, `404` |
+| GET | `/api/hosts/:id/pings` | sim | `200` | `400`, `401`, `404` |
+| POST | `/api/hosts/:id/pings` | sim | `201` | `400`, `401`, `404` |
+| GET | `/api/tags` | sim | `200` | `400`, `401` |
+| POST | `/api/tags` | sim | `201` | `400`, `401`, `409` |
+| GET | `/api/events` | sim | `200` (fluxo) | `401` |
+| GET | `/api/docs` | não | `200` | — |
+| GET | `/api/openapi.json` | não | `200` | — |
+
+## Recurso `users`
+
+Cadastro de conta. É uma das duas rotas públicas do sistema — quem se cadastra ainda não tem
+token.
+
+### `POST /api/users`
+
+| Campo | Tipo | Regra |
+| ----- | ---- | ----- |
+| `name` | `string` | obrigatório, mínimo de 3 caracteres |
+| `email` | `string` | obrigatório, formato de e-mail, único no sistema |
+| `password` | `string` | obrigatório, mínimo de 8 caracteres |
+| `confirmationPassword` | `string` | opcional; quando presente, deve ser igual a `password` |
+
+<ApiRequest method="POST" path="/api/users" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Ana Souza",
+    "email": "ana@exemplo.com",
+    "password": "senha-secreta",
+    "confirmationPassword": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "name": "Ana Souza",
+    "email": "ana@exemplo.com"
+  }
+`}
+</ApiResponse>
+
+A senha **nunca** aparece na resposta, nem como hash. O `confirmationPassword` é conferido pelo
+schema e descartado antes de chegar ao model.
+
+## Recurso `signin`
+
+### `POST /api/signin`
+
+<ApiRequest method="POST" path="/api/signin" baseUrl="http://localhost:3000">
+{`
+  {
+    "email": "ana@exemplo.com",
+    "password": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={200}>
+{`
+  {
+    "auth": true,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YjFkZWI0ZCJ9.Xr2..."
+  }
+`}
+</ApiResponse>
+
+<ApiResponse status={401}>
+{`
+  {
+    "error": "Invalid credentials"
+  }
+`}
+</ApiResponse>
+
+E-mail inexistente e senha errada devolvem exatamente esta resposta. Diferenciar as duas
+entregaria a um atacante a lista de e-mails cadastrados.
+
+## Recurso `hosts`
+
+O recurso central. Todas as rotas exigem token, e todas são resolvidas dentro do escopo do dono.
+
+### Representação
+
+```json title="Host"
+{
+  "id": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd",
+  "name": "Google DNS",
+  "address": "8.8.8.8",
+  "createdAt": "2026-03-01T12:00:00.000Z",
+  "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "tags": [
+    { "id": "…", "name": "infra", "color": "#0ea5e9" }
+  ],
+  "pings": [
+    { "id": "…", "latency": 12, "success": true, "createdAt": "…", "hostId": "…" }
+  ]
+}
+```
+
+O array `pings` traz apenas as **10 medições mais recentes**, da mais nova para a mais antiga: é
+o suficiente para o cartão do painel. O histórico completo tem rota própria.
+
+### Corpo aceito em `POST` e `PUT`
+
+| Campo | Tipo | Regra |
+| ----- | ---- | ----- |
+| `name` | `string` | obrigatório, mínimo de 3 caracteres |
+| `address` | `string` | obrigatório, IPv4 (`8.8.8.8`) **ou** nome de domínio (`www.exemplo.com`) |
+| `tags` | `string[]` | opcional; nomes de tags. A que não existir é criada com a cor neutra `#64748b` |
+
+<Aside type="note" title="Por que a URL completa é recusada">
+  `https://exemplo.com/status` não é um endereço de rede: é um recurso HTTP. O comando `ping`
+  opera sobre host, não sobre caminho. Aceitar a URL adiaria o erro para o momento da medição,
+  quando ele seria bem mais difícil de explicar a quem cadastrou.
+</Aside>
+
+### `GET /api/hosts`
+
+Aceita dois filtros de query, combináveis:
+
+| Parâmetro | Efeito |
+| --------- | ------ |
+| `name` | Devolve os hosts cujo nome contém o texto informado |
+| `tag` | Devolve os hosts rotulados com a tag de nome exato |
+
+<ApiRequest method="GET" path="/api/hosts?tag=infra" baseUrl="http://localhost:3000" description="Requer o cabeçalho Authorization" />
+
+<ApiResponse status={200}>
+{`
+  [
+    {
+      "id": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd",
+      "name": "Google DNS",
+      "address": "8.8.8.8",
+      "tags": [{ "id": "…", "name": "infra", "color": "#0ea5e9" }],
+      "pings": [{ "latency": 12, "success": true, "createdAt": "…" }]
+    }
+  ]
+`}
+</ApiResponse>
+
+Um filtro vazio (`?tag=`) responde `400`: é quase sempre um bug do cliente, e devolver a lista
+inteira esconderia o problema.
+
+### `POST /api/hosts`
+
+<ApiRequest method="POST" path="/api/hosts" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Google DNS",
+    "address": "8.8.8.8",
+    "tags": ["infra", "dns"]
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd",
+    "name": "Google DNS",
+    "address": "8.8.8.8",
+    "createdAt": "2026-03-01T12:00:00.000Z",
+    "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "tags": [
+      { "id": "…", "name": "infra", "color": "#0ea5e9" },
+      { "id": "…", "name": "dns", "color": "#10b981" }
+    ],
+    "pings": []
+  }
+`}
+</ApiResponse>
+
+O `userId` da resposta vem do token. Enviá-lo no corpo não muda o dono — o campo é simplesmente
+ignorado pelo schema.
+
+### `PUT /api/hosts/:id`
+
+Substitui o recurso inteiro. A lista `tags` enviada **substitui** a anterior: uma tag omitida é
+desconectada do host, embora continue existindo para os outros hosts que a usam.
+
+### `DELETE /api/hosts/:id`
+
+Responde `204`, sem corpo. Apaga também todo o histórico de medições do host, por
+`onDelete: Cascade` na relação.
+
+## Recurso `pings`
+
+O histórico de um host. Sempre aninhado sob o host, porque uma medição não existe fora dele.
+
+### `GET /api/hosts/:id/pings`
+
+Devolve até 50 medições, da mais recente para a mais antiga.
+
+<ApiResponse status={200}>
+{`
+  [
+    { "id": "…", "latency": 12, "success": true, "createdAt": "2026-03-01T12:04:00.000Z", "hostId": "…" },
+    { "id": "…", "latency": null, "success": false, "createdAt": "2026-03-01T12:03:00.000Z", "hostId": "…" }
+  ]
+`}
+</ApiResponse>
+
+Um host sem histórico responde `200` com `[]`; um host que não é seu responde `404`.
+
+### `POST /api/hosts/:id/pings`
+
+Executa a medição **agora**, sem esperar a próxima rodada do agendador, e grava o resultado. Não
+tem corpo de requisição.
+
+<ApiRequest method="POST" path="/api/hosts/e4cfb6bb-4431-42a9-b660-d5701b2f49cd/pings" baseUrl="http://localhost:3000" description="Sem corpo; o endereço vem do host cadastrado" />
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "…",
+    "latency": 12,
+    "success": true,
+    "createdAt": "2026-03-01T12:05:00.000Z",
+    "hostId": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd"
+  }
+`}
+</ApiResponse>
+
+Um host fora do ar também responde `201` — a medição foi feita e gravada. O que muda é o
+conteúdo:
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "…",
+    "latency": null,
+    "success": false,
+    "createdAt": "2026-03-01T12:05:00.000Z",
+    "hostId": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd"
+  }
+`}
+</ApiResponse>
+
+<Aside type="note" title="Falha de medição não é erro de API">
+  Um `500` aqui significaria que a aplicação quebrou. O host não responder é um resultado
+  legítimo — e é justamente o resultado que o produto existe para registrar.
+</Aside>
+
+## Recurso `tags`
+
+### `GET /api/tags`
+
+Lista as tags em ordem alfabética. Aceita o filtro opcional `?name=`.
+
+### `POST /api/tags`
+
+Cria uma tag com cor definida, diferente da criação implícita que acontece ao cadastrar um host.
+
+| Campo | Tipo | Regra |
+| ----- | ---- | ----- |
+| `name` | `string` | obrigatório, mínimo de 2 caracteres, único |
+| `color` | `string` | obrigatório, formato hexadecimal `#rrggbb` |
+
+<ApiRequest method="POST" path="/api/tags" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "backup",
+    "color": "#8b5cf6"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={409}>
+{`
+  {
+    "error": "Tag already exists"
+  }
+`}
+</ApiResponse>
+
+<Aside type="caution" title="Tags são globais, hosts não">
+  As tags não pertencem a uma conta: são um vocabulário compartilhado. O que é isolado por dono é
+  o **vínculo** entre host e tag, porque o host é que tem dono. Em um produto real essa é uma
+  decisão a revisar — e é o tipo de pergunta que uma especificação escrita ajuda a fazer cedo.
+</Aside>
+
+## Fluxo de eventos
+
+### `GET /api/events`
+
+Uma resposta HTTP que não termina. O servidor mantém o corpo aberto e escreve um bloco a cada
+medição gravada, no formato Server-Sent Events.
+
+```http title="Resposta"
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+
+: conectado
+
+event: ping
+data: {"hostId":"e4cfb6bb…","userId":"9b1deb4d…","success":true,"latency":12,"createdAt":"2026-03-01T12:05:00.000Z"}
+
+: keep-alive
+
+event: ping
+data: {"hostId":"a2bb615a…","userId":"9b1deb4d…","success":false,"latency":null,"createdAt":"2026-03-01T12:06:00.000Z"}
+```
+
+| Elemento | Significado |
+| -------- | ----------- |
+| `: texto` | Comentário do protocolo. Abre o fluxo e o mantém vivo através de proxies |
+| `event: ping` | Nome do evento; hoje há apenas um tipo |
+| `data: {…}` | O corpo em JSON, em uma linha |
+| linha em branco | Fim do bloco. É por ela que o cliente sabe que pode processar |
+
+O filtro por dono acontece no servidor: um cliente só recebe eventos dos hosts que lhe pertencem.
+
+<Aside type="tip" title="Por que o cliente não usa `EventSource`">
+  A API `EventSource` do navegador seria mais curta, mas não permite enviar cabeçalhos — o token
+  teria que viajar na URL, onde fica registrado em log de servidor e no histórico do navegador.
+  O front do MonitorApp consome o fluxo com `fetch` e `ReadableStream`, o que mantém o
+  `Authorization` no lugar certo. O código está na [etapa 11](../realtime/).
+</Aside>
+
+## Contrato executável
+
+O arquivo `back/requests.http` de cada etapa é a versão executável desta especificação: cada
+bloco separado por `###` vira um botão *Send Request* na extensão
+[REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) do VS Code,
+e o token capturado no login é reutilizado nas requisições seguintes.
+
+```http title="back/requests.http (trecho)"
+@host = http://localhost:3000/api
+@token = {{signin.response.body.$.token}}
+
+### Signin
+
+# @name signin
+POST {{host}}/signin
+Content-Type: application/json
+
+{
+  "email": "ana@exemplo.com",
+  "password": "senha-secreta"
+}
+
+### Read Hosts
+
+GET {{host}}/hosts
+Authorization: Bearer {{token}}
+```
+
+Rodar o arquivo de cima a baixo exercita o contrato inteiro, incluindo os caminhos de erro —
+token ausente, token adulterado e recurso de outra conta.
+
+## Projeto irmão
+
+A [Especificação da API do InvestApp](../../investapp/api-spec/) descreve o mesmo tipo de contrato
+em uma arquitetura de **origem única**, com o front servido por `express.static` e um upload de
+arquivo em `multipart/form-data`. Comparar os dois documentos mostra o que muda no contrato
+quando o front deixa de ter build próprio.

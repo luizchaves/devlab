@@ -1,0 +1,437 @@
+---
+title: "MonitorApp: Ping real"
+description: "Oitava etapa do MonitorApp: execução do comando ping do sistema com node:child_process, parser da latência, agendador periódico e medição sob demanda pela interface."
+course: expressjs
+sidebar:
+  label: "8. Ping real"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **8 de 13** · Nível **Avançado** · `node:child_process` · Agendador
+
+Até a etapa 7 o histórico de medições existia, mas era ficção: as quatro medições de cada host
+vinham do seeder. Esta etapa faz o servidor produzir os próprios dados, executando o comando
+`ping` do sistema operacional.
+
+É a etapa mais delicada do projeto em termos de segurança. Executar um comando do sistema com um
+valor que veio de uma requisição HTTP é a receita clássica de injeção de comando — e é
+justamente por isso que vale fazer, com cuidado, em vez de evitar.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Processos**: veja [Chamada de Sistema](../../../advanced/system-call/)
+  - **Observabilidade**: veja [Observabilidade](../../../architecture/observability/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP02 · Coleta e Tempo Real** › **Feature FT04 · Coleta automática e sob demanda**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF03** Histórico de Medições | medições reais, não mais semeadas | atendido |
+| **RF04** Coleta Automática e Sob Demanda | agendador e `POST /hosts/:id/pings` | atendido |
+| **RNF04** Segurança na Chamada de Sistema | `execFile` sem shell | atendido |
+
+### US08 — Saber se o host está no ar sem abrir o terminal · RF04, RNF04
+
+> **Como** responsável pela rede,
+> **quero** que o sistema meça os hosts sozinho e me deixe antecipar uma medição,
+> **para** descobrir uma queda sem precisar rodar `ping` à mão.
+
+```gherkin
+Cenário: CA08.1 - Medição sob demanda
+  Quando envio POST /api/hosts/{id}/pings
+  Então recebo o status 201
+  E o corpo traz a medição recém-gravada
+
+Cenário: CA08.2 - Host que responde
+  Dado um host acessível
+  Quando a medição é executada
+  Então success é true
+  E latency traz o tempo de resposta em milissegundos
+
+Cenário: CA08.3 - Host fora do ar
+  Dado um endereço que não responde
+  Quando a medição é executada
+  Então recebo o status 201
+  E success é false
+  E latency é nulo
+
+Cenário: CA08.4 - O endereço não vira comando
+  Dado um host com endereço "8.8.8.8; echo comprometido"
+  Quando a medição é executada
+  Então o comando falha
+  E nenhum shell é aberto
+
+Cenário: CA08.5 - Rodada periódica
+  Dado o servidor no ar com MONITOR_INTERVAL igual a 60
+  Quando passa um minuto
+  Então todos os hosts recebem uma nova medição
+
+Cenário: CA08.6 - Uma falha não derruba a rodada
+  Dado três hosts, um deles fora do ar
+  Quando a rodada é executada
+  Então os outros dois são medidos normalmente
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK08.1 · Criar `src/lib/ping.ts`**: `execFile`, argumentos por sistema operacional e parser da latência.
+2. **TK08.2 · Acrescentar `Ping.check` ao model**: mede e grava, inclusive a falha.
+3. **TK08.3 · Criar `src/services/monitor.ts`**: a rodada periódica.
+4. **TK08.4 · Acrescentar o botão "Medir agora"**: a medição sob demanda na tela de histórico.
+
+</Steps>
+
+## Estrutura da aplicação
+
+Duas pastas novas, e a distinção entre elas é o ponto da etapa. O `lib/` guarda código que não
+conhece o domínio — `ping.ts` recebe um endereço e devolve um resultado, e serviria a qualquer
+aplicação. O `services/` guarda o que orquestra o domínio ao longo do tempo: o `monitor.ts` sabe
+o que é um host e quando medi-lo.
+
+<ProjectLinks path="examples/courses/express/projects/monitor-app-ping" />
+
+<FileTree>
+{`
+  monitor-app-ping/
+  ├── back/
+  │   ├── .env.example                   + MONITOR_ENABLED e MONITOR_INTERVAL
+  │   └── src/
+  │       ├── lib/
+  │       │   └── ping.ts                NOVO — a chamada de sistema
+  │       ├── services/
+  │       │   └── monitor.ts             NOVO — o agendador
+  │       ├── models/
+  │       │   └── Ping.ts                + check()
+  │       ├── controllers/
+  │       │   └── pings.controller.ts    + check
+  │       ├── routes/
+  │       │   └── pings.routes.ts        + POST /hosts/:id/pings
+  │       └── index.ts                   inicia o agendador após o listen
+  └── front/
+      ├── host.html                      + botão "Medir agora"
+      └── js/
+          ├── host.js                    dispara a medição e recarrega
+          └── services/api.js            create passa a aceitar chamada sem corpo
+`}
+</FileTree>
+
+Uma medição pode ser disparada de dois lugares — pelo botão da tela ou pelo agendador —, e o
+diagrama mostra que os dois convergem para a **mesma** função. `Ping.check` é o único ponto do
+sistema que mede e grava, então não existe caminho em que uma medição entre no banco sem passar
+pelas mesmas regras.
+
+<Mermaid title="Os dois caminhos até uma medição gravada">
+{`
+flowchart TB
+  B["Botão 'Medir agora'"] --> P["POST /hosts/:id/pings"]
+  T["setInterval<br/>a cada MONITOR_INTERVAL"] --> RR["runRound()"]
+  RR --> AS["Promise.allSettled"]
+  P --> CK["Ping.check(hostId)"]
+  AS --> CK
+  CK --> L["lib/ping.ts<br/>execFile('ping', args)"]
+  L --> H(("Host da rede"))
+  H -. "stdout" .-> L
+  L --> CK
+  CK --> DB[("Ping<br/>success + latency")]
+`}
+</Mermaid>
+
+A seta pontilhada de volta do host é a única parte que a aplicação não controla: é a resposta do
+`ping`, que pode não vir. O que acontece com essa ausência — virar `latency: null` em vez de
+exceção — é o assunto de TK08.2.
+
+## O que muda nesta etapa
+
+| Etapa 7 (`monitor-app-prisma`) | Etapa 8 (`monitor-app-ping`) |
+| ------------------------------ | ---------------------------- |
+| medições vêm do seeder | medições vêm do comando `ping` |
+| `Ping` só tem `readByHost` | `Ping` ganha `check`, que escreve |
+| uma rota de histórico | duas: `GET` lê, `POST` mede |
+| o servidor só reage a requisições | o servidor tem trabalho próprio, periódico |
+| `.env` com uma variável | `.env` com `MONITOR_ENABLED` e `MONITOR_INTERVAL` |
+
+## Descrição das tarefas
+
+### TK08.1 · Criar `src/lib/ping.ts` (A chamada de sistema)
+
+Nenhuma dependência nova: `node:child_process`, `node:os` e `node:util` são todos nativos.
+
+O arquivo tem três funções e cada uma resolve um problema distinto.
+
+**Os argumentos mudam por sistema.** O `buildArgs` das linhas 17 a 21 trata disso: `-c 1` no
+Linux e no macOS, `-n 1` no Windows, para enviar um pacote só; e `-W` em segundos contra `-w` em
+milissegundos para o tempo limite. Sem isso, o projeto rodaria em uma máquina e falharia em
+outra sem explicação aparente.
+
+**A saída é texto, e texto traduzido.** O `parseLatency` das linhas 28 a 32 extrai o número da
+linha `time=12.3 ms`. A expressão da linha 29 aceita `time=` e `tempo=`, porque o `ping` é
+traduzido junto com o sistema, e aceita ponto ou vírgula decimal pelo mesmo motivo. Quando o
+padrão não casa, o retorno é `null` — e é esse `null` que vai virar a medição com falha.
+
+**O terceiro problema é o de segurança**, e está no trecho destacado. A linha 43 usa
+`execFileAsync`, e não `exec`. A diferença é decisiva:
+
+| Função | Como executa | O que acontece com `8.8.8.8; rm -rf /` |
+| ------ | ------------ | -------------------------------------- |
+| `exec` | monta uma linha de comando e entrega a um **shell** | o `;` separa dois comandos, e o segundo roda |
+| `execFile` | executa o binário diretamente, com os argumentos em um **array** | o texto inteiro chega ao `ping` como um argumento só, e falha ali |
+
+Como o `address` vem de uma requisição HTTP, a escolha entre as duas é a diferença entre uma
+aplicação e um shell remoto. O schema da etapa 4 já rejeita endereços fora do formato, mas essa
+é a segunda linha de defesa — não a única.
+
+O `try`/`catch` da linha 42 fecha o desenho: host fora do ar, DNS que não resolve e tempo
+esgotado fazem o `ping` sair com código diferente de zero, o que rejeita a promessa. Todos esses
+casos são a **mesma coisa** para o domínio: uma medição sem resposta.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/back/src/lib/ping.ts"
+  title="back/src/lib/ping.ts"
+  showLineNumbers
+  mark="41-54"
+/>
+
+<Aside type="tip" title="Existe pacote pronto para isso — e por que não usamos">
+  Antes de escrever qualquer integração vale procurar no npm: um pacote maduro já resolveu as
+  diferenças entre sistemas operacionais, as traduções da saída do comando e os casos de borda
+  que ninguém lembra na primeira versão. Para `ping`, os dois candidatos óbvios são:
+
+  | Pacote | Como funciona | Preço |
+  | ------ | ------------- | ----- |
+  | [`ping`](https://www.npmjs.com/package/ping) | envolve o **mesmo** binário do sistema e já traz o parser por plataforma e idioma | uma dependência a mais |
+  | [`net-ping`](https://www.npmjs.com/package/net-ping) | abre socket ICMP em vez de chamar o comando | exige privilégio de raw socket (root ou `CAP_NET_RAW`) |
+
+  Em um projeto de produção, `ping` seria a escolha razoável — são menos de cinquenta linhas que
+  você deixa de manter, e a lista de formatos de saída dele é bem maior que a nossa.
+
+  Aqui a decisão foi deliberadamente a outra, por dois motivos. O primeiro é didático: o assunto
+  da etapa **é** a chamada de sistema, e usar um pacote que a esconde tiraria justamente o que há
+  para aprender — inclusive a diferença entre `exec` e `execFile`, que é a parte de segurança.
+
+  O segundo é a mesma regra que o projeto vem seguindo desde a etapa 9, quando trocou `bcrypt` e
+  `jsonwebtoken` por `node:crypto`: **cada dependência é código de terceiro que entra no seu
+  processo**, e precisa ser atualizada, auditada e confiada. Quando o que ela economiza cabe em
+  um arquivo pequeno e legível, escrever à mão sai mais barato. O critério é esse, e não uma
+  preferência por não usar bibliotecas — Express, Zod, Prisma e Multer estão no projeto
+  exatamente porque não passam nesse mesmo teste.
+</Aside>
+
+### TK08.2 · Acrescentar `Ping.check` ao model
+
+A função das linhas 18 a 28 é curta e faz exatamente três coisas: busca o host para descobrir o
+endereço (linha 19), mede (linha 25) e grava (linha 27).
+
+O ponto didático está no que ela **não** faz: não decide se vale a pena gravar. A medição com
+falha é gravada igual à bem-sucedida, com `success: false` e `latency: null`. É essa
+persistência da ausência que permite calcular disponibilidade — sem os registros de falha, a
+tela de histórico mostraria 100% de uptime para um host que passou a noite fora.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/back/src/models/Ping.ts"
+  title="back/src/models/Ping.ts"
+  showLineNumbers
+  mark="18-28"
+/>
+
+### TK08.3 · Criar `src/services/monitor.ts` (O agendador)
+
+Este arquivo dá ao servidor algo que ele nunca teve: trabalho próprio, que acontece sem que
+ninguém peça.
+
+O `runRound` das linhas 11 a 15 mede todos os hosts. A linha 14 usa `Promise.allSettled`, e não
+`Promise.all` — a diferença aparece na primeira queda. Com `all`, a primeira rejeição abortaria a
+rodada e os hosts restantes ficariam sem medição justamente quando a rede está com problema. Com
+`allSettled`, cada host é medido independentemente. (Como `ping.ts` já converte falha em
+resultado, a rejeição aqui seria por outro motivo — um host apagado no meio da rodada, por
+exemplo — mas a garantia continua valendo.)
+
+O `startMonitor` das linhas 23 a 35 é o agendador. Três detalhes merecem leitura:
+
+- A linha 24 permite desligar tudo com `MONITOR_ENABLED=false`. É o que a etapa 12 usa para que a
+  suíte de testes não dispare `ping` de verdade.
+- A linha 26 executa uma rodada **imediatamente**, além das periódicas. Sem ela, um servidor
+  recém-iniciado ficaria um intervalo inteiro sem nenhum dado.
+- A linha 32 chama `timer.unref()`. Sem isso o `setInterval` manteria o laço de eventos vivo e um
+  `Ctrl+C` demoraria até o próximo tique para encerrar o processo.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/back/src/services/monitor.ts"
+  title="back/src/services/monitor.ts"
+  showLineNumbers
+  mark="11-15,23-35"
+/>
+
+No `index.ts`, o agendador começa **dentro** do callback do `listen` (linhas 29 a 34). A ordem
+importa: iniciar a coleta antes de o servidor estar de pé faria a aplicação gastar tempo medindo
+a rede enquanto ainda não é capaz de responder a ninguém.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/back/src/index.ts"
+  title="back/src/index.ts"
+  showLineNumbers
+  mark="29-34"
+  collapse="1-27"
+/>
+
+<Aside type="caution" title="Um `setInterval` não é um agendador de produção">
+  Este desenho funciona com um processo. Com duas instâncias da API no ar, os dois agendadores
+  medem os mesmos hosts e o histórico fica duplicado. A solução em produção envolve tirar a
+  coleta do processo web — um worker separado, uma fila, ou um agendador com trava distribuída.
+  Vale saber onde este código para de servir.
+</Aside>
+
+### TK08.4 · Acrescentar o botão "Medir agora"
+
+A rota `POST /api/hosts/:id/pings` reaproveita o `readPingsSchema`: os dois métodos validam a
+mesma coisa, um `:id` em formato UUID, porque nenhum dos dois tem corpo.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/back/src/routes/pings.routes.ts"
+  title="back/src/routes/pings.routes.ts"
+  showLineNumbers
+  mark="9-10"
+/>
+
+No front, essa rota sem corpo revelou uma limitação da camada de API: o `create` sempre enviava
+`Content-Type: application/json`, mesmo quando não havia JSON a enviar. O ajuste é o espalhamento
+condicional das linhas 7 a 14 — sem corpo, sem cabeçalho.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/front/js/services/api.js"
+  title="front/js/services/api.js"
+  showLineNumbers
+  mark="8-14"
+  collapse="22-54"
+/>
+
+O manipulador do botão desabilita o controle enquanto a medição roda — um `ping` leva até dois
+segundos, e um clique duplo gravaria duas medições.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/front/js/host.js"
+  title="front/js/host.js"
+  showLineNumbers
+  lines="88-104"
+/>
+
+Do lado do servidor, o controller ganha o `check` das linhas 19 a 30. Ele é fino de propósito: só
+traduz o resultado do `Ping.check` da TK08.2 em `201`, ou o erro em `404`. Toda a lógica da
+chamada de sistema ficou no model e no `lib/ping.ts`.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/back/src/controllers/pings.controller.ts"
+  title="back/src/controllers/pings.controller.ts"
+  showLineNumbers
+  mark="19-30"
+/>
+
+O `host.html` acomoda o botão ao lado do indicador de estado, e o contrato ganha o `post` em
+`/hosts/{id}/pings`, com a resposta `201` que devolve a medição recém-gravada.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-ping/front/host.html"
+  title="front/host.html"
+  lines="32-46"
+  showLineNumbers
+/>
+
+{/* cobertura: back/src/docs/openapi.ts — acrescenta o verbo post ao caminho /hosts/{id}/pings
+    já documentado na etapa 7, com a mesma resposta de medição */}
+{/* cobertura: back/requests.http — ganha o bloco que dispara a medição sob demanda, no formato
+    dos demais blocos do arquivo */}
+
+## Testando
+
+<ApiRequest method="POST" path="/api/hosts/e4cfb6bb-4431-42a9-b660-d5701b2f49cd/pings" baseUrl="http://localhost:3000" description="Sem corpo: o endereço vem do host cadastrado" />
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "…",
+    "latency": 12,
+    "success": true,
+    "createdAt": "2026-03-01T12:05:00.000Z",
+    "hostId": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd"
+  }
+`}
+</ApiResponse>
+
+Cadastre um host apontando para um endereço inexistente — `10.255.255.1`, por exemplo — e repita
+a chamada:
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "…",
+    "latency": null,
+    "success": false,
+    "createdAt": "2026-03-01T12:05:02.000Z",
+    "hostId": "…"
+  }
+`}
+</ApiResponse>
+
+<Aside type="note" title="Falha de medição não é erro de API">
+  Um `500` aqui significaria que a aplicação quebrou. O host não responder é um resultado
+  legítimo — e é justamente o resultado que o produto existe para registrar.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Prepare o banco e suba a API:
+
+   ```bash title="Terminal 1"
+   cd examples/courses/express/projects/monitor-app-ping/back
+   npm install
+   cp .env.example .env
+   npm run db:migrate
+   npm run db:seed
+   npm run dev
+   ```
+
+   O log mostra `Monitor rodando a cada 60s` logo após a mensagem de porta.
+
+2. Suba o front e abra o histórico de um host:
+
+   ```bash title="Terminal 2"
+   cd examples/courses/express/projects/monitor-app-ping/front
+   npm install
+   npm run dev
+   ```
+
+3. Clique em **Medir agora** e observe a linha nova no topo da tabela.
+
+4. Para acompanhar o agendador sem esperar um minuto, baixe o intervalo no `.env`:
+
+   ```bash title="back/.env"
+   MONITOR_INTERVAL=10
+   ```
+
+</Steps>
+
+## Conceitos abordados
+
+- `execFile` versus `exec`: argumentos em array e a defesa contra injeção de comando
+- `promisify` para transformar API de callback em `async`/`await`
+- Diferenças de argumentos do `ping` entre sistemas operacionais
+- Parser tolerante à saída traduzida do comando
+- Falha como resultado gravável, não como exceção
+- `Promise.allSettled` em rodadas de trabalho independente
+- `setInterval` com `unref()` e desligamento por variável de ambiente
+
+## Próxima etapa
+
+[MonitorApp: Cadastro de usuário](../user/) — a entidade `User`, hash Argon2id e a tela de
+cadastro ligada à API.

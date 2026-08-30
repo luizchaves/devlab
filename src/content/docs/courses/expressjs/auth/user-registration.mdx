@@ -1,0 +1,360 @@
+---
+title: "Express.js: Cadastro de Usuário"
+description: "A rota pública de cadastro em uma API Express: modelo de usuário, hash da senha no model, campos que nunca saem na resposta, atribuição em massa, e-mail único e enumeração de contas."
+course: expressjs
+sidebar:
+  label: "Cadastro de Usuário"
+---
+import { Aside } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+O cadastro é a única rota que qualquer pessoa da internet pode chamar com sucesso, e é a
+porta de entrada de todo o resto do sistema. Esta aula constrói essa rota com o cuidado que
+ela exige.
+
+## Objetivo
+
+Ao final você terá uma rota `POST` pública que cria usuários com a senha protegida por hash,
+garante e-mail único, nunca devolve campos sensíveis e não permite que o cliente escolha o
+próprio papel.
+
+## O modelo de usuário
+
+O model de usuário difere dos demais em um ponto: ele tem um campo que **entra** mas nunca
+**sai**.
+
+```prisma title="prisma/schema.prisma" showLineNumbers {4-5}
+model User {
+  id          String       @id @default(cuid())
+  name        String
+  email       String       @unique
+  password    String
+  role        String       @default("user")
+  createdAt   DateTime     @default(now())
+  investments Investment[]
+}
+```
+
+| Campo      | Entra no cadastro | Sai na resposta | Observação                              |
+| ---------- | ----------------- | --------------- | --------------------------------------- |
+| `name`     | sim               | sim             | —                                       |
+| `email`    | sim               | sim             | `@unique` no banco, não só no código    |
+| `password` | sim               | **nunca**       | armazenado como hash                    |
+| `role`     | **não**           | sim             | definido pelo servidor, não pelo cliente|
+| `id`       | não               | sim             | gerado pelo banco                       |
+
+<Aside type="danger" title="Atribuição em massa">
+  `prisma.user.create({ data: req.body })` deixa o cliente definir **qualquer** campo do
+  model — inclusive `role: 'admin'`. Extraia os campos permitidos explicitamente; nunca
+  repasse o corpo inteiro.
+</Aside>
+
+## O fluxo do cadastro
+
+Cada etapa tem um responsável, e a ordem importa: a senha só é derivada depois de a entrada
+ser aceita.
+
+<Mermaid title="Fluxo de uma requisição de cadastro de usuário">
+{`
+flowchart TD
+  A["POST /users<br/>{ name, email, password }"] --> B["requireJson<br/>415 se não for JSON"]
+  B --> C["validate<br/>422 se faltar campo ou formato"]
+  C --> D["Controller<br/>extrai apenas name, email, password"]
+  D --> E{"E-mail já existe?"}
+  E -->|sim| F["409 Conflict"]
+  E -->|não| G["Model: hashPassword(senha)"]
+  G --> H["INSERT com select sem password"]
+  H --> I["201 Created<br/>usuário sem a senha"]
+`}
+</Mermaid>
+
+## O hash pertence ao model
+
+A derivação da senha fica no model, e não no controller, por um motivo prático: assim
+**toda** origem que criar usuário — a rota, o seed, um script de importação — passa pelo
+mesmo caminho.
+
+<SourceCode
+  path="examples/courses/express/projects/auth/src/models/user-model.ts"
+  title="src/models/user-model.ts"
+  lines="10-39"
+  showLineNumbers
+  mark="12-15,33"
+/>
+
+Duas decisões desse arquivo merecem atenção. A primeira é `toPublic`: nenhuma função devolve
+o objeto com a senha, exceto a que existe especificamente para o login.
+
+```ts title="src/models/user-model.ts" showLineNumbers {2}
+/** Remove a senha antes de qualquer coisa sair do model. */
+function toPublic({ password: _password, ...user }: UserWithPassword): User {
+  return user;
+}
+```
+
+A segunda é o nome deliberadamente feio da exceção:
+
+```ts title="src/models/user-model.ts"
+/** Unico ponto que devolve o hash — usado apenas no login. */
+export function findByEmailWithPassword(email: string): UserWithPassword | undefined
+```
+
+<Aside type="tip" title="Com Prisma, use `select`">
+  Em vez de remover o campo depois de buscá-lo, impeça que ele saia do banco:
+
+  ```ts title="src/models/user-model.ts" showLineNumbers {1,5}
+  const select = { id: true, name: true, email: true, role: true };
+
+  export function findAll() {
+    return prisma.user.findMany({ select });
+  }
+  ```
+
+  A diferença é entre "lembrar de apagar" e "não existir" — só a segunda sobrevive a um
+  desenvolvedor distraído.
+</Aside>
+
+## O controller
+
+O controller valida, verifica o conflito e delega. Note que ele nunca vê a senha em hash — e
+que os campos são extraídos um a um:
+
+<SourceCode
+  path="examples/courses/express/projects/auth/src/controllers/auth-controller.ts"
+  title="src/controllers/auth-controller.ts"
+  lines="9-26"
+  showLineNumbers
+  mark="11,17-19,21-23"
+/>
+
+## A resposta
+
+`201 Created` com o recurso criado — sem a senha, sem o hash:
+
+<ApiRequest method="POST" path="/auth/signup" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Bruno",
+    "email": "bruno@example.com",
+    "password": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "e7a04a8a-bbfc-4ea8-ba20-081e5de33737",
+    "name": "Bruno",
+    "email": "bruno@example.com",
+    "role": "user"
+  }
+`}
+</ApiResponse>
+
+E os dois erros previstos no contrato:
+
+<ApiRequest method="POST" path="/auth/signup" baseUrl="http://localhost:3000" description="Senha curta demais">
+{`
+  {
+    "name": "Curto",
+    "email": "curto@example.com",
+    "password": "1234"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={422}>
+{`
+  {
+    "error": {
+      "status": 422,
+      "message": "A senha precisa ter ao menos 8 caracteres"
+    }
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="POST" path="/auth/signup" baseUrl="http://localhost:3000" description="E-mail já cadastrado">
+{`
+  {
+    "name": "Ana de novo",
+    "email": "ana@example.com",
+    "password": "senha-secreta"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={409}>
+{`
+  {
+    "error": {
+      "status": 409,
+      "message": "E-mail já cadastrado"
+    }
+  }
+`}
+</ApiResponse>
+
+## Enumeração de contas
+
+O `409` acima é honesto e cômodo — e revela quem tem conta no sistema. Um script que envia
+uma lista de e-mails descobre quais estão cadastrados só pelo status da resposta.
+
+| Estratégia                      | Experiência do usuário | Vaza quem tem conta? |
+| ------------------------------- | ---------------------- | -------------------- |
+| `409` com "e-mail já cadastrado"| ótima                  | sim                  |
+| `201` sempre + e-mail de aviso  | boa                    | não                  |
+| `422` genérico                  | ruim                   | não                  |
+
+A saída sem esse dilema é confirmar por e-mail: a API responde `201` em qualquer caso e a
+mensagem enviada é diferente — "confirme seu cadastro" ou "você já tem conta, quer
+redefinir a senha?".
+
+<Aside type="note" title="Nem todo sistema precisa esconder isso">
+  Numa rede social, saber que um e-mail tem conta é irrelevante. Num sistema de saúde ou
+  financeiro, é dado sensível. A decisão é de produto — o que não vale é tomá-la por
+  descuido.
+</Aside>
+
+## Requisitos de senha
+
+O que exigir de uma senha mudou nos últimos anos, e a orientação atual do
+[NIST](https://pages.nist.gov/800-63-4/sp800-63b.html) contraria boa parte do que ainda se vê
+por aí:
+
+| Regra                                  | Recomendação atual                       |
+| -------------------------------------- | ---------------------------------------- |
+| Comprimento mínimo                     | ao menos 8; idealmente 12                 |
+| Comprimento máximo                     | permitir ao menos 64 caracteres           |
+| Exigir maiúscula, número e símbolo     | **não** — leva a `Senha@123`              |
+| Trocar a senha a cada 90 dias          | **não** — leva a `Senha1`, `Senha2`       |
+| Bloquear senhas conhecidamente vazadas | **sim** — é a regra que mais protege      |
+| Aceitar espaços e Unicode              | sim — frases longas são senhas boas       |
+
+<Aside type="caution" title="Não trunque a senha">
+  O `bcrypt` ignora tudo depois de 72 bytes: uma senha longa é silenciosamente cortada. O
+  Argon2 não tem esse limite. Se usar `bcrypt`, valide o comprimento máximo em vez de deixar
+  a truncagem acontecer sem que ninguém saiba.
+</Aside>
+
+## Exercício
+
+No projeto `express-auth`:
+
+1. Acrescente `role` ao corpo da requisição de cadastro e confirme que ele é **ignorado**.
+2. Faça o cadastro rejeitar senhas com menos de 8 ou mais de 64 caracteres.
+3. Normalize o e-mail com `trim()` e `toLowerCase()` antes de gravar e de comparar.
+4. Escreva um teste que cadastre duas vezes o mesmo e-mail com maiúsculas diferentes e
+   espere `409`.
+5. Confirme, com `curl`, que nenhuma resposta da API contém a chave `password`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/controllers/auth-controller.ts" showLineNumbers {2,8}
+  export function signUp(req: Request, res: Response) {
+    // `role` não é extraído: o cliente não escolhe o próprio papel.
+    const { name, email, password } = (req.body ?? {}) as SignUpInput;
+
+    if (!name || !email || !password) {
+      throw new HttpError(422, 'Os campos "name", "email" e "password" são obrigatórios');
+    }
+
+    const normalizado = email.trim().toLowerCase();
+
+    if (password.length < 8 || password.length > 64) {
+      throw new HttpError(422, 'A senha precisa ter entre 8 e 64 caracteres');
+    }
+
+    if (User.existsByEmail(normalizado)) {
+      throw new HttpError(409, 'E-mail já cadastrado');
+    }
+
+    res.status(201).json(User.create({ name, email: normalizado, password }));
+  }
+  ```
+
+  Sem a normalização, `Ana@example.com` e `ana@example.com` viram duas contas — e o índice
+  `UNIQUE` não impede, porque para o banco são strings diferentes.
+</details>
+
+## Desafio
+
+Implemente a verificação contra senhas vazadas usando o modelo de *k-anonymity* da
+[API do Have I Been Pwned](https://haveibeenpwned.com/API/v3#PwnedPasswords): calcule o
+`SHA-1` da senha, envie apenas os cinco primeiros caracteres do hash e compare o restante
+localmente. Explique por que esse desenho não entrega a senha ao serviço consultado.
+
+## Perguntas de revisão
+
+### Modelo
+
+1. **Por que o hash da senha fica no model e não no controller?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para que toda origem que cria usuário — rota, seed, script de importação — passe pelo
+     mesmo caminho. No controller, cada nova origem precisaria lembrar de aplicar o hash.
+   </details>
+
+2. **O que é atribuição em massa e como evitá-la?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     É repassar `req.body` inteiro para o model, permitindo ao cliente definir campos que
+     não deveria — como `role: 'admin'`. Evita-se extraindo explicitamente os campos
+     permitidos.
+   </details>
+
+3. **Por que `select` é melhor que remover o campo depois de buscar?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a senha nem sai do banco. Remover depois depende de alguém lembrar em cada nova
+     consulta; com `select`, o campo simplesmente não existe no resultado.
+   </details>
+
+### Segurança
+
+4. **O que é enumeração de contas?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Descobrir quais e-mails têm conta no sistema pela diferença de resposta — um `409` para
+     cadastrado e `201` para novo. Confirmar por e-mail elimina a diferença observável pela
+     API.
+   </details>
+
+5. **Por que exigir maiúscula, número e símbolo piora a segurança?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque leva a padrões previsíveis como `Senha@123`, que os dicionários de ataque já
+     cobrem. Comprimento e verificação contra listas de senhas vazadas protegem mais.
+   </details>
+
+## Referências
+
+- [OWASP — Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
+- [NIST SP 800-63B — Digital Identity Guidelines](https://pages.nist.gov/800-63-4/sp800-63b.html)
+- [OWASP — Mass Assignment Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html)
+- [Prisma — Select fields](https://www.prisma.io/docs/orm/prisma-client/queries/select-fields)
+
+## Na prática
+
+O projeto executável desta aula é [Express Auth](../../practice/express-auth/); a etapa
+correspondente do InvestApp é
+[InvestApp: Cadastro de Usuário](../../practice/investapp/user/).
+
+## Próxima aula
+
+[Autenticação](../authentication/): trocar as credenciais por um token.

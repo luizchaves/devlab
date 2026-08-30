@@ -43,7 +43,7 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PROJETOS = 'examples/courses/express/projects';
-const PAGINAS = 'src/content/docs/courses/express/practice';
+const PAGINAS = 'src/content/docs/courses/expressjs/practice';
 
 /** Fração mínima das linhas alteradas de um arquivo que a página precisa exibir. */
 const MINIMO_EXIBIDO = 0.5;

@@ -1,0 +1,471 @@
+---
+title: "Express.js: TypeScript"
+description: "Migração de uma API Express de JavaScript para TypeScript: execução nativa de .ts no Node, tsconfig, tipagem de req e res, tipos do domínio e extensão do Request."
+course: expressjs
+sidebar:
+  label: "TypeScript"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Até aqui a aplicação foi escrita em JavaScript, para que nada tirasse o foco do HTTP. A
+partir desta aula o guia passa a TypeScript — e o momento certo de migrar é **agora**, antes
+de existirem camadas, banco e autenticação para reescrever.
+
+## Objetivo
+
+Ao final você terá migrado a API de usuários para TypeScript sem introduzir passo de build,
+sabendo tipar `req` e `res`, declarar os tipos do domínio e estender o `Request` do Express
+com os campos que os seus middlewares acrescentam.
+
+## Por que migrar cedo
+
+Em uma API, quase todo erro de execução vem de dado com o formato inesperado: um `id` que
+chegou como string, um `req.body` sem o campo obrigatório, um model devolvendo `undefined`.
+O TypeScript transforma essa classe de erro em erro de compilação.
+
+| Sintoma em JavaScript                                    | O que o TypeScript faz                              |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| `users.find(u => u.id === req.params.id)` nunca acha      | acusa a comparação entre `number` e `string`         |
+| `user.emial` retorna `undefined` silenciosamente          | acusa a propriedade inexistente                      |
+| `User.findById()` pode devolver `undefined`               | obriga a tratar o caso antes de usar                 |
+| `req.userId` acrescentado por um middleware               | só existe se declarado — some o "de onde veio isso?" |
+| Assinatura do model muda e um controller fica para trás   | acusa em todos os pontos de chamada                  |
+
+<Aside type="note" title="Esta aula pressupõe o Guia de TypeScript">
+  Tipos, interfaces, `strict` e `tsconfig` estão no [Guia de TypeScript](../../../typescript/).
+  Aqui tratamos apenas do que é específico do Express e do Node.
+</Aside>
+
+## O Node executa `.ts` direto
+
+Desde o Node 22.6 (e sem flag a partir do 23.6), o Node executa arquivos `.ts` removendo as
+anotações de tipo — *type stripping*. Não há transpilação: o que o Node faz é apagar os
+tipos e rodar o JavaScript que sobrou.
+
+<Mermaid title="Type stripping: como o Node executa um arquivo .ts">
+{`
+flowchart TD
+  A["src/server.ts<br/>com anotações de tipo"] --> B["Node: type stripping<br/>apaga as anotações"]
+  B --> C["JavaScript equivalente<br/>mesma numeração de linhas"]
+  C --> D["Execução"]
+  A --> E["tsc --noEmit<br/>(separado, opcional)"]
+  E --> F["Erros de tipo"]
+`}
+</Mermaid>
+
+A consequência prática é importante: **o Node não verifica tipos**. Um erro de tipagem não
+impede a execução. Quem verifica é o `tsc --noEmit`, rodado à parte — no editor, num script
+`typecheck` e na integração contínua.
+
+Como o Node só apaga anotações, a sintaxe que **gera código** não é aceita:
+
+| Recurso                              | Funciona no Node? |
+| ------------------------------------ | ----------------- |
+| Anotações de tipo, `interface`, `type` | sim             |
+| `as`, generics, `satisfies`           | sim               |
+| `enum`                                | não — use `as const` ou união literal |
+| Parâmetros de propriedade (`constructor(private x: number)`) | não |
+| `namespace` com código                | não               |
+
+<Aside type="tip" title="`erasableSyntaxOnly`">
+  A opção `"erasableSyntaxOnly": true` no `tsconfig.json` faz o próprio `tsc` recusar essas
+  construções, evitando escrever código que o Node não roda. Os projetos deste guia a usam.
+</Aside>
+
+## Instalação
+
+Nenhuma dependência de execução é adicionada — só ferramentas de desenvolvimento:
+
+<Steps>
+
+1. Instale o compilador e os tipos do Node e do Express:
+
+   <PackageManagerTabs package="typescript @types/node @types/express" dev />
+
+2. Crie o `tsconfig.json`:
+
+   <SourceCode
+     path="examples/courses/express/projects/typescript/tsconfig.json"
+     title="tsconfig.json"
+     showLineNumbers
+     mark="4,10-13"
+   />
+
+3. Ajuste os scripts do `package.json` — o `dev` continua sendo `node --watch`, agora
+   apontando para um `.ts`:
+
+   <SourceCode
+     path="examples/courses/express/projects/typescript/package.json"
+     title="package.json"
+     showLineNumbers
+     mark="7-14"
+   />
+
+</Steps>
+
+As opções destacadas no `tsconfig.json` são as que fazem a configuração servir ao Node:
+
+| Opção                        | Por quê                                                        |
+| ---------------------------- | -------------------------------------------------------------- |
+| `"module": "NodeNext"`       | resolve ESM do jeito que o Node resolve                        |
+| `"noEmit": true`             | o `tsc` só verifica; quem executa é o Node                     |
+| `"allowImportingTsExtensions"`| permite `import … from './app.ts'`, como o Node exige         |
+| `"erasableSyntaxOnly": true` | recusa sintaxe que o type stripping não apaga                  |
+| `"strict": true`             | liga as checagens que tornam a migração útil                   |
+
+<Aside type="caution" title="A extensão no import é `.ts`, não `.js`">
+  O Node exige o caminho completo do arquivo em ESM. Escrevendo TypeScript executado
+  nativamente, o import aponta para o arquivo que existe: `'./app.ts'`. Isso é diferente do
+  fluxo com `tsc` emitindo para `dist/`, em que se importa `'./app.js'`.
+</Aside>
+
+## Imports por `#` em vez de `../../..`
+
+Com as camadas separadas, os caminhos relativos ficam longos. O Node resolve isso com
+*subpath imports*, declarados no próprio `package.json`:
+
+<Tabs syncKey="alias">
+  <TabItem label="package.json">
+    ```json title="package.json" {3-5}
+    {
+      "type": "module",
+      "imports": {
+        "#*": "./src/*"
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Uso">
+    ```ts title="src/controllers/user-controller.ts" del={1} ins={2}
+    import * as User from '../models/user-model.ts';
+    import * as User from '#models/user-model.ts';
+    ```
+  </TabItem>
+</Tabs>
+
+<Aside type="tip" title="`#` em vez de `paths` do tsconfig">
+  O `paths` do `tsconfig.json` é conhecido apenas pelo compilador: em execução, o Node não
+  sabe o que é `@/models` e o import quebra — por isso projetos com `@/` precisam de `tsx`
+  ou de um bundler. O `imports` do `package.json` é um recurso do Node, e o TypeScript
+  também o entende. Um alias, duas ferramentas satisfeitas.
+</Aside>
+
+## Tipando `req` e `res`
+
+Os tipos vêm de `@types/express`. Como são apenas tipos, importe-os com `import type` — o
+type stripping apaga a linha inteira e nada é exigido em execução:
+
+```ts title="src/controllers/user-controller.ts" showLineNumbers {1}
+import type { Request, Response, NextFunction } from 'express';
+
+export function index(req: Request, res: Response) {
+  res.json(User.findAll());
+}
+```
+
+`Request` aceita quatro parâmetros de tipo, na ordem em que aparecem na requisição:
+
+```ts title="Assinatura de Request"
+Request<Params, ResBody, ReqBody, ReqQuery>
+```
+
+Na prática, tipar `Params` e `ReqBody` já cobre a maior parte dos casos:
+
+```ts title="Parâmetros e corpo tipados" showLineNumbers {1,4,7}
+type IdRequest = Request<{ id: string }>;
+
+export function show(req: IdRequest, res: Response) {
+  const id = Number(req.params.id); // req.params.id: string
+  // …
+}
+
+export function store(req: Request<unknown, unknown, UserInput>, res: Response) {
+  const { name, email } = req.body; // req.body: UserInput
+  // …
+}
+```
+
+<Aside type="caution" title="Tipar `req.body` não valida `req.body`">
+  O tipo é uma promessa de compilação; o corpo continua vindo de fora e pode chegar com
+  qualquer coisa. Por isso `UserInput` declara todos os campos como opcionais e a validação
+  em execução continua obrigatória — é o assunto da aula de
+  [Validação](../../api/validation/).
+</Aside>
+
+Um middleware tipado declara os três parâmetros — ou usa o atalho `RequestHandler`:
+
+```ts title="src/middlewares/require-json.ts" showLineNumbers
+import type { NextFunction, Request, Response } from 'express';
+
+export function requireJson(req: Request, _res: Response, next: NextFunction) {
+  if (!req.is('application/json')) {
+    throw new HttpError(415, 'Content-Type precisa ser application/json');
+  }
+
+  next();
+}
+```
+
+## Tipos do domínio
+
+Os tipos das entidades ficam em `src/types/`, importados por model e controller. Repare na
+diferença entre o que **sai** do model e o que **entra** pela requisição:
+
+<SourceCode
+  path="examples/courses/express/projects/typescript/src/types/user.ts"
+  title="src/types/user.ts"
+  showLineNumbers
+/>
+
+O model passa a declarar o que devolve — inclusive o `undefined` de uma busca sem resultado,
+que é justamente o caso que o JavaScript deixava passar:
+
+<SourceCode
+  path="examples/courses/express/projects/typescript/src/models/user-model.ts"
+  title="src/models/user-model.ts"
+  lines="16-26"
+  showLineNumbers
+  mark="20-22"
+/>
+
+Com `strict`, o controller não compila enquanto não tratar o `undefined`:
+
+```ts title="src/controllers/user-controller.ts" showLineNumbers {3-5}
+const user = User.findById(id); // User | undefined
+
+if (!user) {
+  throw new HttpError(404, 'Usuário não encontrado');
+}
+
+res.json(user); // aqui o tipo já é User
+```
+
+## Estendendo o `Request`
+
+Middlewares acrescentam campos a `req` — `req.auth`, `req.id`, `req.userId`. Esses campos
+não existem nos tipos do Express, e o TypeScript acusa erro ao lê-los. A solução é
+*declaration merging*: um arquivo `.d.ts` que reabre a interface `Request`.
+
+```ts title="src/types/express.d.ts" showLineNumbers {4-6}
+declare global {
+  namespace Express {
+    interface Request {
+      /** Preenchido pelo middleware `authenticate`. */
+      auth?: JwtPayload;
+    }
+  }
+}
+
+export {};
+```
+
+<Aside type="caution" title="O `export {}` do final não é decorativo">
+  Sem ele, o arquivo é tratado como script global e o `declare global` deixa de valer.
+  Com ele, o arquivo vira módulo e a declaração é aplicada ao projeto inteiro.
+</Aside>
+
+O campo é declarado **opcional** de propósito: em uma rota pública, `req.auth` realmente não
+existe. É o `authenticate` que garante a presença — e o controller ainda precisa checar.
+
+## A migração, arquivo por arquivo
+
+<Steps>
+
+1. Renomeie os arquivos de `.js` para `.ts` e atualize as extensões nos imports.
+
+2. Rode `npx tsc --noEmit` e trate os erros de cima para baixo: a maioria é `req`/`res` sem
+   tipo e retorno de model que pode ser `undefined`.
+
+3. Extraia para `src/types/` as interfaces que aparecerem repetidas nos controllers.
+
+4. Crie `src/types/express.d.ts` para os campos que os middlewares acrescentam.
+
+5. Rode o servidor com `node --watch src/server.ts` e confirme que as rotas respondem.
+
+</Steps>
+
+A estrutura final é a mesma do projeto MVC, com uma pasta a mais:
+
+<FileTree>
+{`
+  express-typescript/
+  ├── package.json                imports "#*" e script typecheck
+  ├── tsconfig.json
+  └── src/
+      ├── app.ts
+      ├── server.ts
+      ├── controllers/
+      │   └── user-controller.ts
+      ├── errors/
+      │   └── HttpError.ts
+      ├── middlewares/
+      │   ├── error-handler.ts
+      │   └── require-json.ts
+      ├── models/
+      │   └── user-model.ts
+      ├── routes/
+      │   └── user-router.ts
+      └── types/                  tipos do domínio
+          └── user.ts
+`}
+</FileTree>
+
+E as camadas ficam assim:
+
+<CodeTabs
+  syncKey="express-typescript"
+  files={[
+    { path: 'examples/courses/express/projects/typescript/src/app.ts', title: 'src/app.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/typescript/src/routes/user-router.ts', title: 'src/routes/user-router.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/typescript/src/controllers/user-controller.ts', title: 'src/controllers/user-controller.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/typescript/src/errors/HttpError.ts', title: 'src/errors/HttpError.ts', showLineNumbers: true },
+  ]}
+/>
+
+## E o `tsx`?
+
+O [`tsx`](https://www.npmjs.com/package/tsx) faz o mesmo que o type stripping nativo, e mais:
+aceita `enum`, entende `paths` do `tsconfig.json` e funciona em versões antigas do Node.
+Vale quando o projeto já depende desses recursos — ou quando a versão do Node é anterior à
+22.6.
+
+| Critério                    | Node nativo            | `tsx`                       |
+| --------------------------- | ---------------------- | --------------------------- |
+| Dependência extra           | nenhuma                | uma devDependency           |
+| Versão mínima do Node       | 22.6                   | qualquer versão suportada   |
+| `enum`, decorators          | não                    | sim                         |
+| `paths` do `tsconfig.json`  | não                    | sim                         |
+| Verificação de tipos        | nenhuma (use `tsc`)    | nenhuma (use `tsc`)         |
+
+Nenhum dos dois verifica tipos: `tsc --noEmit` continua sendo obrigatório.
+
+## Exercício
+
+Migre o projeto `router` para TypeScript:
+
+1. Renomeie os arquivos e ajuste as extensões dos imports.
+2. Declare `interface User` em `src/types/user.ts`.
+3. Tipe o handler de `/users/:id` com `Request<{ id: string }>`.
+4. Faça `findById` devolver `User | undefined` e trate o `undefined` no handler.
+5. Rode `npx tsc --noEmit` até zerar os erros.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/routes/user-router.ts" showLineNumbers
+  import { Router, type Request, type Response } from 'express';
+
+  import type { User } from '#types/user.ts';
+
+  const router = Router();
+
+  const users: User[] = [
+    { id: 1, name: 'Ana' },
+    { id: 2, name: 'Bruno' },
+  ];
+
+  router.get('/', (_req: Request, res: Response) => {
+    res.json(users);
+  });
+
+  router.get('/:id', (req: Request<{ id: string }>, res: Response) => {
+    const user = users.find((item) => item.id === Number(req.params.id));
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+
+    res.json(user);
+  });
+
+  export default router;
+  ```
+
+  O `find` devolve `User | undefined`; sem o `if`, `res.json(user)` não compila com
+  `strict`.
+</details>
+
+## Desafio
+
+Crie um middleware `requestId` que gera um `crypto.randomUUID()` e o guarda em `req.id`.
+Declare o campo em `src/types/express.d.ts` e use-o no `errorHandler` para incluir o
+identificador na resposta de erro. Explique por que declarar `id?: string` (opcional) é mais
+honesto do que `id: string`.
+
+## Perguntas de revisão
+
+### Execução
+
+1. **O Node verifica os tipos ao executar um `.ts`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Não. Ele apenas apaga as anotações (*type stripping*) e executa o JavaScript restante.
+     Um erro de tipo não impede a execução — quem verifica é `tsc --noEmit`.
+   </details>
+
+2. **Por que `enum` não funciona no Node executando `.ts` direto?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque `enum` **gera código** em tempo de execução (um objeto com os membros), e o type
+     stripping só apaga anotações. Alternativas apagáveis são uma união literal
+     (`type Role = 'user' | 'admin'`) ou um objeto `as const`.
+   </details>
+
+3. **Por que o import termina em `.ts` e não em `.js`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque em ESM o Node resolve o caminho literal do arquivo, e o arquivo que existe é o
+     `.ts`. A extensão `.js` só faria sentido se o `tsc` estivesse emitindo JavaScript para
+     `dist/`.
+   </details>
+
+### Tipagem
+
+4. **Por que `UserInput` tem todos os campos opcionais se `User` não tem?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque `UserInput` descreve o que **chega** do cliente, e o cliente pode omitir
+     qualquer coisa. `User` descreve o que **sai** do model, já validado. Declarar a entrada
+     como obrigatória seria uma promessa que o tipo não pode cumprir.
+   </details>
+
+5. **Por que estender `Express.Request` em vez de fazer `(req as any).auth`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o `as any` some com a checagem no ponto de uso e não documenta nada. A extensão
+     declara uma vez que o campo existe, com qual tipo, e todo controller passa a enxergá-lo
+     — e o `?` continua obrigando a tratar as rotas públicas.
+   </details>
+
+## Referências
+
+- [Node.js — TypeScript](https://nodejs.org/api/typescript.html)
+- [Node.js — Subpath imports](https://nodejs.org/api/packages.html#subpath-imports)
+- [TypeScript — Modules reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html)
+- [DefinitelyTyped — `@types/express`](https://www.npmjs.com/package/@types/express)
+- [Guia de TypeScript](../../../typescript/)
+
+## Na prática
+
+O projeto executável desta aula é
+[Express TypeScript](../../practice/express-typescript/).
+
+## Próxima aula
+
+[MVC](../../architecture/mvc/): as camadas que acabamos de tipar, vistas como arquitetura.

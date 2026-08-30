@@ -1,0 +1,518 @@
+---
+title: "MonitorApp: API em memória"
+description: "Segunda etapa do MonitorApp: CRUD de hosts sobre um array, front-end no Vite consumindo a API por proxy, e a primeira aparição do problema das duas origens."
+course: expressjs
+sidebar:
+  label: "2. API em memória"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **2 de 13** · Nível **Iniciante** · Node.js · Express.js · JavaScript vanilla
+
+O front estático da etapa anterior ganha comportamento e passa a conversar com um servidor
+Express que nasce agora, em `back/`. Nada de banco, nada de autenticação — só o ciclo
+requisição/resposta, a primeira integração real entre tela e API e a decisão de arquitetura que
+define este projeto: **front e API são duas origens diferentes**.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **APIs RESTful e HTTP**: veja [Rotas e Arquivos Estáticos](../../../basics/routes/), [Middlewares no Express](../../../basics/middleware/) e [Requisições e Respostas](../../../basics/request-response/)
+  - **Origens diferentes**: veja [CORS](../../../security/cors/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP01 · Inventário e Observação** › **Feature FT02 · CRUD de hosts**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF01** Gestão de Hosts | o CRUD completo sobre um array em memória | parcial — falta persistir |
+| **RNF05** Origens Separadas | `cors` no servidor e proxy `/api` no Vite | atendido |
+
+### US02 — Manter o inventário de hosts · RF01, RNF05
+
+> **Como** responsável pela rede,
+> **quero** cadastrar, consultar, editar e remover os endereços que acompanho,
+> **para** manter o inventário atualizado sem depender de uma planilha.
+
+```gherkin
+Cenário: CA02.1 - Listar os hosts
+  Quando envio GET /api/hosts
+  Então recebo o status 200
+  E o corpo é uma lista de hosts
+
+Cenário: CA02.2 - Filtrar pelo nome
+  Dado que existe um host chamado "Google DNS"
+  Quando envio GET /api/hosts?name=Google
+  Então recebo o status 200
+  E a lista traz apenas os hosts cujo nome contém "Google"
+
+Cenário: CA02.3 - Cadastrar um host
+  Quando envio POST /api/hosts com nome e endereço
+  Então recebo o status 201
+  E o corpo traz o host criado, com um id gerado pelo servidor
+
+Cenário: CA02.4 - Recusar corpo incompleto
+  Quando envio POST /api/hosts sem o campo "address"
+  Então recebo o status 400
+  E nada é acrescentado à lista
+
+Cenário: CA02.5 - Host inexistente
+  Quando envio GET, PUT ou DELETE em /api/hosts/{id} com um id que não existe
+  Então recebo o status 404
+
+Cenário: CA02.6 - Remover um host
+  Dado um host existente
+  Quando envio DELETE /api/hosts/{id}
+  Então recebo o status 204
+  E a resposta não tem corpo
+
+Cenário: CA02.7 - O front consome a API
+  Quando abro http://localhost:5173
+  Então os cartões exibidos vêm de uma chamada fetch
+  E não estão escritos no HTML
+
+Cenário: CA02.8 - O proxy dissolve o CORS em desenvolvimento
+  Dado que o front roda em 5173 e a API em 3000
+  Quando o navegador chama /api/hosts
+  Então a requisição sai para a mesma origem do front
+  E nenhum preflight de CORS é disparado
+
+Cenário: CA02.9 - O limite conhecido desta etapa
+  Dado hosts cadastrados
+  Quando reinicio o servidor
+  Então a lista volta ao estado inicial
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK02.1 · Instalar dependências e criar `back/src/index.js`**: servidor Express com Morgan e o middleware `cors`.
+2. **TK02.2 · Criar `back/src/data/hosts.js`**: armazenamento inicial em memória (array em JS).
+3. **TK02.3 · Criar `back/src/routes.js`**: as cinco rotas do recurso e a classe `HttpError`.
+4. **TK02.4 · Configurar o proxy e o Tailwind em `front/vite.config.js`**: `/api` repassado para o Express, e os utilitários compilados em vez de gerados no navegador.
+5. **TK02.5 · Criar `front/js/services/api.js` e `front/js/index.js`**: integração do front, isolando o `fetch` em uma camada.
+6. **TK02.6 · Criar `back/requests.http`**: arquivo de requisições executáveis para o VS Code.
+
+</Steps>
+
+## Estrutura da aplicação
+
+A pasta `back/` nasce nesta etapa, ao lado do `front/` que já existia. São dois projetos Node
+independentes, com dois `package.json` e dois `npm install` — e é essa separação que faz o
+MonitorApp precisar de CORS desde o primeiro dia, enquanto o [InvestApp](../../investapp/api/)
+serve o front por `express.static` e nunca esbarra nisso.
+
+<ProjectLinks path="examples/courses/express/projects/monitor-app-api" />
+
+<FileTree>
+{`
+  monitor-app-api/
+  ├── back/
+  │   ├── package.json
+  │   ├── requests.http         o contrato, executável
+  │   └── src/
+  │       ├── index.js          monta o app e sobe o servidor
+  │       ├── routes.js         as rotas do recurso
+  │       └── data/
+  │           └── hosts.js      o array em memória
+  └── front/
+      ├── package.json
+      ├── vite.config.js        agora com o proxy /api
+      ├── index.html            a grade de cartões fica vazia
+      ├── host.html             ainda estático nesta etapa
+      ├── css/
+      └── js/
+          ├── index.js          monta a tela e trata os eventos
+          ├── lib/
+          │   └── format.js     latência e datas
+          └── services/
+              └── api.js        a única camada que conhece fetch
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+A etapa 1 desenhou as telas com dados escritos à mão no HTML. Esta etapa mantém a mesma interface
+— cabeçalho, cartões de host e formulário — e troca esses dados fixos por respostas da API.
+
+| Etapa 1 (`monitor-app-static`) | Etapa 2 (`monitor-app-api`) |
+| ------------------------------ | --------------------------- |
+| três cartões escritos no HTML | `<section id="host-grid">` vazia, preenchida por `GET /api/hosts` |
+| métricas com números fixos | métricas calculadas a partir da resposta |
+| formulário com `type="button"`, sem envio | `form.onsubmit` disparando `POST /api/hosts` |
+| nenhum arquivo `.js` de aplicação | `front/js/index.js`, `services/api.js` e `lib/format.js` |
+| nenhum servidor | `back/src/index.js`, `routes.js` e `data/hosts.js` |
+| `vite.config.js` só com o build | `vite.config.js` com `server.proxy` e o plugin do Tailwind |
+| Tailwind pelo Play CDN, montado no navegador | Tailwind compilado pelo Vite a partir de `css/tailwind.css` |
+
+## Descrição das tarefas
+
+### TK02.1 · Instalar dependências e criar `back/src/index.js` (Servidor Express)
+
+```bash title="Terminal: dentro de back/"
+npm install express cors morgan
+```
+
+O arquivo monta o app registrando middlewares em ordem. A linha 9 liga o log de requisições com
+`morgan('tiny')`, e o `express.json()` da linha 21 transforma o corpo JSON de `POST` e `PUT` em
+`req.body`. O `server.use('/api', router)` da linha 23 prefixa todas as rotas do `routes.js`, de
+onde vem o caminho final `/api/hosts`.
+
+O trecho destacado nas linhas 11 a 19 é o coração desta etapa e o que separa o MonitorApp do
+InvestApp. Como o front é servido por outro processo, em outra porta, o navegador trata as duas
+como origens diferentes e bloqueia a resposta antes que ela chegue ao `fetch` — a menos que o
+servidor autorize. A linha 15 lê essa autorização de `FRONTEND_URL`, com `*` como padrão de
+desenvolvimento, e a linha 17 já libera o cabeçalho `Authorization` que a etapa 10 vai usar.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/back/src/index.js"
+  title="back/src/index.js"
+  showLineNumbers
+  mark="11-19"
+/>
+
+<Aside type="note" title="Express 5 dispensa o `express-async-errors`">
+  No Express 4 era preciso instalar o pacote `express-async-errors`: um `throw` dentro de um
+  handler `async` vira uma promessa rejeitada, e o `try`/`catch` interno do framework não a
+  enxergava — o processo caía com `unhandledRejection` em vez de responder um erro HTTP.
+
+  O Express 5 encaminha promessas rejeitadas sozinho. Como todo o MonitorApp está na versão 5, o
+  pacote não aparece em nenhuma etapa: o `throw` das rotas síncronas desta etapa e o das rotas
+  `async` da etapa 6 em diante chegam ao mesmo manipulador de erros sem ajuda externa. Veja
+  [Tratamento de Erros](../../../api/error-handling/).
+</Aside>
+
+<Aside type="caution" title="`req.body` pode ser `undefined` no Express 5">
+  No Express 4, o `express.json()` deixava `req.body` como `{}` quando não havia corpo. No
+  Express 5 ele fica **`undefined`**, e desestruturar `undefined` lança `TypeError`. Por isso a
+  linha 16 do `routes.js` escreve `const { name, address } = req.body ?? {}`: sem o `?? {}`, um
+  `POST` sem corpo devolveria `500` em vez do `400` previsto no contrato.
+</Aside>
+
+### TK02.2 · Criar `back/src/data/hosts.js` (Armazenamento em memória)
+
+O arquivo inteiro é um `export const hosts` com dois registros de exemplo. Cada objeto já tem a
+forma que a API vai devolver: `id` como UUID, `name` e `address`. Repare que os dois endereços
+são de tipos diferentes — `8.8.8.8` é um IPv4 e `www.ifpb.edu.br` é um nome de domínio. Os dois
+são válidos, e a etapa 4 vai formalizar essa regra em um schema.
+
+Como é um array exportado por um módulo ES, todas as rotas manipulam a **mesma** referência: o
+`push` de uma rota é visível na leitura da outra. É o suficiente para exercitar o ciclo completo
+de leitura e escrita sem banco de dados.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/back/src/data/hosts.js"
+  title="back/src/data/hosts.js"
+  showLineNumbers
+/>
+
+### TK02.3 · Criar `back/src/routes.js` (Endpoints do recurso `/api/hosts`)
+
+Este é o arquivo mais longo da etapa, e vale lê-lo em quatro partes.
+
+A classe `HttpError` das linhas 6 a 11 estende `Error` e acrescenta o campo `code`. É ela que
+permite escrever `throw new HttpError('Host not found', 404)` no meio de uma rota e ainda assim
+responder com o status certo.
+
+O bloco destacado nas linhas 15 a 27 é o `POST /hosts` e serve de modelo para as demais rotas: lê
+`name` e `address` de `req.body` (linha 16), rejeita entrada incompleta com `400` (linhas 18 a
+20), gera o identificador com `randomUUID()` do `node:crypto` (linha 22), empurra o objeto para o
+array (linha 24) e responde `201` com o recurso criado (linha 26).
+
+As leituras vêm em seguida: o `GET /hosts` das linhas 29 a 39 aceita o filtro opcional
+`req.query.name` (linha 30) e devolve o array inteiro quando ele não vem; o `GET /hosts/:id` das
+linhas 41 a 51 usa `findIndex` e responde `404` quando o índice não existe. O `PUT` (linhas 53 a
+73) e o `DELETE` (linhas 75 a 87) repetem exatamente esse par de verificações e por isso aparecem
+recolhidos.
+
+Fecham o arquivo os dois middlewares finais: o das linhas 89 a 92 responde `404` para qualquer
+caminho não declarado, e o das linhas 94 a 101 é o manipulador de erros — ele converte um
+`HttpError` no status guardado em `err.code` e transforma qualquer outra exceção em `500`. É esse
+par que sustenta o contrato de status codes da tabela a seguir.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/back/src/routes.js"
+  title="back/src/routes.js"
+  showLineNumbers
+  mark="15-27"
+  collapse="53-87"
+/>
+
+Cinco rotas compõem o CRUD completo do recurso `hosts`:
+
+| Método | Caminho | Corpo | Sucesso | Erros |
+| ------ | ------- | ----- | ------- | ----- |
+| GET | `/api/hosts` | — | `200` | — |
+| GET | `/api/hosts?name=` | — | `200` | — |
+| GET | `/api/hosts/:id` | — | `200` | `404` |
+| POST | `/api/hosts` | `{ name, address }` | `201` | `400` |
+| PUT | `/api/hosts/:id` | `{ name, address }` | `200` | `400`, `404` |
+| DELETE | `/api/hosts/:id` | — | `204` | `404` |
+
+### TK02.4 · Configurar o proxy em `front/vite.config.js` (As duas origens)
+
+Este é o ponto em que o MonitorApp mostra a sua arquitetura. Em desenvolvimento existem dois
+servidores: o Vite em `localhost:5173`, que entrega HTML, CSS e JavaScript, e o Express em
+`localhost:3000`, que entrega JSON. Para o navegador, porta diferente é **origem diferente**.
+
+<Mermaid title="O caminho de uma requisição em desenvolvimento e em produção">
+{`
+%% O sentido externo e TB de proposito: com LR o dagre empilha os dois
+%% subgraphs na vertical. Em TB eles ficam lado a lado. O direction TB
+%% interno mantem cada coluna estreita, para o diagrama caber na leitura.
+%% Producao vem declarado primeiro porque o dagre posiciona os subgraphs
+%% desconectados na ordem inversa: assim Desenvolvimento fica a esquerda.
+flowchart TB
+  subgraph Prod["Produção"]
+    direction TB
+    N2["Navegador"] -->|"GET /api/hosts"| NG["Nginx · 80"]
+    NG -->|"proxy"| E2["Express · 3000"]
+  end
+
+  subgraph Dev["Desenvolvimento"]
+    direction TB
+    N1["Navegador"] -->|"GET /api/hosts<br/>mesma origem"| V["Vite · 5173"]
+    V -->|"proxy"| E1["Express · 3000"]
+  end
+`}
+</Mermaid>
+
+O bloco destacado nas linhas 12 a 16 resolve isso em desenvolvimento: tudo que começa com `/api`
+é repassado pelo próprio Vite para o Express. Como a requisição sai do navegador para a mesma
+origem da página, nenhum preflight de CORS acontece, e o `fetch` do front pode escrever apenas
+`/api/hosts`, sem host nem porta.
+
+O `changeOrigin: true` faz o Vite reescrever o cabeçalho `Host` da requisição repassada — sem
+ele, o Express receberia `Host: localhost:5173`, o que confunde servidores que decidem coisas com
+base nesse cabeçalho.
+
+<Tabs syncKey="monitor-origin">
+  <TabItem label="Proxy no Vite (dev)">
+    <SourceCode
+      path="examples/courses/express/projects/monitor-app-api/front/vite.config.js"
+      title="front/vite.config.js"
+      showLineNumbers
+      mark="12-16"
+      collapse="17-26"
+    />
+  </TabItem>
+
+  <TabItem label="CORS no Express (prod)">
+    Publicados separadamente, front e API voltam a ser origens diferentes — e aí quem autoriza é
+    o servidor, pela variável `FRONTEND_URL`:
+
+    <SourceCode
+      path="examples/courses/express/projects/monitor-app-api/back/src/index.js"
+      title="back/src/index.js"
+      showLineNumbers
+      lines="11-19"
+    />
+
+    A [etapa 13](../docker/) fecha esse ciclo: em produção o Nginx da imagem do front assume o
+    papel que o proxy do Vite tinha aqui.
+  </TabItem>
+</Tabs>
+
+O Tailwind muda de modo junto com o proxy. Em vez do Play CDN da etapa 1, entra o
+`front/css/tailwind.css`: três linhas que importam o framework e o `components.css` — o mesmo
+arquivo da etapa 1, sem uma vírgula de diferença. Quem compila é o plugin `@tailwindcss/vite`
+declarado no config acima.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/front/css/tailwind.css"
+  title="front/css/tailwind.css"
+  showLineNumbers
+  mark="11-12"
+/>
+
+No `index.html`, o `<link>` da linha 7 passa a apontar para esse arquivo e tudo que era texto
+fixo vira gancho: as três métricas das linhas 39, 43 e 47 nascem zeradas, o `#host-grid` da linha
+51 nasce vazio e o `#host-form` da linha 55 é o formulário que a próxima task liga à API. O
+`<script type="module">` da linha 75 fecha a página.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/front/index.html"
+  title="front/index.html"
+  showLineNumbers
+  mark="7,39,43,47,51,55,75"
+  collapse="8-38,54-74"
+/>
+
+{/* cobertura: front/signin.html — muda só o link do CSS, que passa a apontar para o
+    tailwind.css compilado */}
+{/* cobertura: front/signup.html — muda só o link do CSS, como o signin.html */}
+
+### TK02.5 · Criar `front/js/services/api.js` e `front/js/index.js` (Integração vanilla)
+
+O front é dividido em três responsabilidades, e essa separação é o ponto didático da etapa: **um
+único arquivo conhece `fetch`**, e a tela conversa apenas com ele.
+
+O `services/api.js` é essa camada fina. As quatro funções — `create`, `read`, `update` e `remove`
+— montam a URL a partir da constante `domain = '/api'` da linha 1 e diferem apenas no método e no
+corpo. O `read` da linha 19 é o caso mais simples, sem objeto `config`; o `create` da linha 3
+mostra o trio que sempre acompanha um envio de JSON: `method: 'POST'`,
+`body: JSON.stringify(data)` e o cabeçalho `Content-Type` da linha 10. Já o `remove` da linha 43
+não chama `res.json()`, porque a rota responde `204 No Content`, sem corpo.
+
+É por essa constante `domain` da linha 1 que o proxy funciona: o front nunca escreve
+`http://localhost:3000`. Trocar de ambiente é trocar quem responde por `/api`, não o código.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/front/js/services/api.js"
+  title="front/js/services/api.js"
+  showLineNumbers
+  mark="1,19-25"
+/>
+
+Com essa camada pronta, o `index.js` cuida só da tela. O trecho destacado nas linhas 52 a 76 tem
+as duas funções que ligam a interface à API: `loadHostCards()` (linhas 52 a 62) faz
+`API.read('/hosts')`, limpa a grade e cria um cartão por item, e `loadHandleCreateHost()`
+(linhas 64 a 76) intercepta o envio do formulário com `event.preventDefault()`, converte os
+campos em objeto com `Object.fromEntries(new FormData(form))` na linha 68 e chama `API.create`.
+
+O gerador de HTML `HostCard()` (linhas 8 a 30) e o cálculo de métricas (linhas 38 a 50) estão
+recolhidos: são detalhes de interface. Vale notar, no entanto, que `updateMetrics` já reduz a
+lista a três números — total, online e média — e que essa função vai sobreviver, quase intacta,
+até a etapa 11.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/front/js/index.js"
+  title="front/js/index.js"
+  showLineNumbers
+  mark="52-76"
+  collapse="8-30,38-50"
+/>
+
+O terceiro arquivo é o `lib/format.js`. Ele resolve dois problemas de apresentação que vão
+reaparecer em toda etapa: transformar uma latência em texto (com travessão quando não há medição)
+e convertê-la na escala de 0 a 100 que a barra `.latency-bar` espera.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/front/js/lib/format.js"
+  title="front/js/lib/format.js"
+  showLineNumbers
+/>
+
+| Arquivo | Responsabilidade | Conhece `fetch`? |
+| ------- | ---------------- | ---------------- |
+| `js/services/api.js` | montar URL, método, cabeçalhos e corpo das requisições | sim, e é o único |
+| `js/index.js` | ler o DOM, tratar eventos e desenhar os cartões | não |
+| `js/lib/format.js` | formatar latência e converter para a escala da barra | não |
+
+Essa divisão é o que permite trocar a origem da API, acrescentar um cabeçalho `Authorization` ou
+mudar o tratamento de erro em um único arquivo. Na etapa 10, quando o token JWT entrar, a
+alteração acontece só dentro de `services/api.js`.
+
+### TK02.6 · Criar `back/requests.http` (Especificação executável)
+
+O arquivo é uma documentação executável: cada bloco separado por `###` vira um botão *Send
+Request* na extensão REST Client do VS Code.
+
+O trecho destacado nas linhas 1 a 13 mostra o mecanismo que torna o arquivo encadeável. A linha 1
+define a variável `@host` com a base da API; a linha 6 nomeia a requisição com
+`# @name createdHost`; e a linha 2 captura o `id` da resposta dessa requisição em
+`@createdHostId`. É por isso que, mais adiante, a linha 34 consegue escrever
+`GET {{host}}/hosts/{{createdHostId}}` sem que você precise copiar um UUID à mão.
+
+O restante do arquivo, recolhido, exercita justamente os caminhos de erro do contrato: criação
+sem `address` para provocar `400`, leitura por um id inválido para provocar `404` e assim por
+diante. Rodar o arquivo de cima a baixo valida a API inteira sem abrir o navegador.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-api/back/requests.http"
+  title="back/requests.http"
+  showLineNumbers
+  mark="1-13"
+  collapse="15-79"
+/>
+
+## Executando
+
+Como são dois projetos, são dois terminais.
+
+<Steps>
+
+1. Suba a API:
+
+   ```bash title="Terminal 1"
+   cd examples/courses/express/projects/monitor-app-api/back
+   npm install
+   npm run dev
+   ```
+
+2. Suba o front:
+
+   ```bash title="Terminal 2"
+   cd examples/courses/express/projects/monitor-app-api/front
+   npm install
+   npm run dev
+   ```
+
+3. Abra <code>http://localhost:5173</code> — o painel já consome a API.
+
+4. Execute o `requests.http` pela extensão
+   [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client).
+
+</Steps>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/hosts" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Google DNS",
+    "address": "8.8.8.8"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "e4cfb6bb-4431-42a9-b660-d5701b2f49cd",
+    "name": "Google DNS",
+    "address": "8.8.8.8"
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="GET" path="/api/hosts?name=Google" baseUrl="http://localhost:3000" description="Filtro pela query string" />
+
+<ApiResponse status={200}>
+{`
+  [
+    { "id": "e4cfb6bb-…", "name": "Google DNS", "address": "8.8.8.8" }
+  ]
+`}
+</ApiResponse>
+
+<Aside type="caution" title="O que se perde ao reiniciar">
+  Tudo. O array vive na memória do processo: um `Ctrl+C` apaga os hosts cadastrados. É exatamente
+  o problema que a etapa 6 resolve.
+</Aside>
+
+## Conceitos abordados
+
+- Rotas com método e caminho, e o prefixo `/api`
+- `express.json()` e o corpo da requisição
+- CORS no servidor e proxy no cliente: as duas metades do mesmo problema
+- Filtro por query string
+- Status codes de sucesso e de erro
+- `requests.http` como contrato executável
+
+<Aside type="tip">
+  As aulas correspondentes são [Fundamentos](../../../basics/introduction/),
+  [Rotas](../../../basics/routes/), [CORS](../../../security/cors/) e
+  [Construção de API](../../../api/construction/).
+</Aside>
+
+## Próxima etapa
+
+[MonitorApp: TypeScript em camadas](../typescript/) — tipos, controllers e erros centralizados.

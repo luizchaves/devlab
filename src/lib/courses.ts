@@ -49,10 +49,10 @@ const courses = {
     shortTitle: 'Node.js',
     href: '/courses/nodejs/',
   },
-  express: {
+  expressjs: {
     title: 'Guia de Express.js',
     shortTitle: 'Express.js',
-    href: '/courses/express/',
+    href: '/courses/expressjs/',
   },
   database: {
     title: 'Guia de Banco de Dados',

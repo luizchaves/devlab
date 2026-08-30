@@ -1,0 +1,538 @@
+---
+title: "Projeto: MonitorApp"
+description: "Aplicação de monitoramento de hosts de rede construída em treze etapas: front estático no Vite, API em memória, TypeScript, validação, SQLite, Prisma com relações, ping real, usuário, autenticação, tempo real, testes e Docker."
+course: expressjs
+sidebar:
+  label: "Visão geral"
+---
+import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Nível **Iniciante → Avançado** · HTML · Tailwind CSS · Vite · Node.js · Express.js · TypeScript · Prisma · Testes
+
+O **MonitorApp** é o projeto irmão do [InvestApp](../investapp/): a mesma trilha incremental, o
+mesmo rigor de camadas, mas outro domínio e outra arquitetura de front. Aqui a aplicação
+cadastra hosts de rede, executa `ping` periodicamente e guarda o histórico de latência de cada
+um — e o front-end tem **build próprio**, servido em outra origem.
+
+<ProjectLinks path="examples/courses/express/projects/monitor-app-test" />
+
+## Análise de requisitos
+
+### Público-alvo
+
+O **MonitorApp** foi projetado para atender a dois perfis principais de usuários:
+- **Estudantes e Desenvolvedores Web**: alunos que já percorreram o InvestApp e querem exercitar as mesmas camadas em um domínio com relação muitos-para-muitos, chamada de sistema operacional e atualização em tempo real.
+- **Times de infraestrutura e professores de laboratório**: pessoas que precisam de um painel simples e privado para acompanhar se um conjunto de máquinas, serviços ou sites está no ar e com que latência responde.
+
+### Objetivo do sistema
+
+O **MonitorApp** visa fornecer um painel web para acompanhar a disponibilidade e a latência de
+hosts de rede. O sistema permite cadastrar endereços (IPv4 ou nome de domínio), organizá-los por
+tags, disparar medições sob demanda ou em intervalos automáticos, e visualizar o histórico de
+cada host em uma linha do tempo, com o painel se atualizando sozinho conforme as medições
+acontecem.
+
+### Requisitos Funcionais (RF)
+
+| Código | Requisito | Descrição |
+| ------ | --------- | --------- |
+| **RF01** | Gestão de Hosts (CRUD) | O sistema deve permitir criar, listar, consultar por id, atualizar e remover hosts com nome e endereço (IPv4 ou nome de domínio). |
+| **RF02** | Classificação por Tags | O sistema deve permitir rotular cada host com várias tags, e cada tag deve poder rotular vários hosts, com filtro da lista por tag. |
+| **RF03** | Histórico de Medições | O sistema deve registrar cada medição de um host com o resultado (sucesso ou falha), a latência em milissegundos e o instante da coleta. |
+| **RF04** | Coleta Automática e Sob Demanda | O sistema deve executar `ping` real contra os hosts em intervalos configuráveis e permitir antecipar uma medição pela interface. |
+| **RF05** | Cadastro de Usuários | O sistema deve permitir o auto-cadastro de novos usuários informando nome, e-mail único e senha. |
+| **RF06** | Autenticação & Sessão | O sistema deve autenticar usuários via e-mail e senha, retornando um token de acesso JWT para manter a sessão ativa. |
+| **RF07** | Isolamento por Dono | O sistema deve garantir que o usuário autenticado acesse e manipule estritamente os seus próprios hosts e o histórico deles. |
+| **RF08** | Painel em Tempo Real | O sistema deve atualizar o estado dos hosts na tela assim que uma medição é registrada, sem que o usuário recarregue a página. |
+
+### Requisitos Não-Funcionais (RNF)
+
+| Código | Requisito | Descrição |
+| ------ | --------- | --------- |
+| **RNF01** | Validação Estrita de Dados | Todas as entradas de dados via HTTP (`body`, `query`, `params`) devem ser validadas no servidor com schemas Zod antes do processamento. |
+| **RNF02** | Criptografia & Segurança | Senhas nunca devem ser gravadas em texto limpo; o armazenamento deve utilizar hash Argon2id com salt por registro, e a sessão deve usar JWT HS256. |
+| **RNF03** | Persistência Relacional | Os dados devem ser armazenados em banco relacional (SQLite) com Prisma ORM, incluindo uma relação muitos-para-muitos entre hosts e tags. |
+| **RNF04** | Segurança na Chamada de Sistema | A execução do comando `ping` deve receber o endereço como argumento isolado, sem passar por shell, impedindo injeção de comando. |
+| **RNF05** | Origens Separadas | O front-end deve ter build próprio e ser publicado independentemente da API, com CORS no servidor e proxy no ambiente de desenvolvimento. |
+| **RNF06** | Manutenibilidade & Tipagem | O código do servidor deve ser tipado estaticamente e organizado em camadas (rotas, controllers, models), com tratamento de erros centralizado. |
+| **RNF07** | Documentação da API | O contrato da API deve ser publicado em OpenAPI 3, gerado a partir dos mesmos schemas que validam as requisições, e navegável por interface web. |
+| **RNF08** | Qualidade & Testabilidade | A aplicação deve possuir testes de unidade, de rotas (`supertest`), de front (Vitest) e fluxo completo E2E em navegador (Playwright). |
+| **RNF09** | Portabilidade & Conteinerização | A aplicação inteira — API Node.js, banco SQLite e front compilado — deve ser empacotável em imagens Docker e orquestrada por Docker Compose. |
+
+<Aside type="tip" title="Detalhamento nos documentos de especificação">
+  A decomposição completa dos requisitos em **5 épicos**, **14 features**, **15 histórias de
+  usuário**, **80+ critérios de aceitação** e a matriz de rastreabilidade estão no
+  [Backlog do Produto](backlog/). O contrato completo dos endpoints, com corpos, status codes e
+  regras de erro, está na [Especificação da API](api-spec/).
+</Aside>
+
+Com o **que fazer** definido, o resto desta página trata do **com o quê**: a stack escolhida, o
+desenho das telas, o modelo de dados e a ordem das treze etapas.
+
+## Stack tecnológica da aplicação
+
+O projeto evolui adicionando bibliotecas e ferramentas de mercado conforme a necessidade do sistema:
+
+| Camada | Tecnologias e bibliotecas |
+| ------ | ------------------------- |
+| **Front-end** | HTML5 semântico, Tailwind CSS (Play CDN na etapa 1, compilado pelo Vite a partir da 2), JavaScript vanilla (`fetch`, DOM API) |
+| **Back-end & Runtime** | Node.js 24, Express 5 e TypeScript (da etapa 3 em diante) |
+| **Validação & Erros** | Schemas declarativos com Zod e middleware de erros customizado (`HttpError`) |
+| **Persistência** | SQLite nativo (`node:sqlite`) e, depois, Prisma ORM (schema declarativo, migrations e relação N-N) |
+| **Coleta** | `node:child_process` executando o `ping` do sistema, com agendador em `setInterval` |
+| **Segurança & Auth** | Hash Argon2id e JWT HS256, ambos com `node:crypto`, e middleware de autorização |
+| **Tempo real** | Server-Sent Events sobre HTTP, consumidos com `fetch` e `ReadableStream` |
+| **Qualidade & Testes** | `node:test` com `supertest` (rotas), Vitest com jsdom (front) e Playwright (E2E) |
+| **Infraestrutura** | Docker (API em Node, front compilado em Nginx), Docker Compose e volume de dados |
+
+<Aside type="note" title="Aulas conceituais associadas">
+  Cada etapa do MonitorApp aplica os conceitos explicados em detalhes nas aulas teóricas de Express.js:
+  - **Rotas e Middlewares**: veja [Rotas no Express](../../basics/routes/) e [Middlewares](../../basics/middleware/)
+  - **TypeScript e MVC**: veja [TypeScript no Express](../../basics/typescript/) e [Arquitetura MVC](../../architecture/mvc/)
+  - **Validação e Erros**: veja [Validação de Requisições](../../api/validation/) e [Tratamento de Erros](../../api/error-handling/)
+  - **Banco de Dados**: veja [SQLite Nativo](../../persistence/node-sqlite/), [Prisma ORM](../../persistence/prisma/) e [Relações](../../persistence/relations/)
+  - **Usuários e Auth**: veja [Cadastro de Usuários](../../auth/user-registration/), [Senhas e Hash](../../auth/passwords/) e [Autenticação JWT](../../auth/authentication/)
+  - **Recursos Avançados**: veja [Chamada de Sistema](../../advanced/system-call/), [Tempo Real](../../advanced/realtime/), [CORS](../../security/cors/), [Testes](../../advanced/testing/) e [Deploy com Docker](../../advanced/deploy/)
+</Aside>
+
+## Arquitetura do sistema
+
+O MonitorApp separa front-end e API em **duas origens** desde a primeira etapa. O front é um
+projeto Vite com build próprio; a API é um servidor Express em TypeScript. Em desenvolvimento, o
+proxy do Vite faz o navegador enxergar uma origem só; em produção, o Nginx da imagem do front
+assume esse papel e o middleware `cors` do Express autoriza a chamada.
+
+<Mermaid title="As duas origens do MonitorApp e o caminho de uma medição">
+{`
+flowchart TB
+  subgraph Cliente["Navegador"]
+    UI["index.html · host.html<br/>signin.html · signup.html"]
+    JS["services/api.js — fetch + Bearer<br/>lib/events.js — fluxo SSE<br/>lib/auth.js — token no localStorage"]
+  end
+
+  subgraph Front["Vite · 5173 (dev) · Nginx · 80 (prod)"]
+    Proxy["proxy /api"]
+  end
+
+  subgraph Api["Express · 3000"]
+    Rotas["routes/ — isAuthenticated + validate"]
+    Ctrl["controllers/ — HTTP"]
+    Model["models/ — regra e Prisma"]
+    Mon["services/monitor.ts — agendador"]
+    Ping["lib/ping.ts — execFile"]
+    Ev["services/events.ts — barramento"]
+  end
+
+  DB[("SQLite<br/>Host · Ping · Tag · User")]
+  Rede(("Host da rede"))
+
+  UI --> JS
+  JS --> Proxy
+  Proxy --> Rotas
+  Rotas --> Ctrl --> Model --> DB
+  Mon --> Ping --> Rede
+  Mon --> Model
+  Model --> Ev
+  Ev -.->|"text/event-stream"| JS
+`}
+</Mermaid>
+
+<Aside type="note" title="A diferença de arquitetura em relação ao InvestApp">
+  O InvestApp serve o front por `express.static` e por isso nunca precisa de CORS. O MonitorApp
+  separa os dois desde o início: são dois `package.json`, dois servidores em desenvolvimento e
+  duas imagens Docker. Comparar os dois projetos é a forma mais direta de entender o que a aula
+  de [CORS](../../security/cors/) descreve.
+</Aside>
+
+## Protótipo visual e telas principais
+
+Conheça as telas do MonitorApp renderizadas a partir dos arquivos do projeto local em
+`examples/courses/express/projects/monitor-app-static/front/`:
+
+<Tabs>
+  <TabItem label="Hosts (index.html)">
+    Painel principal com métricas da rede, cartões de host com estado e latência, e formulário para cadastrar um novo endereço:
+
+    <HtmlPreview path="examples/courses/express/projects/monitor-app-static/front/index.html" height="32rem" serveFromPublic allowScripts />
+  </TabItem>
+
+  <TabItem label="Histórico (host.html)">
+    Detalhe de um host: última latência, média, disponibilidade, gráfico da série e tabela de medições:
+
+    <HtmlPreview path="examples/courses/express/projects/monitor-app-static/front/host.html" height="30rem" serveFromPublic allowScripts />
+  </TabItem>
+
+  <TabItem label="Entrar (signin.html)">
+    Interface de autenticação com e-mail e senha:
+
+    <HtmlPreview path="examples/courses/express/projects/monitor-app-static/front/signin.html" height="24rem" serveFromPublic allowScripts />
+  </TabItem>
+
+  <TabItem label="Criar Conta (signup.html)">
+    Formulário de cadastro integrado ao hash de senha no servidor:
+
+    <HtmlPreview path="examples/courses/express/projects/monitor-app-static/front/signup.html" height="26rem" serveFromPublic allowScripts />
+  </TabItem>
+</Tabs>
+
+## Modelo de domínio e dicionário de dados
+
+Todas as etapas giram em torno das mesmas entidades, que vão sendo introduzidas aos poucos: o
+`Host` nasce na etapa 2, `Ping` e `Tag` na etapa 7, e o `User` na etapa 9.
+
+<Mermaid title="Entidades do MonitorApp na etapa final">
+{`
+erDiagram
+  USER ||--o{ HOST : "cadastra"
+  HOST ||--o{ PING : "gera histórico de"
+  HOST }|--|{ TAG : "é rotulado por"
+
+  USER {
+    string id PK
+    string name
+    string email UK
+    string password
+    datetime createdAt
+  }
+  HOST {
+    string id PK
+    string name
+    string address
+    datetime createdAt
+    string userId FK
+  }
+  PING {
+    string id PK
+    int latency
+    boolean success
+    datetime createdAt
+    string hostId FK
+  }
+  TAG {
+    string id PK
+    string name UK
+    string color
+  }
+`}
+</Mermaid>
+
+### Dicionário de dados do domínio
+
+O dicionário formaliza a estrutura, os tipos, as regras de integridade e o propósito de cada
+campo mantido pela aplicação.
+
+#### 1. Entidade `User` (Conta)
+
+Representa a pessoa cadastrada na plataforma, dona de um conjunto de hosts monitorados e
+responsável pela autenticação no sistema.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
+| ----- | ------------ | ----------------- | ----------------------------- |
+| `id` | `String` (UUID v4) | **PK** | Identificador único universal da conta, gerado no cadastro. |
+| `name` | `String` | Obrigatório | Nome completo do usuário (mínimo de 3 caracteres). |
+| `email` | `String` | Obrigatório, **Unique** | E-mail usado para login; duplicidade responde `409`. |
+| `password` | `String` | Hash | Hash da senha gerado com **Argon2id** no formato PHC, com salt por registro (mínimo de 8 caracteres na entrada). |
+| `createdAt` | `DateTime` | Default `now()` | Data e hora de criação do registro. |
+
+#### 2. Entidade `Host` (Endereço monitorado)
+
+Representa um endereço de rede acompanhado pela aplicação: um IP, uma máquina interna ou um site
+público.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
+| ----- | ------------ | ----------------- | ----------------------------- |
+| `id` | `String` (UUID v4) | **PK** | Identificador único do host. |
+| `name` | `String` | Obrigatório | Nome de exibição do host (mínimo de 3 caracteres, ex.: "Google DNS"). |
+| `address` | `String` | Obrigatório | Endereço IPv4 ou nome de domínio. URLs completas são recusadas com `400`. |
+| `createdAt` | `DateTime` | Default `now()` | Data e hora do cadastro. |
+| `userId` | `String` | **FK** (`User.id`), `onDelete: Cascade` | Dono do host; preenchido a partir do token, nunca do corpo da requisição. |
+
+#### 3. Entidade `Ping` (Medição)
+
+Registra o resultado de uma verificação individual. É a entidade que dá ao sistema uma dimensão
+temporal: um host não tem “um estado”, tem uma série de medições.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
+| ----- | ------------ | ----------------- | ----------------------------- |
+| `id` | `String` (UUID v4) | **PK** | Identificador único da medição. |
+| `latency` | `Int?` | Opcional | Latência em milissegundos. **Nulo** quando o host não respondeu — a medição existe, a latência não. |
+| `success` | `Boolean` | Default `true` | Indica se houve resposta dentro do tempo limite. |
+| `createdAt` | `DateTime` | Default `now()` | Instante da coleta; é por ele que a série é ordenada. |
+| `hostId` | `String` | **FK** (`Host.id`), `onDelete: Cascade` | Host medido. Remover o host apaga o histórico junto. |
+
+#### 4. Entidade `Tag` (Rótulo)
+
+Classificação livre e compartilhada entre hosts. É o lado muitos-para-muitos do modelo: uma tag
+rotula vários hosts, e um host carrega várias tags.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
+| ----- | ------------ | ----------------- | ----------------------------- |
+| `id` | `String` (UUID v4) | **PK** | Identificador único da tag. |
+| `name` | `String` | Obrigatório, **Unique** | Nome do rótulo (ex.: "infra", "dns", "produção"). É por ele que o host conecta a tag. |
+| `color` | `String` | Obrigatório | Cor hexadecimal `#rrggbb` usada no badge do front. Tags criadas junto com um host nascem com a cor neutra `#64748b`. |
+
+<Aside type="note" title="Por que a junção não vira uma entidade do dicionário">
+  A tabela `_HostTags`, que materializa a relação muitos-para-muitos, é criada e mantida pelo
+  próprio Prisma. Ela não aparece no dicionário porque não tem campos de negócio: existe apenas
+  para ligar dois identificadores. A [etapa 7](prisma/) mostra o SQL que o Prisma gera para ela.
+</Aside>
+
+## Trilha incremental de desenvolvimento
+
+<Steps>
+
+1. **Front estático**: Quatro telas em HTML semântico e Tailwind CSS, já no projeto Vite, sem JavaScript.
+2. **API em memória**: Rotas REST Express sobre um array, com o front consumindo a API pelo proxy do Vite.
+3. **TypeScript em camadas**: Migração da API para TypeScript com divisão em rotas, controllers, models e manipuladores de erro.
+4. **Validação**: Validação estrita de entradas HTTP (`body`, `query`, `params`) com schemas Zod, incluindo a regra de endereço.
+5. **Documentação da API**: Documento OpenAPI gerado dos próprios schemas Zod e servido com Swagger UI.
+6. **SQLite nativo**: Substituição do array por banco relacional com `node:sqlite`, migration e seeders, sem ORM.
+7. **Prisma e relações**: Modelagem declarativa, migrations versionadas e as relações `Ping` (1-N) e `Tag` (N-N).
+8. **Ping real**: Execução do comando do sistema com `node:child_process` e agendador de coleta periódica.
+9. **Cadastro de usuário**: Criação da entidade `User`, formulário de auto-cadastro e hash de senhas com Argon2id.
+10. **Autenticação**: Login com credenciais, emissão de tokens JWT e isolamento dos hosts por dono.
+11. **Tempo real**: Painel que se atualiza sozinho via Server-Sent Events conforme as medições chegam.
+12. **Testes de software**: Suíte de unidade, de rotas (`supertest`), de front (Vitest) e E2E (Playwright).
+13. **Docker**: Duas imagens (API em Node e front em Nginx), Docker Compose e volume de dados.
+
+</Steps>
+
+## Matriz comparativa das treze etapas
+
+| Etapa | Pasta local | Persistência | Linguagem | Novidade principal |
+| ----- | ----------- | ------------ | --------- | ------------------ |
+| 1 | `monitor-app-static` | estática | HTML + CSS | UX/UI em Tailwind CSS no Vite, sem JavaScript |
+| 2 | `monitor-app-api` | array | JavaScript + front vanilla | rotas, JSON, proxy do Vite e CORS |
+| 3 | `monitor-app-typescript` | array | TypeScript + front vanilla | camadas, `HttpError`, tipos do domínio |
+| 4 | `monitor-app-validation` | array | TypeScript + front vanilla | schemas Zod para body, query e params |
+| 5 | `monitor-app-swagger` | array | TypeScript + front vanilla | OpenAPI gerado dos schemas e Swagger UI |
+| 6 | `monitor-app-db-simple` | `node:sqlite` | TypeScript + front vanilla | migration, seeders e model com SQL |
+| 7 | `monitor-app-prisma` | Prisma + SQLite | TypeScript + front vanilla | schema, migrations, `Ping` e `Tag` (N-N) |
+| 8 | `monitor-app-ping` | Prisma + SQLite | TypeScript + front vanilla | `execFile`, parser de latência e agendador |
+| 9 | `monitor-app-user` | Prisma + SQLite | TypeScript + front vanilla | `User`, Argon2id e cadastro |
+| 10 | `monitor-app-auth` | Prisma + SQLite | TypeScript + front vanilla | login, JWT e isolamento por dono |
+| 11 | `monitor-app-realtime` | Prisma + SQLite | TypeScript + front vanilla | Server-Sent Events e painel ao vivo |
+| 12 | `monitor-app-test` | Prisma + SQLite | TypeScript + front vanilla | unidade, rotas com `supertest`, Vitest e Playwright |
+| 13 | `monitor-app-test` | SQLite em volume | TypeScript + front vanilla | duas imagens Docker, Compose e volume |
+
+## Navegação pelas etapas do MonitorApp
+
+<CardGrid>
+  <Card title="1. Front estático" icon="laptop">
+    Quatro telas em HTML e Tailwind CSS, já no projeto Vite, sem uma linha de JavaScript.
+
+    <div class="page-badges">
+      <a class="page-badge" href="front-static/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="2. API em memória" icon="rocket">
+    Rotas, JSON e um array. O front vanilla passa a consumir a API pelo proxy do Vite.
+
+    <div class="page-badges">
+      <a class="page-badge" href="api/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="3. TypeScript em camadas" icon="seti:typescript">
+    Migração para TypeScript, controllers, routers, erros e `HttpError`.
+
+    <div class="page-badges">
+      <a class="page-badge" href="typescript/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="4. Validação" icon="approve-check">
+    Schemas Zod para corpo, query e params — incluindo a regra de endereço IP ou domínio.
+
+    <div class="page-badges">
+      <a class="page-badge" href="validation/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="5. Documentação da API" icon="open-book">
+    O mesmo schema que valida passa a documentar: OpenAPI gerado do Zod, servido no Swagger UI.
+
+    <div class="page-badges">
+      <a class="page-badge" href="swagger/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="6. SQLite nativo" icon="seti:db">
+    `node:sqlite`, migration, seeders e a camada de model com SQL — sem ORM.
+
+    <div class="page-badges">
+      <a class="page-badge" href="sqlite/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="7. Prisma e relações" icon="puzzle">
+    Schema declarativo, migrations versionadas, `Ping` um-para-muitos e `Tag` muitos-para-muitos.
+
+    <div class="page-badges">
+      <a class="page-badge" href="prisma/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="8. Ping real" icon="setting">
+    `node:child_process`, parser da saída do comando e agendador de coleta.
+
+    <div class="page-badges">
+      <a class="page-badge" href="ping/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="9. Cadastro de usuário" icon="add-document">
+    Model `User`, hash de senha com Argon2id e a tela de cadastro.
+
+    <div class="page-badges">
+      <a class="page-badge" href="user/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="10. Autenticação" icon="padlock">
+    Login, JWT nativo, middleware e hosts isolados por dono.
+
+    <div class="page-badges">
+      <a class="page-badge" href="auth/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="11. Tempo real" icon="bars">
+    Server-Sent Events: o painel se atualiza sozinho a cada medição.
+
+    <div class="page-badges">
+      <a class="page-badge" href="realtime/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="12. Testes de software" icon="list-format">
+    Unidade, rotas com `supertest`, front com jsdom no Vitest e E2E com Playwright.
+
+    <div class="page-badges">
+      <a class="page-badge" href="testing/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="13. Docker" icon="seti:docker">
+    Duas imagens, `compose.yaml`, Nginx no lugar do proxy do Vite e volume de dados.
+
+    <div class="page-badges">
+      <a class="page-badge" href="docker/">Ver etapa</a>
+    </div>
+  </Card>
+</CardGrid>
+
+## Documentos de especificação
+
+<CardGrid>
+  <Card title="Backlog do produto" icon="list-format">
+    Épicos, features, histórias de usuário, critérios de aceitação em Gherkin e tasks de cada etapa.
+
+    <div class="page-badges">
+      <a class="page-badge" href="backlog/">Abrir documento</a>
+    </div>
+  </Card>
+
+  <Card title="Especificação da API" icon="document">
+    O contrato completo: recursos, endpoints, corpos, status codes, erros e o formato dos eventos.
+
+    <div class="page-badges">
+      <a class="page-badge" href="api-spec/">Abrir documento</a>
+    </div>
+  </Card>
+
+  <Card title="Próximos passos" icon="rocket">
+    Dívidas técnicas conhecidas, features do backlog, evoluções de arquitetura e desafios graduados.
+
+    <div class="page-badges">
+      <a class="page-badge" href="next-steps/">Abrir documento</a>
+    </div>
+  </Card>
+</CardGrid>
+
+## Evolução incremental do projeto
+
+<Aside type="tip" title="O trilho é cumulativo por construção">
+  Cada pasta de etapa nasce como cópia da anterior mais o delta daquela etapa. Nada que foi
+  introduzido desaparece depois: o TypeScript da etapa 3 vale até a 13, a validação da etapa 4
+  continua nas rotas de todas as seguintes, e o isolamento por dono da etapa 10 acompanha o
+  resto. As remoções do trilho são substituições explicadas na própria página — o array em
+  memória sai na etapa 6, quando o banco entra; os scripts de migration manual saem na etapa 7,
+  quando o Prisma assume; e o Play CDN do Tailwind sai na etapa 2, quando o Vite passa a compilar
+  os mesmos utilitários. Nos três casos o que entra faz o mesmo trabalho, melhor.
+</Aside>
+
+Cada etapa resolve exatamente um problema novo e mantém tudo que veio antes. O código de todo
+o projeto reside 100% no próprio repositório, dentro de `examples/courses/express/projects/`. Não é
+necessário clonar repositórios externos (`git clone`).
+
+Comparar duas pastas locais com `git diff --no-index` mostra, de forma isolada, exatamente o que
+aquela etapa alterou no código — e é a melhor forma de ver o efeito direto de uma decisão de
+arquitetura.
+
+<Aside type="tip" title="Compare duas etapas com um comando">
+  Você pode comparar quaisquer duas pastas de etapas locais dentro do repositório DevLab com o comando:
+
+  ```bash title="Terminal"
+  git diff --no-index -- \
+    examples/courses/express/projects/monitor-app-static \
+    examples/courses/express/projects/monitor-app-api || true
+  ```
+
+  Ou comparar a transição da persistência nativa em SQLite para o Prisma ORM:
+
+  ```bash title="Terminal"
+  git diff --no-index -- \
+    examples/courses/express/projects/monitor-app-db-simple \
+    examples/courses/express/projects/monitor-app-prisma || true
+  ```
+
+  O parâmetro `--no-index` instrui o Git a comparar diretamente duas pastas locais sem depender de
+  histórico ou repositório remoto. O `|| true` evita que o terminal trate diferenças de arquivos
+  como erro de comando.
+</Aside>
+
+### Execução dos projetos locais
+
+Cada página de etapa aponta para uma pasta em `examples/courses/express/projects/`. Como front e API são
+projetos separados, cada um tem o seu `npm install` e o seu terminal:
+
+```bash title="Terminal 1 — a API"
+cd examples/courses/express/projects/monitor-app-prisma/back
+npm install
+cp .env.example .env
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
+
+```bash title="Terminal 2 — o front"
+cd examples/courses/express/projects/monitor-app-prisma/front
+npm install
+npm run dev
+```
+
+<Aside type="caution" title="As dependências mudam entre as pastas">
+  A etapa 7 em diante instala o Prisma; a etapa 3 acrescenta `typescript` e `@types/*`; a etapa 12
+  acrescenta `supertest`, `vitest` e o Playwright. Rode `npm install` de novo sempre que trocar de
+  pasta — o `package.json` é diferente.
+</Aside>
+
+## Iniciar a primeira etapa
+
+[MonitorApp: Front estático](front-static/) — HTML, `tailwind.css` e as quatro telas do
+sistema, sem JavaScript.
+
+## Depois da última etapa
+
+[Próximos passos](next-steps/) — as dívidas técnicas que o projeto conhece, as features que ficaram
+no backlog e cinco desafios graduados para continuar de onde a etapa 13 parou.
+
+## Projeto irmão
+
+[InvestApp](../investapp/) — a mesma trilha, com front na mesma origem servido por
+`express.static`, e um domínio financeiro no lugar do domínio de rede.

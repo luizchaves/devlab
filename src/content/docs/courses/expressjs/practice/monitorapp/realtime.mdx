@@ -1,0 +1,352 @@
+---
+title: "MonitorApp: Tempo real"
+description: "Décima primeira etapa do MonitorApp: painel que se atualiza sozinho com Server-Sent Events, barramento de eventos no servidor e consumo do fluxo com fetch e ReadableStream."
+course: expressjs
+sidebar:
+  label: "11. Tempo real"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **11 de 13** · Nível **Avançado** · Server-Sent Events · `ReadableStream`
+
+Desde a etapa 8 o servidor mede os hosts sozinho, a cada minuto. Mas o painel continua uma
+fotografia: para ver a medição nova é preciso recarregar a página. Esta etapa fecha essa lacuna e
+transforma a tela em um monitor de parede.
+
+A pergunta técnica é como o servidor avisa o navegador de algo que **ele** decidiu fazer. HTTP
+normal não serve: ele é sempre o cliente que pergunta. Existem três respostas comuns, e a escolha
+aqui não é a mais poderosa — é a mais adequada à forma do problema.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Tempo real**: veja [Tempo Real](../../../advanced/realtime/)
+  - **Observabilidade**: veja [Observabilidade](../../../architecture/observability/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP02 · Coleta e Tempo Real** › **Feature FT05 · Painel ao vivo**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF08** Painel em Tempo Real | fluxo SSE e atualização do cartão sem reload | atendido |
+| **RF07** Isolamento por Dono | o filtro por dono também no fluxo de eventos | reforçado |
+
+### US12 — Ver a rede mudando ao vivo · RF08
+
+> **Como** responsável pela rede,
+> **quero** que o painel mude sozinho quando uma medição acontece,
+> **para** deixar a tela aberta como um monitor de parede.
+
+```gherkin
+Cenário: CA12.1 - O fluxo abre e permanece
+  Quando envio GET /api/events com um token válido
+  Então recebo Content-Type text/event-stream
+  E a conexão permanece aberta
+
+Cenário: CA12.2 - O formato do evento
+  Dado o fluxo aberto
+  Quando uma medição é gravada
+  Então recebo um bloco event: ping
+  E o data traz hostId, success, latency e createdAt
+
+Cenário: CA12.3 - A tela muda sozinha
+  Dado o painel aberto no navegador
+  Quando o agendador mede um host
+  Então o cartão daquele host muda de cor e de latência
+  E a página não foi recarregada
+
+Cenário: CA12.4 - O fluxo respeita o dono
+  Dadas duas contas conectadas ao mesmo tempo
+  Quando um host da conta A é medido
+  Então apenas a conta A recebe o evento
+
+Cenário: CA12.5 - Fechar a aba libera o servidor
+  Dado um cliente conectado ao fluxo
+  Quando ele fecha a aba
+  Então o ouvinte e o heartbeat daquele cliente são removidos
+
+Cenário: CA12.6 - O token não vai na URL
+  Quando o front assina o fluxo
+  Então o token viaja no cabeçalho Authorization
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK11.1 · Criar `src/services/events.ts`**: o barramento em memória e o tipo do evento.
+2. **TK11.2 · Criar `src/routes/events.routes.ts`**: a rota SSE, com heartbeat e limpeza.
+3. **TK11.3 · Emitir o evento em `Ping.check`**: logo depois de gravar.
+4. **TK11.4 · Criar `front/js/lib/events.js`**: consumir o fluxo e aplicar no cartão.
+
+</Steps>
+
+## Estrutura da aplicação
+
+São quatro arquivos tocados, e o desenho deles evita um acoplamento. Quem produz a medição é o
+model, dentro de `services/monitor.ts`; quem a consome são as conexões abertas em
+`routes/events.routes.ts`. O `services/events.ts` fica no meio, para que o model nunca precise
+conhecer uma resposta HTTP — exatamente a separação que a etapa 3 estabeleceu.
+
+<ProjectLinks path="examples/courses/express/projects/monitor-app-realtime" />
+
+<FileTree>
+{`
+  monitor-app-realtime/
+  ├── back/
+  │   └── src/
+  │       ├── services/
+  │       │   ├── events.ts              NOVO — o barramento
+  │       │   └── monitor.ts             inalterado
+  │       ├── routes/
+  │       │   └── events.routes.ts       NOVO — GET /api/events
+  │       ├── models/
+  │       │   └── Ping.ts                + emitPing após gravar
+  │       └── index.ts                   registra o novo roteador
+  └── front/
+      └── js/
+          ├── lib/
+          │   └── events.js              NOVO — fetch + ReadableStream
+          ├── index.js                   applyPing no cartão
+          └── host.js                    recarrega o histórico do host aberto
+`}
+</FileTree>
+
+### Por que Server-Sent Events
+
+| Técnica | Direção | Custo | Encaixe neste problema |
+| ------- | ------- | ----- | ---------------------- |
+| *Polling* (`setInterval` + `fetch`) | cliente pergunta | uma requisição por intervalo, quase sempre sem novidade | funciona, mas desperdiça e atrasa |
+| **Server-Sent Events** | servidor → cliente | uma conexão HTTP aberta | **é a forma do problema**: só o servidor tem o que dizer |
+| WebSocket | ambos os sentidos | protocolo próprio, `upgrade`, mais infraestrutura | poder que não é usado — o cliente nunca empurra nada |
+
+O MonitorApp não tem nada para o cliente enviar por um canal aberto: o cadastro de host e a
+medição sob demanda continuam sendo requisições HTTP normais. SSE entrega exatamente o que falta,
+sobre HTTP puro, com reconexão automática do lado do navegador.
+
+A sequência abaixo acompanha uma medição do agendador até o cartão na tela, e vale ler pelos dois
+extremos: a conexão é aberta **uma vez**, no começo, e o fechamento da aba no fim é o que libera
+o ouvinte no servidor.
+
+<Mermaid title="Do agendador ao cartão na tela">
+{`
+sequenceDiagram
+  participant N as Navegador
+  participant A as API
+  participant E as monitorEvents
+  participant M as Agendador
+
+  N->>A: GET /api/events (Bearer …)
+  A-->>N: 200 text/event-stream
+  A->>E: on('ping', send)
+  Note over N,A: conexão permanece aberta
+  M->>A: Ping.check(hostId)
+  A->>A: grava no banco
+  A->>E: emitPing({ hostId, userId, … })
+  E->>A: send(event)
+  A-->>N: event: ping\\ndata: {…}
+  Note over N: applyPing atualiza o cartão
+  N->>A: fecha a aba
+  A->>E: off('ping', send)
+`}
+</Mermaid>
+
+## O que muda nesta etapa
+
+| Etapa 10 (`monitor-app-auth`) | Etapa 11 (`monitor-app-realtime`) |
+| ----------------------------- | --------------------------------- |
+| toda resposta HTTP termina | `GET /api/events` fica aberta |
+| a tela é uma fotografia do carregamento | o cartão muda a cada medição |
+| `Ping.check` só grava | grava e publica no barramento |
+| o front só faz requisição e resposta | também consome um fluxo contínuo |
+
+## Descrição das tarefas
+
+### TK11.1 · Criar `src/services/events.ts` (O barramento)
+
+Nenhuma dependência: `node:events` é nativo.
+
+O arquivo tem 24 linhas e resolve um problema de acoplamento. Quem **produz** a medição é o
+agendador, dentro do model; quem **consome** são as conexões SSE abertas, dentro de um roteador.
+Ligar os dois diretamente faria o model conhecer respostas HTTP — exatamente o que a etapa 3
+separou.
+
+O `EventEmitter` da linha 17 fica no meio. O model publica, o roteador assina, e nenhum dos dois
+conhece o outro.
+
+A linha 20 é um detalhe fácil de esquecer: o `EventEmitter` avisa no console quando passa de dez
+ouvintes, presumindo vazamento. Aqui cada aba aberta é um ouvinte legítimo, e onze pessoas
+olhando o painel não são um bug.
+
+O tipo `PingEvent` das linhas 3 a 10 carrega o `userId` (linha 6). O barramento é global — todos
+os eventos passam por ele — e é na entrega que o filtro por dono acontece.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-realtime/back/src/services/events.ts"
+  title="back/src/services/events.ts"
+  showLineNumbers
+  mark="3-10,17-20"
+/>
+
+### TK11.2 · Criar `src/routes/events.routes.ts` (A rota que não termina)
+
+Esta é a única rota do projeto que não chama `res.json()` nem `res.send()`. Ela abre o corpo da
+resposta e o mantém aberto.
+
+Os cabeçalhos das linhas 19 a 25 são o contrato do protocolo. O `Content-Type: text/event-stream`
+é o que faz o navegador tratar a resposta como fluxo; o `Cache-Control: no-cache` impede que um
+intermediário guarde e reentregue eventos antigos; e o `X-Accel-Buffering: no` da linha 24 desliga
+o buffer de proxies como o Nginx — sem ele, os blocos ficariam presos esperando encher um buffer,
+e o "tempo real" chegaria em rajadas. Essa linha só passa a importar na
+[etapa 13](../docker/), quando o Nginx entra em cena, e está aqui desde já por isso.
+
+A linha 28 escreve um **comentário** do protocolo: uma linha iniciada por `:` não é evento, mas
+faz os cabeçalhos serem enviados e o cliente saber que a conexão abriu.
+
+O `send` das linhas 32 a 36 é a entrega, e a linha 33 é a autorização: um evento de host que não
+pertence a quem está ouvindo é simplesmente descartado. O `isAuthenticated` da linha 18 garante
+quem está do outro lado; esta linha garante o que essa pessoa recebe.
+
+O heartbeat da linha 40 escreve um comentário a cada 30 segundos. Sem ele, uma conexão ociosa
+seria fechada por proxies e balanceadores que consideram silêncio como abandono.
+
+O bloco das linhas 43 a 46 é o mais importante do arquivo. Sem essa limpeza, cada aba fechada
+deixaria um ouvinte e um `setInterval` presos na memória — um vazamento que só aparece em
+produção, depois de horas.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-realtime/back/src/routes/events.routes.ts"
+  title="back/src/routes/events.routes.ts"
+  showLineNumbers
+  mark="19-28,32-36,43-46"
+/>
+
+### TK11.3 · Emitir o evento em `Ping.check`
+
+Três linhas de mudança no model. A gravação da linha 28 passa a guardar o resultado em `created`,
+e o bloco das linhas 31 a 37 publica o evento com o `userId` lido do host.
+
+A ordem é deliberada: **grava primeiro, publica depois**. Publicar antes de persistir criaria uma
+janela em que a tela mostra uma medição que não está no banco — e um `F5` a faria desaparecer.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-realtime/back/src/models/Ping.ts"
+  title="back/src/models/Ping.ts"
+  showLineNumbers
+  mark="28-37"
+/>
+
+### TK11.4 · Criar `front/js/lib/events.js` (Consumir o fluxo)
+
+O navegador tem uma API pronta para SSE: `EventSource`. Ela é mais curta que este arquivo, e o
+projeto **não** a usa. O motivo está no comentário das linhas 6 a 9: `EventSource` não aceita
+cabeçalhos. O token teria que viajar como `?token=…` na URL — onde fica registrado no log de
+acesso do servidor, no histórico do navegador e em qualquer proxy do caminho.
+
+A alternativa das linhas 12 a 14 é um `fetch` comum, com o `Authorization` no lugar certo. O
+preço é ler o fluxo à mão, e é o que as linhas 22 a 47 fazem:
+
+| Linha | O que faz |
+| ----- | --------- |
+| 22 | `res.body` é um `ReadableStream` de bytes; `TextDecoderStream` o converte em texto |
+| 26 a 31 | laço que acumula o que chegou em um buffer |
+| 34 | um bloco do protocolo SSE termina em **linha em branco** |
+| 36 | o último pedaço volta ao buffer: pode ser um bloco incompleto, cortado no meio da rede |
+| 39 a 45 | dentro do bloco, a linha `data:` é extraída e convertida em objeto |
+
+O passo da linha 36 é o que separa um leitor de fluxo que funciona de um que quebra sob carga:
+não há garantia de que cada leitura entregue blocos inteiros.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-realtime/front/js/lib/events.js"
+  title="front/js/lib/events.js"
+  showLineNumbers
+  mark="11-14,34-36"
+/>
+
+No `index.js`, o `applyPing` das linhas 127 a 139 atualiza o cartão **no lugar**: troca a classe
+da pastilha, o texto da latência e a variável `--latency` da barra. Nenhum `fetch` acontece — o
+evento já trouxe tudo que mudou, e recarregar a lista inteira desperdiçaria a economia que o SSE
+proporcionou.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-realtime/front/js/index.js"
+  title="front/js/index.js"
+  showLineNumbers
+  mark="127-143"
+  collapse="1-125"
+/>
+
+Na tela de um host só, a estratégia é outra: o `host.js` recarrega o histórico quando o evento é
+daquele host. Aqui recarregar é o certo — o gráfico e a tabela dependem da série inteira, e não
+apenas da última medição.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-realtime/front/js/host.js"
+  title="front/js/host.js"
+  showLineNumbers
+  lines="108-113"
+/>
+
+## Executando
+
+<Steps>
+
+1. Suba a API com um intervalo curto, para não esperar um minuto por evento:
+
+   ```bash title="back/.env"
+   MONITOR_INTERVAL=10
+   ```
+
+   ```bash title="Terminal 1"
+   cd examples/courses/express/projects/monitor-app-realtime/back
+   npm install
+   npm run db:migrate
+   npm run db:seed
+   npm run dev
+   ```
+
+2. Suba o front:
+
+   ```bash title="Terminal 2"
+   cd examples/courses/express/projects/monitor-app-realtime/front
+   npm install
+   npm run dev
+   ```
+
+3. Entre com `ana@exemplo.com` / `senha-secreta` e **deixe a aba parada**. A cada dez segundos os
+   cartões mudam sozinhos.
+
+4. Veja o fluxo cru no terminal — o `-N` desliga o buffer do `curl`:
+
+   ```bash title="Terminal"
+   curl -N -H "Authorization: Bearer <cole-o-token-aqui>" http://localhost:3000/api/events
+   ```
+
+</Steps>
+
+<Aside type="caution" title="Onde este desenho para de servir">
+  O barramento vive na memória do processo. Com duas instâncias da API atrás de um balanceador,
+  um cliente conectado à instância A não recebe os eventos medidos pela instância B. A saída é a
+  mesma do agendador da etapa 8: tirar a coleta do processo web e publicar os eventos em algo
+  compartilhado — Redis Pub/Sub, uma fila, um broker.
+</Aside>
+
+## Conceitos abordados
+
+- SSE, polling e WebSocket: escolher pela forma do problema
+- `EventEmitter` como desacoplamento entre produtor e consumidor
+- Cabeçalhos de um fluxo `text/event-stream` e o comentário `:`
+- Heartbeat contra fechamento por inatividade
+- Remover ouvintes e timers no `close` da requisição
+- `fetch` + `ReadableStream` para manter o token fora da URL
+- Blocos parciais e o buffer entre leituras
+- Gravar antes de publicar
+
+## Próxima etapa
+
+[MonitorApp: Testes de software](../testing/) — unidade, rotas, front e navegador.

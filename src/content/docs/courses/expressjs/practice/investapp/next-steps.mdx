@@ -1,0 +1,319 @@
+---
+title: "InvestApp: Próximos passos"
+description: "O que fazer depois da etapa 13: dívidas técnicas conhecidas, features do backlog, evoluções de arquitetura e desafios graduados para continuar o aprendizado."
+course: expressjs
+sidebar:
+  label: "Próximos passos"
+---
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Treze etapas depois, o InvestApp roda, tem testes e sobe em contêiner. Isso não quer dizer que
+ele esteja pronto — quer dizer que ele ficou **bom o suficiente para ser melhorado com
+segurança**, que é um estado diferente e mais valioso.
+
+Esta página é o mapa do que vem depois. Ela não é uma lista de desejos genérica: cada item
+aponta um lugar concreto do código, diz por que aquilo é um problema hoje e sugere por onde
+começar.
+
+<Aside type="tip" title="Como usar esta página">
+  Escolha **um** item, implemente, rode `npm test` e `npx playwright test`, e só então escolha o
+  próximo. A suíte da [etapa 12](../testing/) existe exatamente para isso: ela é a rede que
+  permite mexer em código que você não escreveu ontem.
+</Aside>
+
+## Dívidas técnicas conhecidas
+
+Estas não são hipóteses — são limitações reais do código como ele está hoje. Algumas foram
+decisões conscientes para manter o trilho didático; outras são coisas que ficaram para trás.
+
+| Dívida | Onde | Por que importa | Dificuldade |
+| ------ | ---- | --------------- | ----------- |
+| **Sem paginação** | `GET /api/investments` | A carteira inteira volta em toda requisição. Com centenas de ativos, a resposta cresce sem limite e a tela trava | ⭐ |
+| **Sem limite de tentativas no login** | `POST /api/signin` | Nada impede força bruta: um script pode testar milhares de senhas por minuto | ⭐ |
+| **Token sem revogação** | `utils/jwt.ts` | Um JWT vale até expirar. Não há logout de verdade, nem como invalidar o token de um dispositivo perdido | ⭐⭐ |
+| **Upload em disco local** | `config/multer.ts` | O avatar é gravado no sistema de arquivos do contêiner. Com duas instâncias, metade das requisições não encontra a imagem | ⭐⭐ |
+| **Valor em centavos sem tipo próprio** | `types/Investment.d.ts` | `value: number` não distingue reais de centavos. A conversão vive espalhada entre front e testes, e um erro de fator 100 passa silencioso | ⭐⭐ |
+| **CSS não compilado da etapa 2 em diante** | `public/css/` | A [etapa 1](../front-static/) usa Tailwind de verdade pelo Play CDN, mas o `tailwind.css` das etapas seguintes ainda são 417 linhas escritas à mão. Compilá-lo exige um passo de build rodando junto do `dev`, já que o Express serve `public/` direto do disco | ⭐⭐ |
+| **Front com estado global** | `public/js/home.js` | Variáveis de módulo e `document.querySelector` espalhados. Não há como testar uma tela isoladamente | ⭐⭐⭐ |
+| **Exemplos fora do Biome** | `examples/courses/express/projects/` | O `pnpm run lint` reprova os arquivos de exemplo. Formatá-los desloca as referências de linha da documentação, então precisa ser feito junto com `pnpm run check:doc-lines --prosa` | ⭐⭐ |
+
+<Aside type="caution" title="Dívida documentada é dívida gerenciada">
+  Duas dessas limitações estão explicadas dentro das próprias páginas de etapa — o upload em
+  disco na [etapa 11](../upload/) e o token sem revogação na [etapa 9](../auth/). Escrever a
+  limitação junto com a solução é o que impede que ela vire surpresa seis meses depois.
+</Aside>
+
+## Features do backlog
+
+O [backlog do produto](../backlog/) já registra uma feature planejada e não implementada:
+
+- **`FT06` · Recuperação de senha** (`US15`) — endpoint de solicitação, token com expiração,
+  e-mail de reset e tela de troca. É a extensão natural de quem já fez as etapas 9 e 10.
+
+Além dela, três candidatas que o domínio pede:
+
+<CardGrid>
+  <Card title="Rentabilidade calculada" icon="approve-check">
+    Hoje `interest` é texto livre (`"110% CDI"`). Transformar em taxa e indexador estruturados
+    permite calcular o valor projetado e comparar ativos.
+  </Card>
+
+  <Card title="Aportes e resgates" icon="list-format">
+    Um investimento tem hoje um `value` único. Modelar movimentações como entidade separada dá
+    histórico, saldo por data e a curva de evolução da carteira.
+  </Card>
+
+  <Card title="Importação de extrato" icon="up-caret">
+    Upload de CSV da corretora, com validação linha a linha e relatório de erros. Reaproveita o
+    Multer da etapa 11 e o Zod da etapa 4.
+  </Card>
+
+  <Card title="Exportação e relatórios" icon="document">
+    Gerar CSV ou PDF da carteira por período. É onde entra o conceito de *job* demorado que não
+    cabe no ciclo requisição/resposta.
+  </Card>
+</CardGrid>
+
+## Evoluções de arquitetura
+
+### Front-end componentizado
+
+O front vanilla foi uma escolha deliberada: sem framework, cada linha do DOM é visível e o
+`fetch` não fica escondido atrás de abstração. Chega um ponto, porém, em que `querySelector` e
+`innerHTML` param de escalar — e o InvestApp está perto dele.
+
+<Mermaid title="O que muda ao trocar o front vanilla por componentes">
+{`
+flowchart LR
+  subgraph Hoje["Hoje · vanilla"]
+    H1["home.js<br/>querySelector + innerHTML"]
+    H2["services/api.js"]
+    H1 --> H2
+  end
+
+  subgraph Depois["Depois · componentes"]
+    D1["InvestmentCard<br/>estado local"]
+    D2["useInvestments<br/>cache e revalidação"]
+    D3["services/api.js<br/>inalterado"]
+    D1 --> D2 --> D3
+  end
+
+  Hoje -->|"o contrato HTTP não muda"| Depois
+`}
+</Mermaid>
+
+O ponto que vale reter: **o `services/api.js` sobrevive à migração**. A camada que isola o
+`fetch`, criada lá na [etapa 2](../api/), é exatamente a fronteira que torna essa troca
+possível sem reescrever o back-end.
+
+| Caminho | O que ganha | O que custa |
+| ------- | ----------- | ----------- |
+| **React** | Ecossistema maior, mais material, mais vagas | Build obrigatório, JSX, e o maior salto conceitual |
+| **Vue** | Curva mais suave vindo de HTML, SFC próximo do que já existe | Ecossistema menor que o do React |
+| **Svelte** | Menos código e sem *runtime* pesado; o resultado se parece com o vanilla atual | Comunidade menor, menos exemplos prontos |
+| **Web Components** | Zero dependência, roda como está hoje | Ergonomia bem pior que a dos três acima |
+
+O DevLab tem um [Guia de React](../../../../react/) para quem escolher esse caminho.
+
+### API: além do REST
+
+O contrato REST da [especificação](../api-spec/) é adequado ao tamanho atual. Duas evoluções
+fazem sentido quando o consumo cresce:
+
+- **GraphQL** — resolve o problema real de `GET /api/investments` trazer `category` e `broker`
+  sempre, mesmo quando a tela só precisa do nome. Vale a pena quando há vários clientes com
+  necessidades diferentes; antes disso, é complexidade sem retorno.
+- **Cursor em vez de offset** — quando a paginação entrar, paginar por cursor evita o problema
+  clássico de itens pulados quando algo é inserido entre duas páginas. Veja
+  [Paginação e Filtros](../../../api/pagination/).
+
+### Cache e desempenho
+
+<Steps>
+
+1. **Índices no banco.** `Investment.userId` é usado em toda consulta e não tem índice. Um
+   `@@index([userId])` no `schema.prisma` é a otimização de maior retorno por linha escrita.
+
+2. **`Cache-Control` nos estáticos.** O build da etapa 13 já gera nomes com hash — isso permite
+   `max-age` longo com segurança, o que hoje não é declarado.
+
+3. **Cache de leitura.** `GET /api/categories` devolve sempre a mesma lista e bate no banco toda
+   vez. Um cache em memória com invalidação por escrita resolve; Redis só quando houver mais de
+   uma instância.
+
+4. **Medir antes de otimizar.** Nada acima vale sem número. Comece registrando a duração de cada
+   requisição — é o assunto de [Observabilidade](../../../architecture/observability/).
+
+</Steps>
+
+## Qualidade e operação
+
+### Linter, formatter e hooks
+
+O repositório já usa [Biome](https://biomejs.dev/), mas os projetos de exemplo estão fora dele.
+O caminho:
+
+```bash title="Terminal"
+npx biome check --write examples/courses/express/projects/invest-app-test
+node scripts/check-doc-lines.mjs --prosa
+```
+
+O segundo comando não é opcional: formatar desloca linhas, e a documentação cita o código **por
+número de linha**. O script lista o que precisa de revisão.
+
+Depois disso, um hook de pré-commit com [husky](https://typicode.github.io/husky/) e
+[lint-staged](https://github.com/lint-staged/lint-staged) impede que o problema volte.
+
+### Integração contínua
+
+O projeto tem quatro níveis de teste e nenhum deles roda automaticamente. Um workflow mínimo:
+
+```yaml title=".github/workflows/ci.yml"
+name: CI
+on: [push, pull_request]
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run coverage
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --project=chromium
+```
+
+O passo do Playwright é o mais caro e o que mais pega regressão de integração — vale rodar só
+em `pull_request`, não em todo `push`.
+
+### Observabilidade
+
+Hoje o `morgan('dev')` imprime uma linha por requisição no console, e é só. Em produção isso não
+serve: não dá para correlacionar requisições, medir latência por rota nem descobrir o que
+quebrou às três da manhã.
+
+| Passo | Ferramenta típica | O que responde |
+| ----- | ----------------- | -------------- |
+| Log estruturado em JSON | `pino` | "o que aconteceu nesta requisição?" |
+| Id de correlação por requisição | `AsyncLocalStorage` | "quais linhas de log são da mesma chamada?" |
+| Métricas | `prom-client` + Prometheus | "quantas requisições por segundo, e com que latência?" |
+| Rastreamento distribuído | OpenTelemetry | "onde exatamente o tempo foi gasto?" |
+| Alerta de erro | Sentry | "algo quebrou, e ninguém me contou" |
+
+As aulas de [Log](../../../architecture/logging/) e
+[Observabilidade](../../../architecture/observability/) cobrem os dois primeiros.
+
+## Segurança
+
+O InvestApp guarda dados financeiros e senhas. A [etapa 9](../auth/) resolve o essencial —
+Argon2id e JWT assinado —, mas há uma distância entre "essencial" e "adequado":
+
+<Steps>
+
+1. **Cabeçalhos de segurança.** `helmet` cobre a maioria com uma linha. A
+   `Content-Security-Policy` é direta neste projeto, porque o front não carrega nada de CDN: o
+   CSS é compilado para `public/css/app.css` e os ícones são SVG inline.
+
+2. **Limite de tentativas.** `express-rate-limit` no `POST /api/signin` e no `POST /api/users`.
+   Sem isso, o hash caro do Argon2id vira uma ferramenta de negação de serviço contra você mesmo.
+
+3. **Refresh token.** Token de acesso curto (minutos) mais um refresh token guardado em cookie
+   `httpOnly`. Resolve de uma vez a revogação e o `localStorage`, que é acessível a qualquer
+   script da página.
+
+4. **Autorização por papel.** Hoje todo usuário é igual. Um campo `role` no `User` e um
+   middleware `hasRole` abrem o caminho para administração — veja
+   [Autorização](../../../auth/authorization/).
+
+5. **Auditoria.** Registrar quem alterou o quê e quando. Em domínio financeiro isso costuma ser
+   requisito, não melhoria.
+
+6. **Segredos fora do repositório.** O `JWT_SECRET` do `compose.yaml` é literal. Em produção ele
+   vem de um gerenciador de segredos — veja [Configuração](../../../architecture/config/).
+
+</Steps>
+
+<Aside type="danger" title="O `localStorage` é a decisão mais discutível do projeto">
+  Guardar o JWT em `localStorage` foi escolhido por ser simples de explicar e de inspecionar. Ele
+  é, porém, legível por qualquer JavaScript que rode na página — inclusive um injetado por XSS.
+  Cookie `httpOnly` + `SameSite=Strict` fecha esse vetor, ao custo de precisar tratar CSRF. Saber
+  **por que** cada opção existe vale mais do que decorar qual é "a certa".
+</Aside>
+
+## Desafios
+
+Cinco exercícios em ordem crescente, no formato do [backlog](../backlog/): cada um tem critério
+de aceitação verificável.
+
+<Steps>
+
+1. **Paginação** ⭐ — `GET /api/investments?page=1&perPage=20` devolve `{ data, total, page }`.
+   O schema Zod valida os limites, e um teste prova que `perPage=1000` é recusado.
+
+2. **Rate limit no login** ⭐ — a sexta tentativa do mesmo IP em um minuto responde `429`. Um
+   teste com `supertest` prova o `429`, e outro prova que o contador zera.
+
+3. **Índice e medição** ⭐⭐ — acrescente `@@index([userId])`, gere a migration e **meça**: registre
+   a duração de `GET /api/investments` antes e depois com 10 mil registros semeados.
+
+4. **Refresh token** ⭐⭐⭐ — access token de 15 minutos, refresh em cookie `httpOnly`, rota
+   `POST /api/refresh` e logout que invalida. Os testes de rota da etapa 12 devem continuar
+   passando sem alteração no contrato das demais rotas.
+
+5. **Front componentizado** ⭐⭐⭐ — reescreva `home.html` em React, Vue ou Svelte **sem tocar em
+   `services/api.js`**. O E2E da etapa 12 é o juiz: se ele passa sem edição, a migração
+   preservou o comportamento.
+
+</Steps>
+
+<Aside type="tip" title="O critério para escolher o próximo passo">
+  Prefira sempre o item que **remove uma limitação que você já sentiu** — não o que parece mais
+  moderno. Trocar o front por React não conserta a ausência de paginação, e adotar GraphQL não
+  torna o login seguro. Tecnologia nova resolve problema; quando não há problema, ela só
+  acrescenta superfície para manter.
+</Aside>
+
+## Onde continuar no DevLab
+
+<CardGrid>
+  <Card title="Guia de React" icon="seti:react">
+    Para o desafio 5 e para a migração do front vanilla.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../../../react/">Abrir guia</a>
+    </div>
+  </Card>
+
+  <Card title="Guia de TypeScript" icon="seti:typescript">
+    Tipos mais expressivos — o caso do valor em centavos é um exemplo clássico.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../../../typescript/">Abrir guia</a>
+    </div>
+  </Card>
+
+  <Card title="Guia de Banco de Dados" icon="seti:db">
+    Índices, planos de execução e otimização de consulta.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../../../database/">Abrir guia</a>
+    </div>
+  </Card>
+
+  <Card title="MonitorApp" icon="seti:folder">
+    A mesma trilha em outro domínio, com duas origens, tempo real e chamada de sistema.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../monitorapp/">Ver o projeto</a>
+    </div>
+  </Card>
+</CardGrid>
+

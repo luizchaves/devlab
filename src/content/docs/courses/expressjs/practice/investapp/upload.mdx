@@ -1,0 +1,484 @@
+---
+title: "InvestApp: Upload de avatar"
+description: "Décima etapa do InvestApp: upload de arquivo com multer para criar e atualizar o avatar do usuário autenticado."
+course: expressjs
+sidebar:
+  label: "11. Upload de avatar"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **11 de 13** · Nível **Avançado** · TypeScript · Express.js · Multer · Multipart
+
+O perfil do usuário passa a ter avatar. Essa mudança força a API a receber
+`multipart/form-data`, validar tipo e tamanho do arquivo, gravar a imagem em disco e salvar
+o caminho associado ao usuário autenticado.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Manipulação de Mídia**: veja [Upload de Arquivos com Multer](../../../advanced/upload-file/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP03 · Perfil e Notificações** › **Feature FT08 · Avatar do perfil**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF06** Gestão de Perfil & Avatar | upload de imagem, associado ao usuário autenticado | atendido |
+
+### US12 — Personalizar o perfil · RF06
+
+> **Como** investidor,
+> **quero** enviar uma foto de perfil,
+> **para** reconhecer a minha conta de relance.
+
+```gherkin
+Cenário: CA12.1 - Upload exige autenticação
+  Quando envio POST /api/users/image sem token
+  Então recebo o status 401
+
+Cenário: CA12.2 - Envio válido
+  Dado que estou autenticado
+  Quando envio uma imagem PNG de até 2 MB no campo "image"
+  Então recebo o status 201
+  E o corpo traz o caminho público da imagem
+
+Cenário: CA12.3 - A imagem é servida
+  Dado um avatar enviado
+  Quando acesso o caminho devolvido pela API
+  Então a imagem é exibida
+
+Cenário: CA12.4 - Tamanho tem limite
+  Quando envio um arquivo maior que 2 MB
+  Então recebo o status 400
+
+Cenário: CA12.5 - Tipo tem lista permitida
+  Quando envio um arquivo que não é jpeg, png ou gif
+  Então recebo o status 400
+  E nada é gravado em disco
+
+Cenário: CA12.6 - O nome do arquivo é do servidor
+  Dado dois usuários que enviam arquivos chamados "avatar.png"
+  Quando consulto a pasta de uploads
+  Então existem dois arquivos com nomes diferentes
+  E nenhum sobrescreveu o outro
+
+Cenário: CA12.7 - Um avatar por usuário
+  Dado um usuário que já tem avatar
+  Quando ele envia uma nova imagem
+  Então o caminho é atualizado
+  E continua existindo apenas um registro de imagem para ele
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US12 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK11.1 · Instalar Multer e criar `src/config/multer.ts`**: Destino, nome, limite de tamanho e filtro de tipo.
+2. **TK11.2 · Criar as rotas `POST` e `PUT /api/users/image`**: A cadeia com `multer(...).single('image')`.
+3. **TK11.3 · Criar `src/models/Image.ts`**: Persistência do caminho da imagem, ligada ao usuário.
+4. **TK11.4 · Modificar `public/js/profile.js`**: Envio de arquivo multipart através de `FormData` no front-end.
+5. **TK11.5 · Espalhar o avatar pelo resto da aplicação**: Tipo público do usuário, avatar no cabeçalho e os erros do Multer no `errorHandler`.
+
+</Steps>
+
+## Estrutura da aplicação
+
+O upload atravessa três camadas novas e uma pasta que não é código. O `config/multer.ts` define
+onde e como o arquivo é gravado, o `controllers/images.controller.ts` traduz o resultado em
+resposta HTTP, e o `models/Image.ts` guarda **o caminho**, não o binário — que vai para
+`public/imgs/profile/` e é servido como arquivo estático pelo mesmo `express.static` da etapa 2.
+
+<ProjectLinks path="examples/courses/express/projects/invest-app-upload" />
+
+<FileTree>
+{`
+  invest-app-upload/
+  ├── prisma/
+  │   ├── schema.prisma           ganha o model Image
+  │   └── migrations/             a migration create_user_image entra aqui
+  ├── public/
+  │   ├── profile.html            deixa de ser estática
+  │   ├── imgs/
+  │   │   └── profile/            destino dos avatares enviados
+  │   │       └── avatar.png      o avatar padrão de quem não enviou imagem
+  │   └── js/
+  │       └── profile.js          novo nesta etapa
+  └── src/
+      ├── config/
+      │   └── multer.ts                  novo nesta etapa
+      ├── controllers/
+      │   └── images.controller.ts       novo nesta etapa
+      ├── models/
+      │   └── Image.ts                   novo nesta etapa
+      ├── routes/
+      │   └── images.routes.ts           novo nesta etapa
+      └── types/
+          └── Image.d.ts                 novo nesta etapa
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+Até a etapa de e-mail, todas as rotas recebiam JSON. O upload cria uma exceção explícita: o corpo é `FormData`, o campo do arquivo se chama `image`, e o middleware do `multer` roda antes do handler na cadeia de rotas:
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/routes/images.routes.ts"
+  title="A cadeia de middlewares da rota de upload"
+  lines="12-15"
+  showLineNumbers
+  mark="14"
+/>
+
+Três middlewares em fila: autenticar, receber o arquivo multipart, e então executar o handler.
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK11.1 · Instalar Multer e criar `src/config/multer.ts` (Configuração do upload)
+
+```bash title="Terminal: instalação do Multer"
+npm install multer
+npm install -D @types/multer
+```
+
+A configuração responde a três perguntas, e cada uma é uma decisão de segurança.
+
+**Onde gravar**: a linha 7 resolve `public/imgs/profile` como destino, devolvido pelo `destination` da linha 12. É uma pasta dentro de `public/`, servida por `express.static` — por isso o caminho gravado no banco pode ir direto para o `src` de uma tag `<img>`.
+
+**Com que nome**: o `filename` das linhas 13 a 17 é o trecho mais importante do arquivo. Ele prefixa o nome original com 16 bytes aleatórios em hexadecimal (linha 16), o que resolve dois problemas de uma vez: dois usuários que enviem `avatar.png` não se sobrescrevem, e ninguém consegue adivinhar a URL da imagem de outra pessoa.
+
+**O que aceitar**: o `limits` das linhas 24 a 26 corta qualquer arquivo acima de 2 MB, e o `fileFilter` das linhas 27 a 35 só deixa passar `image/jpeg`, `image/png` e `image/gif` — qualquer outro tipo vira um `HttpError` de `400` antes de o arquivo tocar o disco.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/config/multer.ts"
+  title="src/config/multer.ts"
+  showLineNumbers
+  mark="13-17,24-26,27-35"
+/>
+
+<Aside type="caution" title="Fique na linha 2.x do Multer">
+  O Multer 1.x está **depreciado** e o próprio npm avisa ao instalá-lo: a linha antiga acumula
+  vulnerabilidades corrigidas apenas na 2.x. Projetos antigos costumam estar presos em
+  `1.4.5-lts.1` — se você encontrar essa versão em algum lugar, é atualização, não escolha.
+</Aside>
+
+<Aside type="danger" title="Nunca confie no nome original">
+  `file.originalname` (linha 16) vem do cliente e pode conter qualquer coisa, inclusive caminhos
+  como `../../index.ts`. Usá-lo apenas como sufixo de um nome gerado pelo servidor — e nunca
+  como o nome inteiro — é o que impede o arquivo de escapar da pasta de destino.
+</Aside>
+
+<Aside type="note" title="Erro do Multer é erro de entrada">
+  Arquivo grande demais ou tipo recusado são erros do **cliente**, e por isso o `errorHandler`
+  ganhou nesta etapa um ramo que converte `MulterError` em `400`. Sem ele, um upload de 3 MB
+  responderia `500`, como se o servidor tivesse quebrado.
+</Aside>
+
+### TK11.2 · Criar as rotas `POST` e `PUT /api/users/image`
+
+São duas rotas quase idênticas, e a cadeia de middlewares delas conta a história inteira.
+
+A linha 12 monta o middleware uma vez: `multer(uploadConfig).single('image')`. O `single` significa **um** arquivo, e `'image'` é o nome do campo do formulário — se o front enviar com outro nome, o Multer o ignora.
+
+Nas linhas 14 e 15, a ordem é `isAuthenticated`, depois `upload`, depois o controller. O arquivo pertence a quem está logado, e é o token que diz quem é.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/routes/images.routes.ts"
+  title="src/routes/images.routes.ts"
+  showLineNumbers
+  mark="12,14,15"
+/>
+
+Quando o controller executa, o arquivo **já está gravado em disco**: o Multer rodou antes e preencheu `req.file`. Por isso a verificação da linha 7 é obrigatória — sem ela, um envio sem arquivo quebraria na linha seguinte. A linha 11 monta o caminho **público** (`/imgs/profile/...`), e não o caminho de disco: é esse valor que vai para o banco e para o `src` da imagem.
+
+A diferença entre as duas rotas é uma palavra: `Image.create` na linha 18, `Image.update` na 30. Quem decide entre elas é o front, pelo fato de o usuário já ter avatar ou não.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/controllers/images.controller.ts"
+  title="src/controllers/images.controller.ts"
+  showLineNumbers
+  mark="7-11,18,30"
+/>
+
+### TK11.3 · Criar `src/models/Image.ts` e ligar a imagem ao usuário
+
+O que o banco guarda não é a imagem — é o caminho dela. O arquivo binário fica no disco, e a tabela `Image` fica com uma string.
+
+No schema, o `model Image` traz o detalhe que define o comportamento: o `userId` da linha 46 é `@unique`. Isso transforma a relação em um-para-**um**: cada usuário tem no máximo um avatar.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/prisma/schema.prisma"
+  title="prisma/schema.prisma"
+  lines="43-48"
+  showLineNumbers
+  mark="46"
+/>
+
+O model tem só duas funções. O `create` da linha 8 grava o caminho e liga a imagem ao dono com o `connect` já conhecido. O `update` da linha 16 é o que se apoia no `@unique`: o `where: { userId }` da linha 17 encontra a imagem pelo dono, sem precisar saber o id dela.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/models/Image.ts"
+  title="src/models/Image.ts"
+  showLineNumbers
+  mark="10,17"
+/>
+
+Do outro lado, o `select` do `User.ts` — aquele que desde a etapa 8 omite a senha — ganha o avatar na linha 12. Toda leitura de usuário passa a trazer `image.path` junto, sem uma segunda consulta.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/models/User.ts"
+  title="src/models/User.ts"
+  lines="9-13"
+  showLineNumbers
+  mark="12"
+/>
+
+### TK11.4 · Modificar `public/js/profile.js` (Submissão via `FormData` no front)
+
+O front resolve, sozinho, a pergunta que separa `POST` de `PUT`. No `loadProfile` das linhas 10 a 36, a verificação `if (user.image)` da linha 15 define a variável `formMethod`: quem já tem avatar vai atualizar (linha 18), quem não tem vai criar (linha 22). A mesma verificação escolhe entre o caminho salvo e o `avatar.png` padrão da linha 20.
+
+No envio, a linha 41 é a mudança conceitual da etapa: `new FormData(form)` é passado **inteiro** para a API, sem `JSON.stringify`. As linhas 45 a 49 despacham para `API.create` ou `API.update` conforme o `formMethod`, e as linhas 51 e 53 trocam a imagem exibida pelo caminho que a API devolveu — sem recarregar a página.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/public/js/profile.js"
+  title="public/js/profile.js"
+  showLineNumbers
+  mark="15-23,41,45-49"
+/>
+
+Para que isso funcione, o `services/api.js` precisou aprender a enviar dois formatos. O parâmetro `formData` da linha 5 comanda duas decisões: a linha 10 escolhe entre mandar o `FormData` cru ou serializar em JSON, e as linhas 14 a 16 só acrescentam o cabeçalho `Content-Type` no caso JSON.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/public/js/services/api.js"
+  title="public/js/services/api.js"
+  lines="5-29"
+  showLineNumbers
+  mark="5,10,14-16"
+/>
+
+<Aside type="danger" title="Não defina `Content-Type` ao enviar `FormData`">
+  O `multipart/form-data` precisa de um *boundary* — um separador aleatório entre os campos — e
+  só o navegador sabe qual ele gerou. Escrever o cabeçalho à mão apaga esse boundary, e o
+  Multer não consegue mais separar o arquivo do resto do corpo. É por isso que a linha 14
+  existe: o `Content-Type` só entra quando **não** há arquivo.
+</Aside>
+
+<Aside type="caution" title="Os arquivos enviados não vão para o Git">
+  A pasta `public/imgs/profile/` recebe os uploads em tempo de execução. Só o `avatar.png`
+  padrão é versionado; o resto é conteúdo de usuário, e o `.gitignore` do projeto cuida disso.
+  Na etapa 13, essa pasta vira um volume do Docker justamente por esse motivo.
+</Aside>
+
+A tela em si deixa de ser estática. O `profile.html` que existe desde a etapa 1 ganha os ganchos
+que o `profile.js` procura: o `#profile-image` da linha 45, o `#profile-name` da 51, o
+`#profile-email` da 55 e o `#userId` escondido da linha 66. Os dois parágrafos que antes traziam
+"Maria Souza" e um e-mail fixo ficam vazios — quem os preenche agora é a API. O
+`enctype="multipart/form-data"` da linha 60 é obrigatório: sem ele o navegador enviaria o arquivo
+como texto. E o avatar das linhas 26 a 31 entra no cabeçalho, como em todas as telas internas.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/public/profile.html"
+  title="public/profile.html"
+  lines="26-70"
+  showLineNumbers
+  mark="26-31,45,51,55,60,66-67"
+/>
+
+O `src/index.ts` monta o roteador novo e ganha uma linha que costuma passar despercebida: o
+`express.urlencoded` da linha 24. Ele não trata o arquivo — disso cuida o Multer —, mas é o que
+faz os **campos de texto** que viajam junto no `multipart` chegarem ao `req.body`, como o
+`userId` que o formulário envia.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/index.ts"
+  title="src/index.ts"
+  lines="20-33"
+  showLineNumbers
+  mark="24,32"
+/>
+
+O tipo da imagem é o mais curto do projeto: um id, o caminho público e o dono. Repare que o
+binário não aparece em lugar nenhum — o banco guarda só o caminho, e o arquivo vive em
+`public/imgs/profile/`.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/types/Image.d.ts"
+  title="src/types/Image.d.ts"
+  showLineNumbers
+/>
+
+O `requests.http` mostra como exercitar o upload fora do navegador. As linhas 51 em diante montam
+o corpo `multipart/form-data` à mão, com o `boundary` separando o campo `userId` do arquivo — é
+exatamente o que o `FormData` do front produz, escrito por extenso.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/requests.http"
+  title="requests.http — o upload por multipart"
+  lines="51-84"
+  showLineNumbers
+/>
+
+{/* cobertura: public/home.html — ganha a tag <img id="dropdown-avatar"> do menu do usuário,
+    mostrada na TK11.5 logo abaixo */}
+{/* cobertura: src/docs/openapi.ts — além do recurso de imagem mostrado na TK11.5, o restante do
+    diff só acrescenta o campo image ao schema de usuário já documentado na etapa 8 */}
+{/* cobertura: package.json — acrescenta o multer e os seus tipos, instalados no comando da
+    TK11.1 */}
+{/* cobertura: prisma/migrations/20241012024512_create_user_image/migration.sql — gerada pelo
+    prisma migrate a partir do model Image da TK11.3; cria a tabela e o índice único de userId */}
+
+### TK11.5 · Espalhar o avatar pelo resto da aplicação
+
+O upload não termina no `profile.html`. Três arquivos fora da tela de perfil mudam para que a
+imagem enviada apareça e para que uma falha de envio não vire erro 500.
+
+O tipo é o primeiro. A linha 15 acrescenta `image` ao `PublicUser`, e o tipo é `{ path: string }
+| null` — nulo porque um usuário recém-cadastrado ainda não enviou nada. Esse `| null` é o que
+obriga o front a tratar a ausência em vez de assumir que sempre existe imagem.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/types/User.d.ts"
+  title="src/types/User.d.ts"
+  showLineNumbers
+  mark="14-15"
+/>
+
+No cabeçalho, o `loadUser` do `home.js` ganha uma linha. A 231 usa `user.image?.path ??
+'/imgs/profile/avatar.png'`: o encadeamento opcional cobre o `null` do tipo e o `??` entrega o
+avatar padrão. É a mesma decisão do `profile.js` da TK11.4, agora aplicada ao menu do usuário
+que aparece em todas as telas internas.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/public/js/home.js"
+  title="public/js/home.js"
+  lines="226-232"
+  showLineNumbers
+  mark="231"
+/>
+
+Por fim, o `errorHandler` aprende a reconhecer o Multer. As linhas 25 e 26 traduzem qualquer
+`MulterError` — arquivo grande demais, campo inesperado, arquivos em excesso — em `400`. Sem
+isso, o limite de tamanho configurado na TK11.1 responderia `500`, o que diria ao cliente que o
+servidor quebrou quando na verdade foi ele quem mandou algo inválido.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/middlewares/errorHandlers.ts"
+  title="src/middlewares/errorHandlers.ts"
+  lines="13-30"
+  showLineNumbers
+  mark="23-26"
+/>
+
+O `.env.example` acompanha, com um bloco `# UPLOAD` e a variável `STORAGE_TYPE=local`. Ela é o
+gancho para a evolução registrada nos [próximos passos](../next-steps/): trocar o disco local por
+um bucket sem tocar no controller.
+
+No contrato, o `openapi.ts` ganha duas partes. O objeto `image` das linhas 80 a 87 descreve o
+que a API devolve — repare que é o **caminho** que sai, nunca o binário; e a rota
+`/users/image` das linhas 379 em diante é a única do projeto inteiro cujo `requestBody` é
+`multipart/form-data` e não `application/json`, com o campo declarado como `format: 'binary'`.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/docs/openapi.ts"
+  title="src/docs/openapi.ts — o recurso de imagem"
+  lines="79-87"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-upload/src/docs/openapi.ts"
+  title="src/docs/openapi.ts — o corpo multipart"
+  lines="379-393"
+  showLineNumbers
+  mark="385-390"
+/>
+
+O `requests.http` também ganha os blocos de envio e de troca do avatar, que são a forma mais
+rápida de exercitar o upload sem abrir o navegador.
+
+## Executando
+
+<Steps>
+
+1. Entre no exemplo desta etapa:
+
+   ```bash title="Terminal"
+   cd examples/courses/express/projects/invest-app-upload
+   npm install
+   ```
+
+2. Configure o ambiente e o tipo de storage:
+
+   ```bash title="Terminal"
+   cp .env.example .env
+   ```
+
+3. Suba a API e abra o perfil:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+</Steps>
+
+Use `http://localhost:3000/profile.html` depois de fazer login.
+
+## Testando
+
+<ApiRequest method="POST" path="/api/users/image" baseUrl="http://localhost:3000" description="multipart/form-data com o campo image" />
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "path": "/imgs/profile/9948180954ee1846a214c710ada7a2a5-avatar.png",
+    "userId": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed"
+  }
+`}
+</ApiResponse>
+
+O teste manual deve cobrir três casos: imagem válida, arquivo maior que 2 MB e arquivo com
+MIME type fora de `image/jpeg`, `image/png` ou `image/gif`.
+
+## O diff que importa
+
+Compare esta etapa com a anterior nos pontos que recebem arquivo:
+
+```bash title="Terminal"
+git diff --no-index -- \
+  examples/courses/express/projects/invest-app-email \
+  examples/courses/express/projects/invest-app-upload || true
+```
+
+O diff relevante é curto e tem quatro entradas: o `src/config/multer.js`, o `model Image` no
+schema com o `src/models/Image.js`, as duas rotas de `/users/image` e o par
+`profile.js` / `services/api.js` no front. O `multer` não deve aparecer em nenhum outro
+arquivo — se aparecer, a configuração vazou da camada que deveria contê-la.
+
+## Conceitos abordados
+
+- `multipart/form-data`
+- Upload com `multer`
+- Nome de arquivo gerado pelo servidor
+- Limite de tamanho e filtro por MIME type
+- Associação de avatar ao usuário autenticado
+- `FormData` no front-end
+
+<Aside type="tip">
+  A aula correspondente é [Upload de Arquivo](../../../advanced/upload-file/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: Testes de software](../testing/) — automatizar unidade, rotas, front e fluxo
+E2E.

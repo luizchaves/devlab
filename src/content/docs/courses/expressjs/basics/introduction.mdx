@@ -1,0 +1,353 @@
+---
+title: "Express.js: Fundamentos"
+description: "O que o Express resolve sobre o módulo http do Node.js: instalação, o primeiro servidor, o ciclo requisição/resposta e a anatomia de uma rota."
+course: expressjs
+sidebar:
+  label: "Fundamentos"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Express é um framework minimalista para servidores HTTP em Node.js. Esta aula mostra o que
+ele acrescenta ao [servidor em Node puro](../../../nodejs/http/server/) e constrói o primeiro
+servidor que responde JSON.
+
+## Objetivo
+
+Ao final desta aula você saberá instalar o Express, subir um servidor que responde JSON em
+várias rotas e explicar cada peça do ciclo **requisição → rota → resposta**: quem recebe a
+conexão, quem decide qual função responde e quem escreve a resposta de volta.
+
+## O que o Express resolve
+
+O módulo `node:http` já sobe um servidor. O problema é que ele entrega a requisição crua:
+não existe roteamento, o corpo chega em pedaços e a resposta precisa ser montada cabeçalho
+por cabeçalho.
+
+Compare as duas versões do mesmo endpoint — responder JSON em `GET /users`:
+
+<Tabs syncKey="http-vs-express">
+  <TabItem label="node:http">
+    ```js title="server.js — Node puro" showLineNumbers {5-8,12-13}
+    import { createServer } from 'node:http';
+
+    const server = createServer((req, res) => {
+      // O roteamento é manual: método e caminho viram if/else.
+      if (req.method === 'GET' && req.url === '/users') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([{ id: 1, name: 'Ana' }]));
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: 'Not Found' }));
+    });
+
+    server.listen(3000);
+    ```
+  </TabItem>
+
+  <TabItem label="express">
+    ```js title="server.js — Express" showLineNumbers {5-7}
+    import express from 'express';
+
+    const app = express();
+
+    app.get('/users', (req, res) => {
+      res.json([{ id: 1, name: 'Ana' }]);
+    });
+
+    app.listen(3000);
+    ```
+  </TabItem>
+</Tabs>
+
+A tabela resume o que muda de responsabilidade:
+
+| Tarefa                         | `node:http`                              | Express                        |
+| ------------------------------ | ---------------------------------------- | ------------------------------ |
+| Escolher quem responde         | `if (req.method === … && req.url === …)` | `app.get('/users', handler)`   |
+| Parâmetro na URL               | recortar a string à mão                  | `/users/:id` → `req.params.id` |
+| Ler o corpo JSON               | acumular `data` e fazer `JSON.parse`     | `express.json()` → `req.body`  |
+| Definir status e `Content-Type`| `res.writeHead(200, { … })`              | `res.status(200).json(…)`      |
+| Comportamento comum a rotas    | repetir em cada `if`                     | middleware                     |
+| Servir arquivos estáticos      | ler do disco e detectar o MIME           | `express.static('public')`     |
+
+<Aside type="note" title="Express não substitui o `http`">
+  `app.listen()` cria um servidor `node:http` por baixo e passa `app` como *handler*. O
+  Express é uma camada de organização em cima do módulo nativo — não um servidor próprio.
+</Aside>
+
+## Instalação
+
+O Express é uma dependência de produção, instalada dentro de um projeto Node com
+`package.json` e `"type": "module"`:
+
+<PackageManagerTabs package="express" />
+
+## O primeiro servidor
+
+Três linhas já sobem uma aplicação: criar o `app`, registrar uma rota e escutar uma porta.
+
+<SourceCode
+  path="examples/courses/express/projects/hello/src/server.js"
+  title="src/server.js"
+  showLineNumbers
+  mark="7"
+/>
+
+A linha destacada é o único middleware do arquivo. Sem `express.json()`, `req.body` chega
+`undefined`: alguém precisa ler o corpo da requisição e convertê-lo em objeto JavaScript.
+
+<Aside type="tip" title="Modo watch sem dependências">
+  `node --watch src/server.js` reinicia o processo a cada arquivo salvo. Até o Node 18 esse
+  papel era do [nodemon](https://www.npmjs.com/package/nodemon); hoje ele é nativo.
+</Aside>
+
+## O ciclo de uma requisição
+
+Toda requisição percorre o mesmo caminho: entra pelo servidor HTTP, atravessa os
+middlewares registrados, encontra (ou não) uma rota e volta como resposta.
+
+<Mermaid title="Ciclo requisição/resposta de uma aplicação Express">
+{`
+flowchart TD
+  A["Cliente<br/>GET /hello/Ana"] --> B["node:http<br/>recebe a conexão"]
+  B --> C["app<br/>middlewares globais"]
+  C --> D{"Alguma rota casa<br/>método + caminho?"}
+  D -->|sim| E["Handler<br/>(req, res) => …"]
+  D -->|não| F["404 padrão do Express"]
+  E --> G["res.json(...)<br/>escreve status, cabeçalhos e corpo"]
+  F --> G
+  G --> H["Cliente recebe a resposta"]
+`}
+</Mermaid>
+
+A resposta só sai quando alguém chama um método que **encerra** o ciclo — `res.json()`,
+`res.send()`, `res.end()`, `res.sendFile()`. Enquanto isso não acontece, o cliente fica
+esperando.
+
+## Anatomia de uma rota
+
+Uma rota é a associação entre um método HTTP, um caminho e a função que responde:
+
+```js title="Anatomia de app.get()"
+app.get('/hello/:name', (req, res) => {
+  res.json({ message: `Hello ${req.params.name}` });
+});
+//  │    │              │     │
+//  │    │              │     └─ res: como responder
+//  │    │              └─────── req: o que chegou
+//  │    └────────────────────── caminho (com parâmetro nomeado)
+//  └─────────────────────────── método HTTP
+```
+
+O `app` expõe um método para cada verbo HTTP, além de dois casos especiais:
+
+| Registro                   | Quando executa                                           |
+| -------------------------- | -------------------------------------------------------- |
+| `app.get(path, handler)`   | requisições `GET` naquele caminho                         |
+| `app.post(path, handler)`  | requisições `POST` naquele caminho                        |
+| `app.put` / `app.patch` / `app.delete` | os demais verbos                              |
+| `app.all(path, handler)`   | **qualquer** método naquele caminho                       |
+| `app.use(handler)`         | qualquer método e qualquer caminho — é o middleware        |
+
+<Aside type="caution" title="A ordem de registro é a ordem de avaliação">
+  O Express testa as rotas de cima para baixo e para na primeira que casar. Registrar
+  `app.get('/users/:id')` antes de `app.get('/users/novo')` faz `/users/novo` cair na
+  primeira rota, com `req.params.id === 'novo'`.
+</Aside>
+
+## Onde os dados chegam e por onde saem
+
+Praticamente toda aula daqui para a frente gira em torno de cinco membros de `req` e `res`:
+
+| Objeto            | Contém                                                    |
+| ----------------- | --------------------------------------------------------- |
+| `req.params`      | parâmetros nomeados da rota (`/users/:id` → `{ id: '1' }`) |
+| `req.query`       | query string já convertida em objeto (`?page=1`)           |
+| `req.body`        | corpo da requisição — exige `express.json()`               |
+| `res.status(201)` | define o status; devolve o próprio `res`, então encadeia   |
+| `res.json(dados)` | serializa em JSON, define o `Content-Type` e encerra       |
+
+A aula de [Requisição e Resposta](../request-response/) detalha cada um deles.
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto de exemplo:
+
+   ```bash
+   cd examples/courses/express/projects/hello
+   ```
+
+2. Instale as dependências:
+
+   <PackageManagerTabs />
+
+3. Suba o servidor em modo watch:
+
+   <PackageManagerTabs run="dev" />
+
+4. Confirme que ele responde:
+
+   ```bash
+   curl http://localhost:3000/hello/Ana
+   ```
+
+   ```txt title="Output"
+   {"message":"Hello Ana"}
+   ```
+
+</Steps>
+
+## Testando as rotas
+
+Uma rota com parâmetro devolve o valor que veio na URL:
+
+<ApiRequest method="GET" path="/hello/Ana" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "message": "Hello Ana"
+  }
+`}
+</ApiResponse>
+
+Já uma rota `POST` só enxerga o corpo porque `express.json()` foi registrado antes dela:
+
+<ApiRequest method="POST" path="/echo" baseUrl="http://localhost:3000" description="Devolve o corpo recebido">
+{`
+  {
+    "curso": "Desenvolvimento Web"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "received": {
+      "curso": "Desenvolvimento Web"
+    }
+  }
+`}
+</ApiResponse>
+
+<Aside type="tip" title="Teste sem sair do editor">
+  A extensão [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)
+  do VS Code executa requisições a partir de um arquivo `requests.http` versionado junto do
+  projeto. Todos os projetos deste guia trazem um.
+</Aside>
+
+## Exercício
+
+Partindo do projeto `hello`:
+
+1. Adicione `GET /soma?a=2&b=3` lendo os valores de `req.query` e respondendo
+   `{ "resultado": 5 }`.
+2. Responda `400` quando `a` ou `b` não forem numéricos.
+3. Adicione `GET /hello` (sem parâmetro) devolvendo `{ "message": "Hello World" }` e
+   verifique se ela conflita com `GET /hello/:name`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="src/server.js"
+  app.get('/soma', (req, res) => {
+    const a = Number(req.query.a);
+    const b = Number(req.query.b);
+
+    if (Number.isNaN(a) || Number.isNaN(b)) {
+      return res.status(400).json({ message: 'Os parâmetros "a" e "b" devem ser numéricos' });
+    }
+
+    res.json({ resultado: a + b });
+  });
+  ```
+
+  `GET /hello` e `GET /hello/:name` **não** conflitam: são caminhos com número diferente de
+  segmentos, e `/hello/:name` exige exatamente um segmento depois de `/hello`.
+</details>
+
+## Desafio
+
+Reescreva o `GET /hello/:name` usando apenas `node:http`, sem Express: faça o roteamento
+manualmente, devolva `404` para qualquer outro caminho e responda com
+`Content-Type: application/json`. Compare o número de linhas com a versão em Express.
+
+## Perguntas de revisão
+
+### Fundamentos
+
+1. **O Express substitui o módulo `node:http`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Não. `app.listen()` cria um servidor `node:http` e registra `app` como handler. O
+     Express organiza o roteamento e a leitura/escrita, mas o transporte continua sendo o
+     módulo nativo.
+   </details>
+
+2. **Por que `req.body` chega `undefined` mesmo com o cliente enviando JSON?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque falta registrar `app.use(express.json())` — ou ele foi registrado **depois** da
+     rota. O corpo da requisição chega em pedaços e alguém precisa acumulá-los e chamar
+     `JSON.parse`.
+   </details>
+
+3. **O que acontece se um handler nunca chamar `res.json()` nem `res.send()`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A resposta nunca é enviada: a conexão fica aberta até o cliente desistir por timeout.
+     O ciclo só termina quando um método que encerra a resposta é chamado.
+   </details>
+
+### Rotas
+
+4. **Qual a diferença entre `app.get('/x', h)` e `app.use('/x', h)`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `app.get` só responde ao método `GET` e exige que o caminho case exatamente.
+     `app.use` responde a qualquer método e casa também os caminhos que **começam** com
+     `/x` — é o registro usado por middlewares e routers.
+   </details>
+
+5. **Por que `app.get('/users/:id')` antes de `app.get('/users/novo')` é um problema?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O Express para na primeira rota que casa. `/users/novo` casa com `/users/:id`, então a
+     rota específica nunca é alcançada e `req.params.id` vale `'novo'`.
+   </details>
+
+## Referências
+
+- [Express — Getting started](https://expressjs.com/en/starter/installing.html)
+- [Express — Basic routing](https://expressjs.com/en/starter/basic-routing.html)
+- [Express 5 — Migration guide](https://expressjs.com/en/guide/migrating-5.html)
+- [Node.js — HTTP](https://nodejs.org/api/http.html)
+
+## Na prática
+
+O projeto executável desta aula é [Hello Express](../../practice/hello-express/).
+
+## Próxima aula
+
+[Rotas](../routes/): parâmetros de rota, query string, corpo e a modularização com
+`express.Router()`.

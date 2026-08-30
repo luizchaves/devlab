@@ -1,0 +1,476 @@
+---
+title: "InvestApp: API em memória"
+description: "Segunda etapa do InvestApp: CRUD de investimentos sobre um array, front-end estático servido por express.static e comportamento com JavaScript vanilla."
+course: expressjs
+sidebar:
+  label: "2. API em memória"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **2 de 13** · Nível **Iniciante** · Node.js · Express.js · JavaScript vanilla
+
+O front estático da etapa anterior passa a ser servido pelo próprio Express e ganha
+comportamento com JavaScript vanilla. Nada de banco, nada de autenticação — só o ciclo
+requisição/resposta e a primeira integração real entre tela e API.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **APIs RESTful e HTTP**: veja [Rotas e Arquivos Estáticos](../../../basics/routes/), [Middlewares no Express](../../../basics/middleware/) e [Requisições e Respostas](../../../basics/request-response/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP01 · Experiência e Carteira** › **Feature FT02 · CRUD de investimentos**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF01** Gestão de Investimentos | o CRUD completo sobre um array em memória | parcial — falta persistir |
+
+### US02 — Manter a carteira pela aplicação · RF01
+
+> **Como** investidor,
+> **quero** cadastrar, consultar, editar e remover os meus investimentos,
+> **para** manter a carteira atualizada sem depender de planilha.
+
+```gherkin
+Cenário: CA02.1 - Listar os investimentos
+  Quando envio GET /api/investments
+  Então recebo o status 200
+  E o corpo é uma lista de investimentos
+
+Cenário: CA02.2 - Filtrar pelo nome
+  Dado que existe um investimento chamado "Tesouro Selic 2029"
+  Quando envio GET /api/investments?name=Tesouro
+  Então recebo o status 200
+  E a lista traz apenas os investimentos cujo nome contém "Tesouro"
+
+Cenário: CA02.3 - Criar um investimento
+  Quando envio POST /api/investments com nome e valor válidos
+  Então recebo o status 201
+  E o corpo traz o investimento criado, com um id gerado pelo servidor
+
+Cenário: CA02.4 - Recusar corpo incompleto
+  Quando envio POST /api/investments sem o campo "value"
+  Então recebo o status 400
+  E nada é acrescentado à lista
+
+Cenário: CA02.5 - Investimento inexistente
+  Quando envio GET, PUT ou DELETE em /api/investments/{id} com um id que não existe
+  Então recebo o status 404
+
+Cenário: CA02.6 - Remover um investimento
+  Dado um investimento existente
+  Quando envio DELETE /api/investments/{id}
+  Então recebo o status 204
+  E a resposta não tem corpo
+
+Cenário: CA02.7 - O front consome a API
+  Quando abro http://localhost:3000
+  Então os cartões exibidos vêm de uma chamada fetch
+  E não estão escritos no HTML
+
+Cenário: CA02.8 - O limite conhecido desta etapa
+  Dado investimentos cadastrados
+  Quando reinicio o servidor
+  Então a lista volta ao estado inicial
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US02 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK02.1 · Instalar dependências e criar `src/index.js`**: Inicializa o servidor Express com logger Morgan e servidor de arquivos estáticos.
+2. **TK02.2 · Criar `src/data/investments.js`**: Armazenamento inicial em memória (array em JS).
+3. **TK02.3 · Criar `src/routes.js`**: Implementação das 5 rotas do recurso CRUD de investimentos.
+4. **TK02.4 · Criar `public/js/services/api.js` e `public/js/index.js`**: Integração do front-end com a API, isolando o `fetch` em uma única camada.
+5. **TK02.5 · Criar `requests.http`**: Arquivo de testes executáveis de requisições HTTP para VS Code.
+6. **TK02.6 · Compilar o CSS com a CLI do Tailwind**: Troca o Play CDN da etapa 1 por um `app.css` gerado a partir das telas.
+
+</Steps>
+
+## Estrutura da aplicação
+
+O front-end desta etapa vive dentro de `public/` e é servido pelo próprio Express através do middleware `express.static('public')`. Ao mesmo tempo, as rotas sob `/api/investments` expõem os dados dinâmicos a partir de um array em memória. Como front e API compartilham a mesma origem, o navegador não precisa de CORS para conversar com o servidor — o middleware `cors` continua registrado apenas para permitir chamadas de fora, como as do `requests.http`.
+
+<ProjectLinks path="examples/courses/express/projects/invest-app-api" />
+
+<FileTree>
+{`
+  invest-app-api/
+  ├── package.json
+  ├── vite.config.js            as quatro páginas do build
+  ├── requests.http             o contrato, executável
+  ├── public/                   front-end servido por express.static
+  │   ├── index.html            dashboard, agora alimentado pela API
+  │   ├── signin.html           herdadas da etapa 1, ainda estáticas
+  │   ├── signup.html
+  │   ├── profile.html
+  │   ├── css/
+  │   │   ├── components.css    o mesmo vocabulário visual da etapa 1
+  │   │   ├── tailwind.css      a entrada que a CLI do Tailwind compila
+  │   │   └── app.css           o CSS gerado, que o navegador carrega
+  │   ├── imgs/
+  │   │   └── profile/
+  │   │       └── avatar.png
+  │   └── js/
+  │       ├── index.js          monta a tela e trata os eventos
+  │       ├── lib/
+  │       │   └── format.js     formatação de moeda
+  │       └── services/
+  │           └── api.js        a única camada que conhece fetch
+  └── src/
+      ├── index.js              monta o app e sobe o servidor
+      ├── routes.js             as rotas do recurso
+      └── data/
+          └── investments.js    o array em memória
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+A etapa 1 desenhou as telas com dados escritos à mão no HTML. Esta etapa mantém a mesma
+interface — cabeçalho, cartões de ativo e formulário — e troca esses dados fixos por respostas
+da API.
+
+As **quatro** telas da etapa 1 vêm junto, sem reescrita: elas mudam de lugar (para `public/`) e o
+`index.html` ganha comportamento. `signin.html`, `signup.html` e `profile.html` seguem estáticas
+por enquanto — a primeira recebe comportamento na etapa 9, a segunda na 8 e a terceira na 11.
+
+| Etapa 1 (`invest-app-static`) | Etapa 2 (`invest-app-api`) |
+| ----------------------------- | -------------------------- |
+| páginas HTML abertas direto do disco | as mesmas páginas em `public/`, servidas por `express.static` |
+| três cartões escritos no HTML | cartões gerados em JavaScript a partir de `GET /api/investments` |
+| formulário com `type="button"`, sem envio | `form.onsubmit` disparando `POST /api/investments` |
+| formulário dentro de um `<details>` | painel lateral e diálogo de remoção, abertos por JavaScript |
+| utilitários do Tailwind pelo Play CDN | `css/app.css` compilado pela CLI do Tailwind |
+| nenhum arquivo `.js` | `public/js/index.js`, `services/api.js` e `lib/format.js` |
+| nenhum servidor | `src/index.js`, `src/routes.js` e `src/data/investments.js` |
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK02.1 · Instalar dependências e criar `src/index.js` (Servidor Express)
+
+```bash title="Terminal: instalação das dependências"
+npm install express cors morgan
+```
+
+O arquivo monta o app registrando middlewares em ordem. A linha 8 liga o log de requisições com `morgan('tiny')`, e as linhas 10 a 18 configuram o `cors` — necessário apenas quando o cliente vem de outra origem, o que não é o caso do front servido pelo próprio Express.
+
+O trecho destacado nas linhas 20 a 27 é o coração da etapa. O `express.json()` da linha 20 transforma o corpo JSON de `POST` e `PUT` em `req.body`; o `express.static` das linhas 24 e 25 serve o front-end direto do disco; e o `server.use('/api', router)` da linha 27 prefixa todas as rotas do `routes.js`, de onde vem o caminho final `/api/investments`.
+
+São **dois** middlewares de estático, e a ordem entre eles importa. Em desenvolvimento só o da linha 25 atua, entregando `public/` como está. Em produção o da linha 24 entra na frente e serve o `dist/` que o `npm run build` gerou — com os módulos empacotados e o hash de cache no nome dos arquivos. O `public/` continua atrás, porque nem tudo passa pelo build: os avatares enviados na etapa 11, por exemplo, são gravados nele em tempo de execução.
+
+Como o front e a API passam a viver na mesma origem (`http://localhost:3000`), o navegador não dispara preflight de CORS durante o desenvolvimento.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/src/index.js"
+  title="src/index.js"
+  showLineNumbers
+  mark="20-27"
+/>
+
+<Aside type="note" title="`randomUUID()` em vez do pacote `uuid`">
+  O `node:crypto` gera UUID v4 nativamente desde o Node 14.17, e é ele que o projeto usa. O
+  pacote `uuid` do npm continua sendo uma escolha legítima — resolve outras versões do padrão e
+  roda em ambientes sem `crypto` —, mas aqui não acrescenta nada que o runtime já não faça.
+
+  É o mesmo critério que reaparece na [etapa 8](../user/), quando o hash de senha é feito com
+  `argon2Sync` em vez de `bcrypt`, e na [etapa 9](../auth/), quando o JWT é assinado com
+  `createHmac` em vez de `jsonwebtoken`: cada dependência é código de terceiro dentro do seu
+  processo, e só entra quando economiza mais do que custa manter.
+</Aside>
+
+<Aside type="note" title="Express 5 dispensa o `express-async-errors`">
+  No Express 4 era preciso instalar o pacote `express-async-errors`: um `throw` dentro de um
+  handler `async` vira uma promessa rejeitada, e o `try`/`catch` interno do framework não a
+  enxergava — o processo caía com `unhandledRejection` em vez de responder um erro HTTP.
+
+  O Express 5 encaminha promessas rejeitadas sozinho. Como todo o InvestApp está na versão 5,
+  o pacote não aparece em nenhuma etapa: o `throw` das rotas síncronas desta etapa e o das
+  rotas `async` da etapa 6 em diante chegam ao mesmo manipulador de erros sem ajuda externa.
+  Veja [Tratamento de Erros](../../../api/error-handling/).
+</Aside>
+
+<Aside type="caution" title="`req.body` pode ser `undefined` no Express 5">
+  No Express 4, o `express.json()` deixava `req.body` como `{}` quando não havia corpo. No
+  Express 5 ele fica **`undefined`**, e desestruturar `undefined` lança `TypeError`. Por isso a
+  linha 15 do `routes.js` escreve `const { name, value } = req.body ?? {}`: sem o `?? {}`, um
+  `POST` sem corpo devolveria `500` em vez do `400` previsto no contrato.
+</Aside>
+
+### TK02.2 · Criar `src/data/investments.js` (Armazenamento em memória)
+
+O arquivo inteiro é um `export const investments` com dois registros de exemplo. Cada objeto já tem a forma que a API vai devolver: `id` como UUID (linhas 3 e 8), `name` e `value`.
+
+Repare que o `id` é uma string, e não um número sequencial. Essa escolha antecipa o comportamento do banco de dados das etapas 6 e 6 e evita que o front-end passe a depender de um contador que só existiria em memória.
+
+Como é um array exportado por um módulo ES, todas as rotas manipulam a **mesma** referência: o `push` de uma rota é visível na leitura da outra. É o suficiente para exercitar o ciclo completo de leitura e escrita sem banco de dados.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/src/data/investments.js"
+  title="src/data/investments.js"
+  showLineNumbers
+/>
+
+### TK02.3 · Criar `src/routes.js` (Endpoints do recurso `/api/investments`)
+
+Este é o arquivo mais longo da etapa, e vale lê-lo em quatro partes.
+
+A classe `HttpError` das linhas 5 a 10 estende `Error` e acrescenta o campo `code`. É ela que permite escrever `throw new HttpError('Investment not found', 404)` no meio de uma rota e ainda assim responder com o status certo.
+
+O bloco destacado nas linhas 14 a 28 é o `POST /investments` e serve de modelo para as demais rotas: lê `name` e `value` de `req.body` (linha 15), rejeita entrada incompleta com `400` (linhas 17 a 19), gera o identificador com `randomUUID()` do `node:crypto` (linha 21), empurra o objeto para o array (linha 25) e responde `201` com o recurso criado (linha 27).
+
+As leituras vêm em seguida: o `GET /investments` das linhas 30 a 40 aceita o filtro opcional `req.query.name` (linha 31) e devolve o array inteiro quando ele não vem; o `GET /investments/:id` das linhas 42 a 52 usa `findIndex` e responde `404` quando o índice não existe. O `PUT` (linhas 54 a 74) e o `DELETE` (linhas 76 a 88) repetem exatamente esse par de verificações e por isso aparecem recolhidos.
+
+Fecham o arquivo os dois middlewares finais: o das linhas 91 a 93 responde `404` para qualquer caminho não declarado, e o das linhas 96 a 104 é o manipulador de erros — ele converte um `HttpError` no status guardado em `err.code` e transforma qualquer outra exceção em `500`. É esse par que sustenta o contrato de status codes da tabela a seguir.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/src/routes.js"
+  title="src/routes.js"
+  showLineNumbers
+  mark="14-28"
+  collapse="54-88"
+/>
+
+Cinco rotas compõem o CRUD completo do recurso `investments`:
+
+| Método | Caminho                | Corpo               | Sucesso | Erros        |
+| ------ | ---------------------- | ------------------- | ------- | ------------ |
+| GET    | `/api/investments`     | —                   | `200`   | —            |
+| GET    | `/api/investments?name=`| —                  | `200`   | —            |
+| GET    | `/api/investments/:id` | —                   | `200`   | `404`        |
+| POST   | `/api/investments`     | `{ name, value }`   | `201`   | `400`        |
+| PUT    | `/api/investments/:id` | `{ name, value }`   | `200`   | `400`, `404` |
+| DELETE | `/api/investments/:id` | —                   | `204`   | `404`        |
+
+### TK02.4 · Criar `public/js/services/api.js` e `public/js/index.js` (Integração Vanilla JS)
+
+O front é dividido em duas responsabilidades, e essa separação é o ponto didático da etapa: **um único arquivo conhece `fetch`**, e a tela conversa apenas com ele.
+
+O `services/api.js` é essa camada fina. As quatro funções — `create`, `read`, `update` e `remove` — montam a URL a partir da constante `domain = '/api'` da linha 1 e diferem apenas no método e no corpo. O `read` da linha 20 é o caso mais simples, sem objeto `config`; o `create` da linha 3 mostra o trio que sempre acompanha um envio de JSON: `method: 'POST'`, `body: JSON.stringify(data)` e o cabeçalho `Content-Type` da linha 11. Já o `remove` da linha 45 não chama `res.json()`, porque a rota responde `204 No Content`, sem corpo.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/public/js/services/api.js"
+  title="public/js/services/api.js"
+  showLineNumbers
+  mark="1,20-26"
+/>
+
+Com essa camada pronta, o `index.js` cuida só da tela. O trecho destacado nas linhas 74 a 118 tem as duas funções que ligam a interface à API: `loadInvestmentCards()` (linhas 74 a 82) faz `API.read('/investments')`, cria um cartão por item e atualiza o total da carteira; e `loadHandleFormSubmit()` (linhas 92 a 118) intercepta o envio do formulário com `event.preventDefault()`, converte os campos em objeto com `Object.fromEntries(new FormData(form))` na linha 98 e chama `API.create` ou `API.update` conforme o tipo da operação.
+
+Antes delas, as linhas 12 a 30 declaram `bsOffcanvas` e `confirmModal`. São dois objetos de quatro linhas que só acrescentam ou removem o utilitário `hidden` do painel lateral e do diálogo — o projeto não usa biblioteca de componentes, e é o Tailwind que desenha os dois.
+
+O gerador de HTML `InvestmentCard()` (linhas 32 a 60) e os manipuladores de edição e remoção (linhas 120 a 170) estão recolhidos: são detalhes de interface que repetem o mesmo padrão de `document.querySelector` mais `onclick`. As três chamadas das linhas 190 a 194 são o que efetivamente inicia a página.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/public/js/index.js"
+  title="public/js/index.js"
+  showLineNumbers
+  mark="74-118"
+  collapse="32-60,120-170"
+/>
+
+O HTML da etapa 1 vira o esqueleto que esse JavaScript preenche. Quatro ganchos entram no
+`index.html`, e cada um corresponde a uma função do `index.js`: o `#investment-grid` da linha 47
+recebe os cartões, o botão `.create-investment` da linha 52 abre o painel, o `.offcanvas` da
+linha 58 guarda o formulário e o `.modal` da linha 99 confirma a remoção. Os dois últimos nascem
+com o utilitário `hidden` — é o JavaScript que o tira e o devolve.
+
+Repare também no `#portfolio-total` da linha 40: o cartão de resumo existia na etapa 1 com um
+valor escrito à mão, e agora é o `updatePortfolioTotal` quem o preenche.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/public/index.html"
+  title="public/index.html"
+  showLineNumbers
+  mark="40,47,52,58,99"
+  collapse="1-39,60-98"
+/>
+
+As outras três telas — `signin.html`, `signup.html` e `profile.html` — vêm da etapa 1 sem
+alteração de conteúdo. Nelas mudam apenas duas coisas: o `<link>` do CSS, que passa a apontar
+para o `app.css` compilado da TK02.6, e os caminhos de navegação, que viram absolutos agora que
+existe um servidor entregando as páginas a partir da raiz.
+
+{/* cobertura: public/signin.html — muda só o link do CSS e os caminhos de navegação, descritos
+    no parágrafo acima */}
+{/* cobertura: public/signup.html — muda só o link do CSS e os caminhos de navegação, descritos
+    no parágrafo acima */}
+{/* cobertura: public/profile.html — muda só o link do CSS e os caminhos de navegação, descritos
+    no parágrafo acima */}
+
+O `vite.config.js` também acompanha a mudança de lugar. O `root` da linha 7 passa a ser `public/`,
+já que é ali que as páginas agora vivem, e o `outDir` da linha 25 aponta para `dist/` na raiz do
+projeto — que é a pasta que o `express.static` da TK02.1 serve em produção.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/vite.config.js"
+  title="vite.config.js"
+  showLineNumbers
+  mark="7,25,28-33"
+/>
+
+### TK02.5 · Criar `requests.http` (Especificação executável da API)
+
+O arquivo é uma documentação executável: cada bloco separado por `###` vira um botão *Send Request* na extensão REST Client do VS Code.
+
+O trecho destacado nas linhas 1 a 13 mostra o mecanismo que torna o arquivo encadeável. A linha 1 define a variável `@host` com a base da API; a linha 6 nomeia a requisição com `# @name createdInvestment`; e a linha 2 captura o `id` da resposta dessa requisição em `@createdInvestmentId`. É por isso que, mais adiante, a linha 34 consegue escrever `GET {{host}}/investments/{{createdInvestmentId}}` sem que você precise copiar um UUID à mão.
+
+O restante do arquivo, recolhido, exercita justamente os caminhos de erro do contrato: criação sem `value` para provocar `400`, leitura por um id inválido para provocar `404` e assim por diante. Rodar o arquivo de cima a baixo valida a API inteira sem abrir o navegador.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/requests.http"
+  title="requests.http"
+  showLineNumbers
+  mark="1-13"
+  collapse="15-79"
+/>
+
+### TK02.6 · Compilar o CSS com a CLI do Tailwind
+
+A etapa 1 montava o Tailwind no navegador com o Play CDN, que é o modo de protótipo: o
+compilador é baixado a cada carregamento de página. Agora existe servidor, e o CSS pode ser
+gerado uma vez e servido pronto.
+
+```bash title="Terminal: instalação da CLI do Tailwind"
+npm install -D tailwindcss @tailwindcss/cli
+```
+
+A entrada é o `public/css/tailwind.css`. Ele tem três linhas que importam: o `@import
+"tailwindcss"` traz o próprio framework, o `@source "../"` diz à CLI para varrer `public/` atrás
+das classes usadas no HTML e no JavaScript, e o `@import "./components.css"` acrescenta o
+vocabulário visual que veio intacto da etapa 1.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/public/css/tailwind.css"
+  title="public/css/tailwind.css"
+  showLineNumbers
+  mark="12-14"
+/>
+
+Dois scripts no `package.json` fazem o trabalho: o `css` gera uma vez e o `css:watch` recompila a
+cada alteração das telas. A saída é o `public/css/app.css` — o arquivo que as quatro páginas
+carregam no `<link>` e o único que chega ao navegador.
+
+```bash title="Terminal: gerando o CSS"
+npm run css
+```
+
+<Aside type="note" title="Por que o Vite não faz esse trabalho aqui">
+  No MonitorApp o front roda no servidor de desenvolvimento do Vite, que compila o CSS em
+  memória a cada requisição. No InvestApp quem serve `public/` é o Express, direto do disco, e o
+  Vite só entra no `npm run build` — se o `@import "tailwindcss"` chegasse cru ao navegador, ele
+  seria interpretado como um `@import` de arquivo e nenhum utilitário funcionaria em
+  desenvolvimento. Por isso o `app.css` é gerado pela CLI e versionado junto com o projeto:
+  clonar e rodar `npm run dev` basta para ver a tela certa.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto local desta etapa:
+
+   ```bash title="Terminal"
+   cd examples/courses/express/projects/invest-app-api
+   ```
+
+2. Instale e suba em modo watch:
+
+   ```bash title="Terminal"
+   npm install
+   npm run dev
+   ```
+
+3. Abra <code>http://localhost:3000</code> — o front já consome a API.
+
+4. Execute o `request.http` pela extensão
+   [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client).
+
+</Steps>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Tesouro Selic 2029",
+    "value": 20000
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": 1,
+    "name": "Tesouro Selic 2029",
+    "value": 20000
+  }
+`}
+</ApiResponse>
+
+<ApiRequest method="GET" path="/api/investments?name=Tesouro" baseUrl="http://localhost:3000" description="Filtro pela query string" />
+
+<ApiResponse status={200}>
+{`
+  [
+    { "id": 1, "name": "Tesouro Selic 2029", "value": 20000 }
+  ]
+`}
+</ApiResponse>
+
+## O front-end
+
+A interface continua vanilla: módulos pequenos, sem React, Vue ou framework de componentes. A
+regra que sustenta o front desta etapa é a separação em três arquivos, cada um com uma
+responsabilidade só.
+
+| Arquivo | Responsabilidade | Conhece `fetch`? |
+| ------- | ---------------- | ---------------- |
+| `public/js/services/api.js` | montar URL, método, cabeçalhos e corpo das requisições | sim, e é o único |
+| `public/js/index.js` | ler o DOM, tratar eventos e desenhar os cartões | não |
+| `public/js/lib/format.js` | formatar valores em Real com `toLocaleString('pt-br')` | não |
+
+Essa divisão é o que permite trocar a origem da API, acrescentar um cabeçalho `Authorization`
+ou mudar o tratamento de erro em um único arquivo. Na etapa 9, quando o token JWT entrar, a
+alteração acontece só dentro de `services/api.js`.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-api/public/js/lib/format.js"
+  title="public/js/lib/format.js"
+  showLineNumbers
+/>
+
+<Aside type="caution" title="O que se perde ao reiniciar">
+  Tudo. O array vive na memória do processo: um `Ctrl+C` apaga os investimentos cadastrados.
+  É exatamente o problema que a próxima etapa resolve.
+</Aside>
+
+## Conceitos abordados
+
+- Rotas com método e caminho, e o prefixo `/api`
+- `express.json()` e o corpo da requisição
+- `express.static` servindo o front-end na mesma origem
+- Filtro por query string
+- Status codes de sucesso e de erro
+- `request.http` como contrato executável
+
+<Aside type="tip">
+  As aulas correspondentes são [Fundamentos](../../../basics/introduction/),
+  [Rotas](../../../basics/routes/) e [Construção de API](../../../api/construction/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: TypeScript em camadas](../typescript/) — tipos, controllers e erros
+centralizados.

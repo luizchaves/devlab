@@ -1,0 +1,358 @@
+---
+title: "Express.js: Deploy"
+description: "Colocar uma API Express em produção: build e execução, variáveis de ambiente, migrations, Dockerfile, encerramento gracioso, proxy reverso, health check e checklist de produção."
+course: expressjs
+sidebar:
+  label: "Deploy"
+---
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Rodar na sua máquina é o caso mais fácil: uma instância, um banco local, você mesmo como
+único usuário. Esta aula trata do que muda quando a aplicação passa a rodar em outro lugar,
+o tempo todo, para outras pessoas.
+
+## Objetivo
+
+Ao final você saberá preparar a aplicação para produção — variáveis de ambiente, migrations,
+porta e host —, empacotá-la em uma imagem Docker, encerrá-la sem derrubar requisições em
+curso e verificar o checklist mínimo antes de publicar.
+
+## O que muda em produção
+
+| Aspecto              | Desenvolvimento           | Produção                                   |
+| -------------------- | ------------------------- | ------------------------------------------ |
+| Origem da configuração| arquivo `.env`            | ambiente do orquestrador                    |
+| `NODE_ENV`           | `development`             | `production`                                |
+| Porta                | fixa (`3000`)             | definida por `process.env.PORT`             |
+| Host de escuta       | `localhost`               | `0.0.0.0` (para o contêiner receber tráfego)|
+| Banco                | SQLite local              | serviço gerenciado                          |
+| Migrations           | `migrate dev`             | `migrate deploy`                            |
+| Log                  | texto colorido            | JSON estruturado                            |
+| TLS                  | nenhum                    | terminado no proxy reverso                  |
+| Reinício após falha  | manual                    | automático                                  |
+
+<Aside type="danger" title="`localhost` dentro de um contêiner não recebe nada">
+  `app.listen(3000, 'localhost')` só aceita conexões de dentro do próprio contêiner. O host
+  precisa ser `0.0.0.0` — que é o padrão quando você omite o segundo argumento.
+</Aside>
+
+## Porta e host
+
+Plataformas de hospedagem injetam a porta por variável de ambiente. Ignorá-la é o motivo
+número um de um deploy "que subiu mas não responde":
+
+```ts title="src/server.ts" showLineNumbers {1,3}
+const port = Number(process.env.PORT ?? 3000);
+
+const server = app.listen(port, () => {
+  console.log(`Servidor escutando na porta ${port}`);
+});
+```
+
+## Migrations em produção
+
+Os comandos de desenvolvimento **não** servem para produção — um deles apaga os dados:
+
+| Comando                 | Ambiente         | O que faz                                     |
+| ----------------------- | ---------------- | --------------------------------------------- |
+| `prisma migrate dev`    | desenvolvimento  | cria a migration e aplica; pode pedir reset    |
+| `prisma migrate deploy` | **produção**     | aplica as migrations pendentes, sem gerar nada |
+| `prisma db push`        | protótipo        | sincroniza sem histórico                       |
+| `prisma migrate reset`  | desenvolvimento  | **apaga tudo** e reaplica                      |
+
+```json title="package.json" showLineNumbers {4}
+{
+  "scripts": {
+    "start": "node src/server.ts",
+    "predeploy": "prisma migrate deploy"
+  }
+}
+```
+
+<Aside type="caution" title="Migration é a parte irreversível do deploy">
+  Código pode ser revertido em segundos; uma coluna removida leva os dados junto. A prática
+  segura é expandir antes e contrair depois: adicione a coluna nova, publique o código que
+  usa as duas, migre os dados e só então remova a antiga.
+</Aside>
+
+## Encerramento gracioso
+
+Ao receber `SIGTERM`, o processo tem alguns segundos antes de ser morto. Sem tratamento, as
+requisições em andamento são cortadas no meio:
+
+<Mermaid title="Encerramento gracioso de um servidor Express">
+{`
+flowchart TD
+  A["Orquestrador envia SIGTERM"] --> B["server.close()<br/>para de aceitar conexões novas"]
+  B --> C["Requisições em curso terminam"]
+  C --> D["Fecha o banco e as filas"]
+  D --> E["process.exit(0)"]
+  B -.->|"passou do tempo limite"| F["process.exit(1)<br/>encerramento forçado"]
+`}
+</Mermaid>
+
+```ts title="src/server.ts" showLineNumbers {3,6,9,14}
+const server = app.listen(port);
+
+function shutdown(sinal: string) {
+  console.log({ level: 'info', evento: 'shutdown', sinal });
+
+  // Para de aceitar conexões; as em curso continuam até terminar.
+  server.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  // Rede de segurança: se algo travar, não fica pendurado para sempre.
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+```
+
+<Aside type="tip" title="`.unref()` no timer">
+  Sem ele, o próprio `setTimeout` mantém o processo vivo pelos dez segundos, mesmo depois de
+  tudo ter fechado — e o encerramento gracioso passa a demorar sempre dez segundos.
+</Aside>
+
+## Empacotando com Docker
+
+A imagem descreve exatamente o ambiente de execução — mesma versão de Node, mesmas
+dependências, em qualquer lugar:
+
+```dockerfile title="Dockerfile" showLineNumbers {1,6,10,14,17}
+FROM node:24-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+# `npm ci` respeita o lockfile; `npm install` pode alterá-lo.
+RUN npm ci --omit=dev
+
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+# Não rodar como root: se a aplicação for comprometida, o dano é menor.
+USER node
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --chown=node:node . .
+
+EXPOSE 3000
+CMD ["node", "src/server.ts"]
+```
+
+```txt title=".dockerignore"
+node_modules
+.env
+*.db
+.git
+```
+
+<Aside type="danger" title="O `.dockerignore` evita empacotar o `.env`">
+  Sem ele, `COPY . .` leva o `.env` para dentro da imagem — e quem tiver acesso à imagem tem
+  os segredos. A configuração entra por variável de ambiente, no momento da execução.
+</Aside>
+
+| Escolha do Dockerfile        | Por quê                                             |
+| ---------------------------- | --------------------------------------------------- |
+| Estágio `deps` separado      | a camada de dependências só é refeita quando o lockfile muda |
+| `npm ci --omit=dev`          | instalação reprodutível, sem ferramentas de desenvolvimento |
+| `USER node`                  | reduz o impacto de um comprometimento                |
+| `alpine`                     | imagem menor, menos superfície                       |
+| `ENV NODE_ENV=production`    | liga o modo de produção do Express e das bibliotecas |
+
+## Proxy reverso
+
+Em produção, a aplicação raramente recebe tráfego direto. Um proxy — Nginx, Caddy, o
+balanceador da plataforma — fica na frente:
+
+<Mermaid title="Papel do proxy reverso na frente da aplicação Express">
+{`
+flowchart TD
+  A["Cliente (HTTPS)"] --> B["Proxy reverso<br/>Nginx, Caddy, balanceador"]
+  B -->|"encerra o TLS"| C["Express (HTTP, porta interna)"]
+  B --> D["Serve arquivos estáticos"]
+  B --> E["Compressão gzip/brotli"]
+  B --> F["X-Forwarded-For / -Proto"]
+  F --> C
+`}
+</Mermaid>
+
+Para o Express enxergar o IP e o protocolo originais, é preciso declarar a confiança no
+proxy:
+
+```ts title="src/app.ts" showLineNumbers {2}
+// 1 = confia em um salto. Sem isso, req.ip é o IP do proxy e req.protocol é 'http'.
+app.set('trust proxy', 1);
+```
+
+<Aside type="caution" title="`trust proxy` mal configurado quebra o limite de requisições">
+  Sem ele, todos os usuários compartilham o IP do proxy e um único limite. Com `true`
+  (confiar em qualquer salto), o cliente pode forjar `X-Forwarded-For` e escapar do limite.
+  Configure o número exato de proxies à frente.
+</Aside>
+
+## Health check
+
+O orquestrador consulta um endpoint para decidir se a instância recebe tráfego e se precisa
+ser reiniciada:
+
+```ts title="src/routes/health-router.ts" showLineNumbers {2,8}
+// Liveness: barato, sem I/O. Responde enquanto o processo estiver vivo.
+router.get('/health', (_req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Readiness: verifica as dependências. Chamado com menos frequência.
+router.get('/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+
+    res.json({ status: 'ready' });
+  } catch {
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
+```
+
+## Onde publicar
+
+| Opção                          | Esforço | Bom para                                    |
+| ------------------------------ | ------- | ------------------------------------------- |
+| PaaS (Render, Railway, Fly.io) | baixo   | projeto de disciplina, protótipo, MVP        |
+| Contêiner gerenciado (Cloud Run, ECS) | médio | tráfego variável, escala automática    |
+| VPS com Docker Compose         | médio   | controle total, custo previsível             |
+| Kubernetes                     | alto    | vários serviços e times                      |
+
+<Aside type="note" title="SQLite em PaaS costuma não funcionar">
+  A maioria das plataformas usa disco efêmero: o arquivo do banco desaparece a cada deploy.
+  Ou se usa um volume persistente, ou se troca por um Postgres gerenciado — mudança de uma
+  linha no `provider` do schema, se as consultas forem do Prisma.
+</Aside>
+
+## Checklist antes de publicar
+
+<Steps>
+
+1. **Configuração** — todas as variáveis obrigatórias definidas no ambiente; nenhum `.env`
+   versionado; `JWT_SECRET` aleatório e diferente do de desenvolvimento.
+
+2. **Banco** — `migrate deploy` no processo de publicação; backup configurado; nenhum
+   comando destrutivo no caminho.
+
+3. **Segurança** — `x-powered-by` desabilitado, cabeçalhos de segurança, CORS restrito por
+   origem, limite de requisições no login, limite de tamanho do corpo.
+
+4. **Erros** — respostas `5xx` genéricas; stack trace apenas no log;
+   `unhandledRejection` e `uncaughtException` tratados.
+
+5. **Operação** — log estruturado, `/health` e `/ready`, encerramento gracioso, `PORT` lido
+   do ambiente.
+
+6. **Qualidade** — `npm ci`, `npm run typecheck` e `npm test` passando na integração
+   contínua.
+
+</Steps>
+
+## Exercício
+
+No projeto `express-auth`:
+
+1. Escreva o `Dockerfile` e o `.dockerignore` conforme a aula.
+2. Construa a imagem e rode passando as variáveis por `-e`:
+
+   ```bash title="Terminal"
+   docker build -t express-auth .
+   docker run -p 3000:3000 -e JWT_SECRET=$(openssl rand -hex 32) express-auth
+   ```
+
+3. Implemente o encerramento gracioso e observe o log ao parar o contêiner.
+4. Acrescente `/health` e confirme que ele responde sem autenticação.
+5. Confirme que a imagem **não** contém o `.env`:
+
+   ```bash title="Terminal"
+   docker run --rm express-auth ls -la
+   ```
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```txt title="Output ao parar o contêiner"
+  {"level":"info","evento":"shutdown","sinal":"SIGTERM"}
+  ```
+
+  Sem o tratamento de `SIGTERM`, o contêiner é morto após o período de graça e nenhuma linha
+  aparece — sinal de que as requisições em curso foram cortadas.
+</details>
+
+## Desafio
+
+Configure um workflow do GitHub Actions que rode `npm ci`, `npm run typecheck` e `npm test`
+em cada push e, na branch principal, construa e publique a imagem Docker. Faça o deploy
+depender do sucesso dos testes.
+
+## Perguntas de revisão
+
+### Ambiente
+
+1. **Por que ler a porta de `process.env.PORT`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque a plataforma de hospedagem escolhe a porta e a injeta por variável de ambiente.
+     Uma porta fixa faz o serviço subir e nunca receber tráfego.
+   </details>
+
+2. **Por que `migrate deploy` e não `migrate dev` em produção?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `migrate dev` gera migrations e pode pedir um reset do banco — que apaga os dados.
+     `migrate deploy` apenas aplica as migrations pendentes já versionadas.
+   </details>
+
+### Operação
+
+3. **O que o encerramento gracioso evita?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Que requisições em andamento sejam cortadas no meio e que conexões de banco fiquem
+     penduradas. `server.close()` para de aceitar conexões novas e deixa as atuais
+     terminarem.
+   </details>
+
+4. **Por que `USER node` no Dockerfile?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para a aplicação não rodar como root. Se ela for comprometida, o atacante fica limitado
+     às permissões de um usuário comum dentro do contêiner.
+   </details>
+
+5. **Qual o risco de `app.set('trust proxy', true)`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Confiar em qualquer valor de `X-Forwarded-For` permite ao cliente forjar o próprio IP e
+     escapar do limite de requisições. Deve-se declarar o número exato de proxies à frente.
+   </details>
+
+## Referências
+
+- [Express — Production best practices: performance and reliability](https://expressjs.com/en/advanced/best-practice-performance.html)
+- [Node.js — Docker best practices](https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md)
+- [Prisma — Deploy migrations](https://www.prisma.io/docs/orm/prisma-migrate/workflows/production-troubleshooting)
+- [The Twelve-Factor App](https://12factor.net/)
+
+## Na prática
+
+Todos os projetos do guia abrem com os botões **Ver no GitHub** e **Abrir no Codespaces** —
+o Codespaces é, na prática, o mesmo contêiner desta aula rodando na nuvem.

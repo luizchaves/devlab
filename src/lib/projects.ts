@@ -32,7 +32,7 @@ export const projects: Project[] = [
     level: 'Iniciante',
     tech: ['Node.js', 'Express.js'],
     concepts: ['Servidor HTTP', 'Rotas', 'JSON'],
-    docs: '/courses/express/practice/hello-express/',
+    docs: '/courses/expressjs/practice/hello-express/',
     source: 'examples/courses/express/projects/hello',
   },
   {
@@ -42,7 +42,7 @@ export const projects: Project[] = [
     level: 'Iniciante',
     tech: ['Node.js', 'Express.js'],
     concepts: ['express.Router()', 'Modularização', 'Parâmetros de rota'],
-    docs: '/courses/express/practice/express-router/',
+    docs: '/courses/expressjs/practice/express-router/',
     source: 'examples/courses/express/projects/router',
   },
   {
@@ -53,7 +53,7 @@ export const projects: Project[] = [
     level: 'Intermediário',
     tech: ['Node.js', 'Express.js', 'MVC'],
     concepts: ['Separação de responsabilidades', 'Controllers', 'Models', 'Middleware de erro'],
-    docs: '/courses/express/practice/express-mvc/',
+    docs: '/courses/expressjs/practice/express-mvc/',
     source: 'examples/courses/express/projects/mvc',
   },
   {
@@ -64,7 +64,7 @@ export const projects: Project[] = [
     level: 'Intermediário',
     tech: ['Node.js', 'Express.js', 'TypeScript'],
     concepts: ['Type stripping', 'Subpath imports', 'Tipagem de req e res', 'HttpError'],
-    docs: '/courses/express/practice/express-typescript/',
+    docs: '/courses/expressjs/practice/express-typescript/',
     source: 'examples/courses/express/projects/typescript',
   },
   {
@@ -75,7 +75,7 @@ export const projects: Project[] = [
     level: 'Avançado',
     tech: ['Node.js', 'Express.js', 'Prisma', 'SQLite'],
     concepts: ['ORM', 'Schema', 'Migrations', 'CRUD assíncrono'],
-    docs: '/courses/express/practice/express-prisma/',
+    docs: '/courses/expressjs/practice/express-prisma/',
     source: 'examples/courses/express/projects/prisma',
   },
   {
@@ -86,7 +86,7 @@ export const projects: Project[] = [
     level: 'Avançado',
     tech: ['Node.js', 'Express.js', 'TypeScript', 'node:crypto'],
     concepts: ['Argon2id', 'JWT HS256', 'Autenticação', 'Autorização'],
-    docs: '/courses/express/practice/express-auth/',
+    docs: '/courses/expressjs/practice/express-auth/',
     source: 'examples/courses/express/projects/auth',
   },
 ];

@@ -1,0 +1,356 @@
+---
+title: "Express.js: Tratamento de Erros"
+description: "Centralização do tratamento de erros em uma API Express: classe HttpError, erros operacionais e de programação, tradução de erros do banco, formato de resposta e falhas fora do ciclo de requisição."
+course: expressjs
+sidebar:
+  label: "Tratamento de Erros"
+---
+import { Aside } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Em uma API, erro não é exceção: é uma das saídas normais de qualquer rota. Esta aula
+transforma o tratamento de erros de "um `try`/`catch` em cada controller" em uma decisão
+tomada em um único arquivo.
+
+## Objetivo
+
+Ao final você saberá distinguir erro operacional de defeito de programação, lançar erros com
+status a partir de qualquer camada, traduzir erros de bibliotecas em respostas HTTP e
+garantir que nenhuma falha escape sem resposta.
+
+## Duas naturezas de erro
+
+Antes de escrever qualquer `catch`, é preciso separar dois tipos que exigem tratamentos
+opostos:
+
+| Natureza                | Exemplos                                              | Resposta        | O que fazer          |
+| ----------------------- | ----------------------------------------------------- | --------------- | -------------------- |
+| **Operacional**         | recurso inexistente, e-mail duplicado, token expirado  | `4xx` específico| responder e seguir   |
+| **Defeito de programação** | `undefined.map()`, variável não declarada, tipo errado | `500` genérico  | logar e corrigir     |
+
+O erro operacional é previsto: ele faz parte do contrato da API e merece uma mensagem clara.
+O defeito é imprevisto: a mensagem não ajuda o cliente e pode entregar detalhes internos.
+
+<Aside type="caution" title="Tratar defeito como operacional esconde bug">
+  Um `catch` que devolve `400` para qualquer falha transforma um `TypeError` em "requisição
+  inválida". O cliente conserta o que não estava quebrado, e o defeito permanece.
+</Aside>
+
+## O caminho de um erro
+
+Independentemente da camada em que nasce, todo erro converge para o mesmo middleware:
+
+<Mermaid title="Caminho de um erro até a resposta HTTP">
+{`
+flowchart TD
+  A["Model<br/>lança erro de domínio"] --> D
+  B["Controller<br/>throw new HttpError(404, …)"] --> D
+  C["Middleware<br/>next(erro)"] --> D
+  E["Defeito inesperado<br/>TypeError"] --> D
+  D["errorHandler<br/>único tradutor de erro em resposta"]
+  D --> F{"É HttpError?"}
+  F -->|sim| G["status do erro<br/>mensagem para o cliente"]
+  F -->|não| H["500<br/>mensagem genérica + log completo"]
+`}
+</Mermaid>
+
+## A classe `HttpError`
+
+Um erro que já carrega o status permite ao controller decidir a resposta sem chamar `res`:
+
+<SourceCode
+  path="examples/courses/express/projects/typescript/src/errors/HttpError.ts"
+  title="src/errors/HttpError.ts"
+  showLineNumbers
+/>
+
+O uso é uma linha, de qualquer profundidade da pilha:
+
+```ts title="src/controllers/user-controller.ts" showLineNumbers {4}
+const user = User.findById(id);
+
+if (!user) {
+  throw new HttpError(404, 'Usuário não encontrado');
+}
+
+res.json(user);
+```
+
+<Aside type="tip" title="`throw` ou `next(erro)`?">
+  Dentro de um handler síncrono ou `async`, `throw` basta — o Express 5 captura os dois.
+  `next(erro)` continua necessário quando o erro nasce dentro de um *callback* que o Express
+  não envolve, como `fs.readFile('x', (err) => next(err))` ou um `stream.on('error', next)`.
+</Aside>
+
+## O middleware de erro
+
+É o único lugar da aplicação que sabe como um erro vira resposta. Ele decide o status, o que
+o cliente lê e o que fica no log:
+
+<SourceCode
+  path="examples/courses/express/projects/typescript/src/middlewares/error-handler.ts"
+  title="src/middlewares/error-handler.ts"
+  showLineNumbers
+  mark="15,17-19,24"
+/>
+
+Três decisões estão condensadas nele:
+
+1. **Status**: `HttpError` traz o seu; qualquer outra coisa é `500`.
+2. **Log**: só `5xx` é registrado — `4xx` é comportamento esperado do cliente.
+3. **Mensagem**: `4xx` devolve a mensagem original; `5xx` devolve texto genérico.
+
+E o `notFound` fecha a cadeia, convertendo "nenhuma rota casou" em um erro como outro
+qualquer:
+
+<SourceCode
+  path="examples/courses/express/projects/typescript/src/middlewares/error-handler.ts"
+  lines="5-8"
+  title="src/middlewares/error-handler.ts"
+  showLineNumbers
+/>
+
+A ordem de registro é o que faz os dois funcionarem:
+
+```ts title="src/app.ts" showLineNumbers {4-5}
+app.use('/users', userRouter);
+
+// notFound antes: cria o erro. errorHandler depois: responde.
+app.use(notFound);
+app.use(errorHandler);
+```
+
+## Erros `async` no Express 5
+
+No Express 4, um erro lançado dentro de uma função `async` virava uma *promise* rejeitada
+que o framework não observava: a requisição travava até o timeout, sem log. A solução era
+repetir `try`/`catch` em cada rota ou instalar `express-async-errors`.
+
+```js title="Express 4: obrigatório" del={2,6-8}
+router.get('/users/:id', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+```
+
+```ts title="Express 5: o framework encaminha" showLineNumbers
+router.get('/users/:id', async (req, res) => {
+  const user = await User.findById(req.params.id);
+
+  res.json(user);
+});
+```
+
+<Aside type="note" title="Quando o `try`/`catch` volta a fazer sentido">
+  Não para repassar o erro — para **traduzi-lo**. Se o erro do banco precisa virar `404`
+  antes de subir, o `catch` faz a tradução e relança um `HttpError`.
+</Aside>
+
+## Traduzindo erros de bibliotecas
+
+O Prisma, o driver de banco e o parser de JSON lançam erros próprios, com códigos próprios.
+Cada um precisa de uma tradução para o vocabulário HTTP:
+
+| Origem            | Erro                                   | Resposta |
+| ----------------- | -------------------------------------- | -------- |
+| `express.json()`  | `SyntaxError` de JSON malformado        | `400`    |
+| Prisma            | `P2025` — registro não encontrado       | `404`    |
+| Prisma            | `P2002` — violação de unicidade         | `409`    |
+| Prisma            | `P2003` — violação de chave estrangeira | `400`    |
+| `node:sqlite`     | `SQLITE_CONSTRAINT_UNIQUE`              | `409`    |
+
+A tradução pode ficar no `catch` da camada que conhece a biblioteca — o model — ou em um
+trecho do próprio `errorHandler`:
+
+```ts title="src/middlewares/error-handler.ts" showLineNumbers {5,9}
+const PRISMA_STATUS: Record<string, number> = { P2025: 404, P2002: 409, P2003: 400 };
+
+function statusOf(error: Error): number {
+  if (error instanceof HttpError) return error.status;
+  if (error instanceof SyntaxError && 'body' in error) return 400;
+
+  const code = (error as { code?: string }).code;
+
+  return (code && PRISMA_STATUS[code]) ?? 500;
+}
+```
+
+<Aside type="caution" title="Não deixe a mensagem original vazar junto">
+  Traduzir o **status** não autoriza repassar a **mensagem**. `Unique constraint failed on
+  the fields: (email)` entrega o nome da coluna e do índice. Responda "E-mail já cadastrado".
+</Aside>
+
+## O formato da resposta de erro
+
+O importante é que seja **um só** em toda a API. O formato usado neste guia é o mínimo
+suficiente:
+
+<ApiRequest method="GET" path="/users/99" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={404}>
+{`
+  {
+    "error": {
+      "status": 404,
+      "message": "Usuário não encontrado"
+    }
+  }
+`}
+</ApiResponse>
+
+Quando a API é pública ou consumida por times diferentes, vale adotar o formato padronizado
+da [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html), com `Content-Type:
+application/problem+json`:
+
+<ApiResponse status={422} description="Content-Type: application/problem+json">
+{`
+  {
+    "type": "https://example.com/probs/validation",
+    "title": "Dados inválidos",
+    "status": 422,
+    "detail": "O campo \\"email\\" não é um e-mail válido",
+    "instance": "/users"
+  }
+`}
+</ApiResponse>
+
+## Falhas fora do ciclo de requisição
+
+O `errorHandler` só alcança o que acontece **dentro** de uma requisição. Um erro em um
+`setTimeout`, num evento ou numa *promise* solta escapa dele e derruba o processo:
+
+```ts title="src/server.ts" showLineNumbers {1,7}
+process.on('unhandledRejection', (motivo) => {
+  console.error({ level: 'error', tipo: 'unhandledRejection', motivo });
+  // Encerra: o estado do processo é desconhecido a partir daqui.
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error({ level: 'error', tipo: 'uncaughtException', stack: error.stack });
+  process.exit(1);
+});
+```
+
+<Aside type="danger" title="Capturar e continuar é pior do que cair">
+  Depois de uma exceção não capturada, o processo pode estar com conexões meio abertas e
+  estado inconsistente. O comportamento correto é registrar e sair — deixando o gerenciador
+  de processos subir uma instância limpa. O assunto continua em
+  [Deploy](../../advanced/deploy/).
+</Aside>
+
+## Exercício
+
+No projeto `express-typescript`:
+
+1. Faça `parseId` lançar `HttpError(400)` para um id não numérico e confirme a resposta.
+2. Acrescente ao `errorHandler` a tradução de `SyntaxError` de JSON malformado para `400`
+   com a mensagem "Corpo JSON inválido".
+3. Inclua o `requestId` no corpo da resposta de erro.
+4. Escreva uma rota `GET /boom` que lance `new Error('falha inesperada')` e verifique que o
+   cliente recebe `500` genérico enquanto o log traz o stack trace.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```ts title="src/middlewares/error-handler.ts" showLineNumbers {6-8}
+  export function errorHandler(error: Error, req: Request, res: Response, _next: NextFunction) {
+    let status = error instanceof HttpError ? error.status : 500;
+    let message = error.message;
+
+    // O SyntaxError de express.json() carrega a propriedade `body`.
+    if (error instanceof SyntaxError && 'body' in error) {
+      status = 400;
+      message = 'Corpo JSON inválido';
+    }
+
+    if (status >= 500) {
+      console.error({ level: 'error', requestId: req.id, stack: error.stack });
+      message = 'Erro interno do servidor';
+    }
+
+    res.status(status).json({ error: { status, message, requestId: req.id } });
+  }
+  ```
+</details>
+
+## Desafio
+
+Converta as respostas de erro da aplicação para o formato da RFC 9457: crie
+`src/errors/problem.ts` com uma função que monte o objeto `{ type, title, status, detail,
+instance }`, defina `Content-Type: application/problem+json` e mantenha um mapa de `type`
+por classe de erro. Discuta o que se ganha e o que se perde em relação ao formato simples.
+
+## Perguntas de revisão
+
+### Naturezas
+
+1. **Qual a diferença entre erro operacional e defeito de programação?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O operacional é previsto e faz parte do contrato — recurso inexistente, e-mail
+     duplicado — e vira `4xx` com mensagem útil. O defeito é um bug: vira `500` genérico,
+     com o detalhe apenas no log, e exige correção de código.
+   </details>
+
+2. **Por que `4xx` não é registrado no log de erro?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque é comportamento esperado do cliente. Registrá-lo como erro enche o log de ruído
+     e esconde os `5xx`, que são os que exigem ação.
+   </details>
+
+### Fluxo
+
+3. **Por que o `notFound` precisa vir antes do `errorHandler`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o `notFound` **cria** o erro 404 e o encaminha; quem responde é o `errorHandler`.
+     Invertidos, o handler de erro seria alcançado antes de existir erro e o `notFound`
+     jamais executaria.
+   </details>
+
+4. **Em quais situações `next(erro)` ainda é necessário no Express 5?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Quando o erro nasce fora do fluxo que o Express envolve: callbacks de API antiga
+     (`fs.readFile`), listeners de evento e handlers de `stream`. Nesses pontos o `throw`
+     acontece em outro *tick* e não é capturado.
+   </details>
+
+5. **Por que capturar `uncaughtException` e continuar rodando é perigoso?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o processo pode ter ficado com estado inconsistente — conexões abertas, memória
+     corrompida, transação pela metade. Registrar e sair permite que o gerenciador de
+     processos suba uma instância limpa.
+   </details>
+
+## Referências
+
+- [Express — Error handling](https://expressjs.com/en/guide/error-handling.html)
+- [RFC 9457 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc9457.html)
+- [Node.js — Error handling best practices](https://nodejs.org/en/learn/asynchronous-work/dont-block-the-event-loop)
+- [Prisma — Error reference](https://www.prisma.io/docs/orm/reference/error-reference)
+
+## Próxima aula
+
+[Validação](../validation/): impedir que a entrada inválida chegue ao controller.

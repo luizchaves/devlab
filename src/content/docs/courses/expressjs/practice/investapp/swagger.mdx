@@ -1,0 +1,302 @@
+---
+title: "InvestApp: Documentação da API"
+description: "Quinta etapa do InvestApp: documentação OpenAPI gerada a partir dos schemas Zod e servida com Swagger UI, sem duplicar o contrato."
+course: expressjs
+sidebar:
+  label: "5. Documentação da API"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **5 de 13** · Nível **Intermediário** · TypeScript · Express.js · Zod · OpenAPI
+
+A etapa anterior transformou o contrato da API em código executável. Esta etapa faz esse mesmo contrato virar documentação navegável — sem escrevê-lo uma segunda vez.
+
+Documentação de API costuma nascer certa e envelhecer errada. O motivo é quase sempre o mesmo: ela é escrita **em outro lugar** que não o código. Alguém acrescenta um campo obrigatório na rota, esquece do arquivo YAML, e a partir dali a documentação passa a mentir — o que é pior do que não existir, porque quem a lê confia nela.
+
+A saída é não ter duas fontes. O `investment.schema.ts` da etapa 4 já descreve, com precisão, o que cada rota aceita: `name` com no mínimo 3 caracteres, `value` positivo, `id` em UUID. Essa descrição pode ser **traduzida** para OpenAPI em vez de reescrita:
+
+<Mermaid title="Uma fonte, dois destinos">
+{`
+flowchart LR
+  A["investment.schema.ts<br/>(Zod)"] --> B["validate()<br/>rejeita 400 em tempo de execucao"]
+  A --> C["z.toJSONSchema()<br/>documento OpenAPI"]
+  C --> D["Swagger UI<br/>/api/docs"]
+  C --> E["openapi.json<br/>Insomnia, Postman, geradores"]
+`}
+</Mermaid>
+
+Se um campo mudar de regra, os dois lados mudam juntos — porque são o mesmo objeto.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Documentação de API**: veja [Documentação OpenAPI / Swagger](../../../api/documentation/) e [Validação de Requisições](../../../api/validation/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP04 · Fundação Técnica** › **Feature FT11 · Documentação da API**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF07** Documentação da API | documento OpenAPI 3 gerado dos schemas e servido em interface web | atendido |
+
+### US05 — Integrar sem ler o código · RNF07
+
+> **Como** pessoa desenvolvedora que vai consumir a API,
+> **quero** uma referência navegável e sempre atualizada das rotas,
+> **para** integrar sem ler o código-fonte nem perguntar a alguém.
+
+```gherkin
+Cenário: CA05.1 - A documentação é navegável
+  Quando acesso /api/docs
+  Então vejo as cinco rotas de investimento
+  E consigo expandir cada uma para ver corpo, parâmetros e respostas
+
+Cenário: CA05.2 - O contrato é exportável
+  Quando acesso /api/openapi.json
+  Então recebo um documento OpenAPI 3 válido
+  E consigo importá-lo em outra ferramenta
+
+Cenário: CA05.3 - As regras vêm dos schemas
+  Quando comparo o documento com investment.schema.ts
+  Então minLength, format uuid e a lista de required são os mesmos
+
+Cenário: CA05.4 - Documentação e validação não divergem
+  Dado que altero o mínimo de "name" de 3 para 5 no schema
+  Quando recarrego /api/docs
+  Então o minLength exibido passa a ser 5
+  E a rota passa a recusar nomes de 4 letras
+  E nenhuma linha de openapi.ts foi editada
+
+Cenário: CA05.5 - Documentar não é alterar
+  Quando comparo esta etapa com a anterior
+  Então apenas dois arquivos novos e uma linha do index.ts mudaram
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US05 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK05.1 · Instalar o Swagger UI e criar `src/docs/openapi.ts`**: Tradução dos schemas Zod para um documento OpenAPI 3.
+2. **TK05.2 · Criar `src/routes/docs.routes.ts`**: A interface navegável em `/api/docs` e o documento cru em `/api/openapi.json`.
+
+</Steps>
+
+## Estrutura da aplicação
+
+Duas pastas novas e uma linha no entrypoint. Nenhum arquivo das etapas anteriores é alterado.
+
+<ProjectLinks path="examples/courses/express/projects/invest-app-swagger" />
+
+<FileTree>
+{`
+  invest-app-swagger/
+  ├── package.json
+  ├── tsconfig.json
+  ├── public/
+  └── src/
+      ├── index.ts                    ganha uma linha
+      ├── controllers/
+      ├── data/
+      ├── errors/
+      ├── middlewares/
+      ├── models/
+      ├── types/
+      ├── schemas/
+      │   └── investment.schema.ts    a fonte, intacta da etapa 4
+      ├── docs/
+      │   └── openapi.ts              novo: traduz os schemas para OpenAPI
+      └── routes/
+          └── docs.routes.ts          novo: serve a UI e o JSON
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+Comparando com a etapa anterior, entram dois módulos novos — `src/docs/openapi.ts` (conversão declarativa de schemas Zod para OpenAPI 3) e `src/routes/docs.routes.ts` (servidor de rotas da documentação) — além de uma única linha em `src/index.ts` registrando a rota `/api/docs`. Nenhuma regra ou schema pré-existente é alterado.
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK05.1 · Instalar o Swagger UI e criar `src/docs/openapi.ts`
+
+```bash title="Terminal: interface do Swagger"
+npm install swagger-ui-express
+npm install -D @types/swagger-ui-express
+```
+
+Só a **interface** precisa de dependência. A conversão do schema é feita pelo próprio Zod: desde a versão 4 ele traz `z.toJSONSchema()`, e não é preciso instalar nenhuma biblioteca de ponte.
+
+O `toSchema` da linha 13 é a tradução inteira. O parâmetro `{ target: 'openapi-3.0' }` importa: OpenAPI 3.0 usa um dialeto próprio de JSON Schema, e sem ele o documento sai em um formato que o Swagger UI não desenha corretamente.
+
+O `shapeOf` da linha 18 resolve o segundo detalhe. Os schemas da etapa 4 são compostos por fonte — `z.object({ body })`, `z.object({ params })` —, e o OpenAPI espera cada fonte em um lugar diferente: corpo em `requestBody`, `:id` em `parameters`, filtro em `parameters` com `in: 'query'`. A função extrai a parte certa de cada schema.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-swagger/src/docs/openapi.ts"
+  title="src/docs/openapi.ts"
+  showLineNumbers
+  mark="1,13-15,18-20,22-24"
+  collapse="26-61"
+/>
+
+Daí para baixo é a descrição das rotas: o `paths` da linha 72 lista `/investments` e `/investments/{id}`, e cada operação declara o que recebe e o que pode responder. Repare que os status documentados são os mesmos que a etapa 4 produz de verdade — `400` com a lista de issues, `404` para id ausente, `204` sem corpo no `DELETE`.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-swagger/src/docs/openapi.ts"
+  title="src/docs/openapi.ts — as rotas"
+  lines="62-99"
+  showLineNumbers
+  mark="72-73,87-94"
+/>
+
+### TK05.2 · Criar `src/routes/docs.routes.ts` (A UI e o documento cru)
+
+O roteador expõe o mesmo documento em dois formatos, para dois públicos diferentes.
+
+A linha 9 devolve o JSON puro. É o que se importa no Insomnia ou no Postman, e o que geradores de client consomem para produzir código a partir do contrato.
+
+A linha 12 monta a interface navegável, em que cada rota pode ser expandida, lida e **executada** no navegador.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-swagger/src/routes/docs.routes.ts"
+  title="src/routes/docs.routes.ts"
+  showLineNumbers
+  mark="9,12"
+/>
+
+No entrypoint, uma linha registra o roteador — e ela vem **antes** das rotas de investimento, para que `/api/docs` não seja confundido com um id.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-swagger/src/index.ts"
+  title="src/index.ts"
+  showLineNumbers
+  mark="5,19"
+/>
+
+## O que a documentação herda dos schemas
+
+Vale abrir o `/api/openapi.json` e comparar com o `investment.schema.ts`. As regras chegaram
+sozinhas:
+
+| No schema Zod (etapa 4) | No documento OpenAPI |
+| ----------------------- | -------------------- |
+| `z.string().min(3, …)` | `{ "type": "string", "minLength": 3 }` |
+| `z.number().positive(…)` | `{ "type": "number", "minimum": 0, "exclusiveMinimum": true }` |
+| `z.uuid(…)` | `{ "type": "string", "format": "uuid", "pattern": "…" }` |
+| campo sem `.optional()` | entra em `required` |
+| `z.string().optional()` | fica fora de `required` |
+
+Nenhuma dessas linhas foi digitada duas vezes. Mude o mínimo de `name` para 5 na etapa 4 e
+recarregue o `/api/docs`: a documentação acompanha.
+
+<Aside type="tip" title="O que ainda é escrito à mão">
+  O Zod descreve a **forma** dos dados, não a semântica da API. Os `summary`, as descrições e a
+  lista de status possíveis continuam sendo texto escrito por você — e é bom que sejam: eles
+  explicam a intenção, que nenhum schema consegue inferir.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Entre no exemplo desta etapa:
+
+   ```bash title="Terminal"
+   cd examples/courses/express/projects/invest-app-swagger
+   npm install
+   ```
+
+2. Suba a API:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+3. Abra a documentação navegável:
+
+   ```txt title="URL"
+   http://localhost:3000/api/docs
+   ```
+
+4. Use o botão **Try it out** para disparar uma requisição real a partir da página, e o
+   `/api/openapi.json` para importar o contrato em outra ferramenta.
+
+</Steps>
+
+## Testando
+
+O melhor teste desta etapa é provocar uma divergência de propósito. Abra o
+`src/schemas/investment.schema.ts`, troque o mínimo do `name` de 3 para 5, salve e recarregue a
+página `/api/docs`.
+
+Duas coisas mudam ao mesmo tempo: o `minLength` que a documentação exibe, e o `400` que a rota
+passa a devolver para nomes de quatro letras. É a demonstração de que não existem duas fontes
+para desalinhar.
+
+## O diff que importa
+
+```bash title="Terminal"
+git diff --no-index -- \
+  examples/courses/express/projects/invest-app-validation/src \
+  examples/courses/express/projects/invest-app-swagger/src || true
+```
+
+O diff deve ter exatamente três entradas: os dois arquivos novos e a linha do `index.ts`. Se
+aparecer alteração em `schemas/`, `controllers/` ou `models/`, algo saiu do lugar — documentar
+uma API não deveria exigir mudá-la.
+
+## Conceitos abordados
+
+- OpenAPI 3 como formato de contrato de API
+- `z.toJSONSchema()` convertendo schema de validação em documentação
+- Uma fonte de verdade para validar e para documentar
+- Swagger UI para pessoas, `openapi.json` para ferramentas
+- O limite do que se gera e o que ainda se escreve
+
+## O documento acompanha o trilho
+
+O `openapi.ts` não fica parado nesta etapa. Como ele lê os schemas, os campos que as etapas
+seguintes acrescentam ao investimento — `interest`, `categoryId`, `broker` na etapa 7 — aparecem
+na documentação sozinhos, sem que ninguém edite o arquivo.
+
+O que **não** se propaga sozinho são as rotas novas. Quando a etapa 9 fecha a API atrás de
+token, o documento passa a declarar isso explicitamente:
+
+```ts title="src/docs/openapi.ts — a partir da etapa 9"
+components: {
+  securitySchemes: {
+    bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+  },
+},
+security: [{ bearerAuth: [] }],
+```
+
+Essas seis linhas fazem duas coisas: colocam o botão **Authorize** no topo da página, onde se
+cola o token do `POST /api/signin`, e passam a enviar o cabeçalho `Authorization` em todo
+*Try it out*. Sem elas, a documentação continuaria bonita e toda requisição de teste
+responderia `401`.
+
+<Aside type="tip" title="Um exercício que se repete a cada etapa">
+  As rotas de categorias, corretoras, usuários e avatar entram nas etapas 7 a 11 e **não** estão
+  no documento. Acrescentá-las é o exercício natural: cada uma é um bloco em `paths`, e o schema
+  do corpo sai do `shapeOf` que já existe. Documentar a rota junto com a rota é o hábito que
+  esta etapa quer instalar.
+</Aside>
+
+<Aside type="caution" title="Documentação exposta é decisão de projeto">
+  Em desenvolvimento, deixar `/api/docs` aberto é o que se quer. Em produção, a decisão é
+  consciente: uma API pública se beneficia da página aberta; uma API interna costuma servi-la
+  atrás de autenticação, ou não servi-la.
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: SQLite nativo](../sqlite/) — persistência explícita com SQL e dados que
+sobrevivem ao reinício.

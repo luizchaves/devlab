@@ -1,0 +1,341 @@
+---
+title: "InvestApp: SQLite nativo"
+description: "Quinta etapa do InvestApp: persistência com node:sqlite, invólucro de promessas, migration, seeders e a camada de model isolando as consultas — sem ORM."
+course: expressjs
+sidebar:
+  label: "6. SQLite nativo"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **6 de 13** · Nível **Intermediário** · TypeScript · Express.js · `node:sqlite`
+
+O array vira uma tabela. A API continua idêntica do lado de fora — o que muda é uma camada
+nova entre as rotas e os dados.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Persistência SQL**: veja [Banco de Dados com SQLite Nativo](../../../persistence/node-sqlite/) e [Operações CRUD em SQL](../../../persistence/crud/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP04 · Fundação Técnica** › **Feature FT12 · Persistência de dados**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF03** Persistência Relacional | banco em arquivo com SQL escrito à mão, sem ORM | parcial — falta o ORM e as relações |
+| **RF01** Gestão de Investimentos | o mesmo CRUD, agora gravando em disco | atendido |
+
+### US06 — Não perder a carteira ao fechar o sistema · RF01, RNF03
+
+> **Como** investidor,
+> **quero** que os meus investimentos continuem cadastrados depois de fechar o sistema,
+> **para** não precisar recadastrar tudo a cada uso.
+
+```gherkin
+Cenário: CA06.1 - Preparar o banco
+  Quando executo npm run db:load
+  Então a tabela investments é criada
+  E os dados iniciais são inseridos
+
+Cenário: CA06.2 - Os dados sobrevivem ao reinício
+  Dado um investimento cadastrado pela API
+  Quando derrubo o servidor e subo de novo
+  Quando envio GET /api/investments
+  Então o investimento continua na lista
+
+Cenário: CA06.3 - Nenhum valor entra na string SQL
+  Quando abro src/models/Investment.ts
+  Então todo valor é passado por "?" em um array de parâmetros
+  E nenhuma consulta interpola variável no texto do SQL
+
+Cenário: CA06.4 - O id continua compatível com a etapa 4
+  Quando crio um investimento
+  Então o id gerado é um UUID
+  E a validação de params da etapa 4 continua valendo
+
+Cenário: CA06.5 - As camadas acima não percebem a troca
+  Quando comparo os controllers com os da etapa anterior
+  Então nenhuma linha mudou
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US06 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK06.1 · Instalar o driver e criar `src/database/database.ts`**: Conexão única com o arquivo SQLite, em uma API de promessas.
+2. **TK06.2 · Criar `src/database/migration.ts` e `seeders.ts`**: Scripts DDL de tabela e dados iniciais de teste.
+3. **TK06.3 · Modificar `src/models/Investment.ts`**: Substituição do array em memória por consultas SQL parametrizadas.
+
+</Steps>
+
+## Estrutura da aplicação
+
+A pasta `src/data/` sai inteira e dá lugar a `src/database/`, com quatro arquivos que separam
+três responsabilidades: **conectar** (`database.ts`), **criar o esquema** (`migration.ts`) e
+**popular** (`seeders.ts`, com os dados em `seeders.json`). O `load.ts` só encadeia os dois
+últimos em um comando.
+
+<ProjectLinks path="examples/courses/express/projects/invest-app-db-simple" />
+
+<FileTree>
+{`
+  invest-app-db-simple/
+  ├── package.json                scripts db:load, db:drop, db:reload
+  ├── tsconfig.json
+  ├── requests.http
+  ├── public/
+  └── src/
+      ├── index.ts
+      ├── controllers/
+      ├── errors/
+      ├── middlewares/
+      ├── routes/
+      ├── schemas/
+      ├── types/
+      ├── database/                 novo nesta etapa
+      │   ├── database.ts
+      │   ├── db.sqlite             gerado, fora do Git
+      │   ├── load.ts
+      │   ├── migration.ts
+      │   ├── seeders.ts
+      │   └── seeders.json
+      └── models/
+          └── Investment.ts         mesmo contrato, corpo novo
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+O array em memória vira uma tabela SQLite. Do lado de fora a API é idêntica — mesmas rotas, mesmos status, mesma validação da etapa 4. O que muda é a camada de dados:
+
+| Arquivo                          | Papel                                             |
+| -------------------------------- | ------------------------------------------------- |
+| `src/database/database.ts`       | abre a conexão e envolve a API síncrona em promessas |
+| `src/database/migration.ts`      | o `CREATE TABLE` da tabela `investments`           |
+| `src/database/seeders.ts` e `seeders.json` | os dados iniciais                        |
+| `src/database/load.ts`           | roda migration e seeders em sequência              |
+| `src/models/Investment.ts`       | as consultas SQL, no lugar do array                |
+
+<Aside type="note" title="A pasta `src/data/` sai daqui">
+  O array `data/investments.ts` das etapas 3 e 4 é a única coisa que esta etapa remove. Tudo o
+  mais — camadas, tipos, schemas do Zod, manipuladores de erro — vem intacto da etapa anterior.
+</Aside>
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK06.1 · Criar `src/database/database.ts` (Conexão e invólucro de promessas)
+
+Nenhuma dependência nova: o `node:sqlite` é módulo nativo do Node 22 em diante, importado na linha 2. A linha 4 fixa o caminho do arquivo com `resolve('src', 'database', 'db.sqlite')`, e é o **único** lugar da aplicação que sabe onde o banco vive.
+
+O problema que o arquivo resolve está no nome da classe: `DatabaseSync` é síncrona, e o resto da aplicação é `async` desde a etapa 3. O `createPromiseDatabase` das linhas 23 a 46 é o invólucro que uniformiza isso, expondo três métodos assíncronos — `run` para escrita (linha 25), `get` para uma linha (linha 31) e `all` para várias (linha 35).
+
+É esse trio que a camada de model usa daqui em diante. Trocar de driver, ou até de banco, passa a ser reescrever este arquivo, e nada mais.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/database/database.ts"
+  title="src/database/database.ts"
+  showLineNumbers
+  mark="2,4,25,31,35,48-50"
+/>
+
+### TK06.2 · Criar `src/database/migration.ts` e `src/database/seeders.ts` (Estrutura e dados)
+
+Estrutura e dados são responsabilidades distintas e por isso moram em arquivos distintos.
+
+A migration é o `CREATE TABLE` das linhas 7 a 12, executado pelo `db.run` da linha 14. Três colunas bastam nesta etapa. A linha 8 mantém `id TEXT PRIMARY KEY` — e não um `AUTOINCREMENT` numérico — porque o `paramsSchema` da etapa 4 exige que o `:id` da rota seja um UUID. Trocar o formato do id aqui quebraria a validação herdada.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/database/migration.ts"
+  title="src/database/migration.ts"
+  showLineNumbers
+  mark="7-12,14"
+/>
+
+O seeder faz o outro lado: lê o `seeders.json` na linha 10 e, no laço das linhas 14 a 16, chama `Investment.create` para cada registro. Ele não escreve SQL nenhum — reaproveita o model, e assim os dados iniciais passam exatamente pelas mesmas regras que uma requisição passaria.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/database/seeders.ts"
+  title="src/database/seeders.ts"
+  showLineNumbers
+  mark="10,14-16"
+/>
+
+O `load.ts` é apenas a ordem correta das duas coisas — primeiro a estrutura, depois os dados — e é ele que o script `npm run db:load` executa.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/database/load.ts"
+  title="src/database/load.ts"
+  showLineNumbers
+/>
+
+### TK06.3 · Modificar `src/models/Investment.ts` (Consultas SQL no model)
+
+O model mantém as mesmas cinco funções da etapa anterior, com as mesmas assinaturas tipadas. Quem chama — controller, seeder — não percebe diferença nenhuma; o que mudou foi só o corpo.
+
+O `mapRow` das linhas 6 a 12 é a fronteira entre o banco e o domínio: recebe um `Record<string, unknown>` — uma linha crua, sem tipo — e devolve um `Investment`. É ele que permite ao resto da aplicação continuar trabalhando com tipos do domínio.
+
+O trecho destacado nas linhas 14 a 33 é o `create`, e mostra o formato que as outras repetem: montar a string SQL em um *template literal* e executar passando os valores **separados** em um array (linha 30). Os `?` da linha 26 em diante são o ponto crítico — é o driver, e não a interpolação de string, que junta valor e comando.
+
+As demais funções seguem o mesmo desenho: `read` (linha 35) com e sem filtro, `readById` (linha 55), `update` (linha 73) e `remove`, os dois últimos conferindo `changes` para distinguir "atualizou" de "não existe".
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/models/Investment.ts"
+  title="src/models/Investment.ts"
+  showLineNumbers
+  mark="6-12,14-33"
+  collapse="55-107"
+/>
+
+<Aside type="tip" title="Três métodos bastam">
+  `run` para escrita, `get` para uma linha, `all` para várias. Toda a camada de model é
+  escrita com esses três — o mesmo vocabulário de qualquer driver SQL.
+</Aside>
+
+<Aside type="danger" title="O `?` é o que separa dado de comando">
+  Interpolar `${name}` na consulta permitiria a um nome como `x'); DROP TABLE investments; --`
+  apagar a tabela. Com `?`, como na linha 30 do `create`, o valor viaja separado e nunca é
+  interpretado como SQL.
+</Aside>
+
+## Os scripts de banco
+
+O `package.json` ganha três scripts que tornam o banco descartável — e essa é a razão de
+migration e seeders existirem como arquivos versionados.
+
+Os dados iniciais ficam separados do código que os insere. O `seeders.json` é só a lista — trocar
+o conteúdo inicial do banco não exige tocar em nenhum `.ts`.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/database/seeders.json"
+  title="src/database/seeders.json"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/package.json"
+  title="package.json"
+  showLineNumbers
+  mark="9-11"
+/>
+
+O `db:load` da linha 9 cria a tabela e insere os dados; o `db:drop` da linha 10 apaga o arquivo
+inteiro; e o `db:reload` da linha 11 encadeia os dois. Recomeçar do zero é um comando, não um
+procedimento.
+
+## Executando
+
+<Steps>
+
+1. Entre na pasta desta etapa:
+
+   ```bash title="Terminal"
+   cd examples/courses/express/projects/invest-app-db-simple
+   npm install
+   ```
+
+2. Crie o banco e popule:
+
+   ```bash title="Terminal"
+   npm run db:load
+   ```
+
+3. Suba o servidor:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+4. Cadastre um investimento, derrube o servidor com <kbd>Ctrl</kbd>+<kbd>C</kbd>, suba de
+   novo e liste — os dados continuam lá.
+
+</Steps>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/investments" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "CDB Inter",
+    "value": 15000
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201} description="O id continua sendo um UUID — agora gravado em disco">
+{`
+  {
+    "id": "5c87a333-52c3-47b6-b8d6-e54576e0e12d",
+    "name": "CDB Inter",
+    "value": 15000
+  }
+`}
+</ApiResponse>
+
+A prova da etapa não está na resposta, e sim no que acontece depois: derrube o servidor com
+<kbd>Ctrl</kbd>+<kbd>C</kbd>, suba de novo e liste. Na etapa 4 o investimento teria sumido
+junto com o processo.
+
+## O diff que importa
+
+```bash title="Terminal"
+git diff --no-index -- \
+  examples/courses/express/projects/invest-app-validation/src \
+  examples/courses/express/projects/invest-app-db-simple/src || true
+```
+
+As rotas e os schemas praticamente não mudam: continuam chamando `Investment.create`,
+`Investment.read` e `Investment.readById`. O que mudou foi **dentro** do model — que é
+exatamente o que a arquitetura em camadas promete.
+
+O padrão da mudança é sempre o mesmo: onde havia manipulação de array, passa a haver SQL
+parametrizado — e a assinatura da função não muda. Compare a leitura por id nas duas etapas.
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-typescript/src/models/Investment.ts"
+  title="Etapa 3 e 4 — o array respondia pela busca"
+  lines="25-33"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/courses/express/projects/invest-app-db-simple/src/models/Investment.ts"
+  title="Etapa 6 — a mesma busca, agora em SQL"
+  lines="55-71"
+  showLineNumbers
+  mark="60,64"
+/>
+
+O `find` sobre um array virou um `WHERE id = ?` (linha 60) executado com `db.get` (linha 64). O
+contrato continua idêntico: recebe uma `string`, devolve `Promise<Investment>` ou lança. É por
+isso que o controller da etapa 3 segue funcionando sem uma linha alterada.
+
+<Aside type="caution" title="O `db.sqlite` não vai para o Git">
+  É dado binário que muda a cada requisição e gera conflito em toda fusão. Migration e
+  seeders são o que se versiona — eles reconstroem o banco.
+</Aside>
+
+## Conceitos abordados
+
+- Conexão SQLite isolada em um único arquivo
+- SQL escrito à mão, sem ORM
+- Consultas parametrizadas com `?` e prevenção de injeção de SQL
+- Migration e seeders como scripts versionados
+- Camada de model isolando o SQL das rotas
+
+<Aside type="tip">
+  A aula correspondente é [SQL com Node.js](../../../persistence/node-sqlite/).
+</Aside>
+
+## Próxima etapa
+
+[InvestApp: Prisma ORM](../prisma/) — schema declarativo, migrations versionadas e relações.

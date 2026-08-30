@@ -1,0 +1,528 @@
+---
+title: "MonitorApp: Prisma e relações"
+description: "Sétima etapa do MonitorApp: schema declarativo com Prisma, migrations versionadas e o domínio ganha o histórico de pings (um-para-muitos) e as tags (muitos-para-muitos)."
+course: expressjs
+sidebar:
+  label: "7. Prisma e relações"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import CodeTabs from '@components/CodeTabs.astro';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **7 de 13** · Nível **Avançado** · Prisma ORM · Relações 1-N e N-N
+
+Esta é a etapa em que o MonitorApp deixa de ser um CRUD e passa a ter um domínio. Duas entidades
+novas entram, e cada uma traz um tipo diferente de relação:
+
+- **`Ping`** — o histórico de medições de um host. Um host tem muitas medições, e cada medição
+  pertence a exatamente um host: uma relação **um-para-muitos**.
+- **`Tag`** — o rótulo compartilhado. Um host tem várias tags, e uma tag rotula vários hosts:
+  uma relação **muitos-para-muitos**, que exige uma tabela de junção.
+
+Escrever isso em SQL puro, como na etapa 6, significaria montar `JOIN`s à mão e manter a tabela
+de junção manualmente. É exatamente o trabalho que o Prisma assume.
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **ORM e relações**: veja [Prisma ORM](../../../persistence/prisma/) e [Relações](../../../persistence/relations/)
+</Aside>
+
+## Requisitos, histórias e critérios
+
+**Épico EP01 · Inventário e Observação** › **Feature FT03 · Classificação e histórico**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF02** Classificação por Tags | tabela `Tag`, relação N-N e filtro `?tag=` | atendido |
+| **RF03** Histórico de Medições | tabela `Ping` e a rota de histórico | parcial — falta medir de verdade |
+| **RNF03** Persistência Relacional | Prisma, migrations versionadas e integridade referencial | atendido |
+
+### US07 — Organizar e comparar os hosts · RF02, RF03, RNF03
+
+> **Como** responsável pela rede,
+> **quero** rotular os hosts por finalidade e consultar o histórico de cada um,
+> **para** enxergar o comportamento de um grupo de máquinas ao longo do tempo.
+
+```gherkin
+Cenário: CA07.1 - As tabelas nascem da migration
+  Quando executo npm run db:migrate
+  Então são criadas as tabelas Host, Ping, Tag e a junção _HostTags
+
+Cenário: CA07.2 - A listagem já vem resolvida
+  Quando envio GET /api/hosts
+  Então cada host traz o array tags preenchido
+  E o array pings com as medições mais recentes
+
+Cenário: CA07.3 - Tag nova é criada na hora
+  Quando cadastro um host com a tag "backup", que não existe
+  Então o host é criado com a tag conectada
+  E a tag passa a existir para os próximos hosts
+
+Cenário: CA07.4 - Filtrar por tag
+  Quando envio GET /api/hosts?tag=infra
+  Então recebo apenas os hosts rotulados com infra
+
+Cenário: CA07.5 - Remover host apaga o histórico
+  Dado um host com medições registradas
+  Quando envio DELETE /api/hosts/{id}
+  Então as medições daquele host também deixam de existir
+
+Cenário: CA07.6 - Nome de tag é único
+  Quando envio POST /api/tags com um nome já cadastrado
+  Então recebo o status 409
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK07.1 · Escrever `prisma/schema.prisma`**: `Host`, `Ping`, `Tag` e as duas relações.
+2. **TK07.2 · Criar o client em `database.ts` e o `seed.ts`**: uma instância e a carga inicial.
+3. **TK07.3 · Reescrever os models**: `Host` com `include`, e os novos `Tag` e `Ping`.
+4. **TK07.4 · Criar as rotas de tags e de pings**: dois recursos novos na API.
+5. **TK07.5 · Ligar o front**: badges de tag, filtro e a tela de histórico deixando de ser estática.
+
+</Steps>
+
+## Estrutura da aplicação
+
+É a etapa com o maior delta do trilho, e a árvore mostra por quê: o domínio triplica de tamanho.
+Cada entidade nova traz o seu conjunto completo de camadas — tipo, model, controller, rota e
+schema —, e a pasta `prisma/` aparece pela primeira vez, ao lado de `src/`, porque o schema e as
+migrations descrevem o banco, e não a aplicação.
+
+<ProjectLinks path="examples/courses/express/projects/monitor-app-prisma" />
+
+<FileTree>
+{`
+  monitor-app-prisma/
+  ├── back/
+  │   ├── .env.example                   DATABASE_URL
+  │   ├── prisma.config.ts               NOVO — schema, migrations e seed
+  │   ├── prisma/
+  │   │   ├── schema.prisma              NOVO — o modelo declarativo
+  │   │   ├── seeders.json               tags e hosts iniciais
+  │   │   └── migrations/                versionadas, aplicáveis em ordem
+  │   └── src/
+  │       ├── controllers/               + tags e pings
+  │       ├── database/
+  │       │   ├── database.ts            agora é o PrismaClient
+  │       │   └── seed.ts                substitui migration/seeders/load
+  │       ├── models/                    Host reescrito, + Tag e Ping
+  │       ├── routes/                    + tags.routes.ts e pings.routes.ts
+  │       ├── schemas/                   + tag.schema.ts e ping.schema.ts
+  │       └── types/                     + Tag.d.ts e Ping.d.ts
+  └── front/
+      ├── host.html                      deixa de ser estático
+      └── js/
+          ├── host.js                    NOVO — histórico e gráfico
+          └── index.js                   badges de tag e filtro
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+Esta é a segunda e última **remoção** do trilho: os scripts de migration manual da etapa 6 saem,
+porque o Prisma assume o versionamento do esquema.
+
+| Etapa 6 (`monitor-app-db-simple`) | Etapa 7 (`monitor-app-prisma`) |
+| --------------------------------- | ------------------------------ |
+| `migration.ts` com `CREATE TABLE IF NOT EXISTS` | `prisma/migrations/` versionadas |
+| `seeders.ts` + `load.ts` | `src/database/seed.ts`, chamado por `prisma db seed` |
+| `SELECT id, name, address FROM hosts` | `prisma.host.findMany({ include })` |
+| uma entidade | três entidades e uma tabela de junção |
+| um recurso na API | três: `hosts`, `tags` e `pings` |
+| `host.html` com dados escritos à mão | `host.js` desenhando a série a partir da API |
+
+## Descrição das tarefas
+
+### TK07.1 · Escrever `prisma/schema.prisma` (O modelo declarativo)
+
+```bash title="Terminal: dentro de back/"
+npm install prisma @prisma/client @prisma/adapter-better-sqlite3
+cp .env.example .env
+```
+
+O schema descreve o domínio inteiro em 37 linhas. Vale lê-lo por relação.
+
+**Um-para-muitos** — o `pings Ping[]` da linha 17 no `Host` e o par `host` / `hostId` das linhas
+28 e 29 no `Ping` são os dois lados da mesma relação. A chave estrangeira mora no lado "muitos",
+como em qualquer modelo relacional. O `onDelete: Cascade` da linha 28 é uma decisão de domínio:
+uma medição não faz sentido sem o host que a originou, então apagar o host apaga o histórico.
+
+**Muitos-para-muitos** — o `tags Tag[] @relation("HostTags")` da linha 19 e o
+`hosts Host[] @relation("HostTags")` da linha 36 são o outro par. Repare no que **não** está
+escrito: não existe um `model HostTag` com duas chaves estrangeiras. O Prisma cria e mantém essa
+tabela sozinho a partir do nome da relação.
+
+A linha 25 merece uma leitura em separado: `latency Int?`, com interrogação. Uma medição que
+falhou existe — foi tentada, tem instante — mas não tem latência. Modelar isso como `0` seria
+mentira estatística: a média das latências passaria a incluir quedas como se fossem respostas
+instantâneas. O nulo é o valor honesto.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/prisma/schema.prisma"
+  title="back/prisma/schema.prisma"
+  showLineNumbers
+  mark="17,19,25,28,36"
+/>
+
+O comando `npm run db:migrate` traduz esse schema em SQL versionado. A tabela `_HostTags` das
+linhas 27 a 32 é a junção que o Prisma escreveu por conta própria: duas colunas, `A` e `B`,
+apontando para `Host` e `Tag`. O índice único da linha 38 impede o mesmo par repetido, e o índice
+da linha 41 acelera a busca pelo lado da tag — que é justamente o que o filtro `?tag=` faz.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/prisma/migrations/20260301000000_init/migration.sql"
+  title="back/prisma/migrations/20260301000000_init/migration.sql"
+  showLineNumbers
+  mark="27-32,38-41"
+/>
+
+<Aside type="tip" title="Migration versionada versus `CREATE TABLE IF NOT EXISTS`">
+  A diferença aparece na segunda alteração, não na primeira. Quando a etapa 9 acrescentar a
+  tabela `User` e uma coluna `userId` em `Host`, o Prisma vai gerar uma **nova** pasta de
+  migration com o `ALTER`/`REDEFINE` necessário. O banco de quem já rodava a etapa 7 evolui sem
+  ser apagado — algo que o `IF NOT EXISTS` da etapa 6 nunca conseguiria fazer.
+</Aside>
+
+### TK07.2 · Criar o client e o `seed.ts`
+
+O `database.ts` foi reescrito de ponta a ponta, mas continua exportando **uma coisa só**: a
+conexão. Do Prisma 7 em diante o client recebe um *driver adapter* (linha 9) — quem fala com o
+SQLite é o driver `better-sqlite3`, e não mais um binário próprio do Prisma.
+
+A linha 12 cria uma única instância, importada por todos os models. Criar um `PrismaClient` por
+model esgotaria o pool de conexões.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/database/database.ts"
+  title="back/src/database/database.ts"
+  showLineNumbers
+  mark="9,12"
+/>
+
+O `prisma.config.ts` é onde a configuração de ambiente passou a viver a partir do Prisma 7: a
+string de conexão e o comando de seed saíram do `schema.prisma` e do `package.json`. Repare no
+`process.loadEnvFile()` — o Node carrega o `.env` nativamente desde a versão 20.6, e o projeto
+não instala `dotenv` em nenhuma etapa.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/prisma.config.ts"
+  title="back/prisma.config.ts"
+  showLineNumbers
+/>
+
+O `seed.ts` mostra as duas relações em uso. As tags entram primeiro, com `upsert` (linha 17), o
+que torna o seed repetível: rodar duas vezes não duplica nem estoura o `@unique`. Os hosts vêm
+depois, e cada um conecta as tags pelo **nome** (linha 24) e já nasce com quatro medições criadas
+em cascata pelo bloco `pings` da linha 26 — dados suficientes para a tela de histórico ter o que
+desenhar antes de a etapa 8 medir de verdade.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/database/seed.ts"
+  title="back/src/database/seed.ts"
+  showLineNumbers
+  mark="17,24,26-33"
+/>
+
+### TK07.3 · Reescrever os models
+
+O `Host.ts` é o arquivo mais interessante da etapa. Duas constantes no topo carregam quase toda a
+decisão.
+
+O `include` das linhas 8 a 11 substitui o `JOIN` que seria escrito à mão: ele pede ao Prisma que
+traga as tags e as **dez medições mais recentes** na mesma ida ao banco. O `take: 10` é
+deliberado — o cartão do painel mostra a última latência e nada mais; carregar o histórico
+inteiro de todos os hosts para desenhar uma barra seria desperdício.
+
+O `connectTags` das linhas 14 a 21 resolve o cadastro por nome. O `connectOrCreate` da linha 16 é
+a operação que faz `tags: ["infra", "backup"]` funcionar mesmo quando `backup` ainda não existe:
+existe, conecta; não existe, cria com a cor neutra. Sem ele, o front teria que consultar as tags,
+criar as que faltam e só então cadastrar o host — três requisições no lugar de uma.
+
+O filtro por tag da linha 38 é a outra ponta da mesma relação. O `tags: { some: { name } }`
+atravessa a tabela de junção sem uma linha de SQL escrita por nós.
+
+E o `update` da linha 64 traz o detalhe mais fácil de errar: `set: []` antes do
+`connectOrCreate`. Sem ele, uma tag omitida na atualização continuaria vinculada, e a lista
+enviada seria interpretada como acréscimo em vez de substituição.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/models/Host.ts"
+  title="back/src/models/Host.ts"
+  showLineNumbers
+  mark="8-21,38,64"
+  collapse="44-53,69-76"
+/>
+
+O `Ping.ts` desta etapa só lê. A ordenação decrescente por `createdAt` e o `take` são o que
+transformam a tabela em uma série temporal consultável — e é essa função que a etapa 8 vai
+acompanhar com um `check` que escreve.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/models/Ping.ts"
+  title="back/src/models/Ping.ts"
+  showLineNumbers
+/>
+
+O `Tag.ts` é o mais simples dos três, e é justamente por isso que vale olhar. Ele expõe `create`,
+`read` e `readById` — nada de `update` nem de `remove`, porque uma tag é criada sob demanda pelo
+`connectOrCreate` do `Host.ts` e não tem ciclo de vida próprio. O `orderBy: { name: 'asc' }` da
+linha 15 existe para o `<select>` do front chegar já ordenado, sem ordenar no navegador.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/models/Tag.ts"
+  title="back/src/models/Tag.ts"
+  showLineNumbers
+  mark="9,13,15"
+/>
+
+O contrato acompanha os models. As linhas 24 e 25 do `openapi.ts` derivam o corpo e a query da
+tag dos próprios schemas Zod, e os objetos `tag` e `ping` das linhas 35 a 45 descrevem o que sai
+da API — os três recursos da etapa documentados sem uma descrição escrita à mão.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/docs/openapi.ts"
+  title="back/src/docs/openapi.ts — os recursos novos"
+  lines="21-45"
+  showLineNumbers
+  mark="24-25,35-45"
+/>
+
+### TK07.4 · Criar as rotas de tags e de pings
+
+O histórico é um recurso **aninhado**: `GET /api/hosts/:id/pings`. A escolha do caminho é
+semântica — uma medição não existe fora de um host, e o URL diz isso.
+
+O controller confere a existência do host antes de ler o histórico. Sem essa checagem, um id
+inexistente devolveria `[]` com status `200`, o que é indistinguível de um host sem medições.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/controllers/pings.controller.ts"
+  title="back/src/controllers/pings.controller.ts"
+  showLineNumbers
+/>
+
+O recurso de tags é mais simples, com duas rotas. O `POST /api/tags` existe para criar uma tag
+**com cor definida** — diferente da criação implícita do `connectOrCreate`, que usa a cor neutra.
+O tratamento de `409` no controller lê a mensagem do Prisma para distinguir violação de
+unicidade de qualquer outra falha.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/controllers/tags.controller.ts"
+  title="back/src/controllers/tags.controller.ts"
+  showLineNumbers
+  mark="13-15"
+/>
+
+Cada um dos dois recursos completa as camadas que o host já tinha desde a etapa 3: um schema Zod,
+um roteador e um tipo. As abas abaixo põem os dois lado a lado — o de ping é somente leitura, e
+por isso o seu schema só valida `params`.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/schemas/tag.schema.ts', label: 'tag.schema.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/routes/tags.routes.ts', label: 'tags.routes.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/types/Tag.d.ts', label: 'Tag.d.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/schemas/ping.schema.ts', label: 'ping.schema.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/routes/pings.routes.ts', label: 'pings.routes.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/types/Ping.d.ts', label: 'Ping.d.ts' },
+  ]}
+/>
+
+O host também cresce. O `Host.d.ts` ganha as duas relações, e o `host.schema.ts` passa a aceitar
+um array de nomes de tag no corpo — é o que o `connectOrCreate` do model consome.
+
+<CodeTabs
+  files={[
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/types/Host.d.ts', label: 'Host.d.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/schemas/host.schema.ts', label: 'host.schema.ts' },
+    { path: 'examples/courses/express/projects/monitor-app-prisma/back/src/controllers/hosts.controller.ts', label: 'hosts.controller.ts' },
+  ]}
+/>
+
+O `seeders.json` acompanha, com as tags iniciais ao lado dos hosts, e o `back/src/index.ts` monta
+os dois roteadores novos sob o mesmo prefixo `/api`.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/prisma/seeders.json"
+  title="back/prisma/seeders.json"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/index.ts"
+  title="back/src/index.ts"
+  lines="8-22"
+  showLineNumbers
+  mark="8-9,21-22"
+/>
+
+No contrato, entram os dois caminhos novos. O `/hosts/{id}/pings` mostra o formato aninhado, com
+o `id` do host em `parameters`; o `/tags` fica logo abaixo, com o `409` de nome repetido.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/src/docs/openapi.ts"
+  title="back/src/docs/openapi.ts — os caminhos novos"
+  lines="174-210"
+  showLineNumbers
+/>
+
+O `requests.http` ganha os blocos correspondentes: criar tag, listar tags e ler o histórico de um
+host, encadeados pela variável que captura o id do host criado.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/back/requests.http"
+  title="back/requests.http"
+  lines="1-40"
+  showLineNumbers
+/>
+
+As duas telas acompanham. O `host.html` troca o texto fixo por ganchos — `#host-name`,
+`#host-address`, `#host-status` — e o `index.html` ganha o `<select>` de tags do formulário de
+cadastro.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/front/host.html"
+  title="front/host.html"
+  lines="28-46"
+  showLineNumbers
+  mark="30-31,34-35"
+/>
+
+{/* cobertura: front/index.html — ganha o campo de tags no formulário, no mesmo formato dos
+    demais campos já mostrados na etapa 2 */}
+{/* cobertura: back/src/docs/openapi.ts — o restante do diff acrescenta os schemas de tag e ping
+    derivados do Zod, no mesmo formato do bloco de host mostrado na etapa 5 */}
+{/* cobertura: back/requests.http — os demais blocos apenas passam a enviar tags no corpo das
+    requisições de host que já existiam */}
+{/* cobertura: back/prisma/migrations/migration_lock.toml — arquivo gerado pelo prisma migrate
+    que registra o provedor do banco */}
+
+O contrato da API passa a ter oito rotas:
+
+| Método | Caminho | Corpo | Sucesso | Erros |
+| ------ | ------- | ----- | ------- | ----- |
+| GET | `/api/hosts?name=&tag=` | — | `200` | `400` |
+| POST | `/api/hosts` | `{ name, address, tags? }` | `201` | `400` |
+| GET | `/api/hosts/:id` | — | `200` | `400`, `404` |
+| PUT | `/api/hosts/:id` | `{ name, address, tags? }` | `200` | `400`, `404` |
+| DELETE | `/api/hosts/:id` | — | `204` | `400`, `404` |
+| GET | `/api/hosts/:id/pings` | — | `200` | `400`, `404` |
+| GET | `/api/tags?name=` | — | `200` | `400` |
+| POST | `/api/tags` | `{ name, color }` | `201` | `400`, `409` |
+
+### TK07.5 · Ligar o front (badges, filtro e histórico)
+
+O `index.js` ganha três coisas. O `lastPing` da linha 11 lê a primeira medição do array que o
+`include` trouxe — é ela que decide a cor da pastilha e o valor da barra. O componente `Tag` da
+linha 15 transforma cada rótulo em um badge, passando a cor gravada no banco para a variável CSS
+`--tag-color` que a etapa 1 já previa. E o `loadHostCards` da linha 71 monta a query string com o
+filtro, quando ele existe.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/front/js/index.js"
+  title="front/js/index.js"
+  showLineNumbers
+  mark="11-17,71-83"
+  collapse="19-49,85-115"
+/>
+
+O `host.js` é novo e existe para uma única tela. A função `toPath` das linhas 10 a 26 é o coração
+dela: converte a série de medições no atributo `d` de um `<path>` SVG. O eixo X é o tempo,
+distribuído em passos iguais; o eixo Y é a latência **invertida** (linha 21), porque no sistema
+de coordenadas do SVG o Y cresce para baixo. Nenhuma biblioteca de gráficos envolvida — é o mesmo
+`<svg>` que a etapa 1 desenhou à mão, agora alimentado por dados.
+
+<SourceCode
+  path="examples/courses/express/projects/monitor-app-prisma/front/js/host.js"
+  title="front/js/host.js"
+  showLineNumbers
+  mark="10-26"
+  collapse="28-76"
+/>
+
+## Testando
+
+<ApiRequest method="POST" path="/api/hosts" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Servidor de backup",
+    "address": "10.0.0.9",
+    "tags": ["infra", "backup"]
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "…",
+    "name": "Servidor de backup",
+    "address": "10.0.0.9",
+    "createdAt": "2026-03-01T12:00:00.000Z",
+    "tags": [
+      { "id": "…", "name": "infra", "color": "#0ea5e9" },
+      { "id": "…", "name": "backup", "color": "#64748b" }
+    ],
+    "pings": []
+  }
+`}
+</ApiResponse>
+
+A tag `backup` não existia e foi criada com a cor neutra; a `infra`, que já existia, manteve a
+cor original. É o `connectOrCreate` em ação.
+
+## Executando
+
+<Steps>
+
+1. Prepare o banco e suba a API:
+
+   ```bash title="Terminal 1"
+   cd examples/courses/express/projects/monitor-app-prisma/back
+   npm install
+   cp .env.example .env
+   npm run db:migrate
+   npm run db:seed
+   npm run dev
+   ```
+
+2. Suba o front:
+
+   ```bash title="Terminal 2"
+   cd examples/courses/express/projects/monitor-app-prisma/front
+   npm install
+   npm run dev
+   ```
+
+3. Clique em **Histórico** em qualquer cartão: a tela abre com `?id=` e desenha a série vinda do
+   banco.
+
+4. Inspecione o banco com a interface do Prisma:
+
+   ```bash title="Terminal"
+   npm run db:studio
+   ```
+
+</Steps>
+
+## Conceitos abordados
+
+- Schema declarativo e migrations versionadas
+- Relação um-para-muitos com `onDelete: Cascade`
+- Relação muitos-para-muitos e a tabela de junção implícita
+- `include` no lugar de `JOIN` escrito à mão
+- `connectOrCreate` e `set: []` na atualização de vínculos
+- Campo opcional (`Int?`) como modelagem honesta da ausência
+- Recurso aninhado no URL (`/hosts/:id/pings`)
+
+## Próxima etapa
+
+[MonitorApp: Ping real](../ping/) — o servidor executa o comando do sistema e passa a produzir
+os próprios dados.
