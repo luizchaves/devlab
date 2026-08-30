@@ -11,162 +11,250 @@ import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
-Etapa **3 de 6** · Nível **Intermediário** · TypeScript · Express 5
+Etapa **3 de 13** · Nível **Intermediário** · TypeScript · Express 5
 
 Duas mudanças de uma vez, e ambas estruturais: o projeto passa a TypeScript e o `routes.js`
 único se desdobra em camadas.
 
-<ProjectLinks repo="luizchaves/lp2-2026" branch="typescript" path="classroom/back-end/investment-api" />
+<ProjectLinks path="examples/express/projects/invest-app-typescript" devcontainer={false} />
+
+## Requisitos, histórias e critérios
+
+**Épico EP04 · Fundação Técnica** › **Feature FT09 · Arquitetura em camadas e tipos**
+
+Nenhum requisito funcional entra aqui: a aplicação faz exatamente o mesmo que na etapa 2. O que
+muda é como ela é escrita — e o interessado nisso é quem mantém o código.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF06** Manutenibilidade & Tipagem | tipos do domínio e separação em rotas, controllers, models e middlewares | atendido |
+
+### US03 — Mudar o código sem medo · RNF06
+
+> **Como** pessoa que mantém a aplicação,
+> **quero** tipos no domínio e cada responsabilidade em uma camada,
+> **para** que o compilador aponte a quebra antes que ela chegue à produção.
+
+```gherkin
+Cenário: CA03.1 - O compilador valida o projeto inteiro
+  Quando executo npm run typecheck
+  Então o comando termina sem nenhum erro
+
+Cenário: CA03.2 - A migração é completa
+  Quando procuro arquivos JavaScript em src/
+  Então não existe nenhum arquivo .js
+
+Cenário: CA03.3 - O arquivo de rotas só declara rotas
+  Quando abro src/routes/investments.routes.ts
+  Então cada linha traz apenas método, caminho, middleware e controller
+  E nenhum corpo de handler aparece ali
+
+Cenário: CA03.4 - As camadas não vazam
+  Quando abro qualquer controller
+  Então ele não conhece a origem dos dados
+  Mas quando abro qualquer model
+  Então ele não conhece req nem res
+
+Cenário: CA03.5 - Um único lugar monta erro
+  Quando uma rota lança um HttpError
+  Então a resposta é montada pelo errorHandler registrado no index.ts
+  E nenhum controller chama res.status diretamente
+
+Cenário: CA03.6 - O contrato da etapa 2 continua valendo
+  Quando repito as requisições do requests.http
+  Então recebo os mesmos caminhos e os mesmos status
+```
 
 ## O antes e o depois
 
-Na etapa anterior, um `routes.js` de trezentas linhas continha caminhos, validação, chamadas
-ao model e a classe de erro. Agora cada coisa tem o seu lugar:
+Na etapa anterior, um único `routes.js` de pouco mais de cem linhas continha caminhos,
+validação de entrada, acesso aos dados e a própria classe de erro. Agora cada uma dessas
+responsabilidades tem o seu arquivo:
 
 <Mermaid title="Camadas do InvestApp após a reorganização">
 {`
 flowchart TD
   A["index.ts<br/>monta o app e a cadeia"] --> B["routes/*.routes.ts<br/>caminhos + middlewares"]
   B --> C["controllers/*.controller.ts<br/>lê a requisição, escolhe o status"]
-  C --> D["models/*.ts<br/>as consultas SQL"]
-  D --> E[("database/database.ts")]
+  C --> D["models/*.ts<br/>o acesso aos dados"]
+  D --> E[("data/investments.ts<br/>array em memoria")]
   C -. "throw HttpError" .-> F["middlewares/errorHandlers.ts"]
 `}
 </Mermaid>
 
 <FileTree>
 {`
-  investment-api/
+  invest-app-typescript/
   ├── package.json
   ├── tsconfig.json
-  ├── request.http
-  ├── public/
+  ├── requests.http
+  ├── public/                       o mesmo front da etapa 2
   └── src/
-      ├── index.ts
+      ├── index.ts                  monta o app e a cadeia de middlewares
       ├── controllers/
-      │   ├── brokers.controller.ts
-      │   ├── categories.controller.ts
       │   └── investments.controller.ts
-      ├── database/
-      │   ├── database.ts
-      │   ├── migration.ts
-      │   ├── seeders.ts
-      │   └── seeders.json
+      ├── data/
+      │   └── investments.ts        o array da etapa 2, agora tipado
       ├── errors/
       │   └── HttpError.ts
       ├── middlewares/
-      │   ├── errorHandlers.ts        notFound + errorHandler
+      │   ├── errorHandlers.ts      notFound + errorHandler
       │   └── requireJsonContentType.ts
       ├── models/
-      │   ├── Broker.ts
-      │   ├── Category.ts
       │   └── Investment.ts
       ├── routes/
-      │   ├── brokers.routes.ts
-      │   ├── categories.routes.ts
       │   └── investments.routes.ts
       └── types/
-          ├── Broker.d.ts
-          ├── Category.d.ts
           └── Investment.d.ts
 `}
 </FileTree>
 
-## `HttpError`
+## Tasks da etapa
 
-A classe que faz o controller escolher o status sem tocar em `res`:
+As tarefas abaixo implementam US03 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
 
-```ts title="src/errors/HttpError.ts" showLineNumbers
-class HttpError extends Error {
-  code: number;
+<Steps>
 
-  constructor(message: string, code: number = 400) {
-    super(message);
-    this.code = code;
-  }
-}
+1. **TK03.1 · Instalar pacotes e criar `tsconfig.json`**: Configuração do compilador TypeScript e aliases de módulo.
+2. **TK03.2 · Modificar `src/index.ts`**: Entrypoint reescrito em TypeScript com middlewares tipados.
+3. **TK03.3 · Criar `src/types/Investment.d.ts`**: Interfaces de tipos do domínio (`Investment`, `InvestmentInput`).
+4. **TK03.4 · Criar `src/models/Investment.ts`**: Camada de dados desacoplada e assíncrona.
+5. **TK03.5 · Criar `src/controllers/investments.controller.ts`**: Lógica de leitura/envio HTTP da API.
+6. **TK03.6 · Criar `src/errors/HttpError.ts`**: Tratamento centralizado de exceções e erros HTTP.
+7. **TK03.7 · Modificar `src/routes/investments.routes.ts`**: Roteador modular tipado.
 
-export default HttpError;
+</Steps>
+
+### 1. Instalar pacotes e criar `tsconfig.json` (Configuração do compilador TypeScript)
+
+```bash title="Terminal: instalação do compilador e tipos"
+npm install -D typescript @types/node @types/express @types/morgan tsx
 ```
 
-E o middleware que a traduz em resposta — o único lugar da aplicação que monta um erro:
+O arquivo é curto, e três opções destacadas explicam a etapa inteira. O `"strict": true` da linha 8 é o que liga a checagem que justifica a migração: sem ele, TypeScript aceitaria quase tudo que o JavaScript já aceitava. O `"target": "esnext"` da linha 6 libera a sintaxe moderna que o Node 22 já entende. E o bloco `paths` das linhas 15 a 17 mapeia `@/*` para `./src/*`, o que transforma um `../../models/Investment.ts` em `@/models/Investment.ts`.
 
-```ts title="src/middlewares/errorHandlers.ts" showLineNumbers {2,6}
-export const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  if (err instanceof HttpError) {
-    return res.status(err.code).json({ error: err.message });
-  }
+As demais opções sustentam o modo de execução escolhido: `allowImportingTsExtensions` (linha 13) permite importar com a extensão `.ts` no caminho, e `noEmit` (linha 14) deixa claro que a checagem de tipos e a execução são coisas separadas — quem executa é o `tsx`.
 
-  console.error(err.stack);
-  res.status(500).json({ error: 'Internal Server Error' });
-};
-```
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/tsconfig.json"
+  title="tsconfig.json"
+  showLineNumbers
+  mark="6,8,15-17"
+/>
 
-## O router e o controller
+### 2. Modificar `src/index.js` → `src/index.ts` (Entrypoint em TypeScript)
 
-O router passa a listar apenas caminhos e middlewares:
+O entrypoint encolheu. Onde antes havia um `import router from './routes.js'` com todo o CRUD dentro, agora a linha 5 importa um roteador que só declara caminhos, e a linha 4 traz os dois manipuladores de erro.
 
-```ts title="src/routes/investments.routes.ts" showLineNumbers {3,6}
-const router = Router();
+A ordem das três últimas linhas é a parte que mais importa e não é intercambiável. O `app.use('/api', investmentRoutes)` da linha 15 registra as rotas; o `notFoundHandler` da linha 17 precisa vir **depois** delas, porque só faz sentido responder `404` quando nenhuma rota reconheceu o caminho; e o `errorHandler` da linha 19 vem por último, porque o Express identifica um manipulador de erro pela assinatura de quatro parâmetros e só o consulta quando alguém lança.
 
-router.post('/investments', requireJson, InvestmentController.create);
-router.get('/investments', InvestmentController.read);
-router.get('/investments/:id', InvestmentController.readById);
-router.put('/investments/:id', requireJson, InvestmentController.update);
-router.delete('/investments/:id', InvestmentController.remove);
+Repare também no alias `@/` das importações: é ele que o `paths` do `tsconfig.json` acabou de habilitar.
 
-export default router;
-```
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/index.ts"
+  title="src/index.ts"
+  showLineNumbers
+  mark="4-5,15-19"
+/>
 
-E o controller cuida de HTTP, delegando o resto:
+### 3. Criar `src/types/Investment.d.ts` (Definição dos tipos do domínio)
 
-```ts title="src/controllers/investments.controller.ts" showLineNumbers {4,8}
-async function readById(req: Request<{ id: string }>, res: Response) {
-  try {
-    const { id } = req.params;
-    const investment = await Investment.readById(id);
+O arquivo declara duas interfaces, e a diferença entre elas é o ponto da aula.
 
-    res.json(investment);
-  } catch (error) {
-    throw new HttpError('Unable to find investment', 400);
-  }
-}
-```
+A `Investment` das linhas 1 a 5 descreve o registro **como ele existe depois de salvo**: todos os campos obrigatórios, incluindo o `id` da linha 2, que só o servidor sabe gerar.
 
-<Aside type="note" title="O `try`/`catch` aqui traduz, não repassa">
-  No Express 5 o erro de uma função `async` chega sozinho ao `errorHandler`. O `catch` existe
-  para converter o erro do banco — que traria detalhes internos — em um `HttpError` com
-  mensagem controlada.
+A `InvestmentInput` das linhas 7 a 10 descreve o que **chega pela requisição**: nenhum `id` e todos os campos opcionais, já que a mesma interface serve para criação e para atualização parcial.
+
+Ter os dois tipos separados é o que impede um controller de tentar gravar um `id` vindo do cliente. Como o arquivo é `.d.ts`, ele só existe em tempo de compilação — nada dele sobra no código executado.
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/types/Investment.d.ts"
+  title="src/types/Investment.d.ts"
+  showLineNumbers
+  mark="1-5,7-10"
+/>
+
+### 4. Criar `src/models/Investment.ts` (Camada Model)
+
+O model é a única camada que conhece a origem dos dados. Nesta etapa a origem ainda é o array em memória da etapa 2 — o banco só entra na etapa 6 —, mas o **contrato** já é o definitivo: cinco funções assíncronas, reunidas no `export default` da linha 65.
+
+O trecho destacado nas linhas 5 a 15 é o `create` e mostra por que as funções são `async` mesmo operando sobre um array: quando a etapa 6 trocar o array por SQL, a assinatura `Promise<Investment>` não muda, e nenhum controller precisa ser reescrito. É a promessa da separação em camadas, feita já aqui.
+
+O `read` da linha 17, o `readById` da linha 25, o `update` da linha 35 e o `remove` da linha 53 seguem o mesmo desenho: validam o que receberam, mexem no array e devolvem tipos do domínio. Nenhum deles conhece `req`, `res` ou status HTTP.
+
+### 5. Criar `src/controllers/investments.controller.ts` (Camada Controller)
+
+O controller expõe `create`, `read`, `readById`, `update` e `remove`, todos com a assinatura tipada `(req: Request, res: Response)` importada na linha 1 com `import type`.
+
+O trecho destacado nas linhas 19 a 47 mostra as duas variações dessa assinatura. Em `read` (linha 19), o filtro sai de `req.query` com uma anotação explícita `as { name?: string }` na linha 21, porque o Express não sabe quais parâmetros a query traz. Já em `readById` (linha 37), o genérico `Request<{ id: string }>` tipa `req.params` — a partir daí, o `id` da linha 39 é `string` sem nenhuma conversão.
+
+Repare no que **não** existe aqui: nenhum SQL e nenhum `res.status(...)` espalhado. Toda falha vira `throw new HttpError(mensagem, 400)`, e quem transforma isso em resposta é o `errorHandler` registrado no `index.ts`. O `update` e o `remove` das linhas 49 a 74 seguem o mesmo desenho e estão recolhidos.
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/controllers/investments.controller.ts"
+  title="src/controllers/investments.controller.ts"
+  showLineNumbers
+  mark="19-47"
+  collapse="49-74"
+/>
+
+### 6. Criar `src/errors/HttpError.ts` e `src/middlewares/errorHandlers.ts` (Tratamento centralizado de erros)
+
+A classe `HttpError` acrescenta um único campo à `Error` nativa: o `code` declarado na linha 2 e preenchido no construtor da linha 4, com `400` como padrão. É pouco código, mas é o que permite a um controller escolher o status HTTP sem nunca tocar em `res`.
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/errors/HttpError.ts"
+  title="src/errors/HttpError.ts"
+  showLineNumbers
+  mark="2,4"
+/>
+
+Do outro lado está o middleware que traduz a exceção em resposta. O `errorHandler` das linhas 13 a 25 é reconhecido pelo Express justamente por ter quatro parâmetros; o teste `err instanceof HttpError` da linha 19 separa os dois destinos possíveis: um erro que a aplicação criou de propósito vira `res.status(err.code)` com a mensagem controlada (linha 20), e qualquer outro vai para o `console.error` e devolve um `500` genérico (linhas 23 e 24) — o cliente nunca vê o *stack trace*.
+
+O `notFoundHandler` das linhas 5 a 11 completa o par: ele é registrado depois das rotas e responde `404` para qualquer caminho que ninguém reconheceu.
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/middlewares/errorHandlers.ts"
+  title="src/middlewares/errorHandlers.ts"
+  showLineNumbers
+  mark="19-24"
+/>
+
+### 7. Modificar `src/routes.js` → `src/routes/investments.routes.ts` (Router modular)
+
+O roteador virou uma tabela legível: cada linha entre 7 e 11 declara método HTTP, caminho e o controller que responde — nada mais. Comparado com o `routes.js` da etapa 2, sumiram o corpo dos handlers, os `if` de validação e a classe de erro.
+
+As linhas 7 e 10 acrescentam a única peça a mais: o middleware `requireJson`, importado com apelido na linha 1, que roda **antes** do controller e barra requisições sem `Content-Type: application/json`. Ele só aparece em `POST` e `PUT`, os dois métodos que enviam corpo.
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/routes/investments.routes.ts"
+  title="src/routes/investments.routes.ts"
+  showLineNumbers
+  mark="7-11"
+/>
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/middlewares/requireJsonContentType.ts"
+  title="src/middlewares/requireJsonContentType.ts"
+  showLineNumbers
+  mark="10-14"
+/>
+
+O middleware acima cabe em cinco linhas úteis: se o cabeçalho não for `application/json`, ele lança um `HttpError` (linha 11); caso contrário, chama `next()` (linha 14) e sai do caminho. Como o `throw` acontece dentro de um middleware síncrono, o Express o encaminha direto ao `errorHandler`.
+
+<Aside type="note" title="O `try`/`catch` do controller traduz, não repassa">
+  No Express 5 o erro de uma função `async` chega sozinho ao `errorHandler`. O `catch` de cada
+  controller existe para converter o erro do banco — que traria detalhes internos, como o SQL
+  que falhou — em um `HttpError` com mensagem controlada.
 </Aside>
-
-## O `tsconfig.json`
-
-Esta etapa usa o alias `@/` com `tsx`, alternativa aos *subpath imports* do guia:
-
-```json title="tsconfig.json" showLineNumbers {6,10-13}
-{
-  "compilerOptions": {
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "target": "ES2023",
-    "strict": true,
-    "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "baseUrl": "./src",
-    "paths": {
-      "@/*": ["./*"]
-    }
-  },
-  "include": ["src/**/*"]
-}
-```
 
 <Aside type="caution" title="`paths` exige `tsx` para executar">
   O Node não lê `paths` do `tsconfig.json`: `import '@/models/Investment.ts'` quebraria em
   `node src/index.ts`. Por isso o script `dev` desta etapa usa `tsx watch`. A alternativa sem
-  dependência é o `#` do `package.json`, mostrado em
+  dependência é o `#` do `package.json`, mostrada em
   [TypeScript no Express](../../../basics/typescript/).
 </Aside>
 
@@ -174,24 +262,23 @@ Esta etapa usa o alias `@/` com `tsx`, alternativa aos *subpath imports* do guia
 
 <Steps>
 
-1. Troque para a branch e instale:
+1. Entre na pasta desta etapa e instale:
 
    ```bash title="Terminal"
-   git switch typescript
+   cd examples/express/projects/invest-app-typescript
    npm install
    ```
 
-2. Carregue o banco e suba:
+2. Suba em modo watch:
 
    ```bash title="Terminal"
-   npm run db:load
    npm run dev
    ```
 
 3. Verifique os tipos:
 
    ```bash title="Terminal"
-   npx tsc --noEmit
+   npm run typecheck
    ```
 
 </Steps>
@@ -223,11 +310,43 @@ Os erros agora saem sempre no mesmo formato, venham de onde vierem:
 ## O diff que importa
 
 ```bash title="Terminal"
-git diff sqlite typescript -- classroom/back-end/investment-api/src
+git diff --no-index -- \
+  examples/express/projects/invest-app-api/src \
+  examples/express/projects/invest-app-typescript/src || true
 ```
 
-Nenhuma funcionalidade nova aparece nesse diff — só reorganização e tipos. É a melhor
-demonstração de que refatoração e funcionalidade devem viajar em commits separados.
+Este diff deve mostrar só a migração de linguagem e a separação em camadas. Nenhuma
+funcionalidade nova deve aparecer aqui; isso mantém a refatoração separada da validação, que
+entra na próxima etapa.
+
+O padrão que se repete em todas as rotas é sempre o mesmo: o corpo do handler sai do arquivo de
+rotas e reaparece, tipado, no controller. Compare a rota de leitura por id nas duas etapas.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/src/routes.js"
+  title="Etapa 2 — src/routes.js (o handler mora na rota)"
+  lines="42-52"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/routes/investments.routes.ts"
+  title="Etapa 3 — src/routes/investments.routes.ts (a rota só aponta)"
+  lines="9"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/express/projects/invest-app-typescript/src/controllers/investments.controller.ts"
+  title="Etapa 3 — src/controllers/investments.controller.ts (o handler tipado)"
+  lines="33-43"
+  showLineNumbers
+/>
+
+Três diferenças resumem a etapa: a rota passou de quinze linhas para uma; o `req.params.id`
+deixou de ser `any` e virou `string` por causa do genérico `Request<{ id: string }>`; e o
+`throw` continua no mesmo lugar, mas agora é o `errorHandler` do `index.ts` que decide o
+formato da resposta.
 
 ## Conceitos abordados
 
@@ -238,12 +357,12 @@ demonstração de que refatoração e funcionalidade devem viajar em commits sep
 - Middleware de `Content-Type`
 - Tipos do domínio em `src/types/*.d.ts`
 
+## Próxima etapa
+
+[InvestApp: Validação](../validation/) — schemas antes dos dados chegarem aos handlers.
+
 <Aside type="tip">
   As aulas correspondentes são [TypeScript no Express](../../../basics/typescript/),
   [MVC](../../../architecture/mvc/) e
   [Tratamento de Erros](../../../api/error-handling/).
 </Aside>
-
-## Próxima etapa
-
-[InvestApp: Prisma ORM](../prisma/) — schema declarativo e relações.

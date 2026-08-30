@@ -1,64 +1,101 @@
 ---
 title: "InvestApp: API em memória"
-description: "Primeira etapa do InvestApp: CRUD de investimentos sobre um array, front-end servido por express.static e o contrato testado com requests.http."
+description: "Segunda etapa do InvestApp: CRUD de investimentos sobre um array, front-end estático servido por express.static e comportamento com JavaScript vanilla."
 course: express
 sidebar:
-  label: "1. API em memória"
+  label: "2. API em memória"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
-Etapa **1 de 6** · Nível **Iniciante** · Node.js · Express.js
+Etapa **2 de 13** · Nível **Iniciante** · Node.js · Express.js · JavaScript vanilla
 
-O ponto de partida: um CRUD completo de investimentos sobre um array em memória, com o
-front-end servido pelo próprio Express. Nada de banco, nada de autenticação — só o ciclo
-requisição/resposta.
+O front estático da etapa anterior passa a ser servido pelo próprio Express e ganha
+comportamento com JavaScript vanilla. Nada de banco, nada de autenticação — só o ciclo
+requisição/resposta e a primeira integração real entre tela e API.
 
-<ProjectLinks repo="luizchaves/lp2-2026" path="classroom/back-end/investment-api" />
+<ProjectLinks path="examples/express/projects/invest-app-api" devcontainer={false} />
 
-## Antes: `hello-api`
+## Requisitos, histórias e critérios
 
-O repositório traz um projeto ainda menor, útil para conferir se o ambiente está de pé:
+**Épico EP01 · Experiência e Carteira** › **Feature FT02 · CRUD de investimentos**
 
-```js title="hello-api/src/index.js" showLineNumbers {6,9,12}
-import express from 'express';
-import morgan from 'morgan';
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF01** Gestão de Investimentos | o CRUD completo sobre um array em memória | parcial — falta persistir |
 
-const app = express();
+### US02 — Manter a carteira pela aplicação · RF01
 
-app.use(morgan('tiny'));
+> **Como** investidor,
+> **quero** cadastrar, consultar, editar e remover os meus investimentos,
+> **para** manter a carteira atualizada sem depender de planilha.
 
-// Arquivos estáticos: public/index.html responde em GET /
-app.use(express.static('public'));
+```gherkin
+Cenário: CA02.1 - Listar os investimentos
+  Quando envio GET /api/investments
+  Então recebo o status 200
+  E o corpo é uma lista de investimentos
 
-// Conteúdo dinâmico: método + caminho
-app.get('/api/hello', (req, res) => res.send('Hello, World!'));
+Cenário: CA02.2 - Filtrar pelo nome
+  Dado que existe um investimento chamado "Tesouro Selic 2029"
+  Quando envio GET /api/investments?name=Tesouro
+  Então recebo o status 200
+  E a lista traz apenas os investimentos cujo nome contém "Tesouro"
 
-app.listen(3000, () => console.log('Server is running on port 3000'));
+Cenário: CA02.3 - Criar um investimento
+  Quando envio POST /api/investments com nome e valor válidos
+  Então recebo o status 201
+  E o corpo traz o investimento criado, com um id gerado pelo servidor
+
+Cenário: CA02.4 - Recusar corpo incompleto
+  Quando envio POST /api/investments sem o campo "value"
+  Então recebo o status 400
+  E nada é acrescentado à lista
+
+Cenário: CA02.5 - Investimento inexistente
+  Quando envio GET, PUT ou DELETE em /api/investments/{id} com um id que não existe
+  Então recebo o status 404
+
+Cenário: CA02.6 - Remover um investimento
+  Dado um investimento existente
+  Quando envio DELETE /api/investments/{id}
+  Então recebo o status 204
+  E a resposta não tem corpo
+
+Cenário: CA02.7 - O front consome a API
+  Quando abro http://localhost:3000
+  Então os cartões exibidos vêm de uma chamada fetch
+  E não estão escritos no HTML
+
+Cenário: CA02.8 - O limite conhecido desta etapa
+  Dado investimentos cadastrados
+  Quando reinicio o servidor
+  Então a lista volta ao estado inicial
 ```
 
-Duas linhas resumem a arquitetura de todas as etapas seguintes: `express.static` serve a
-interface e `/api/*` serve os dados — **mesma origem**, sem CORS.
+## Estrutura da aplicação
 
-## Estrutura
+O front-end desta etapa vive dentro de `public/` e é servido pelo próprio Express através do middleware `express.static('public')`. Ao mesmo tempo, as rotas sob `/api/investments` expõem os dados dinâmicos a partir de um array em memória. Como front e API compartilham a mesma origem, o navegador não precisa de CORS para conversar com o servidor — o middleware `cors` continua registrado apenas para permitir chamadas de fora, como as do `requests.http`.
 
 <FileTree>
 {`
-  investment-api/
+  invest-app-api/
   ├── package.json
-  ├── request.http              o contrato, executável
+  ├── requests.http             o contrato, executável
   ├── public/                   front-end servido por express.static
   │   ├── index.html
   │   ├── css/
-  │   │   ├── icons.css
   │   │   └── style.css
   │   └── js/
+  │       ├── index.js          monta a tela e trata os eventos
   │       ├── lib/
-  │       │   └── format.js
-  │       └── main.js
+  │       │   └── format.js     formatação de moeda
+  │       └── services/
+  │           └── api.js        a única camada que conhece fetch
   └── src/
       ├── index.js              monta o app e sobe o servidor
       ├── routes.js             as rotas do recurso
@@ -66,6 +103,147 @@ interface e `/api/*` serve os dados — **mesma origem**, sem CORS.
           └── investments.js    o array em memória
 `}
 </FileTree>
+
+## Comparação com a etapa estática
+
+A etapa 1 desenhou as telas com dados escritos à mão no HTML. Esta etapa mantém a mesma
+interface — cabeçalho, cartões de ativo e formulário — e troca esses dados fixos por respostas
+da API.
+
+| Etapa 1 (`invest-app-static`) | Etapa 2 (`invest-app-api`) |
+| ----------------------------- | -------------------------- |
+| páginas HTML abertas direto do disco | páginas em `public/`, servidas por `express.static` |
+| três cartões escritos no HTML | cartões gerados em JavaScript a partir de `GET /api/investments` |
+| formulário com `type="button"`, sem envio | `form.onsubmit` disparando `POST /api/investments` |
+| nenhum arquivo `.js` | `public/js/index.js`, `services/api.js` e `lib/format.js` |
+| nenhum servidor | `src/index.js`, `src/routes.js` e `src/data/investments.js` |
+
+## Tasks da etapa
+
+As tarefas abaixo implementam US02 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK02.1 · Instalar dependências e criar `src/index.js`**: Inicializa o servidor Express com logger Morgan e servidor de arquivos estáticos.
+2. **TK02.2 · Criar `src/data/investments.js`**: Armazenamento inicial em memória (array em JS).
+3. **TK02.3 · Criar `src/routes.js`**: Implementação das 5 rotas do recurso CRUD de investimentos.
+4. **TK02.4 · Criar `public/js/services/api.js` e `public/js/index.js`**: Integração do front-end com a API, isolando o `fetch` em uma única camada.
+5. **TK02.5 · Criar `requests.http`**: Arquivo de testes executáveis de requisições HTTP para VS Code.
+
+</Steps>
+
+### 1. Instalar dependências e criar `src/index.js` (Servidor Express)
+
+```bash title="Terminal: instalação das dependências"
+npm install express cors morgan uuid
+```
+
+O arquivo monta o app registrando middlewares em ordem. A linha 9 liga o log de requisições com `morgan('tiny')`, e as linhas 11 a 19 configuram o `cors` — necessário apenas quando o cliente vem de outra origem, o que não é o caso do front servido pelo próprio Express.
+
+O trecho destacado nas linhas 21 a 25 é o coração da etapa. O `express.json()` da linha 21 transforma o corpo JSON de `POST` e `PUT` em `req.body`; o `express.static('public')` da linha 23 serve o front-end direto do disco; e o `server.use('/api', router)` da linha 25 prefixa todas as rotas do `routes.js`, de onde vem o caminho final `/api/investments`.
+
+Como o front e a API passam a viver na mesma origem (`http://localhost:3000`), o navegador não dispara preflight de CORS durante o desenvolvimento.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/src/index.js"
+  title="src/index.js"
+  showLineNumbers
+  mark="21-25"
+/>
+
+<Aside type="note" title="Express 5 dispensa o `express-async-errors`">
+  No Express 4 era preciso instalar o pacote `express-async-errors`: um `throw` dentro de um
+  handler `async` vira uma promessa rejeitada, e o `try`/`catch` interno do framework não a
+  enxergava — o processo caía com `unhandledRejection` em vez de responder um erro HTTP.
+
+  O Express 5 encaminha promessas rejeitadas sozinho. Como todo o InvestApp está na versão 5,
+  o pacote não aparece em nenhuma etapa: o `throw` das rotas síncronas desta etapa e o das
+  rotas `async` da etapa 6 em diante chegam ao mesmo manipulador de erros sem ajuda externa.
+  Veja [Tratamento de Erros](../../../api/error-handling/).
+</Aside>
+
+<Aside type="caution" title="`req.body` pode ser `undefined` no Express 5">
+  No Express 4, o `express.json()` deixava `req.body` como `{}` quando não havia corpo. No
+  Express 5 ele fica **`undefined`**, e desestruturar `undefined` lança `TypeError`. Por isso a
+  linha 15 do `routes.js` escreve `const { name, value } = req.body ?? {}`: sem o `?? {}`, um
+  `POST` sem corpo devolveria `500` em vez do `400` previsto no contrato.
+</Aside>
+
+### 2. Criar `src/data/investments.js` (Armazenamento em memória)
+
+O arquivo inteiro é um `export const investments` com dois registros de exemplo. Cada objeto já tem a forma que a API vai devolver: `id` como UUID (linhas 3 e 8), `name` e `value`.
+
+Repare que o `id` é uma string, e não um número sequencial. Essa escolha antecipa o comportamento do banco de dados das etapas 6 e 6 e evita que o front-end passe a depender de um contador que só existiria em memória.
+
+Como é um array exportado por um módulo ES, todas as rotas manipulam a **mesma** referência: o `push` de uma rota é visível na leitura da outra. É o suficiente para exercitar o ciclo completo de leitura e escrita sem banco de dados.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/src/data/investments.js"
+  title="src/data/investments.js"
+  showLineNumbers
+/>
+
+### 3. Criar `src/routes.js` (Endpoints do recurso `/api/investments`)
+
+Este é o arquivo mais longo da etapa, e vale lê-lo em quatro partes.
+
+A classe `HttpError` das linhas 5 a 10 estende `Error` e acrescenta o campo `code`. É ela que permite escrever `throw new HttpError('Investment not found', 404)` no meio de uma rota e ainda assim responder com o status certo.
+
+O bloco destacado nas linhas 14 a 28 é o `POST /investments` e serve de modelo para as demais rotas: lê `name` e `value` de `req.body` (linha 15), rejeita entrada incompleta com `400` (linhas 17 a 19), gera o identificador com `uuidv4()` (linha 21), empurra o objeto para o array (linha 25) e responde `201` com o recurso criado (linha 27).
+
+As leituras vêm em seguida: o `GET /investments` das linhas 30 a 40 aceita o filtro opcional `req.query.name` (linha 31) e devolve o array inteiro quando ele não vem; o `GET /investments/:id` das linhas 42 a 52 usa `findIndex` e responde `404` quando o índice não existe. O `PUT` (linhas 54 a 74) e o `DELETE` (linhas 76 a 88) repetem exatamente esse par de verificações e por isso aparecem recolhidos.
+
+Fecham o arquivo os dois middlewares finais: o das linhas 91 a 93 responde `404` para qualquer caminho não declarado, e o das linhas 96 a 104 é o manipulador de erros — ele converte um `HttpError` no status guardado em `err.code` e transforma qualquer outra exceção em `500`. É esse par que sustenta o contrato de status codes da tabela a seguir.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/src/routes.js"
+  title="src/routes.js"
+  showLineNumbers
+  mark="14-28"
+  collapse="54-88"
+/>
+
+### 4. Criar `public/js/services/api.js` e `public/js/index.js` (Integração Vanilla JS)
+
+O front é dividido em duas responsabilidades, e essa separação é o ponto didático da etapa: **um único arquivo conhece `fetch`**, e a tela conversa apenas com ele.
+
+O `services/api.js` é essa camada fina. As quatro funções — `create`, `read`, `update` e `remove` — montam a URL a partir da constante `domain = '/api'` da linha 1 e diferem apenas no método e no corpo. O `read` da linha 20 é o caso mais simples, sem objeto `config`; o `create` da linha 3 mostra o trio que sempre acompanha um envio de JSON: `method: 'POST'`, `body: JSON.stringify(data)` e o cabeçalho `Content-Type` da linha 11. Já o `remove` da linha 45 não chama `res.json()`, porque a rota responde `204 No Content`, sem corpo.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/public/js/services/api.js"
+  title="public/js/services/api.js"
+  showLineNumbers
+  mark="1,20-26"
+/>
+
+Com essa camada pronta, o `index.js` cuida só da tela. O trecho destacado nas linhas 56 a 96 tem as duas funções que ligam a interface à API: `loadInvestmentCards()` (linhas 56 a 62) faz `API.read('/investments')` e cria um cartão por item, e `loadHandleFormSubmit()` (linhas 72 a 96) intercepta o envio do formulário com `event.preventDefault()`, converte os campos em objeto com `Object.fromEntries(new FormData(form))` na linha 78 e chama `API.create` ou `API.update` conforme o tipo da operação.
+
+O gerador de HTML `InvestmentCard()` (linhas 10 a 44) e os manipuladores de edição e remoção (linhas 98 a 146) estão recolhidos: são detalhes de interface que repetem o mesmo padrão de `document.querySelector` mais `onclick`. As três chamadas das linhas 148 a 152 são o que efetivamente inicia a página.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/public/js/index.js"
+  title="public/js/index.js"
+  showLineNumbers
+  mark="56-96"
+  collapse="10-44,98-146"
+/>
+
+### 5. Criar `requests.http` (Especificação executável da API)
+
+O arquivo é uma documentação executável: cada bloco separado por `###` vira um botão *Send Request* na extensão REST Client do VS Code.
+
+O trecho destacado nas linhas 1 a 13 mostra o mecanismo que torna o arquivo encadeável. A linha 1 define a variável `@host` com a base da API; a linha 6 nomeia a requisição com `# @name createdInvestment`; e a linha 2 captura o `id` da resposta dessa requisição em `@createdInvestmentId`. É por isso que, mais adiante, a linha 34 consegue escrever `GET {{host}}/investments/{{createdInvestmentId}}` sem que você precise copiar um UUID à mão.
+
+O restante do arquivo, recolhido, exercita justamente os caminhos de erro do contrato: criação sem `value` para provocar `400`, leitura por um id inválido para provocar `404` e assim por diante. Rodar o arquivo de cima a baixo valida a API inteira sem abrir o navegador.
+
+<SourceCode
+  path="examples/express/projects/invest-app-api/requests.http"
+  title="requests.http"
+  showLineNumbers
+  mark="1-13"
+  collapse="15-79"
+/>
 
 ## O contrato
 
@@ -84,11 +262,10 @@ Cinco rotas, o CRUD completo do recurso `investments`:
 
 <Steps>
 
-1. Clone e entre no projeto:
+1. Entre no projeto local desta etapa:
 
    ```bash title="Terminal"
-   git clone https://github.com/luizchaves/lp2-2026
-   cd lp2-2026/classroom/back-end/investment-api
+   cd examples/express/projects/invest-app-api
    ```
 
 2. Instale e suba em modo watch:
@@ -138,27 +315,25 @@ Cinco rotas, o CRUD completo do recurso `investments`:
 
 ## O front-end
 
-A interface conversa com a API por uma camada fina, e nenhuma tela conhece `fetch`
-diretamente:
+A interface continua vanilla: módulos pequenos, sem React, Vue ou framework de componentes. A
+regra que sustenta o front desta etapa é a separação em três arquivos, cada um com uma
+responsabilidade só.
 
-```js title="public/js/main.js" showLineNumbers {3,8}
-async function listar() {
-  const response = await fetch('/api/investments');
-  const investments = await response.json();
+| Arquivo | Responsabilidade | Conhece `fetch`? |
+| ------- | ---------------- | ---------------- |
+| `public/js/services/api.js` | montar URL, método, cabeçalhos e corpo das requisições | sim, e é o único |
+| `public/js/index.js` | ler o DOM, tratar eventos e desenhar os cartões | não |
+| `public/js/lib/format.js` | formatar valores em Real com `toLocaleString('pt-br')` | não |
 
-  render(investments);
-}
+Essa divisão é o que permite trocar a origem da API, acrescentar um cabeçalho `Authorization`
+ou mudar o tratamento de erro em um único arquivo. Na etapa 9, quando o token JWT entrar, a
+alteração acontece só dentro de `services/api.js`.
 
-async function criar(dados) {
-  await fetch('/api/investments', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(dados),
-  });
-
-  listar();
-}
-```
+<SourceCode
+  path="examples/express/projects/invest-app-api/public/js/lib/format.js"
+  title="public/js/lib/format.js"
+  showLineNumbers
+/>
 
 <Aside type="caution" title="O que se perde ao reiniciar">
   Tudo. O array vive na memória do processo: um `Ctrl+C` apaga os investimentos cadastrados.
@@ -181,4 +356,5 @@ async function criar(dados) {
 
 ## Próxima etapa
 
-[InvestApp: SQLite nativo](../sqlite/) — os dados que sobrevivem ao reinício.
+[InvestApp: TypeScript em camadas](../typescript/) — tipos, controllers e erros
+centralizados.

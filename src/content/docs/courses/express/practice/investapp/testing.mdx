@@ -1,0 +1,474 @@
+---
+title: "InvestApp: Testes de software"
+description: "Décima primeira etapa do InvestApp: testes de rotas com node:test e supertest, front-end com Vitest e mocks, e teste E2E com Playwright."
+course: express
+sidebar:
+  label: "12. Testes de software"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **12 de 13** · Nível **Avançado** · TypeScript · `node:test` · Supertest · Vitest · Playwright
+
+Esta etapa transforma o roteiro manual em suíte automatizada. O back cobre as rotas com
+`supertest`, o front testa a camada de `fetch` com Vitest e mocks, e o Playwright valida o
+fluxo real no navegador.
+
+<ProjectLinks path="examples/express/projects/invest-app-test" devcontainer={false} />
+
+## Requisitos, histórias e critérios
+
+**Épico EP05 · Qualidade e Operação** › **Feature FT13 · Suíte de testes e cobertura**
+
+Nenhum requisito funcional entra aqui: o comportamento não muda. O que entra é a garantia de
+que ele **continua** valendo depois da próxima alteração.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF04** Qualidade & Testabilidade | testes de unidade, de rotas, de front com mock e E2E, além de cobertura | atendido |
+
+### US13 — Alterar sem quebrar o que já funciona · RNF04
+
+> **Como** pessoa que mantém a aplicação,
+> **quero** uma suíte que rode em segundos e cubra rotas, regras e fluxo de tela,
+> **para** descobrir uma regressão antes de publicá-la.
+
+```gherkin
+Cenário: CA13.1 - Testes de servidor sem infraestrutura
+  Quando executo npm test
+  Então unidade e rotas são executadas
+  E nenhuma porta é aberta
+  E nenhum e-mail é enviado
+
+Cenário: CA13.2 - Testes de front sem navegador
+  Quando executo npm run front:test
+  Então os módulos do front são exercitados em JSDOM
+  E fetch e localStorage são substituídos por dublês
+
+Cenário: CA13.3 - A suíte pode repetir
+  Quando executo npm test duas vezes seguidas
+  Então as duas execuções passam
+  E nenhum e-mail duplicado provoca falha
+
+Cenário: CA13.4 - Cobertura tem piso
+  Quando executo npm run coverage
+  Então o relatório exibe as linhas não cobertas por arquivo
+  Mas quando a cobertura cai abaixo do piso configurado
+  Então o comando falha
+
+Cenário: CA13.5 - A regra crítica tem teste
+  Quando inspeciono a suíte de rotas
+  Então existe um teste que prova o isolamento por dono da etapa 9
+
+Cenário: CA13.6 - Testar quase não altera a aplicação
+  Quando comparo src/ com a etapa anterior
+  Então a única mudança é o index.ts passar a exportar o app
+```
+
+## O mapa de testes
+
+Cada camada responde por um tipo de risco, e o custo cresce de cima para baixo — os oito testes
+de unidade rodam em 145 ms, os doze de rota em quase 800. Concentrar tudo em E2E deixaria a
+suíte lenta e instável; ficar só na unidade não provaria que API, banco e tela conversam:
+
+<Mermaid title="Camadas de teste do InvestApp">
+{`
+flowchart TD
+  A["Rotas<br/>node:test + supertest<br/>src/routes.test.js"] --> B["Front com mock<br/>Vitest + JSDOM<br/>public/js/services/api.test.js"]
+  B --> C["E2E<br/>Playwright no navegador<br/>tests/invest-app.spec.js"]
+`}
+</Mermaid>
+
+## Tasks da etapa
+
+As tarefas abaixo implementam US13 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK12.1 · Instalar as suítes e criar os testes de unidade**: Funções puras — schemas do Zod e formatação — sem servidor nem banco.
+2. **TK12.2 · Criar `src/routes.test.ts`**: Testes das rotas HTTP com `node:test` e `supertest`.
+3. **TK12.3 · Criar `public/js/services/api.test.js`**: Testes do front com Vitest, JSDOM e mocks de `fetch` e `localStorage`.
+4. **TK12.4 · Criar `tests/invest-app.spec.js`**: Teste End-to-End do fluxo completo com Playwright.
+5. **TK12.5 · Criar `playwright.config.js` e os scripts do `package.json`**: Configuração dos navegadores e dos comandos de execução.
+
+</Steps>
+
+### 1. Instalar as suítes e criar os testes de unidade
+
+```bash title="Terminal: instalação das suítes de teste"
+npm install -D supertest @types/supertest vitest jsdom @playwright/test
+```
+
+A base da pirâmide são as funções que não dependem de nada: entra um valor, sai outro. Sem servidor, sem banco, sem navegador — e por isso rodam em milissegundos.
+
+O melhor candidato do servidor é o schema do Zod. Ele é uma função pura disfarçada: `safeParse` recebe um objeto e devolve `success` mais a lista de issues. Dá para testar as três fontes de dados da etapa 4 sem subir o Express uma única vez.
+
+Os blocos seguem as mesmas três fontes: corpo nas linhas 24 a 56, parâmetro de rota nas linhas 58 a 73 e query string nas linhas 75 a 87. Repare no que cada teste afirma: não é só que falhou, é **onde** falhou — o `path` de cada issue, como `['body', 'name']` na linha 38. É essa precisão que permite ao front destacar o campo certo.
+
+O teste da linha 49 merece atenção: com dois campos inválidos, o Zod devolve **dois** issues, não para no primeiro. Um detalhe que muda como o formulário exibe os erros, e que só um teste de unidade cobre barato.
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/src/schemas/investment.schema.test.ts"
+  title="src/schemas/investment.schema.test.ts"
+  showLineNumbers
+  mark="24-56"
+  collapse="58-89"
+/>
+
+Do lado do front, os candidatos são as funções de `lib/format.js`, usadas pelo `home.js` para exibir valores e datas.
+
+A linha 9 tem a armadilha que justifica o teste existir: `toLocaleString` separa o símbolo do número com um espaço **não-quebrável** (`U+00A0`), e não com o espaço comum. Uma asserção escrita com a barra de espaço do teclado falha, e a mensagem de erro mostra duas strings visualmente idênticas — o tipo de meia hora perdida que um teste de unidade evita para sempre.
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/public/js/lib/format.test.js"
+  title="public/js/lib/format.test.js"
+  showLineNumbers
+  mark="7-9,23-28"
+/>
+
+<Aside type="caution" title="Fuso horário: um teste que falta">
+  `formatDate('2025-02-10')`, sem hora, devolve **09/02/2025** em qualquer fuso negativo: a
+  string é interpretada como meia-noite UTC. Como o `home.js` usa essa função para preencher o
+  `<input type="date">`, editar um investimento pode recuar a data em um dia. Os testes acima
+  passam a hora explicitamente e não caem nisso — escrever o caso que expõe o problema, e
+  depois corrigir a função, é um bom exercício desta etapa.
+</Aside>
+
+### 2. Criar `src/routes.test.ts` (Rotas com `supertest`)
+
+```bash title="Terminal: instalação das suítes de teste"
+npm install -D supertest vitest jsdom @playwright/test
+```
+
+O teste de rotas roda no executor nativo do Node (`node:test`, importado na linha 3) e usa o `supertest` para fazer requisições **sem abrir porta nem navegador**: a linha 7 importa o próprio `app` do Express, e o `request(app)` fala com ele em memória. É para isso que o `src/index.ts` desta etapa passou a exportar o app e só chamar `listen` quando executado direto.
+
+As linhas 10 a 24 resolvem o problema mais chato de testar autenticação. O `createValidUser` gera um e-mail único a cada execução, com `randomBytes` na linha 11, para que rodar a suíte duas vezes não esbarre no `@unique` do e-mail; e o `loadToken` da linha 20 faz login e devolve o token.
+
+O `before` das linhas 31 a 43 monta o cenário uma vez: cria o usuário, pega o token e lê o id de uma categoria — tudo pela própria API, sem tocar no banco por fora.
+
+Daí em diante, o padrão se repete: para cada rota, um caso feliz e pelo menos um de erro. Cadastro com e-mail repetido (`409`), e-mail inválido (`400`), leitura sem token (`401`), corpo inválido (`400`), id de rota que não é UUID (`400`).
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/src/routes.test.ts"
+  title="src/routes.test.ts"
+  showLineNumbers
+  mark="3,7,10-24,31-43"
+  collapse="45-140"
+/>
+
+O último bloco é o mais importante da suíte: ele cria um investimento com um usuário, cria um **segundo** usuário e confirma que o segundo recebe `404` ao tentar ler o registro do primeiro. É o isolamento por dono da etapa 9 virando teste automatizado.
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/src/routes.test.ts"
+  title="src/routes.test.ts — o teste de isolamento"
+  lines="142-165"
+  showLineNumbers
+/>
+
+Repare no que esse arquivo cobre de uma vez só: rota, middleware de autenticação, schema do Zod, controller, model, Prisma e banco. É por isso que ele é mais lento que um teste unitário — e mais valioso que ele para uma API.
+
+### 3. Criar `public/js/services/api.test.js` (Front com Vitest e mocks)
+
+O front é testado sem servidor, sem banco e sem navegador de verdade: o Vitest roda em JSDOM, e o que estiver fora do módulo sob teste é substituído por um dublê.
+
+A linha 14 é o centro da técnica: `vi.spyOn(globalThis, 'fetch')` troca o `fetch` real por uma função controlada que devolve o que o teste mandar. A partir daí, o teste não verifica o que a API respondeu — verifica **o que o front pediu**. A asserção das linhas 22 a 29 confere a URL, o método, o corpo serializado e os cabeçalhos, um a um.
+
+O segundo teste, nas linhas 32 a 50, é a prova da regra aprendida na etapa 11: ao enviar `FormData`, o objeto `headers` esperado tem **só** `Authorization` — nenhum `Content-Type`. Se alguém reintroduzir aquele cabeçalho, este teste quebra.
+
+O terceiro, nas linhas 52 a 63, cobre a sessão: com um `fetch` respondendo `401`, o teste espera que `Auth.signout` tenha sido chamado. O `afterEach` das linhas 7 a 10 desfaz todos os mocks e limpa o `localStorage`, para que um teste não contamine o seguinte.
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/public/js/services/api.test.js"
+  title="public/js/services/api.test.js"
+  showLineNumbers
+  mark="7-10,14,22-29,46-48,62"
+/>
+
+### 4. Criar `tests/invest-app.spec.js` (Fluxo completo com Playwright)
+
+O E2E é o único teste que abre um navegador de verdade e percorre a aplicação como um usuário: um teste, cinco etapas, do cadastro à exclusão.
+
+O arquivo cobre a jornada inteira em blocos comentados: cadastro nas linhas 26 a 32, login nas linhas 35 a 39, criação de investimento nas linhas 42 a 52, edição nas linhas 55 a 59 e remoção nas linhas 62 a 65. Cada bloco termina em um `expect` sobre algo **visível** na tela — é isso que diferencia o E2E dos testes anteriores: ele valida o resultado pelos olhos do usuário, não pelo corpo da resposta HTTP.
+
+Repare como os elementos são localizados: `page.getByRole('textbox', { name: 'Nome' })` na linha 27, `getByRole('button', { name: 'Cadastrar' })` na linha 31. Buscar por papel e nome acessível, e não por classe CSS, faz o teste sobreviver a mudanças de estilo — e, de quebra, cobra do HTML rótulos corretos.
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/tests/invest-app.spec.js"
+  title="tests/invest-app.spec.js"
+  showLineNumbers
+  mark="26-32,35-39,42-52"
+/>
+
+<Aside type="caution" title="As linhas 55 e 62 são o ponto frágil do arquivo">
+  `page.locator('svg').nth(1)` e `page.locator('svg').first()` localizam os ícones de editar e
+  excluir pela posição na página. Basta acrescentar um ícone antes deles para o teste apontar
+  para o botão errado. Dar um `aria-label` a esses botões e trocar por `getByRole` é o exercício
+  natural desta etapa.
+</Aside>
+
+### 5. Criar `playwright.config.js` e os scripts do `package.json`
+
+A configuração do Playwright define onde estão os testes e em que navegadores rodar. O `testDir` da linha 16 aponta para `./tests`, o `baseURL` da linha 32 é o que permite escrever `page.goto('/signup.html')` sem repetir o domínio, e o `projects` das linhas 39 a 53 roda a mesma suíte em Chromium, Firefox e WebKit.
+
+O `trace: 'on-first-retry'` da linha 35 vale destacar: quando um teste falha e é repetido, o Playwright grava um rastro completo — capturas, DOM e rede — que pode ser aberto depois no *trace viewer*. É a diferença entre "falhou" e "falhou por isto".
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/playwright.config.js"
+  title="playwright.config.js"
+  lines="15-53"
+  showLineNumbers
+  mark="16,32,35,39-53"
+/>
+
+Por fim, os quatro scripts do `package.json` dão um comando a cada camada do mapa acima. Repare
+que o de rotas roda com `EMAIL_HOST=` vazio: o teste não deve depender de servidor de e-mail, e
+o `SendMail` da etapa 10 apenas registra o envio quando não há SMTP configurado.
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/package.json"
+  title="package.json"
+  showLineNumbers
+  mark="12-15"
+/>
+
+| Script | O que roda | Precisa do servidor no ar? |
+| ------ | ---------- | -------------------------- |
+| `npm test` | todo `src/**/*.test.ts` — unidade **e** rotas | não — o `app` é importado |
+| `npm run coverage` | o mesmo, medindo cobertura e aplicando os pisos | não |
+| `npm run front:test` | todo `public/js/**/*.test.js` no Vitest com JSDOM | não |
+| `npm run front:coverage` | o mesmo, com cobertura dos módulos do front | não |
+| `npm run e2e` | `tests/*.spec.js` no Playwright | **sim** |
+
+Repare que o `npm test` cobre duas camadas: o padrão `src/**/*.test.ts` pega tanto o teste de
+unidade do schema quanto o de rotas. Os dois usam o mesmo executor, e a diferença está no que
+cada um carrega — o de unidade importa uma função, o de rotas importa a aplicação inteira.
+
+## O que muda
+
+Comparando com a etapa de upload, o código da aplicação praticamente não muda: entram quatro
+arquivos de teste, uma configuração e cinco dependências de desenvolvimento.
+
+| Entra | Papel |
+| ----- | ----- |
+| `public/js/services/api.test.js` | camada de `fetch` do front com Vitest e mocks |
+| `tests/invest-app.spec.js` | fluxo completo no navegador com Playwright |
+| `playwright.config.js` | navegadores, `baseURL` e rastreamento de falhas |
+| `supertest`, `vitest`, `jsdom`, `@playwright/test` | as suítes, todas em `devDependencies` |
+
+O front também chega aqui já alinhado à base visual da primeira etapa: `css/tailwind.css`
+local, HTML sem Bootstrap vindo de CDN e interações pequenas em JavaScript vanilla. Fecha-se o
+círculo aberto na etapa 1.
+
+## Estrutura
+
+Os testes moram ao lado do que testam, com uma exceção: o E2E fica em `tests/`, porque o
+Playwright tem executor e configuração próprios.
+
+<FileTree>
+{`
+  invest-app-test/
+  ├── package.json                scripts test, coverage, front:test e e2e
+  ├── playwright.config.js
+  ├── src/
+  │   ├── index.ts                passa a exportar o app
+  │   ├── routes.test.ts          rotas com node:test + supertest
+  │   ├── controllers/
+  │   ├── models/
+  │   └── schemas/
+  │       ├── investment.schema.ts
+  │       └── investment.schema.test.ts  unidade: o schema sem HTTP
+  ├── public/
+  │   ├── css/
+  │   │   └── tailwind.css        UI final, sem Bootstrap
+  │   ├── home.html
+  │   ├── signin.html
+  │   ├── signup.html
+  │   ├── profile.html
+  │   └── js/
+  │       ├── lib/
+  │       │   ├── format.js
+  │       │   └── format.test.js  unidade: funções puras do front
+  │       ├── services/
+  │       │   ├── api.js
+  │       │   └── api.test.js     front com Vitest e mocks
+  │       └── profile.js
+  └── tests/
+      └── invest-app.spec.js      E2E com Playwright
+`}
+</FileTree>
+
+<Aside type="tip" title="Mock no front, `supertest` no back">
+  No front, o mock deixa o teste responder em milissegundos e sem servidor — o que se verifica
+  ali é a requisição que o código **monta**. No back, o `supertest` chama a rota de verdade,
+  justamente para garantir que middleware, validação, model e banco continuam integrados.
+  Trocar um pelo outro perde o ponto de cada um.
+</Aside>
+
+<Aside type="caution" title="O E2E não substitui teste de rota">
+  O E2E prova que um caminho crítico funciona no navegador, e é o teste mais lento e mais
+  frágil da suíte. Ele não deve carregar todos os casos de erro da API: esses casos ficam mais
+  baratos e mais estáveis no `supertest`, como mostra o `routes.test.js`.
+</Aside>
+
+<Aside type="danger" title="Os testes escrevem no banco de desenvolvimento">
+  O `routes.test.js` cria usuários e investimentos de verdade — por isso o `createValidUser`
+  gera e-mails aleatórios. Rodar a suíte suja o banco local; o `npm run db:reset` do
+  `package.json` é o caminho para voltar ao estado limpo.
+</Aside>
+
+## Cobertura
+
+Cobertura responde a uma pergunta só: **que linhas os testes executaram**. Não diz que o
+código está certo — diz onde ninguém olhou. É um detector de pontos cegos, não uma nota.
+
+O servidor usa o medidor embutido no Node, sem instalar nada:
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/package.json"
+  title="package.json — o script de cobertura"
+  lines="13"
+  showLineNumbers
+  wrap
+/>
+
+Três detalhes desse comando importam. O `--test-coverage-exclude` tira os próprios arquivos de
+teste da conta, senão eles inflariam o número medindo a si mesmos. E os três
+`--test-coverage-*` são **pisos**: se a cobertura cair abaixo deles, o comando sai com código
+diferente de zero e derruba o build.
+
+```txt title="Terminal: npm run coverage" frame="terminal"
+ℹ file                        | line % | branch % | funcs % | uncovered lines
+ℹ  middlewares                |        |          |         |
+ℹ   validate.ts               | 100.00 |   100.00 |  100.00 |
+ℹ   isAuthenticated.ts        |  95.65 |    87.50 |  100.00 | 15
+ℹ  models                     |        |          |         |
+ℹ   Investment.ts             |  81.73 |    45.45 |   66.67 | 14-16 36-37 43-53 56-58
+ℹ   Image.ts                  |  85.00 |   100.00 |   33.33 | 6-7 9
+ℹ all files                   |  87.12 |    75.21 |   65.63 |
+```
+
+A coluna mais útil não é a porcentagem: é a **`uncovered lines`**. Ela aponta o caminho exato
+que nenhum teste percorreu. No `Investment.ts` acima, as linhas 43 a 53 são o `update` — a
+suíte cria, lê e remove investimentos, mas nunca atualiza um. Isso é um teste faltando, e a
+cobertura o encontrou sem que ninguém precisasse suspeitar.
+
+Repare também no contraste entre `Image.ts`, com 85% de linhas e apenas 33% de funções: as
+poucas linhas executadas estão concentradas em uma função só. É por isso que vale olhar as
+três métricas, e não a média.
+
+No front, o Vitest precisa de um provedor de cobertura, e a configuração define **o que faz
+sentido medir**:
+
+```bash title="Terminal"
+npm install -D @vitest/coverage-v8
+```
+
+<SourceCode
+  path="examples/express/projects/invest-app-test/vitest.config.js"
+  title="vitest.config.js"
+  showLineNumbers
+  mark="8-11,14"
+/>
+
+O `include` da linha 11 é a decisão principal: mede `lib/` e `services/`, e deixa de fora
+`home.js`, `profile.js`, `signin.js` e `signup.js`. Esses quatro manipulam o DOM de uma página
+real e são cobertos pelo **E2E** — incluí-los na conta de unidade produziria um número baixo
+que não significaria nada.
+
+<Aside type="caution" title="Cobertura alta não é o objetivo">
+  Dá para chegar a 100% sem uma única asserção útil: basta executar o código e não verificar
+  nada. Um `expect` a menos não aparece no relatório. Use a cobertura de trás para frente —
+  para achar o que **não** foi executado —, e não como meta a perseguir.
+</Aside>
+
+<Aside type="note" title="Os pisos são um freio, não uma meta">
+  Os limites do `package.json` e do `vitest.config.js` foram calibrados um pouco abaixo do que
+  a suíte atinge hoje. O papel deles é impedir que a cobertura **caia** sem ninguém notar, e
+  não premiar quem a aumenta. Ao acrescentar testes, vale subir o piso junto.
+</Aside>
+
+<Aside type="tip" title="Os relatórios em arquivo">
+  Além do texto no terminal, o Vitest grava `coverage/lcov.info` — o formato que o VS Code, o
+  GitHub e ferramentas como Codecov leem para pintar as linhas descobertas ao lado do código.
+  Vale saber que o relatório de texto omite arquivos com 100% de cobertura; o `lcov.info` traz
+  todos. A pasta `coverage/` está no `.gitignore`: é resultado, não fonte.
+</Aside>
+
+## Executando
+
+<Steps>
+
+1. Entre no exemplo desta etapa:
+
+   ```bash title="Terminal"
+   cd examples/express/projects/invest-app-test
+   npm install
+   ```
+
+2. Rode os testes de unidade e de rotas:
+
+   ```bash title="Terminal"
+   npm test
+   ```
+
+3. Rode os testes do front com Vitest — unidade e camada de API:
+
+   ```bash title="Terminal"
+   npm run front:test
+   ```
+
+4. Meça a cobertura dos dois lados:
+
+   ```bash title="Terminal"
+   npm run coverage
+   npm run front:coverage
+   ```
+
+5. Suba a aplicação em um terminal e rode o E2E em outro — o Playwright precisa do
+   servidor no ar em <code>http://localhost:3000</code>, que é o `baseURL` da configuração:
+
+   ```bash title="Terminal 1"
+   npm run dev
+   ```
+
+   ```bash title="Terminal 2"
+   npx playwright install
+   npm run e2e
+   ```
+
+</Steps>
+
+## O diff que importa
+
+Compare a etapa de upload com a etapa de testes olhando scripts e diretórios novos:
+
+```bash title="Terminal"
+git diff --no-index -- \
+  examples/express/projects/invest-app-upload \
+  examples/express/projects/invest-app-test || true
+```
+
+Na revisão, o diff deve ser quase todo de arquivos novos. Os sinais a procurar são os quatro
+arquivos da tabela acima, mais os quatro scripts do `package.json` — e uma única alteração em
+código de produção: o `src/index.ts` passou a exportar o app para o `supertest` poder importá-lo. Se
+aparecer mudança dentro de `src/controllers/` ou `src/models/`, vale desconfiar: testar uma
+aplicação não deveria exigir reescrevê-la.
+
+## Conceitos abordados
+
+- Testes de unidade sobre funções puras: schemas do Zod e formatação
+- Testes de rotas com `node:test` e `supertest`, sem abrir porta
+- Dados de teste isolados por execução com e-mails aleatórios
+- Front-end com Vitest, JSDOM e mocks de `fetch` e `localStorage`
+- Teste E2E com Playwright e localizadores por papel acessível
+- Cobertura no servidor com `--experimental-test-coverage` e no front com `@vitest/coverage-v8`
+- Pisos de cobertura travando o build quando a suíte regride
+- Separação entre testes rápidos e fluxos completos
+
+## Próxima etapa
+
+[InvestApp: Docker](../docker/) — empacotar a aplicação final em uma imagem reproduzível.

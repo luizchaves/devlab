@@ -10,12 +10,14 @@
 - [x] page: revisar os course e guide para incluir mermaid caso necessário (acho que object de JS seria um candidato)
 - [x] skill: use mais p para deixar o texto mais didático
 
+Analise etapa a etapa para ver se é possível criar o projeto final seguindo apenas o que está disponível no passo a passo, sem precisar de conhecimento prévio. Se não for possível, adicionar mais conteúdo para que seja possível.
 tipos de autenicação
 autenticação de 2FA
 passkeys
 refresh token
 segurança e owasp top 10
 opções de deploy (Vercel, Railway, Render, Fly.io, Heroku, etc.) free tier e pago (aws, gcp, azure, etc.)
+qualidade de código, code review, pair programming, mob programming, TDD, BDD, DDD, clean code, clean architecture, SOLID, design patterns
 
 citar alternativas o express.js no node.js e em outras linguagens (flask, spring boot, django, gin, etc.)
 

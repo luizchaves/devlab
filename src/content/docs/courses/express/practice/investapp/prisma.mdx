@@ -1,9 +1,9 @@
 ---
 title: "InvestApp: Prisma ORM"
-description: "Quarta etapa do InvestApp: migração da camada de dados de node:sqlite para o Prisma, com schema declarativo, migrations versionadas e relações com Category e Broker."
+description: "Sexta etapa do InvestApp: migração da camada de dados do SQL escrito à mão para o Prisma, com schema declarativo, migrations versionadas e relações com Category e Broker."
 course: express
 sidebar:
-  label: "4. Prisma ORM"
+  label: "7. Prisma ORM"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
@@ -11,54 +11,60 @@ import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
-Etapa **4 de 6** · Nível **Avançado** · TypeScript · Prisma · SQLite
+Etapa **7 de 13** · Nível **Avançado** · TypeScript · Express.js · Prisma · SQLite
 
 O SQL escrito à mão dá lugar a um schema declarativo. E, com o ORM, o InvestApp ganha as
 relações que faltavam: cada investimento passa a ter categoria e corretora.
 
-<ProjectLinks repo="luizchaves/lp2-2026" branch="prisma-js" path="classroom/back-end/investment-api" />
+<ProjectLinks path="examples/express/projects/invest-app-prismajs-relation" devcontainer={false} />
 
-## O schema
+## Requisitos, histórias e critérios
 
-Três models e duas relações um-para-muitos:
+**Épico EP01 · Experiência e Carteira** › **Feature FT03 · Classificação por categoria e corretora**
 
-```prisma title="prisma/schema.prisma" showLineNumbers {10-13,17,23}
-generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-}
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF03** Persistência Relacional | schema declarativo, migrations versionadas e integridade referencial | atendido |
+| **RF01** Gestão de Investimentos | investimento passa a ter categoria e corretora | atendido |
 
-datasource db {
-  provider = "sqlite"
-}
+### US07 — Enxergar como a carteira está distribuída · RF01, RNF03
 
-model Investment {
-  id         String   @id @default(cuid())
-  name       String
-  amount     Int
-  interest   String
-  createdAt  DateTime @default(now())
-  dueDate    DateTime
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
-  brokerId   String
-  broker     Broker   @relation(fields: [brokerId], references: [id])
-}
+> **Como** investidor,
+> **quero** classificar cada ativo por categoria e corretora,
+> **para** enxergar como o meu patrimônio está distribuído.
 
-model Category {
-  id          String       @id @default(cuid())
-  name        String
-  color       String
-  investments Investment[]
-}
+```gherkin
+Cenário: CA07.1 - O banco é reconstruído a partir do histórico
+  Dado um ambiente sem banco de dados
+  Quando executo npx prisma migrate deploy
+  Então o banco é criado com todas as tabelas do schema
 
-model Broker {
-  id          String       @id @default(cuid())
-  name        String
-  investments Investment[]
-}
+Cenário: CA07.2 - As relações vêm resolvidas
+  Quando envio GET /api/investments
+  Então cada investimento traz os objetos "category" e "broker" preenchidos
+  E não é preciso uma segunda requisição para obtê-los
+
+Cenário: CA07.3 - Corretora nova é criada junto
+  Quando crio um investimento informando uma corretora que ainda não existe
+  Então recebo o status 201
+  E a corretora passa a existir para os próximos investimentos
+
+Cenário: CA07.4 - Categoria precisa existir
+  Quando crio um investimento com um categoryId inexistente
+  Então recebo o status 400
+
+Cenário: CA07.5 - O que se versiona é a migration
+  Quando inspeciono o repositório
+  Então a pasta prisma/migrations está versionada
+  Mas o arquivo prisma/dev.db está no gitignore
 ```
+
+## O modelo de dados
+
+Todo o modelo desta etapa cabe em um único arquivo declarativo: três entidades e duas relações
+um-para-muitos. O `schema.prisma` que produz esse diagrama é comentado linha a linha no passo 1.
 
 <Mermaid title="Modelo de dados do InvestApp após a introdução das relações">
 {`
@@ -69,10 +75,9 @@ erDiagram
   INVESTMENT {
     string id PK
     string name
-    int amount
+    int value
     string interest
     datetime createdAt
-    datetime dueDate
     string categoryId FK
     string brokerId FK
   }
@@ -90,83 +95,169 @@ erDiagram
 
 ## Estrutura
 
+A pasta `prisma/` passa a ser o centro de gravidade dos dados: é ali que ficam o schema, o
+histórico de migrations e os dados iniciais.
+
 <FileTree>
 {`
-  investment-api/
+  invest-app-prismajs-relation/
   ├── .env.example                DATABASE_URL
-  ├── prisma.config.ts            configuração do Prisma 7
+  ├── package.json
   ├── prisma/
-  │   ├── migrations/             histórico versionado
-  │   └── schema.prisma
-  ├── docs/
-  │   ├── erd.md                  diagrama gerado do schema
-  │   └── erd.png
+  │   ├── schema.prisma           a fonte única de verdade do modelo
+  │   ├── migrations/             histórico versionado, gerado
+  │   ├── seed.js                 popula as categorias
+  │   └── seeders.json
+  ├── public/
   └── src/
+      ├── index.js
+      ├── routes.js
       ├── database/
-      │   └── prisma.ts           instância única do client
-      ├── generated/prisma/       client gerado — fora do Git
-      ├── models/
-      │   ├── Broker.ts
-      │   ├── Category.ts
-      │   └── Investment.ts       findMany, include, create…
-      ├── controllers/
-      ├── routes/
-      └── types/
+      │   └── database.js         instância única do PrismaClient
+      └── models/
+          ├── Category.js
+          └── Investment.js
 `}
 </FileTree>
 
-## O client
+## Tasks da etapa
 
-Uma instância só, criada uma vez e importada por todos os models:
+As tarefas abaixo implementam US07 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
 
-```ts title="src/database/prisma.ts" showLineNumbers {5-6}
-import 'dotenv/config';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
-import { PrismaClient } from '@/generated/prisma/client.ts';
+<Steps>
 
-const adapter = new PrismaBetterSqlite3({ url: `${process.env.DATABASE_URL}` });
-const prisma = new PrismaClient({ adapter });
+1. **TK07.1 · Instalar Prisma e criar `prisma/schema.prisma`**: Declaração do schema ORM com tabelas e relacionamentos.
+2. **TK07.2 · Criar `src/database/database.js`**: Conexão singleton reutilizável do `PrismaClient`.
+3. **TK07.3 · Modificar `src/models/Investment.js`**: Substituição de SQL cru por consultas autocompletadas do ORM.
+4. **TK07.4 · Remover `src/database/migration.js` e `seeders.js`**: Remoção da camada SQL manual legada.
 
-export { prisma };
+</Steps>
+
+### 1. Instalar Prisma e criar `prisma/schema.prisma` (Schema declarativo)
+
+```bash title="Terminal: instalação do Prisma ORM e do driver adapter"
+npm install prisma @prisma/client @prisma/adapter-better-sqlite3
+npx prisma init --datasource-provider sqlite
 ```
 
-<Aside type="note" title="Prisma 7 exige um adapter">
-  A partir da versão 7, a `url` sai do `schema.prisma` e vai para o `prisma.config.ts`, e o
-  client passa a receber um *driver adapter*. Em Prisma 6, `new PrismaClient()` sem
-  argumentos ainda funciona.
+O arquivo abre com dois blocos de configuração: o `generator client` das linhas 4 a 6, que define o que será gerado a partir do schema, e o `datasource db` das linhas 8 a 11, que aponta para o SQLite e lê a string de conexão de `env("DATABASE_URL")` — por isso o `.env` é obrigatório.
+
+O `model Investment` das linhas 13 a 23 é o mesmo investimento das etapas anteriores, agora descrito em vez de criado por SQL. A linha 14 substitui o `AUTOINCREMENT` da etapa 6 por `@id @default(uuid())`, e o `@default(now())` da linha 18 transfere ao banco a responsabilidade pelo `createdAt`.
+
+O trecho destacado nas linhas 19 a 22 é a novidade da etapa. Cada relação aparece em **duas** linhas: o campo escalar `categoryId` (linha 20), que vira a coluna de chave estrangeira no banco, e o campo de relação `category` (linha 19), que só existe no código e é o que permite escrever `investment.category.name`. O `@relation(fields: [categoryId], references: [id])` é o que amarra os dois.
+
+Do outro lado, `Category` e `Broker` (linhas 25 a 36) declaram `investments Investment[]` — a ponta "muitos" da relação. Repare também nos `@unique` das linhas 27, 28 e 34: é essa restrição que torna possível o `connectOrCreate` por nome que aparece no model.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/prisma/schema.prisma"
+  title="prisma/schema.prisma"
+  showLineNumbers
+  mark="19-22"
+/>
+
+<Aside type="note" title="No Prisma 7, a conexão sai do schema">
+  Até a versão 6, o `datasource` trazia `url = env("DATABASE_URL")` dentro do próprio
+  `schema.prisma`. A partir da 7 isso mudou de lugar: o schema descreve **o modelo**, e um
+  `prisma.config.ts` na raiz descreve **o ambiente** — conexão, caminho das migrations e
+  comando de seed. É também ali que o `.env` é carregado.
+</Aside>
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/prisma.config.ts"
+  title="prisma.config.ts"
+  showLineNumbers
+  mark="5,13,16,18"
+/>
+
+A linha 5 usa `process.loadEnvFile()`, do próprio Node — não é preciso instalar o carregamento nativo do `.env`. A
+linha 16 registra o comando de seed, que na versão 6 morava no `package.json`.
+
+### 2. Substituir `src/database/database.ts` (Client com driver adapter)
+
+O arquivo que na etapa 6 abria o SQLite à mão e envolvia a API síncrona em promessas encolheu para catorze linhas.
+
+A novidade do Prisma 7 está na linha 9: o client recebe um **driver adapter**. Até a versão 6, o Prisma embarcava um binário próprio para falar com o banco; agora quem conversa com o SQLite é um driver Node comum, e o Prisma se apoia nele. Na prática isso significa instalação mais leve e o mesmo driver que o resto do ecossistema usa.
+
+A linha 12 cria **uma** instância de `PrismaClient` e a linha 14 a exporta; todos os models importam essa mesma instância. A instância única não é detalhe de estilo: cada `new PrismaClient()` abre seu próprio pool de conexões.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/src/database/database.ts"
+  title="src/database/database.ts"
+  showLineNumbers
+  mark="1,9,12,14"
+/>
+
+Junto com ele saem o `migration.ts`, o `seeders.ts` e o `load.ts`: o `CREATE TABLE` passa a ser
+gerado pelo `prisma migrate` a partir do schema, e a carga inicial vira `src/database/seed.ts`.
+
+### 3. Modificar `src/models/Investment.ts` (De SQL para ORM)
+
+As cinco funções continuam com os mesmos nomes e as mesmas assinaturas tipadas, exportadas na linha 92. Nenhuma linha de controller precisou mudar. O que desapareceu foram as strings de SQL e o `mapRow`.
+
+O `include` das linhas 8 a 11 é o que substitui o `JOIN` escrito à mão: declarado uma vez, no topo, e reutilizado em todas as consultas — é isso que garante que a entidade saia com o mesmo formato em todas as rotas.
+
+O trecho destacado nas linhas 13 a 37 é o `create` e mostra as duas formas de ligar um registro a outro. Em `category` (linha 31), o `connect` exige que a categoria **já exista** e recebe o id. Em `broker` (linha 33), o `connectOrCreate` procura a corretora pelo nome e, se não achar, cria — só funciona porque `Broker.name` é `@unique` no schema.
+
+O `read` da linha 39 merece uma segunda olhada: a linha 40 reescreve o filtro de nome como `{ contains: ... }`, que é a tradução Prisma do `LIKE '%...%'` que a etapa 6 escrevia à mão. O `update` e o `remove`, nas linhas 55 a 90, repetem o desenho do `create` e estão recolhidos.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/src/models/Investment.ts"
+  title="src/models/Investment.ts"
+  showLineNumbers
+  mark="8-11,13-37"
+  collapse="55-90"
+/>
+
+### 4. Substituir os scripts de banco pelo `prisma db seed`
+
+Os dois scripts que criavam a tabela e carregavam os dados na etapa 6 saem do projeto. O `CREATE TABLE` agora é gerado pelo `prisma migrate` a partir do schema, e a carga inicial passa a ser o `src/database/seed.ts`, registrado no `package.json` sob a chave `prisma.seed`.
+
+O seeder ficou mais curto e mais seguro: o `upsert` das linhas 14 a 18 grava a categoria se ela não existir e não faz nada se já existir — rodar o seed duas vezes deixa de ser um erro. O `$disconnect` das linhas 23 e 26 é obrigatório em um script avulso: sem ele, o processo não termina.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/src/database/seed.ts"
+  title="src/database/seed.ts"
+  showLineNumbers
+  mark="13-19,23,26"
+/>
+
+<Aside type="caution" title="O `.env` é obrigatório">
+  O `prisma.config.ts` lê a conexão de `process.env.DATABASE_URL`. Sem um `.env` na raiz do
+  projeto, qualquer comando do Prisma falha antes de tocar no banco — por isso o passo de
+  execução começa com `cp .env.example .env`.
+</Aside>
+
+<Aside type="tip" title="O caminho do banco mudou de referência">
+  Com o driver adapter, `file:./prisma/dev.db` é resolvido a partir de **onde o processo roda**,
+  e não mais da pasta do schema. É por isso que o `.env` desta etapa escreve o caminho completo
+  a partir da raiz do projeto.
 </Aside>
 
 ## O model, antes e depois
 
-O contrato das funções não muda — `create`, `read`, `readById`, `update`, `remove`. O corpo,
-sim:
+O contrato das funções não muda — `create`, `read`, `readById`, `update` e `remove`, todas com
+as mesmas assinaturas tipadas. O corpo, sim: compare a leitura por id nas duas etapas.
 
-```ts title="src/models/Investment.ts" del={1-8} ins={10-16}
-const sql = `
-  SELECT id, name, value
-  FROM investments
-  WHERE id = ?
-`;
+<SourceCode
+  path="examples/express/projects/invest-app-db-simple/src/models/Investment.ts"
+  title="Etapa 6 — SQL escrito à mão"
+  lines="55-71"
+  showLineNumbers
+/>
 
-const investment = await db.get(sql, [id]);
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/src/models/Investment.ts"
+  title="Etapa 7 — a mesma leitura com Prisma"
+  lines="45-53"
+  showLineNumbers
+  mark="46"
+/>
 
-async function readById(id: string): Promise<Investment> {
-  return prisma.investment.findUniqueOrThrow({
-    where: { id },
-    include,
-  }) as Promise<Investment>;
-}
-```
-
-A definição do `include` fica em uma constante do próprio model, para que a entidade saia
-com o mesmo formato em todas as rotas:
-
-```ts title="src/models/Investment.ts" showLineNumbers {1-4}
-const include = {
-  category: true,
-  broker: true,
-};
-```
+Duas diferenças cabem na linha 46. A string SQL sumiu: o `findUnique` recebe um objeto e o
+Prisma gera a consulta. E o `include` que acompanha traz `category` e `broker` resolvidos na
+mesma ida ao banco — na etapa 6, isso teria exigido escrever um `JOIN` com apelidos de coluna e
+uma função para remontar os objetos aninhados.
 
 ## Migrations
 
@@ -188,18 +279,19 @@ npx prisma studio
 
 <Steps>
 
-1. Troque para a branch e instale:
+1. Entre na pasta desta etapa e instale:
 
    ```bash title="Terminal"
-   git switch prisma-js
+   cd examples/express/projects/invest-app-prismajs-relation
    npm install
    cp .env.example .env
    ```
 
-2. Crie o banco e popule:
+2. Crie o banco a partir do schema e popule as categorias:
 
    ```bash title="Terminal"
-   npm run db:load
+   npx prisma migrate dev
+   npx prisma db seed
    ```
 
 3. Suba o servidor:
@@ -208,10 +300,10 @@ npx prisma studio
    npm run dev
    ```
 
-4. Inspecione os dados:
+4. Inspecione os dados no navegador:
 
    ```bash title="Terminal"
-   npm run db:studio
+   npx prisma studio
    ```
 
 </Steps>
@@ -227,9 +319,9 @@ uma segunda chamada:
 {`
   [
     {
-      "id": "b1c2d3",
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
       "name": "Tesouro Selic 2029",
-      "amount": 20000,
+      "value": 20000,
       "interest": "100% Selic",
       "category": { "id": "8f14", "name": "Pós-fixado", "color": "#6366f1" },
       "broker": { "id": "45c4", "name": "Banco Inter" }
@@ -241,26 +333,34 @@ uma segunda chamada:
 ## O diff que importa
 
 ```bash title="Terminal"
-git diff typescript prisma-js -- classroom/back-end/investment-api/src/models
-git diff typescript prisma-js -- classroom/back-end/investment-api/src/controllers
+git diff --no-index -- \
+  examples/express/projects/invest-app-db-simple/src/models \
+  examples/express/projects/invest-app-prismajs-relation/src/models || true
+
+git diff --no-index -- \
+  examples/express/projects/invest-app-db-simple/src/routes.js \
+  examples/express/projects/invest-app-prismajs-relation/src/routes.js || true
 ```
 
-O primeiro diff é grande: os models foram reescritos. O segundo é quase vazio — os
-controllers seguiram chamando as mesmas funções. É a terceira vez no projeto que a camada de
-dados é trocada sem que as camadas acima percebam.
+O primeiro diff é grande: os models foram reescritos de ponta a ponta. O segundo é curto — as
+rotas continuam chamando `Investment.create`, `Investment.read` e `Investment.readById` com os
+mesmos argumentos. É a segunda vez no projeto que a camada de dados é trocada inteira sem que
+as camadas acima percebam, e é exatamente isso que a separação em camadas promete.
 
-<Aside type="caution" title="`src/generated/` não vai para o Git">
-  O client é gerado a partir do schema por `prisma generate`, que roda no `postinstall`.
-  Versioná-lo cria conflitos enormes e não acrescenta nada.
+<Aside type="caution" title="`prisma/dev.db` não vai para o Git">
+  O arquivo do banco é binário e muda a cada requisição. O que se versiona é a pasta
+  `prisma/migrations/`: ela reconstrói o banco inteiro em qualquer máquina com
+  `npx prisma migrate dev`.
 </Aside>
 
 ## Conceitos abordados
 
 - Schema declarativo e geração do client tipado
 - Migrations versionadas e o histórico em `prisma/migrations/`
-- Instância única do `PrismaClient` com driver adapter
-- Relações um-para-muitos e `include` centralizado no model
-- Diagrama ER gerado a partir do schema
+- Instância única do `PrismaClient` com driver adapter (Prisma 7)
+- `prisma.config.ts` separando o modelo do ambiente
+- Relações um-para-muitos, `connect`, `connectOrCreate` e `include`
+- Carga inicial de dados com `prisma db seed`
 
 <Aside type="tip">
   As aulas correspondentes são [Prisma](../../../persistence/prisma/),

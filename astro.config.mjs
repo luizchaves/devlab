@@ -850,28 +850,56 @@ export default defineConfig({
                       link: '/courses/express/practice/investapp/',
                     },
                     {
-                      label: '1. API em memória',
-                      link: '/courses/express/practice/investapp/api/',
+                      label: '1. Front estático',
+                      link: '/courses/express/practice/investapp/front-static/',
                     },
                     {
-                      label: '2. SQLite nativo',
-                      link: '/courses/express/practice/investapp/sqlite/',
+                      label: '2. API em memória',
+                      link: '/courses/express/practice/investapp/api/',
                     },
                     {
                       label: '3. TypeScript em camadas',
                       link: '/courses/express/practice/investapp/typescript/',
                     },
                     {
-                      label: '4. Prisma ORM',
+                      label: '4. Validação',
+                      link: '/courses/express/practice/investapp/validation/',
+                    },
+                    {
+                      label: '5. Documentação da API',
+                      link: '/courses/express/practice/investapp/swagger/',
+                    },
+                    {
+                      label: '6. SQLite nativo',
+                      link: '/courses/express/practice/investapp/sqlite/',
+                    },
+                    {
+                      label: '7. Prisma ORM',
                       link: '/courses/express/practice/investapp/prisma/',
                     },
                     {
-                      label: '5. Cadastro de Usuário',
+                      label: '8. Cadastro de Usuário',
                       link: '/courses/express/practice/investapp/user/',
                     },
                     {
-                      label: '6. Autenticação',
+                      label: '9. Autenticação',
                       link: '/courses/express/practice/investapp/auth/',
+                    },
+                    {
+                      label: '10. E-mail',
+                      link: '/courses/express/practice/investapp/email/',
+                    },
+                    {
+                      label: '11. Upload de Avatar',
+                      link: '/courses/express/practice/investapp/upload/',
+                    },
+                    {
+                      label: '12. Testes de Software',
+                      link: '/courses/express/practice/investapp/testing/',
+                    },
+                    {
+                      label: '13. Docker',
+                      link: '/courses/express/practice/investapp/docker/',
                     },
                   ],
                 },

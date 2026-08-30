@@ -1,46 +1,198 @@
 ---
 title: "InvestApp: Cadastro de Usuário"
-description: "Quinta etapa do InvestApp: model User com hash Argon2id nativo, relação entre usuário e investimento, rota pública de cadastro e a tela de signup."
+description: "Sétima etapa do InvestApp: model User com hash Argon2id nativo, relação entre usuário e investimento, rota pública de cadastro e a tela de signup."
 course: express
 sidebar:
-  label: "5. Cadastro de Usuário"
+  label: "8. Cadastro de Usuário"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import FileTree from '@components/FileTree.astro';
+import HtmlPreview from '@components/HtmlPreview.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
-Etapa **5 de 6** · Nível **Avançado** · TypeScript · Prisma · `node:crypto`
+Etapa **8 de 13** · Nível **Avançado** · TypeScript · Express.js · Prisma · `node:crypto`
 
 O InvestApp deixa de ser de uma pessoa só. Esta etapa acrescenta o model `User`, liga cada
 investimento a um dono e guarda a senha do único jeito aceitável: como hash.
 
-<ProjectLinks repo="luizchaves/lp2-2026" branch="create-user" path="classroom/back-end/investment-api" />
+<ProjectLinks path="examples/express/projects/invest-app-prismajs-user" devcontainer={false} />
+
+## Requisitos, histórias e critérios
+
+**Épico EP02 · Identidade e Acesso** › **Feature FT04 · Cadastro de investidor**
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF02** Cadastro de Usuários | entidade `User`, rota pública de cadastro e a tela ligada à API | atendido |
+| **RNF02** Criptografia & Segurança | hash Argon2id no formato PHC, gerado dentro do model | atendido |
+
+### US08 — Ter uma carteira própria · RF02, RNF02
+
+> **Como** visitante,
+> **quero** criar uma conta com nome, e-mail e senha,
+> **para** ter uma carteira que seja só minha.
+
+```gherkin
+Cenário: CA08.1 - Cadastro bem-sucedido
+  Quando envio POST /api/users com nome, e-mail e senha válidos
+  Então recebo o status 201
+  E o corpo traz id, nome e e-mail
+  Mas o corpo não traz o campo password
+
+Cenário: CA08.2 - E-mail é único
+  Dado um usuário já cadastrado com "maria@email.com"
+  Quando envio POST /api/users com o mesmo e-mail
+  Então recebo o status 409
+
+Cenário: CA08.3 - Confirmação de senha
+  Quando envio o cadastro com password e confirmationPassword diferentes
+  Então recebo o status 400
+  E a issue aponta o campo "confirmationPassword"
+
+Cenário: CA08.4 - A senha nunca é gravada em texto
+  Dado um cadastro concluído
+  Quando consulto a coluna password no banco
+  Então o valor começa com "$argon2id$"
+  E não contém a senha digitada
+
+Cenário: CA08.5 - Cada hash tem o seu salt
+  Dado dois usuários cadastrados com a mesma senha
+  Quando comparo os dois hashes
+  Então eles são diferentes
+
+Cenário: CA08.6 - A tela conclui o fluxo
+  Quando preencho o formulário de signup.html e envio
+  Então sou redirecionado para a tela de login
+```
+
+## Tasks da etapa
+
+As tarefas abaixo implementam US08 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
+
+<Steps>
+
+1. **TK08.1 · Modificar `prisma/schema.prisma`**: Inclusão da entidade `User` e relacionamento com `Investment`.
+2. **TK08.2 · Criar `src/utils/password.ts` e `src/models/User.ts`**: Hash Argon2id com `node:crypto` e `select` sem o hash.
+3. **TK08.3 · Criar a rota `POST /api/users`**: Controller, schema e roteador do auto-cadastro.
+4. **TK08.4 · Modificar `public/js/signup.js`**: Conexão do formulário HTML com o endpoint de registro.
+
+</Steps>
+
+### 1. Modificar `prisma/schema.prisma` (Model User e relação em Investment)
+
+O schema muda em dois pontos, e os dois estão destacados.
+
+O primeiro são as linhas 21 e 22, dentro do `model Investment`: a relação `user` e a chave estrangeira `userId`, no mesmo par de linhas que `category` e `broker` já usavam. O `onDelete: Cascade` da linha 21 é a diferença importante — apagar um usuário apaga junto os investimentos dele, o que evita registros órfãos apontando para um dono que não existe mais.
+
+O segundo é o `model User` das linhas 34 a 40. São quatro campos, e dois deles carregam decisões: o `email` da linha 37 é `@unique`, e é essa restrição que permite ao banco recusar um cadastro duplicado sem que a aplicação precise consultar antes; e o `password` da linha 38 é um `String` comum, porque o que será gravado ali não é a senha, e sim o hash dela.
+
+A linha 39 fecha a relação do outro lado: `investments Investment[]` é a ponta "muitos" que torna possível pedir ao Prisma a carteira inteira de um usuário.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/prisma/schema.prisma"
+  title="prisma/schema.prisma"
+  showLineNumbers
+  mark="21-22,34-40"
+/>
+
+### 2. Criar `src/utils/password.ts` e `src/models/User.ts` (Hash da senha)
+
+Nenhuma dependência nova: o hash é feito com `node:crypto`, importado na linha 10. O Node traz o **Argon2id** embutido, que é o algoritmo recomendado hoje para senha — mais resistente a ataque com GPU do que os anteriores, porque o custo dele é de **memória**, e não só de processador.
+
+As constantes das linhas 14 a 23 são esse custo declarado: 64 MiB de memória, 3 passagens e 4 threads. São os números que tornam cada tentativa de quebra cara.
+
+O `hashPassword` da linha 33 gera um sal novo a cada chamada (linha 34) e devolve tudo junto em uma string no **formato PHC**:
+
+```txt title="O que fica gravado na coluna password"
+$argon2id$v=19$m=65536,t=3,p=4$1x8S8vrkIM+oF8Y...$RdescudvJCsgt3ub...
+```
+
+Repare no que essa string carrega: o algoritmo, a versão, os três parâmetros de custo, o sal e só então o hash. Guardar os parâmetros **junto** do hash é o que permite endurecer os custos amanhã sem invalidar as senhas cadastradas hoje — o `verifyPassword` da linha 54 lê os parâmetros do próprio registro antes de refazer a conta.
+
+A última linha da verificação usa `timingSafeEqual`, e não `===`. Uma comparação comum de strings para no primeiro byte diferente, e o tempo que ela leva vaza informação sobre quantos bytes estavam certos. A comparação em tempo constante fecha esse canal.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/src/utils/password.ts"
+  title="src/utils/password.ts"
+  showLineNumbers
+  mark="10,14-23,33-46"
+  collapse="48-79"
+/>
+
+<Aside type="note" title="Por que não instalar `bcrypt` ou `argon2`">
+  Até o Node 22, hash de senha exigia dependência nativa — `bcrypt` e `argon2` precisam ser
+  compilados na instalação, o que quebra em imagens Docker enxutas e em CI. Com o Argon2id no
+  `node:crypto`, essa dependência deixou de existir: menos superfície de ataque, menos build e
+  o algoritmo mais recomendado hoje. Ver a implementação também ensina o que a biblioteca faria
+  por você.
+</Aside>
+
+O model usa isso em uma linha. O `select` da linha 9 lista os campos públicos e **omite o `password`**, então o hash simplesmente não existe no objeto que sai do model — nenhuma rota precisa lembrar de apagá-lo. E o `hashPassword` da linha 18, dentro do `create`, garante que toda origem que crie usuário passe pelo mesmo caminho.
+
+A exceção tem nome próprio: `readByEmailWithPassword`, na linha 41, é a única função que devolve o hash, e existe exclusivamente para o login da etapa 9.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/src/models/User.ts"
+  title="src/models/User.ts"
+  showLineNumbers
+  mark="3,9,18,41-49"
+/>
+
+Repare no que o hash tem de diferente de uma criptografia: não existe função inversa. Na etapa 9, o login não vai "descriptografar" a senha guardada; vai refazer o cálculo com a senha digitada e comparar os resultados.
+
+### 3. Criar a rota `POST /api/users` (Auto-cadastro)
+
+A camada de usuário nasce completa, no mesmo formato das demais: schema, controller e roteador.
+
+O schema começa pelas regras de formato — nome com no mínimo 3 caracteres, `email()` e senha de no mínimo 8. O `refine` das linhas 12 a 17 é a novidade: ele valida uma regra que envolve **dois** campos ao mesmo tempo, conferindo que `confirmationPassword` bate com `password`. O `path` no final é o que faz o erro apontar para o campo de confirmação, e não para o formulário inteiro.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/src/schemas/user.schema.ts"
+  title="src/schemas/user.schema.ts"
+  showLineNumbers
+  mark="12-17"
+/>
+
+O controller descarta o `confirmationPassword` na desestruturação da linha 8 — ele serviu à validação e não existe no schema do Prisma. A linha 17 traduz a violação do `@unique` do e-mail em `409 Conflict`, um status mais preciso que o `400` genérico: o pedido está bem formado, mas conflita com um recurso existente.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/src/controllers/users.controller.ts"
+  title="src/controllers/users.controller.ts"
+  showLineNumbers
+  mark="8-10,17-19"
+/>
+
+A rota é pública de propósito: quem se cadastra ainda não tem conta e, portanto, não tem como se autenticar.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/src/routes/users.routes.ts"
+  title="src/routes/users.routes.ts"
+  showLineNumbers
+  mark="11"
+/>
+
+### 4. Modificar `public/js/signup.js` (Submissão do formulário)
+
+O front continua em JavaScript vanilla — o TypeScript da etapa 3 vale para o servidor, não para o navegador — e reaproveita a mesma camada `API` da etapa 2. Nenhum `fetch` aparece aqui.
+
+O `handleSubmit` segue o padrão já conhecido: `event.preventDefault()` para a página não recarregar, e `Object.fromEntries(new FormData(form))` para transformar os quatro campos do `signup.html` em um objeto. Repare que o `confirmationPassword` vai junto — é exatamente o campo que o `refine` do schema confere no servidor.
+
+Quando a resposta traz o `email`, o cadastro deu certo e o front redireciona para a tela de login.
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/public/js/signup.js"
+  title="public/js/signup.js"
+  showLineNumbers
+/>
 
 ## A migration
 
-Duas mudanças no schema: um model novo e uma chave estrangeira em `Investment`.
-
-```prisma title="prisma/schema.prisma" showLineNumbers {2-3,10-16}
-model Investment {
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
-  brokerId   String
-  broker     Broker   @relation(fields: [brokerId], references: [id])
-}
-
-model User {
-  id          String       @id @default(cuid())
-  name        String
-  email       String       @unique
-  password    String
-  investments Investment[]
-}
-```
+As duas mudanças do schema — o model novo e a chave estrangeira — viram uma migration só.
 
 <Mermaid title="Modelo de dados após a introdução do usuário">
 {`
@@ -58,7 +210,7 @@ erDiagram
   INVESTMENT {
     string id PK
     string name
-    int amount
+    int value
     string userId FK
     string categoryId FK
     string brokerId FK
@@ -76,97 +228,47 @@ npx prisma migrate dev --name add_user_model
   migration, ou resetar o banco de desenvolvimento — que é o que esta etapa faz.
 </Aside>
 
-## O hash da senha
-
-A senha é derivada dentro do model, para que **toda** origem que crie usuário — a rota, o
-seed, um script — passe pelo mesmo caminho:
-
-```ts title="src/models/User.ts" showLineNumbers {1,5,10}
-import { hashPassword } from '@/utils/password.ts';
-
-const select = { id: true, name: true, email: true };
-
-async function create({ id, name, email, password }: UserInput): Promise<User> {
-  if (name && email && password) {
-    return prisma.user.create({
-      data: { ...(id ? { id } : {}), name, email, password: hashPassword(password) },
-      // A senha nem sai do banco: o select não a inclui.
-      select,
-    });
-  }
-
-  throw new Error('Unable to create user');
-}
-```
-
-E a implementação do hash é a mesma da aula de [Senhas e Hash](../../../auth/passwords/):
-Argon2id do `node:crypto`, no formato PHC, sem `bcrypt`.
-
-```ts title="src/utils/password.ts" showLineNumbers {1,4}
-import { argon2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
-
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16);
-  const hash = argon2Sync('argon2id', {
-    message: password,
-    nonce: salt,
-    memory: 65536,
-    passes: 3,
-    parallelism: 4,
-    tagLength: 64,
-  });
-
-  return `$argon2id$v=19$m=65536,t=3,p=4$${toBase64(salt)}$${toBase64(hash)}`;
-}
-```
-
-<Aside type="danger" title="A exceção tem nome próprio">
-  Só uma função devolve o hash — `readByEmailWithPassword`, usada exclusivamente pelo login
-  da próxima etapa. Todas as demais usam `select`, e a senha simplesmente não existe no
-  resultado.
+<Aside type="danger" title="Hash não é criptografia">
+  Criptografia é reversível: existe uma chave que devolve o texto original. Hash não é — e é
+  justamente por isso que ele serve para senha. Um vazamento do banco entrega hashes, não
+  credenciais, e nem o administrador do sistema consegue ler a senha de alguém.
 </Aside>
 
-## A rota
-
-O cadastro é público; as demais operações sobre usuários, não:
-
-```ts title="src/routes/users.routes.ts" showLineNumbers {3}
-const router = Router();
-
-router.post('/users', requireJson, UserController.create);
-router.get('/users', UserController.read);
-router.get('/users/:id', UserController.readById);
-router.put('/users/:id', requireJson, UserController.update);
-router.delete('/users/:id', UserController.remove);
-
-export default router;
-```
+<Aside type="caution" title="A senha sai do banco; é a rota que a remove">
+  Este model não usa o `select` do Prisma, então `prisma.user.create` devolve o registro
+  completo, com o hash. O `delete newUser.password` da rota é o que impede o campo de chegar
+  ao cliente — e ele precisa ser repetido em **toda** rota que devolva usuário. Uma alternativa
+  mais segura é declarar um `select` no próprio model, para que a senha nunca saia do banco.
+</Aside>
 
 ## Estrutura
 
+A etapa acrescenta uma entidade ao schema, um model, uma rota e duas telas de front —
+`signup.html` para criar a conta e `signin.html`, ainda sem comportamento, que a etapa 9 vai
+ligar.
+
 <FileTree>
 {`
-  investment-api/
+  invest-app-prismajs-user/
+  ├── .env.example                DATABASE_URL
   ├── prisma/
-  │   ├── migrations/
-  │   │   ├── 20260527003251_init/
-  │   │   └── 20260704020623_add_user_model/
-  │   └── schema.prisma
+  │   ├── migrations/             ganha a migration do User
+  │   └── schema.prisma           model User + relação em Investment
   ├── public/
-  │   ├── register.html            tela de cadastro
+  │   ├── home.html
+  │   ├── signup.html             tela de cadastro
+  │   ├── signin.html             ainda sem comportamento
   │   └── js/
-  │       └── register.js
+  │       ├── home.js
+  │       ├── signup.js           envia o formulário para /api/users
+  │       └── services/
+  │           └── api.js
   └── src/
-      ├── controllers/
-      │   └── users.controller.ts
-      ├── models/
-      │   └── User.ts
-      ├── routes/
-      │   └── users.routes.ts
-      ├── types/
-      │   └── User.d.ts
-      └── utils/
-          └── password.ts          Argon2id nativo
+      ├── routes.js               ganha POST /api/users
+      └── models/
+          ├── Category.js
+          ├── Investment.js
+          └── User.js             o hash da senha mora aqui
 `}
 </FileTree>
 
@@ -174,21 +276,22 @@ export default router;
 
 <Steps>
 
-1. Troque para a branch e instale:
+1. Entre na pasta desta etapa e instale:
 
    ```bash title="Terminal"
-   git switch create-user
+   cd examples/express/projects/invest-app-prismajs-user
    npm install
    cp .env.example .env
    ```
 
-2. Recrie o banco com o schema novo:
+2. Recrie o banco com o schema novo e popule categorias e usuário padrão:
 
    ```bash title="Terminal"
-   npm run db:reload
+   npx prisma migrate deploy
+   npx prisma db seed
    ```
 
-3. Suba e abra a tela de cadastro em <code>http://localhost:3000/register.html</code>:
+3. Suba o servidor e abra a tela de cadastro em <code>http://localhost:3000/signup.html</code>:
 
    ```bash title="Terminal"
    npm run dev
@@ -208,10 +311,10 @@ export default router;
 `}
 </ApiRequest>
 
-<ApiResponse status={200} description="Sem a senha — nem em texto, nem em hash">
+<ApiResponse status={201} description="Sem a senha — a rota a remove antes de responder">
 {`
   {
-    "id": "clx9f2a10000",
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
     "name": "Maria",
     "email": "maria@email.com"
   }
@@ -221,28 +324,57 @@ export default router;
 Vale conferir no banco que o que foi gravado é o hash, e não a senha:
 
 ```bash title="Terminal"
-npm run db:studio
+npx prisma studio
 ```
 
 ```txt title="Coluna password"
-$argon2id$v=19$m=65536,t=3,p=4$Zm9vYmFy…$RdescudvJCsgt3ub…
+$argon2id$v=19$m=65536,t=3,p=4$1x8S8vrkIM+oF8Y2Kw$RdescudvJCsgt3ubKQ9k1w
 ```
+
+Cada `$` separa um campo: o algoritmo, a versão do Argon2, os três parâmetros de custo, o
+*salt* aleatório e o hash. Cadastre a mesma senha duas vezes e compare — os hashes serão
+diferentes, porque o salt é novo a cada chamada.
 
 ## O diff que importa
 
 ```bash title="Terminal"
-git diff prisma-js create-user -- classroom/back-end/investment-api
+git diff --no-index -- \
+  examples/express/projects/invest-app-prismajs-relation \
+  examples/express/projects/invest-app-prismajs-user || true
 ```
 
-Aparecem três coisas: a migration do `User`, o `utils/password.ts` e a camada de usuário
-(model, controller, router, tipo). Nenhuma linha de autenticação ainda — cadastrar e
-autenticar são problemas diferentes, e esta etapa resolve só o primeiro.
+Aparecem quatro coisas: a migration do `User`, o `src/models/User.js`, a rota `POST /api/users`
+e o `public/js/signup.js`. Nenhuma linha de autenticação ainda — cadastrar e autenticar são
+problemas diferentes, e esta etapa resolve só o primeiro.
+
+O padrão da alteração no schema é sempre o mesmo par de linhas. Compare o `model Investment`
+das duas etapas:
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-relation/prisma/schema.prisma"
+  title="Etapa 7 — investimento sem dono"
+  lines="13-23"
+  showLineNumbers
+/>
+
+<SourceCode
+  path="examples/express/projects/invest-app-prismajs-user/prisma/schema.prisma"
+  title="Etapa 8 — o mesmo model, agora com userId"
+  lines="13-25"
+  showLineNumbers
+  mark="21-22"
+/>
+
+Duas linhas a mais, e nada mais muda no model. O peso da alteração está na migration que ela
+gera — e é sobre isso que o aviso do `userId` obrigatório fala.
 
 ## Conceitos abordados
 
 - Migration que acrescenta um model e uma chave estrangeira
-- Hash de senha com Argon2id nativo, no formato PHC
-- `select` do Prisma impedindo a senha de sair do banco
+- Hash de senha com Argon2id do `node:crypto`, sem dependência externa
+- Formato PHC: parâmetros de custo e salt viajando junto do hash
+- Comparação em tempo constante com `timingSafeEqual`
+- A senha removida da resposta antes de sair da rota
 - Rota pública de cadastro e o restante protegido
 - Formulário de cadastro consumindo a API
 
