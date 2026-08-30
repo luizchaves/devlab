@@ -1,0 +1,253 @@
+# AGENTS.md
+
+Instruções para agentes de IA que trabalham neste repositório.
+
+O [`README.md`](README.md) é a documentação humana e continua sendo a **fonte da
+verdade** sobre arquitetura, componentes e publicação. O [`docs/PRD.md`](docs/PRD.md)
+descreve os requisitos do produto e objetivos. Este arquivo diz **como
+trabalhar** aqui: o que nunca quebrar, qual fluxo seguir e o que validar antes de
+entregar. Em caso de conflito, o README vence — e este arquivo deve ser corrigido.
+
+## O que é o DevLab
+
+Portal de disciplinas e guias de programação, construído com **Astro 7 + Starlight**
+e publicado no GitHub Pages sob um `base` (`/devlab`). O conteúdo é escrito em
+Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
+
+| Dimensão                      | Estado atual                                  |
+| ----------------------------- | --------------------------------------------- |
+| Cursos e guias                | 14 (`src/lib/courses.ts`)                     |
+| Páginas de aula               | 248 arquivos `.mdx`                           |
+| Projetos executáveis          | ~116 diretórios em `examples/courses/`        |
+| Slides / mapas mentais        | 66 / 66 em `materials/`                       |
+| Devcontainers (Codespaces)    | 18 pastas em `.devcontainer/`                 |
+| Idioma                        | Português do Brasil                           |
+
+## Regras invioláveis
+
+1. **Código de aula não é copiado para o Markdown.** Código que roda mora em
+   `examples/` e entra na página por `<SourceCode path="…" />`. Blocos escritos à mão
+   só para o que **não** existe em `examples/`: pseudocódigo, comparações
+   "antes/depois", trechos ilustrativos e comandos de terminal.
+2. **Links internos são relativos** — nunca escreva o `base` (`/devlab/…`) à mão. As
+   URLs terminam em barra (`trailingSlash: 'always'`), então de uma aula a irmã é
+   `../outra-aula/` e uma pasta vizinha é `../../database/sql/`.
+3. **Nunca edite artefatos gerados**: `dist/`, `.astro/`, `public/slides/`,
+   `public/mindmaps/`, `public/examples/`. Eles saem do build — edite a origem
+   (`materials/`, `examples/`, `src/`).
+4. **Escreva em português do Brasil**, inclusive comentários de código, mensagens de
+   commit e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**.
+5. **`examples/` não faz parte do workspace.** Cada projeto tem `package.json` e
+   `node_modules` próprios; o build da documentação e o CI não instalam Express,
+   Prisma nem nada de lá. Não adicione esses projetos ao workspace raiz.
+6. **Não instale dependência nova sem pedir.** A stack é fechada e o CI é
+   `--frozen-lockfile`. Cada projeto de `examples/` deve documentar em seu próprio `README.md` ou `PRD.md` a motivação e utilidade das dependências utilizadas.
+
+## Comandos
+
+Requer **Node.js 22+** e **pnpm 10+**. Use `pnpm`, nunca `npm` ou `yarn`, na raiz.
+
+| Comando                | O que faz                                                    |
+| ---------------------- | ------------------------------------------------------------ |
+| `pnpm dev`             | Build de materiais + servidor em `http://localhost:4321/devlab/` |
+| `pnpm build`           | Materiais + site estático em `dist/` + previews públicas      |
+| `pnpm build:fast`      | Pula a regeneração de slides/mapas (iteração rápida)          |
+| `pnpm check`           | `astro check` (tipos de componentes e frontmatter)            |
+| `pnpm lint`            | Biome (lint + formatação)                                     |
+| `pnpm lint:fix`        | Corrige o que for automático                                  |
+| `pnpm check:links`     | Valida todos os links internos contra o `dist/`               |
+| `pnpm check:doc-lines` | Confere `mark`/`collapse`/`lines` do `<SourceCode>`           |
+| `pnpm validate`        | Tudo acima, na ordem do CI                                    |
+
+Marp (slides) e markmap (mapas mentais) rodam via `pnpm build:materials`. Se o
+`marp` não estiver disponível na máquina, use `pnpm build:fast` e diga isso ao
+usuário em vez de mexer nos artefatos de `public/`.
+
+## Mapa do repositório
+
+| Caminho                     | Papel                                                        |
+| --------------------------- | ------------------------------------------------------------ |
+| `src/content/docs/courses/` | Conteúdo das aulas, um diretório por curso                    |
+| `src/components/`           | Componentes `.astro` do projeto (camadas finas sobre Starlight) |
+| `src/lib/`                  | Leitura de `examples/`, catálogo de cursos e projetos, `withBase()` |
+| `examples/courses/`         | Projetos executáveis, fonte única do código das aulas          |
+| `materials/`                | `*.slide.md` (Marp) e `*.mindmap.md` (markmap)                 |
+| `exercises/`                | `*.exercise.md` e `*.braincheck.md`                            |
+| `.devcontainer/`            | Uma pasta por projeto, para o botão "Abrir no Codespaces"      |
+| `docs/PRD.md`               | Especificação de Requisitos do Produto (visão geral DevLab)   |
+| `docs/TODO.md`              | Lista de tarefas e roadmap com IDs (`TASK-XXX`)               |
+| `.agents/skills/`           | Skills do repositório (ver abaixo)                             |
+| `scripts/`                  | Builds de materiais e validadores (`check-links`, `check-doc-lines`) |
+| `astro.config.mjs`          | Sidebar explícita de todos os cursos (~1.200 linhas)           |
+| `site.config.mjs`           | `SITE_URL`, `BASE_PATH`, `REPO_URL`, `REPO_BRANCH`             |
+
+Aliases disponíveis: `@components/*`, `@lib/*`, `@assets/*`.
+
+## Fluxo para criar ou alterar uma aula
+
+1. Localize o arquivo em `src/content/docs/courses/<curso>/<categoria>/<topico>.mdx`.
+   Curso novo? Crie o diretório, o `index.mdx` e registre em `src/lib/courses.ts`.
+2. Escreva o frontmatter: `title`, `description` (uma frase densa, vira `<meta>`),
+   `course` (id do curso) e, quando útil, `sidebar.label` / `sidebar.order` e
+   `project`.
+3. Se a aula mostra código que roda, **crie ou reaproveite o projeto em
+   `examples/`** antes de escrever a página, e importe com `<SourceCode>`.
+4. Registre a página na sidebar em `astro.config.mjs` — as sidebars são explícitas,
+   não autogeradas; uma página fora dela existe mas não aparece na navegação.
+5. Rode `pnpm build && pnpm check:links && pnpm check:doc-lines`.
+
+Página nova de projeto (não de conceito) abre com `<ProjectLinks>` e, se for entrar
+na homepage, entra também em `src/lib/projects.ts` — os cartões apenas percorrem essa
+lista.
+
+## Convenções de escrita
+
+A estrutura completa das aulas está em
+[`.agents/skills/devlab-topic-docs-generator/SKILL.md`](.agents/skills/devlab-topic-docs-generator/SKILL.md).
+O essencial:
+
+- **Ordem da aula**: parágrafo de abertura → linha `Materiais:` (só se os arquivos
+  existirem) → `## Objetivo` → seções de conteúdo → `## Executando` →
+  `## Exercício` → `## Desafio` → `## Perguntas de revisão` → `## Referências` →
+  `## Próxima aula`. `Objetivo`, `Exercício` e `Próxima aula` são obrigatórios.
+- **Sempre um parágrafo antes de uma tabela ou de um bloco de código.** Nada de
+  título seguido direto de código: o texto diz o que olhar, citando a linha, a função
+  ou a variável em questão.
+- **Nunca uma subseção isolada.** Se `### A` existe, `### B` também precisa existir;
+  caso contrário, o conteúdo vira prosa da seção-mãe.
+- **Diagramas em Mermaid** (`<Mermaid>` ou fence ```mermaid```), não em imagem.
+- **Página de conceito ≠ página de projeto.** Conceito mostra 5–15 linhas
+  autocontidas; o arquivo inteiro, a árvore de diretórios, o `package.json` e o passo
+  a passo de execução ficam na página de projeto. Cada uma linka a outra.
+- **`.md` por padrão, `.mdx` quando precisar de componente.** Na prática hoje todas
+  as 248 páginas são `.mdx`, porque quase toda aula usa `<Aside>` ou `<SourceCode>`.
+- Em `.mdx`, importe **apenas** o que for usado.
+
+## Componentes
+
+Antes de criar um componente, verifique se o Starlight já resolve (`Aside`, `Badge`,
+`Card`, `CardGrid`, `LinkCard`, `Steps`, `Tabs`, `TabItem`, `Icon`, `Code`). Os
+componentes do projeto são camadas finas sobre eles:
+
+| Componente             | Para quê                                                   |
+| ---------------------- | ---------------------------------------------------------- |
+| `<SourceCode>`         | Código a partir de um arquivo real (`path`, `lines`, `region`) |
+| `<CodeTabs>`           | Vários arquivos reais em abas                               |
+| `<HtmlPreview>`        | Como o navegador renderiza um HTML real (iframe `sandbox=""`) |
+| `<FileTree>`           | Árvore de arquivos escrita como texto                       |
+| `<PackageManagerTabs>` | npm / pnpm / yarn sincronizados no site inteiro             |
+| `<ApiRequest>` / `<ApiResponse>` | Requisição e resposta HTTP                        |
+| `<ProjectLinks>`       | Botões GitHub + Codespaces de uma página de projeto         |
+| `<ProjectCard>`        | Cartão de projeto vindo de `src/lib/projects.ts`            |
+| `<Mermaid>`            | Diagramas                                                   |
+
+Detalhes de props, regiões `#region`, `mark`/`ins`/`del`/`collapse` e as ressalvas do
+Expressive Code estão no README, seção "Componentes".
+
+Ao usar `lines` ou `region`, os intervalos de `mark` referem-se às linhas do **trecho
+exibido**, não à numeração original da régua.
+
+## Projetos em `examples/`
+
+Ao criar um projeto novo:
+
+1. `package.json` próprio, `"private": true`, `"type": "module"`, scripts `dev` e
+   `start`.
+2. `README.md` curto com rotas e como executar.
+3. Uma pasta em `.devcontainer/` (copie a mais próxima e ajuste `name`,
+   `workspaceFolder`, `postCreateCommand`, `postAttachCommand`).
+4. Registro em `src/lib/projects.ts` se for aparecer na homepage.
+5. `// #region <nome>` / `// #endregion` para marcar os trechos que a aula recorta —
+   essas linhas nunca aparecem na documentação.
+
+Nada mais é necessário: `examples/**` já é diretório autorizado para leitura em build
+time (`import.meta.glob`, sem acesso a filesystem no navegador e sem traversal).
+
+### Trilhas InvestApp e MonitorApp
+
+As duas aplicações são **cumulativas por construção**: cada etapa
+(`invest-app-static` → `-api` → `-typescript` → `-validation` → `-db-simple` →
+`-mvc` → `-auth` → …) parte da anterior e acrescenta uma camada. Ao mexer em uma
+etapa, verifique se a mudança precisa propagar para as seguintes.
+
+Convenções dessas trilhas, já estabelecidas no código:
+
+- **Express 5**, sem `express-async-errors` (o Express 5 já encaminha rejeições).
+- **TypeScript da terceira etapa em diante**, com `tsx` e `--env-file=.env` nativo.
+- **Autenticação sem dependência externa**: `node:crypto` para hash de senha e para
+  assinar o JWT. Não instale `bcrypt`, `jsonwebtoken` nem `dotenv`.
+- **Zod** para validação estrita de `body`, `query` e `params`.
+- **Prisma 7** com driver adapter (`@prisma/adapter-better-sqlite3`) nas etapas
+  atuais; projetos antigos ainda em Prisma 5/6 e Express 4 são legado — não os
+  migre de passagem.
+
+Conteúdo de Python usa **`uv`** para ambiente e execução, nunca `venv` + `pip`.
+
+## Materiais: slides e mapas mentais
+
+`materials/courses/<curso>/<categoria>/<topico>.slide.md` vira
+`/slides/courses/<curso>/<categoria>/<topico>/`, e `.mindmap.md` vira
+`/mindmaps/…` — o caminho espelha o da aula. Só cite na linha `Materiais:` o que
+existe; um link para material inexistente quebra o `pnpm check:links`. Não linke
+arquivos `.excalidraw`: eles não são copiados para `public/`.
+
+## Estilo de código
+
+- **Biome** com aspas simples, ponto e vírgula, vírgula final `es5`, indentação de 2
+  espaços e largura de 100 colunas. Rode `pnpm lint:fix` antes de entregar.
+- **TypeScript strict** (`astro/tsconfigs/strict` + `verbatimModuleSyntax`).
+- Nos componentes, use os tokens do tema (`sl-accent`, `sl-gray-*`, `text-sl-h5`…)
+  em vez de cores fixas, para que dark/light funcione sozinho.
+- `examples/` fica fora do Biome e do `tsconfig` da raiz — cada projeto tem as
+  próprias regras.
+
+## Commits e Mensagens
+
+- **Commits granulares e atômicos**: Faça commits pequenos, focados e frequentes à medida que conclui etapas lógicas ou tarefas, sem acumular grandes volumes de edições em um único commit.
+- **Prefixos padronizados (Conventional Commits)** em português do Brasil:
+  - `feat:` nova funcionalidade, página de aula ou componente.
+  - `fix:` correção de erro, bug ou link quebrado.
+  - `docs:` atualizações em documentação, textos de aula, `TODO.md` ou `AGENTS.md`.
+  - `style:` ajustes de formatação, layout, CSS ou lint.
+  - `refactor:` reestruturação de código sem alteração de comportamento.
+  - `test:` criação ou ajuste de testes.
+  - `chore:` manutenção de scripts, dependências ou configurações do projeto.
+- **Referência a Tasks**: Sempre que o commit estiver associado a uma tarefa de [`docs/TODO.md`](docs/TODO.md), inclua a tag do ID no commit (ex: `docs: [TASK-001.1] adiciona guia de express`).
+
+## Antes de terminar
+
+Rode o que o CI roda:
+
+```bash
+pnpm validate
+```
+
+Isso encadeia `lint` → `check` → `build` → `check:links` → `check:doc-lines`. Se
+alterou `<SourceCode>` ou o arquivo apontado por ele, `check:doc-lines` é o que pega
+citação de linha desatualizada. Relate falhas com a saída real; não declare validado
+o que não rodou.
+
+## Skills do repositório
+
+Em `.agents/skills/`, use quando a tarefa for a delas:
+
+| Skill                        | Quando                                            |
+| ---------------------------- | ------------------------------------------------- |
+| `devlab-topic-docs-generator`| Criar, expandir ou revisar uma página de aula     |
+| `marp-slides-generator`      | Deck `.slide.md` de um tópico                     |
+| `markmap-mindmap-generator`  | Mapa mental `.mindmap.md`                         |
+| `excalidraw-generator`       | Diagrama/slides no estilo lousa (`.excalidraw`)   |
+
+As skills de slides e mapas mentais ainda citam os diretórios antigos `slides/` e
+`mindmaps/`; o local correto hoje é `materials/`, com os sufixos `.slide.md` e
+`.mindmap.md`.
+
+## O que evitar
+
+- Duplicar código de `examples/` dentro da página.
+- Escrever `/devlab/` em links de conteúdo.
+- Criar componente novo para algo que o Starlight já faz.
+- Editar `dist/`, `.astro/` ou `public/slides|mindmaps|examples`.
+- Renomear rotas de curso sem atualizar `src/lib/courses.ts`, a sidebar em
+  `astro.config.mjs` e os links relativos que apontam para elas.
+- Migrar projetos legados de `examples/` "de passagem", sem pedido explícito.
