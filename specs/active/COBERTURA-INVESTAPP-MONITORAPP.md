@@ -1,6 +1,6 @@
 # Cobertura do passo a passo — InvestApp e MonitorApp
 
-Status: **diagnóstico concluído, correções pendentes**
+Status: **etapas A, B e D concluídas; etapa C parcial**
 Tarefas de origem: `TASK-015.1` e `TASK-015.2` de [`docs/TODO.md`](../../docs/TODO.md)
 Data da auditoria: 2026-08-30
 
@@ -25,10 +25,21 @@ comparando a pasta da etapa `n` com a da etapa `n-1` (arquivo a arquivo, por con
 confrontado com o que a página daquela etapa efetivamente exibe em `<SourceCode>` e
 `<CodeTabs>` — resolvendo `lines` e `region` para o conjunto real de linhas mostradas.
 
-Ficaram fora da contagem os binários (`.png`, fontes), o `package-lock.json`, os bancos `.db` e
-os diretórios gerados (`node_modules`, `dist`, `coverage`). As migrations do Prisma foram
-contadas à parte, por serem geradas por comando. As etapas 12 e 13 compartilham a mesma pasta
-(`*-test`), então a cobertura daquele delta considera as duas páginas juntas.
+Ficaram fora da contagem os binários (`.png`, fontes), o `package-lock.json`, os bancos `.db`, o
+`app.css` gerado pela CLI do Tailwind e os diretórios gerados (`node_modules`, `dist`,
+`coverage`). As etapas 12 e 13 compartilham a mesma pasta (`*-test`), então a cobertura daquele
+delta considera as duas páginas juntas.
+
+**A primeira medição desta spec estava errada, e a correção mudou o diagnóstico.** Ela contava,
+para cada arquivo tocado pela etapa, quantas das suas linhas **totais** apareciam na página. Isso
+pune injustamente um `openapi.ts` de 400 linhas que muda dez, e conta como descoberto um arquivo
+apenas renomeado. A medição correta — a que a `TASK-015.2` pede — é sobre as **linhas alteradas**:
+os hunks do diff contra a etapa anterior, com renomeações e movimentações detectadas por
+semelhança de conteúdo e comparadas contra a origem.
+
+Pela métrica antiga o InvestApp exibia 30% e o MonitorApp 52%. Pela métrica correta, no estado em
+que a auditoria encontrou o repositório, eram **62% e 82%**. As tabelas abaixo trazem as duas
+leituras: a que motivou o trabalho e a que mede o resultado.
 
 A auditoria é reprodutível por script; ele não foi promovido a `scripts/` para não entrar no
 contrato do `pnpm validate` sem decisão explícita.
@@ -80,6 +91,40 @@ entre 54% e 99%; da etapa 7 em diante ela cai para a faixa de 11% a 41%**. A cau
 estrutural, não de redação: a etapa 7 é onde o Prisma entra e o número de arquivos por etapa
 triplica (de 8 para 29 no InvestApp, de 8 para 30 no MonitorApp) sem que o número de tasks
 acompanhe — a etapa 7 do InvestApp descreve 4 TKs para 29 arquivos alterados.
+
+### Resultado depois das correções
+
+A tabela abaixo mede, por etapa, quantas das **linhas alteradas** chegam à página — a métrica
+corrigida descrita no método. A coluna "antes" é o estado em que a auditoria encontrou o
+repositório; a "depois", o estado atual.
+
+| Etapa | InvestApp antes | InvestApp depois | MonitorApp antes | MonitorApp depois |
+| ----- | --------------- | ---------------- | ---------------- | ----------------- |
+| 1. front estático | 92% | 92% | 99% | 99% |
+| 2. API em memória | 48% | 84% | 90% | 90% |
+| 3. TypeScript | 69% | 96% | 90% | 94% |
+| 4. validação | 89% | 89% | 98% | 98% |
+| 5. documentação | 99% | 99% | 99% | 99% |
+| 6. SQLite | 96% | 96% | 93% | 93% |
+| 7. Prisma | 40% | 50% | 58% | 64% |
+| 8. usuário / ping | 33% | 69% | 72% | 72% |
+| 9. autenticação / usuário | 64% | 68% | 67% | 67% |
+| 10. e-mail / autenticação | 64% | 73% | 73% | 73% |
+| 11. upload / tempo real | 56% | 65% | 88% | 88% |
+| 12. testes e Docker | 89% | 89% | 92% | 92% |
+| **Total** | **62%** | **78%** | **82%** | **84%** |
+
+O que resta descoberto é, em quase toda etapa, uma destas quatro categorias:
+
+| Categoria | Por que ainda não é exibida |
+| --------- | --------------------------- |
+| `prisma/migrations/*.sql` | são geradas por `prisma migrate`, não escritas à mão, e cada página já tem uma seção que explica o que a migration faz |
+| `requests.http` | o contrato executável cresce a cada rota nova; as páginas o citam, mas não reexibem os blocos |
+| `package.json` | quase sempre apenas versões de dependência, já citadas no comando de instalação da etapa |
+| `.env` e `.env.example` | **não podem** ser exibidos: o `<SourceCode>` lê `examples/` por `import.meta.glob`, que ignora arquivos ocultos |
+
+A última linha é uma limitação real da ferramenta, não uma omissão: qualquer página que quisesse
+mostrar um `.env` precisaria de um bloco escrito à mão, o que a regra 1 do `AGENTS.md` evita.
 
 ### Arquivos que mudam sem nunca reaparecer
 
@@ -204,52 +249,86 @@ página, por `src/lib/projects.ts`, pelo `astro.config.mjs` nem por `.devcontain
 
 O trabalho está ordenado por retorno didático: os bloqueadores primeiro, a cobertura depois.
 
-### Etapa A · Defeitos no código dos projetos
+### Etapa A · Defeitos no código dos projetos — **concluída**
 
-1. Escrever o conteúdo de `invest-app-prismajs-user/public/js/signin.js` (B4), alinhado ao da
-   etapa 9 e sem as partes que dependem de JWT.
-2. Regerar as migrations das etapas 7, 8 e 9 do InvestApp como uma cadeia única e crescente, em
-   que cada etapa acrescenta migrations às da anterior sem renomear as existentes (B3).
-3. Decidir o destino de `invest-app-mvc` e `invest-app-prismajs-simple`: remover, ou registrar
-   em uma página.
+1. ✅ `invest-app-prismajs-user/public/js/signin.js` era um arquivo de 0 byte carregado pela
+   tela. Como o login só existe a partir da etapa 9, o arquivo e a sua tag `<script>` foram
+   removidos em vez de preenchidos (B4).
+2. ✅ As migrations das etapas 7 a 12 foram reconstruídas como uma cadeia cumulativa em que cada
+   etapa é prefixo da seguinte, verificada aplicando os quatro arquivos em um SQLite limpo (B3).
+   As do MonitorApp já eram cumulativas e não precisaram de mudança.
+3. ✅ `invest-app-mvc` e `invest-app-prismajs-simple` foram removidas.
 
-### Etapa B · Coerência do front-end do InvestApp
+### Etapa B · Coerência do front-end do InvestApp — **concluída**
 
-4. Escolher um único framework CSS para a trilha inteira. Padronizar em Tailwind alinha o
-   InvestApp ao MonitorApp, ao protótipo visual da visão geral e ao texto do `index.mdx` (B1).
-5. Fazer as etapas 2 a 11 herdarem as quatro telas da etapa 1 em vez de reescrevê-las, ou — se a
-   redução for intencional — documentar na etapa 2 quais telas ficam de fora e por quê.
-6. Corrigir as três `<FileTree>` das etapas 7, 8 e 11 para o conteúdo real das pastas (B5).
+4. ✅ A trilha inteira passou a ser Tailwind utility-first, com os utilitários escritos no HTML e
+   o `components.css` reduzido a tokens e componentes de produto — o mesmo arquivo nas doze
+   etapas. O Bootstrap saiu por completo, incluindo `bootstrap.Offcanvas`, `bootstrap.Modal`,
+   `bootstrap.Toast` e os ícones do Iconify, substituídos por alternância de `hidden` e SVG
+   inline (B1).
+5. ✅ As quatro telas existem desde a etapa 1 e são herdadas por todas as seguintes. O que muda
+   entre etapas é o comportamento (B1).
+6. ✅ As três `<FileTree>` das etapas 7, 8 e 11 foram corrigidas, e um verificador comparou todas
+   as 26 árvores das duas trilhas contra as pastas reais (B5).
 
-### Etapa C · Tasks que faltam
+**Decisão de entrega do CSS.** O InvestApp serve `public/` direto do Express, sem Vite em
+desenvolvimento, então um `@import "tailwindcss"` não compilado chegaria cru ao navegador e
+nenhum utilitário funcionaria. O projeto passou a usar a CLI do Tailwind (`npm run css`), com o
+`app.css` versionado — clonar e rodar `npm run dev` basta. É a única dependência nova de todo
+este trabalho, e o `@tailwindcss/vite` que havia sido cogitado foi removido.
 
-7. Criar as tasks de `Broker` e `Category` na etapa 7 do InvestApp, cobrindo os dez arquivos de
-   B2.
-8. Acrescentar, nas etapas 7 a 12 de cada trilha, uma task por arquivo do delta hoje sem bloco —
-   priorizando `src/index.ts`, `src/docs/openapi.ts`, `requests.http` e `prisma/seeders.json`,
-   que são os quatro recorrentes.
-9. Onde o arquivo é grande e só muda em parte, usar `<SourceCode>` com `region` ou `lines` em vez
-   de omitir: o objetivo é que nenhuma linha do delta fique sem explicação, não que a página
-   reexiba arquivos inteiros.
-10. Reconciliar o delta com o assunto da etapa (B6): mudanças de front que não pertencem à etapa
-    devem ser movidas para a etapa correta ou ganhar a sua própria task.
+### Etapa C · Tasks que faltam — **parcial**
 
-### Etapa D · Sincronizar os documentos de especificação
+7. ✅ `TK07.5` documenta as cinco camadas de `Category` e `Broker`, e `TK07.6` mostra o
+   `<select>` alimentado pela API e o cartão com os dados da relação (B2).
+8. ⚠️ **Parcial.** Foram criadas `TK02.6` (compilação do CSS), `TK07.5`, `TK07.6`, `TK08.5`
+   (`userId` no investimento), `TK09.5` (rotas protegidas e `/users/me`), `TK10.4` (retorno ao
+   usuário no front) e `TK11.5` (avatar no resto da aplicação); a `TK03.4` ganhou os blocos de
+   código que a prosa já descrevia, e o `Tag.ts` do MonitorApp deixou de ser invisível. O que
+   resta são as quatro categorias da tabela acima.
+9. ✅ Onde o arquivo é grande e muda em parte, os blocos novos usam `lines` em vez de reexibir o
+   arquivo inteiro.
+10. ⚠️ **Parcial.** O front que evoluía fora do assunto da etapa foi reconciliado no InvestApp —
+    a `TK10.4` assume a validação e o toast que a etapa 10 introduzia em silêncio. O MonitorApp
+    não foi revisado sob esse ângulo.
 
-11. Atualizar o `backlog.mdx` das duas trilhas com as tasks criadas nas etapas B e C, mantendo a
-    matriz de rastreabilidade US → CA → TK consistente.
-12. Corrigir a stack de front-end descrita no `index.mdx` do InvestApp conforme a decisão de B4.
+### Etapa D · Sincronizar os documentos de especificação — **concluída**
+
+11. ✅ O `backlog.mdx` do InvestApp registra as sete tasks novas na matriz de rastreabilidade e
+    nas descrições, e a `TK01.2` passou a apontar `components.css` em vez de um `tailwind.css`
+    que não existe na etapa 1.
+12. ✅ O `index.mdx` descreve a stack de front que o código tem, dizendo como o Tailwind chega em
+    cada etapa.
+
+## O que fica pendente
+
+Três frentes, todas de documentação:
+
+1. **As quatro categorias de arquivo da tabela de resultados** — migrations, `requests.http`,
+   `package.json` e os `.env`. Levar o InvestApp de 78% a mais de 90% passa por decidir, para
+   cada categoria, se ela merece bloco próprio ou uma menção explícita de que não é exibida de
+   propósito.
+2. **As etapas 8 a 11 do MonitorApp**, que seguem entre 67% e 88% — o `openapi.ts` e o
+   `requests.http` são o grosso, o mesmo padrão já tratado no InvestApp.
+3. **A revisão do item 10 no MonitorApp**: conferir se alguma etapa evolui o front fora do seu
+   próprio assunto, como a etapa 10 do InvestApp fazia.
 
 ## Validação esperada
 
 Ao final, cada etapa deve satisfazer as condições abaixo, verificáveis sem leitura subjetiva:
 
-- Todo arquivo do delta de uma etapa aparece em um bloco de código da página daquela etapa ou é
-  explicitamente citado no texto com a justificativa de não ser exibido.
-- A cobertura de linhas do delta fica acima de 80% em todas as etapas das duas trilhas.
-- As entradas de toda `<FileTree>` existem na pasta correspondente.
-- `pnpm build && pnpm check:links && pnpm check:doc-lines` continuam passando.
-- Copiar a pasta da etapa `n` e aplicar as TKs da etapa `n+1` produz a pasta da etapa `n+1`.
+| Condição | Estado |
+| -------- | ------ |
+| Todo arquivo do delta aparece em um bloco de código ou é citado com justificativa | parcial — ver "o que fica pendente" |
+| Cobertura das **linhas alteradas** acima de 80% em cada etapa | não — InvestApp 78%, MonitorApp 84% no total, com etapas abaixo disso |
+| As entradas de toda `<FileTree>` existem na pasta correspondente | ✅ verificado nas 26 árvores das duas trilhas |
+| `pnpm build`, `pnpm check:links` e `pnpm check:doc-lines` passam | ✅ |
+| A cadeia de migrations de uma etapa é prefixo da seguinte | ✅ verificado aplicando os arquivos em um SQLite limpo |
+| O front da etapa `n` é herdado pela etapa `n+1`, sem reescrita | ✅ no InvestApp; já era verdade no MonitorApp |
+| Nenhum vestígio de Bootstrap ou Iconify na trilha | ✅ |
+
+A segunda linha é a que sustenta a `TASK-015.2` em aberto para uma próxima rodada. As demais
+estão fechadas.
 
 ## Rastreabilidade
 
