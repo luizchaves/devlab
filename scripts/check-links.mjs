@@ -28,11 +28,14 @@ if (!existsSync(distDir)) {
   process.exit(1);
 }
 
-/** Todos os arquivos .html gerados. */
+/** Todos os arquivos .html gerados da documentacao (ignora projetos de exemplo estáticos). */
 function listHtmlFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) return listHtmlFiles(full);
+    if (entry.isDirectory()) {
+      if (entry.name === 'examples') return [];
+      return listHtmlFiles(full);
+    }
     return entry.name.endsWith('.html') ? [full] : [];
   });
 }
