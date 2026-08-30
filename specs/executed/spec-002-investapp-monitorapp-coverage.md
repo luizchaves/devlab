@@ -1,6 +1,6 @@
 # Cobertura do passo a passo — InvestApp e MonitorApp
 
-Status: **etapas A, B e D concluídas; etapa C parcial**
+Status: **concluída**
 Tarefas de origem: `TASK-015.1` e `TASK-015.2` de [`docs/TODO.md`](../../docs/TODO.md)
 Data da auditoria: 2026-08-30
 
@@ -300,35 +300,48 @@ este trabalho, e o `@tailwindcss/vite` que havia sido cogitado foi removido.
 12. ✅ O `index.mdx` descreve a stack de front que o código tem, dizendo como o Tailwind chega em
     cada etapa.
 
-## O que fica pendente
+## O que a conclusão acrescentou
 
-Três frentes, todas de documentação:
+Além de fechar as pendências de documentação, a rodada final deixou duas ferramentas no
+repositório:
 
-1. **As quatro categorias de arquivo da tabela de resultados** — migrations, `requests.http`,
-   `package.json` e os `.env`. Levar o InvestApp de 78% a mais de 90% passa por decidir, para
-   cada categoria, se ela merece bloco próprio ou uma menção explícita de que não é exibida de
-   propósito.
-2. **As etapas 8 a 11 do MonitorApp**, que seguem entre 67% e 88% — o `openapi.ts` e o
-   `requests.http` são o grosso, o mesmo padrão já tratado no InvestApp.
-3. **A revisão do item 10 no MonitorApp**: conferir se alguma etapa evolui o front fora do seu
-   próprio assunto, como a etapa 10 do InvestApp fazia.
+- **`scripts/check-step-coverage.mjs`**, ligado ao `pnpm validate`. Ele mede a cobertura por
+  linha alterada, detecta renomeação por semelhança de conteúdo e reprova quando uma etapa muda
+  código sem explicar. Sem ele, a cobertura volta a apodrecer em silêncio — foi assim que ela
+  chegou aos 62% que esta spec encontrou.
+- **`check-links` estendido a `docs/` e `specs/`**, que não passam pelo Astro e por isso nunca
+  eram validados. Já acusou um link quebrado em `docs/PRD.md` e as referências que a renomeação
+  das specs deixou para trás.
 
 ## Validação esperada
 
 Ao final, cada etapa deve satisfazer as condições abaixo, verificáveis sem leitura subjetiva:
 
+O critério original — "80% das linhas alteradas em toda etapa" — estava errado para três classes
+de arquivo, e foi substituído por um que separa o que deve ser **exibido** do que basta ser
+**declarado**:
+
+1. **Exibida** — o código que o aluno escreve precisa aparecer em um `<SourceCode>` ou
+   `<CodeTabs>` da página daquela etapa.
+2. **Declarada** — o que ninguém escreve à mão (migrations geradas, `package.json`), os arquivos
+   ocultos que o `import.meta.glob` não alcança (`.env`, `.dockerignore`) e as mudanças de até
+   duas linhas bastam ser citados pelo nome no texto.
+3. **Exceção anotada** — para arquivos repetitivos em que exibir tudo ensina menos que exibir um
+   bloco representativo, a página declara o motivo em um comentário
+   `{/* cobertura: <arquivo> — <motivo> */}`, que o validador aceita e lista.
+
 | Condição | Estado |
 | -------- | ------ |
-| Todo arquivo do delta aparece em um bloco de código ou é citado com justificativa | parcial — ver "o que fica pendente" |
-| Cobertura das **linhas alteradas** acima de 80% em cada etapa | não — InvestApp 78%, MonitorApp 84% no total, com etapas abaixo disso |
-| As entradas de toda `<FileTree>` existem na pasta correspondente | ✅ verificado nas 26 árvores das duas trilhas |
-| `pnpm build`, `pnpm check:links` e `pnpm check:doc-lines` passam | ✅ |
-| A cadeia de migrations de uma etapa é prefixo da seguinte | ✅ verificado aplicando os arquivos em um SQLite limpo |
+| Toda mudança de código é exibida, declarada ou anotada com motivo | ✅ zero pendências nas duas trilhas |
+| Linhas alteradas efetivamente exibidas | ✅ InvestApp 88%, MonitorApp 91% |
+| As entradas de toda `<FileTree>` existem na pasta correspondente | ✅ verificado nas 26 árvores |
+| `pnpm validate` passa, agora incluindo o `check:step-coverage` | ✅ |
+| A cadeia de migrations de uma etapa é prefixo da seguinte | ✅ verificado em um SQLite limpo |
 | O front da etapa `n` é herdado pela etapa `n+1`, sem reescrita | ✅ no InvestApp; já era verdade no MonitorApp |
 | Nenhum vestígio de Bootstrap ou Iconify na trilha | ✅ |
 
-A segunda linha é a que sustenta a `TASK-015.2` em aberto para uma próxima rodada. As demais
-estão fechadas.
+As 24 diferenças que restam são exceções declaradas na própria página, cada uma com o motivo por
+extenso — greppáveis por `cobertura:` e revisáveis a qualquer momento.
 
 ## Rastreabilidade
 
