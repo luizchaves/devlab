@@ -18,10 +18,20 @@ function dedent(text: string): string {
   return minIndent > 0 ? lines.map((line) => line.slice(minIndent)).join('\n') : text;
 }
 
-export function slotHtmlToText(html: string): string {
-  const text = html
-    .replace(/<\/(p|div|pre|li)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
+export function slotHtmlToText(html: string, options?: { preserveBr?: boolean }): string {
+  let text = html;
+
+  if (options?.preserveBr) {
+    text = text.replace(/<br\s*\/?>/gi, '__SLOT_BR__');
+  }
+
+  text = text.replace(/<\/(p|div|pre|li)>/gi, '\n');
+
+  if (!options?.preserveBr) {
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+  }
+
+  text = text
     .replace(/<[^>]+>/g, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -29,6 +39,10 @@ export function slotHtmlToText(html: string): string {
     .replace(/&#(?:39|x27);/gi, "'")
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
+
+  if (options?.preserveBr) {
+    text = text.replace(/__SLOT_BR__/g, '<br/>');
+  }
 
   // Remove linhas vazias das bordas sem tocar na indentacao interna.
   return dedent(text.replace(/^\s*\n/, '').replace(/\n\s*$/, ''));
