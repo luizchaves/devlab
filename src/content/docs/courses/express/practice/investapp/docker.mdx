@@ -19,7 +19,20 @@ A aplicação final passa a rodar em um ambiente reproduzível. O Docker fixa a 
 instala dependências pelo lockfile, gera o client do Prisma e sobe o Express com as variáveis
 necessárias.
 
-<ProjectLinks path="examples/express/projects/invest-app-test" devcontainer={false} />
+<Mermaid title="Runtime Docker do InvestApp">
+{`
+flowchart TD
+  A["Imagem investapp<br/>Node + app + Prisma"] --> B["Contêiner<br/>npm start"]
+  C["Volume SQLite<br/>/app/data/dev.db"] --> B
+  D["Volume avatars<br/>/app/public/imgs/profile"] --> B
+  E["Variáveis de ambiente<br/>DATABASE_URL, JWT_SECRET, STORAGE_TYPE"] --> B
+  F["Navegador<br/>localhost:3000"] --> B
+`}
+</Mermaid>
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Empacotamento e Infraestrutura**: veja [Deploy e Containerização com Docker](../../advanced/deploy/)
+</Aside>
 
 ## Requisitos, histórias e critérios
 
@@ -69,23 +82,7 @@ Cenário: CA14.7 - Conteinerizar não altera a aplicação
   Então nenhuma linha de src/ ou public/ mudou
 ```
 
-## O fluxo
-
-A imagem contém código, dependências e migrations. Os dados que mudam em runtime ficam fora
-da imagem, em volumes:
-
-<Mermaid title="Runtime Docker do InvestApp">
-{`
-flowchart TD
-  A["Imagem investapp<br/>Node + app + Prisma"] --> B["Contêiner<br/>npm start"]
-  C["Volume SQLite<br/>/app/data/dev.db"] --> B
-  D["Volume avatars<br/>/app/public/imgs/profile"] --> B
-  E["Variáveis de ambiente<br/>DATABASE_URL, JWT_SECRET, STORAGE_TYPE"] --> B
-  F["Navegador<br/>localhost:3000"] --> B
-`}
-</Mermaid>
-
-## Tasks da etapa
+### Tasks da etapa
 
 As tarefas abaixo implementam US14 e são a ordem sugerida de execução. Cada uma tem a sua
 seção detalhada logo em seguida.
@@ -99,7 +96,48 @@ seção detalhada logo em seguida.
 
 </Steps>
 
-### 1. Criar `Dockerfile` (Receita da imagem do aplicativo)
+## Estrutura da aplicação
+
+A imagem contém código, dependências e migrations. Os dados que mudam em runtime ficam fora
+da imagem, em volumes gerenciados pelo Docker Compose:
+
+<ProjectLinks path="examples/express/projects/invest-app-test" />
+
+<FileTree>
+{`
+  invest-app-test/
+  ├── Dockerfile                  novo: receita multi-estágio da imagem Node/Express
+  ├── .dockerignore                novo: regras de exclusão no contexto de build
+  ├── compose.yaml                novo: orquestração de serviços, portas e volumes
+  ├── package.json
+  ├── prisma/
+  │   └── schema.prisma
+  ├── public/
+  │   └── imgs/
+  │       └── profile/            diretório mapeado no volume investapp-profile-images
+  └── src/
+      └── database/
+          └── dev.db              banco em disco no volume investapp-db
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+Comparando com a etapa de testes, a aplicação não ganha uma linha de regra de negócio. Entram três arquivos de empacotamento, e nada mais:
+
+| Entra | Papel |
+| ----- | ----- |
+| `Dockerfile` | como a imagem é construída e o que ela executa |
+| `.dockerignore` | o que **não** entra no contexto de build nem na imagem |
+| `compose.yaml` | porta, variáveis de ambiente e volumes de execução |
+
+Essa é a marca de um empacotamento bem-feito: o `src/`, o `public/` e o `prisma/` chegam intactos da etapa 12. Se conteinerizar tivesse exigido mudar a aplicação, alguma dependência do ambiente local teria vazado para o código.
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK13.1 · Criar `Dockerfile` (Receita da imagem do aplicativo)
 
 O arquivo tem dezoito linhas e dois estágios, separados pelo segundo `FROM` da linha 6.
 
@@ -124,7 +162,7 @@ Por fim, o `CMD` da linha 18 encadeia duas coisas: `npx prisma migrate deploy` a
   a linha 10 copia explicitamente sobrevive.
 </Aside>
 
-### 2. Criar `.dockerignore` (Exclusão de arquivos no contexto de build)
+### TK13.2 · Criar `.dockerignore` (Exclusão de arquivos no contexto de build)
 
 O `COPY . .` da linha 11 do `Dockerfile` copia tudo que não estiver listado aqui — por isso este arquivo é de segurança, e não só de desempenho.
 
@@ -132,7 +170,7 @@ As linhas 1 e 2 evitam mandar dependências e logs da máquina local; a linha 3 
 
 O par de linhas 6 e 7 merece atenção: a primeira ignora todos os uploads já feitos localmente, e a segunda, com `!`, faz uma exceção para o `avatar.png` — a imagem padrão precisa existir na imagem Docker, mas as fotos dos usuários, não.
 
-```ignore title=".dockerignore" showLineNumbers {3,5,6-7}
+```txt title=".dockerignore" showLineNumbers {3,5,6-7}
 node_modules
 npm-debug.log
 .env
@@ -150,7 +188,7 @@ test-results
   entram em tempo de execução, pelo `environment` do Compose ou por `docker run -e`.
 </Aside>
 
-### 3. Criar `compose.yaml` (Orquestração do contêiner e volumes)
+### TK13.3 · Criar `compose.yaml` (Orquestração do contêiner e volumes)
 
 ```bash title="Terminal: subir a aplicação com Docker Compose"
 docker compose up -d --build
@@ -167,28 +205,13 @@ O serviço `investapp` da linha 2 é construído a partir do próprio diretório
   mark="5,8,11-13,15-17"
 />
 
-### 4. Declarar os volumes persistentes (`investapp-db` e `investapp-profile-images`)
+### TK13.4 · Declarar os volumes persistentes (`investapp-db` e `investapp-profile-images`)
 
 Contêiner é descartável; dado, não. Os dois volumes das linhas 11 a 13 são o que sobrevive a um `docker compose down` seguido de `up`.
 
 O `investapp-db` guarda o arquivo SQLite em `/app/data`, e o `investapp-profile-images` guarda os avatares em `/app/public/imgs/profile` — os mesmos dois caminhos que a linha 14 do `Dockerfile` criou e entregou ao usuário `node`. A declaração das linhas 15 a 17 é o que registra esses volumes como nomeados e gerenciados pelo Docker.
 
 Repare que o banco fica em `/app/data`, e não em `/app/prisma`. Montar um volume sobre `/app/prisma` esconderia o `schema.prisma` e a pasta `migrations/`, que são justamente o que o `prisma migrate deploy` do `CMD` precisa ler para funcionar.
-
-## O que muda
-
-Comparando com a etapa de testes, a aplicação não ganha uma linha de regra de negócio. Entram
-três arquivos de empacotamento, e nada mais.
-
-| Entra | Papel |
-| ----- | ----- |
-| `Dockerfile` | como a imagem é construída e o que ela executa |
-| `.dockerignore` | o que **não** entra no contexto de build nem na imagem |
-| `compose.yaml` | porta, variáveis de ambiente e volumes de execução |
-
-Essa é a marca de um empacotamento bem-feito: o `src/`, o `public/` e o `prisma/` chegam
-intactos da etapa 12. Se conteinerizar tivesse exigido mudar a aplicação, alguma dependência
-do ambiente local teria vazado para o código.
 
 ## Executando
 

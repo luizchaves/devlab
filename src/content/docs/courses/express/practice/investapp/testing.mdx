@@ -13,11 +13,21 @@ import SourceCode from '@components/SourceCode.astro';
 
 Etapa **12 de 13** · Nível **Avançado** · TypeScript · `node:test` · Supertest · Vitest · Playwright
 
-Esta etapa transforma o roteiro manual em suíte automatizada. O back cobre as rotas com
-`supertest`, o front testa a camada de `fetch` com Vitest e mocks, e o Playwright valida o
-fluxo real no navegador.
+Esta etapa transforma o roteiro manual em suíte automatizada. O back cobre as rotas com `supertest`, o front testa a camada de `fetch` com Vitest e mocks, e o Playwright valida o fluxo real no navegador.
 
-<ProjectLinks path="examples/express/projects/invest-app-test" devcontainer={false} />
+Cada camada responde por um tipo de risco, e o custo cresce de cima para baixo — os oito testes de unidade rodam em 145 ms, os doze de rota em quase 800. Concentrar tudo em E2E deixaria a suíte lenta e instável; ficar só na unidade não provaria que API, banco e tela conversam:
+
+<Mermaid title="Camadas de teste do InvestApp">
+{`
+flowchart TD
+  A["Rotas<br/>node:test + supertest<br/>src/routes.test.js"] --> B["Front com mock<br/>Vitest + JSDOM<br/>public/js/services/api.test.js"]
+  B --> C["E2E<br/>Playwright no navegador<br/>tests/invest-app.spec.js"]
+`}
+</Mermaid>
+
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Garantia de Qualidade**: veja [Testes Automatizados de API](../../advanced/testing/)
+</Aside>
 
 ## Requisitos, histórias e critérios
 
@@ -68,21 +78,7 @@ Cenário: CA13.6 - Testar quase não altera a aplicação
   Então a única mudança é o index.ts passar a exportar o app
 ```
 
-## O mapa de testes
-
-Cada camada responde por um tipo de risco, e o custo cresce de cima para baixo — os oito testes
-de unidade rodam em 145 ms, os doze de rota em quase 800. Concentrar tudo em E2E deixaria a
-suíte lenta e instável; ficar só na unidade não provaria que API, banco e tela conversam:
-
-<Mermaid title="Camadas de teste do InvestApp">
-{`
-flowchart TD
-  A["Rotas<br/>node:test + supertest<br/>src/routes.test.js"] --> B["Front com mock<br/>Vitest + JSDOM<br/>public/js/services/api.test.js"]
-  B --> C["E2E<br/>Playwright no navegador<br/>tests/invest-app.spec.js"]
-`}
-</Mermaid>
-
-## Tasks da etapa
+### Tasks da etapa
 
 As tarefas abaixo implementam US13 e são a ordem sugerida de execução. Cada uma tem a sua
 seção detalhada logo em seguida.
@@ -97,7 +93,62 @@ seção detalhada logo em seguida.
 
 </Steps>
 
-### 1. Instalar as suítes e criar os testes de unidade
+## Estrutura da aplicação
+
+Os testes moram ao lado do que testam, com uma exceção: o E2E fica em `tests/`, porque o
+Playwright tem executor e configuração próprios.
+
+<ProjectLinks path="examples/express/projects/invest-app-test" />
+
+<FileTree>
+{`
+  invest-app-test/
+  ├── package.json                scripts test, coverage, front:test e e2e
+  ├── playwright.config.js
+  ├── src/
+  │   ├── index.ts                passa a exportar o app
+  │   ├── routes.test.ts          rotas com node:test + supertest
+  │   ├── controllers/
+  │   ├── models/
+  │   └── schemas/
+  │       ├── investment.schema.ts
+  │       └── investment.schema.test.ts  unidade: o schema sem HTTP
+  ├── public/
+  │   ├── css/
+  │   │   └── tailwind.css        UI final, sem Bootstrap
+  │   ├── home.html
+  │   ├── signin.html
+  │   ├── signup.html
+  │   ├── profile.html
+  │   └── js/
+  │       ├── lib/
+  │       │   ├── format.js
+  │       │   └── format.test.js  unidade: funções puras do front
+  │       ├── services/
+  │       │   ├── api.js
+  │       │   └── api.test.js     front com Vitest e mocks
+  │       └── profile.js
+  └── tests/
+      └── invest-app.spec.js      E2E com Playwright
+`}
+</FileTree>
+
+## O que muda nesta etapa
+
+Comparando com a etapa anterior, o código da aplicação praticamente não muda: entram quatro arquivos de teste, a configuração do Playwright e cinco dependências de desenvolvimento:
+
+| Entra | Papel |
+| ----- | ----- |
+| `public/js/services/api.test.js` | camada de `fetch` do front com Vitest e mocks |
+| `tests/invest-app.spec.js` | fluxo completo no navegador com Playwright |
+| `playwright.config.js` | navegadores, `baseURL` e rastreamento de falhas |
+| `supertest`, `vitest`, `jsdom`, `@playwright/test` | as suítes, todas em `devDependencies` |
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK12.1 · Instalar as suítes e criar os testes de unidade
 
 ```bash title="Terminal: instalação das suítes de teste"
 npm install -D supertest @types/supertest vitest jsdom @playwright/test
@@ -138,7 +189,7 @@ A linha 9 tem a armadilha que justifica o teste existir: `toLocaleString` separa
   depois corrigir a função, é um bom exercício desta etapa.
 </Aside>
 
-### 2. Criar `src/routes.test.ts` (Rotas com `supertest`)
+### TK12.2 · Criar `src/routes.test.ts` (Rotas com `supertest`)
 
 ```bash title="Terminal: instalação das suítes de teste"
 npm install -D supertest vitest jsdom @playwright/test
@@ -171,7 +222,7 @@ O último bloco é o mais importante da suíte: ele cria um investimento com um 
 
 Repare no que esse arquivo cobre de uma vez só: rota, middleware de autenticação, schema do Zod, controller, model, Prisma e banco. É por isso que ele é mais lento que um teste unitário — e mais valioso que ele para uma API.
 
-### 3. Criar `public/js/services/api.test.js` (Front com Vitest e mocks)
+### TK12.3 · Criar `public/js/services/api.test.js` (Front com Vitest e mocks)
 
 O front é testado sem servidor, sem banco e sem navegador de verdade: o Vitest roda em JSDOM, e o que estiver fora do módulo sob teste é substituído por um dublê.
 
@@ -188,7 +239,7 @@ O terceiro, nas linhas 52 a 63, cobre a sessão: com um `fetch` respondendo `401
   mark="7-10,14,22-29,46-48,62"
 />
 
-### 4. Criar `tests/invest-app.spec.js` (Fluxo completo com Playwright)
+### TK12.4 · Criar `tests/invest-app.spec.js` (Fluxo completo com Playwright)
 
 O E2E é o único teste que abre um navegador de verdade e percorre a aplicação como um usuário: um teste, cinco etapas, do cadastro à exclusão.
 
@@ -210,7 +261,7 @@ Repare como os elementos são localizados: `page.getByRole('textbox', { name: 'N
   natural desta etapa.
 </Aside>
 
-### 5. Criar `playwright.config.js` e os scripts do `package.json`
+### TK12.5 · Criar `playwright.config.js` e os scripts do `package.json`
 
 A configuração do Playwright define onde estão os testes e em que navegadores rodar. O `testDir` da linha 16 aponta para `./tests`, o `baseURL` da linha 32 é o que permite escrever `page.goto('/signup.html')` sem repetir o domínio, e o `projects` das linhas 39 a 53 roda a mesma suíte em Chromium, Firefox e WebKit.
 
@@ -246,60 +297,6 @@ o `SendMail` da etapa 10 apenas registra o envio quando não há SMTP configurad
 Repare que o `npm test` cobre duas camadas: o padrão `src/**/*.test.ts` pega tanto o teste de
 unidade do schema quanto o de rotas. Os dois usam o mesmo executor, e a diferença está no que
 cada um carrega — o de unidade importa uma função, o de rotas importa a aplicação inteira.
-
-## O que muda
-
-Comparando com a etapa de upload, o código da aplicação praticamente não muda: entram quatro
-arquivos de teste, uma configuração e cinco dependências de desenvolvimento.
-
-| Entra | Papel |
-| ----- | ----- |
-| `public/js/services/api.test.js` | camada de `fetch` do front com Vitest e mocks |
-| `tests/invest-app.spec.js` | fluxo completo no navegador com Playwright |
-| `playwright.config.js` | navegadores, `baseURL` e rastreamento de falhas |
-| `supertest`, `vitest`, `jsdom`, `@playwright/test` | as suítes, todas em `devDependencies` |
-
-O front também chega aqui já alinhado à base visual da primeira etapa: `css/tailwind.css`
-local, HTML sem Bootstrap vindo de CDN e interações pequenas em JavaScript vanilla. Fecha-se o
-círculo aberto na etapa 1.
-
-## Estrutura
-
-Os testes moram ao lado do que testam, com uma exceção: o E2E fica em `tests/`, porque o
-Playwright tem executor e configuração próprios.
-
-<FileTree>
-{`
-  invest-app-test/
-  ├── package.json                scripts test, coverage, front:test e e2e
-  ├── playwright.config.js
-  ├── src/
-  │   ├── index.ts                passa a exportar o app
-  │   ├── routes.test.ts          rotas com node:test + supertest
-  │   ├── controllers/
-  │   ├── models/
-  │   └── schemas/
-  │       ├── investment.schema.ts
-  │       └── investment.schema.test.ts  unidade: o schema sem HTTP
-  ├── public/
-  │   ├── css/
-  │   │   └── tailwind.css        UI final, sem Bootstrap
-  │   ├── home.html
-  │   ├── signin.html
-  │   ├── signup.html
-  │   ├── profile.html
-  │   └── js/
-  │       ├── lib/
-  │       │   ├── format.js
-  │       │   └── format.test.js  unidade: funções puras do front
-  │       ├── services/
-  │       │   ├── api.js
-  │       │   └── api.test.js     front com Vitest e mocks
-  │       └── profile.js
-  └── tests/
-      └── invest-app.spec.js      E2E com Playwright
-`}
-</FileTree>
 
 <Aside type="tip" title="Mock no front, `supertest` no back">
   No front, o mock deixa o teste responder em milissegundos e sem servidor — o que se verifica

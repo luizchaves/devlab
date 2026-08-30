@@ -18,7 +18,9 @@ Depois da separação em camadas, o InvestApp ganha uma barreira explícita na e
 Antes de controller, model ou banco receberem dados, um schema verifica `body`, `query` e
 `params`.
 
-<ProjectLinks path="examples/express/projects/invest-app-validation" devcontainer={false} />
+<Aside type="note" title="Aulas conceituais associadas">
+  - **Validação e Resiliência**: veja [Validação de Requisições](../../api/validation/) e [Tratamento de Erros](../../api/error-handling/)
+</Aside>
 
 ## Requisitos, histórias e critérios
 
@@ -35,18 +37,18 @@ Antes de controller, model ou banco receberem dados, um schema verifica `body`, 
 > **para** corrigir o cadastro sem adivinhar.
 
 ```gherkin
-Cenário: CA04.1 - Corpo inválido é recusado antes do handler
+Cenário: CA04.1 - Rejeitar corpo inválido
   Quando envio POST /api/investments com nome de 2 letras e valor negativo
   Então recebo o status 400
-  E o corpo traz uma issue para "name" e outra para "value"
-  E o handler da rota não é executado
+  E o corpo traz a lista de problemas encontrados pelo Zod
 
-Cenário: CA04.2 - Cada erro aponta a sua origem
-  Quando uma validação falha
-  Então cada issue traz um path começando em "body", "params" ou "query"
+Cenário: CA04.2 - Resposta diz qual campo falhou
+  Quando o Zod rejeita a requisição
+  Então a resposta indica se a falha veio de body, query ou params
+  E aponta o nome do campo com erro
 
-Cenário: CA04.3 - Parâmetro de rota fora de formato
-  Quando envio GET /api/investments/abc
+Cenário: CA04.3 - Parâmetro de rota é validado antes do handler
+  Quando envio GET /api/investments/abc com um id que não é UUID
   Então recebo o status 400
   E o armazenamento não chega a ser consultado
 
@@ -65,33 +67,25 @@ Cenário: CA04.6 - A validação sai dos controllers
   Então não existe nenhum if de validação de entrada
 ```
 
-## O que muda
+### Tasks da etapa
 
-A etapa anterior organizou o código. Esta etapa aproveita essa organização para encaixar um
-middleware de validação entre a rota e o handler:
+As tarefas abaixo implementam US04 e são a ordem sugerida de execução. Cada uma tem a sua
+seção detalhada logo em seguida.
 
-```diff title="Etapa 3 → 4: a verificação sai do handler e vira contrato" showLineNumbers
- // src/routes/investments.routes.ts
-+import { validate } from '@/middlewares/validate.ts';
-+import { createInvestmentSchema } from '@/schemas/investment.schema.ts';
+<Steps>
 
--router.post('/investments', requireJson, InvestmentController.create);
-+router.post(
-+  '/investments',
-+  requireJson,
-+  validate(createInvestmentSchema),
-+  InvestmentController.create,
-+);
-```
+1. **TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts`**: Middleware genérico que valida `body`, `query` e `params` contra um schema.
+2. **TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas**: Um schema por fonte de dados, composto pelas rotas que os usam.
 
-O ponto importante é que a rota passa a declarar o contrato que aceita. Dado inválido não
-fica espalhado em `if` dentro do controller.
+</Steps>
 
-## Estrutura
+## Estrutura da aplicação
 
 A etapa acrescenta dois arquivos e altera um: entram `src/middlewares/validate.ts` e
 `src/schemas/investment.schema.ts`, e o roteador passa a compor os schemas nas rotas. Todo o
 resto vem intacto da etapa 3.
+
+<ProjectLinks path="examples/express/projects/invest-app-validation" />
 
 <FileTree>
 {`
@@ -118,19 +112,33 @@ resto vem intacto da etapa 3.
 `}
 </FileTree>
 
-## Tasks da etapa
+## O que muda nesta etapa
 
-As tarefas abaixo implementam US04 e são a ordem sugerida de execução. Cada uma tem a sua
-seção detalhada logo em seguida.
+A etapa anterior organizou o código. Esta etapa aproveita essa organização para encaixar um
+middleware de validação entre a rota e o handler:
 
-<Steps>
+```diff title="Etapa 3 → 4: a verificação sai do handler e vira contrato" showLineNumbers
+ // src/routes/investments.routes.ts
++import { validate } from '@/middlewares/validate.ts';
++import { createInvestmentSchema } from '@/schemas/investment.schema.ts';
 
-1. **TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts`**: Middleware genérico que valida `body`, `query` e `params` contra um schema.
-2. **TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas**: Um schema por fonte de dados, composto pelas rotas que os usam.
+-router.post('/investments', requireJson, InvestmentController.create);
++router.post(
++  '/investments',
++  requireJson,
++  validate(createInvestmentSchema),
++  InvestmentController.create,
++);
+```
 
-</Steps>
+O ponto importante é que a rota passa a declarar o contrato que aceita. Dado inválido não
+fica espalhado em `if` dentro do controller.
 
-### 1. Instalar Zod e criar `src/middlewares/validate.ts` (Middleware genérico de validação)
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts` (Middleware genérico de validação)
 
 ```bash title="Terminal: instalação do Zod"
 npm install zod
@@ -149,7 +157,7 @@ O restante é a bifurcação. Dados inválidos viram um `HttpError` com as issue
   mark="11,13-17,20,23"
 />
 
-### 2. Criar `src/schemas/investment.schema.ts` e injetar nas rotas
+### TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas
 
 O schema é montado em duas camadas, e essa separação é o ponto didático da etapa.
 
