@@ -9,7 +9,7 @@ está no [`README.md`](../README.md).
 | Campo         | Valor                                   |
 | ------------- | --------------------------------------- |
 | Produto       | DevLab                                  |
-| Versão        | 0.1.0                                   |
+| Versão        | 0.0.1                                   |
 | Responsável   | Luiz Carlos Chaves (IFPB)               |
 | Status        | Em produção, evolução contínua          |
 | Última revisão| 30 de agosto de 2026                    |

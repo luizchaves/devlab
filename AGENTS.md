@@ -243,6 +243,7 @@ Em `.agents/skills/`, use quando a tarefa for a delas:
 | Skill                        | Quando                                            |
 | ---------------------------- | ------------------------------------------------- |
 | `devlab-topic-docs-generator`| Criar, expandir ou revisar uma página de aula     |
+| `devlab-release-generator`   | Gerar versão (SemVer), CHANGELOG.md e tag Git     |
 | `marp-slides-generator`      | Deck `.slide.md` de um tópico                     |
 | `markmap-mindmap-generator`  | Mapa mental `.mindmap.md`                         |
 | `excalidraw-generator`       | Diagrama/slides no estilo lousa (`.excalidraw`)   |
