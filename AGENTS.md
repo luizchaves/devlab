@@ -41,6 +41,7 @@ Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
    Prisma nem nada de lá. Não adicione esses projetos ao workspace raiz.
 6. **Não instale dependência nova sem pedir.** A stack é fechada e o CI é
    `--frozen-lockfile`. Cada projeto de `examples/` deve documentar em seu próprio `README.md` ou `PRD.md` a motivação e utilidade das dependências utilizadas.
+7. **Atualize a documentação `.md` sempre que necessário.** Sempre que alterar convenções, rotas, estrutura de diretórios, regras de projeto ou fluxos de trabalho, atualize imediatamente os arquivos de documentação correspondentes (`AGENTS.md`, `README.md`, `docs/PRD.md`, `docs/TODO.md` ou `specs/`). A documentação deve refletir fielmente o estado real do repositório a cada entrega.
 
 ## Comandos
 
