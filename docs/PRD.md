@@ -179,7 +179,7 @@ em sala.
 
 ## 9. Roadmap
 
-Derivado de [`docs/TODO.md`](docs/TODO.md), que continua sendo a lista operacional.
+Derivado de [`docs/TODO.md`](TODO.md), que continua sendo a lista operacional.
 
 ### Curto prazo
 

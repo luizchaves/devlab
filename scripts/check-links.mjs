@@ -128,7 +128,62 @@ for (const file of htmlFiles) {
   }
 }
 
+/*
+ * Segunda fase: os markdown que ficam fora do site.
+ *
+ * `docs/` e `specs/` não passam pelo Astro, então nenhum link deles chega ao
+ * `dist/` para ser validado acima. Eles se referenciam por caminho de arquivo,
+ * e uma renomeação de spec quebra esses links sem que nada acuse.
+ */
+const markdownFora = ['docs', 'specs'].flatMap((dir) => {
+  const raiz = join(projectRoot, dir);
+  if (!existsSync(raiz)) return [];
+  const listar = (atual) =>
+    readdirSync(atual, { withFileTypes: true }).flatMap((entrada) => {
+      const full = join(atual, entrada.name);
+      if (entrada.isDirectory()) return listar(full);
+      return entrada.name.endsWith('.md') ? [full] : [];
+    });
+  return listar(raiz);
+});
+
+let checkedFora = 0;
+
+for (const arquivo of markdownFora) {
+  const conteudo = readFileSync(arquivo, 'utf8');
+  // Ignora o que estiver dentro de bloco de código cercado.
+  const semCodigo = conteudo.replace(/```[\s\S]*?```/g, '');
+
+  for (const link of semCodigo.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    const href = link[1].trim();
+    if (/^(https?:|mailto:|#)/.test(href)) continue;
+
+    const [caminho] = href.split('#');
+    if (!caminho) continue;
+
+    // Só interessa referência a arquivo: caminho relativo explícito ou com
+    // extensão. Uma rota do site (`courses/express/`) não é arquivo em disco, e
+    // aparece nestes documentos como texto citado, não como link navegável.
+    const referenciaArquivo = /^\.{1,2}\//.test(caminho) || /\.[a-z0-9]+$/i.test(caminho);
+    if (!referenciaArquivo) continue;
+
+    checkedFora += 1;
+    const alvo = resolve(dirname(arquivo), caminho);
+    if (!existsSync(alvo)) {
+      problems.push({
+        from: relative(projectRoot, arquivo),
+        href,
+        resolved: relative(projectRoot, alvo),
+        reason: 'arquivo não existe',
+      });
+    }
+  }
+}
+
 console.log(`${htmlFiles.length} páginas · ${checked} links internos verificados`);
+console.log(
+  `${markdownFora.length} markdown fora do site · ${checkedFora} links de arquivo verificados`
+);
 
 if (problems.length === 0) {
   console.log('Nenhum link quebrado.');
