@@ -1030,6 +1030,14 @@ export default defineConfig({
                       label: '10. Endurecimento',
                       link: '/courses/expressjs/practice/taskapi/hardening/',
                     },
+                    {
+                      label: '11. Serviços',
+                      link: '/courses/expressjs/practice/taskapi/services/',
+                    },
+                    {
+                      label: '12. Testes e deploy',
+                      link: '/courses/expressjs/practice/taskapi/test/',
+                    },
                   ],
                 },
                 {

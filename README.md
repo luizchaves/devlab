@@ -91,10 +91,10 @@ Três decisões sustentam a estrutura:
 │
 ├── examples/                   projetos reais e executáveis
 │   ├── html-basics/
-│   ├── express-basic/
-│   ├── express-router/
-│   ├── express-mvc/
-│   └── express-prisma/
+│   ├── task-api-hello/         trilha TaskAPI, etapa 1
+│   ├── task-api-mvc/           etapa 3
+│   ├── task-api-prisma/        etapa 8
+│   └── task-api-test/          etapa 12
 │
 └── src/
     ├── content.config.ts       coleção `docs` do Starlight
@@ -367,12 +367,12 @@ sempre a do arquivo já sem elas — a mesma nos dois casos, arquivo inteiro ou 
 Dentro de abas do Starlight:
 
 ```mdx
-<Tabs syncKey="express-mvc">
+<Tabs syncKey="task-api-mvc">
   <TabItem label="app.js">
-    <SourceCode path="examples/express/projects/mvc/src/app.js" title="src/app.js" />
+    <SourceCode path="examples/express/projects/task-api-mvc/src/app.js" title="src/app.js" />
   </TabItem>
-  <TabItem label="user-router.js">
-    <SourceCode path="examples/express/projects/mvc/src/routes/user-router.js" title="src/routes/user-router.js" />
+  <TabItem label="task-router.js">
+    <SourceCode path="examples/express/projects/task-api-mvc/src/routes/task-router.js" title="src/routes/task-router.js" />
   </TabItem>
 </Tabs>
 ```
@@ -422,10 +422,10 @@ Vários arquivos relacionados em abas, cada um renderizado pelo `<SourceCode>`.
 
 ```mdx
 <CodeTabs
-  syncKey="express-mvc"
+  syncKey="task-api-mvc"
   files={[
-    'examples/express/projects/mvc/src/app.js',
-    { path: 'examples/express/projects/mvc/src/routes/user-router.js', title: 'src/routes/user-router.js', showLineNumbers: true },
+    'examples/express/projects/task-api-mvc/src/app.js',
+    { path: 'examples/express/projects/task-api-mvc/src/routes/task-router.js', title: 'src/routes/task-router.js', showLineNumbers: true },
   ]}
 />
 ```

@@ -1,0 +1,264 @@
+---
+title: "TaskAPI: testes e deploy"
+description: "Décima segunda etapa da TaskAPI: testes de unidade e de rota com o runner nativo do Node e supertest, e a imagem de produção em multi-estágio."
+course: expressjs
+sidebar:
+  label: "12. Testes e deploy"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Avançado** · Node.js · Express.js · TypeScript · `node:test` · supertest · Docker
+
+A última etapa: 21 testes que provam o que as onze anteriores afirmaram, e uma imagem que
+leva tudo isso para fora da sua máquina.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-test" devcontainer="task-api-test" />
+
+## O que muda nesta etapa
+
+| Antes (etapa 11) | Agora (etapa 12) |
+| ---------------- | ---------------- |
+| Testes só de `jwt` e `password` | + testes de rota com `supertest` |
+| — | `Dockerfile` multi-estágio |
+| — | `compose.yaml` com volumes |
+| — | `.dockerignore` |
+
+Nenhuma dependência de runtime nova: o runner é o do próprio Node, e `supertest` é
+`devDependency`.
+
+## Estrutura
+
+<FileTree>
+{`
+  task-api-test/
+  ├── Dockerfile                          novo — build e runtime separados
+  ├── compose.yaml                        novo
+  ├── .dockerignore                       novo
+  └── src/
+      ├── routes/
+      │   ├── auth-router.test.ts         novo
+      │   └── task-router.test.ts         novo
+      ├── services/
+      │   └── ping-service.test.ts        novo
+      └── utils/
+          ├── jwt.test.ts
+          └── password.test.ts
+`}
+</FileTree>
+
+## O teste importa `app`, não `server`
+
+É por isso que a etapa 2 separou os dois arquivos. Sem porta aberta, as suítes rodam em
+paralelo sem conflito:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/auth-router.test.ts"
+  title="src/routes/auth-router.test.ts"
+  region="setup"
+/>
+
+## Testar o que a documentação promete
+
+Cada afirmação forte das aulas anteriores vira um teste. "A senha nunca sai na resposta" é
+verificável:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/auth-router.test.ts"
+  title="src/routes/auth-router.test.ts"
+  region="cases"
+/>
+
+E "senha errada e e-mail inexistente respondem a mesma coisa" também — este é o tipo de
+regra que se perde numa refatoração se ninguém a fixar:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/auth-router.test.ts"
+  title="src/routes/auth-router.test.ts"
+  region="signin"
+/>
+
+## O teste que mais importa
+
+Regra de segurança sem teste é esperança. O isolamento por dono é a garantia mais forte da
+API, e é a que mais tem a perder numa mudança de model:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/task-router.test.ts"
+  title="src/routes/task-router.test.ts"
+  region="isolation"
+/>
+
+<Aside type="tip" title="Testar o status, não só o dado">
+  Assertar `404` em vez de `403` parece detalhe e não é: é a diferença entre uma API que
+  esconde a existência dos recursos alheios e uma que permite enumerá-los. O teste fixa a
+  decisão.
+</Aside>
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/task-router.test.ts"
+  title="src/routes/task-router.test.ts"
+  region="guards"
+/>
+
+## Unidade para o que é puro
+
+Nem tudo precisa de servidor. A extração da latência do `ping` é uma função pura, e testá-la
+custa milissegundos:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/services/ping-service.test.ts"
+  title="src/services/ping-service.test.ts"
+  region="unit"
+/>
+
+## A imagem separa build de runtime
+
+O estágio de build tem `pnpm`, o compilador e o `node_modules` completo. A imagem final
+recebe só o que é preciso para rodar:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/Dockerfile"
+  title="Dockerfile"
+  region="build"
+/>
+
+Copiar os manifestos **antes** do código é o que aproveita o cache: enquanto as dependências
+não mudarem, a camada de instalação não é refeita.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/Dockerfile"
+  title="Dockerfile"
+  region="runtime"
+/>
+
+<Aside type="danger" title="Não rode como root">
+  O padrão da imagem `node` é o usuário `root`. Se a aplicação for comprometida, o atacante
+  herda esse usuário dentro do contêiner. Um `useradd` e um `USER app` custam duas linhas.
+</Aside>
+
+O `HEALTHCHECK` fecha o ciclo aberto na etapa 1: o `/health` que nasceu como a primeira rota
+do guia é o que o contêiner usa para dizer se está saudável.
+
+## O que não entra na imagem
+
+```txt title=".dockerignore"
+node_modules
+.env
+*.db
+*.db-journal
+uploads
+prisma/dev.db
+.git
+```
+
+O `.env` na lista não é detalhe: sem ele, o segredo de desenvolvimento viaja dentro da
+imagem e aparece em qualquer `docker history`.
+
+## Volumes, porque contêiner é descartável
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/compose.yaml"
+  title="compose.yaml"
+  lang="yaml"
+/>
+
+O banco e os uploads moram em volumes: derrubar o contêiner não pode apagar os dados. E o
+`JWT_SECRET` usa a sintaxe `${VAR:?}`, que **recusa subir** sem a variável — em produção ela
+vem de um gerenciador de segredos, nunca do arquivo.
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-test"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-test/src/routes/auth-router.test.ts', title: 'src/routes/auth-router.test.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-test/src/routes/task-router.test.ts', title: 'src/routes/task-router.test.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-test/src/services/ping-service.test.ts', title: 'src/services/ping-service.test.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-test/Dockerfile', title: 'Dockerfile', lang: 'dockerfile' },
+    { path: 'examples/courses/express/projects/task-api-test/compose.yaml', title: 'compose.yaml', lang: 'yaml' },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-test
+   ```
+
+2. <PackageManagerTabs />
+
+3. ```bash
+   cp .env.example .env
+   ```
+
+4. <PackageManagerTabs run="db:migrate" />
+
+   <PackageManagerTabs run="db:seed" />
+
+5. Rode a suíte inteira:
+
+   <PackageManagerTabs run="test" />
+
+6. E, com o Docker disponível, suba a imagem:
+
+   ```bash
+   JWT_SECRET=$(openssl rand -hex 32) docker compose up --build
+   ```
+
+</Steps>
+
+## A suíte
+
+```txt title="pnpm test"
+ℹ tests 21
+ℹ suites 9
+ℹ pass 21
+ℹ fail 0
+ℹ duration_ms 856.166208
+```
+
+| Arquivo | O que fixa |
+| ------- | ---------- |
+| `password.test.ts` | sal por chamada, formato PHC, senha errada recusada |
+| `jwt.test.ts` | três partes, assinatura adulterada e token expirado |
+| `ping-service.test.ts` | extração da latência em três formatos de saída |
+| `auth-router.test.ts` | senha fora da resposta, `409` no e-mail repetido, `422` com o campo |
+| `task-router.test.ts` | isolamento por dono, `404` em vez de `403`, campo extra recusado |
+
+<Aside type="caution" title="Os testes de rota usam o banco de desenvolvimento">
+  Eles criam e apagam o próprio usuário no `before`/`after`, mas leem as tarefas semeadas.
+  Numa suíte de verdade, `DATABASE_URL` apontaria para um banco de teste descartável — é o
+  próximo passo natural deste projeto.
+</Aside>
+
+## Conceitos abordados
+
+- Runner nativo (`node --test`) sem framework de teste
+- `supertest` contra o `app`, sem abrir porta
+- Teste de unidade para função pura, de rota para contrato
+- Fixar decisões de segurança em asserção
+- `before`/`after` para deixar o estado como estava
+- Imagem multi-estágio e cache de camadas
+- Usuário sem privilégio, `HEALTHCHECK` e `.dockerignore`
+- Volumes e segredo vindo do ambiente
+
+<Aside type="tip">
+  As aulas correspondentes são [Testes](../../../advanced/testing/) e
+  [Deploy](../../../advanced/deploy/).
+</Aside>
+
+## Fim da trilha
+
+Esta é a última etapa da TaskAPI. Da primeira rota — um `/health` de quatro linhas — até
+uma API autenticada, validada, observável e conteinerizada, sem nunca instalar um pacote
+que o Node já resolvia.
+
+Para construir uma **aplicação** completa, com front-end, backlog e infraestrutura, siga
+para o [InvestApp](../../investapp/) ou o [MonitorApp](../../monitorapp/).

@@ -65,11 +65,11 @@ instalar.
 
 O vocabulário é o mesmo de qualquer framework de testes:
 
-<ProjectLinks path="examples/courses/express/projects/task-api-auth" devcontainer="task-api-auth" />
+<ProjectLinks path="examples/courses/express/projects/task-api-test" devcontainer="task-api-auth" />
 
 <FileTree>
 {`
-  express-auth/
+  task-api-test/
   ├── package.json
   ├── tsconfig.json
   ├── prisma/
@@ -85,19 +85,23 @@ O vocabulário é o mesmo de qualquer framework de testes:
       │   ├── authorize.ts
       │   └── error-handler.ts
       ├── models/
+      │   ├── task-model.ts
       │   └── user-model.ts
       ├── routes/
       │   ├── auth-router.ts
-      │   ├── investment-router.ts
-      │   └── user-router.ts
+      │   ├── auth-router.test.ts
+      │   ├── task-router.ts
+      │   └── task-router.test.ts
       └── utils/
           ├── jwt.ts
-          └── password.ts
+          ├── jwt.test.ts
+          ├── password.ts
+          └── password.test.ts
 `}
 </FileTree>
 
 <SourceCode
-  path="examples/courses/express/projects/task-api-auth/src/utils/jwt.test.ts"
+  path="examples/courses/express/projects/task-api-test/src/utils/jwt.test.ts"
   title="src/utils/jwt.test.ts"
   showLineNumbers
   mark="1-2,12-18"
@@ -113,8 +117,8 @@ npm test
   ✔ rejeita um token adulterado (0.18ms)
   ✔ rejeita um token expirado (0.07ms)
 ✔ verifyJwt (0.54ms)
-ℹ tests 9
-ℹ pass 9
+ℹ tests 21
+ℹ pass 21
 ℹ fail 0
 ```
 
@@ -130,7 +134,7 @@ O melhor candidato é a função pura, sem I/O. As funções de senha e de token
 [Senhas e Hash](../../auth/passwords/) são exemplos exatos:
 
 <SourceCode
-  path="examples/courses/express/projects/task-api-auth/src/utils/password.test.ts"
+  path="examples/courses/express/projects/task-api-test/src/utils/password.test.ts"
   title="src/utils/password.test.ts"
   lines="6-15"
   showLineNumbers
@@ -147,61 +151,24 @@ aula de [Rotas](../../basics/routes/).
 
 <PackageManagerTabs package="supertest @types/supertest" dev />
 
-O código de teste a seguir define duas suítes principais: a listagem de usuários com `GET /users` (verificando o status HTTP 200 e se o retorno é uma lista) e a criação com `POST /users` (testando o retorno `201 Created` no sucesso e `422 Unprocessable Entity` quando o corpo da requisição está vazio).
+A suíte do cadastro fixa três decisões que as aulas anteriores tomaram: o `201` com o
+recurso criado, o `409` no e-mail repetido e — a mais importante — a senha **fora** da
+resposta.
 
-<details>
-  <summary>Requisição .http correspondente</summary>
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/auth-router.test.ts"
+  title="src/routes/auth-router.test.ts"
+  region="cases"
+/>
 
-  ```http
-  ### Listar usuários
-  GET http://localhost:3000/users
+O `before` e o `after` deixam o banco como estavam, para que a suíte possa rodar duas vezes
+seguidas:
 
-  ### Criar usuário
-  POST http://localhost:3000/users
-  Content-Type: application/json
-
-  {
-    "name": "Carla",
-    "email": "carla@example.com"
-  }
-  ```
-</details>
-
-```ts title="src/routes/user-router.test.ts" showLineNumbers {6,10,13,17-19}
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import request from 'supertest';
-
-import app from '#app.ts';
-
-describe('GET /users', () => {
-  it('responde 200 com a lista', async () => {
-    const response = await request(app).get('/users');
-
-    assert.equal(response.status, 200);
-    assert.ok(Array.isArray(response.body));
-  });
-});
-
-describe('POST /users', () => {
-  it('cria e devolve 201 com o recurso', async () => {
-    const response = await request(app)
-      .post('/users')
-      .send({ name: 'Carla', email: 'carla@example.com' });
-
-    assert.equal(response.status, 201);
-    assert.equal(response.body.name, 'Carla');
-    // A resposta não pode conter a senha, nem mesmo em hash.
-    assert.equal(response.body.password, undefined);
-  });
-
-  it('responde 422 sem os campos obrigatórios', async () => {
-    const response = await request(app).post('/users').send({});
-
-    assert.equal(response.status, 422);
-  });
-});
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/auth-router.test.ts"
+  title="src/routes/auth-router.test.ts"
+  region="setup"
+/>
 
 <Aside type="tip" title="Teste o erro tanto quanto o sucesso">
   Um teste que só cobre o caminho feliz não percebe quando a validação some. A regra prática:
@@ -212,51 +179,26 @@ describe('POST /users', () => {
 
 O token é obtido no próprio teste, com o mesmo fluxo que o cliente usa:
 
-```ts title="src/routes/investment-router.test.ts" showLineNumbers {4,10,17}
-async function login(email = 'ana@example.com', password = 'senha-secreta') {
-  const { body } = await request(app).post('/auth/signin').send({ email, password });
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/task-router.test.ts"
+  title="src/routes/task-router.test.ts"
+  region="guards"
+/>
 
-  return body.token as string;
-}
+E o teste que realmente importa em uma API multiusuário — o de autorização. Regra de
+segurança sem teste é esperança:
 
-describe('GET /investments', () => {
-  it('responde 401 sem token', async () => {
-    const response = await request(app).get('/investments');
+<SourceCode
+  path="examples/courses/express/projects/task-api-test/src/routes/task-router.test.ts"
+  title="src/routes/task-router.test.ts"
+  region="isolation"
+/>
 
-    assert.equal(response.status, 401);
-  });
-
-  it('responde 200 com token válido', async () => {
-    const token = await login();
-
-    const response = await request(app)
-      .get('/investments')
-      .set('Authorization', `Bearer ${token}`);
-
-    assert.equal(response.status, 200);
-  });
-});
-```
-
-E o teste que realmente importa em uma API multiusuário — o de autorização:
-
-```ts title="src/routes/investment-router.test.ts" showLineNumbers {8}
-it('não devolve investimentos de outro usuário', async () => {
-  const tokenDaAna = await login('ana@example.com', 'senha-secreta');
-  const tokenDoBruno = await login('bruno@example.com', 'outra-senha');
-
-  const { body: criado } = await request(app)
-    .post('/investments')
-    .set('Authorization', `Bearer ${tokenDaAna}`)
-    .send({ name: 'CDB', amount: 15000 });
-
-  const response = await request(app)
-    .delete(`/investments/${criado.id}`)
-    .set('Authorization', `Bearer ${tokenDoBruno}`);
-
-  assert.equal(response.status, 404);
-});
-```
+<Aside type="tip" title="Assertar o status, não só o dado">
+  Verificar `404` em vez de `403` parece detalhe e não é: é a diferença entre uma API que
+  esconde a existência dos recursos alheios e uma que permite enumerá-los pelos status das
+  respostas.
+</Aside>
 
 ## Isolando o banco
 
@@ -285,7 +227,7 @@ falha na segunda execução. Três estratégias:
   </TabItem>
 
   <TabItem label="Estado por teste">
-    ```ts title="src/routes/user-router.test.ts" showLineNumbers {2}
+    ```ts showLineNumbers {2}
     beforeEach(async () => {
       await resetDatabase();   // limpa tabelas e reaplica o seed
     });
@@ -344,7 +286,7 @@ juntos:
 npm init playwright@latest
 ```
 
-```ts title="tests/investimentos.spec.ts" showLineNumbers {5,10,14}
+```ts showLineNumbers {5,10,14}
 import { expect, test } from '@playwright/test';
 
 test('cadastra um investimento pela interface', async ({ page }) => {
@@ -405,7 +347,7 @@ No projeto `express-auth`:
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/routes/auth-router.test.ts" showLineNumbers {8-10}
+  ```ts showLineNumbers {8-10}
   describe('POST /auth/signup', () => {
     it('não devolve a senha em nenhuma forma', async () => {
       const response = await request(app).post('/auth/signup').send({
@@ -490,6 +432,12 @@ propositalmente removendo uma validação e confirme que o teste correspondente 
 - [Node.js — `assert`](https://nodejs.org/api/assert.html)
 - [`supertest`](https://www.npmjs.com/package/supertest)
 - [Playwright](https://playwright.dev/)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 12 da TaskAPI](../../practice/taskapi/test/), com 21 testes — de unidade e de rota —
+incluindo o que prova o isolamento por dono.
 
 ## Próxima aula
 

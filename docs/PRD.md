@@ -86,16 +86,21 @@ fora do calendário letivo.
 | ----------------------- | -------------------------------------------------------------- |
 | Disciplinas             | `dw-cstrc-jp`, `pw2-csbes-jp`, `lp2-ctii-jp`                    |
 | Guias de tecnologia     | HTML, CSS, ECMAScript, Web APIs, Node.js, Express.js, TypeScript, Python, Banco de Dados, React, Pacotes |
-| Páginas de aula         | 248 (`.mdx`)                                                    |
-| Projetos executáveis    | ~116 diretórios em `examples/courses/`, 75 com `package.json`   |
+| Páginas de aula         | 255 (`.mdx`)                                                    |
+| Projetos executáveis    | 77 projetos com `package.json` em `examples/courses/`           |
 | Slides / mapas mentais  | 66 / 66                                                         |
-| Devcontainers           | 18                                                              |
+| Devcontainers           | 24                                                              |
 | Projetos na homepage    | 6 (`src/lib/projects.ts`)                                       |
 
 As duas aplicações-fio-condutor são o **InvestApp** (controle de investimentos, usado
 em DW e LP2) e o **MonitorApp** (monitoramento de hosts, usado em PW2), cada uma
 construída em etapas cumulativas: estático → API → TypeScript → validação → banco →
 MVC → autenticação → testes → documentação → tempo real.
+
+O **Guia de Express.js** tem ainda uma terceira trilha, a **TaskAPI** — doze etapas,
+**só API**, sem front-end. Ela não é uma aplicação para construir: é a referência
+executável de onde as 33 páginas de conceito do guia recortam o código, de modo que
+nenhum bloco publicado seja um arquivo que não existe.
 
 ## 6. Requisitos funcionais
 

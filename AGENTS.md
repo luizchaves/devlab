@@ -17,10 +17,10 @@ Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
 | Dimensão                      | Estado atual                                  |
 | ----------------------------- | --------------------------------------------- |
 | Cursos e guias                | 14 (`src/lib/courses.ts`)                     |
-| Páginas de aula               | 248 arquivos `.mdx`                           |
-| Projetos executáveis          | ~116 diretórios em `examples/courses/`        |
+| Páginas de aula               | 255 arquivos `.mdx`                           |
+| Projetos executáveis          | 77 projetos em `examples/courses/`            |
 | Slides / mapas mentais        | 66 / 66 em `materials/`                       |
-| Devcontainers (Codespaces)    | 18 pastas em `.devcontainer/`                 |
+| Devcontainers (Codespaces)    | 24 pastas em `.devcontainer/`                 |
 | Idioma                        | Português do Brasil                           |
 
 ## Regras invioláveis
@@ -128,8 +128,13 @@ O essencial:
 - **Página de conceito ≠ página de projeto.** Conceito mostra 5–15 linhas
   autocontidas; o arquivo inteiro, a árvore de diretórios, o `package.json` e o passo
   a passo de execução ficam na página de projeto. Cada uma linka a outra.
+- **Todo bloco que se apresenta como arquivo tem que ser um arquivo.** Se o fence traz
+  `title="src/…"`, ele precisa ser um `<SourceCode>`. Blocos escritos à mão são para
+  pseudocódigo, esqueletos e comandos — e, nesses casos, ficam **sem** `title` de
+  arquivo. A única exceção é a comparação antes/depois (`del`/`ins`), onde o título
+  orienta e os marcadores deixam claro que aquilo é uma transição.
 - **`.md` por padrão, `.mdx` quando precisar de componente.** Na prática hoje todas
-  as 248 páginas são `.mdx`, porque quase toda aula usa `<Aside>` ou `<SourceCode>`.
+  as 255 páginas são `.mdx`, porque quase toda aula usa `<Aside>` ou `<SourceCode>`.
 - Em `.mdx`, importe **apenas** o que for usado.
 
 ## Componentes
@@ -173,17 +178,32 @@ Ao criar um projeto novo:
 Nada mais é necessário: `examples/**` já é diretório autorizado para leitura em build
 time (`import.meta.glob`, sem acesso a filesystem no navegador e sem traversal).
 
-### Trilhas InvestApp e MonitorApp
+**Arquivos que começam com ponto não são alcançáveis pelo `<SourceCode>`** — o glob não
+casa dotfiles, e é isso que mantém `.env` fora da documentação. Para exibir um
+`.env.example` ou um `.dockerignore`, escreva o bloco à mão e mantenha-o igual ao
+arquivo.
 
-As duas aplicações são **cumulativas por construção**: cada etapa
-(`invest-app-static` → `-api` → `-typescript` → `-validation` → `-db-simple` →
-`-mvc` → `-auth` → …) parte da anterior e acrescenta uma camada. Ao mexer em uma
-etapa, verifique se a mudança precisa propagar para as seguintes.
+### Trilhas TaskAPI, InvestApp e MonitorApp
+
+As três são **cumulativas por construção**: cada etapa parte da anterior e acrescenta
+uma camada. Ao mexer em uma etapa, verifique se a mudança precisa propagar para as
+seguintes.
+
+| Trilha | Papel | Etapas |
+| ------ | ----- | ------ |
+| **TaskAPI** (`task-api-*`) | Projeto modelo do guia — **só API**, sem front-end, Docker à parte na etapa 12. É de onde as páginas de conceito recortam código. | `hello` → `router` → `mvc` → `typescript` → `validation` → `openapi` → `sqlite` → `prisma` → `auth` → `hardening` → `services` → `test` |
+| **InvestApp** (`invest-app-*`) | Aplicação completa, com front-end, backlog e infraestrutura | `static` → `api` → `typescript` → … |
+| **MonitorApp** (`monitor-app-*`) | Idem, no domínio de monitoramento | `static` → `api` → `typescript` → … |
+
+A distinção importa: **página de conceito recorta da TaskAPI**; InvestApp e MonitorApp
+são as aplicações que o aluno constrói. Não acrescente front-end nem Docker às etapas 1
+a 11 da TaskAPI — é isso que a mantém distinta das outras duas.
 
 Convenções dessas trilhas, já estabelecidas no código:
 
 - **Express 5**, sem `express-async-errors` (o Express 5 já encaminha rejeições).
-- **TypeScript da terceira etapa em diante**, com `tsx` e `--env-file=.env` nativo.
+- **TypeScript da terceira etapa em diante** (quarta, na TaskAPI). InvestApp e
+  MonitorApp usam `tsx`; a TaskAPI executa `.ts` nativamente, sem `tsx` e sem build.
 - **Autenticação sem dependência externa**: `node:crypto` para hash de senha e para
   assinar o JWT. Não instale `bcrypt`, `jsonwebtoken` nem `dotenv`.
 - **Zod** para validação estrita de `body`, `query` e `params`.

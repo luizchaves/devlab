@@ -1,0 +1,340 @@
+---
+title: "TaskAPI: serviços"
+description: "Décima primeira etapa da TaskAPI: upload de avatar com Multer, e-mail transacional com Nodemailer, tempo real com SSE e chamada de sistema com execFile."
+course: expressjs
+sidebar:
+  label: "11. Serviços"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Avançado** · Node.js · Express.js · TypeScript · Multer · Nodemailer · SSE
+
+Quatro coisas que uma API faz além de responder JSON — e as quatro têm a mesma armadilha:
+dado do cliente virando caminho de arquivo, comando de sistema ou endereço de destino.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-services" devcontainer="task-api-services" />
+
+## O que muda nesta etapa
+
+| Recurso | Rota | Dependência |
+| ------- | ---- | ----------- |
+| Upload de avatar | `POST /auth/me/avatar` | Multer |
+| Confirmação de e-mail | `GET /auth/verify` | Nodemailer |
+| Tempo real | `GET /events` | nenhuma (SSE é HTTP) |
+| Chamada de sistema | `GET /ping?host=` | nenhuma (`node:child_process`) |
+
+O `User` ganha `avatar`, `verifyToken` e `verifiedAt`.
+
+## Estrutura
+
+<FileTree>
+{`
+  task-api-services/
+  ├── uploads/                        arquivos enviados, fora do Git
+  └── src/
+      ├── config/
+      │   └── upload.ts               novo — storage, limites e filtro
+      ├── controllers/
+      │   ├── avatar-controller.ts    novo
+      │   ├── events-controller.ts    novo
+      │   └── ping-controller.ts      novo
+      ├── routes/
+      │   ├── events-router.ts        novo
+      │   └── ping-router.ts          novo
+      ├── schemas/
+      │   └── ping.ts                 novo
+      └── services/
+          ├── events-service.ts       novo — quem está ouvindo
+          ├── mail-service.ts         novo
+          └── ping-service.ts         novo
+`}
+</FileTree>
+
+## Upload: o nome do arquivo é decisão do servidor
+
+`originalname` chega do navegador e pode conter `../`, bytes nulos ou um nome que
+sobrescreve outro arquivo. Um UUID elimina os três problemas de uma vez:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/config/upload.ts"
+  title="src/config/upload.ts"
+  region="storage"
+/>
+
+Os limites vêm em seguida, e todos importam — um upload sem teto é esgotamento de disco
+esperando acontecer:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/config/upload.ts"
+  title="src/config/upload.ts"
+  region="upload"
+/>
+
+<Aside type="danger" title="`mimetype` é declarado pelo cliente">
+  O filtro barra o engano honesto, não o ataque: o `Content-Type` de cada parte é enviado
+  pelo navegador e pode ser forjado. Para valer, é preciso ler os primeiros bytes do
+  arquivo e conferir a assinatura — e nunca servir o diretório de uploads como conteúdo
+  executável.
+</Aside>
+
+O arquivo é servido por `express.static`, e não por uma rota que monta o caminho a partir
+do que o cliente pede:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/app.ts"
+  title="src/app.ts"
+  region="static"
+/>
+
+E o controller descarta o avatar anterior — sem isso, cada troca deixa um arquivo órfão:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/controllers/avatar-controller.ts"
+  title="src/controllers/avatar-controller.ts"
+  region="store"
+/>
+
+## E-mail: o cadastro não espera o SMTP
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/services/mail-service.ts"
+  title="src/services/mail-service.ts"
+  region="send"
+/>
+
+Um SMTP lento transformaria um cadastro de 50 ms numa espera de três segundos; um SMTP fora
+do ar faria o cadastro **falhar**, quando o usuário já foi criado. O envio é disparado e
+registrado no log, e a resposta HTTP não depende dele.
+
+Em desenvolvimento não há credencial nenhuma: o `jsonTransport` serializa a mensagem em vez
+de enviá-la, então o fluxo inteiro é exercitável sem mandar e-mail para ninguém.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/services/mail-service.ts"
+  title="src/services/mail-service.ts"
+  region="transport"
+/>
+
+## Tempo real: uma resposta que não termina
+
+<Mermaid title="Ciclo de um evento no SSE">
+{`
+sequenceDiagram
+  participant C as Cliente
+  participant E as GET /events
+  participant T as POST /tasks
+  C->>E: EventSource, com token
+  E-->>C: 200, Content-Type: text/event-stream
+  Note over E,C: a resposta fica aberta
+  C->>T: cria uma tarefa
+  T->>E: publish(userId, 'task.created', task)
+  E-->>C: event: task.created\\ndata: {…}
+`}
+</Mermaid>
+
+O formato é texto puro, e a linha em branco no fim é o que encerra a mensagem — sem ela o
+navegador continua esperando e nada é entregue:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/services/events-service.ts"
+  title="src/services/events-service.ts"
+  region="publish"
+/>
+
+Não existe broadcast para todo mundo: os clientes são agrupados por dono, e cada pessoa
+recebe apenas os eventos das próprias tarefas. Autorização vale para SSE tanto quanto para
+uma rota comum.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/services/events-service.ts"
+  title="src/services/events-service.ts"
+  region="clients"
+/>
+
+<Aside type="caution" title="Toda conexão aberta precisa de uma saída">
+  Sem o `res.on('close')`, cada desconexão deixa um `Response` pendurado no `Map` para
+  sempre — um vazamento de memória que só aparece depois de semanas no ar.
+</Aside>
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/controllers/events-controller.ts"
+  title="src/controllers/events-controller.ts"
+  region="stream"
+/>
+
+## Chamada de sistema: `execFile`, nunca `exec`
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/services/ping-service.ts"
+  title="src/services/ping-service.ts"
+  region="exec"
+/>
+
+<Aside type="danger" title="A diferença é o shell">
+  `exec('ping ' + host)` passa a string por um shell. Um host chamado
+  `8.8.8.8; rm -rf /` vira **dois comandos**. `execFile` entrega os argumentos como array,
+  e o shell nunca entra na história.
+</Aside>
+
+A validação vem por cima disso, não no lugar disso — defesa em profundidade:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/schemas/ping.ts"
+  title="src/schemas/ping.ts"
+  region="schema"
+/>
+
+E a rota é cara e abusável, então ganha autenticação e um limite próprio:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/routes/ping-router.ts"
+  title="src/routes/ping-router.ts"
+  region="routes"
+/>
+
+A parte que realmente vale testar é a extração do texto, que é pura e varia entre sistemas:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-services/src/services/ping-service.ts"
+  title="src/services/ping-service.ts"
+  region="parse"
+/>
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-services"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-services/src/config/upload.ts', title: 'src/config/upload.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-services/src/controllers/avatar-controller.ts', title: 'src/controllers/avatar-controller.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-services/src/services/mail-service.ts', title: 'src/services/mail-service.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-services/src/services/events-service.ts', title: 'src/services/events-service.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-services/src/controllers/events-controller.ts', title: 'src/controllers/events-controller.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-services/src/services/ping-service.ts', title: 'src/services/ping-service.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-services/src/schemas/ping.ts', title: 'src/schemas/ping.ts', showLineNumbers: true },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-services
+   ```
+
+2. <PackageManagerTabs />
+
+3. ```bash
+   cp .env.example .env
+   ```
+
+4. <PackageManagerTabs run="db:migrate" />
+
+   <PackageManagerTabs run="db:seed" />
+
+5. <PackageManagerTabs run="dev" />
+
+</Steps>
+
+Sem `SMTP_HOST` no `.env`, nada é enviado de verdade: a mensagem sai no log como
+`mail_sent`.
+
+## Rotas novas
+
+| Método | Caminho             | Descrição                                   |
+| ------ | ------------------- | ------------------------------------------- |
+| POST   | `/auth/me/avatar`   | Envia a imagem de perfil (`multipart`)      |
+| GET    | `/auth/verify`      | Confirma o e-mail pelo token do link        |
+| GET    | `/events`           | Fluxo SSE das tarefas do dono               |
+| GET    | `/ping?host=`       | Mede latência até um host                   |
+| GET    | `/uploads/:arquivo` | Serve a imagem enviada                      |
+
+## Testando
+
+O upload devolve o usuário com o caminho do avatar preenchido:
+
+<ApiRequest method="POST" path="/auth/me/avatar" baseUrl="http://localhost:3000" description="multipart/form-data, campo avatar" />
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "86d0a2be-9674-47f5-ba32-0e20bde7456a",
+    "name": "Ana",
+    "email": "ana@example.com",
+    "role": "admin",
+    "avatar": "uploads/9f1c0d2a-4c7e-4f2b-8f3f-2a6b8c1d0e55.png",
+    "verifiedAt": null,
+    "createdAt": "2026-03-01T09:00:00.000Z"
+  }
+`}
+</ApiResponse>
+
+Um host com tentativa de injeção não chega ao `execFile`: o schema o recusa antes.
+
+<details>
+  <summary>Requisição .http correspondente</summary>
+
+  ```http
+  ### Tentativa de injecao no host
+  GET http://localhost:3000/ping?host=127.0.0.1;rm -rf /
+  Authorization: Bearer {{token}}
+  ```
+</details>
+
+<ApiRequest method="GET" path="/ping?host=127.0.0.1;rm -rf /" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={422}>
+{`
+  {
+    "error": {
+      "status": 422,
+      "message": "Dados invalidos",
+      "issues": [
+        {
+          "code": "invalid_format",
+          "path": ["query", "host"],
+          "message": "O host aceita apenas letras, numeros, ponto e hifen"
+        }
+      ]
+    }
+  }
+`}
+</ApiResponse>
+
+E o fluxo de eventos entrega a tarefa no instante em que ela é criada:
+
+```txt title="curl -N -H 'Authorization: Bearer …' localhost:3000/events"
+event: task.created
+data: {"id":4,"title":"Evento em tempo real","done":false,"priority":"medium","tags":[]}
+```
+
+## Conceitos abordados
+
+- `multipart/form-data` e por que o nome do arquivo é do servidor
+- Limites de tamanho, de quantidade e de tipo no upload
+- `express.static` no lugar de uma rota que monta caminho
+- Envio de e-mail que não bloqueia a resposta, e o transporte de teste
+- SSE: cabeçalhos, formato da mensagem e a linha em branco
+- Assinatura por dono e a limpeza de conexões fechadas
+- `execFile` contra `exec`, e a validação como segunda camada
+
+<Aside type="tip">
+  As aulas correspondentes são [Upload de Arquivo](../../../advanced/upload-file/),
+  [Envio de E-mail](../../../advanced/email/),
+  [Tempo Real](../../../advanced/realtime/) e
+  [Chamada de Sistema](../../../advanced/system-call/).
+</Aside>
+
+## Próxima etapa
+
+[Testes e deploy](../test/) — a suíte que prova que o isolamento por dono funciona, e a
+imagem que leva tudo isso para fora da sua máquina.

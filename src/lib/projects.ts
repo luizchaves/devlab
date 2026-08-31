@@ -68,9 +68,9 @@ export const projects: Project[] = [
     category: 'express',
     featured: true,
     tech: ['Express.js', 'TypeScript', 'Zod', 'Prisma', 'node:crypto'],
-    concepts: ['Trilha de 12 Etapas', 'Rotas e Middleware', 'MVC', 'Validação', 'Autenticação'],
+    concepts: ['Trilha de 12 Etapas', 'MVC', 'Validação', 'Autenticação', 'Observabilidade'],
     docs: '/courses/expressjs/practice/taskapi/',
-    source: 'examples/courses/express/projects/task-api-typescript',
+    source: 'examples/courses/express/projects/task-api-test',
   },
   // --- FRONT-END & WEB APIS ---
   {
