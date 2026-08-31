@@ -29,15 +29,12 @@ Separação clara de responsabilidades em camadas no desenvolvimento Web Back-en
 
 ## Fluxo da Requisição no MVC
 
-```mermaid
-flowchart LR
-    A[Cliente] --> B[Routes]
-    B --> C[Controller]
-    C --> D[Model]
-    D --> E[(Banco de Dados)]
-    D --> C
-    C --> F[JSON Response / View]
-    F --> A
+```txt
+ ┌─────────┐     ┌────────┐     ┌────────────┐     ┌───────┐
+ │ Cliente │ ──> │ Routes │ ──> │ Controller │ ──> │ Model │ ──> [(Banco SQL)]
+ └─────────┘     └────────┘     └─────┬──────┘     └───────┘
+     ▲                                │
+     └─────────── JSON Response ──────┴──────────────────────
 ```
 
 ---

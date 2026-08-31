@@ -50,6 +50,14 @@ app.listen(PORT, () => {
 
 ---
 
+## Fluxo da Requisição HTTP
+
+```txt
+[Cliente HTTP] ──> [GET /api/health] ──> [Express app.get] ──> [res.json()] ──> [Cliente 200 OK]
+```
+
+---
+
 ## Resposta HTTP e Status Codes
 
 - **HTTP 200 OK**: Retornado por padrão quando o manipulador de rota responde com sucesso.

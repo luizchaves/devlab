@@ -46,15 +46,20 @@ Quarta etapa da trilha prática InvestApp: validação estrita de requisições 
 
 ## Arquitetura da Validação
 
-```mermaid
-flowchart LR
-    A[Cliente / HTTP] --> B[Roteador Express]
-    B --> C[Middleware requireJson]
-    C --> D[Middleware validate(schema)]
-    D -- Dado Inválido --> E[HttpError 400 + Zod Issues]
-    E --> F[Middleware errorHandler]
-    D -- Dado Válido --> G[InvestmentController]
-    G --> H[Model / Banco]
+```txt
+ ┌────────────────┐     ┌──────────────────┐     ┌───────────────────────┐
+ │ Cliente / HTTP │ ──> │ Roteador Express │ ──> │ Middleware validate() │
+ └────────────────┘     └──────────────────┘     └───────────┬───────────┘
+                                                             │
+                              ┌──────────────────────────────┴──────────────────────────────┐
+                              ▼ (Dado Válido)                                               ▼ (Dado Inválido)
+                   ┌──────────────────────┐                                      ┌──────────────────────┐
+                   │ InvestmentController │                                      │ HttpError 400 (Zod)  │
+                   └──────────┬───────────┘                                      └──────────┬───────────┘
+                              ▼                                                             ▼
+                   ┌──────────────────────┐                                      ┌──────────────────────┐
+                   │ Model / Persistência │                                      │ errorHandler         │
+                   └──────────────────────┘                                      └──────────────────────┘
 ```
 
 - A validação ocorre **na fronteira** da aplicação.

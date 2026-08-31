@@ -32,13 +32,10 @@ Sistema de monitoramento de servidores e alertas em treze etapas.
 
 ## Arquitetura & Fluxo dos Dados
 
-```mermaid
-flowchart LR
-    A[Cliente HTTP] --> B[Roteador Express]
-    B --> C[Middlewares de Contexto]
-    C --> D[Controller da Etapa]
-    D --> E[Camada de Dados / Serviço]
-    E --> F[Persistência / Memória]
+```txt
+┌──────────────┐     ┌───────────┐     ┌─────────────┐     ┌────────────┐     ┌─────────────┐
+│ Cliente HTTP │ ──> │ Roteador  │ ──> │ Middlewares │ ──> │ Controller │ ──> │ Persistência│
+└──────────────┘     └───────────┘     └─────────────┘     └────────────┘     └─────────────┘
 ```
 
 - Manutenção da separação de responsabilidade em camadas.

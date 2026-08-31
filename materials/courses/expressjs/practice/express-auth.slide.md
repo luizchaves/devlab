@@ -21,13 +21,11 @@ Construção de rotas protegidas e autenticação baseada em tokens.
 
 ## Fluxo da Autenticação JWT
 
-```mermaid
-flowchart TD
-    A[Cliente] -- 1. POST /login credenciais --> B[API Express]
-    B -- 2. Valida senha + Assina JWT --> B
-    B -- 3. Retorna token JWT --> A
-    A -- 4. GET /protegido + Header Authorization Bearer --> C[Middleware auth]
-    C -- 5. Token Válido --> D[Handler da Rota]
+```txt
+1. POST /login credenciais ──> [API Express] ──> Valida senha + Assina JWT
+                                    │
+                                    ▼ (Retorna token)
+2. GET /protegido + Header ──> [Middleware auth] ──> (Valida JWT) ──> [Controller]
 ```
 
 ---
