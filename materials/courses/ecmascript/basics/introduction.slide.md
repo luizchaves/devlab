@@ -21,169 +21,362 @@ style: |
   }
 lang: pt-BR
 title: "JavaScript: Introdução e Ecossistema"
-description: "Origem do JavaScript, especificação ECMA-262, comitê TC39, motores de execução V8 e ambientes."
+description: "História do JavaScript, especificação ECMA-262, papel do comitê TC39, motores de execução (V8) e ambientes (Navegador vs Node.js)."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Introdução e Ecossistema
 
-Origem da linguagem, especificação ECMA-262, comitê TC39, motores JIT e ambientes de execução.
+História do JavaScript, especificação ECMA-262, papel do comitê TC39, motores de execução (V8) e ambientes (Navegador vs Node.js).
 
 ---
 
-## Objetivos da Aula
+## Objetivo
 
-- **Histórico & Origem**: Compreender a criação do JavaScript e a evolução dos nomes comerciais.
-- **Padronização**: Diferenciar JavaScript (implementação) de ECMAScript (especificação ECMA-262).
-- **Processo TC39**: Identificar o ciclo de vida de propostas (Stage 0 a Stage 4).
-- **Motores & Ambientes**: Analisar a arquitetura do motor V8 e separar ECMAScript de Web/Node APIs.
+- Entender a origem do JavaScript, diferenciar JavaScript de ECMAScript, reconhecer o papel das Web APIs.
+
+---
+
+## Mapa da Aula
+
+- Por Que JavaScript Importa?
+- Origem e a História dos Nomes
+- JavaScript, ECMAScript e Web APIs
+- Onde o Código Executa?
+- O Que a Linguagem Oferece?
+- Características Importantes
 
 ---
 
 ## Por Que JavaScript Importa?
 
-- **Linguagem Nativa da Web**: Única linguagem de programação executada nativamente por todos os navegadores.
-- **Ecossistema Unificado**: Permite construir front-end (DOM/React), back-end (Node.js/Express) e ferramentas CLI.
-- **Desempenho Moderno**: Motores com compilação JIT (Just-In-Time) transformam código dinâmico em código de máquina.
-
-> **Regra Fundamental**: HTML estrutura, CSS estiliza, JavaScript adiciona comportamento.
+- JavaScript se tornou uma das linguagens centrais da Web porque é suportada pelos navegadores.
+- Quando uma página precisa reagir a cliques, validar um formulário, alterar elementos.
+- Com Node.js, a linguagem também passou a ser usada fora do navegador.
+- Isso permitiu usar JavaScript para escrever servidores, ferramentas de linha de comando, scripts de automação, testes.
+- HTML estrutura o conteúdo, CSS define a apresentação visual e JavaScript adiciona comportamento.
 
 ---
 
-## Origem e Evolução dos Nomes
+## Origem e a História dos Nomes
 
-Criada em **maio de 1995** por Brendan Eich na Netscape em apenas 10 dias para o Netscape Navigator.
+- JavaScript foi criado em maio de 1995 por Brendan Eich enquanto trabalhava na Netscape.
+
+---
+
+## A Evolução dos Nomes da Linguagem
+
+- Mocha (Maio de 1995): Nome de código original do protótipo desenvolvido por Brendan Eich na Netscape.
+- LiveScript (Setembro de 1995): Primeiro nome comercial oficial utilizado no lançamento beta do Netscape Navigator 2.0.
+- ECMAScript (1996 - Presente): Com o surgimento de implementações concorrentes (como o JScript da Microsoft).
+- A linguagem passou por diversas mudanças de nome em um curto período antes de se consolidar mundialmente
+- Apesar da semelhança no nome, Java e JavaScript são linguagens completamente diferentes em paradigma, regras de sintaxe.
+
+---
+
+## A Evolução dos Nomes da Linguagem (Comparação)
 
 | Nome | Ano | Contexto e Motivação |
 | :--- | :--- | :--- |
-| **Mocha** | Maio / 1995 | Nome de código interno do protótipo desenvolvido por Brendan Eich. |
-| **LiveScript** | Set/ 1995 | Primeiro nome comercial no lançamento beta do Netscape 2.0. |
-| **JavaScript** | Dez / 1995 | Parceria de marketing com a Sun Microsystems para aproveitar o hype do Java. |
-| **ECMAScript** | 1996 - Hoje | Nome oficial do padrão internacional mantido pela Ecma (**ECMA-262**). |
+| **Mocha** | Maio / 1995 | Nome interno do projeto durante o desenvolvimento do protótipo por Brendan Eich. |
+| **LiveScript** | Setembro / 1995 | Nome da primeira versão lançada comercialmente no Netscape Navigator 2.0. |
+| **JavaScript** | Dezembro / 1995 | Parceria de marketing com a Sun Microsystems (marca hoje pertencente à Oracle). |
+| **ECMAScript** | 1996 - Presente | Especificação técnica oficial e padronizada pela Ecma International (ECMA-262). |
 
 ---
 
-## JavaScript vs Java
+## Padronização ECMA-262 e o TC39
 
-Apesar do nome similar por razões históricas de marketing, são linguagens totalmente distintas:
+- Em termos simples, ECMAScript é a especificação teórica da linguagem.
 
-```javascript
-// JavaScript: Dinâmica, multiparadigma, prototipada
-const user = { name: "DevLab", active: true };
-console.log(typeof user); // "object"
+```txt
+Código JavaScript
+        │
+        ▼
+Scanner e parser ──► AST
+        │
+        ▼
+Ignition ──► bytecode
+        │
+        ▼
+TurboFan ──► código otimizado
 ```
 
-- **Paradigma**: Java é estaticamente tipada e baseada em classes; JS é dinamicamente tipada e baseada em protótipos.
-- **Execução**: Java compila para Bytecode em JVM; JS é interpretada/compilada em tempo de execução via JIT.
-- **Analogia**: *"Java está para JavaScript assim como Carro está para Carpinteiro"*.
+---
+
+## JavaScript, ECMAScript e Web APIs
+
+- No uso diário, é comum dizer apenas "JavaScript".
+- Tecnicamente, porém, uma página no navegador mistura a linguagem ECMAScript com APIs fornecidas pelo ambiente.
+- Por isso, `Array`, `Object`, `Promise` e `Map` pertencem à linguagem.
+- Já `document.querySelector`, `addEventListener`, `fetch` no navegador e `localStorage` são recursos do ambiente Web.
+- Um código pode ser JavaScript válido e ainda assim não funcionar em todos os lugares.
 
 ---
 
-## Padronização: ECMAScript e o TC39
+## JavaScript, ECMAScript e Web APIs (Comparação)
 
-- **ECMAScript (ECMA-262)**: A especificação técnica formal da linguagem.
-- **TC39 (Technical Committee 39)**: Comitê formado por empresas (Google, Mozilla, Apple, Microsoft) e especialistas que mantém o padrão.
-- **Lançamentos Anuais**: Desde a revolução do ES6 (ES2015), o padrão é atualizado anualmente (ES2016, ES2017... ES2026).
-
----
-
-## O Processo de Propostas do TC39 (5 Estágios)
-
-<div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85em; margin-top: 10px;">
-  <div style="border: 1px solid #94a3b8; border-radius: 6px; padding: 8px 12px; background: #f8fafc;">
-    <strong>Stage 0 (Strawman)</strong>: Ideia inicial submetida por um membro do TC39.
-  </div>
-  <div style="border: 1px solid #38bdf8; border-radius: 6px; padding: 8px 12px; background: #f0f9ff;">
-    <strong>Stage 1 (Proposal)</strong>: Casos de uso e sintaxe preliminar definidos; campeão (champion) nomeado.
-  </div>
-  <div style="border: 1px solid #facc15; border-radius: 6px; padding: 8px 12px; background: #fefce8;">
-    <strong>Stage 2 (Draft)</strong>: Primeira especificação formal; tipos e semântica estruturados.
-  </div>
-  <div style="border: 1px solid #fb923c; border-radius: 6px; padding: 8px 12px; background: #fff7ed;">
-    <strong>Stage 3 (Candidate)</strong>: Especificação pronta; implementada experimentalmente em navegadores.
-  </div>
-  <div style="border: 1px solid #4ade80; border-radius: 6px; padding: 8px 12px; background: #f0fdf4;">
-    <strong>Stage 4 (Finished)</strong>: Aprovada com testes de conformidade; entra na próxima edição da ECMA-262.
-  </div>
-</div>
+| Termo | Papel | Exemplos |
+| ----- | ----- | -------- |
+| ECMAScript | Define a linguagem base | variáveis, funções, objetos, arrays, classes, módulos, promises |
+| JavaScript | Nome comum da linguagem usada pelos desenvolvedores | código escrito em arquivos `.js` ou dentro de `<script>` |
+| Web APIs | Recursos oferecidos pelo navegador | DOM, eventos, `fetch`, `localStorage`, timers, console |
+| Node.js APIs | Recursos oferecidos pelo Node.js | sistema de arquivos, processos, servidor HTTP, módulos nativos |
+| npm | Ecossistema de pacotes | Express, Vite, Prisma, Chart.js, bibliotecas de teste |
 
 ---
 
-## Arquitetura do Motor V8 (JIT Compiler)
+## Onde o Código Executa?
 
-O motor V8 (Google Chrome e Node.js) executa código JS combinando interpretação rápida com otimização:
-
-<div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 15px; font-size: 0.85em;">
-  <div style="border: 2px solid #0284c7; border-radius: 6px; padding: 8px 16px; background: #f0f9ff; width: 90%; text-align: center;">
-    <strong>1. Parsing & AST</strong>: Scanner gera tokens e constrói a Abstract Syntax Tree.
-  </div>
-  <div style="font-weight: bold; color: #0284c7;">↓</div>
-  <div style="border: 2px solid #eab308; border-radius: 6px; padding: 8px 16px; background: #fefce8; width: 90%; text-align: center;">
-    <strong>2. Ignition (Interpretador)</strong>: Gera e executa Bytecode rapidamente. Coleta dados de profiling.
-  </div>
-  <div style="font-weight: bold; color: #16a34a;">↓ (Hot Code)</div>
-  <div style="border: 2px solid #16a34a; border-radius: 6px; padding: 8px 16px; background: #f0fdf4; width: 90%; text-align: center;">
-    <strong>3. TurboFan (Compilador JIT)</strong>: Compila funções frequentes diretamente em Código de Máquina otimizado.
-  </div>
-</div>
+- O mesmo núcleo da linguagem pode aparecer em ambientes diferentes.
+- Cada ambiente adiciona suas próprias APIs e restrições.
+- Executa scripts associados a páginas Web.
+- É o ambiente usado para manipular DOM, responder a eventos, validar formulários e consumir APIs pela interface.
+- Executa JavaScript fora do navegador.
 
 ---
 
-## Desotimização (Deopt) no V8
+## O Que a Linguagem Oferece?
 
-Como JavaScript é dinâmico, se o tipo de um parâmetro mudar abruptamente em código otimizado, o V8 faz **deoptimization**:
+- ECMAScript define a base da linguagem que será usada nas próximas aulas.
+- A tabela abaixo mostra partes que aparecerão com frequência durante a disciplina.
+- Aprender JavaScript não significa memorizar todas as bibliotecas.
+- Primeiro vem a linguagem: valores, funções, objetos, arrays, módulos e assincronismo.
+- Depois fica mais fácil entender bibliotecas como Express, Vite, Prisma e Chart.js.
 
-```javascript
-function add(a, b) {
-  return a + b;
+---
+
+## O Que a Linguagem Oferece? (Comparação)
+
+| Área | Exemplos | Por que importa |
+| ---- | -------- | --------------- |
+| Valores e tipos | `number`, `string`, `boolean`, `undefined`, `null`, objetos | Representar dados da aplicação |
+| Variáveis | `let`, `const` | Guardar valores e controlar escopo |
+| Expressões e operadores | `+`, `===`, `&&`, `??`, `?.` | Calcular, comparar e compor valores |
+| Controle de fluxo | `if`, `switch`, `for`, `while` | Decidir caminhos e repetir tarefas |
+| Funções | declarações, arrow functions, callbacks | Organizar comportamento reutilizável |
+
+---
+
+## Características Importantes
+
+- JavaScript é uma linguagem de alto nível, dinâmica e multiparadigma.
+- Essas palavras resumem decisões que afetam a forma de escrever e depurar código.
+- Esses comportamentos não são "erros" da linguagem, mas exigem disciplina.
+- Ao longo da disciplina, vamos preferir comparações estritas (`===`), nomes claros e código legível para reduzir surpresas.
+
+---
+
+## Características Importantes (Comparação)
+
+| Característica | Ideia principal | Exemplo prático |
+| -------------- | --------------- | --------------- |
+| Alto nível | Esconde muitos detalhes de memória e máquina | criar objetos e arrays sem alocar memória manualmente |
+| Interpretada | Não há etapa de compilação separada; o motor lê e executa o código | basta `node arquivo.js` para rodar |
+| Linguagem de script | Nasceu para automatizar comportamento dentro de um ambiente hospedeiro | um `<script>` que reage a um clique na página |
+| Tipagem dinâmica | O tipo pertence ao valor, não à variável | uma variável pode receber número e depois string |
+| Tipagem fraca | Algumas conversões podem ocorrer automaticamente | `'5' * 2` resulta em `10` |
+
+---
+
+## Características Importantes (Exemplo)
+
+```js
+let value = 10;
+console.log(typeof value); // "number"
+
+value = "10";
+console.log(typeof value); // "string"
+```
+
+---
+
+## Comentários em JavaScript
+
+- Comentários são anotações inseridas no código que o motor de execução ignora totalmente.
+- Eles servem para documentar intenções, explicar regras de negócio ou desativar temporariamente instruções durante o desenvolvimento.
+- JavaScript suporta três formatos de comentários
+
+---
+
+## 1. Comentário de Linha Única (`//`)
+
+- Inicia com duas barras (`//`) e estende-se até o fim da linha.
+- É ideal para notas curtas e diretas.
+
+---
+
+## 1. Comentário de Linha Única (`//`) (Exemplo)
+
+```js
+// Define a taxa de desconto para clientes VIP
+const VIP_DISCOUNT = 0.15;
+
+const total = 100; // Valor base da compra
+```
+
+---
+
+## 2. Comentário de Múltiplas Linhas (`/* ... */`)
+
+- Inicia com `/` e encerra em `/`.
+- É utilizado para explicações mais detalhadas ou para desativar blocos inteiros de código.
+
+---
+
+## 2. Comentário de Múltiplas Linhas (`/* ... */`) (Exemplo)
+
+```js
+/*
+  Cálculo de tributação para produtos importados.
+  Considera a alíquota estadual (ICMS) e federal.
+  Atualizado conforme a legislação vigente.
+*/
+function calculateTax(amount) {
+  return amount * 0.20;
 }
-
-// O V8 otimiza add() assumindo que a e b são Inteiros
-for (let i = 0; i < 10000; i++) add(i, i);
-
-// Mudança de tipo: obriga o TurboFan a desotimizar (Deopt) de volta ao Ignition!
-add("texto", 10);
 ```
 
-- **Boas Práticas**: Manter funções monomórficas (passar sempre os mesmos tipos de dados).
+---
+
+## 3. Comentários de Documentação JSDoc (`/** ... */`)
+
+- Explique o PORQUÊ, não o O QUÊ: Evite comentar o que o código já deixa óbvio (`let x = 10.
+- Priorize Código Autoexplicativo: Nomes claros para variáveis e funções reduzem drasticamente a necessidade de comentários informativos.
+- Evite Código Morto: Remova códigos velhos comentados antes de enviar o projeto para produção ou controle de versão (Git).
+- Iniciam com `/*` e encerram com `/`.
+- O JSDoc é o padrão oficial de documentação da comunidade JavaScript.
 
 ---
 
-## Separação: Linguagem vs Ambiente de Execução
+## 3. Comentários de Documentação JSDoc (`/** ... */`) (Exemplo)
 
-JavaScript = **Núcleo ECMAScript** + **APIs do Hospedeiro (Host Environment)**.
-
-<div style="display: flex; gap: 15px; margin-top: 15px; font-size: 0.85em;">
-  <div style="flex: 1; border: 2px solid #0284c7; border-radius: 8px; padding: 12px; background: #f0f9ff;">
-    <strong style="color: #0369a1;">Navegador (Browser)</strong><br>
-    • ECMAScript (syntax, Array, Object)<br>
-    • DOM API (document, element)<br>
-    • Fetch API (network requests)<br>
-    • Storage (localStorage, IndexedDB)
-  </div>
-  <div style="flex: 1; border: 2px solid #16a34a; border-radius: 8px; padding: 12px; background: #f0fdf4;">
-    <strong style="color: #15803d;">Servidor (Node.js / Bun)</strong><br>
-    • ECMAScript (syntax, Array, Object)<br>
-    • Node APIs (fs, path, http, crypto)<br>
-    • Global process & buffer<br>
-    • Sem DOM ou document!
-  </div>
-</div>
+```js
+/**
+ * Calcula o preço final aplicando desconto.
+ *
+ * @param {number} price - Preço original do produto.
+ * @param {number} discount - Taxa de desconto de 0 a 1 (ex: 0.10 para 10%).
+ * @returns {number} Valor final com o desconto aplicado.
+ */
+function applyDiscount(price, discount) {
+  return price * (1 - discount);
+}
+```
 
 ---
 
-## Resumo & Revisão
+## Evolução da Linguagem
 
-- **ECMAScript**: Padrão mantido pelo comitê TC39 sob a norma ECMA-262.
-- **JavaScript**: Linguagem comercial que implementa o ECMAScript e adiciona APIs.
-- **Motor V8**: Usa interpretador (Ignition) e compilador JIT (TurboFan) para alto desempenho.
-- **Ambientes**: O código JS roda tanto no navegador (DOM/Web APIs) quanto no servidor (Node.js APIs).
+- TC39 Proposals, com propostas ativas;
+- Finished Proposals,
+- ECMAScript draft, com o rascunho vivo da próxima
+- JavaScript continua evoluindo.
+- O comitê TC39 organiza propostas de novas funcionalidades em estágios.
 
 ---
 
-## Referências & Links Úteis
+## Evolução da Linguagem (Comparação)
 
-- **MDN Web Docs**: [JavaScript - Guia e Referência](https://developer.mozilla.org/pt-BR/docs/Web/JavaScript)
-- **Especificação Oficial**: [ECMA-262 Standard](https://tc39.es/ecma262/)
-- **TC39**: [Propostas Ativas no GitHub](https://github.com/tc39/proposals)
+| Estágio | Ideia geral |
+| ------- | ----------- |
+| Stage 0 | Ideia inicial, ainda muito experimental |
+| Stage 1 | Proposta com problema e direção discutidos |
+| Stage 2 | Rascunho mais concreto da solução |
+| Stage 3 | Candidato próximo de finalização |
+| Stage 4 | Recurso finalizado, pronto para entrar na especificação |
+
+---
+
+## Como Executar JavaScript
+
+- Existem várias formas de executar um primeiro código JavaScript.
+- Elas não são uma sequência obrigatória; são cenários diferentes.
+- Escolha o ambiente conforme o que você quer testar.
+- Executa arquivos JavaScript pelo terminal, sem depender de uma página HTML.
+- Node.js será a referência da disciplina, mas Deno e Bun também são opções.
+
+---
+
+## Runtimes fora do navegador
+
+- Verifique a versão instalada
+- Crie um arquivo JavaScript
+- Execute o arquivo pelo terminal
+- Modo Interativo (Node.js REPL)
+- Teste TypeScript quando fizer sentido
+
+---
+
+## Console do navegador
+
+- Abra o DevTools do navegador e use a aba Console para testar expressões rápidas.
+
+---
+
+## Console do navegador (Exemplo)
+
+```js
+console.log("Olá, navegador");
+```
+
+---
+
+## Arquivo carregado pelo navegador
+
+- Crie a página HTML
+- Crie o arquivo JavaScript
+- Abra a página no navegador
+- Nesse cenário, o JavaScript é carregado por uma página HTML.
+- O output de `console.log()` não aparece no corpo da página; ele aparece no Console do DevTools.
+
+---
+
+## Navegador, Node.js e npm
+
+- Quando usamos JavaScript no navegador, o arquivo normalmente faz parte de uma página Web.
+- Quando usamos JavaScript no Node.js, o arquivo é executado como programa no sistema operacional.
+- O `npm` será importante porque muitos projetos Web dependem de pacotes.
+- Vite, Bootstrap, Tailwind, Express, Prisma e várias ferramentas de teste ou build entram no projeto por meio do ecossistema npm.
+- Mas o ecossistema JavaScript não depende apenas do `npm`.
+
+---
+
+## Navegador, Node.js e npm (Comparação)
+
+| Ambiente | Como executar | Uso comum |
+| -------- | ------------- | --------- |
+| Navegador | `<script>`, Console, DevTools | interagir com HTML, CSS, eventos, DOM e APIs Web |
+| Node.js | `node arquivo.js` | criar scripts, servidores, APIs e automações |
+| npm | `npm install`, `npm run`, `npx` | instalar pacotes e executar tarefas do projeto |
+
+---
+
+## O que você vai aprender?
+
+- O módulo de JavaScript / ECMAScript é estruturado de forma incremental.
+- Ao longo das próximas aulas, você estudará os seguintes tópicos
+- Conceitos essenciais da linguagem, declaração de variáveis, coerção de tipos, operadores e estruturas de controle de fluxo.
+- Declaração de funções, Arrow Functions, escopos, closures, callbacks e organização modular de código com ES Modules e CommonJS.
+- Manipulação de listas imutáveis com HOFs, fatiamento de texto, precisão numérica, fusos horários.
+
+---
+
+## Exercício
+
+- No console do navegador
+- Em um arquivo `main.js` executado com Node.js
+- Nos dois ambientes
+- Execute os três testes abaixo e observe onde cada um funciona
+- Depois, responda: quais comandos pertencem à linguagem e quais dependem do ambiente de execução?
+
+---
+
+## Resumo da Aula
+
+- **Origem & Evolução**: Criado em 1995 (Mocha → LiveScript → JavaScript); padronizado como ECMA-262 para garantir neutralidade.
+- **JavaScript vs ECMAScript**: ECMAScript é a especificação formal (mantida pelo TC39); JavaScript é a implementação prática nos motores.
+- **Motor V8**: Pipeline de execução com Scanner/Parser (AST) → Interpretador Ignition (Bytecode) → Compilador TurboFan (JIT otimizado).
+- **Ambientes**: O núcleo da linguagem é complementado por Web APIs no navegador (DOM, fetch) e Node APIs no servidor (fs, http).
+- **Processo TC39**: Evolução anual baseada em 5 estágios (Stage 0 a Stage 4) com critérios rigorosos de aceitação.

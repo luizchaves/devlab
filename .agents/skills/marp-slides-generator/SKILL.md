@@ -1,22 +1,22 @@
 ---
 name: marp-slides-generator
 description: >-
-  Cria e mantém decks de slides didáticos em Markdown para o Marp CLI (`slides/**.md`)
+  Cria e mantém decks de slides didáticos em Markdown para o Marp CLI (`materials/**/*.slide.md`)
   do DevLab, compilados em HTML por `pnpm build:slides`. Use sempre que o usuário pedir
   slides de aula, apresentação de um tópico, deck Marp ou material de projeção.
 ---
 
 # DevLab — Gerador de Slides Marp
 
-Guia para escrever decks Marp seguindo o padrão **real** dos 15 decks já existentes em
-`slides/courses/dw-cstrc-jp/`.
+Guia para escrever decks Marp seguindo o padrão **real** dos decks existentes em
+`materials/courses/`.
 
 ---
 
 ## 📁 Localização e nomes
 
 ```
-slides/courses/<course-id>/<categoria>/<topico>.md
+materials/courses/<course-id>/<categoria>/<topico>.slide.md
 ```
 
 O caminho **espelha** o da aula, e o build gera a URL pública:
@@ -24,11 +24,30 @@ O caminho **espelha** o da aula, e o build gera a URL pública:
 | Arquivo | Resultado |
 | ------- | --------- |
 | `src/content/docs/courses/ecmascript/data/arrays.mdx` | aula |
-| `slides/courses/ecmascript/data/arrays.md`            | fonte do deck |
+| `materials/courses/ecmascript/data/arrays.slide.md`   | fonte do deck |
 | `public/slides/courses/ecmascript/data/arrays/index.html` | HTML gerado |
 | `/slides/courses/ecmascript/data/arrays/`             | URL linkada na aula |
 
 `public/slides/` é gitignorado: **versione apenas o `.md`**.
+
+## 🔎 Cobertura da página
+
+Antes de criar ou revisar um deck, leia a página correspondente em
+`src/content/docs/courses/<course-id>/<categoria>/<topico>.mdx` e use sua estrutura como
+fonte principal:
+
+- compare os `##` e `###` da página com os slides existentes;
+- todo `##` conceitual relevante deve aparecer no deck como um ou mais slides;
+- subseções densas (`###`) devem virar slide próprio, tabela ou exemplo curto;
+- o deck pode resumir, mas não deve reduzir uma página longa a 5–8 slides genéricos;
+- mantenha densidade proporcional: aulas de 500+ linhas normalmente precisam de 25–50
+  slides, e aulas muito densas podem passar disso se os slides continuarem legíveis;
+- preserve o arco da aula: objetivo, conceitos, exemplos, execução/exercício quando a
+  página tiver esse material, resumo.
+
+Use o deck como roteiro de aula, não como índice superficial. Se um tópico existe na
+página porque ensina uma regra, uma exceção ou uma comparação importante, ele precisa ter
+representação no slide.
 
 ---
 
@@ -90,6 +109,12 @@ perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.
 - Blocos de código com ` ```js ` (não `javascript`); os demais: `html`, `css`, `bash`,
   `json`, `txt`.
 - Nada de imagens ou emojis nos slides; diagramas são ASCII.
+- **Cuidado com Mermaid**: páginas `.mdx` podem usar `<Mermaid>` ou fences
+  `mermaid`, mas o build atual do Marp não renderiza Mermaid automaticamente. Não copie
+  `flowchart`, `graph`, `sequenceDiagram` ou `classDiagram` para o deck. Converta para
+  diagrama ASCII em bloco `txt`, ou, se for realmente necessário usar imagem, crie antes
+  um fluxo explícito de pré-render para SVG/PNG e referencie o asset versionado. Sem esse
+  fluxo, Mermaid vira texto quebrado ou slide ruim.
 - Diretivas Marp em uso: apenas `<!-- _class: lead -->` na capa. Comentários HTML
   simples (`<!-- certo -->`, `<!-- errado -->`) servem como nota de contraste.
 - Alguns decks abrem com um lembrete do comando de build em comentário HTML — opcional:
@@ -132,3 +157,7 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
 5. **Cercas aninhadas**: ao mostrar Markdown dentro de Markdown, use cercas externas de
    4 crases.
 6. **Editar `public/slides/`**: é saída de build, sobrescrita e gitignorada.
+7. **Slide em branco no início**: depois do frontmatter, a primeira coisa visível deve ser
+   `<!-- _class: lead -->`; não coloque um `---` extra logo após o frontmatter.
+8. **Cobertura fraca**: se a página tem várias seções e o deck só cobre os títulos mais
+   óbvios, revise contra o sumário da página antes de entregar.

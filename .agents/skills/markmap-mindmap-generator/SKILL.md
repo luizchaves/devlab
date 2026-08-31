@@ -1,22 +1,22 @@
 ---
 name: markmap-mindmap-generator
 description: >-
-  Cria e mantém mapas mentais Markmap em Markdown (`mindmaps/**.md`) do DevLab,
+  Cria e mantém mapas mentais Markmap em Markdown (`materials/**/*.mindmap.md`) do DevLab,
   compilados em HTML interativo por `pnpm build:mindmaps`. Use sempre que o usuário pedir
   mapa mental, mindmap, mapa de tópicos ou resumo visual em árvore de uma aula.
 ---
 
 # DevLab — Gerador de Mapas Mentais Markmap
 
-Guia para escrever mapas mentais seguindo o padrão **real** dos 15 mapas já existentes em
-`mindmaps/courses/dw-cstrc-jp/`.
+Guia para escrever mapas mentais seguindo o padrão **real** dos mapas existentes em
+`materials/courses/`.
 
 ---
 
 ## 📁 Localização e nomes
 
 ```
-mindmaps/courses/<course-id>/<categoria>/<topico>.md
+materials/courses/<course-id>/<categoria>/<topico>.mindmap.md
 ```
 
 O caminho espelha o da aula e o dos slides:
@@ -24,11 +24,31 @@ O caminho espelha o da aula e o dos slides:
 | Arquivo | Resultado |
 | ------- | --------- |
 | `src/content/docs/courses/ecmascript/data/arrays.mdx` | aula |
-| `mindmaps/courses/ecmascript/data/arrays.md`          | fonte do mapa |
+| `materials/courses/ecmascript/data/arrays.mindmap.md` | fonte do mapa |
 | `public/mindmaps/courses/ecmascript/data/arrays/index.html` | HTML gerado |
 | `/mindmaps/courses/ecmascript/data/arrays/`           | URL linkada na aula |
 
 `public/mindmaps/` é gitignorado: **versione apenas o `.md`**.
+
+## 🔎 Cobertura da página
+
+Antes de criar ou revisar um mapa mental, leia a página correspondente em
+`src/content/docs/courses/<course-id>/<categoria>/<topico>.mdx` e rastreie sua estrutura:
+
+- cada `##` conceitual importante da página deve aparecer como ramo `##` ou estar
+  claramente absorvido por um ramo equivalente;
+- `###` densos devem virar sub-ramos `###`, principalmente quando explicam regras,
+  exceções, APIs, comparações, armadilhas ou boas práticas;
+- tabelas da página devem virar folhas curtas com o padrão `- **Rótulo**: síntese`;
+- exemplos de código não são copiados; extraia a ideia, o retorno, a regra ou a
+  comparação que o exemplo demonstra;
+- mantenha densidade proporcional: páginas longas normalmente precisam de 60–120 linhas
+  de mapa, sem transformar folhas em parágrafos;
+- compare o mapa com os slides da mesma aula: o mapa deve cobrir os mesmos conceitos
+  principais, mas em formato de revisão relacional.
+
+Um mapa mental não deve ser apenas um sumário. Ele precisa preservar relações suficientes
+para o estudante revisar a página sem perder os conceitos centrais.
 
 ---
 
@@ -91,6 +111,9 @@ Regras observadas:
 - `-` (bullets): folhas, no formato `- **Rótulo**: explicação curta`.
 - Identificadores em `` `crase` ``; termos em inglês em *itálico*.
 - Uma linha por folha, ~4–12 palavras. Sem parágrafos, sem blocos de código.
+- Não copie Mermaid, HTML, MDX ou blocos de código da página. Diagramas devem ser
+  convertidos para relações textuais curtas no mapa, como `**Fluxo**: entrada -> etapa ->
+  saída`.
 - Tamanho real: 51–239 linhas (a maioria entre 55 e 90).
 
 ---
@@ -125,3 +148,7 @@ Use quando a aula passar a linkar o mapa (o link só resolve depois do HTML gera
    ficam dessincronizados do estado inicial.
 6. **Editar `public/mindmaps/`**: é saída de build, sobrescrita e gitignorada.
 7. **Título fora de sincronia** com a aula e os slides do mesmo tópico.
+8. **Mapa superficial**: se a página tem muitas seções e o mapa fica com menos de 40–50
+   linhas, provavelmente ele está omitindo conceitos importantes.
+9. **Copiar artefatos da página**: blocos ` ```js `, `<Mermaid>`, `flowchart` e HTML não
+   pertencem ao mapa; transforme-os em folhas conceituais.
