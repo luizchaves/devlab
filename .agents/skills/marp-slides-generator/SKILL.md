@@ -36,11 +36,16 @@ Antes de criar ou revisar um deck, leia a página correspondente em
 `src/content/docs/courses/<course-id>/<categoria>/<topico>.mdx` e use sua estrutura como
 fonte principal:
 
-- compare os `##` e `###` da página com os slides existentes;
+- compare os `##` e `###` da página com os slides existentes antes de escrever;
+- preserve o máximo possível das seções da página, ajustando a granularidade para projeção;
 - todo `##` conceitual relevante deve aparecer no deck como um ou mais slides;
-- subseções densas (`###`) devem virar slide próprio, tabela ou exemplo curto;
-- o deck pode resumir, mas não deve reduzir uma página longa a 5–8 slides genéricos;
-- mantenha densidade proporcional: aulas de 500+ linhas normalmente precisam de 25–50
+- subseções densas (`###`) devem virar slide próprio, tabela, diagrama, imagem útil ou
+  exemplo curto;
+- páginas de projeto, guias, referências e aulas conceituais têm estruturas diferentes:
+  não force sempre o mesmo roteiro; comece com a estrutura sugerida em `Arco do deck`,
+  mas adapte para que a sequência preserve a intenção didática da página;
+- o deck pode resumir, mas não deve reduzir uma página longa a 5-8 slides genéricos;
+- mantenha densidade proporcional: aulas de 500+ linhas normalmente precisam de 25-50
   slides, e aulas muito densas podem passar disso se os slides continuarem legíveis;
 - preserve o arco da aula: objetivo, conceitos, exemplos, execução/exercício quando a
   página tiver esse material, resumo.
@@ -48,6 +53,112 @@ fonte principal:
 Use o deck como roteiro de aula, não como índice superficial. Se um tópico existe na
 página porque ensina uma regra, uma exceção ou uma comparação importante, ele precisa ter
 representação no slide.
+
+Antes de fechar o deck, faça uma revisão de cobertura: liste mentalmente as seções da
+página, confira se cada uma virou slide, trecho de código, visual ou parte de um resumo, e
+ajuste qualquer ponto em que a explicação tenha ficado rasa demais para uma aula ao vivo.
+
+---
+
+## 🧭 Tipos de página
+
+Use o formato da página como guia para a estrutura do deck:
+
+- **Aula conceitual**: priorize definição, motivação, regra, exceção, exemplo mínimo e
+  resumo. Código entra para provar a regra, não para listar todos os casos.
+- **Página de projeto**: preserve contexto, requisitos, árvore de arquivos, tarefas,
+  fluxo de execução, trechos reais e validação. O deck precisa mostrar onde mexer no
+  projeto e por quê.
+- **Guia de referência**: agrupe por famílias de uso, compare opções em tabelas e mostre
+  exemplos curtos. Evite transformar o deck em catálogo linha a linha.
+- **Aula de ferramenta ou ambiente**: mostre comandos, arquivos de configuração e erros
+  comuns em sequência operacional.
+
+Quando a página já tem uma ordem didática clara, siga essa ordem. Quando a página é muito
+densa, abra o deck com um mapa de 3-6 blocos e use esses blocos como divisões internas.
+
+---
+
+## 💻 Código no slide
+
+Código real tem prioridade quando a página usa `<SourceCode>`, `<CodeTabs>` ou projetos em
+`examples/`:
+
+- tente usar o máximo de código **relevante** da página, sem copiar arquivos inteiros;
+- escolha trechos que expliquem uma decisão, uma regra ou uma transição do projeto;
+- mantenha o código fiel ao arquivo real sempre que possível, preservando nomes,
+  chamadas, imports importantes e comportamento;
+- quando o trecho for extenso, reduza para o núcleo didático ou divida em etapas
+  (`Parte 1`, `Parte 2`, `Parte 3`) com títulos que indiquem o papel de cada etapa;
+- prefira resumir linhas repetitivas, dados longos e detalhes periféricos com comentários
+  curtos, reticências ou uma tabela de apoio;
+- não substitua código real por pseudocódigo se o trecho original couber com boa leitura;
+- se a página usa marcações `lines`, `mark`, `ins`, `del` ou `region`, respeite a intenção
+  desses recortes ao escolher o trecho do slide.
+
+Use limites por legibilidade, não como número absoluto:
+
+| Conteúdo no slide | Faixa confortável | Quando passar disso |
+| ----------------- | ----------------- | ------------------- |
+| Código sozinho | 12-18 linhas | dividir por etapa ou remover ruído |
+| Código + explicação | 8-12 linhas + 2-3 bullets | separar explicação e exemplo |
+| Comando/terminal | 4-10 linhas | recortar saída e destacar só o sinal importante |
+| Saída esperada | até ~12 linhas | mostrar só o output ou dividir em partes |
+| Tabela | 3-6 linhas de dados | dividir por família ou transformar em comparação curta |
+
+Um slide pode ocupar bem a área visível sem ficar lotado. O objetivo é que a turma leia o
+trecho durante a explicação, então evite blocos que só funcionam quando o aluno abre a
+página depois.
+
+### Comentários em código
+
+Comentários dentro do bloco devem ajudar a leitura do slide:
+
+- reduza comentários longos da página para frases curtas;
+- prefira comentários que expliquem o **porquê** ou o efeito observado;
+- remova comentários que repetem exatamente o que a linha já diz;
+- prefira saída esperada no fim da própria linha quando couber, por exemplo
+  `console.log(total); // 55`;
+- quando houver várias saídas, mantenha no comentário apenas o sinal didático principal e
+  mova a saída completa para um bloco `txt` separado;
+- quando o comentário competir com o código, mova a explicação para 1-2 bullets antes ou
+  depois do bloco;
+- mantenha saídas esperadas como comentário curto quando elas forem essenciais para
+  entender o comportamento.
+
+---
+
+## 🧩 Composição de cada slide
+
+Um slide não deve parecer uma página de texto comprimida. Construa cada slide ao redor de
+um ponto de aprendizagem:
+
+- prefira títulos diretos e específicos (`## Ordem das Condições`, `## Fall-through`) em
+  vez de frases longas;
+- use bullets compactos como apoio à fala, normalmente 3-5 por slide;
+- cada bullet deve ter uma ideia só, com 1-2 linhas no máximo;
+- quando houver imagem, SVG, diagrama ou código bom, reduza os bullets para abrir espaço;
+- não repita em bullet o que o código ou a imagem já mostram claramente;
+- prefira código, imagem ou tabela quando isso ensinar melhor do que texto corrido;
+- em slides de output ou saída esperada, prefira mostrar apenas o bloco `txt`; não adicione
+  bullets explicando o que o próprio output já evidencia;
+- se a explicação precisa de muitos bullets, divida em dois slides com títulos mais
+  específicos.
+
+Prioridade visual sugerida:
+
+1. **Código real** quando a aula ensina sintaxe, API, fluxo de projeto ou comportamento.
+2. **Imagem/SVG versionado** quando existe uma tela, arquitetura, fluxo ou diagrama pronto.
+3. **Tabela curta** quando a aula compara opções.
+4. **Diagrama ASCII** quando não há asset pronto e o fluxo precisa ser visual.
+5. **Bullets** para contexto, regra, cuidado e síntese.
+
+Em slides de código, a melhor composição costuma ser:
+
+- título curto;
+- 1 frase ou 2 bullets dizendo o que observar;
+- bloco de código legível;
+- comentários curtos no próprio código mostrando saída, efeito ou decisão importante.
 
 ---
 
@@ -76,28 +187,33 @@ description: "Slides completos da aula de Arrays em JavaScript (criação, índi
 
 ## 📐 Arco do deck
 
-1. **Capa** — `<!-- _class: lead -->`, `# <título da aula>` e uma linha de subtítulo
+1. **Capa** - `<!-- _class: lead -->`, `# <título da aula>` e uma linha de subtítulo
    listando os eixos da aula.
-2. **`## Objetivo`** — frase de abertura + 4–6 bullets com verbo no infinitivo
+2. **`## Objetivo`** - frase de abertura + 4-6 bullets com verbo no infinitivo
    ("Entender…", "Diferenciar…", "Executar…"), termos-chave em **negrito**.
-3. **`## Por Que <Tópico> Importa?`** (opcional, comum nas aulas de abertura) — impacto
+3. **`## Mapa da Aula`** - 3-6 blocos quando a página for longa, de projeto ou tiver
+   muitas seções.
+4. **`## Por Que <Tópico> Importa?`** (opcional, comum nas aulas de abertura) - impacto
    no navegador / servidor / ferramentas + linha em *itálico* com a regra de ouro.
-4. **Slides de conteúdo** — **um conceito por slide**, título curto podendo usar código
+5. **Slides de conteúdo** - **um conceito por slide**, título curto podendo usar código
    (`## Repetição por Condição: \`while\``). Cada slide é uma destas formas:
-   - 4–6 bullets com o termo em **negrito** e explicação curta;
+   - 3-5 bullets compactos com o termo em **negrito** e explicação curta;
    - **uma** tabela comparativa (`| Termo | O que é | Exemplo |`);
-   - **um** bloco de código ` ```js ` de até ~15 linhas, com o resultado em comentário;
-   - um diagrama ASCII em ` ```txt ` com caracteres de caixa (`┌ ─ ┬ ▼ │ └`).
+   - **um** bloco de código com tamanho adequado ao contexto;
+   - uma imagem ou SVG versionado quando ela melhorar a compreensão;
+   - um diagrama ASCII em ` ```txt ` quando não houver visual pronto.
    Quando um conceito exige código + explicação, quebre em dois slides
    (`## Template Literals (Crase)` / `## Template Literals (Exemplo de Código)`).
-5. **`## Exercício`** — enunciado curto com dados de entrada e 2–3 passos numerados.
-6. **`## Solução do Exercício`** — código comentado e saída esperada.
-7. **`## Resumo da Aula`** — 5–7 bullets de fechamento. Se passar disso, divida em
+6. **`## Executando`** - comandos e verificações quando a página tiver essa seção.
+7. **`## Exercício`** - enunciado curto com dados de entrada e 2-3 passos numerados.
+8. **`## Solução do Exercício`** - código comentado e saída esperada quando a página
+   incluir solução ou quando o usuário pedir.
+9. **`## Resumo da Aula`** - 5-7 bullets de fechamento. Se passar disso, divida em
    `## Resumo da Aula (Parte 1)` e `## Resumo da Aula (Parte 2)`.
 
 Separe **todo** slide com `---` em linha isolada.
 
-Tamanho real dos decks: 128–547 linhas (~15 a 45 slides). Aulas de fundamento ficam
+Tamanho real dos decks: 128-547 linhas (~15 a 45 slides). Aulas de fundamento ficam
 perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.
 
 ---
@@ -108,13 +224,19 @@ perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.
   `*empty slots*`) e identificadores em `` `crase` ``.
 - Blocos de código com ` ```js ` (não `javascript`); os demais: `html`, `css`, `bash`,
   `json`, `txt`.
-- Nada de imagens ou emojis nos slides; diagramas são ASCII.
+- Evite emojis nos slides. Eles raramente ajudam na leitura técnica e criam ruído visual.
+- Não escreva "abaixo" no texto do slide; prefira "a seguir", "no próximo exemplo",
+  "neste trecho" ou uma referência concreta como "na linha 12".
+- Use imagens quando houver asset útil e versionado, especialmente SVGs de arquitetura,
+  fluxos, telas, diagramas ou ilustrações técnicas. A imagem deve ensinar algo que texto,
+  tabela ou código explicariam pior.
+- Não use imagem decorativa, genérica ou sem relação direta com a explicação. Se não houver
+  asset pronto, prefira diagrama ASCII antes de criar uma imagem só para enfeitar.
 - **Cuidado com Mermaid**: páginas `.mdx` podem usar `<Mermaid>` ou fences
   `mermaid`, mas o build atual do Marp não renderiza Mermaid automaticamente. Não copie
   `flowchart`, `graph`, `sequenceDiagram` ou `classDiagram` para o deck. Converta para
-  diagrama ASCII em bloco `txt`, ou, se for realmente necessário usar imagem, crie antes
-  um fluxo explícito de pré-render para SVG/PNG e referencie o asset versionado. Sem esse
-  fluxo, Mermaid vira texto quebrado ou slide ruim.
+  SVG/PNG versionado quando houver fluxo explícito de pré-render, ou para diagrama ASCII
+  em bloco `txt`. Sem esse fluxo, Mermaid vira texto quebrado ou slide ruim.
 - Diretivas Marp em uso: apenas `<!-- _class: lead -->` na capa. Comentários HTML
   simples (`<!-- certo -->`, `<!-- errado -->`) servem como nota de contraste.
 - Alguns decks abrem com um lembrete do comando de build em comentário HTML — opcional:
@@ -134,9 +256,9 @@ perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.
 pnpm build:slides
 ```
 
-Roda `scripts/build-slides.mjs`, que percorre `slides/**/*.md` e invoca
-`marp --no-stdin <arquivo> -o public/slides/<caminho>/index.html`. O build falha inteiro
-se o Marp reclamar de um arquivo.
+Roda `scripts/build-slides.mjs`, que percorre `materials/**/*.slide.md` e invoca
+`marp --no-stdin --html <arquivo> -o public/slides/<caminho>/index.html`. O build falha
+inteiro se o Marp reclamar de um arquivo.
 
 ```bash
 pnpm validate
@@ -150,8 +272,9 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
 ## ⚠️ Armadilhas
 
 1. **Slide sem `---`**: o conteúdo gruda no slide anterior e estoura a área visível.
-2. **Excesso de conteúdo**: acima de ~6 bullets ou ~15 linhas de código o texto vaza para
-   fora do slide (o Marp não rola). Divida em `(Parte 1)` / `(Parte 2)`.
+2. **Excesso de conteúdo**: acima de ~5 bullets, ~18 linhas de código sozinho ou ~12
+   linhas de código com explicação, o texto tende a vazar. Divida em `(Parte 1)` /
+   `(Parte 2)` ou corte ruído.
 3. **Perder o bloco `style`**: a paginação passa a mostrar só o número, sem o total.
 4. **Título fora de sincronia** com a aula e o mapa mental do mesmo tópico.
 5. **Cercas aninhadas**: ao mostrar Markdown dentro de Markdown, use cercas externas de
@@ -161,3 +284,8 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
    `<!-- _class: lead -->`; não coloque um `---` extra logo após o frontmatter.
 8. **Cobertura fraca**: se a página tem várias seções e o deck só cobre os títulos mais
    óbvios, revise contra o sumário da página antes de entregar.
+9. **Código de menos em página prática**: se a aula é baseada em projeto e quase não há
+   trechos de código, o deck vira palestra abstrata. Volte aos `<SourceCode>` e escolha
+   recortes melhores.
+10. **Visual sem propósito**: imagens e SVGs são bem-vindos quando explicam fluxo,
+    arquitetura ou tela; se só ocupam espaço, remova.
