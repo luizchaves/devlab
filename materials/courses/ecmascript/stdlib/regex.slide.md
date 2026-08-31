@@ -3,25 +3,12 @@ marp: true
 theme: default
 paginate: true
 style: |
-  section {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding-bottom: 70px;
-  }
-  section.lead {
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
-    font-size: 0.6em;
-    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Expressões Regulares (RegExp)"
-description: "Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, match, replace e aplicações práticas de RegExp em JavaScript."
+description: "Slides completos da aula JavaScript: Expressões Regulares (RegExp)."
 ---
 
 <!-- _class: lead -->
@@ -34,7 +21,7 @@ Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, 
 
 ## Objetivo
 
-- Compreender o conceito e a sintaxe de Expressões Regulares em JavaScript, dominar a criação por notação literal e construtor.
+- Compreender o conceito e a sintaxe de Expressões Regulares em JavaScript, dominar a criação por notação literal e...
 
 ---
 
@@ -46,17 +33,27 @@ Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, 
 - Métodos de RegExp e String
 - Padrões Práticos de Validação
 - Validação Nativa em Formulários HTML
+- Resumo e Boas Práticas
+- Executando
+
+---
+
+## Introdução
+
+- Esta aula apresenta as Expressões Regulares (*RegExp*) em JavaScript
+- uma notação formal utilizada para descrever padrões em strings, essencial para validação de dados em formulários, busca e...
 
 ---
 
 ## Criação e Flags de Expressões Regulares
 
-- Em JavaScript, uma Expressão Regular é representada por um objeto do tipo `RegExp`.
-- Ela pode ser criada de duas formas: por Notação Literal (delimitada por barras `/padrão/flags`) ou pelo Construtor `new RegExp()`.
+- Em JavaScript, uma Expressão Regular é representada por um objeto do tipo `RegExp`
+- Ela pode ser criada de duas formas
+- por Notação Literal (delimitada por barras `/padrão/flags`) ou pelo Construtor `new RegExp()`
 
 ---
 
-## Criação e Flags de Expressões Regulares (Comparação)
+## Criação e Flags de Expressões Regulares: Comparação
 
 | Forma de Criação | Sintaxe | Uso Recomendado |
 | ---------------- | ------- | --------------- |
@@ -67,15 +64,15 @@ Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, 
 
 ## Flags (Modificadores de Comportamento)
 
-- As flags alteram a forma como a busca por padrões é executada.
-- Ao usar o construtor `new RegExp("..."),` as barras invertidas devem ser escapadas com outra barra invertida.
-- Por exemplo: o padrão `/\d{3}/` em notação literal torna-se `new RegExp("\\d{3}")` em formato de string.
-- Construir e depurar Expressões Regulares diretamente no código pode ser desafiador.
-- Uma excelente estratégia antes de implementar a regex na sua aplicação é testá-la e validá-la interativamente no site Regex101.
+- As *flags* alteram a forma como a busca por padrões é executada
+- Ao usar o construtor `new RegExp("..."),` as barras invertidas devem ser escapadas com outra barra invertida
+- o padrão `/\d /` em notação literal torna-se `new RegExp("\\d ")` em formato de string
+- Construir e depurar Expressões Regulares diretamente no código pode ser desafiador
+- Uma excelente estratégia antes de implementar a regex na sua aplicação é testá-la e validá-la interativamente no site...
 
 ---
 
-## Flags (Modificadores de Comportamento) (Comparação)
+## Flags (Modificadores de Comportamento): Comparação
 
 | Flag | Nome | Descrição |
 | ---- | ---- | --------- |
@@ -87,7 +84,7 @@ Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, 
 
 ---
 
-## Flags (Modificadores de Comportamento) (Exemplo)
+## Formas de criação e uso de flags
 
 ```js
 // 1. Notação Literal (com a flag 'i' para ignorar maiúsculas/minúsculas)
@@ -105,17 +102,17 @@ console.log(regexConstructor.test("JAVASCRIPT")); // true
 
 ## Sintaxe Fundamental de RegExp
 
-- Uma Expressão Regular combina caracteres literais (como letras e números) com metacaracteres que possuem significados especiais.
+- Uma Expressão Regular combina caracteres literais (como letras e números) com metacaracteres que possuem significados...
 
 ---
 
-## 1. Classes de Caracteres
+## Classes de Caracteres
 
-- Atalhos para conjuntos comuns de caracteres.
+- Atalhos para conjuntos comuns de caracteres
 
 ---
 
-## 1. Classes de Caracteres (Comparação)
+## Classes de Caracteres: Comparação
 
 | Metacaractere | Correspondência | Equivalente |
 | ------------- | --------------- | ----------- |
@@ -124,10 +121,11 @@ console.log(regexConstructor.test("JAVASCRIPT")); // true
 | `\D` | Qualquer caractere que **NÃO** seja dígito | `[^0-9]` |
 | `\w` | Caractere alfanumérico ou sublinhado | `[a-zA-Z0-9_]` |
 | `\W` | Qualquer caractere **NÃO** alfanumérico | `[^a-zA-Z0-9_]` |
+| ... | ... | ... |
 
 ---
 
-## 1. Classes de Caracteres (Exemplo)
+## Exemplo de classes de caracteres
 
 ```js
 const hasDigits = /\d+/;
@@ -140,13 +138,13 @@ console.log(hasWhitespace.test("SemEspaços")); // false
 
 ---
 
-## 2. Conjuntos e Intervalos (`[...]`)
+## Conjuntos e Intervalos (`[...]`)
 
-- Os colchetes definem um conjunto de caracteres permitidos em uma determinada posição.
+- Os colchetes definem um conjunto de caracteres permitidos em uma determinada posição
 
 ---
 
-## 2. Conjuntos e Intervalos (`[...]`) (Comparação)
+## Conjuntos e Intervalos (`[...]`): Comparação
 
 | Sintaxe | Descrição | Exemplo |
 | ------- | --------- | ------- |
@@ -158,7 +156,7 @@ console.log(hasWhitespace.test("SemEspaços")); // false
 
 ---
 
-## 2. Conjuntos e Intervalos (`[...]`) (Exemplo)
+## Exemplo de conjuntos de caracteres
 
 ```js
 const hexColor = /^#[0-9a-fA-F]{6}$/;
@@ -170,15 +168,16 @@ console.log(hexColor.test("#zzzzzz")); // false (caracteres z não são hexadeci
 
 ---
 
-## 3. Âncoras e Fronteiras
+## Âncoras e Fronteiras
 
-- As âncoras não correspondem a caracteres visíveis; elas especificam posições no texto.
-- Sempre utilize a âncora de início `^` e a âncora de fim `$` ao validar campos de formulários (como CPF, CEP ou e-mail).
-- Sem elas, uma string contendo caracteres inválidos extras antes ou depois do padrão ainda seria aceita!
+- As âncoras não correspondem a caracteres visíveis
+- elas especificam posições no texto
+- Sempre utilize a âncora de início `^` e a âncora de fim `$` ao validar campos de formulários (como CPF, CEP ou e-mail)
+- Sem elas, uma string contendo caracteres inválidos extras antes ou depois do padrão ainda seria aceita
 
 ---
 
-## 3. Âncoras e Fronteiras (Comparação)
+## Âncoras e Fronteiras: Comparação
 
 | Metacaractere | Descrição | Exemplo |
 | ------------- | --------- | ------- |
@@ -188,7 +187,7 @@ console.log(hexColor.test("#zzzzzz")); // false (caracteres z não são hexadeci
 
 ---
 
-## 3. Âncoras e Fronteiras (Exemplo)
+## Uso de âncoras para validação exata
 
 ```js
 // Sem âncoras: busca o padrão em qualquer parte da string
@@ -203,13 +202,13 @@ console.log(exactCheck.test("123"));       // true
 
 ---
 
-## 4. Quantificadores
+## Quantificadores
 
-- Os quantificadores especificam quantas vezes o elemento anterior deve se repetir.
+- Os quantificadores especificam quantas vezes o elemento anterior deve se repetir
 
 ---
 
-## 4. Quantificadores (Comparação)
+## Quantificadores: Comparação
 
 | Quantificador | Significado | Exemplo |
 | ------------- | ----------- | ------- |
@@ -218,10 +217,11 @@ console.log(exactCheck.test("123"));       // true
 | `?` | 0 ou 1 vez (opcional, equivalente a `{0,1}`) | `/https?/` (aceita http ou https) |
 | `{n}` | Exatamente `n` vezes | `/\d{4}/` (exatamente 4 dígitos) |
 | `{n,}` | No mínimo `n` vezes | `/\d{2,}/` (no mínimo 2 dígitos) |
+| `{n,m}` | De `n` até `m` vezes | `/\d{2,4}/` (entre 2 e 4 dígitos) |
 
 ---
 
-## 4. Quantificadores (Exemplo)
+## Exemplo de quantificadores
 
 ```js
 // Aceita "http://" ou "https://"
@@ -241,11 +241,14 @@ console.log(yearPattern.test("26"));   // false
 
 ## Quantificadores Gulosos (*Greedy*) vs. Não Gulosos (*Lazy / Non-greedy*)
 
-- Adicionando o caractere `?` logo após um quantificador (como `?`, `+?`, `??`, `{n,m}?`).
+- Por padrão, os quantificadores em Expressões Regulares são gulosos (*greedy*)
+- eles tentam capturar o maior trecho de texto possível que ainda satisfaça a expressão
+- Adicionando o caractere `?` logo após um quantificador (como `*?`, `+?`, `??`, ` ?`), o quantificador torna-se não guloso...
+- Utilize quantificadores não gulosos (`*?` ou `+?`) sempre que precisar capturar o conteúdo interno de delimitadores que...
 
 ---
 
-## Quantificadores Gulosos (*Greedy*) vs. Não Gulosos (*Lazy / Non-greedy*) (Comparação)
+## Quantificadores Gulosos (*Greedy*) vs. Não Gulosos (*Lazy / Non-greedy*): Comparação
 
 | Tipo | Quantificadores | Comportamento | Exemplo em `"<p>texto 1</p><p>texto 2</p>"` |
 | ---- | --------------- | ------------- | ------------------------------------------- |
@@ -254,7 +257,7 @@ console.log(yearPattern.test("26"));   // false
 
 ---
 
-## Quantificadores Gulosos (*Greedy*) vs. Não Gulosos (*Lazy / Non-greedy*) (Exemplo)
+## Diferença entre quantificador guloso e não guloso
 
 ```js
 const html = "<div>Primeira tag</div><div>Segunda tag</div>";
@@ -272,14 +275,14 @@ console.log(html.match(lazyRegex)[0]);
 
 ---
 
-## 5. Grupos e Alternância
+## Grupos e Alternância
 
-- Parênteses `(...)` são usados para agrupar expressões, criar grupos de captura e aplicar quantificadores a múltiplos caracteres.
-- O operador pipe `|` permite alternância (opção OU).
+- Parênteses `(...)` são usados para agrupar expressões, criar grupos de captura e aplicar quantificadores a múltiplos...
+- O operador pipe `|` permite alternância (opção OU)
 
 ---
 
-## 5. Grupos e Alternância (Exemplo)
+## Exemplo de grupos e alternâncias
 
 ```js
 // Alternância (OU)
@@ -294,27 +297,30 @@ const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 const match = "22/08/2026".match(datePattern);
 
 if (match) {
-// ...
+console.log("Dia:", match[1]); // "22"
+console.log("Mês:", match[2]); // "08"
+console.log("Ano:", match[3]); // "2026"
+}
 ```
 
 ---
 
 ## Métodos de RegExp e String
 
-- Em JavaScript, o trabalho com Expressões Regulares é dividido entre métodos da própria instância `RegExp` e métodos da classe `String`.
+- Em JavaScript, o trabalho com Expressões Regulares é dividido entre métodos da própria instância `RegExp` e métodos da...
 
 ---
 
-## 1. Métodos do Objeto RegExp
+## Métodos do Objeto RegExp
 
 - O próprio objeto da expressão regular expõe dois métodos, com propósitos bem distintos
-- Quando uma instância de `RegExp` usa a flag `/g`, o método `.test()` atualiza internamente a propriedade `lastIndex`.
-- Invocar o mesmo objeto `regexp.test(str)` repetidamente na mesma string pode alternar entre `true` e `false`!
-- Para testes booleanos simples de validação, evite a flag `g`.
+- Quando uma instância de `RegExp` usa a flag `/g`, o método `.test()` atualiza internamente a propriedade `lastIndex`
+- Invocar o mesmo objeto `regexp.test(str)` repetidamente na mesma string pode alternar entre `true` e `false`
+- Para testes booleanos simples de validação, evite a flag `g`
 
 ---
 
-## 1. Métodos do Objeto RegExp (Comparação)
+## Métodos do Objeto RegExp: Comparação
 
 | Método | Descrição | Retorno |
 | ------ | --------- | ------- |
@@ -323,7 +329,7 @@ if (match) {
 
 ---
 
-## 1. Métodos do Objeto RegExp (Exemplo)
+## Uso de test() e exec()
 
 ```js
 const pattern = /DW-(\d{4})/;
@@ -340,14 +346,14 @@ console.log(result[1]); // "2026" (primeiro grupo de captura)
 
 ---
 
-## 2. Métodos de String que Utilizam RegExp
+## Métodos de String que Utilizam RegExp
 
 - Do outro lado, as strings aceitam expressões regulares em cinco métodos, que cobrem busca, substituição e divisão
-- Referência: RegExp.prototype.test() | MDN.
+- RegExp.prototype.test() | MDN
 
 ---
 
-## 2. Métodos de String que Utilizam RegExp (Comparação)
+## Métodos de String que Utilizam RegExp: Comparação
 
 | Método | Descrição | Retorno |
 | ------ | --------- | ------- |
@@ -358,7 +364,7 @@ console.log(result[1]); // "2026" (primeiro grupo de captura)
 
 ---
 
-## 2. Métodos de String que Utilizam RegExp (Exemplo)
+## Métodos de String com Expressões Regulares
 
 ```js
 const text = "Contatos: ana@gmail.com, bruno@ifpb.edu.br e carla@hotmail.com";
@@ -379,7 +385,13 @@ console.log(items); // [ 'HTML', 'CSS', 'JavaScript', 'Node.js' ]
 
 ---
 
-## Padrões Práticos de Validação (Exemplo)
+## Padrões Práticos de Validação
+
+- Expressões Regulares são indispensáveis no desenvolvimento Web para validar dados de entrada de formulários antes de...
+
+---
+
+## Exemplos práticos de validação
 
 ```js
 // 1. Validação de CPF (formato 11 dígitos ou 000.000.000-00)
@@ -394,32 +406,37 @@ const cepPattern = /^(\d{8}|\d{5}-\d{3})$/;
 
 console.log(cepPattern.test("58000000"));  // true
 console.log(cepPattern.test("58000-000")); // true
-// ...
+  // ...
+// 3. Validação de E-mail (padrão básico de formulário)
+const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+console.log(emailPattern.test("aluno@ifpb.edu.br")); // true
+console.log(emailPattern.test("aluno@ifpb"));        // false (sem DTL/sufixo)
 ```
 
 ---
 
 ## Validação Nativa em Formulários HTML
 
-- No HTML5, você pode utilizar a propriedade `pattern` em elementos `` passando uma expressão regular (sem as barras externas).
+- No HTML5, você pode utilizar a propriedade `pattern` em elementos ` ` passando uma expressão regular (sem as barras externas)
 
 ---
 
-## Validação Nativa em Formulários HTML (Exemplo)
+## Validação de formulário HTML5 com pattern
 
 ```html
 <!-- O formulário só será enviado se o usuário digitar o CEP no formato 00000-000 -->
 <form>
-  <label for="cep">CEP:</label>
-  <input
-    type="text"
-    id="cep"
-    name="cep"
-    pattern="\d{5}-\d{3}"
-    placeholder="00000-000"
-    required
-  />
-  <button type="submit">Enviar</button>
+<label for="cep">CEP:</label>
+<input 
+ type="text" 
+ id="cep" 
+ name="cep" 
+ pattern="\d{5}-\d{3}" 
+ placeholder="00000-000" 
+ required 
+/>
+<button type="submit">Enviar</button>
 </form>
 ```
 
@@ -427,50 +444,51 @@ console.log(cepPattern.test("58000-000")); // true
 
 ## Resumo e Boas Práticas
 
-- Em validações de formulário, use sempre as âncoras `^` (início) e `$` (fim) para garantir que a string inteira obedeça ao padrão.
+- Em validações de formulário, use sempre as âncoras `^` (início) e `$` (fim) para garantir que a string inteira obedeça ao...
 - Teste seus padrões com casos positivos e negativos usando ferramentas como regex101.com.
 - Prefira notação literal `/padrão/` para regex estáticas.
-- Evite a flag `g` em instâncias de `RegExp` usadas repetidamente com `.test()` para prevenir problemas de estado com `lastIndex`.
+- Evite a flag `g` em instâncias de `RegExp` usadas repetidamente com `.test()` para prevenir problemas de estado com...
 - Use metacaracteres como `\d` (dígitos), `\w` (alfanumérico) e `\s` (espaços) para manter a expressão concisa.
-
----
-
-## Criação e Flags
-
-- Qual é a diferença de uso entre a Notação Literal (`/padrão/`) e o Construtor (`new RegExp()`)?
-- A notação literal é usada para padrões estáticos conhecidos em tempo de desenvolvimento.
-- Para que serve a flag `/i` e a flag `/g` em uma Expressão Regular?
-- A flag `/i` (ignore case) faz com que a busca ignore a diferença entre letras maiúsculas e minúsculas.
-- A flag `/g` (global) faz com que a busca encontre todas as correspondências no texto, e não apenas a primeira.
-
----
-
-## Sintaxe e Metacaracteres
-
-- Qual é a diferença de significado entre o caractere `^` dentro de colchetes `[^abc]` e fora de colchetes `^abc`?
-- Fora dos colchetes, `^` é uma âncora que indica que o padrão deve estar no início da string.
-- O que representam as classes de caracteres `\d`, `\w` e `\s`?
-- `\d` corresponde a qualquer dígito numérico (0-9).
-- `\w` corresponde a qualquer caractere alfanumérico (letras, números e sublinhado `_`).
-
----
-
-## Métodos e Aplicações
-
-- Por que é importante incluir as âncoras `^` e `$` em expressões de validação de formulários?
-- Porque sem `^` e `$`, a Expressão Regular verificará apenas se o padrão existe em alguma parte da string.
-- Com `^` e `$`, exige-se que a string inteira, do início ao fim, corresponda exatamente ao padrão.
-- Como podemos extrair partes específicas de uma correspondência usando Expressões Regulares?
-- Utilizando grupos de captura demarcados por parênteses `(...)` na expressão.
 
 ---
 
 ## Executando
 
-- Crie um arquivo chamado `regexp-demo.js`
-- Execute o arquivo com Node.js no terminal
+- Crie um arquivo chamado `regexp-demo.js`:
+- Execute o arquivo com Node.js no terminal:
 - Modifique o padrão e teste novos cenários de captura.
-- Os conceitos de Expressões Regulares podem ser testados diretamente no terminal com o Node.js.
+
+---
+
+## regexp-demo.js
+
+```js
+const text = "Contatos de urgência: 83-98888-1111, 83999992222 e 83 97777 3333.";
+
+// Padrão para telefone celular do Nordeste com DDD
+const phonePattern = /\b(?:\(83\)|83)?\s?9\d{4}[- ]?\d{4}\b/g;
+
+const foundPhones = text.match(phonePattern);
+console.log("Texto original:", text);
+console.log("Telefones encontrados:", foundPhones);
+```
+
+---
+
+## Terminal
+
+```bash
+node regexp-demo.js
+```
+
+---
+
+## Output
+
+```txt
+Texto original: Contatos de urgência: 83-98888-1111, 83999992222 e 83 97777 3333.
+Telefones encontrados: [ '83-98888-1111', '83999992222', '83 97777 3333' ]
+```
 
 ---
 
@@ -480,24 +498,57 @@ console.log(cepPattern.test("58000-000")); // true
 - Crie uma função `validateCEP(cep)` que retorne `true` se o CEP estiver no formato de 8 dígitos ou `00000-000`;
 - Crie uma função `validateDate(date)` que retorne `true` se a data estiver no formato `DD/MM/AAAA`;
 - Teste as funções com entradas válidas e inválidas e imprima os resultados no console.
-- Crie um arquivo chamado `validator.js` para construir funções de validação de dados de formulário utilizando Expressões Regulares
 
 ---
 
 ## Desafio
 
 - A linha de log possui a estrutura: `"192.168.1.50 - [22/Aug/2026:09:30:00] \"GET /api/users HTTP/1.1\" 200"`;
-- Crie uma função `parseLogLine(logLine)` que utilize uma RegExp com grupos de captura `(...)` para extrair
+- Crie uma função `parseLogLine(logLine)` que utilize uma RegExp com grupos de captura `(...)` para extrair:
 - O endereço IP do cliente;
 - A data/hora do acesso;
 - O método HTTP (`GET`, `POST`, etc.);
 
 ---
 
+## Criação e Flags
+
+- Qual é a diferença de uso entre a Notação Literal (`/padrão/`) e o Construtor (`new RegExp()`)
+- Para que serve a flag `/i` e a flag `/g` em uma Expressão Regular
+- Por que devemos ter cuidado ao usar a flag `/g` com o método `regexp.test(str)`
+
+---
+
+## Sintaxe e Metacaracteres
+
+- Qual é a diferença de significado entre o caractere `^` dentro de colchetes `[^abc]` e fora de colchetes `^abc`
+- O que representam as classes de caracteres `\d`, `\w` e `\s`
+- Qual é a diferença de comportamento entre um quantificador Guloso (*Greedy*) e um Não Guloso (*Lazy*)
+
+---
+
+## Métodos e Aplicações
+
+- Por que é importante incluir as âncoras `^` e `$` em expressões de validação de formulários
+- Como podemos extrair partes específicas de uma correspondência usando Expressões Regulares
+- Para que serve o atributo `pattern` em elementos ` ` de formulários HTML5
+- Como o método `string.split(regexp)` se diferencia de `string.split(" ")`
+
+---
+
+## Próxima aula
+
+- Date e Manipulação de Datas
+- Instanciação do objeto Date, timestamps, manipulação de fusos e métodos de formatação
+
+---
+
 ## Resumo da Aula
 
-- **Sintaxe & Flags**: Literais `/padrao/flags` ou construtor `new RegExp()`; flags `g` (global), `i` (case-insensitive), `m` (multilinha), `u` (unicode).
-- **Metacaracteres & Classes**: `\d` (dígitos), `\w` (alfanumérico), `\s` (espaços), `^` (início), `$` (fim) e quantificadores (`*`, `+`, `?`, `{n,m}`).
-- **Grupos Nomeados (ES2018)**: Captura semântica de partes do texto com `(?<nome>padrao)` acessíveis via `match.groups.nome`.
-- **Métodos de Teste e Extração**: `regex.test()` para validações booleanas, `regex.exec()` e `string.matchAll()` para extração de grupos.
-- **Substituição**: `string.replace()` e `replaceAll()` com suporte a referências numéricas (`$1`, `$2`) ou grupos nomeados.
+- Revise criação e Flags de Expressões Regulares
+- Revise flags (Modificadores de Comportamento)
+- Revise sintaxe Fundamental de RegExp
+- Revise métodos de RegExp e String
+- Revise padrões Práticos de Validação
+- Revise validação Nativa em Formulários HTML
+- Revise resumo e Boas Práticas

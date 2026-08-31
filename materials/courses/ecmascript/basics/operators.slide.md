@@ -3,25 +3,12 @@ marp: true
 theme: default
 paginate: true
 style: |
-  section {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding-bottom: 70px;
-  }
-  section.lead {
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
-    font-size: 0.6em;
-    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Expressões e Operadores"
-description: "Expressões, statements, precedência, associatividade e operadores essenciais em JavaScript."
+description: "Slides completos da aula JavaScript: Expressões e Operadores."
 ---
 
 <!-- _class: lead -->
@@ -34,7 +21,7 @@ Expressões, statements, precedência, associatividade e operadores essenciais e
 
 ## Objetivo
 
-- Reconhecer expressões e statements, entender precedência e associatividade, usar operadores de cálculo, concatenação, comparação.
+- Reconhecer expressões e *statements*, entender precedência e associatividade, usar operadores de cálculo, concatenação,...
 
 ---
 
@@ -45,20 +32,31 @@ Expressões, statements, precedência, associatividade e operadores essenciais e
 - Associatividade
 - Operadores
 - Taxonomia completa dos operadores
+- Executando
+- Exercício
+- Desafio
+
+---
+
+## Introdução
+
+- Depois de criar valores e variáveis, o próximo passo é combinar esses valores
+- Expressões produzem resultados
+- operadores descrevem como esses resultados são calculados, comparados, atribuídos ou escolhidos
 
 ---
 
 ## Expressões e statements
 
-- Uma expressão produz um valor.
-- Esse valor pode ser exibido, atribuído a uma variável, passado para uma função ou combinado com outra expressão.
-- Um statement é uma instrução que organiza a execução do programa.
-- Declarações, `if`, `for`, `while`, `return` e blocos com `{}` são exemplos comuns.
-- Nem todo statement pode ser usado onde uma expressão é esperada.
+- Uma expressão produz um valor
+- Esse valor pode ser exibido, atribuído a uma variável, passado para uma função ou combinado com outra expressão
+- Um *statement* é uma instrução que organiza a execução do programa
+- Declarações, `if`, `for`, `while`, `return` e blocos com ` ` são exemplos comuns
+- Nem todo *statement* pode ser usado onde uma expressão é esperada
 
 ---
 
-## Expressões e statements (Exemplo)
+## Expressões
 
 ```js
 console.log(1 + 1); // 2
@@ -75,17 +73,29 @@ console.log(18 >= 18 ? "adult" : "minor"); // "adult"
 
 ---
 
-## Ponto e vírgula e ASI
+## Statement não é expressão
 
-- JavaScript possui ASI (Automatic Semicolon Insertion): em muitos casos, a engine insere `.
-- Por isso, muitos códigos funcionam mesmo sem ponto e vírgula no fim da linha.
-- Isso não significa que `;` seja sempre opcional.
-- Quando a próxima linha começa com tokens que podem continuar a expressão anterior, como `(`, `[`, `/`, `+` ou `-`.
-- O código acima pode ser lido como uma tentativa de chamar `10` como função.
+```js
+// SyntaxError: Unexpected token 'if'.
+// const result = if (true) { 1 } else { 2 };
+
+// Uma declaração é um statement, não uma expressão.
+// const total = const value = 5;
+```
 
 ---
 
-## Ponto e vírgula e ASI (Exemplo)
+## Ponto e vírgula e ASI
+
+- JavaScript possui ASI (*Automatic Semicolon Insertion*)
+- em muitos casos, a engine insere `;` automaticamente ao interpretar que uma instrução terminou
+- Por isso, muitos códigos funcionam mesmo sem ponto e vírgula no fim da linha
+- Isso não significa que `;` seja sempre opcional
+- Quando a próxima linha começa com tokens que podem continuar a expressão anterior, como `(`, `[`, `/`, `+` ou `-`, o...
+
+---
+
+## ASI em caso simples
 
 ```js
 const subtotal = 10 + 5
@@ -94,17 +104,40 @@ console.log(subtotal) // 15
 
 ---
 
-## Objeto global
+## Quando o ponto e vírgula importa
 
-- Algumas expressões dependem do ambiente em que o JavaScript está rodando.
-- No navegador existe `window`; no Node.js, `window` normalmente não existe.
-- `globalThis` é a forma padronizada de acessar o objeto global do ambiente atual.
-- Ao testar expressões, confirme onde o código está rodando.
-- Um exemplo que usa `document`, `window` ou elementos HTML depende do navegador.
+```js
+const total = 10
+(function showTotal() {
+console.log(total)
+})()
+```
 
 ---
 
-## Objeto global (Exemplo)
+## Separando instruções
+
+```js
+const total = 10;
+
+(function showTotal() {
+console.log(total);
+})();
+```
+
+---
+
+## Objeto global
+
+- Algumas expressões dependem do ambiente em que o JavaScript está rodando
+- No navegador existe `window`
+- no Node.js, `window` normalmente não existe
+- `globalThis` é a forma padronizada de acessar o objeto global do ambiente atual
+- Ao testar expressões, confirme onde o código está rodando
+
+---
+
+## Ambiente de execução
 
 ```js
 console.log(typeof window); // "undefined", quando roda no Node.js
@@ -118,15 +151,15 @@ console.log(typeof globalThis); // "object"
 
 ## Precedência e agrupamento
 
-- Quando uma expressão tem vários operadores, JavaScript precisa decidir o que será calculado primeiro.
-- Essa ordem é chamada de precedência.
-- A conversão de Fahrenheit para Celsius mostra por que parênteses não são apenas detalhe visual.
-- A fórmula correta é `(fahrenheit - 32) / 1.8`.
-- Sem agrupamento, a divisão acontece antes da subtração
+- Quando uma expressão tem vários operadores, JavaScript precisa decidir o que será calculado primeiro
+- Essa ordem é chamada de precedência
+- A conversão de Fahrenheit para Celsius mostra por que parênteses não são apenas detalhe visual
+- A fórmula correta é `(fahrenheit - 32) / 1.8`
+- Fórmula destacada na página
 
 ---
 
-## Precedência e agrupamento (Comparação)
+## Precedência e agrupamento: Comparação
 
 | Conceito | Pergunta que responde | Exemplo |
 | -------- | --------------------- | ------- |
@@ -136,7 +169,7 @@ console.log(typeof globalThis); // "object"
 
 ---
 
-## Precedência e agrupamento (Exemplo)
+## Sem agrupamento
 
 ```js
 const fahrenheit = 50;
@@ -147,17 +180,43 @@ console.log(wrongCelsius); // 32.22222222222222
 
 ---
 
-## Associatividade
+## Com agrupamento
 
-- Associatividade decide como operadores de mesma precedência são agrupados.
-- A maioria dos operadores aritméticos agrupa da esquerda para a direita; exponenciação agrupa da direita para a esquerda.
-- Associatividade também afeta concatenação e coerção quando `+` mistura números e strings.
-- No primeiro caso, `2 + 3` acontece antes e gera `5`; depois ocorre concatenação com `"4"`.
-- No segundo, a primeira operação já envolve string, então o restante segue como concatenação.
+```js
+const fahrenheit = 50;
+const celsius = (fahrenheit - 32) / 1.8;
+
+console.log(celsius); // 10
+```
 
 ---
 
-## Associatividade (Exemplo)
+## Precedência
+
+```js
+console.log(20 - 10 * 2); // 0
+console.log((20 - 10) * 2); // 20
+
+console.log(2 * 3 ** 2); // 18
+console.log((2 * 3) ** 2); // 36
+
+console.log(true || false && false); // true
+console.log((true || false) && false); // false
+```
+
+---
+
+## Associatividade
+
+- Associatividade decide como operadores de mesma precedência são agrupados
+- A maioria dos operadores aritméticos agrupa da esquerda para a direita
+- exponenciação agrupa da direita para a esquerda
+- Associatividade também afeta concatenação e coerção quando `+` mistura números e strings
+- No primeiro caso, `2 + 3` acontece antes e gera `5`
+
+---
+
+## Associatividade
 
 ```js
 console.log(20 - 10 - 5); // 5, associatividade: →
@@ -166,24 +225,34 @@ console.log(2 ** 3 ** 2); // 512, associatividade: ←
 
 ---
 
+## Associatividade e coerção
+
+```js
+console.log(2 + 3 + "4"); // "54"
+console.log("2" + 3 + 4); // "234"
+```
+
+---
+
 ## Operadores
 
-- Operadores são símbolos ou palavras que combinam valores.
-- Alguns calculam números, outros comparam, outros escolhem valores ou alteram uma variável.
-- Aritméticos, concatenação, incremento, decremento, resto e exponenciação.
-- Relacionais, igualdade estrita, igualdade solta, `in` e `instanceof`.
-- `&&`, `||`, `!`, `??` e operador condicional ternário.
+- Operadores são símbolos ou palavras que combinam valores
+- Alguns calculam números, outros comparam, outros escolhem valores ou alteram uma variável
+- Aritméticos, concatenação, incremento, decremento, resto e exponenciação
+- Relacionais, igualdade estrita, igualdade solta, `in` e `instanceof`
+- `&&`, `||`, `!`, `??` e operador condicional ternário
 
 ---
 
 ## Visão geral
 
-- A tabela abaixo organiza os principais grupos.
-- Ela não precisa ser decorada; use-a como mapa de consulta para reconhecer operadores quando eles aparecerem no código.
+- A tabela abaixo organiza os principais grupos
+- Ela não precisa ser decorada
+- use-a como mapa de consulta para reconhecer operadores quando eles aparecerem no código
 
 ---
 
-## Visão geral (Comparação)
+## Visão geral: Comparação
 
 | Grupo | Operadores | Uso comum |
 | ----- | ---------- | --------- |
@@ -192,20 +261,21 @@ console.log(2 ** 3 ** 2); // 512, associatividade: ←
 | Unários | `+`, `-`, `!`, `typeof`, `delete` | Converter, negar, inspecionar ou remover |
 | Incremento e decremento | `++`, `--` | Alterar um número em uma unidade |
 | Relacionais | `<`, `<=`, `>`, `>=`, `in`, `instanceof` | Comparar ordem, presença ou tipo de objeto |
+| ... | ... | ... |
 
 ---
 
 ## Aritméticos
 
-- Operadores aritméticos fazem cálculos com números e, em geral, produzem valores do tipo `number`.
-- Isso vale inclusive para `/`: JavaScript não separa automaticamente divisão inteira de divisão decimal.
-- O operador `%` retorna o resto da divisão, não uma porcentagem.
-- JavaScript não possui um operador próprio de divisão inteira.
-- A divisão com `/` sempre produz um valor `number`; para descartar ou ajustar a parte decimal.
+- Operadores aritméticos fazem cálculos com números e, em geral, produzem valores do tipo `number`
+- Isso vale inclusive para `/`
+- JavaScript não separa automaticamente divisão inteira de divisão decimal
+- O operador `%` retorna o resto da divisão, não uma porcentagem
+- JavaScript não possui um operador próprio de divisão inteira
 
 ---
 
-## Aritméticos (Exemplo)
+## Operadores aritméticos
 
 ```js
 console.log(10 + 5); // 15
@@ -218,16 +288,37 @@ console.log(2 ** 3); // 8
 
 ---
 
-## Unários
+## Divisão inteira por arredondamento
 
-- Operadores unários atuam sobre um único operando.
-- Eles aparecem bastante em conversão rápida, negação booleana e inspeção de tipo.
-- JavaScript permite sequências como `20 - + + +10 * 2`, mas esse tipo de expressão é difícil de ler.
-- Em código de aula e produção, prefira conversões explícitas e parênteses quando a intenção não estiver óbvia.
+```js
+console.log(7 / 2); // 3.5
+console.log(Math.trunc(7 / 2)); // 3
+console.log(Math.floor(7 / 2)); // 3
+console.log(Math.ceil(7 / 2)); // 4
+console.log(Math.round(7 / 2)); // 4
+```
 
 ---
 
-## Unários (Exemplo)
+## Divisão com número negativo
+
+```js
+console.log(Math.trunc(-7 / 2)); // -3
+console.log(Math.floor(-7 / 2)); // -4
+```
+
+---
+
+## Unários
+
+- Operadores unários atuam sobre um único operando
+- Eles aparecem bastante em conversão rápida, negação booleana e inspeção de tipo
+- JavaScript permite sequências como `20 - + + +10 * 2`, mas esse tipo de expressão é difícil de ler
+- Em código de aula e produção, prefira conversões explícitas e parênteses quando a intenção não estiver óbvia
+
+---
+
+## Operadores unários
 
 ```js
 console.log(+"5"); // 5
@@ -240,15 +331,27 @@ console.log(typeof undeclaredName); // "undefined"
 
 ---
 
-## Incremento e decremento
+## Unários difíceis de ler
 
-- `++` e `--` alteram uma variável em uma unidade.
-- A posição do operador muda o valor retornado pela expressão.
-- O mesmo vale para decremento
+```js
+// SyntaxError: Invalid left-hand side expression in prefix operation.
+// console.log(20 - +++10 * 2);
+// console.log(20 - ++10);
+
+console.log(20 - + + +10 * 2); // 0
+```
 
 ---
 
-## Incremento e decremento (Exemplo)
+## Incremento e decremento
+
+- `++` e `--` alteram uma variável em uma unidade
+- A posição do operador muda o valor retornado pela expressão
+- O mesmo vale para decremento:
+
+---
+
+## Prefixo e pós-fixo
 
 ```js
 let count = 0;
@@ -264,17 +367,33 @@ console.log(count); // 2
 
 ---
 
-## Relacionais
+## Decremento
 
-- Operadores relacionais retornam booleanos.
-- Quando tipos diferentes são comparados, JavaScript pode fazer coerção; quando duas strings são comparadas.
-- `in` verifica se uma propriedade existe em um objeto ou índice existe em um array.
-- Para verificar se um valor aparece dentro de um array, `includes()` costuma ser mais direto.
-- `instanceof` verifica se um objeto foi criado a partir de uma função construtora ou classe na cadeia de protótipos.
+```js
+let decrement = 2;
+
+const decrementPostfix = decrement--;
+console.log(decrementPostfix); // 2
+console.log(decrement); // 1
+
+const decrementPrefix = --decrement;
+console.log(decrementPrefix); // 0
+console.log(decrement); // 0
+```
 
 ---
 
-## Relacionais (Exemplo)
+## Relacionais
+
+- Operadores relacionais retornam booleanos
+- Quando tipos diferentes são comparados, JavaScript pode fazer coerção
+- quando duas strings são comparadas, a comparação é lexicográfica
+- `in` verifica se uma propriedade existe em um objeto ou índice existe em um array
+- Para verificar se um valor aparece dentro de um array, `includes()` costuma ser mais direto
+
+---
+
+## Comparações relacionais
 
 ```js
 console.log(10 > 9); // true
@@ -289,17 +408,44 @@ console.log("2" > 10); // false
 
 ---
 
-## Igualdade
+## Operador in
 
-- Use `===` e `!==` como padrão.
-- Eles comparam valor e tipo.
-- `==` e `!=` permitem coerção antes da comparação, o que pode esconder resultados inesperados.
-- A página Equality comparisons and sameness | MDN explica as diferenças entre igualdade solta.
-- A JavaScript Equality Table ajuda a visualizar casos curiosos de coerção com `==`; use-a como consulta para entender o comportamento.
+```js
+const person = { name: "Fulano", address: null };
+
+console.log("name" in person); // true
+console.log("age" in person); // false
+console.log(3 in [1, 2, 3]); // false
+console.log(0 in [1, 2, 3]); // true
+console.log([1, 2, 3].includes(3)); // true
+```
 
 ---
 
-## Igualdade (Exemplo)
+## instanceof
+
+```js
+console.log([] instanceof Array); // true
+console.log([] instanceof Object); // true
+console.log(new Date() instanceof Date); // true
+console.log((() => {}) instanceof Function); // true
+console.log("text" instanceof String); // false
+console.log(42 instanceof Number); // false
+```
+
+---
+
+## Igualdade
+
+- Use `===` e `!==` como padrão
+- Eles comparam valor e tipo
+- `==` e `!=` permitem coerção antes da comparação, o que pode esconder resultados inesperados
+- A página Equality comparisons and sameness | MDN explica as diferenças entre igualdade solta, igualdade estrita e outras...
+- A JavaScript Equality Table ajuda a visualizar casos curiosos de coerção com `==`
+
+---
+
+## Igualdade
 
 ```js
 console.log(1 == 1); // true
@@ -312,17 +458,46 @@ console.log(1 !== "1"); // true
 
 ---
 
-## Lógicos e nullish coalescing
+## Coerção
 
-- Operadores lógicos combinam booleanos, mas também retornam um dos operandos.
-- Isso é muito usado para valores padrão e encadeamento de expressões.
-- `||` trata qualquer valor falsy como ausência.
-- `??` trata apenas `null` e `undefined` como ausência.
-- Se `0`, `""` ou `false` forem valores válidos, `??` costuma ser mais adequado que `||`, porque só substitui `null` e `undefined`.
+```js
+console.log("5" + 9); // "59"
+console.log("5" - 3); // 2
+console.log(`total: ${42}`); // "total: 42"
+
+if ("text") {
+ console.log("entered"); // "entered"
+}
+
+console.log(Number("5") + 9); // 14
+console.log(String(42)); // "42"
+```
 
 ---
 
-## Lógicos e nullish coalescing (Exemplo)
+## Coerção que gera erro
+
+```js
+// TypeError: Cannot mix BigInt and other types.
+// console.log(1n + 1);
+
+// TypeError: Cannot convert a Symbol value to a string.
+// console.log("id: " + Symbol("id"));
+```
+
+---
+
+## Lógicos e nullish coalescing
+
+- Operadores lógicos combinam booleanos, mas também retornam um dos operandos
+- Isso é muito usado para valores padrão e encadeamento de expressões
+- `||` trata qualquer valor *falsy* como ausência
+- `??` trata apenas `null` e `undefined` como ausência
+- Se `0`, `""` ou `false` forem valores válidos, `??` costuma ser mais adequado que `||`, porque só substitui `null` e...
+
+---
+
+## Operadores lógicos
 
 ```js
 console.log(true && true); // true
@@ -339,37 +514,73 @@ console.log(typeof (1 && 2)); // "number"
 
 ---
 
+## || e ??
+
+```js
+let value;
+console.log(value || 10); // 10
+console.log(value ?? 10); // 10
+
+value = 0;
+console.log(value || 10); // 10
+console.log(value ?? 10); // 0
+```
+
+---
+
 ## Bitwise
 
-- Operadores bitwise trabalham com bits de inteiros.
-- Eles aparecem menos no começo do desenvolvimento Web, mas são úteis em flags, máscaras, baixo nível e alguns cálculos específicos.
-- Em uma operação bitwise, cada posição binária é comparada com a posição equivalente do outro número.
-- O resultado também é formado bit a bit.
+- Operadores bitwise trabalham com bits de inteiros
+- Eles aparecem menos no começo do desenvolvimento Web, mas são úteis em flags, máscaras, baixo nível e alguns cálculos...
+- Em uma operação bitwise, cada posição binária é comparada com a posição equivalente do outro número
+- O resultado também é formado bit a bit
 - A conta fica mais clara na vertical
 
 ---
 
-## Bitwise (Exemplo)
+## 5 & 3
 
 ```txt
-  0101
+0101
 & 0011
 ------
-  0001  // 1
+0001  // 1
+```
+
+---
+
+## 5 | 3
+
+```txt
+0101
+| 0011
+------
+0111  // 7
+```
+
+---
+
+## 5 ^ 3
+
+```txt
+0101
+^ 0011
+------
+0110  // 6
 ```
 
 ---
 
 ## Condicional ternário
 
-- O operador condicional escolhe entre dois valores.
-- Ele é uma expressão, então pode ser atribuído a uma variável ou passado como argumento.
-- Use ternário para escolhas curtas.
-- Quando a lógica tiver muitos passos, `if` tende a ser mais legível.
+- O operador condicional escolhe entre dois valores
+- Ele é uma expressão, então pode ser atribuído a uma variável ou passado como argumento
+- Use ternário para escolhas curtas
+- Quando a lógica tiver muitos passos, `if` tende a ser mais legível
 
 ---
 
-## Condicional ternário (Exemplo)
+## Operador condicional
 
 ```js
 const age = 18;
@@ -382,15 +593,15 @@ console.log(ageStatus); // "adult"
 
 ## Atribuição
 
-- Operadores de atribuição guardam ou atualizam valores.
-- Atribuições compostas combinam uma operação com uma nova atribuição.
-- Quando `+` envolve string, ele concatena.
-- Outros operadores aritméticos tendem a converter o texto para número quando possível.
-- Desestruturação também é uma forma de atribuição: ela extrai partes de arrays ou objetos para nomes locais.
+- Operadores de atribuição guardam ou atualizam valores
+- Atribuições compostas combinam uma operação com uma nova atribuição
+- Quando `+` envolve string, ele concatena
+- Outros operadores aritméticos tendem a converter o texto para número quando possível
+- Desestruturação também é uma forma de atribuição
 
 ---
 
-## Atribuição (Exemplo)
+## Atribuições compostas
 
 ```js
 let total = 10;
@@ -404,14 +615,43 @@ console.log(total); // 30
 
 ---
 
-## Optional chaining
+## Atribuição e coerção
 
-- Optional chaining evita erro ao acessar propriedades ou métodos de valores que podem ser `null` ou `undefined`.
-- Sem `?.`, o acesso tenta continuar mesmo quando `address` é `null`, gerando erro em tempo de execução.
+```js
+let text = "10";
+text += 5;
+console.log(text); // "105"
+console.log(typeof text); // "string"
+
+let numericText = "10";
+numericText -= 5;
+console.log(numericText); // 5
+```
 
 ---
 
-## Optional chaining (Exemplo)
+## Desestruturação
+
+```js
+const [first, second] = [1, 2];
+console.log(first); // 1
+console.log(second); // 2
+
+const { name, course } = { name: "Fulano", course: "DW" };
+console.log(name); // "Fulano"
+console.log(course); // "DW"
+```
+
+---
+
+## Optional chaining
+
+- Optional chaining evita erro ao acessar propriedades ou métodos de valores que podem ser `null` ou `undefined`
+- Sem `?.`, o acesso tenta continuar mesmo quando `address` é `null`, gerando erro em tempo de execução
+
+---
+
+## Optional chaining
 
 ```js
 const student = { name: "Fulano", address: null };
@@ -424,17 +664,26 @@ console.log(student.address?.city ?? "not informed"); // "not informed"
 
 ---
 
-## Outros operadores comuns
+## Acesso sem optional chaining
 
-- Alguns operadores aparecem o tempo todo em JavaScript, mesmo quando não parecem operadores à primeira vista.
-- Eles acessam propriedades, chamam funções, criam objetos ou espalham valores.
-- O exemplo abaixo reúne alguns desses operadores em usos comuns.
-- `delete` remove uma propriedade do objeto, mas não deve ser confundido com “apagar uma variável”.
-- O operador `...` aparece em arrays, objetos, chamadas de função e parâmetros.
+```js
+// TypeError: Cannot read properties of null (reading 'city').
+// console.log(student.address.city);
+```
 
 ---
 
-## Outros operadores comuns (Comparação)
+## Outros operadores comuns
+
+- Alguns operadores aparecem o tempo todo em JavaScript, mesmo quando não parecem operadores à primeira vista
+- Eles acessam propriedades, chamam funções, criam objetos ou espalham valores
+- O exemplo abaixo reúne alguns desses operadores em usos comuns
+- `delete` remove uma propriedade do objeto, mas não deve ser confundido com “apagar uma variável”
+- O operador `...` aparece em arrays, objetos, chamadas de função e parâmetros
+
+---
+
+## Outros operadores comuns: Comparação
 
 | Operador | Exemplo | Ideia principal |
 | -------- | ------- | --------------- |
@@ -443,15 +692,16 @@ console.log(student.address?.city ?? "not informed"); // "not informed"
 | `()` | `sum(2, 3)` | Chama uma função |
 | `new` | `new Date()` | Cria objeto a partir de construtor ou classe |
 | `delete` | `delete user.age` | Remove uma propriedade de objeto |
+| ... | ... | ... |
 
 ---
 
-## Outros operadores comuns (Exemplo)
+## Outros operadores comuns
 
 ```js
 const user = {
-  name: "Ana",
-  age: 20,
+name: "Ana",
+age: 20,
 };
 
 const numbers = [1, 2, 3];
@@ -461,7 +711,12 @@ console.log(user.name); // "Ana"
 console.log(user["age"]); // 20
 console.log(numbers[0]); // 1
 console.log(today instanceof Date); // true
-// ...
+  // ...
+
+let x = 1;
+const result = (x += 1, x * 2);
+
+console.log(result); // 4
 ```
 
 ---
@@ -469,12 +724,10 @@ console.log(today instanceof Date); // true
 ## Taxonomia completa dos operadores
 
 - Expressions and operators \| MDN
-- A especificação agrupa os operadores por categoria.
-- A tabela serve como mapa: cada linha reúne os operadores de um mesmo grupo, na ordem de precedência da linguagem.
 
 ---
 
-## Taxonomia completa dos operadores (Comparação)
+## Taxonomia completa dos operadores: Comparação
 
 | Operator type              | Operators                                                                                                             |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -483,36 +736,47 @@ console.log(today instanceof Date); // true
 | Increment and decrement    | `A++`, `A--`, `++A`, `--A`                                                                                            |
 | Unary operators            | `delete`, `void`, `typeof`, `+`, `-`, `~`, `!`                                                                        |
 | Arithmetic operators       | `+`, `-`, `*`, `/`, `%`, `**`                                                                                         |
-
----
-
-## Expressões
-
-- Qual é a diferença entre expressão e statement?
-- Expressão produz um valor.
-- Statement organiza a execução, como uma declaração, bloco, `if`, `for` ou `return`.
-- Por que `(fahrenheit - 32) / 1.8` precisa de parênteses?
-- Porque divisão tem precedência maior que subtração.
-
----
-
-## Operadores
-
-- Por que preferir `===` a `==`?
-- Porque `===` compara valor e tipo sem coerção.
-- `==` pode converter valores antes de comparar, gerando resultados menos previsíveis.
-- Qual é a diferença entre `||` e `??` para valores padrão?
-- `||` substitui qualquer valor falsy, como `0`, `""` e `false`.
+| ... | ... |
 
 ---
 
 ## Executando
 
-- Crie um arquivo chamado `expression.js`
-- Execute com Node.js
+- Crie um arquivo chamado `expression.js`:
+- Execute com Node.js:
 - Altere uma expressão por vez e execute novamente.
 - Se aparecer erro, leia o tipo, a mensagem, o arquivo e a linha indicados no
-- Os exemplos podem ser testados no Node.js ou no Console do navegador.
+
+---
+
+## expression.js
+
+```js
+const fahrenheit = 50;
+const celsius = (fahrenheit - 32) / 1.8;
+
+console.log(celsius);
+console.log(2 + 3 + "4");
+console.log("2" + 3 + 4);
+```
+
+---
+
+## Terminal
+
+```bash
+node expression.js
+```
+
+---
+
+## Output
+
+```txt
+10
+54
+234
+```
 
 ---
 
@@ -536,10 +800,37 @@ console.log(today instanceof Date); // true
 
 ---
 
+## Expressões
+
+- Qual é a diferença entre expressão e statement
+- Por que `(fahrenheit - 32) / 1.8` precisa de parênteses
+- O que é associatividade
+
+---
+
+## Operadores
+
+- Por que preferir `===` a `==`
+- Qual é a diferença entre `||` e `??` para valores padrão
+- O que `student.address?.city` evita
+- Por que `2 + 3 + "4"` e `"2" + 3 + 4` têm resultados diferentes
+- Quando operadores bitwise costumam aparecer
+
+---
+
+## Próxima aula
+
+- Estruturas de Controle
+- `if`, `switch`, laços e controle de fluxo
+
+---
+
 ## Resumo da Aula
 
-- **Igualdade**: Use sempre igualdade estrita (`===` e `!==`) para evitar coerções implícitas perigosas do operador solto (`==`).
-- **Curto-Circuito**: `&&` retorna o primeiro falsy ou último truthy; `||` retorna o primeiro truthy ou último falsy.
-- **Nullish Coalescing (`??`)**: Trata apenas `null` e `undefined` como ausência de valor, preservando `0`, `""` e `false`.
-- **Optional Chaining (`?.`)**: Permite acesso seguro a propriedades, arrays (`arr?.[0]`) e métodos (`fn?.()`) sem disparar TypeError.
-- **Precedência & Unários**: Operador ternário (`c ? t : f`) e unários (`+str` para número, `!!val` para booleano).
+- Revise expressões e statements
+- Revise precedência e agrupamento
+- Revise associatividade
+- Revise operadores
+- Revise taxonomia completa dos operadores
+- Revise executando
+- Revise exercício

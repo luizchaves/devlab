@@ -20,287 +20,413 @@ style: |
     color: #71717a;
   }
 lang: pt-BR
-title: "JavaScript: Estruturas de Controle"
-description: "Statements de decisão, repetição, break, continue, switch e laços aninhados em JavaScript."
+title: 'JavaScript: Estruturas de Controle'
+description: 'Statements de decisão, repetição, break, continue, switch e laços aninhados em JavaScript.'
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Estruturas de Controle
 
-Statements de decisão, repetição, break, continue, switch e laços aninhados em JavaScript.
+Decisão, repetição, interrupção e laços aninhados em JavaScript.
 
 ---
 
 ## Objetivo
 
-- Usar `if`, `else if`, `else`, `switch`, `while`, `do...while`, `for`, `break`, `continue`, laços aninhados e labels.
+- Usar `if`, `else if`, `else` e `switch`.
+- Evitar atribuição acidental em condições.
+- Reconhecer valores _truthy_ e _falsy_.
+- Escrever `while`, `do...while` e `for` com parada clara.
+- Diferenciar `break`, `continue` e labels.
 
 ---
 
 ## Mapa da Aula
 
 - Statements de controle
-- Visão geral
-- Decisão
-- Repetição
+- Decisão com `if` e `switch`
+- Cuidados com condições
+- Repetição com `while`, `do...while` e `for`
+- Interrupção, aninhamento e labels
+- Execução, exercícios e desafio
 
 ---
 
-## Statements de controle
+## Fluxo de um Programa
 
-- Um statement de controle organiza o fluxo do programa.
-- Ele decide se um bloco será executado, quantas vezes será repetido ou em qual ponto a execução deve parar.
-- `if`, `else if`, `else` e `switch` escolhem caminhos com base em condições.
-- `while`, `do...while` e `for` repetem um bloco enquanto uma condição permitir.
-- `break` encerra um laço ou `switch`; `continue` pula para a próxima repetição.
+```txt
+valor + operador
+      |
+      v
+condição? ── sim ──► executa bloco
+      |
+     não
+      v
+segue para o próximo statement
+```
+
+- Estruturas de controle mudam a ordem natural de execução.
+- O código deixa de ser apenas uma sequência linear.
 
 ---
 
-## Visão geral
+## Statements de Controle
 
-- A tabela abaixo funciona como mapa inicial.
-- O uso correto depende menos de decorar a sintaxe e mais de escolher a estrutura que deixa a intenção do código clara.
+- Um _statement_ de controle organiza o fluxo do programa.
+- Ele decide se um bloco será executado.
+- Ele decide quantas vezes um bloco será repetido.
+- `break` e `continue` controlam o interior dos laços.
 
 ---
 
-## Visão geral (Comparação)
+## Famílias de Controle
 
-| Grupo | Statements | Uso comum |
-| ----- | ---------- | --------- |
-| Decisão simples | `if`, `else` | Executar um bloco ou outro |
-| Decisão em cadeia | `if`, `else if`, `else` | Testar faixas, prioridades ou estados |
-| Múltiplas opções | `switch`, `case`, `default` | Comparar um valor contra casos conhecidos |
-| Repetição por condição | `while`, `do...while` | Repetir até uma condição mudar |
-| Repetição por contador | `for` | Percorrer uma sequência controlada por índice |
+| Grupo             | Statements          | Uso comum                 |
+| ----------------- | ------------------- | ------------------------- |
+| Decisão simples   | `if`, `else`        | Executar um caminho       |
+| Decisão em cadeia | `else if`           | Testar prioridades        |
+| Múltiplas opções  | `switch`            | Comparar casos conhecidos |
+| Repetição         | `while`, `for`      | Repetir com uma regra     |
+| Interrupção       | `break`, `continue` | Encerrar ou pular         |
 
 ---
 
 ## Decisão
 
-- Estruturas de decisão avaliam uma condição e escolhem qual bloco executar.
-- Em JavaScript, a condição não precisa ser literalmente `true` ou `false`; ela pode ser um valor truthy ou falsy.
+- Estruturas de decisão avaliam uma condição.
+- A condição pode ser `true`, `false`, _truthy_ ou _falsy_.
+- O bloco escolhido deve revelar a intenção do código.
+
+```txt
+condição ── true/truthy ──► bloco executa
+condição ── false/falsy ──► bloco não executa
+```
 
 ---
 
-## if
+## `if`
 
-- O `if` executa o bloco apenas quando a condição é verdadeira ou truthy.
-- Use chaves para deixar claro quais linhas pertencem ao `if`.
-- Sem chaves, apenas a primeira instrução logo após o `if` fica condicionada.
-- No exemplo acima, `console.log("End of verification")` sempre executa, porque ele não pertence ao corpo do `if`.
-- JavaScript permite `if` sem chaves quando existe apenas uma instrução.
-
----
-
-## if (Exemplo)
+- O `if` executa o bloco quando a condição passa.
+- Use chaves para mostrar claramente o corpo.
 
 ```js
 const positiveNumber = 10;
 
 if (positiveNumber > 0) {
-  console.log("Positive number"); // "Positive number"
+  console.log('Positive number'); // "Positive number"
 }
 ```
 
 ---
 
-## Condição e atribuição
+## `if` Sem Chaves
 
-- Um erro comum é usar `=` quando a intenção era comparar.
-- O operador `=` atribui valor; `===` compara valor e tipo.
-- O código entra no `if` porque `value = 10` atribui `10` e a própria expressão de atribuição produz `10`, que é um valor truthy.
+- Sem chaves, só a primeira instrução pertence ao `if`.
+- A segunda chamada de `console.log` sempre executa.
+
+```js
+const negativeNumber = -5;
+
+if (negativeNumber > 0) console.log('Positive number');
+console.log('End of verification'); // sempre executa
+```
 
 ---
 
-## Condição e atribuição (Exemplo)
+## Atribuição na Condição
+
+- `=` atribui valor.
+- `===` compara valor e tipo.
+- `value = 10` produz `10`, que é _truthy_.
 
 ```js
 let value = 0;
 
-if (value = 10) {
-  console.log("Entered", value); // "Entered" 10
+if ((value = 10)) {
+  console.log('Entered', value); // "Entered" 10
 }
 ```
 
 ---
 
-## Truthy e falsy
+## Comparação Explícita
 
-- Valores como `0`, `""`, `null`, `undefined`, `NaN` e `false` são falsy.
-- A maioria dos outros valores é truthy, inclusive arrays e objetos vazios.
-- Para saber se um array tem itens, teste o tamanho.
-- Já `Array.isArray()` responde outra pergunta: ele verifica se o valor é um array.
-- Isso é útil quando o dado pode vir de uma API, formulário, arquivo JSON ou função externa.
+- Quando a intenção é comparar, use `===`.
+- O `else` registra o caminho alternativo.
+
+```js
+let value = 0;
+
+if (value === 10) {
+  console.log('Entered', value);
+} else {
+  console.log('Different value'); // "Different value"
+}
+```
 
 ---
 
-## Truthy e falsy (Exemplo)
+## _Truthy_ e _Falsy_
+
+- _Falsy_: `0`, `""`, `null`, `undefined`, `NaN` e `false`.
+- Quase todo o resto é _truthy_.
+- Arrays e objetos vazios são _truthy_.
+- Isso surpreende quando o teste queria medir conteúdo.
+
+---
+
+## Array Vazio é _Truthy_
 
 ```js
 const list = [];
 
 if (list) {
-  console.log("Empty array is truthy"); // "Empty array is truthy"
+  console.log('Empty array is truthy'); // executa
 }
 ```
 
----
-
-## if, else if e else
-
-- O `else` define o caminho alternativo.
-- O `else if` permite testar novas condições quando as anteriores falham.
-- Quando existem três ou mais possibilidades, a cadeia com `else if` pode separar os casos.
+- O teste confirma que `list` existe.
+- Ele não confirma que o array tem itens.
 
 ---
 
-## if, else if e else (Exemplo)
+## Testando Tamanho
+
+```js
+const list = [];
+
+if (list.length) {
+  console.log('Array has items');
+} else {
+  console.log('Array has no items'); // executa
+}
+```
+
+- `list.length` vale `0`.
+- `0` é _falsy_.
+
+---
+
+## Confirmando que é Array
+
+```js
+const list = [];
+const maybeList = 'not a list';
+
+console.log(Array.isArray(list)); // true
+console.log(Array.isArray(maybeList)); // false
+
+if (Array.isArray(list) && list.length > 0) {
+  console.log('Array has items');
+}
+```
+
+- `Array.isArray()` responde sobre tipo.
+- `.length` responde sobre quantidade.
+
+---
+
+## `if`, `else if` e `else`
+
+- `if` abre o primeiro caminho.
+- `else if` testa uma nova condição.
+- `else` cobre o caso restante.
 
 ```js
 const number = 0;
 
 if (number > 0) {
-  console.log("Positive number");
+  console.log('Positive number');
 } else {
-  console.log("Non-positive number"); // "Non-positive number"
+  console.log('Non-positive number'); // "Non-positive number"
 }
 ```
 
 ---
 
-## Ordem das condições
+## Cadeia com Três Caminhos
 
-- A ordem dos testes importa.
-- Em uma cadeia `if / else if`, o primeiro bloco que passar interrompe o restante da cadeia.
-- Como `95 >= 60` já é verdadeiro, o teste `grade >= 90` nunca chega a executar.
-- A condição mais específica deve vir antes da mais geral.
-- Quando duas mensagens são independentes, dois `if` separados podem fazer mais sentido do que `else if`.
+```js
+const number = 0;
+
+if (number > 0) {
+  console.log('Positive number');
+} else if (number < 0) {
+  console.log('Negative number');
+} else {
+  console.log('Zero'); // "Zero"
+}
+```
+
+- Apenas um bloco da cadeia executa.
+- A ordem dos testes decide qual bloco vence.
 
 ---
 
-## Ordem das condições (Exemplo)
+## Ordem das Condições
+
+- A cadeia para no primeiro teste verdadeiro.
+- Uma condição geral pode esconder uma específica.
 
 ```js
 const grade = 95;
 
 if (grade >= 60) {
-  console.log("Approved"); // "Approved"
+  console.log('Approved'); // executa cedo demais
 } else if (grade >= 90) {
-  console.log("Approved with distinction");
-} else {
-  console.log("Failed");
+  console.log('Approved with distinction');
 }
 ```
 
 ---
 
-## switch
+## Ordem Corrigida
 
-- O `switch` compara uma expressão com vários `case`.
-- Ele é útil quando um mesmo valor pode assumir opções conhecidas, como comandos, tipos ou operadores.
-- Cada `case` normalmente termina com `break`.
-- Sem `break`, a execução continua para os próximos casos.
+```js
+const grade = 95;
+
+if (grade >= 90) {
+  console.log('Approved with distinction'); // correto
+} else if (grade >= 60) {
+  console.log('Approved');
+} else {
+  console.log('Failed');
+}
+```
+
+- `grade >= 90` é mais específico.
+- `grade >= 60` cobre o aprovado comum.
 
 ---
 
-## switch (Exemplo)
+## Testes Independentes
+
+```js
+const grade = 95;
+
+if (grade >= 60) console.log('Approved'); // executa
+if (grade >= 90) console.log('Approved with distinction'); // executa
+```
+
+- Use `else if` quando só um caminho deve executar.
+- Use `if` separados quando vários efeitos podem acontecer juntos.
+
+---
+
+## `switch`
+
+- O `switch` compara uma expressão com vários `case`.
+- É útil para comandos, tipos, operadores e opções conhecidas.
+- Cada `case` normalmente termina com `break`.
+
+```txt
+operator ─► "+" ─► soma
+         ├► "-" ─► subtração
+         ├► "*" ─► multiplicação
+         └► outro ─► inválido
+```
+
+---
+
+## Calculadora com `switch`
 
 ```js
 const number1 = 10;
 const number2 = 20;
-const operator = "+";
+const operator = '+';
 let result;
 
 switch (operator) {
-  case "+":
+  case '+':
     result = number1 + number2;
     break;
-  case "-":
+  case '-':
     result = number1 - number2;
     break;
-// ...
+  default:
+    result = 'Invalid operator';
+}
 ```
 
 ---
 
-## switch usa igualdade estrita
+## `switch` Usa Igualdade Estrita
 
-- O `switch` compara os casos usando igualdade estrita, como `===`.
-- Por isso, `1` e `"1"` são casos diferentes.
-
----
-
-## switch usa igualdade estrita (Exemplo)
+- A comparação do `case` se comporta como `===`.
+- `1` e `"1"` são casos diferentes.
 
 ```js
-const option = "1";
+const option = '1';
 
 switch (option) {
   case 1:
-    console.log("number one");
+    console.log('number one');
     break;
-  case "1":
-    console.log("string one"); // "string one"
+  case '1':
+    console.log('string one'); // executa
     break;
-  default:
-    console.log("none");
 }
 ```
 
 ---
 
-## Fall-through
+## _Fall-through_
 
-- Quando um `case` não possui `break`, JavaScript continua executando os próximos casos até encontrar um `break` ou o fim do `switch`.
-- Esse comportamento é chamado de fall-through.
-- O fall-through também pode ser usado de forma intencional para agrupar casos que devem executar o mesmo bloco.
-- Quando um `case` não tiver `break` de propósito, deixe o agrupamento explícito ou comente a intenção.
-- Caso contrário, a ausência de `break` costuma parecer erro.
-
----
-
-## Fall-through (Exemplo)
+- Sem `break`, a execução continua nos próximos `case`.
+- Pode ser erro ou técnica intencional.
 
 ```js
-const selectedOperator = "-";
+const selectedOperator = '-';
 
 switch (selectedOperator) {
-  case "+":
-    console.log("addition");
-  case "-":
-    console.log("subtraction"); // "subtraction"
-  case "*":
-    console.log("multiplication"); // "multiplication"
-    break;
-  default:
-    console.log("invalid");
+  case '+':
+    console.log('addition');
+  case '-':
+    console.log('subtraction'); // executa
+  case '*':
+    console.log('multiplication'); // também executa
 }
 ```
 
 ---
 
-## switch(true)
+## Agrupando `case`
 
-- Também é possível usar `switch (true)` para avaliar condições em cada `case`.
-- Isso pode funcionar para faixas, mas `if / else if` costuma ser mais direto para esse tipo de lógica.
+```js
+const selectedOperator = 'add';
+
+switch (selectedOperator) {
+  case '+':
+  case 'add':
+    console.log('additive operator'); // executa
+    break;
+  case '*':
+  case 'x':
+    console.log('multiplicative operator');
+}
+```
+
+- O agrupamento intencional fica visível.
+- A ausência de código entre `case` evita ambiguidade.
 
 ---
 
-## switch(true) (Exemplo)
+## `switch (true)`
+
+- Cada `case` vira uma condição booleana.
+- Funciona para faixas.
+- `if / else if` costuma ser mais direto.
 
 ```js
 const positiveNumber = 10;
 
 switch (true) {
   case positiveNumber > 0:
-    console.log("Positive number"); // "Positive number"
+    console.log('Positive number'); // executa
     break;
   case positiveNumber < 0:
-    console.log("Negative number");
-    break;
-  default:
-    console.log("Zero");
+    console.log('Negative number');
 }
 ```
 
@@ -308,20 +434,22 @@ switch (true) {
 
 ## Repetição
 
-- Estruturas de repetição executam o mesmo bloco várias vezes.
-- Toda repetição precisa ter uma condição de parada clara; caso contrário, o programa pode ficar preso em um laço infinito.
+- Repetição executa o mesmo bloco várias vezes.
+- Toda repetição precisa de condição de parada.
+- Se a condição nunca mudar, o programa fica preso.
+
+```txt
+início ─► testa condição ─► executa bloco ─► atualiza estado
+             ▲                                  │
+             └──────── enquanto verdadeiro ◄────┘
+```
 
 ---
 
-## while
+## `while`
 
-- O `while` testa a condição antes de executar o bloco.
-- Se a condição já começar falsa, o bloco não executa nenhuma vez.
-- Neste segundo exemplo, nada é exibido porque `count < 10` já é falso no início.
-
----
-
-## while (Exemplo)
+- O `while` testa a condição antes do bloco.
+- Se a condição já começar falsa, o bloco não roda.
 
 ```js
 let count = 1;
@@ -334,15 +462,26 @@ while (count <= 5) {
 
 ---
 
-## do...while
+## `while` Sem Execução
 
-- O `do...while` executa o bloco primeiro e testa a condição depois.
-- Por isso, o bloco executa pelo menos uma vez.
-- Quando a condição continua verdadeira, ele segue repetindo.
+```js
+let count = 10;
+
+while (count < 10) {
+  console.log(count);
+  count++;
+}
+```
+
+- A condição é falsa desde o início.
+- Nada aparece no console.
 
 ---
 
-## do...while (Exemplo)
+## `do...while`
+
+- O bloco executa antes do teste.
+- Por isso, ele roda pelo menos uma vez.
 
 ```js
 let count = 10;
@@ -355,17 +494,32 @@ do {
 
 ---
 
-## for
+## `do...while` Repetindo
 
-- O `for` concentra inicialização, condição e atualização no cabeçalho.
-- Ele é comum quando existe um contador ou um intervalo conhecido.
-- O mesmo intervalo pode ser escrito com limites diferentes.
-- `i <= 5` e `i < 6` produzem a mesma sequência abaixo.
-- O `for` também é útil para acumular resultados.
+```js
+let count = 1;
+
+do {
+  console.log(count); // 1, 2, 3, 4, 5
+  count++;
+} while (count <= 5);
+```
+
+- A atualização `count++` muda a condição.
+- Sem essa atualização, o laço não para.
 
 ---
 
-## for (Exemplo)
+## `for`
+
+- O `for` concentra inicialização, condição e atualização.
+- É comum quando há contador ou intervalo conhecido.
+
+```txt
+for (início; condição; atualização) {
+  bloco
+}
+```
 
 ```js
 for (let i = 1; i <= 5; i++) {
@@ -375,17 +529,44 @@ for (let i = 1; i <= 5; i++) {
 
 ---
 
-## break e continue
+## Limites Equivalentes
 
-- `continue` pula para a próxima repetição.
-- `break` encerra o laço.
-- No exemplo, `3` é pulado por `continue`.
-- Quando `i` chega a `5`, o `break` encerra o laço antes do `console.log`.
-- Se um teste ficar preso em um laço infinito no terminal, interrompa com
+```js
+for (let i = 1; i <= 5; i++) {
+  console.log(i); // 1, 2, 3, 4, 5
+}
+
+for (let i = 1; i < 6; i++) {
+  console.log(i); // 1, 2, 3, 4, 5
+}
+```
+
+- Os dois laços geram a mesma sequência.
+- Escolha o limite que deixa a intenção mais clara.
 
 ---
 
-## break e continue (Exemplo)
+## Somatório com `for`
+
+```js
+let total = 0;
+
+for (let i = 1; i <= 10; i++) {
+  total += i;
+}
+
+console.log(total); // 55
+```
+
+- `total += i` guarda o estado entre as repetições.
+
+---
+
+## `break` e `continue`
+
+- `continue` pula o restante da repetição atual.
+- `break` encerra o laço inteiro.
+- A ordem dos testes importa.
 
 ```js
 for (let i = 1; i <= 5; i++) {
@@ -398,46 +579,76 @@ for (let i = 1; i <= 5; i++) {
 
 ---
 
-## Laços aninhados
+## Laço Infinito
 
-- Um laço pode ficar dentro de outro.
-- Isso é útil para gerar combinações, percorrer linhas e colunas ou montar séries.
-- O laço externo controla a dezena; o laço interno controla a unidade.
-- Para cada valor de `ten`, o laço de `unit` executa completo.
+```js
+let count = 1;
+
+while (count <= 5) {
+  console.log(count);
+  // faltou count++
+}
+```
+
+- A condição `count <= 5` nunca muda.
+- No terminal, interrompa com `Ctrl + C`.
+- Depois procure a atualização do estado.
 
 ---
 
-## Laços aninhados (Exemplo)
+## Laços Aninhados
+
+- Um laço pode ficar dentro de outro.
+- Isso aparece em linhas, colunas e combinações.
 
 ```js
-let output = "";
+let output = '';
 
 for (let ten = 0; ten <= 2; ten++) {
   for (let unit = 0; unit <= 2; unit++) {
     output += `${ten}${unit} `;
   }
 }
-
-console.log(output.trim()); // "00 01 02 10 11 12 20 21 22"
 ```
+
+---
+
+## Saída do Laço Aninhado
+
+```js
+console.log(output.trim());
+// "00 01 02 10 11 12 20 21 22"
+```
+
+```txt
+ten = 0: 00 01 02
+ten = 1: 10 11 12
+ten = 2: 20 21 22
+```
+
+- Para cada `ten`, o laço de `unit` executa completo.
 
 ---
 
 ## Labels
 
 - Labels dão nome a um statement.
-- Em laços aninhados, eles permitem que `break` ou `continue` atinjam um laço externo.
-- Neste caso, `break outerBreak` encerra o laço externo inteiro, não apenas o laço de `j`.
-- Aqui, `continue outerContinue` pula para a próxima repetição do laço externo.
-- Labels existem na linguagem, mas aparecem pouco em código Web comum.
+- `break` e `continue` podem mirar o laço externo.
+- Use com cuidado: labels tornam o fluxo menos comum.
+
+```txt
+outerBreak:
+  for i
+    for j
+      break outerBreak ─► encerra o laço externo
+```
 
 ---
 
-## Labels (Exemplo)
+## `break` com Label
 
 ```js
-outerBreak:
-for (let i = 1; i <= 3; i++) {
+outerBreak: for (let i = 1; i <= 3; i++) {
   for (let j = 1; j <= 3; j++) {
     if (j === 2) break outerBreak;
 
@@ -446,29 +657,134 @@ for (let i = 1; i <= 3; i++) {
 }
 ```
 
----
-
-## Exercício 1: Classificação de Nota (`grade-status.js`)
-
-- `"Approved with distinction"` quando a nota for maior ou igual a `90`;
-- `"Approved"` quando a nota for maior ou igual a `60`;
-- `"Failed"` nos demais casos.
-- Crie um arquivo `grade-status.js`.
-- Ele deve receber uma nota em uma variável `grade` e exibir
+- Ele encerra o statement marcado por `outerBreak`.
 
 ---
 
-## Exercício 2: Séries Numéricas com Laços Aninhados (`numeric-series.js`)
+## `continue` com Label
 
-- Imprimir os números organizados em linhas contendo 10 elementos por dezena (de `00` a `09`, `10` a `19`, ..., `90` a `99`).
-- Cada número dentro de uma mesma linha deve ser separado por vírgula e espaço.
-- O último elemento de cada linha deve ser seguido por uma quebra de linha (`\n`).
-- O último elemento da série (`99`) não deve conter vírgula no final.
-- Crie um arquivo `numeric-series.js` utilizando laços aninhados (`for`) para gerar uma série numérica de `00` a `99` formatada.
+```js
+outerContinue: for (let i = 1; i <= 3; i++) {
+  for (let j = 1; j <= 3; j++) {
+    if (j === 2) continue outerContinue;
+
+    console.log(i, j); // 1 1, 2 1, 3 1
+  }
+}
+```
+
+- A próxima repetição acontece no laço externo.
 
 ---
 
-## Exercício 2: Séries Numéricas com Laços Aninhados (`numeric-series.js`) (Exemplo)
+## Como Executar
+
+- Crie um arquivo `statement.js`.
+- Rode com `node statement.js`.
+- Altere uma condição por vez.
+- Confira o resultado com `console.log`.
+
+```bash
+node statement.js
+```
+
+---
+
+## Arquivo de Teste
+
+```js
+const grade = 95;
+
+if (grade >= 90) {
+  console.log('Approved with distinction');
+} else if (grade >= 60) {
+  console.log('Approved');
+} else {
+  console.log('Failed');
+}
+
+for (let i = 1; i <= 3; i++) {
+  console.log(i);
+}
+```
+
+---
+
+## Saída Esperada
+
+```txt
+Approved with distinction
+1
+2
+3
+```
+
+- Depois de validar a saída, mude `grade`.
+- Troque também os limites do `for`.
+
+---
+
+## Node.js REPL
+
+```js
+$ node
+Welcome to Node.js v24.19.0.
+Type ".help" for more information.
+> const grade = 95;
+undefined
+> grade >= 60 ? "Approved" : "Failed"
+"Approved"
+> .exit
+```
+
+- O REPL é útil para condições pequenas.
+- Para exemplos maiores, prefira um arquivo `.js`.
+
+---
+
+## Exercício 1: Nota
+
+Crie `grade-status.js` com uma variável `grade`:
+
+- `grade >= 90`: `"Approved with distinction"`.
+- `grade >= 60`: `"Approved"`.
+- demais casos: `"Failed"`.
+- Teste com `95`, `75` e `40`.
+
+---
+
+## Exercício 1: Possível Resposta
+
+```js
+const grade = 95;
+
+if (grade >= 90) {
+  console.log('Approved with distinction');
+} else if (grade >= 60) {
+  console.log('Approved');
+} else {
+  console.log('Failed');
+}
+```
+
+- A condição mais específica vem primeiro.
+- Inverter a ordem classificaria `95` apenas como aprovado.
+
+---
+
+## Exercício 2: Série Numérica
+
+Crie `numeric-series.js` com laços aninhados:
+
+- gerar números de `00` a `99`;
+- organizar 10 números por linha;
+- separar números por vírgula e espaço;
+- não deixar vírgula depois de `99`;
+- desafio extra: gerar de `99` até `00`.
+
+---
+
+## Exercício 2: Saída
 
 ```txt
 00, 01, 02, 03, 04, 05, 06, 07, 08, 09,
@@ -485,63 +801,140 @@ for (let i = 1; i <= 3; i++) {
 
 ---
 
-## Decisão
-
-- Qual é a diferença entre usar `if` com e sem chaves?
-- Por que `if (value = 10)` pode entrar no bloco mesmo quando a intenção era
-- Um array vazio é truthy ou falsy? Como testar se ele tem itens?
-- Por que a ordem dos `else if` pode mudar o resultado?
-- Qual comparação o `switch` usa para comparar `case`?
-
----
-
-## Repetição
-
-- Qual é a diferença prática entre `while` e `do...while`?
-- Quais são as três partes comuns do cabeçalho de um `for`?
-- Qual é a diferença entre `break` e `continue`?
-- Quando um laço aninhado é útil?
-- Para que servem labels com `break` ou `continue`?
-
----
-
-## Como Executar
-
-- Crie um arquivo chamado `statement.js`.
-- Execute o arquivo no terminal.
-- Altere uma condição por vez e execute novamente para observar o efeito.
-- Use um arquivo `.js` para testar os exemplos no terminal.
-- Isso facilita alterar uma condição por vez e conferir o resultado com `console.log`.
-
----
-
-## Como Executar (Exemplo)
+## Exercício 2: Possível Resposta
 
 ```js
-$ node
-Welcome to Node.js v24.19.0.
-Type ".help" for more information.
-> const grade = 95;
-undefined
-> grade >= 60 ? "Approved" : "Failed"
-'Approved'
-> .exit
+let numbers = '';
+
+for (let ten = 0; ten < 10; ten++) {
+  for (let unit = 0; unit < 10; unit++) {
+    numbers += `${ten}${unit}`;
+
+    if (unit === 9 && ten !== 9) numbers += ',\n';
+    else if (unit !== 9) numbers += ', ';
+  }
+}
+
+console.log(numbers);
+```
+
+---
+
+## Exercício 2: Versão Decrescente
+
+```js
+let numbers = '';
+
+for (let ten = 9; ten >= 0; ten--) {
+  for (let unit = 9; unit >= 0; unit--) {
+    numbers += `${ten}${unit}`;
+
+    if (unit === 0 && ten !== 0) numbers += ',\n';
+    else if (unit !== 0) numbers += ', ';
+  }
+}
+
+console.log(numbers);
 ```
 
 ---
 
 ## Desafio
 
-- Crie um arquivo `operator-report.js`.
-- Ele deve usar `switch` para classificar um operador em `"additive operator"`, `"multiplicative operator"` ou `"invalid"`.
-- Depois, use um `for` para gerar os números de `01` a `10`, pulando o `05` com `continue` e encerrando no `09` com `break`.
+Crie `operator-report.js`:
+
+- use `switch` para classificar o operador;
+- `+` e `-` viram `"additive operator"`;
+- `*` e `/` viram `"multiplicative operator"`;
+- outro valor vira `"invalid"`;
+- gere `01` a `10`, pule `05` e pare antes de `09`.
+
+---
+
+## Desafio: `switch`
+
+```js
+const selectedOperator = '-';
+
+switch (selectedOperator) {
+  case '+':
+  case '-':
+    console.log('additive operator');
+    break;
+  case '*':
+  case '/':
+    console.log('multiplicative operator');
+    break;
+  default:
+    console.log('invalid');
+}
+```
+
+---
+
+## Desafio: Laço
+
+```js
+for (let i = 1; i <= 10; i++) {
+  if (i === 5) continue;
+  if (i === 9) break;
+
+  console.log(String(i).padStart(2, '0'));
+}
+```
+
+```txt
+01
+02
+03
+04
+06
+07
+08
+```
+
+---
+
+## Perguntas de Revisão: Decisão
+
+- Qual é a diferença entre usar `if` com e sem chaves?
+- Por que `if (value = 10)` entra no bloco?
+- Um array vazio é _truthy_ ou _falsy_?
+- Como testar se um array tem itens?
+- Qual comparação o `switch` usa?
+- O que é _fall-through_?
+
+---
+
+## Perguntas de Revisão: Repetição
+
+- Qual é a diferença prática entre `while` e `do...while`?
+- Quais são as três partes do cabeçalho de um `for`?
+- Qual é a diferença entre `break` e `continue`?
+- Quando um laço aninhado é útil?
+- Para que servem labels com `break` ou `continue`?
 
 ---
 
 ## Resumo da Aula
 
-- **Condicionais**: `if / else if / else` para desvios booleanos; `switch` com igualdade estrita (`===`) exigindo `break` contra fallthrough.
-- **Loops Básicos**: `for` clássico para contadores controlados; `while` e `do...while` para iterações com condição pré/pós-teste.
-- **for...of vs for...in**: `for...of` itera sobre **valores** de coleções iteráveis (Arrays, Strings); `for...in` itera sobre **chaves** de objetos.
-- **Controle de Salto**: `break` encerra o laço imediatamente; `continue` pula diretamente para a próxima iteração.
-- **Guard Clauses**: Padrão de retorno antecipado (Early Return) para eliminar aninhamentos profundos e destacar o caminho principal.
+- **Decisão**: `if / else if / else` escolhe caminhos por condição.
+- **Comparação**: `===` evita confundir teste com atribuição.
+- **`switch`**: compara com igualdade estrita e exige atenção ao `break`.
+- **Repetição**: `while`, `do...while` e `for` precisam de condição de parada.
+- **Controle interno**: `break` encerra; `continue` pula a repetição atual.
+- **Aninhamento**: laços internos modelam dimensões e combinações.
+- **Labels**: resolvem casos específicos, mas devem ser raros.
+
+---
+
+## Próxima Aula
+
+O foco passa para manipulação de texto:
+
+**Strings e Template Literals**
+
+- criação e imutabilidade;
+- concatenação;
+- template literals;
+- métodos do objeto `String`.

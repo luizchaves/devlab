@@ -28,37 +28,68 @@ description: "Sistemas de módulos, ES Modules (import/export), CommonJS (requir
 
 # JavaScript: Módulos ES (ESM)
 
-Sistemas de módulos, ES Modules (import/export), CommonJS (require/module.exports), namespace imports, dynamic imports, alias e resolução no Node.js.
+Escopo de arquivo, `import`, `export`, CommonJS, npm, SemVer e Node.js.
 
 ---
 
 ## Objetivo
 
-- Compreender o conceito de modularização em JavaScript, diferenciar o sistema legado CommonJS (`require`/`module.
+- Entender por que módulos isolam escopo entre arquivos.
+- Diferenciar CommonJS de ES Modules.
+- Usar exports nomeados, default, aliases e namespace imports.
+- Carregar módulos sob demanda com `await import()`.
+- Configurar Node.js com `"type": "module"`.
+- Ler dependências npm e versões SemVer no `package.json`.
 
 ---
 
 ## Mapa da Aula
 
-- O que acontece sem módulos?
-- Sistemas de módulos em JavaScript
-- CommonJS (CJS)
-- Exports e imports nomeados
-- Export e import default
-- Import de namespace (`import * as`)
+- Arquivos sem módulo
+- CommonJS e ES Modules
+- Named, default, namespace e dynamic imports
+- Avaliação única e *live bindings*
+- Resolução no Node.js, npm e SemVer
+- Cenários, execução, exercício e desafio
 
 ---
 
-## O que acontece sem módulos?
+## O que é um Módulo?
 
-- Se você tentar declarar uma função em um arquivo e chamá-la em outro sem exportar nem importar
-- Ao executar o arquivo `main.js` com o Node.js (`node main.js`), o código falha com um erro de referência
-- Como cada arquivo possui um escopo privado e isolado, a função `sum` declarada em `lib.js` não é visível no arquivo `main.js`.
-- Para compartilhar valores entre arquivos, é preciso usar um sistema de módulos.
+```txt
+arquivo .js
+  ├─ variáveis privadas por padrão
+  ├─ funções privadas por padrão
+  └─ exportações explícitas
+          |
+          v
+      outro arquivo importa
+```
+
+- Um módulo é um arquivo JavaScript isolado.
+- Nada fica visível fora dele sem `export`.
 
 ---
 
-## O que acontece sem módulos? (Exemplo)
+## Sem Importar nem Exportar
+
+`lib.js` declara `sum`, mas não exporta:
+
+```js
+function sum(a, b) {
+  return a + b;
+}
+```
+
+`main.js` tenta chamar `sum` diretamente:
+
+```js
+console.log(sum(2, 1));
+```
+
+---
+
+## Output sem Módulo
 
 ```txt
 ReferenceError: sum is not defined
@@ -67,27 +98,34 @@ ReferenceError: sum is not defined
 
 ---
 
-## Sistemas de módulos em JavaScript
+## Por que Falha?
 
-- Historicamente, JavaScript não possuía um sistema oficial de módulos.
-- Para resolver isso no desenvolvimento de aplicações no servidor com Node.js, surgiram padrões como o CommonJS.
-- A partir do ES6 (ES2015), o ecossistema padronizou o ES Modules (ESM).
-- Sistema tradicional do Node.js (`require` e `module.exports`).
-- Carregamento síncrono em tempo de execução.
+- Cada arquivo tem escopo próprio.
+- `sum` existe em `lib.js`.
+- `main.js` não enxerga `sum`.
+- Para compartilhar valores, use um sistema de módulos.
 
----
-
-## CommonJS (CJS)
-
-- No estilo CommonJS, a exportação é feita atribuindo valores ao objeto `module.exports`.
-- Para exportar um único valor principal (default export no estilo CommonJS)
-- Para exportar múltiplos valores nomeados no CommonJS, atribui-se um objeto ao `module.exports`
-- O CommonJS era o padrão exclusivo do Node.js em suas primeiras versões.
-- Embora ainda seja amplamente encontrado em projetos antigos e em bibliotecas legadas.
+```txt
+lib.js  ── sem export ──X──► main.js
+```
 
 ---
 
-## CommonJS (CJS) (Exemplo)
+## Sistemas de Módulos
+
+| Sistema | Sintaxe | Carregamento | Uso comum |
+| ------- | ------- | ------------ | --------- |
+| CommonJS | `require`, `module.exports` | síncrono | Node legado |
+| ES Modules | `import`, `export` | estático/assíncrono | JS moderno |
+
+- CommonJS nasceu no ecossistema Node.js.
+- ESM é o padrão oficial da linguagem.
+
+---
+
+## CommonJS: Uma Função
+
+`lib.js` exporta um valor principal:
 
 ```js
 function sum(a, b) {
@@ -97,50 +135,110 @@ function sum(a, b) {
 module.exports = sum;
 ```
 
----
-
-## Exports e imports nomeados
-
-- Com o ES Modules (ESM), um módulo pode conter quantas exportações nomeadas (named exports) forem necessárias.
-- Cada exportação deve possuir um nome único dentro do arquivo.
-- Na importação, os membros desejados são extraídos entre chaves, como em `import { sum } from './math.js'`.
-- Caso seja necessário evitar conflitos de nomes ou melhorar a intenção.
-- A linguagem bloqueia declarações duplicadas ou importações de nomes inexistentes em tempo de compilação/análise estática
-
----
-
-## Exports e imports nomeados (Exemplo)
+`main.js` importa com `require()`:
 
 ```js
-// ESM (ECMAScript Modules) - Named exports
-export function sum(a, b) {
-  return a + b;
-}
+const sum = require('./lib.js');
 
-export const subtract = function (a, b) {
-  return a - b;
-};
-
-export const multiply = (a, b) => {
-  return a * b;
-};
-
-export const divide = (a, b) => a / b;
+console.log(sum(2, 1)); // 3
 ```
 
 ---
 
-## Export e import default
+## CommonJS: Várias Funções
 
-- O export default é usado para definir o valor principal de um módulo (por exemplo.
-- Cada módulo pode ter no máximo um `export default`.
-- Ao importar um export default, não são utilizadas chaves `{}` e o nome da variável local é livre
-- É possível exportar membros nomeados e um export default no mesmo arquivo e importá-los juntos em uma única linha de instrução
-- Tentar definir dois `export default` no mesmo arquivo resulta em erro de sintaxe.
+```js
+function sum(a, b) {
+  return a + b;
+}
+
+function minus(a, b) {
+  return a - b;
+}
+
+module.exports = { sum, minus };
+```
+
+- O objeto em `module.exports` agrupa os membros públicos.
 
 ---
 
-## Export e import default (Exemplo)
+## CommonJS: Desestruturação
+
+```js
+const { sum, minus } = require('./lib.js');
+
+console.log(sum(2, 1)); // 3
+console.log(minus(2, 1)); // 1
+```
+
+- A desestruturação extrai propriedades do objeto exportado.
+- Esse padrão aparece muito em projetos Node antigos.
+
+---
+
+## ES Modules: Exports Nomeados
+
+```js
+function sum(a, b) {
+  return a + b;
+}
+
+function minus(a, b) {
+  return a - b;
+}
+
+export { minus, sum };
+```
+
+- Um arquivo pode ter várias exportações nomeadas.
+- Cada nome exportado precisa ser único.
+
+---
+
+## ES Modules: Imports Nomeados
+
+```js
+import { minus, sum } from './lib.js';
+
+console.log(sum(2, 1)); // 3
+console.log(minus(2, 1)); // 1
+```
+
+- Chaves `{}` indicam named import.
+- O nome importado precisa existir no módulo.
+
+---
+
+## Alias com `as`
+
+```js
+import { sum as add } from './lib.js';
+
+console.log(add(2, 1)); // 3
+```
+
+- `as` cria um nome local.
+- Use quando houver conflito ou quando outro nome comunicar melhor a intenção.
+
+---
+
+## Erros em Named Imports
+
+```js
+// SyntaxError: Identifier 'sum' has already been declared.
+// export function sum(a, b) { return a + b; }
+// export function sum(a, b) { return a + b; }
+
+// SyntaxError: module './lib.js' does not export 'add'.
+// import { add } from './lib.js';
+```
+
+- ESM permite análise estática antes da execução.
+
+---
+
+## Export Default
 
 ```js
 function sum(a, b) {
@@ -150,17 +248,87 @@ function sum(a, b) {
 export default sum;
 ```
 
----
-
-## Import de namespace (`import * as`)
-
-- Quando um módulo expõe diversas exportações nomeadas (e opcionalmente um export default).
-- O objeto retornado por `import * as` é imutável (read-only).
-- Qualquer tentativa de reatribuir ou alterar uma propriedade do objeto de namespace lançará um `TypeError`.
+- O default representa o valor principal do módulo.
+- Cada módulo pode ter no máximo um `export default`.
 
 ---
 
-## Import de namespace (`import * as`) (Exemplo)
+## Import Default
+
+```js
+import sum from './lib.js';
+
+console.log(sum(2, 1)); // 3
+```
+
+- Não há chaves no import default.
+- O nome local é livre.
+
+---
+
+## Default com Qualquer Nome
+
+```js
+import add from './lib.js';
+import anyName from './lib.js';
+
+console.log(add(2, 1)); // 3
+console.log(anyName(2, 1)); // 3
+```
+
+- O arquivo exporta um default.
+- Quem importa escolhe o nome local.
+
+---
+
+## Named + Default
+
+```js
+export const PI = 3.14;
+
+export function sum(a, b) {
+  return a + b;
+}
+
+export function minus(a, b) {
+  return a - b;
+}
+
+export default { sum, minus, PI };
+```
+
+---
+
+## Importando Named + Default
+
+```js
+import Math, { sum } from './lib.js';
+
+console.log(sum(1, 1)); // 2
+console.log(Math.minus(1, 1)); // 0
+```
+
+- `Math` recebe o default.
+- `{ sum }` recebe a exportação nomeada.
+
+---
+
+## Erros com Default
+
+```js
+// SyntaxError: Identifier '.default' has already been declared.
+// export default function sum(a, b) { return a + b; }
+// export default function subtract(a, b) { return a - b; }
+
+// SyntaxError: module './lib.js' does not export 'sum'.
+// import { sum } from './lib.js'; // lib.js só tem default
+```
+
+- Default não é named export.
+
+---
+
+## Namespace Import
 
 ```js
 export const PI = 3.14;
@@ -175,27 +343,59 @@ export default {
 };
 ```
 
----
-
-## Imports dinâmicos (`import()`)
-
-- Instruções `import` estáticas devem ser colocadas no nível superior (top-level) do arquivo.
-- Elas são analisadas antes da execução do código.
-- Se você precisar carregar um módulo sob demanda, condicionalmente ou dentro de uma função.
-- A chamada `await import('./lib.js')` resolve para um objeto de namespace.
-- Para desestruturar o export default, renomeie a chave `default` (por exemplo: `{ default: MathLib }`).
+- Um módulo pode ser importado como objeto de namespace.
 
 ---
 
-## Imports dinâmicos (`import()`) (Exemplo)
+## `import * as`
+
+```js
+import * as Lib from './lib.js';
+
+console.log(Lib.sum(2, 1)); // 3
+console.log(Lib.PI); // 3.14
+console.log(Lib.default.PI); // 3.14
+console.log(Object.keys(Lib)); // ["PI", "default", "sum"]
+```
+
+- `Lib` agrupa todas as exportações.
+- `default` aparece como uma propriedade.
+
+---
+
+## Namespace é Read-only
+
+```js
+// TypeError: Cannot assign to read only property 'PI'.
+// Lib.PI = 3;
+```
+
+- O objeto de namespace é somente leitura.
+- O importador não reatribui exportações diretamente.
+
+---
+
+## Import Estático
+
+- `import` estático fica no nível superior do arquivo.
+- Ele é analisado antes da execução.
+- Não pode entrar em `if`, laço ou função.
 
 ```js
 const needsCalculation = true;
 
-// SyntaxError: import declarations may only appear at top level of a module.
+// SyntaxError: import declarations may only appear at top level.
 // if (needsCalculation) {
 //   import { sum } from './lib.js';
 // }
+```
+
+---
+
+## Import Dinâmico
+
+```js
+const needsCalculation = true;
 
 if (needsCalculation) {
   const { sum, default: MathLib } = await import('./lib.js');
@@ -205,33 +405,29 @@ if (needsCalculation) {
 }
 ```
 
----
-
-## Avaliação única e Vínculos Vivos (Live Bindings)
-
-- Dois comportamentos fundamentais caracterizam a execução dos ES Modules no JavaScript
+- `import()` retorna uma `Promise`.
+- O resultado é um objeto de namespace.
+- `default` precisa ser renomeado na desestruturação.
 
 ---
 
-## 1. Avaliação Única (*Singleton Evaluation*)
+## Avaliação Única
 
-- Um módulo é executado apenas uma única vez, na primeira oportunidade em que é importado.
-- Se múltiplos arquivos da aplicação importarem o mesmo módulo `./counter.js`.
+- Um módulo executa uma vez na primeira importação.
+- Importações seguintes reaproveitam a instância em cache.
+- Código de topo do módulo não roda de novo.
 
----
-
-## 2. Vínculos Vivos (*Live Bindings*)
-
-- As exportações em ESM não são cópias dos valores, mas vínculos vivos (live bindings).
-- Quando o módulo de origem altera o valor de uma variável exportada através de uma função interna.
-- Contudo, o arquivo que importa o valor não pode reatribuí-lo diretamente.
+```txt
+main.js ── imports ──► counter.js executa
+other.js ─ imports ──► counter.js reutilizado
+```
 
 ---
 
-## 2. Vínculos Vivos (*Live Bindings*) (Exemplo)
+## Live Bindings: Origem
 
 ```js
-console.log("Módulo counter.js executado"); // Exibido apenas UMA vez ao iniciar
+console.log("Módulo counter.js executado"); // uma vez
 
 export let count = 0;
 
@@ -240,15 +436,35 @@ export function increment() {
 }
 ```
 
----
-
-## Configuração do package.json
-
-- Para avisar ao Node.js que os arquivos `.js` do seu projeto devem ser interpretados como ES Modules (e não como o CommonJS legado).
+- A exportação `count` é um vínculo vivo.
+- Ela não é uma cópia congelada do valor inicial.
 
 ---
 
-## Configuração do package.json (Exemplo)
+## Live Bindings: Importador
+
+```js
+import { count, increment } from './counter.js';
+import { count as countRef } from './counter.js';
+
+console.log(count); // 0
+increment();
+console.log(count); // 1
+console.log(countRef); // 1
+
+// count = 10; // TypeError
+```
+
+- O valor muda na origem.
+- O importador observa a mudança.
+
+---
+
+## Node.js e ESM
+
+- Node.js precisa saber como interpretar arquivos `.js`.
+- `"type": "module"` ativa ES Modules no projeto.
+- Sem isso, `.js` tende ao CommonJS em muitos contextos.
 
 ```json
 {
@@ -260,83 +476,119 @@ export function increment() {
 
 ---
 
-## Obrigatoriedade da extensão em ESM
-
-- Ao contrário do CommonJS clássico, a especificação do ES Modules no Node.js exige que a extensão do arquivo (ex: `.
-
----
-
-## Obrigatoriedade da extensão em ESM (Exemplo)
+## Extensão Obrigatória
 
 ```js
 // Error [ERR_MODULE_NOT_FOUND]: Cannot find module './lib'.
 // import MathLib from './lib';
 
-import MathLib from './lib.js'; // Correto
+import MathLib from './lib.js'; // correto
 ```
 
----
-
-## Especificadores relativos vs. pacotes npm
-
-- Especificador relativo: Começa obrigatoriamente com `./` ou `../` e indica o caminho para um arquivo local do projeto.
-- Especificador de pacote: Não possui `./` ou `../`. O Node.js busca a biblioteca dentro da pasta `node_modules`.
-- Ao importar um módulo no Node.js, o formato do caminho especificado indica a estratégia de resolução que será utilizada
-- Para utilizar pacotes da comunidade como `mathjs`, é necessário instalá-los através de um gerenciador de pacotes.
-- Antes da instalação, o `package.json` possui a configuração básica do projeto
+- Em ESM no Node.js, caminho relativo precisa de extensão.
+- Use `./lib.js`, não apenas `./lib`.
 
 ---
 
-## Especificadores relativos vs. pacotes npm (Exemplo)
+## Relativo vs Pacote npm
 
 ```js
-import MathLib, { sum as add } from './lib.js'; // Arquivo relativo local
-import { sqrt } from 'mathjs'; // Pacote instalado via npm
+import MathLib, { sum as add } from './lib.js';
+import { sqrt } from 'mathjs';
 
 console.log(add(2, 1)); // 3
 console.log(sqrt(4)); // 2
 ```
 
----
-
-## Versionamento semântico (SemVer)
-
-- MAJOR (`14`): Mudanças incompatíveis que podem quebrar o código existente (breaking changes).
-- MINOR (`0`): Adição de novas funcionalidades mantendo a compatibilidade retroativa.
-- PATCH (`1`): Correção de bugs mantendo a compatibilidade retroativa.
-- `node_modules/`: Cria a pasta onde o Node.js armazena o código-fonte do pacote baixado e de suas subdependências.
-- Ao instalar um pacote, o npm especifica sua versão no `package.json` utilizando o padrão Semantic Versioning (SemVer).
+- `./` e `../` apontam para arquivos locais.
+- Sem `./` ou `../`, o Node busca em `node_modules`.
 
 ---
 
-## Versionamento semântico (SemVer) (Comparação)
+## Instalando Pacotes
 
-| Prefixo | Exemplo | Descrição de atualização |
-| :--- | :--- | :--- |
-| `^` (caret) | `"^14.0.1"` | Permite atualizações **MINOR** e **PATCH** (ex: `< 15.0.0`). É o padrão do npm. |
-| `~` (tilde) | `"~14.0.1"` | Permite apenas atualizações de **PATCH** (ex: `< 14.1.0`). |
-| Nenhum | `"14.0.1"` | Trava a dependência na versão **exata** especificada. |
+```bash
+npm install mathjs
+```
 
----
+```bash
+pnpm add mathjs
+```
 
-## CommonJS e ESM lado a lado (LP2)
+```bash
+yarn add mathjs
+```
 
-- Common Javascript - CJS
-- ECMAScript Modules - ESM
-- A mesma biblioteca escrita nos dois sistemas de módulos, exportando uma função e depois várias, para comparar as sintaxes diretamente.
-
----
-
-## Cenários
-
-|     | Uma Função | Várias Funções |
-| --- | ---------- | -------------- |
-| CJS | 1.1        | 2.1            |
-| ESM | 1.2        | 2.2            |
+- O gerenciador atualiza `package.json`.
+- O lockfile fixa versões exatas da árvore.
 
 ---
 
-## Cenários (Exemplo)
+## `package.json` Antes
+
+```json
+{
+  "name": "meu-projeto",
+  "private": true,
+  "type": "module"
+}
+```
+
+---
+
+## `package.json` Depois
+
+```json
+{
+  "name": "meu-projeto",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "mathjs": "^14.0.1"
+  }
+}
+```
+
+---
+
+## SemVer
+
+```txt
+14.0.1
+│  │ │
+│  │ └─ PATCH: correção compatível
+│  └─── MINOR: recurso compatível
+└────── MAJOR: mudança incompatível
+```
+
+- SemVer organiza impacto de atualização.
+- O número maior à esquerda é o mais arriscado.
+
+---
+
+## Prefixos de Versão
+
+| Prefixo | Exemplo | Atualizações aceitas |
+| ------- | ------- | -------------------- |
+| `^` | `"^14.0.1"` | minor e patch, menor que `15.0.0` |
+| `~` | `"~14.0.1"` | patch, menor que `14.1.0` |
+| nenhum | `"14.0.1"` | versão exata |
+
+---
+
+## Lockfile e `node_modules`
+
+- `package-lock.json`, `pnpm-lock.yaml` ou `yarn.lock` travam versões exatas.
+- `node_modules/` guarda o código baixado.
+- `node_modules/` não deve ir para o Git.
+
+```txt
+node_modules/
+```
+
+---
+
+## Cenários Lado a Lado
 
 ```txt
 src
@@ -344,121 +596,261 @@ src
 └── main.js
 ```
 
----
-
-## Cenário 1.2 - Uma função no ESM
-
-- Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
-
----
-
-## Resumo dos Cenários
-
-| Cenário | CommonJS | ES Modules |
-| ------- | -------- | ---------- |
-| **Uma função** | `module.exports = sum` / `const sum = require('./lib')` | `export default sum` / `import sum from './lib'` |
-| **Várias funções** | `module.exports = { sum, minus }` / `const { sum, minus } = require('./lib')` | `export { sum, minus }` / `import { sum, minus } from './lib'` |
+|     | Uma função | Várias funções |
+| --- | ---------- | -------------- |
+| CJS | 1.1 | 2.1 |
+| ESM | 1.2 | 2.2 |
 
 ---
 
-## Resumo dos Cenários (Exemplo)
+## Uma Função: CJS vs ESM
 
 ```js
-// lib.js — uma função
+// CJS: lib.js
 module.exports = sum;
-// main.js
-const sum = require('./lib');
+// CJS: main.js
+const sum = require('./lib.js');
+```
 
-// lib.js — várias funções
+```js
+// ESM: lib.js
+export default sum;
+// ESM: main.js
+import sum from './lib.js';
+```
+
+---
+
+## Várias Funções: CJS vs ESM
+
+```js
+// CJS: lib.js
 module.exports = { sum, minus };
-// main.js
-const { sum, minus } = require('./lib');
+// CJS: main.js
+const { sum, minus } = require('./lib.js');
+```
+
+```js
+// ESM: lib.js
+export { sum, minus };
+// ESM: main.js
+import { sum, minus } from './lib.js';
 ```
 
 ---
 
-## NPM (Exemplo)
+## ESM com Pacote npm
 
-```text
-$ npm install mathjs
+```js
+import { sqrt } from 'mathjs';
+import Math, { sum } from './lib.js';
+
+console.log(sum(1, 1)); // 2
+console.log(Math.minus(1, 1)); // 0
+console.log(sqrt(16)); // 4
 ```
 
----
-
-## CommonJS vs ES Modules
-
-- Qual é a principal diferença de sintaxe e carregamento entre CommonJS e ES Modules?
-- CommonJS utiliza `require()` e `module.exports` com carregamento síncrono em tempo de execução.
-- ES Modules utiliza `import` e `export` com carregamento estático e assíncrono padronizado pela linguagem.
-- O que acontece ao omitir a extensão `.js` ao importar um arquivo relativo em ESM no Node.js?
-- O Node.js lança um erro `ERR_MODULE_NOT_FOUND`, pois em ESM especificadores relativos exigem a extensão completa do arquivo.
-
----
-
-## Named e Default Exports
-
-- Quantos named exports e default exports um mesmo módulo pode conter?*
-- Um módulo pode conter múltiplos named exports (desde que cada nome seja único), mas no máximo um `export default`.
-- Como a importação de um default export difere da importação de um named export?*
-- Named exports exigem o uso de chaves `{}` e os nomes devem corresponder aos exportados (ou usar `as`).
-- O default export é importado sem chaves e pode receber qualquer nome local desejado.
-
----
-
-## Namespace e Dynamic Imports
-
-- Para que serve a sintaxe `import as Namespace` e qual é a propriedade especial de um objeto de namespace?**
-- Serve para agrupar todas as exportações de um módulo em um único objeto prefixado.
-- O objeto de namespace é imutável (read-only) e qualquer tentativa de mutação causa erro.
-- Por que não podemos colocar uma instrução `import` estática dentro de um bloco `if`?
-- Como realizar o carregamento condicional de um módulo em tempo de execução?
-
----
-
-## Resolução e Configuração
-
-- O que diferencia um especificador de arquivo relativo de um especificador de pacote npm?
-- Especificadores relativos começam obrigatoriamente com `./` ou `../` para indicar arquivos locais.
-- Especificadores de pacote não contêm `./` e são buscados pelo Node.js dentro do diretório `node_modules`.
-- Qual configuração é necessária no `package.json` para habilitar ES Modules em um projeto Node.js?
-- Incluir a propriedade `"type": "module"` no arquivo `package.json`.
+- O mesmo arquivo usa módulo local e pacote instalado.
 
 ---
 
 ## Executando
 
-- Crie uma pasta para o projeto e um arquivo `package.json` com `"type": "module"`
-- Instale o pacote `mathjs` via terminal
-- Crie o módulo local `math.js`
-- Crie o arquivo principal `index.js` importando o módulo local `./math.js` e a biblioteca `mathjs`
-- Execute o arquivo com o Node.js no terminal
+- Crie `package.json` com `"type": "module"`.
+- Instale `mathjs`.
+- Crie `math.js`.
+- Crie `index.js`.
+- Rode com `node index.js`.
+
+```bash
+node index.js
+```
+
+---
+
+## `math.js`
+
+```js
+export function sum(a, b) {
+  return a + b;
+}
+
+export function multiply(a, b) {
+  return a * b;
+}
+
+export default {
+  sum,
+  multiply,
+};
+```
+
+---
+
+## `index.js`
+
+```js
+import MathLib, { sum as add, multiply } from './math.js';
+import { sqrt } from 'mathjs';
+
+console.log(add(5, 3)); // 8
+console.log(multiply(4, 2)); // 8
+console.log(MathLib.sum(10, 10)); // 20
+console.log(sqrt(16)); // 4
+```
+
+---
+
+## Output
+
+```txt
+8
+8
+20
+4
+```
 
 ---
 
 ## Exercício
 
-- Crie um arquivo `product-service.js` contendo um array privado de produtos e exporte
-- Uma função nomeada `findAll()` que retorne todos os produtos;
-- Uma função nomeada `findById(id)` que busque um produto pelo ID;
-- Um export default contendo um objeto com as duas funções;
-- Crie um arquivo `index.js` que importe o serviço e exiba a lista completa e uma busca por ID;
+Crie um catálogo modular de produtos:
+
+- `product-service.js` guarda um array privado.
+- Exporte `findAll()` e `findById(id)`.
+- Exporte um objeto default com as duas funções.
+- `index.js` deve importar o serviço e buscar um item por ID.
+
+---
+
+## `product-service.js`
+
+```js
+const products = [
+  { id: 1, name: "Teclado", price: 150 },
+  { id: 2, name: "Mouse", price: 80 },
+];
+
+export function findAll() {
+  return products;
+}
+
+export function findById(id) {
+  return products.find((product) => product.id === id);
+}
+
+export default { findAll, findById };
+```
+
+---
+
+## `index.js`
+
+```js
+import productService, { findById } from './product-service.js';
+
+console.log(productService.findAll());
+console.log(findById(2));
+```
+
+- O array `products` continua privado no módulo.
+- O acesso público passa pelas funções exportadas.
 
 ---
 
 ## Desafio
 
-- Crie o módulo `advanced-math.js` exportando funções para `power(base, exp)` e `squareRoot(val)`;
-- No arquivo `main.js`, declare uma constante `enableAdvancedMath = true`;
-- Se a constante for verdadeira, utilize `await import('./advanced-math.js')` para carregar o módulo sob demanda e calcular `power(2.
-- Demonstre a desestruturação do import dinâmico obtendo a função `power`.
-- Crie uma aplicação com carregamento condicional e dinâmico de módulos
+Crie carregamento condicional e dinâmico:
+
+- `advanced-math.js` exporta `power()` e `squareRoot()`.
+- `main.js` declara `enableAdvancedMath = true`.
+- Se estiver ativo, use `await import('./advanced-math.js')`.
+- Desestruture a função `power` do import dinâmico.
+
+---
+
+## `advanced-math.js`
+
+```js
+export function power(base, exp) {
+  return base ** exp;
+}
+
+export function squareRoot(val) {
+  return Math.sqrt(val);
+}
+
+export default {
+  power,
+  squareRoot,
+};
+```
+
+---
+
+## `main.js`
+
+```js
+const enableAdvancedMath = true;
+
+if (enableAdvancedMath) {
+  const { power, squareRoot } = await import('./advanced-math.js');
+
+  console.log(power(2, 8)); // 256
+  console.log(squareRoot(16)); // 4
+}
+```
+
+---
+
+## Revisão: CJS vs ESM
+
+- Qual é a diferença entre `require()` e `import`?
+- O que acontece ao omitir `.js` em import relativo no ESM?
+- Quantos named exports um módulo pode ter?
+- Quantos default exports um módulo pode ter?
+
+---
+
+## Revisão: Imports
+
+- Como renomear um named export na importação?
+- Quando usar `import * as Namespace`?
+- Por que o namespace é read-only?
+- Por que `import` estático não entra em `if`?
+- Quando usar `await import()`?
+
+---
+
+## Revisão: Node e npm
+
+- Para que serve `"type": "module"`?
+- Como diferenciar import relativo de pacote npm?
+- O que `node_modules/` armazena?
+- Para que serve o lockfile?
+- O que significa `"^14.0.1"`?
 
 ---
 
 ## Resumo da Aula
 
-- **Evolução**: Transição de scripts globais/IIFE e CommonJS (`require`/`module.exports`) para o padrão oficial ES Modules (`import`/`export`).
-- **Named vs Default Exports**: Named exports (`export const x`) para múltiplos membros com desestruturação; Default (`export default x`) para recurso principal.
-- **Vantagens do ESM**: Análise estática em tempo de compilação, suporte nativo a Tree Shaking, escopo isolado e bindings em tempo real.
-- **Dynamic Imports**: `import("./modulo.js")` retorna uma Promise e viabiliza carregamento sob demanda (Code Splitting / Lazy Loading).
-- **Node.js Integration**: Ativação com `"type": "module"` no `package.json` ou extensões `.mjs` vs `.cjs`.
+- **Módulos** isolam escopo e compartilham só o que é exportado.
+- **CommonJS** usa `require()` e `module.exports`.
+- **ESM** usa `import` e `export`.
+- **Named exports** usam chaves; **default export** não usa.
+- **Dynamic import** carrega sob demanda com `await import()`.
+- **Node.js** exige extensão em import relativo ESM.
+- **SemVer** comunica risco de atualização.
+
+---
+
+## Próxima Aula
+
+O foco passa para assincronismo:
+
+**Promises e Async/Await**
+
+- estados de Promises;
+- combinadores;
+- `async` e `await`;
+- fluxo assíncrono em JavaScript.

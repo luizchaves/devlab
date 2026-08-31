@@ -3,25 +3,12 @@ marp: true
 theme: default
 paginate: true
 style: |
-  section {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding-bottom: 70px;
-  }
-  section.lead {
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
-    font-size: 0.6em;
-    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Numbers, BigInt e Math"
-description: "Representação numérica, limites de precisão, métodos estáticos do Number, objeto Math e formatação de moedas e localidades com Intl.NumberFormat em JavaScript."
+description: "Slides completos da aula JavaScript: Numbers, BigInt e Math."
 ---
 
 <!-- _class: lead -->
@@ -34,32 +21,39 @@ Representação numérica, limites de precisão, métodos estáticos do Number, 
 
 ## Objetivo
 
-- Compreender o tipo de dado Number em JavaScript, reconhecer limites de precisão e números especiais (`NaN`, `Infinity`).
+- Compreender o tipo de dado Number em JavaScript, reconhecer limites de precisão e números especiais (`NaN`, `Infinity`),...
 
 ---
 
 ## Mapa da Aula
 
 - Criação e Representação Numérica
-- Limites de Precisão e Valores Especiais
 - Representação Numérica, `NaN` e `Infinity`
-- Conversão Numérica e Métodos do Protótipo
 - O Objeto Estático Math
 - Formatação de Números e Moedas (`Intl.NumberFormat`)
+- Executando
+- Próxima aula
+
+---
+
+## Introdução
+
+- Esta aula apresenta os recursos para manipulação numérica em JavaScript
+- como criar e converter números, entender a precisão IEEE 754, utilizar o objeto Number, aplicar constantes e funções do...
 
 ---
 
 ## Criação e Representação Numérica
 
-- Em JavaScript, o tipo primitivo `number` representa tanto números inteiros quanto números de ponto flutuante (decimais).
-- As numerações podem ser declaradas usando notação decimal comum, notação exponencial ou notações de bases alternativas (binária.
-- Assim como no caso das strings, evite utilizar `new Number(42)`.
-- O operador `new` instancia um objeto wrapper na memória em vez de um primitivo.
-- O exemplo a seguir ilustra o impacto do uso de primitivos em comparação com objetos instanciados via `new Number()`
+- Em JavaScript, o tipo primitivo `number` representa tanto números inteiros quanto números de ponto flutuante (decimais)
+- Internamente, o JavaScript utiliza o padrão internacional IEEE 754 de 64 bits (dupla precisão) para armazenar todos os...
+- As numerações podem ser declaradas usando notação decimal comum, notação exponencial ou notações de bases alternativas...
+- Assim como no caso das strings, evite utilizar `new Number(42)`
+- O operador `new` instancia um objeto *wrapper* na memória em vez de um primitivo, fazendo com que `typeof new Number(42)`...
 
 ---
 
-## Criação e Representação Numérica (Comparação)
+## Criação e Representação Numérica: Comparação
 
 | Notação | Prefixo / Sintaxe | Exemplo | Valor em Base 10 |
 | :--- | :--- | :--- | :--- |
@@ -68,10 +62,11 @@ Representação numérica, limites de precisão, métodos estáticos do Number, 
 | **Hexadecimal** | `0x` / `0X` | `0xFF` / `0x2A` | `255` / `42` |
 | **Octal** | `0o` / `0O` | `0o52` | `42` |
 | **Binária** | `0b` / `0B` | `0b101010` | `42` |
+| **Separador Numérico** | `_` (ES2021) | `1_000_000` | `1000000` |
 
 ---
 
-## Criação e Representação Numérica (Exemplo)
+## Formas de declaração de Numbers
 
 ```js
 // 1. Decimais e Ponto Flutuante
@@ -86,22 +81,40 @@ const smallVal = 1e-3; // 0.001
 const binary = 0b101010; // 42
 const octal = 0o52;       // 42
 const hex = 0x2A;         // 42
-// ...
+
+// 4. Separadores Numéricos (ES2021) para melhor legibilidade
+const billion = 1_000_000_000; // 1000000000
+
+console.log(binary === hex); // true (ambos valem 42)
+console.log(billion);        // 1000000000
+```
+
+---
+
+## Primitivo vs Objeto Number
+
+```js
+const numPrim = 42;
+const numObj = new Number(42);
+
+console.log(typeof numPrim); // "number"
+console.log(typeof numObj);  // "object"
+console.log(numPrim === numObj); // false
 ```
 
 ---
 
 ## Panorama de literais, limites e precisão
 
-- O tipo `number` representa inteiros, decimais e valores especiais como `NaN`, `Infinity` e `-Infinity`.
-- Além dos valores escritos diretamente no código, o objeto global `Number` expõe constantes úteis para entender limites e precisão.
-- O limite seguro é importante quando o programa trabalha com identificadores, contadores ou valores inteiros muito grandes.
-- Depois do limite seguro, operações com inteiros podem perder precisão.
-- Quando isso for relevante, avalie `bigint` ou outra representação adequada ao domínio.
+- O tipo `number` representa inteiros, decimais e valores especiais como `NaN`, `Infinity` e `-Infinity`
+- Além dos valores escritos diretamente no código, o objeto global `Number` expõe constantes úteis para entender limites e...
+- O limite seguro é importante quando o programa trabalha com identificadores, contadores ou valores inteiros muito grandes
+- Depois do limite seguro, operações com inteiros podem perder precisão
+- Quando isso for relevante, avalie `bigint` ou outra representação adequada ao domínio
 
 ---
 
-## Panorama de literais, limites e precisão (Comparação)
+## Panorama de literais, limites e precisão: Comparação
 
 | Constante | Ideia principal |
 | --------- | --------------- |
@@ -113,7 +126,7 @@ const hex = 0x2A;         // 42
 
 ---
 
-## Panorama de literais, limites e precisão (Exemplo)
+## Formatos numéricos
 
 ```js
 console.log(-15); // -15
@@ -129,14 +142,37 @@ console.log(Math.PI); // 3.141592653589793
 
 ---
 
-## Limites de Inteiros Seguros e Imprecisão Flutuante
+## Limites de Number
 
-- Devido ao formato IEEE 754 de 64 bits, apenas inteiros no intervalo entre `-(2⁵³ - 1)` e `2⁵³.
-- Esses limites são representados pelas constantes estáticas `Number.MIN_SAFE_INTEGER` e `Number.MAX_SAFE_INTEGER`.
+```js
+console.log(Number.MAX_SAFE_INTEGER); // 9007199254740991, ou 2^53 - 1
+console.log(Number.MIN_SAFE_INTEGER); // -9007199254740991, ou -(2^53 - 1)
+console.log(Number.MAX_VALUE); // 1.7976931348623157e+308
+console.log(Number.MIN_VALUE); // 5e-324
+console.log(Number.EPSILON); // 2.220446049250313e-16
+```
 
 ---
 
-## Limites de Inteiros Seguros e Imprecisão Flutuante (Exemplo)
+## Inteiro fora do limite seguro
+
+```js
+console.log(Number.MAX_SAFE_INTEGER + 1); // 9007199254740992
+console.log(Number.MAX_SAFE_INTEGER + 2); // 9007199254740992
+console.log(Number.isSafeInteger(Number.MAX_SAFE_INTEGER)); // true
+console.log(Number.isSafeInteger(Number.MAX_SAFE_INTEGER + 1)); // false
+```
+
+---
+
+## Limites de Inteiros Seguros e Imprecisão Flutuante
+
+- Devido ao formato IEEE 754 de 64 bits, apenas inteiros no intervalo entre `-(2⁵³ - 1)` e `2⁵³ - 1` são representados com...
+- Esses limites são representados pelas constantes estáticas `Number.MINSAFEINTEGER` e `Number.MAXSAFEINTEGER`
+
+---
+
+## Limites de segurança e ponto flutuante
 
 ```js
 console.log(Number.MAX_SAFE_INTEGER); // 9007199254740991 (2^53 - 1)
@@ -159,15 +195,13 @@ console.log(diff < Number.EPSILON); // true (praticamente iguais!)
 
 ## Representação Numérica, `NaN` e `Infinity`
 
-- Literais e Bases Numéricas: Suporta notação decimal, exponencial (`314e-2`), binária (`0b1111`), octal (`0o17`).
+- Literais e Bases Numéricas: Suporta notação decimal, exponencial (`314e-2`), binária (`0b1111`), octal (`0o17`),...
 - `Infinity` e `-Infinity`: Representam números além do limite de precisão do ponto flutuante (ex: `1 / 0 // Infinity`).
-- `NaN` (Not-a-Number): Apesar do nome ("Não é um Número"), o operador `typeof NaN` retorna `"number"`.
-- No tipo `number`, o ECMAScript define representações literais versáteis e valores numéricos especiais conforme o padrão IEEE 754
-- A tabela e os exemplos a seguir detalham as operações que resultam em `NaN`
+- `NaN` (*Not-a-Number*): Apesar do nome ("Não é um Número"), o operador `typeof NaN` retorna `"number"`. Ele representa um...
 
 ---
 
-## Representação Numérica, `NaN` e `Infinity` (Comparação)
+## Representação Numérica, `NaN` e `Infinity`: Comparação
 
 | Cenário | Operação | Resultado |
 | :--- | :--- | :--- |
@@ -178,7 +212,7 @@ console.log(diff < Number.EPSILON); // true (praticamente iguais!)
 
 ---
 
-## Representação Numérica, `NaN` e `Infinity` (Exemplo)
+## Exemplos práticos de geração de NaN e Infinity
 
 ```js
 // 1. Divisão por zero e infinitos
@@ -193,12 +227,40 @@ console.log(Infinity / Infinity); // NaN
 
 // 3. Operações matemáticas sem resultado real (raízes e logaritmos negativos)
 console.log(Math.sqrt(-1));       // NaN
-// ...
+  // ...
+// 4. Conversões numéricas inválidas e aritmética com undefined
+console.log(Number("devlab"));   // NaN
+console.log(parseInt("texto"));   // NaN
+console.log(undefined + 10);      // NaN
+console.log(undefined * 5);       // NaN
+```
+
+---
+
+## Representação Numérica, `NaN` e `Infinity`
+
+```js
+console.log(NaN === NaN); // false!
+```
+
+---
+
+## Representação Numérica, `NaN` e `Infinity`
+
+```js
+console.log(Number.isNaN(Math.sqrt(-1))); // true (Seguro!)
+console.log(Object.is(NaN, NaN));         // true (Seguro!)
 ```
 
 ---
 
 ## Métodos Estáticos de Verificação do Number
+
+- O objeto `Number` oferece métodos estáticos para testar a validade e o tipo de valores numéricos sem realizar coerções...
+
+---
+
+## Métodos Estáticos de Verificação do Number: Comparação
 
 | Método | Descrição | Exemplo |
 | :--- | :--- | :--- |
@@ -211,13 +273,13 @@ console.log(Math.sqrt(-1));       // NaN
 
 ## Conversão Explícita: `Number()`, `parseInt()` e `parseFloat()`
 
-- O JavaScript oferece três funções principais para converter textos ou outros tipos em números.
+- O JavaScript oferece três funções principais para converter textos ou outros tipos em números
 - A tabela a seguir resume suas principais diferenças
-- Abaixo estão exemplos práticos de uso e conversão com diferentes formatos e bases numéricas
+- Abaixo estão exemplos práticos de uso e conversão com diferentes formatos e bases numéricas:
 
 ---
 
-## Conversão Explícita: `Number()`, `parseInt()` e `parseFloat()` (Comparação)
+## Conversão Explícita: `Number()`, `parseInt()` e `parseFloat()`: Comparação
 
 | Função | Comportamento | Exemplo `"42.5px"` | Exemplo `"abc"` |
 | :--- | :--- | :--- | :--- |
@@ -227,7 +289,7 @@ console.log(Math.sqrt(-1));       // NaN
 
 ---
 
-## Conversão Explícita: `Number()`, `parseInt()` e `parseFloat()` (Exemplo)
+## Comparação de conversões numéricas
 
 ```js
 // 1. Função Number() (conversão estrita da string inteira)
@@ -250,12 +312,12 @@ console.log(parseInt("FF", 16));   // 255 (interpreta "FF" em hexadecimal)
 
 ## Métodos de Instância e Formatação do Protótipo Number
 
-- Os métodos do protótipo `Number.prototype` permitem formatar números em strings com casas decimais fixas.
-- O exemplo abaixo demonstra a utilização prática de cada um desses métodos de formatação
+- Os métodos do protótipo `Number.prototype` permitem formatar números em strings com casas decimais fixas, precisão...
+- O exemplo abaixo demonstra a utilização prática de cada um desses métodos de formatação:
 
 ---
 
-## Métodos de Instância e Formatação do Protótipo Number (Comparação)
+## Métodos de Instância e Formatação do Protótipo Number: Comparação
 
 | Método | Assinatura | Retorno | Descrição |
 | :--- | :--- | :--- | :--- |
@@ -266,7 +328,7 @@ console.log(parseInt("FF", 16));   // 255 (interpreta "FF" em hexadecimal)
 
 ---
 
-## Métodos de Instância e Formatação do Protótipo Number (Exemplo)
+## Exemplo de métodos do protótipo Number
 
 ```js
 const val = 1234.5678;
@@ -281,25 +343,29 @@ console.log((0.001234).toPrecision(2)); // "0.0012"
 
 // 3. toExponential() - Notação científica
 console.log((12345).toExponential(2)); // "1.23e+4"
-// ...
+
+// 4. toString(radix) - Conversão de base
+const n = 255;
+console.log(n.toString(16)); // "ff" (hexadecimal)
+console.log(n.toString(2));  // "11111111" (binário)
 ```
 
 ---
 
 ## O Objeto Estático Math
 
-- O objeto `Math` é um objeto estático nativo do JavaScript que fornece constantes matemáticas e funções utilitárias para trigonometria.
-- Como é um objeto estático, ele não possui construtor e não pode ser instanciado com `new Math()`.
+- O objeto `Math` é um objeto estático nativo do JavaScript que fornece constantes matemáticas e funções utilitárias para...
+- Como é um objeto estático, ele não possui construtor e não pode ser instanciado com `new Math()`
 
 ---
 
 ## Constantes Matemáticas
 
-- O objeto `Math` disponibiliza constantes matemáticas fundamentais prontas para uso
+- O objeto `Math` disponibiliza constantes matemáticas fundamentais prontas para uso:
 
 ---
 
-## Constantes Matemáticas (Exemplo)
+## Constantes do objeto Math
 
 ```js
 console.log(Math.PI);     // 3.141592653589793 (Pi)
@@ -312,11 +378,11 @@ console.log(Math.SQRT2);  // 1.4142135623730951 (Raiz quadrada de 2)
 ## Funções de Arredondamento
 
 - O `Math` oferece quatro formas distintas de arredondar valores numéricos, cujas diferenças são destacadas na tabela a seguir
-- O exemplo a seguir ilustra a aplicação prática destas quatro funções de arredondamento
+- O exemplo a seguir ilustra a aplicação prática destas quatro funções de arredondamento:
 
 ---
 
-## Funções de Arredondamento (Comparação)
+## Funções de Arredondamento: Comparação
 
 | Função | Comportamento | `3.7` | `3.2` | `-3.7` |
 | :--- | :--- | :--- | :--- | :--- |
@@ -327,7 +393,7 @@ console.log(Math.SQRT2);  // 1.4142135623730951 (Raiz quadrada de 2)
 
 ---
 
-## Funções de Arredondamento (Exemplo)
+## Exemplo de arredondamentos
 
 ```js
 console.log(Math.floor(4.9)); // 4
@@ -340,11 +406,11 @@ console.log(Math.trunc(4.9)); // 4
 
 ## Funções Matemáticas Utilitárias
 
-- Para realizar operações matemáticas comuns como potências, raízes, valores absolutos e identificação de extremos.
+- Para realizar operações matemáticas comuns como potências, raízes, valores absolutos e identificação de extremos, o...
 
 ---
 
-## Funções Matemáticas Utilitárias (Exemplo)
+## Operações com Math
 
 ```js
 // Potência e Raiz
@@ -359,26 +425,30 @@ console.log(Math.sign(-42));  // -1 (retorna -1, 0 ou 1 dependendo do sinal)
 
 // Mínimo e Máximo
 console.log(Math.min(10, 5, 20, 3)); // 3
-// ...
+console.log(Math.max(10, 5, 20, 3)); // 20
+
+// Espalhando arrays em Math.max/min:
+const scores = [80, 95, 70, 88];
+console.log(Math.max(...scores)); // 95
 ```
 
 ---
 
 ## Geração de Números Aleatórios (`Math.random()`)
 
-- `Math.random()` retorna um número pseudo-aleatório no intervalo `[0, 1)` (inclui 0, mas exclui 1).
-- A seguir está o padrão recomendado para gerar inteiros aleatórios dentro de um limite pré-definido
+- `Math.random()` retorna um número pseudo-aleatório no intervalo `[0, 1)` (inclui 0, mas exclui 1)
+- A seguir está o padrão recomendado para gerar inteiros aleatórios dentro de um limite pré-definido:
 
 ---
 
-## Geração de Números Aleatórios (`Math.random()`) (Exemplo)
+## Gerando números aleatórios em um intervalo [min, max]
 
 ```js
 // Função utilitária para gerar inteiro aleatório entre min (inclusivo) e max (inclusivo)
 function getRandomInt(min, max) {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+min = Math.ceil(min);
+max = Math.floor(max);
+return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 console.log(getRandomInt(1, 10)); // Retorna um inteiro entre 1 e 10
@@ -389,11 +459,19 @@ console.log(getRandomInt(1, 6));  // Simulação de um dado de 6 lados
 
 ## Formatação de Números e Moedas (`Intl.NumberFormat`)
 
-- Para formatar moedas, porcentagens e valores numéricos respeitando as convenções internacionais.
+- Embora o método `.toFixed()` permita formatar casas decimais, ele retorna uma string simples sem separadores de milhar ou...
+- Para formatar moedas, porcentagens e valores numéricos respeitando as convenções internacionais, utiliza-se a API nativa...
 
 ---
 
-## Sintaxe Básica (Exemplo)
+## Sintaxe Básica
+
+- Para criar um formatador internacional, instanciamos `Intl.NumberFormat` passando a localidade desejada (ex
+- `'pt-BR'`) e o objeto com as opções de formatação:
+
+---
+
+## Sintaxe Básica
 
 ```js
 const formatter = new Intl.NumberFormat(locales?, options?);
@@ -402,46 +480,53 @@ formatter.format(number);
 
 ---
 
-## 1. Formatação de Moedas (*Currency*)
+## Formatação de Moedas (*Currency*)
 
-- Para formatar valores Monetários (como Real Brasileiro `BRL`, Dólar Americano `USD` ou Euro `EUR`).
+- Para formatar valores Monetários (como Real Brasileiro `BRL`, Dólar Americano `USD` ou Euro `EUR`), configuramos `style
+- 'currency'` e definimos o código ISO da moeda em `currency`:
 
 ---
 
-## 1. Formatação de Moedas (*Currency*) (Exemplo)
+## Formatação de moedas com Intl.NumberFormat
 
 ```js
 const price = 1250.5;
 
 // Real Brasileiro (pt-BR)
 const formatterBRL = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
+style: "currency",
+currency: "BRL",
 });
 console.log(formatterBRL.format(price)); // "R$ 1.250,50"
 
 // Dólar Americano (en-US)
 const formatterUSD = new Intl.NumberFormat("en-US", {
-  style: "currency",
-// ...
+style: "currency",
+  // ...
+const formatterEUR = new Intl.NumberFormat("de-DE", {
+style: "currency",
+currency: "EUR",
+});
+console.log(formatterEUR.format(price)); // "1.250,50 €"
 ```
 
 ---
 
-## 2. Formatação de Porcentagem (*Percent*)
+## Formatação de Porcentagem (*Percent*)
 
-- Para exibir taxas, descontos e porcentagens, utilizamos `style: 'percent'`, que multiplica o valor por 100 e adiciona o símbolo `%`
+- Para exibir taxas, descontos e porcentagens, utilizamos `style
+- 'percent'`, que multiplica o valor por 100 e adiciona o símbolo `%`:
 
 ---
 
-## 2. Formatação de Porcentagem (*Percent*) (Exemplo)
+## Formatação de porcentagens
 
 ```js
 const discount = 0.155; // 15.5%
 
 const percentFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "percent",
-  minimumFractionDigits: 1,
+style: "percent",
+minimumFractionDigits: 1,
 });
 
 console.log(percentFormatter.format(discount)); // "15,5%"
@@ -449,13 +534,14 @@ console.log(percentFormatter.format(discount)); // "15,5%"
 
 ---
 
-## 3. Formatação Numérica com Casas Decimais e Notação Compacta
+## Formatação Numérica com Casas Decimais e Notação Compacta
 
-- O `Intl.NumberFormat` trata automaticamente separadores de milhar (ponto no Brasil, vírgula nos EUA), símbolos de moedas.
+- Além de moedas e porcentagens, é possível formatar grandes valores numéricos com separadores de milhar adequados ou...
+- O `Intl.NumberFormat` trata automaticamente separadores de milhar (ponto no Brasil, vírgula nos EUA), símbolos de moedas,...
 
 ---
 
-## 3. Formatação Numérica com Casas Decimais e Notação Compacta (Exemplo)
+## Casas decimais e notação compacta
 
 ```js
 const population = 214300000;
@@ -466,46 +552,91 @@ console.log(numberFormatter.format(population)); // "214.300.000"
 
 // Notação Compacta (ex: 214 mi)
 const compactFormatter = new Intl.NumberFormat("pt-BR", {
-  notation: "compact",
-  compactDisplay: "short",
+notation: "compact",
+compactDisplay: "short",
 });
 console.log(compactFormatter.format(population)); // "214 mi"
 ```
 
 ---
 
+## Executando
+
+- Crie um arquivo chamado `number-demo.js`:
+- Execute o arquivo com Node.js:
+
+---
+
+## number-demo.js
+
+```js
+// 1. Verificações e Conversões
+const input = "199.90px";
+const parsedPrice = parseFloat(input);
+console.log(`Preço convertido: ${parsedPrice}`);
+
+// 2. Operações com Math
+const radius = 5;
+const area = Math.PI * Math.pow(radius, 2);
+console.log(`Área do círculo (r=${radius}): ${area.toFixed(2)}`);
+
+// 3. Formatação com Intl
+const biningPrice = 1499.99;
+const currencyBRL = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+}).format(biningPrice);
+
+console.log(`Valor Formatado: ${currencyBRL}`);
+```
+
+---
+
+## Terminal
+
+```bash
+node number-demo.js
+```
+
+---
+
+## Output
+
+```txt
+Preço convertido: 199.9
+Área do círculo (r=5): 78.54
+Valor Formatado: R$ 1.499,99
+```
+
+---
+
 ## Precisão e Verificação Numérica
 
-- Por que `0.1 + 0.2 === 0.3` resulta em `false` em JavaScript?
-- Porque o JavaScript utiliza o padrão IEEE 754 de ponto flutuante de 64 bits em base binária.
-- Certas frações decimais (como `0.1` e `0.2`) não possuem representação binária exata finita.
-- Qual é a diferença entre `Number.isNaN(val)` e a função global `isNaN(val)`?
-- A função global `isNaN(val)` realiza a coerção de tipo do valor para número antes de testar (fazendo `isNaN("abc")` retornar `true`).
+- Por que `0.1 + 0.2 === 0.3` resulta em `false` em JavaScript
+- Qual é a diferença entre `Number.isNaN(val)` e a função global `isNaN(val)`
+- Qual é a diferença entre `parseInt("10px")` e `Number("10px")`
 
 ---
 
 ## Objeto Math e Formatação Intl
 
-- Qual é a diferença entre `Math.floor()`, `Math.ceil()` e `Math.trunc()` para números negativos?
-- Para o número `-3.7`: `Math.floor(-3.7)` arredonda para baixo (menor inteiro), resultando em `-4`.
-- `Math.ceil(-3.7)` arredonda para cima (maior inteiro), resultando em `-3`.
-- `Math.trunc(-3.7)` simplesmente remove a parte decimal, resultando em `-3`.
-- Quais opções são obrigatórias em `Intl.NumberFormat` para formatar um valor como moeda em Reais (`R$`)?
+- Qual é a diferença entre `Math.floor()`, `Math.ceil()` e `Math.trunc()` para números negativos
+- Quais opções são obrigatórias em `Intl.NumberFormat` para formatar um valor como moeda em Reais (`R$`)
 
 ---
 
-## Executando
+## Próxima aula
 
-- Crie um arquivo chamado `number-demo.js`
-- Execute o arquivo com Node.js
-- Os conceitos de `Number`, `Math` e `Intl.NumberFormat` podem ser testados diretamente no terminal com Node.
+- Arrays e Métodos Funcionais
+- Criação, geração de intervalos (range), manipulação, iteração, desestruturação, operador spread e principais métodos de Array
 
 ---
 
 ## Resumo da Aula
 
-- **IEEE 754 Double Precision**: Todos os números padrão são de 64 bits; frações decimais causam imprecisões como `0.1 + 0.2 !== 0.3`.
-- **Comparação Segura**: Usar `Math.abs(a - b) < Number.EPSILON` para comparar números com casas decimais.
-- **Validação de NaN**: `NaN !== NaN`; usar sempre `Number.isNaN()` em vez da função global `isNaN()`.
-- **Objeto Math**: Arredondamentos com `Math.floor()`, `ceil()`, `round()`, `trunc()` e números aleatórios com `Math.random()`.
-- **BigInt**: Inteiros com sufixo `n` para valores além de `Number.MAX_SAFE_INTEGER` ($2^{53} - 1$), sem misturar diretamente com Number.
+- Revise criação e Representação Numérica
+- Revise representação Numérica, `NaN` e `Infinity`
+- Revise o Objeto Estático Math
+- Revise formatação de Números e Moedas (`Intl.NumberFormat`)
+- Revise executando
+- Revise próxima aula
