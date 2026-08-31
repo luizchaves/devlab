@@ -8,51 +8,110 @@ style: |
   }
 lang: pt-BR
 title: "Projeto: Express Router"
-description: "Modularização de rotas com express.Router"
+description: "Rotas separadas em módulos com express.Router()."
 ---
 
 <!-- _class: lead -->
 
-# Modularização com Express Router
+# Projeto: Express Router
 
-Dividindo rotas de aplicações grandes em módulos isolados e reutilizáveis.
-
----
-
-## O Problema do Arquivo Único
-
-- À medida que a aplicação cresce, ter todas as rotas no `server.ts` inviabiliza a manutenção.
-- **Solução**: Utilizar `express.Router()` para criar mini-aplicações de roteamento por domínio (ex: usuários, produtos).
+Rotas separadas em módulos com express.Router().
 
 ---
 
-## Criando um Roteador Modular
+## Objetivo
 
-```typescript
-// src/routes/user.routes.ts
-import { Router } from 'express';
-
-const router = Router();
-
-router.get('/', (req, res) => { /* listar usuários */ });
-router.post('/', (req, res) => { /* criar usuário */ });
-
-export default router;
-```
-
-```typescript
-// src/app.ts
-import express from 'express';
-import userRoutes from './routes/user.routes.ts';
-
-const app = express();
-app.use('/api/users', userRoutes);
-```
+- Entender o papel de **Projeto: Express Router** dentro de uma aplicação Express.js real.
+- Relacionar rota, middleware, controller, serviço/model e resposta HTTP.
+- Ler o código de exemplo como fonte principal, sem depender de pseudocódigo.
+- Executar requisições e validar status, payloads e efeitos persistidos.
 
 ---
 
-## Vantagens da Modularização
+## Projeto de Referência
 
-- Prefixo centralizado de caminhos no `app.use('/api/recurso', router)`.
-- Aplicação de middlewares específicos apenas para um conjunto determinado de rotas.
-- Facilidade para realização de testes de integração por domínio funcional.
+- Projeto executável: `examples/courses/express/projects/router`
+- Use o código real como base da aula, dos testes manuais e das alterações propostas.
+- Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
+
+---
+
+## Mapa da Aula
+
+- **Estrutura**
+- **Código**
+- **Executando**
+- **Rotas**
+- **Conceitos abordados**
+- **Próximo projeto**
+
+---
+
+## Contexto da Aula
+
+- Nível Iniciante · Node.js · Express.js
+- O mesmo servidor do projeto anterior, agora com as rotas em um módulo próprio e a aplicação separada do servidor.
+
+---
+
+## Estrutura
+
+- Estrutura aparece como ponto central da aula, não apenas como item de índice.
+- Rotas separadas em módulos com express.Router().
+- Relacione a regra com a rota, o middleware, o controller e a resposta HTTP esperada.
+- Use o projeto de exemplo para confirmar o comportamento com requisições reais.
+
+---
+
+## Código
+
+- Código aparece como ponto central da aula, não apenas como item de índice.
+- Rotas separadas em módulos com express.Router().
+- Relacione a regra com a rota, o middleware, o controller e a resposta HTTP esperada.
+- Use o projeto de exemplo para confirmar o comportamento com requisições reais.
+
+---
+
+## Executando
+
+- cd examples/courses/express/projects/router
+
+---
+
+## Rotas
+
+- Rotas aparece como ponto central da aula, não apenas como item de índice.
+- Rotas separadas em módulos com express.Router().
+- Relacione a regra com a rota, o middleware, o controller e a resposta HTTP esperada.
+- Use o projeto de exemplo para confirmar o comportamento com requisições reais.
+
+---
+
+## Rotas: Tabela
+
+- GET: `/users` | Lista de usuários
+- GET: `/users/:id` | Um usuário, ou `404`
+
+---
+
+## Conceitos abordados
+
+- Separação entre `app.js` e `server.js`
+- Conversão de `req.params` para número
+- Resposta `404` para recurso inexistente
+- A aula correspondente é Express.js → Routes.
+
+---
+
+## Próximo projeto
+
+- Express MVC: controllers, models e middlewares.
+
+---
+
+## Resumo da Aula
+
+- **Projeto: Express Router** foi coberto a partir da página de aula e do projeto executável.
+- Os conceitos principais foram ligados a decisões concretas de rota, dados e arquitetura.
+- Os exemplos devem ser conferidos no código real, especialmente quando há validação, banco ou autenticação.
+- A prática termina quando o comportamento é validado por requisições HTTP e leitura dos arquivos alterados.

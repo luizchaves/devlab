@@ -8,66 +8,112 @@ style: |
   }
 lang: pt-BR
 title: "Projeto: Hello Express"
-description: "Primeiro servidor HTTP construído com Express.js"
+description: "Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON."
 ---
 
 <!-- _class: lead -->
 
-# Hello Express
+# Projeto: Hello Express
 
-Construção do primeiro servidor HTTP em Node.js com a biblioteca Express.js.
-
----
-
-## Visão Geral do Projeto
-
-- **Objetivo**: Inicializar uma aplicação Node.js, configurar o Express e expor requisições HTTP básicas.
-- **Conceitos Chave**:
-  - Instalação de dependências (`express`).
-  - Instanciação da aplicação (`const app = express()`).
-  - Escuta de portas com `app.listen(port, callback)`.
-  - Retorno de respostas JSON com `res.json()`.
-- **Repositório**: `examples/courses/express/projects/hello-express`
+Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
 
 ---
 
-## Estrutura Mínima do Servidor
+## Objetivo
 
-```typescript
-import express from 'express';
-
-const app = express();
-const PORT = 3000;
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
-});
-```
+- Entender o papel de **Projeto: Hello Express** dentro de uma aplicação Express.js real.
+- Relacionar rota, middleware, controller, serviço/model e resposta HTTP.
+- Ler o código de exemplo como fonte principal, sem depender de pseudocódigo.
+- Executar requisições e validar status, payloads e efeitos persistidos.
 
 ---
 
-## Fluxo da Requisição HTTP
+## Projeto de Referência
 
-```txt
-[Cliente HTTP] ──> [GET /api/health] ──> [Express app.get] ──> [res.json()] ──> [Cliente 200 OK]
-```
-
----
-
-## Resposta HTTP e Status Codes
-
-- **HTTP 200 OK**: Retornado por padrão quando o manipulador de rota responde com sucesso.
-- **Cabeçalho Content-Type**: O Express define automaticamente `application/json; charset=utf-8` ao usar `res.json()`.
-- **Script de Execução**: `npm run dev` utilizando `tsx` para recompilação instantânea.
+- Projeto executável: `examples/courses/express/projects/hello`
+- Use o código real como base da aula, dos testes manuais e das alterações propostas.
+- Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
 ---
 
-## Resumo e Boas Práticas
+## Mapa da Aula
 
-- Mantenha rotas separadas por responsabilidades funcionais.
-- Utilize variáveis de ambiente para a porta do servidor.
-- Teste seus endpoints via arquivo `requests.http` ou utilitários CLI (`curl`).
+- **Estrutura**
+- **Código**
+- **Executando**
+- **Rotas**
+- **Conceitos abordados**
+- **Próximo projeto**
+
+---
+
+## Contexto da Aula
+
+- Nível Iniciante · Node.js · Express.js
+- Um único arquivo, três rotas e o ciclo requisição/resposta completo.
+
+---
+
+## Estrutura
+
+- Estrutura aparece como ponto central da aula, não apenas como item de índice.
+- Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
+- Relacione a regra com a rota, o middleware, o controller e a resposta HTTP esperada.
+- Use o projeto de exemplo para confirmar o comportamento com requisições reais.
+
+---
+
+## Código
+
+- Código aparece como ponto central da aula, não apenas como item de índice.
+- Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
+- Relacione a regra com a rota, o middleware, o controller e a resposta HTTP esperada.
+- Use o projeto de exemplo para confirmar o comportamento com requisições reais.
+
+---
+
+## Executando
+
+- cd examples/courses/express/projects/hello
+
+---
+
+## Rotas
+
+- Rotas aparece como ponto central da aula, não apenas como item de índice.
+- Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
+- Relacione a regra com a rota, o middleware, o controller e a resposta HTTP esperada.
+- Use o projeto de exemplo para confirmar o comportamento com requisições reais.
+
+---
+
+## Rotas: Tabela
+
+- GET: `/` | `{ "message": "Hello World" }`
+- GET: `/hello/:name` | Saudação com o parâmetro
+- POST: `/echo` | Devolve o corpo recebido
+
+---
+
+## Conceitos abordados
+
+- Criação do servidor com `express()`
+- Rotas e métodos HTTP
+- Parâmetros de rota (`req.params`)
+- Corpo JSON (`express.json()` e `req.body`)
+- Status codes com `res.status()`
+
+---
+
+## Próximo projeto
+
+- Express Router: separando as rotas em módulos.
+
+---
+
+## Resumo da Aula
+
+- **Projeto: Hello Express** foi coberto a partir da página de aula e do projeto executável.
+- Os conceitos principais foram ligados a decisões concretas de rota, dados e arquitetura.
+- Os exemplos devem ser conferidos no código real, especialmente quando há validação, banco ou autenticação.
+- A prática termina quando o comportamento é validado por requisições HTTP e leitura dos arquivos alterados.
