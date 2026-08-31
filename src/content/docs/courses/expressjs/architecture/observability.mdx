@@ -7,6 +7,8 @@ sidebar:
 ---
 import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 import PackageManagerTabs from '@components/PackageManagerTabs.astro';
 
 Log responde "o que aconteceu nesta requisição". Não responde "a API está mais lenta que
@@ -101,13 +103,13 @@ alteração no código da aplicação:
 
 2. Crie o arquivo de inicialização — ele precisa rodar **antes** de qualquer outro import:
 
-   ```ts title="src/telemetry.ts" showLineNumbers {5,9,13}
+   ```ts showLineNumbers {5,9,13}
    import { NodeSDK } from '@opentelemetry/sdk-node';
    import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
    import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 
    const sdk = new NodeSDK({
-     serviceName: 'investment-api',
+     serviceName: 'task-api',
      traceExporter: new OTLPTraceExporter({
        // Endpoint do Collector; em desenvolvimento, do Jaeger local.
        url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces',
@@ -164,7 +166,7 @@ A leitura é imediata: 381 ms dos 412 ms estão em uma única consulta.
 A instrumentação automática cobre bordas — HTTP, banco, fila. O que ela não conhece é a
 **sua** lógica. Um span manual dá nome a um trecho relevante:
 
-```ts title="src/services/investment-service.ts" showLineNumbers {3,6,12,16}
+```ts showLineNumbers {3,6,12,16}
 import { trace, SpanStatusCode } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('investment-service');
@@ -200,7 +202,7 @@ export async function calcularRentabilidade(userId: string) {
 O elo entre os dois sinais é o `traceId`. Incluí-lo em cada linha de log permite pular do
 rastro lento para as linhas exatas daquela requisição:
 
-```ts title="src/middlewares/logger.ts" showLineNumbers {1,5,11}
+```ts showLineNumbers {1,5,11}
 import { trace } from '@opentelemetry/api';
 
 export function logger(req: Request, res: Response, next: NextFunction) {
@@ -228,7 +230,7 @@ O `traceId` também atravessa serviços: o cabeçalho `traceparent`, do padrão
 instrumentações de HTTP.
 
 ```http title="Propagação entre serviços"
-GET /investments HTTP/1.1
+GET /tasks HTTP/1.1
 traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
              │  └── trace id ──────────────────┘ └── span pai ──┘ └ flags
              └ versão
@@ -245,10 +247,10 @@ mínimo é conhecido como **RED**:
 | **E**rrors    | proporção de respostas `5xx`     | `Counter` com atributo de status |
 | **D**uration  | distribuição do tempo de resposta| `Histogram`        |
 
-```ts title="src/telemetry-metrics.ts" showLineNumbers {3,5,11}
+```ts showLineNumbers {3,5,11}
 import { metrics } from '@opentelemetry/api';
 
-const meter = metrics.getMeter('investment-api');
+const meter = metrics.getMeter('task-api');
 
 const duracao = meter.createHistogram('http.server.request.duration', {
   unit: 's',
@@ -260,7 +262,7 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
 
   res.on('finish', () => {
     duracao.record(Number(process.hrtime.bigint() - start) / 1e9, {
-      // A rota, não a URL: /users/:id, e não /users/42.
+      // A rota, não a URL: /tasks/:id, e não /tasks/42.
       'http.route': req.route?.path ?? 'desconhecida',
       'http.request.method': req.method,
       'http.response.status_code': res.statusCode,
@@ -272,8 +274,8 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
 ```
 
 <Aside type="danger" title="Cardinalidade explode o custo">
-  Usar `req.originalUrl` como atributo cria uma série temporal por **id**: `/users/1`,
-  `/users/2`, `/users/3`… Milhares de séries derrubam o backend de métricas e a conta no
+  Usar `req.originalUrl` como atributo cria uma série temporal por **id**: `/tasks/1`,
+  `/tasks/2`, `/tasks/3`… Milhares de séries derrubam o backend de métricas e a conta no
   fim do mês. Use sempre o padrão da rota (`req.route.path`), nunca a URL concreta.
 </Aside>
 
@@ -285,6 +287,35 @@ Com o histograma, a pergunta que importa deixa de ser a média:
 | p50         | a experiência típica                                   |
 | p95 / p99   | a experiência dos piores casos — onde as reclamações moram |
 
+## Métricas sem OpenTelemetry
+
+O OTel é o caminho quando existe um backend de observabilidade para receber os dados. Antes
+disso — e para entender o que ele faz —, o mesmo conjunto RED cabe em um arquivo, exposto
+no formato de texto que o Prometheus lê:
+
+<ProjectLinks path="examples/courses/express/projects/task-api-hardening" devcontainer="task-api-hardening" />
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/telemetry.ts"
+  title="src/telemetry.ts"
+  region="metrics"
+/>
+
+O cálculo dos percentis é o que transforma número em informação — e mostra por que a média
+não serve:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/telemetry.ts"
+  title="src/telemetry.ts"
+  region="percentile"
+/>
+
+<Aside type="caution" title="Em memória é um começo, não um destino">
+  Os contadores morrem com o processo e não somam entre instâncias. Serve para aprender o
+  formato e para um serviço pequeno; a partir daí, o coletor precisa ficar fora do
+  processo.
+</Aside>
+
 ## Amostragem
 
 Exportar 100% dos rastros de uma API com tráfego alto custa caro. A amostragem decide o que
@@ -292,7 +323,7 @@ guardar:
 
 <Tabs syncKey="sampling">
   <TabItem label="Por proporção">
-    ```ts title="src/telemetry.ts" showLineNumbers {4}
+    ```ts showLineNumbers {4}
     import { TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
 
     const sdk = new NodeSDK({
@@ -318,7 +349,7 @@ guardar:
 
 ## Exercício
 
-No projeto `express-auth`:
+Na [etapa 10 da TaskAPI](../../practice/taskapi/hardening/):
 
 1. Instale o SDK e configure `src/telemetry.ts` com o exportador OTLP.
 2. Suba o Jaeger em contêiner e faça login pela API.
@@ -331,7 +362,7 @@ No projeto `express-auth`:
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/controllers/auth-controller.ts" showLineNumbers {4,8}
+  ```ts showLineNumbers {4,8}
   const tracer = trace.getTracer('auth');
 
   export function signIn(req: Request, res: Response) {
@@ -422,6 +453,12 @@ Collector é melhor do que confiar em cada desenvolvedor lembrar de não adicion
 - [W3C — Trace Context](https://www.w3.org/TR/trace-context/)
 - [Jaeger](https://www.jaegertracing.io/)
 - [Google SRE Book — Monitoring distributed systems](https://sre.google/sre-book/monitoring-distributed-systems/)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 10 da TaskAPI](../../practice/taskapi/hardening/), que expõe `/metrics` com
+contadores e percentis sem instalar nada.
 
 ## Próxima aula
 

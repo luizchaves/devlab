@@ -9,6 +9,7 @@ import { Aside } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Enquanto a aplicação roda na sua máquina, o depurador resolve. Depois do deploy, a única
 janela para dentro dela é o que ela mesma escreve. Esta aula trata de escrever isso de forma
@@ -55,7 +56,7 @@ E há o que **nunca** deve ser registrado:
 O middleware precisa medir o tempo até o fim da resposta, e só o evento `finish` sabe qual
 foi o status final:
 
-```ts title="src/middlewares/logger.ts" showLineNumbers {2,4,7}
+```ts showLineNumbers {2,4,7}
 export function logger(req: Request, res: Response, next: NextFunction) {
   const start = process.hrtime.bigint();
 
@@ -72,9 +73,9 @@ export function logger(req: Request, res: Response, next: NextFunction) {
 ```
 
 ```txt title="Output"
-GET /users 200 3.4ms
-POST /users 201 8.1ms
-GET /users/99 404 1.2ms
+GET /tasks 200 3.4ms
+POST /tasks 201 8.1ms
+GET /tasks/99 404 1.2ms
 ```
 
 <Aside type="note" title="Por que `finish` e não depois do `next()`">
@@ -100,18 +101,11 @@ flowchart TD
 `}
 </Mermaid>
 
-```ts title="src/middlewares/request-id.ts" showLineNumbers {4-5}
-import { randomUUID } from 'node:crypto';
-
-export function requestId(req: Request, res: Response, next: NextFunction) {
-  // Respeita o id do proxy, quando existir: o rastro atravessa os serviços.
-  req.id = req.get('x-request-id') ?? randomUUID();
-
-  res.set('X-Request-Id', req.id);
-
-  next();
-}
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/request-id.ts"
+  title="src/middlewares/request-id.ts"
+  region="request-id"
+/>
 
 Devolver o mesmo id no corpo do erro fecha o ciclo: o usuário informa o código e o
 desenvolvedor encontra a requisição exata no log.
@@ -133,26 +127,29 @@ desenvolvedor encontra a requisição exata no log.
 Texto é bom para ler no terminal; JSON é bom para uma ferramenta filtrar. Em produção, o
 agregador de logs precisa de campos, não de frases:
 
-```ts title="Log estruturado" showLineNumbers {2-9}
-res.on('finish', () => {
-  console.log(JSON.stringify({
-    level: 'info',
-    time: new Date().toISOString(),
-    requestId: req.id,
-    method: req.method,
-    url: req.originalUrl,
-    status: res.statusCode,
-    durationMs: Number(process.hrtime.bigint() - start) / 1e6,
-  }));
-});
-```
+No projeto modelo, a função de log é uma só, filtra por nível e sempre emite JSON:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/logger.ts"
+  title="src/middlewares/logger.ts"
+  region="log"
+/>
+
+E o middleware apenas reúne os campos daquela requisição:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/logger.ts"
+  title="src/middlewares/logger.ts"
+  region="middleware"
+/>
 
 ```txt title="Output"
-{"level":"info","time":"2026-08-29T13:04:22.114Z","requestId":"9f1c…","method":"GET","url":"/users","status":200,"durationMs":3.4}
+{"level":"info","time":"2026-08-31T02:52:40.185Z","message":"http_request","requestId":"6a29…","method":"GET","path":"/tasks","status":200,"durationMs":3.4}
 ```
 
-A escolha entre um formato e outro costuma ser feita pela variável de ambiente:
-`config.isProduction ? logJson : logTexto`.
+Repare no que **não** está na linha: nada de `Authorization`, nada de corpo. Um token
+vazado em arquivo de log é um token vazado — e arquivos de log costumam ir para serviços
+de terceiros.
 
 ## Níveis
 
@@ -168,7 +165,7 @@ Nem toda linha tem a mesma importância. Quatro níveis dão conta de uma API de
 A regra prática do `errorHandler`: `4xx` é comportamento esperado do cliente e vira `warn`
 (ou nada); `5xx` é defeito da aplicação e sempre vira `error`.
 
-```ts title="src/middlewares/error-handler.ts" showLineNumbers {4,6}
+```ts showLineNumbers {4,6}
 export function errorHandler(error, req, res, next) {
   const status = error instanceof HttpError ? error.status : 500;
 
@@ -197,7 +194,7 @@ opções e melhor desempenho:
 | [`morgan`](https://www.npmjs.com/package/morgan)            | texto, formatos prontos | log de acesso em desenvolvimento |
 | [`pino`](https://www.npmjs.com/package/pino) + `pino-http`  | JSON, assíncrono      | produção e agregadores de log     |
 
-```ts title="src/app.ts" showLineNumbers
+```ts showLineNumbers
 import morgan from 'morgan';
 
 // 'dev' colore o status; 'combined' é o formato de log de servidor web.
@@ -215,20 +212,11 @@ app.use(morgan(config.isProduction ? 'combined' : 'dev'));
 Um endpoint de saúde é o que o orquestrador consulta para decidir se a instância recebe
 tráfego. Ele precisa ser barato e não exigir autenticação:
 
-```ts title="src/routes/health-router.ts" showLineNumbers {5-9}
-import { Router } from 'express';
-
-const router = Router();
-
-router.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-  });
-});
-
-export default router;
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/routes/health-router.ts"
+  title="src/routes/health-router.ts"
+  region="health"
+/>
 
 <ApiRequest method="GET" path="/health" baseUrl="http://localhost:3000" />
 
@@ -243,25 +231,35 @@ export default router;
 
 <Aside type="caution" title="Health check que consulta o banco tem custo">
   Se o orquestrador chama `/health` a cada segundo, uma consulta ao banco ali vira carga
-  constante. O padrão é ter dois: um *liveness* barato (o processo está vivo?) e um
-  *readiness* mais completo, chamado com menos frequência.
+  constante — e pior: uma queda do banco derrubaria um processo que ainda estava saudável.
+  O padrão é ter dois endpoints.
 </Aside>
+
+O *readiness* é o que checa a dependência, e é ele que responde `503` quando o serviço não
+tem como atender:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/routes/health-router.ts"
+  title="src/routes/health-router.ts"
+  region="ready"
+/>
 
 ## Exercício
 
-No projeto `express-typescript`:
+Partindo da [etapa 9 da TaskAPI](../../practice/taskapi/auth/), que ainda usa
+`console.log`:
 
 1. Crie `src/middlewares/request-id.ts` conforme a aula e registre-o como **primeiro**
    middleware.
 2. Substitua o `console.log` de `app.ts` por um middleware `logger` que meça a duração.
 3. Faça o `logger` emitir JSON quando `NODE_ENV === 'production'` e texto caso contrário.
 4. Inclua o `requestId` na resposta de erro do `errorHandler`.
-5. Acrescente `GET /health`.
+5. Acrescente `GET /health` e `GET /ready`.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/middlewares/logger.ts" showLineNumbers
+  ```ts showLineNumbers
   import type { NextFunction, Request, Response } from 'express';
 
   import { config } from '#config.ts';
@@ -362,6 +360,12 @@ corpo redigido nas rotas de `POST`. Explique por que redigir por lista de chaves
 - [`morgan`](https://www.npmjs.com/package/morgan)
 - [`pino-http`](https://www.npmjs.com/package/pino-http)
 - [OWASP — Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 10 da TaskAPI](../../practice/taskapi/hardening/), onde cada requisição sai como uma
+linha JSON com `requestId`, status e duração.
 
 ## Próxima aula
 

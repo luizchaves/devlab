@@ -8,6 +8,8 @@ sidebar:
 import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Porta, URL do banco, segredo de token, endereço de SMTP: uma API precisa de valores que
 mudam entre a sua máquina, a do colega e o servidor de produção. Esta aula mostra onde eles
@@ -66,7 +68,7 @@ orquestrador de produção — ou de um arquivo `.env` carregado nativamente:
   <TabItem label="dotenv">
     <PackageManagerTabs package="dotenv" />
 
-    ```js title="src/server.js" {1}
+    ```js {1}
     import 'dotenv/config';
 
     // A partir daqui, process.env já traz o conteúdo do .env
@@ -98,15 +100,22 @@ São dois arquivos com papéis opostos, e confundi-los é o erro mais comum:
 | `.env.example` | **sim**         | a lista de variáveis com valores de exemplo ou vazios|
 
 ```ini title=".env.example"
-# Porta em que o servidor escuta.
+NODE_ENV=development
 PORT=3000
 
-# Conexão com o banco de dados.
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="file:./prisma/dev.db"
 
-# Segredo de assinatura dos tokens. Gere o seu com:
-#   node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-JWT_SECRET=""
+# Minimo de 32 caracteres. Gere o seu com: openssl rand -hex 32
+JWT_SECRET="troque-este-segredo-de-desenvolvimento-com-32-chars"
+JWT_EXPIRES_IN=3600
+
+# Origens autorizadas a ler as respostas, separadas por virgula.
+CORS_ORIGINS="http://localhost:5173"
+
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_MS=60000
+
+LOG_LEVEL=info
 ```
 
 ```txt title=".gitignore" {2}
@@ -130,31 +139,28 @@ Espalhar `process.env.X` pelo código traz dois problemas: o valor é sempre `st
 e a falta de uma variável só aparece na primeira requisição que a usa. Concentrar tudo em um
 módulo resolve os dois:
 
-```ts title="src/config.ts" showLineNumbers {3-9,17-19}
-const isProduction = process.env.NODE_ENV === 'production';
+<ProjectLinks path="examples/courses/express/projects/task-api-hardening" devcontainer="task-api-hardening" />
 
-function required(nome: string): string {
-  const valor = process.env[nome];
+O projeto modelo descreve o ambiente com o mesmo Zod que valida as requisições — afinal, o
+ambiente também é entrada não confiável:
 
-  if (!valor) {
-    throw new Error(`Variável de ambiente obrigatória ausente: ${nome}`);
-  }
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/config.ts"
+  title="src/config.ts"
+  region="schema"
+/>
 
-  return valor;
-}
+E a checagem acontece **uma vez**, no arranque. Não existe `errorHandler` aqui: o servidor
+ainda nem subiu, então a falha é um `process.exit(1)` com a lista do que está errado:
 
-export const config = {
-  port: Number(process.env.PORT ?? 3000),
-  databaseUrl: required('DATABASE_URL'),
-  // Em desenvolvimento um padrão é conveniente; em produção, é uma brecha.
-  jwtSecret: isProduction ? required('JWT_SECRET') : (process.env.JWT_SECRET ?? 'dev-secret'),
-  jwtExpiresIn: Number(process.env.JWT_EXPIRES_IN ?? 3600),
-  isProduction,
-};
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/config.ts"
+  title="src/config.ts"
+  region="fail-fast"
+/>
 
 O ganho é o momento da falha: a aplicação **não sobe** com a configuração incompleta, em vez
-de subir e falhar no primeiro login.
+de subir e falhar no primeiro login. E um `PORT=abc` deixa de virar `NaN` em silêncio.
 
 <Mermaid title="Momento em que a configuração ausente é detectada">
 {`
@@ -169,14 +175,14 @@ flowchart TD
 
 O resto da aplicação passa a importar `config`, e nunca `process.env`:
 
-```ts title="src/server.ts" showLineNumbers {1,5}
-import { config } from '#config.ts';
-import app from '#app.ts';
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/config.ts"
+  title="src/config.ts"
+  region="export"
+/>
 
-app.listen(config.port, () => {
-  console.log(`Servidor rodando em http://localhost:${config.port}`);
-});
-```
+Com isso, `config.PORT` é `number` e `config.CORS_ORIGINS` é `string[]` — enquanto
+`process.env.PORT` seria sempre `string | undefined`.
 
 ## O que muda entre ambientes
 
@@ -199,7 +205,8 @@ de erro detalhadas e liga o cache de views.
 
 ## Exercício
 
-Partindo do projeto `express-typescript`:
+Partindo da [etapa 9 da TaskAPI](../../practice/taskapi/auth/), que ainda lê `process.env`
+espalhado:
 
 1. Crie `.env.example` com `PORT` e `NODE_ENV` e acrescente `.env` ao `.gitignore`.
 2. Escreva `src/config.ts` com a função `required` e exporte `port` e `isProduction`.
@@ -208,10 +215,13 @@ Partindo do projeto `express-typescript`:
    ela.
 5. Ajuste o script `dev` para `node --env-file-if-exists=.env --watch src/server.ts`.
 
+Depois compare com a [etapa 10](../../practice/taskapi/hardening/), que faz o mesmo com um
+schema Zod em vez da função `required`.
+
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/config.ts" showLineNumbers
+  ```ts showLineNumbers
   function required(nome: string): string {
     const valor = process.env[nome];
 
@@ -236,8 +246,8 @@ Partindo do projeto `express-typescript`:
 ## Desafio
 
 Faça `config.ts` validar também o **formato**: `PORT` precisa ser um inteiro entre 1 e 65535
-e `JWT_SECRET`, em produção, precisa ter ao menos 32 caracteres. Compare a sua validação
-manual com o que a aula de [Validação](../../api/validation/) faz com um schema.
+e `JWT_SECRET` precisa ter ao menos 32 caracteres. Compare a sua validação manual com o
+schema da [etapa 10](../../practice/taskapi/hardening/) e conte as linhas de cada uma.
 
 ## Perguntas de revisão
 
@@ -298,6 +308,12 @@ manual com o que a aula de [Validação](../../api/validation/) faz com um schem
 - [Node.js — `process.env`](https://nodejs.org/api/process.html#processenv)
 - [The Twelve-Factor App — Config](https://12factor.net/config)
 - [Express — Production best practices](https://expressjs.com/en/advanced/best-practice-performance.html)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 10 da TaskAPI](../../practice/taskapi/hardening/), onde o `config.ts` derruba o
+processo no arranque quando o ambiente está incompleto.
 
 ## Próxima aula
 

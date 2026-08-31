@@ -1026,6 +1026,10 @@ export default defineConfig({
                       label: '9. Autenticação',
                       link: '/courses/expressjs/practice/taskapi/auth/',
                     },
+                    {
+                      label: '10. Endurecimento',
+                      link: '/courses/expressjs/practice/taskapi/hardening/',
+                    },
                   ],
                 },
                 {

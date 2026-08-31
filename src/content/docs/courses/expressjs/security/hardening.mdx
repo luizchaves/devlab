@@ -9,6 +9,8 @@ import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 import ApiRequest from '@components/ApiRequest.astro';
 import ApiResponse from '@components/ApiResponse.astro';
 import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Autenticação e autorização respondem "quem é" e "o que pode". Sobram os ataques que não
 dependem de conta nenhuma: força bruta, injeção, corpo gigante, dependência comprometida.
@@ -48,7 +50,7 @@ X-Powered-By: Express
 
 Ele informa a tecnologia e a superfície de ataque. Remover é uma linha:
 
-```ts title="src/app.ts" showLineNumbers {1}
+```ts showLineNumbers {1}
 app.disable('x-powered-by');
 ```
 
@@ -64,16 +66,11 @@ Os demais cabeçalhos instruem o navegador a se proteger:
 
 <Tabs syncKey="headers-impl">
   <TabItem label="Nativo">
-    ```ts title="src/middlewares/security-headers.ts" showLineNumbers
-    export function securityHeaders(_req: Request, res: Response, next: NextFunction) {
-      res.set('X-Content-Type-Options', 'nosniff');
-      res.set('X-Frame-Options', 'DENY');
-      res.set('Referrer-Policy', 'no-referrer');
-      res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-
-      next();
-    }
-    ```
+    <SourceCode
+      path="examples/courses/express/projects/task-api-hardening/src/middlewares/security-headers.ts"
+      title="src/middlewares/security-headers.ts"
+      region="headers"
+    />
   </TabItem>
 
   <TabItem label="helmet">
@@ -81,7 +78,7 @@ Os demais cabeçalhos instruem o navegador a se proteger:
     npm install helmet
     ```
 
-    ```ts title="src/app.ts" showLineNumbers
+    ```ts showLineNumbers
     import helmet from 'helmet';
 
     app.use(helmet());
@@ -114,38 +111,32 @@ flowchart TD
 `}
 </Mermaid>
 
-```ts title="src/middlewares/rate-limit.ts" showLineNumbers {1,8,14,17}
-const acessos = new Map<string, { count: number; resetAt: number }>();
+<ProjectLinks path="examples/courses/express/projects/task-api-hardening" devcontainer="task-api-hardening" />
 
-export function rateLimit({ windowMs = 60_000, max = 60 } = {}) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const chave = req.ip ?? 'desconhecido';
-    const agora = Date.now();
-    const registro = acessos.get(chave);
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/rate-limit.ts"
+  title="src/middlewares/rate-limit.ts"
+  region="store"
+/>
 
-    if (!registro || registro.resetAt < agora) {
-      acessos.set(chave, { count: 1, resetAt: agora + windowMs });
-      return next();
-    }
+O middleware é de fábrica, e cada limitador recebe um **nome** — que vira parte da chave do
+contador:
 
-    if (++registro.count > max) {
-      res.set('Retry-After', String(Math.ceil((registro.resetAt - agora) / 1000)));
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/rate-limit.ts"
+  title="src/middlewares/rate-limit.ts"
+  region="middleware"
+/>
 
-      throw new HttpError(429, 'Muitas requisições. Tente novamente em instantes.');
-    }
+Sem esse nome, o limitador global e o do login somariam no mesmo balde: uma tentativa de
+login seria cobrada duas vezes, e o limite de cinco cairia para três sem que ninguém
+entendesse por quê.
 
-    next();
-  };
-}
-```
-
-```ts title="src/app.ts" showLineNumbers {2,5}
-// Limite geral, mais folgado.
-app.use(rateLimit({ windowMs: 60_000, max: 120 }));
-
-// Limite específico e agressivo na rota de login.
-app.use('/auth/signin', rateLimit({ windowMs: 15 * 60_000, max: 5 }));
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/routes/auth-router.ts"
+  title="src/routes/auth-router.ts"
+  region="strict-limit"
+/>
 
 <ApiRequest method="POST" path="/auth/signin" baseUrl="http://localhost:3000" description="Sexta tentativa em 15 minutos" />
 
@@ -178,13 +169,13 @@ app.use('/auth/signin', rateLimit({ windowMs: 15 * 60_000, max: 5 }));
 `express.json()` aceita 100 KB por padrão. Um valor generoso demais transforma um `POST` em
 esgotamento de memória:
 
-```ts title="src/app.ts" showLineNumbers {1}
+```ts showLineNumbers {1}
 app.use(express.json({ limit: '100kb' }));
 ```
 
 O corpo acima do limite gera um erro que precisa virar `413`:
 
-```ts title="src/middlewares/error-handler.ts" showLineNumbers {2}
+```ts showLineNumbers {2}
 // entity.too.large vem do body-parser, usado por express.json()
 if ((error as { type?: string }).type === 'entity.too.large') {
   return res.status(413).json({ error: { status: 413, message: 'Corpo muito grande' } });
@@ -248,35 +239,27 @@ npm ci
 A ordem importa tanto quanto a presença: um limite registrado depois do router não protege o
 router.
 
-```ts title="src/app.ts" showLineNumbers {3,6,9,12,15,21-22}
-const app = express();
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/app.ts"
+  title="src/app.ts"
+  region="chain"
+/>
 
-app.disable('x-powered-by');
+Duas decisões dessa ordem merecem atenção. `/health` é montado **antes** do `rateLimit`,
+porque limitar o health check é limitar o orquestrador. E o `trust proxy` precisa vir antes
+de tudo: sem ele, `req.ip` seria sempre o do balanceador, e o limite contaria o mundo
+inteiro como um único cliente.
 
-// 1. Cabeçalhos de segurança em toda resposta.
-app.use(securityHeaders);
-
-// 2. CORS antes das rotas, para responder o preflight.
-app.use(cors);
-
-// 3. Limite geral, antes de qualquer processamento caro.
-app.use(rateLimit({ windowMs: 60_000, max: 120 }));
-
-// 4. Corpo com limite de tamanho.
-app.use(express.json({ limit: '100kb' }));
-
-// 5. Limite específico da rota mais atacada.
-app.use('/auth/signin', rateLimit({ windowMs: 15 * 60_000, max: 5 }));
-
-app.use('/api', investmentRouter);
-
-app.use(notFound);
-app.use(errorHandler);
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/app.ts"
+  title="src/app.ts"
+  region="trust-proxy"
+/>
 
 ## Exercício
 
-No projeto `express-auth`:
+Na [etapa 9 da TaskAPI](../../practice/taskapi/auth/), que ainda não tem nenhuma dessas
+defesas:
 
 1. Desabilite `x-powered-by` e confirme com `curl -I`.
 2. Implemente `securityHeaders` e verifique os cabeçalhos na resposta.
@@ -377,6 +360,12 @@ botnet, e o que mais poderia ser usado como chave?
 - [`helmet`](https://www.npmjs.com/package/helmet)
 - [`express-rate-limit`](https://www.npmjs.com/package/express-rate-limit)
 - [OWASP — Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
+
+## Na prática
+
+O projeto executável desta aula é a
+[etapa 10 da TaskAPI](../../practice/taskapi/hardening/), que reúne cabeçalhos, limite de
+requisições, CORS e encerramento gracioso na mesma cadeia.
 
 ## Próxima aula
 

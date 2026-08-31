@@ -1,0 +1,380 @@
+---
+title: "TaskAPI: endurecimento"
+description: "Décima etapa da TaskAPI: configuração validada no arranque, log estruturado, métricas, CORS por lista de permitidos, cabeçalhos de segurança, limite de requisições e encerramento gracioso."
+course: expressjs
+sidebar:
+  label: "10. Endurecimento"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Avançado** · Node.js · Express.js · TypeScript · Zod
+
+A mesma API, pronta para sair da sua máquina — e ainda sem dependência nova.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-hardening" devcontainer="task-api-hardening" />
+
+## O que muda nesta etapa
+
+| Antes (etapa 9) | Agora (etapa 10) |
+| --------------- | ---------------- |
+| `process.env` lido em três arquivos | `src/config.ts`, validado no arranque |
+| `console.log` com texto livre | log JSON, com `requestId` e duração |
+| — | `/ready` e `/metrics` |
+| Sem CORS | lista de permitidos e preflight |
+| Sem cabeçalhos de segurança | `nosniff`, `DENY`, CSP, HSTS |
+| Sem limite de requisições | teto global e limite apertado no login |
+| Processo morre no `SIGTERM` | encerramento gracioso |
+
+## Estrutura
+
+<FileTree>
+{`
+  task-api-hardening/
+  ├── .env.example                     todas as variáveis, documentadas
+  └── src/
+      ├── config.ts                    novo — o ambiente validado
+      ├── telemetry.ts                 novo — contadores e percentis
+      ├── app.ts                       a cadeia inteira, em ordem
+      ├── server.ts                    encerramento gracioso
+      ├── middlewares/
+      │   ├── cors.ts                  novo
+      │   ├── logger.ts                novo — log estruturado
+      │   ├── rate-limit.ts            novo
+      │   ├── request-id.ts            novo
+      │   └── security-headers.ts      novo
+      └── routes/
+          └── health-router.ts         novo — /health e /ready
+`}
+</FileTree>
+
+## O ambiente também é entrada não confiável
+
+Um `PORT=abc` vira `NaN`; um `JWT_SECRET` ausente vira string vazia, e a API passa a
+aceitar tokens assinados com nada. Os dois falham em silêncio e só aparecem em produção.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/config.ts"
+  title="src/config.ts"
+  region="schema"
+/>
+
+A checagem acontece uma vez, no arranque, e derruba o processo com a lista do que está
+errado. Não existe `errorHandler` aqui — o servidor ainda nem subiu:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/config.ts"
+  title="src/config.ts"
+  region="fail-fast"
+/>
+
+<Aside type="tip" title="A aplicação lê `config`, nunca `process.env`">
+  Um único arquivo passa a responder "o que este serviço precisa do ambiente?", e os
+  valores chegam já convertidos e no tipo certo. `config.PORT` é `number`; `process.env.PORT`
+  é `string | undefined`.
+</Aside>
+
+## Log que uma máquina consegue ler
+
+Texto livre é legível para uma pessoa e inútil para uma ferramenta. Em JSON, "todos os 500
+do usuário X na última hora" vira uma consulta em vez de um `grep` criativo:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/logger.ts"
+  title="src/middlewares/logger.ts"
+  region="log"
+/>
+
+O registro acontece no evento `finish`, quando status e duração já existem:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/logger.ts"
+  title="src/middlewares/logger.ts"
+  region="middleware"
+/>
+
+<Aside type="danger" title="O que nunca entra no log">
+  `Authorization`, corpo de `/auth/signin`, cookies. Um token vazado em arquivo de log é um
+  token vazado — e arquivos de log costumam ir para serviços de terceiros.
+</Aside>
+
+O `requestId` é o que costura tudo. Ele respeita o id que o proxy já tenha colocado, então
+o rastro atravessa serviços, e volta ao cliente no cabeçalho `X-Request-Id` — algo que a
+pessoa pode citar ao relatar um erro:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/request-id.ts"
+  title="src/middlewares/request-id.ts"
+  region="request-id"
+/>
+
+## `/health` e `/ready` respondem perguntas diferentes
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/routes/health-router.ts"
+  title="src/routes/health-router.ts"
+  region="health"
+/>
+
+`/health` **não** consulta o banco, de propósito: chamado a cada segundo pelo orquestrador,
+viraria carga constante — e uma queda do banco derrubaria um processo que ainda estava
+saudável. Quem checa a dependência é o `/ready`:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/routes/health-router.ts"
+  title="src/routes/health-router.ts"
+  region="ready"
+/>
+
+## Métrica não é log
+
+Log responde "o que aconteceu nesta requisição"; métrica responde "como o serviço está se
+comportando agora". O `/metrics` expõe contadores e percentis no formato do Prometheus:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/telemetry.ts"
+  title="src/telemetry.ts"
+  region="percentile"
+/>
+
+<Aside type="caution" title="A média esconde o problema">
+  Se 99 requisições levam 10 ms e uma leva 5 s, a média diz 60 ms e ninguém investiga. O
+  p95 e o p99 mostram a cauda — que é onde moram os usuários insatisfeitos.
+</Aside>
+
+## CORS é uma decisão do navegador
+
+A política de mesma origem é do navegador: quem decide se o JavaScript de outra origem
+pode **ler** a resposta é ele, com base no que o servidor responde. `curl` ignora tudo
+isso.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/cors.ts"
+  title="src/middlewares/cors.ts"
+  region="cors"
+/>
+
+O `preflight` é o `OPTIONS` que o navegador manda antes de um `PUT` ou de um `POST` com
+JSON. Responder `204` ali encerra o ciclo, e a rota real nem é consultada:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/cors.ts"
+  title="src/middlewares/cors.ts"
+  region="preflight"
+/>
+
+<Aside type="danger" title="`*` e credenciais são incompatíveis">
+  `Access-Control-Allow-Origin: *` com `Allow-Credentials: true` é recusado pelo navegador
+  — e, se funcionasse, qualquer site poderia ler respostas autenticadas. Por isso a origem
+  é ecoada a partir de uma lista, e o `Vary: Origin` impede um cache de servir a resposta
+  de uma origem para outra.
+</Aside>
+
+## Cabeçalhos que instruem o navegador
+
+Nenhum deles protege o servidor: todos pedem ao navegador que seja mais restritivo com a
+resposta. É o que o `helmet` faz, escrito à mão:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/security-headers.ts"
+  title="src/middlewares/security-headers.ts"
+  region="headers"
+/>
+
+## Limite por balde, não por aplicação
+
+Cada limitador tem nome próprio, e portanto contador próprio. Sem isso, o teto global e o
+limite do login somariam no mesmo balde e uma tentativa de login seria cobrada duas vezes:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/middlewares/rate-limit.ts"
+  title="src/middlewares/rate-limit.ts"
+  region="middleware"
+/>
+
+O login é a rota de força bruta por excelência, e ganha um limite bem mais apertado que o
+teto geral:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/routes/auth-router.ts"
+  title="src/routes/auth-router.ts"
+  region="strict-limit"
+/>
+
+<Aside type="caution" title="Contador em memória não sobrevive a duas instâncias">
+  Com dois processos, cada um conta a sua parte e o limite efetivo vira o dobro. Para valer
+  de verdade em escala, o contador precisa morar fora do processo — num Redis, por exemplo.
+</Aside>
+
+## A ordem da cadeia é a arquitetura
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/app.ts"
+  title="src/app.ts"
+  region="chain"
+/>
+
+Três decisões estão condensadas aí: `requestId` vem primeiro para que todo log tenha o id;
+`securityHeaders` vem antes de tudo para valer até nas respostas de erro; e `/health` é
+montado **antes** do `rateLimit`, porque limitar o health check é limitar o orquestrador.
+
+E o `trust proxy` não é detalhe: atrás de um balanceador, `req.ip` seria sempre o do proxy,
+e o rate limit contaria o mundo inteiro como um único cliente.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/app.ts"
+  title="src/app.ts"
+  region="trust-proxy"
+/>
+
+## Morrer com educação
+
+Ao receber `SIGTERM`, o servidor para de aceitar conexões novas e espera as que já estão em
+andamento. Sem isso, todo deploy derruba requisições que estavam quase respondendo:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-hardening/src/server.ts"
+  title="src/server.ts"
+  region="shutdown"
+/>
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-hardening"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-hardening/src/config.ts', title: 'src/config.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/app.ts', title: 'src/app.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/server.ts', title: 'src/server.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/middlewares/logger.ts', title: 'src/middlewares/logger.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/middlewares/cors.ts', title: 'src/middlewares/cors.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/middlewares/security-headers.ts', title: 'src/middlewares/security-headers.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/middlewares/rate-limit.ts', title: 'src/middlewares/rate-limit.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/telemetry.ts', title: 'src/telemetry.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-hardening/src/routes/health-router.ts', title: 'src/routes/health-router.ts', showLineNumbers: true },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-hardening
+   ```
+
+2. <PackageManagerTabs />
+
+3. ```bash
+   cp .env.example .env
+   ```
+
+4. <PackageManagerTabs run="db:migrate" />
+
+   <PackageManagerTabs run="db:seed" />
+
+5. <PackageManagerTabs run="dev" />
+
+</Steps>
+
+O `.env.example` documenta todas as variáveis:
+
+```ini title=".env.example"
+NODE_ENV=development
+PORT=3000
+
+DATABASE_URL="file:./prisma/dev.db"
+
+# Minimo de 32 caracteres. Gere o seu com: openssl rand -hex 32
+JWT_SECRET="troque-este-segredo-de-desenvolvimento-com-32-chars"
+JWT_EXPIRES_IN=3600
+
+# Origens autorizadas a ler as respostas, separadas por virgula.
+CORS_ORIGINS="http://localhost:5173"
+
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_MS=60000
+
+LOG_LEVEL=info
+```
+
+Experimente apagar o `JWT_SECRET` do `.env` e subir de novo: o processo recusa arrancar e
+diz exatamente qual variável está errada.
+
+## Testando
+
+O `/ready` consulta o banco antes de responder — é ele que o orquestrador usa para decidir
+se manda tráfego para esta instância:
+
+<ApiRequest method="GET" path="/ready" baseUrl="http://localhost:3000" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "status": "ready",
+    "database": "up"
+  }
+`}
+</ApiResponse>
+
+Cada requisição sai no log como uma linha JSON, com o id que também voltou no cabeçalho:
+
+```json title="Saída do servidor"
+{"level":"info","time":"2026-08-31T02:52:40.185Z","message":"http_request","requestId":"6a290711-9796-4f3f-8417-25413c4332a3","method":"POST","path":"/auth/signin","status":401,"durationMs":58.4}
+```
+
+E a sexta tentativa de login no mesmo minuto é recusada, com o tempo de espera no
+cabeçalho `Retry-After`:
+
+<ApiRequest method="POST" path="/auth/signin" baseUrl="http://localhost:3000" description="Sexta tentativa em menos de um minuto">
+{`
+  {
+    "email": "ana@example.com",
+    "password": "senha-errada"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={429}>
+{`
+  {
+    "error": {
+      "status": 429,
+      "message": "Muitas requisicoes. Tente novamente mais tarde."
+    }
+  }
+`}
+</ApiResponse>
+
+## Conceitos abordados
+
+- Configuração validada com Zod e falha no arranque
+- Log estruturado em JSON, com id de requisição e duração
+- O que nunca pode entrar no log
+- `/health` (liveness) contra `/ready` (readiness)
+- Métricas, percentis e por que a média engana
+- CORS por lista de permitidos, preflight e `Vary: Origin`
+- Cabeçalhos de segurança sem `helmet`
+- Limite de requisições por balde nomeado
+- `trust proxy` e o `req.ip` real
+- Encerramento gracioso e erros fora do ciclo de requisição
+
+<Aside type="tip">
+  As aulas correspondentes são [Configuração](../../../architecture/config/),
+  [Log](../../../architecture/logging/),
+  [Observabilidade](../../../architecture/observability/),
+  [CORS](../../../security/cors/) e
+  [Endurecimento](../../../security/hardening/).
+</Aside>
+
+## Próxima etapa
+
+A etapa 11 (serviços) está em construção. Enquanto isso, o
+[InvestApp](../../investapp/upload/) e o [MonitorApp](../../monitorapp/realtime/) já
+mostram upload, e-mail e tempo real aplicados a uma aplicação completa.
