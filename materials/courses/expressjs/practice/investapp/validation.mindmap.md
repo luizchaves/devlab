@@ -13,24 +13,6 @@ markmap:
 - **Objetivo**: Criar uma barreira de contrato estrita na entrada da API usando Zod
 - **Resultado**: Controllers limpos de instruções `if` e respostas HTTP 400 amigáveis
 
-## Middleware de Validação (`validate.ts`)
-
-- **Higher-Order Function**: Retorna middleware nativo Express `(req, res, next)`
-- **Validação Unificada**: Agrupa `body`, `query` e `params` em um único objeto
-- **Método Utilizado**: `schema.safeParseAsync(...)`
-- **Fluxo de Erro**: Dispara `HttpError(400, msg, issues)` para o `errorHandler`
-
-## Schemas Zod (`investment.schema.ts`)
-
-- **Por Fonte de Dados**:
-  - `body`: `name` (string, min 3), `value` (number, positivo)
-  - `params`: `id` (string, UUID)
-  - `query`: `name` (string opcional, não vazia)
-- **Por Rota (Composição)**:
-  - `createInvestmentSchema`: apenas `body`
-  - `readInvestmentByIdSchema`: apenas `params`
-  - `updateInvestmentSchema`: compõe `body` e `params`
-
 ## As 3 Camadas de Validação
 
 - **Front-end (Navegador)**:
@@ -42,9 +24,24 @@ markmap:
   - *Função*: Bloquear requisições malformadas antes da regra de negócio
   - *Segurança*: Total na entrada do servidor
 - **Banco de Dados (SGBD)**:
-  - *Ferramentas*: Constraints SQL (`NOT NULL`, `CHECK`, `UNIQUE`, `FOREIGN KEY`)
-  - *Função*: Garantir integridade persistida contra qualquer origem
+  - *Ferramentas*: Constraints SQL e Mapeamento Prisma (`@id`, `@db.VarChar`, `@relation`, `UNIQUE`)
+  - *Função*: Garantir integridade física persistida contra qualquer origem
   - *Proteção Extra*: Previne *race conditions* em checagem de unicidade
+
+## Middleware de Validação (`validate.ts`)
+
+- **Higher-Order Function**: Retorna middleware nativo Express `(req, res, next)`
+- **Validação Unificada**: Agrupa `body`, `query` e `params` em um único objeto
+- **Método Utilizado**: `schema.safeParseAsync(...)`
+- **Fluxo de Erro**: Dispara `HttpError(400, msg, issues)` para o `errorHandler`
+
+## Schemas Zod (`investment.schema.ts`)
+
+- **O que é Zod**: Biblioteca TypeScript-first de validação com inferência de tipo (`z.infer`)
+- **Schemas da Etapa**:
+  - `createInvestmentSchema`: Valida `body` (`name`, `value` positivo)
+  - `readInvestmentByIdSchema`: Valida `params` (`id` UUID)
+  - `updateInvestmentSchema`: Compõe `body` parcial e `params`
 
 ## Requisitos & Critérios de Aceite (US04)
 
