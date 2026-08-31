@@ -44,92 +44,6 @@ Quarta etapa da trilha prática InvestApp: validação estrita de requisições 
 
 ---
 
-## Arquitetura da Validação
-
-```txt
- ┌────────────────┐     ┌──────────────────┐     ┌───────────────────────┐
- │ Cliente / HTTP │ ──> │ Roteador Express │ ──> │ Middleware validate() │
- └────────────────┘     └──────────────────┘     └───────────┬───────────┘
-                                                             │
-                              ┌──────────────────────────────┴──────────────────────────────┐
-                              ▼ (Dado Válido)                                               ▼ (Dado Inválido)
-                   ┌──────────────────────┐                                      ┌──────────────────────┐
-                   │ InvestmentController │                                      │ HttpError 400 (Zod)  │
-                   └──────────┬───────────┘                                      └──────────┬───────────┘
-                              ▼                                                             ▼
-                   ┌──────────────────────┐                                      ┌──────────────────────┐
-                   │ Model / Persistência │                                      │ errorHandler         │
-                   └──────────────────────┘                                      └──────────────────────┘
-```
-
-- A validação ocorre **na fronteira** da aplicação.
-- Se o contrato for violado, o handler principal do controller **nunca é executado**.
-
----
-
-## O Middleware Genérico (`src/middlewares/validate.ts`)
-
-- **Padrão Higher-Order Function**: `validate(schema)` retorna uma função middleware com a assinatura nativa do Express `(req, res, next)`.
-- **Validação Unificada**: Agrupa `body`, `query` e `params` em um único objeto testado com `schema.safeParse(...)`.
-
-```typescript
-export const validate = (schema: AnyZodObject) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const result = await schema.safeParseAsync({
-      body: req.body,
-      query: req.query,
-      params: req.params,
-    });
-    if (!result.success) {
-      return next(new HttpError(400, 'Dados de requisição inválidos', result.error.issues));
-    }
-    return next();
-  };
-};
-```
-
----
-
-## Schemas com Zod (`src/schemas/investment.schema.ts`)
-
-Separação em duas etapas didáticas:
-
-1. **Definição por fonte de dados**:
-   - `body`: `name` (string, min 3), `value` (number, positivo).
-   - `params`: `id` (string, formato UUID).
-   - `query`: `name` (string opcional, mas sem string vazia).
-
-2. **Composição por rota**:
-   - `createInvestmentSchema`: apenas `body`.
-   - `readInvestmentByIdSchema`: apenas `params`.
-   - `updateInvestmentSchema`: compõe `body` e `params`.
-
----
-
-## Injeção de Schemas no Roteador (`src/routes/investments.routes.ts`)
-
-O roteador declara explicitamente o contrato de entrada de cada endpoint:
-
-```typescript
-import { validate } from '@/middlewares/validate.ts';
-import { createInvestmentSchema, readInvestmentByIdSchema } from '@/schemas/investment.schema.ts';
-
-router.post(
-  '/investments',
-  requireJson,
-  validate(createInvestmentSchema),
-  InvestmentController.create
-);
-
-router.get(
-  '/investments/:id',
-  validate(readInvestmentByIdSchema),
-  InvestmentController.getById
-);
-```
-
----
-
 ## As Três Camadas de Validação
 
 Confundir o papel do front-end, da API e do banco de dados é a causa principal de falhas de segurança e integridade.
@@ -166,6 +80,121 @@ Confundir o papel do front-end, da API e do banco de dados é a causa principal 
 
 ---
 
+## Arquitetura da Validação na API
+
+```txt
+ ┌────────────────┐     ┌──────────────────┐     ┌───────────────────────┐
+ │ Cliente / HTTP │ ──> │ Roteador Express │ ──> │ Middleware validate() │
+ └────────────────┘     └──────────────────┘     └───────────┬───────────┘
+                                                             │
+                              ┌──────────────────────────────┴──────────────────────────────┐
+                              ▼ (Dado Válido)                                               ▼ (Dado Inválido)
+                   ┌──────────────────────┐                                      ┌──────────────────────┐
+                   │ InvestmentController │                                      │ HttpError 400 (Zod)  │
+                   └──────────┬───────────┘                                      └──────────┬───────────┘
+                              ▼                                                             ▼
+                   ┌──────────────────────┐                                      ┌──────────────────────┐
+                   │ Model / Persistência │                                      │ errorHandler         │
+                   └──────────────────────┘                                      └──────────────────────┘
+```
+
+- A validação ocorre **na fronteira** da aplicação.
+- Se o contrato for violado, o handler principal do controller **nunca é executado**.
+
+---
+
+## O Middleware Genérico (`src/middlewares/validate.ts`)
+
+- **Padrão Higher-Order Function**: `validate(schema)` retorna uma função middleware com a assinatura nativa do Express `(req, res, next)`.
+- **Validação Unificada**: Agrupa `body`, `query` e `params` em um único objeto testado com `schema.safeParseAsync(...)`.
+
+```typescript
+export const validate = (schema: AnyZodObject) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const result = await schema.safeParseAsync({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
+    if (!result.success) {
+      return next(new HttpError(400, 'Dados de requisição inválidos', result.error.issues));
+    }
+    return next();
+  };
+};
+```
+
+---
+
+## Schemas com Zod (`src/schemas/investment.schema.ts`)
+
+- **O que é o Zod?**: Biblioteca TypeScript-first para declaração e validação de schemas com inferência automática de tipos estáticos (`z.infer<typeof schema>`).
+- **Organização Didática**:
+  1. **Definição por fonte de dados**: `body` (`name`, `value`), `params` (`id`), `query` (`name`).
+  2. **Composição por rota**: `createInvestmentSchema`, `readInvestmentByIdSchema`, `updateInvestmentSchema`.
+
+---
+
+## Primitivos & Validadores do Zod (`z.object`, `z.string`, `z.number`)
+
+- **`z.object({ ... })`**: Valida a estrutura de objetos e suas chaves (ex: `req.body`, `req.params`).
+- **`z.string()`**: Valida textos com encadeamento de restrições:
+  - `.min(3, 'mensagem')` / `.max(100)`: Limites de tamanho da string.
+  - `.uuid('mensagem')` / `.email()` / `.url()`: Formatos predefinidos.
+- **`z.number()`**: Valida tipo numérico (`.positive()`, `.int()`, `.min(0)`).
+- **Modificadores de Opcionalidade**: `.optional()` (permite `undefined`) e `.partial()` (torna todas as chaves do objeto opcionais).
+- **Enumerações e Listas**: `z.enum(['ativo', 'inativo'])` (valores restritos) e `z.array(...)` (listas de dados).
+
+---
+
+## Código dos Schemas de Investimento
+
+```typescript
+import { z } from 'zod';
+
+export const createInvestmentSchema = z.object({
+  body: z.object({
+    name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
+    value: z.number().positive('Valor deve ser positivo'),
+  }),
+});
+
+export const readInvestmentByIdSchema = z.object({
+  params: z.object({ id: z.string().uuid('ID deve ser um UUID válido') }),
+});
+
+export const updateInvestmentSchema = z.object({
+  params: readInvestmentByIdSchema.shape.params,
+  body: createInvestmentSchema.shape.body.partial(),
+});
+```
+
+---
+
+## Injeção de Schemas no Roteador (`src/routes/investments.routes.ts`)
+
+O roteador declara explicitamente o contrato de entrada de cada endpoint:
+
+```typescript
+import { validate } from '@/middlewares/validate.ts';
+import { createInvestmentSchema, readInvestmentByIdSchema } from '@/schemas/investment.schema.ts';
+
+router.post(
+  '/investments',
+  requireJson,
+  validate(createInvestmentSchema),
+  InvestmentController.create
+);
+
+router.get(
+  '/investments/:id',
+  validate(readInvestmentByIdSchema),
+  InvestmentController.getById
+);
+```
+
+---
+
 ## Camada 3: Banco de Dados (Última Linha de Defesa)
 
 - **Por que é necessária?**: A API protege requisições HTTP, mas a base de dados pode ser alterada por scripts de migração, seeders, interfaces administrativas ou outros microserviços.
@@ -174,6 +203,29 @@ Confundir o papel do front-end, da API e do banco de dados é a causa principal 
   - `CHECK (value > 0)`: Mesma regra do `z.number().positive()`.
   - `UNIQUE`: Impede duplicidade (ex: e-mail ou CPF), evitando *race conditions*.
   - `FOREIGN KEY`: Garante integridade referencial entre entidades.
+
+---
+
+## Paralelo: Schemas de Validação vs Prisma Schema
+
+Comparativo entre a validação na borda (Zod) e a integridade declarada no banco (Prisma ORM):
+
+```prisma
+// prisma/schema.prisma
+model Investment {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(100)
+  value     Float    // No banco: CHECK (value > 0)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+```
+
+- **API (Zod)**: Bloqueia requisições HTTP malformadas antes da controller com HTTP 400.
+- **Prisma/SQL**: Assegura integridade física no SGBD contra qualquer origem de dados.
 
 ---
 
