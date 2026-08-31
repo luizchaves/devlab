@@ -52,6 +52,9 @@ export default defineConfig({
     '/courses/expressjs/practice/express-prisma': withBase(
       '/courses/expressjs/practice/taskapi/prisma/'
     ),
+    '/courses/expressjs/practice/express-auth': withBase(
+      '/courses/expressjs/practice/taskapi/auth/'
+    ),
     // O Monitor API virou o trilho completo do MonitorApp, em treze etapas.
     '/courses/expressjs/practice/monitor-api': withBase('/courses/expressjs/practice/monitorapp/'),
     // Validacao saiu de "Recursos Avancados" para a trilha de APIs HTTP.
@@ -1019,9 +1022,12 @@ export default defineConfig({
                       label: '8. Prisma',
                       link: '/courses/expressjs/practice/taskapi/prisma/',
                     },
+                    {
+                      label: '9. Autenticação',
+                      link: '/courses/expressjs/practice/taskapi/auth/',
+                    },
                   ],
                 },
-                { label: 'Express Auth', link: '/courses/expressjs/practice/express-auth/' },
                 {
                   label: 'InvestApp',
                   items: [

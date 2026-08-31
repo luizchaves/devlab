@@ -72,20 +72,6 @@ export const projects: Project[] = [
     docs: '/courses/expressjs/practice/taskapi/',
     source: 'examples/courses/express/projects/task-api-typescript',
   },
-  {
-    id: 'express-auth',
-    name: 'Express Auth',
-    description:
-      'Cadastro, autenticação por JWT e autorização por posse e papel, usando apenas node:crypto.',
-    level: 'Avançado',
-    category: 'express',
-    featured: true,
-    tech: ['Node.js', 'Express.js', 'TypeScript', 'node:crypto'],
-    concepts: ['Argon2id', 'JWT HS256', 'Autenticação', 'Autorização'],
-    docs: '/courses/expressjs/practice/express-auth/',
-    source: 'examples/courses/express/projects/auth',
-  },
-
   // --- FRONT-END & WEB APIS ---
   {
     id: 'pingwatch-landing',

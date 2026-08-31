@@ -1,0 +1,362 @@
+---
+title: "TaskAPI: autenticação e autorização"
+description: "Nona etapa da TaskAPI: cadastro com Argon2id, login com JWT HS256 e isolamento por dono, tudo com node:crypto — sem bcrypt e sem jsonwebtoken."
+course: expressjs
+sidebar:
+  label: "9. Autenticação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import CodeTabs from '@components/CodeTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Nível **Avançado** · Node.js · Express.js · TypeScript · Prisma · `node:crypto`
+
+A API deixa de ser pública, e cada tarefa passa a ter dono.
+
+<ProjectLinks path="examples/courses/express/projects/task-api-auth" devcontainer="task-api-auth" />
+
+## O que muda nesta etapa
+
+| Antes (etapa 8) | Agora (etapa 9) |
+| --------------- | --------------- |
+| Qualquer um lê e escreve | `/tasks` inteiro exige token |
+| Só `Task` e `Tag` | `+ User`, com `password` e `role` |
+| Título único no sistema | `@@unique([userId, title])` — único por dono |
+| — | `POST /auth/signup`, `POST /auth/signin`, `GET /auth/me` |
+| — | `authenticate` e `requireRole` |
+| — | `pnpm test` com os testes de hash e JWT |
+
+Nenhuma dependência nova: o hash e a assinatura do token saem de `node:crypto`.
+
+## Estrutura
+
+<FileTree>
+{`
+  task-api-auth/
+  ├── .env.example                 DATABASE_URL, JWT_SECRET, JWT_EXPIRES_IN
+  ├── prisma/schema.prisma         + User, Task.userId
+  └── src/
+      ├── controllers/
+      │   ├── auth-controller.ts   novo
+      │   └── task-controller.ts   o dono vem do token
+      ├── middlewares/
+      │   ├── authenticate.ts      novo — quem é
+      │   └── authorize.ts         novo — o que pode
+      ├── models/
+      │   ├── task-model.ts        toda consulta leva userId
+      │   └── user-model.ts        novo
+      ├── routes/
+      │   └── auth-router.ts       novo
+      ├── schemas/auth.ts          novo
+      ├── types/express.d.ts       + req.auth
+      └── utils/
+          ├── jwt.ts               assinatura HS256
+          ├── jwt.test.ts
+          ├── password.ts          Argon2id
+          └── password.test.ts
+`}
+</FileTree>
+
+## O fluxo completo
+
+<Mermaid title="Do cadastro à leitura de uma tarefa protegida">
+{`
+sequenceDiagram
+  participant C as Cliente
+  participant A as /auth
+  participant M as authenticate
+  participant T as /tasks
+  C->>A: POST /auth/signup { name, email, password }
+  A-->>C: 201 — usuário, sem a senha
+  C->>A: POST /auth/signin { email, password }
+  A-->>C: 200 — { token, user }
+  C->>M: GET /tasks<br/>Authorization: Bearer token
+  M->>M: verifica assinatura e expiração
+  M->>T: req.auth = payload
+  T-->>C: 200 — só as tarefas de req.auth.sub
+`}
+</Mermaid>
+
+## A senha nunca é guardada
+
+`hashPassword` deriva um Argon2id novo a cada chamada, com sal próprio, e devolve o
+formato PHC — parâmetros e sal viajam junto do hash, então um registro antigo continua
+verificável depois de endurecermos os custos:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/utils/password.ts"
+  title="src/utils/password.ts"
+  lines="32-46"
+/>
+
+E o model é a segunda linha de defesa: o `select` faz com que a coluna `password` **nunca
+saia do banco**. Não é "lembrar de remover o campo antes de responder" — ele não vem na
+consulta.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/models/user-model.ts"
+  title="src/models/user-model.ts"
+  region="public"
+/>
+
+A única função que lê a coluna é a que confere a senha, e ainda assim a senha não escapa
+dali:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/models/user-model.ts"
+  title="src/models/user-model.ts"
+  region="authenticate"
+/>
+
+## O token é assinado, não criptografado
+
+Um JWT são três partes em Base64URL: cabeçalho, payload e assinatura. Qualquer pessoa
+consegue **ler** o payload; o que a assinatura garante é que ele não foi alterado.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/utils/jwt.ts"
+  title="src/utils/jwt.ts"
+  lines="43-57"
+/>
+
+<Aside type="danger" title="Nunca coloque segredo no payload">
+  `sub`, `name`, `email` e `role` são visíveis para quem tiver o token — basta decodificar
+  o Base64. Senha, CPF e chave de API não entram ali.
+</Aside>
+
+## Autenticação e autorização são coisas diferentes
+
+`authenticate` responde **quem é**; `requireRole` responde **o que pode**. Confundir os
+dois status é o erro clássico: `401` significa "identifique-se", `403` significa
+"identificado, mas não pode".
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/middlewares/authenticate.ts"
+  title="src/middlewares/authenticate.ts"
+  region="authenticate"
+/>
+
+O middleware é aplicado ao router inteiro, e não rota a rota. Assim nenhuma rota nova
+nasce desprotegida por esquecimento:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/routes/task-router.ts"
+  title="src/routes/task-router.ts"
+  region="authenticate"
+/>
+
+## O dono vem do token
+
+Esta é a regra que sustenta o isolamento: o `userId` nunca vem do corpo nem da query.
+Aceitá-lo do cliente seria o mesmo que não ter autorização — bastaria mandar o id de
+outra pessoa.
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/controllers/task-controller.ts"
+  title="src/controllers/task-controller.ts"
+  region="owner"
+/>
+
+E o filtro é imposto no model, não no controller. Um `where` montado sem o `userId` não
+existe em lugar nenhum do código:
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="where"
+/>
+
+<Aside type="tip" title="`404`, e não `403`, para recurso alheio">
+  Responder `403` a uma tarefa que existe mas é de outra pessoa confirma que o id é
+  válido — e permite enumerar a base inteira. `404` deixa "não é sua" indistinguível de
+  "não existe".
+</Aside>
+
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="find-by"
+/>
+
+## Código completo
+
+<CodeTabs
+  syncKey="task-api-auth"
+  files={[
+    { path: 'examples/courses/express/projects/task-api-auth/prisma/schema.prisma', title: 'prisma/schema.prisma', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-auth/src/utils/password.ts', title: 'src/utils/password.ts', showLineNumbers: true, collapse: '11-30' },
+    { path: 'examples/courses/express/projects/task-api-auth/src/utils/jwt.ts', title: 'src/utils/jwt.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-auth/src/models/user-model.ts', title: 'src/models/user-model.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-auth/src/controllers/auth-controller.ts', title: 'src/controllers/auth-controller.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-auth/src/middlewares/authenticate.ts', title: 'src/middlewares/authenticate.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-auth/src/middlewares/authorize.ts', title: 'src/middlewares/authorize.ts', showLineNumbers: true },
+    { path: 'examples/courses/express/projects/task-api-auth/src/routes/auth-router.ts', title: 'src/routes/auth-router.ts', showLineNumbers: true },
+  ]}
+/>
+
+## Executando
+
+<Steps>
+
+1. ```bash
+   cd examples/courses/express/projects/task-api-auth
+   ```
+
+2. <PackageManagerTabs />
+
+3. Copie o arquivo de ambiente:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Crie o banco e popule:
+
+   <PackageManagerTabs run="db:migrate" />
+
+   <PackageManagerTabs run="db:seed" />
+
+5. <PackageManagerTabs run="dev" />
+
+6. Rode os testes de unidade do hash e do JWT:
+
+   <PackageManagerTabs run="test" />
+
+</Steps>
+
+Os usuários semeados são `ana@example.com` (papel `admin`) e `bruno@example.com` (papel
+`user`), ambos com a senha `senha-de-desenvolvimento`.
+
+## Rotas
+
+| Método | Caminho         | Pública? | Sucesso | Erros                |
+| ------ | --------------- | -------- | ------- | -------------------- |
+| GET    | `/health`       | sim      | `200`   | —                    |
+| POST   | `/auth/signup`  | sim      | `201`   | `409`, `415`, `422`  |
+| POST   | `/auth/signin`  | sim      | `200`   | `401`, `415`, `422`  |
+| GET    | `/auth/me`      | não      | `200`   | `401`                |
+| GET    | `/tasks`        | não      | `200`   | `401`, `422`         |
+| GET    | `/tasks/:id`    | não      | `200`   | `401`, `404`, `422`  |
+| POST   | `/tasks`        | não      | `201`   | `401`, `409`, `422`  |
+| PUT    | `/tasks/:id`    | não      | `200`   | `401`, `404`, `422`  |
+| DELETE | `/tasks/:id`    | não      | `204`   | `401`, `404`, `422`  |
+
+## Testando
+
+O cadastro devolve o usuário criado — e a senha não está lá, nem em hash:
+
+<ApiRequest method="POST" path="/auth/signup" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Carla",
+    "email": "carla@example.com",
+    "password": "senha-de-desenvolvimento"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "3f1a9c22-4d61-4a0e-9a3b-7c2f5b8e1d04",
+    "name": "Carla",
+    "email": "carla@example.com",
+    "role": "user",
+    "createdAt": "2026-08-31T02:44:10.912Z"
+  }
+`}
+</ApiResponse>
+
+O login devolve o token. Senha errada e e-mail inexistente respondem **a mesma coisa** —
+distinguir os dois entregaria ao atacante a lista de e-mails cadastrados:
+
+<details>
+  <summary>Requisição .http correspondente</summary>
+
+  ```http
+  ### Senha errada: mesma mensagem de e-mail inexistente
+  POST http://localhost:3000/auth/signin
+  Content-Type: application/json
+
+  {
+    "email": "ana@example.com",
+    "password": "senha-errada"
+  }
+  ```
+</details>
+
+<ApiRequest method="POST" path="/auth/signin" baseUrl="http://localhost:3000">
+{`
+  {
+    "email": "ana@example.com",
+    "password": "senha-errada"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={401}>
+{`
+  {
+    "error": {
+      "status": 401,
+      "message": "Credenciais invalidas"
+    }
+  }
+`}
+</ApiResponse>
+
+E a prova do isolamento: a tarefa `3` pertence ao Bruno. Com o token da Ana, ela é
+indistinguível de uma que não existe.
+
+<details>
+  <summary>Requisição .http correspondente</summary>
+
+  ```http
+  ### Tarefa de outra pessoa: 404, nao 403
+  GET http://localhost:3000/tasks/3
+  Authorization: Bearer {{token}}
+  ```
+</details>
+
+<ApiRequest method="GET" path="/tasks/3" baseUrl="http://localhost:3000" description="Com o token da Ana; a tarefa é do Bruno" />
+
+<ApiResponse status={404}>
+{`
+  {
+    "error": {
+      "status": 404,
+      "message": "Tarefa nao encontrada"
+    }
+  }
+`}
+</ApiResponse>
+
+## Conceitos abordados
+
+- Hash Argon2id com `node:crypto` e o formato PHC
+- `timingSafeEqual` e o vazamento por tempo de resposta
+- JWT HS256 assinado à mão, e por que o payload não é secreto
+- `401` (identifique-se) contra `403` (identificado, sem permissão)
+- Middleware aplicado ao router inteiro
+- O dono vindo do token, nunca do corpo
+- `404` em vez de `403` para não permitir enumeração
+- `@@unique([userId, title])`: unicidade por dono
+
+<Aside type="tip">
+  As aulas correspondentes são [Senhas e Hash](../../../auth/passwords/),
+  [Cadastro de Usuário](../../../auth/user-registration/),
+  [Autenticação](../../../auth/authentication/) e
+  [Autorização](../../../auth/authorization/).
+</Aside>
+
+## Próxima etapa
+
+A etapa 10 (endurecimento) está em construção. Enquanto isso, o
+[InvestApp](../../investapp/auth/) e o [MonitorApp](../../monitorapp/auth/) já mostram a
+mesma camada aplicada a uma aplicação completa.

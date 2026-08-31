@@ -29,15 +29,15 @@ ela chegar à produção.
 Uma API bem autenticada e mal autorizada é uma API aberta. O padrão é sempre o mesmo:
 
 ```ts title="A rota que parece correta" del={4}
-router.get('/investments/:id', authenticate, async (req, res) => {
-  const investment = await Investment.findById(req.params.id);
+router.get('/tasks/:id', authenticate, async (req, res) => {
+  const task = await Task.findById(Number(req.params.id));
 
-  // Autenticado, sim. Mas é o investimento DELE?
-  res.json(investment);
+  // Autenticado, sim. Mas é a tarefa DELE?
+  res.json(task);
 });
 ```
 
-Qualquer pessoa com uma conta válida troca o `:id` e lê o investimento de outra. Esse é o
+Qualquer pessoa com uma conta válida troca o `:id` e lê a tarefa de outra. Esse é o
 **BOLA** — *Broken Object Level Authorization* — o primeiro item da
 [OWASP API Security Top 10](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/).
 
@@ -96,39 +96,39 @@ filtro entra no model, junto da consulta:
 
 <Tabs syncKey="ownership">
   <TabItem label="Filtrar na consulta">
-    ```ts title="src/models/investment-model.ts" showLineNumbers {2}
-    export function findAllByUser(userId: string): Investment[] {
-      return investments.filter((investment) => investment.userId === userId);
-    }
-    ```
+    <SourceCode
+      path="examples/courses/express/projects/task-api-auth/src/models/task-model.ts"
+      title="src/models/task-model.ts"
+      region="where"
+    />
 
-    O recurso de outra pessoa nem entra na memória do processo. É a forma preferida para
-    listagens.
+    O recurso de outra pessoa nem entra na memória do processo, porque o `userId` faz parte
+    do `where`. É a forma preferida, e a que o projeto modelo usa.
   </TabItem>
 
   <TabItem label="Verificar depois">
-    ```ts title="src/middlewares/authorize.ts" showLineNumbers {4}
-    export function requireInvestmentOwner(req, _res, next) {
-      const investment = Investment.findById(req.params.id);
+    ```ts showLineNumbers {4}
+    export function requireTaskOwner(req, _res, next) {
+      const task = await Task.findById(Number(req.params.id));
 
-      if (!investment || investment.userId !== req.auth?.sub) {
-        throw new HttpError(404, 'Investimento nao encontrado');
+      if (!task || task.userId !== req.auth?.sub) {
+        throw new HttpError(404, 'Tarefa nao encontrada');
       }
 
       next();
     }
     ```
 
-    Necessária quando a operação age sobre um `:id` específico. Vira middleware para não
-    ser esquecida.
+    Funciona, mas é frágil: depende de alguém lembrar de registrar o middleware em cada
+    rota nova. Filtrar na consulta não tem como ser esquecido.
   </TabItem>
 </Tabs>
 
-<ProjectLinks path="examples/courses/express/projects/auth" devcontainer="express-auth" />
+<ProjectLinks path="examples/courses/express/projects/task-api-auth" devcontainer="task-api-auth" />
 
 <FileTree>
 {`
-  express-auth/
+  task-api-auth/
   ├── package.json
   ├── tsconfig.json
   ├── prisma/
@@ -138,17 +138,17 @@ filtro entra no model, junto da consulta:
       ├── server.ts
       ├── controllers/
       │   ├── auth-controller.ts
-      │   └── investment-controller.ts
+      │   └── task-controller.ts
       ├── middlewares/
       │   ├── authenticate.ts
       │   ├── authorize.ts
       │   └── error-handler.ts
       ├── models/
+      │   ├── task-model.ts
       │   └── user-model.ts
       ├── routes/
       │   ├── auth-router.ts
-      │   ├── investment-router.ts
-      │   └── user-router.ts
+      │   └── task-router.ts
       └── utils/
           ├── jwt.ts
           └── password.ts
@@ -156,34 +156,32 @@ filtro entra no model, junto da consulta:
 </FileTree>
 
 <SourceCode
-  path="examples/courses/express/projects/auth/src/middlewares/authorize.ts"
-  title="src/middlewares/authorize.ts"
-  lines="26-44"
-  showLineNumbers
-  mark="39-41"
+  path="examples/courses/express/projects/task-api-auth/src/models/task-model.ts"
+  title="src/models/task-model.ts"
+  region="find-by"
 />
 
-O detalhe mais importante desse middleware é o status: ele responde **`404`**, não `403`.
+O detalhe mais importante dessa busca é o status que ela provoca: o controller responde
+**`404`**, não `403`.
 
 <Aside type="tip" title="`404` esconde a existência do recurso">
-  `403` confirma que o id existe e pertence a outra pessoa — e permite enumerar os
-  investimentos alheios só pelos status das respostas. `404` não distingue "não existe" de
-  "não é seu". Use `403` apenas quando a existência do recurso já for pública.
+  `403` confirma que o id existe e pertence a outra pessoa — e permite enumerar as tarefas
+  alheias só pelos status das respostas. `404` não distingue "não existe" de "não é seu".
+  Use `403` apenas quando a existência do recurso já for pública.
 </Aside>
 
 O id do dono vem **sempre do token**, nunca do corpo ou da query:
 
 <SourceCode
-  path="examples/courses/express/projects/auth/src/controllers/investment-controller.ts"
-  title="src/controllers/investment-controller.ts"
-  lines="7-14"
-  showLineNumbers
+  path="examples/courses/express/projects/task-api-auth/src/controllers/task-controller.ts"
+  title="src/controllers/task-controller.ts"
+  region="owner"
 />
 
 <Aside type="danger" title="`userId` no corpo é uma porta aberta">
-  `Investment.create({ ...req.body })` com `userId` vindo do cliente permite criar um
-  registro em nome de outra pessoa — e, dependendo da regra, lê-lo depois. O dono é uma
-  decisão do servidor.
+  `Task.create({ ...req.body })` com `userId` vindo do cliente permite criar um registro em
+  nome de outra pessoa — e, dependendo da regra, lê-lo depois. O dono é uma decisão do
+  servidor.
 </Aside>
 
 ## Autorização por papel
@@ -192,21 +190,17 @@ Um papel é apenas um campo do usuário, incluído no token no momento do login.
 de fábrica torna a exigência declarativa:
 
 <SourceCode
-  path="examples/courses/express/projects/auth/src/middlewares/authorize.ts"
+  path="examples/courses/express/projects/task-api-auth/src/middlewares/authorize.ts"
   title="src/middlewares/authorize.ts"
-  lines="6-24"
-  showLineNumbers
-  mark="12,18-20"
+  region="role"
 />
 
 O uso fica legível na própria definição da rota:
 
-<SourceCode
-  path="examples/courses/express/projects/auth/src/routes/user-router.ts"
-  title="src/routes/user-router.ts"
-  showLineNumbers
-  mark="9"
-/>
+```ts showLineNumbers {2}
+// Só quem tem role admin lista os usuários do sistema.
+router.get('/users', authenticate, requireRole('admin'), userController.index);
+```
 
 <ApiRequest method="GET" path="/users" baseUrl="http://localhost:3000" description="Token de um usuário com role user" />
 
@@ -245,35 +239,34 @@ A mesma checagem pode morar em três lugares, com garantias diferentes:
 | Controller   | acesso ao contexto completo              | repetição em cada função                |
 | Model        | vale para toda origem                    | menos explícito na leitura da rota      |
 
-A combinação que funciona: **filtro por dono no model** para listagens, **middleware** para
-operações sobre um `:id`, e `router.use(authenticate)` no topo para que nenhuma rota nova
-nasça desprotegida.
+A combinação que o projeto modelo usa: **filtro por dono no model**, valendo tanto para as
+listagens quanto para as operações sobre um `:id`, e `router.use(authenticate)` no topo para
+que nenhuma rota nova nasça desprotegida.
 
-```ts title="src/routes/investment-router.ts" showLineNumbers {2,6}
-// Autenticação para o router inteiro: rota nova já nasce protegida.
-router.use(authenticate);
-
-router.get('/', investmentController.index);
-router.post('/', investmentController.store);
-router.delete('/:id', requireInvestmentOwner, investmentController.destroy);
-```
+<SourceCode
+  path="examples/courses/express/projects/task-api-auth/src/routes/task-router.ts"
+  title="src/routes/task-router.ts"
+  showLineNumbers
+  mark={['router.use(authenticate)']}
+/>
 
 ## Exercício
 
-No projeto `express-auth`:
+Na [etapa 9 da TaskAPI](../../practice/taskapi/auth/):
 
-1. Faça login como `ana@example.com` e crie um investimento.
-2. Cadastre um segundo usuário, faça login com ele e tente apagar o investimento da Ana.
-   Confirme que a resposta é `404` e explique por quê.
-3. Acrescente `PUT /investments/:id` protegido por `requireInvestmentOwner`.
-4. Crie a rota `DELETE /users/:id` acessível apenas a `admin`.
-5. Escreva um teste que comprove que `GET /investments` de um usuário nunca traz registros
-   de outro.
+1. Faça login como `ana@example.com` e crie uma tarefa.
+2. Faça login como `bruno@example.com` e tente apagar a tarefa da Ana. Confirme que a
+   resposta é `404` e explique por quê.
+3. Acrescente `GET /users`, acessível apenas a quem tem `role: 'admin'`.
+4. Crie a rota `DELETE /users/:id`, também restrita a `admin`, e impeça que um admin apague
+   a própria conta.
+5. Escreva um teste que comprove que `GET /tasks` de um usuário nunca traz registros de
+   outro.
 
 <details>
   <summary>Possível resposta</summary>
 
-  ```ts title="src/routes/user-router.ts" showLineNumbers {5}
+  ```ts showLineNumbers {5}
   router.get('/', authenticate, requireRole('admin'), userController.index);
 
   router.delete(
@@ -284,16 +277,16 @@ No projeto `express-auth`:
   );
   ```
 
-  A tentativa de apagar o investimento alheio responde `404` porque
-  `requireInvestmentOwner` trata "não existe" e "não é seu" da mesma forma: distinguir os
-  dois permitiria descobrir quais ids existem no sistema.
+  A tentativa de apagar a tarefa alheia responde `404` porque o `where` do model inclui o
+  `userId`: a consulta não encontra nada, e "não existe" e "não é seu" ficam
+  indistinguíveis. Distinguir os dois permitiria descobrir quais ids existem no sistema.
 </details>
 
 ## Desafio
 
-Implemente autorização por atributo: um investimento só pode ser editado antes da data de
-vencimento. Escreva `requireEditableInvestment` combinando posse **e** condição temporal, e
-decida qual status devolver quando a posse está correta mas o prazo passou — `403` ou `409`?
+Implemente autorização por atributo: uma tarefa concluída não pode mais ser editada.
+Escreva `requireEditableTask` combinando posse **e** condição de estado, e decida qual
+status devolver quando a posse está correta mas a tarefa já foi concluída — `403` ou `409`?
 Justifique.
 
 ## Perguntas de revisão
@@ -359,7 +352,8 @@ Justifique.
 
 ## Na prática
 
-O projeto executável desta aula é [Express Auth](../../practice/express-auth/).
+O projeto executável desta aula é a
+[etapa 9 da TaskAPI](../../practice/taskapi/auth/).
 
 ## Próxima aula
 
