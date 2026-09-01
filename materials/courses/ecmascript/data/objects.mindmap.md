@@ -7,59 +7,59 @@ markmap:
 
 # JavaScript: Objetos, Classes e Protótipos
 
-## Objetivo
-- Compreender a estrutura de dados de Objeto em JavaScript, dominar a criação por notação literal.
+## Ideia Central
 
-## Criação de Objetos e Notação Literal
-- Notação Literal: Forma mais comum e legível de criar objetos com `{}`; `const user = { name: "Ana" };`
-- Valor (Value): Qualquer dado associado à chave; `"Ana"`, `28`, `true`, `[1, 2]`
-- Tipo de Dado: Tipo de dado não primitivo em JavaScript; `typeof {}` // `"object"`
-- Em JavaScript, um Objeto é uma coleção dinâmica de propriedades.
-- O valor de uma propriedade pode ser de qualquer tipo: primitivos, arrays.
+- **Coleção Chave-Valor**: dados heterogêneos estruturados na memória Heap.
+- **POO no JavaScript**: fundamentada na cadeia de protótipos (*prototype chain*).
 
-## Property Shorthand (Sintaxe Abreviada de Propriedades)
-- Quando o nome da variável local é idêntico ao nome da chave do objeto que se deseja criar.
+## Criação e Acesso
 
-## Acesso, Modificação e Remoção de Propriedades
-- Propriedades podem ser acessadas por ponto (`obj.name`) ou colchetes (`obj[key]`).
-### Notação de Ponto vs Notação de Colchetes
-- As duas notações acessam a mesma propriedade, mas só uma delas aceita nomes calculados em tempo de execução
-### Adição, Alteração e Remoção
-- Objetos em JavaScript são mutáveis por padrão.
-- Propriedades podem ser atribuídas ou removidas a qualquer momento.
-### Verificação de Existência de Propriedades (Operador `in` e `Object.hasOwn`)
-- `Object.hasOwn(obj, prop)`: Retorna `true` apenas se a propriedade for direta/própria do objeto (own property).
+- **Notação Literal**: `{ key: value, method() {} }` (padrão recomendado).
+- **Property Shorthand**: `{ name, age }` ao criar objetos a partir de variáveis locais.
+- **Ponto vs Colchetes**:
+  - `obj.prop`: simples e direto.
+  - `obj["prop"]` e `obj[var]`: para chaves dinâmicas, numéricas ou com caracteres especiais.
+- **Existência de Propriedades**:
+  - Operador `in`: busca no objeto e na cadeia de protótipos.
+  - `Object.hasOwn(obj, prop)`: restringe a busca a propriedades próprias diretas.
+- **Optional Chaining (`?.`)**: navegação segura contra `null` e `undefined`.
 
-## Desestruturação em Parâmetros de Funções
-- A desestruturação é extremamente útil em parâmetros de funções, permitindo receber objetos de opção com clareza.
+## Desestruturação e Imutabilidade
 
-## Operador Spread e Imutabilidade em Objetos
-- O operador de espalhamento (`...`) permite copiar e mesclar propriedades de objetos de forma rasa (shallow copy).
+- **Desestruturação**: `const { name, age, role = 'user' } = person`.
+- **Renomeação**: `const { city: location } = person`.
+- **Em Funções**: `function setup({ host, port = 80 } = {})`.
+- **Operador Spread (`...`)**: cópia rasa e sobreposição declarativa de propriedades.
+- **`Object.freeze()`**: congelamento raso para impedir adições, exclusões e alterações.
 
-## Congelando Objetos com Object.freeze()
-- Se você precisa impedir que um objeto tenha suas propriedades alteradas, adicionadas ou deletadas.
+## Classes ES6+ e Encapsulamento
 
-## Classes em JavaScript (ES6+ e POO)
-### Declaração de Classes e o Construtor
-- Uma classe é declarada com a palavra-chave `class`.
-### Mapeamento entre Classes e a Cadeia de Protótipos
-### Encapsulamento com Atributos Privados (`#`) e Getters/Setters
-- No ES2022, o JavaScript introduziu os campos privados prefixados com `#`.
-- Atributos e métodos privados não podem ser acessados diretamente de fora da classe.
-### Herança de Classes com `extends` e `super`
-- Uma classe pode herdar propriedades e métodos de outra classe utilizando a palavra-chave `extends`.
-### Métodos e Campos Estáticos (`static`)
-- Métodos e propriedades marcados com a palavra-chave `static` pertencem à própria classe.
+- **Declaração**: `class User { constructor(name) { this.name = name; } }`.
+- **Protótipos**: métodos de classe residem em `User.prototype`.
+- **Campos Privados (`#`)**: atributos verdadeiramente encapsulados (ES2022+).
+- **Getters e Setters**: interfaces de leitura e validação controlada (`get prop()`, `set prop()`).
+- **Herança**: `class Admin extends User` com chamada obrigatória de `super()`.
+- **Membros Estáticos (`static`)**: métodos utilitários atrelados à função construtora.
 
 ## Iteração sobre Objetos
-- `for...in`: Chaves (`string`); Laço que percorre as chaves enumeráveis do objeto
-- `Object.keys(obj)`: `Array`; Retorna um array com os nomes das chaves do objeto
-- `Object.values(obj)`: `Array`; Retorna um array com os valores de todas as propriedades
-- `Object.entries(obj)`: `Array`; Retorna um array de pares `[chave, valor]`
-- Diferente de arrays, objetos comuns não são diretamente iteráveis com `for...of`.
 
-## Síntese de Estudo
-- **Página**: aprofunda conceitos, exemplos e exercícios
-- **Slides**: organizam a exposição em sala
-- **Mapa mental**: revisa relações entre tópicos
-- **Prática**: execute os exemplos antes de memorizar regras
+- **`Object.keys(obj)`**: lista com todas as chaves próprias enumeráveis.
+- **`Object.values(obj)`**: lista com os valores das propriedades.
+- **`Object.entries(obj)`**: pares `[chave, valor]` ideais para desestruturação em `for...of`.
+- **Laço `for...in`**: itera sobre chaves enumeráveis do objeto e protótipo.
+
+## Formato e Manipulação de JSON
+
+- **Regras Estritas do Formato**:
+  - Chaves e strings obrigatoriamente com aspas duplas (`"chave": "valor"`).
+  - Sem vírgula final (*trailing comma*).
+  - Não aceita funções, `undefined` ou `Symbol`.
+- **Serialização**: `JSON.stringify(obj)` converte objetos em strings JSON.
+- **Desserialização**: `JSON.parse(string)` converte strings JSON em objetos JS.
+
+## Boas Práticas
+
+- **Use Property Shorthand e Desestruturação** para código limpo e idiomático.
+- **Combine `?.` com `??`** para evitar erros de leitura em dados aninhados de APIs.
+- **Lembre-se da referência de `const`**: use `Object.freeze()` quando a imutabilidade for estrita.
+- **Prefira `Object.hasOwn`** sobre o método legado `hasOwnProperty`.

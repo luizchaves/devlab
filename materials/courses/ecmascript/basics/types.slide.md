@@ -3,393 +3,392 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Tipos de Dados e Coerção"
-description: "Slides completos da aula JavaScript: Tipos de Dados e Coerção."
+description: "Tipos primitivos e de referência, operador typeof, undefined vs null, coerção de tipos implícita e explícita, valores truthy/falsy e igualdade estrita em JavaScript."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Tipos de Dados e Coerção
 
-Tipos primitivos e de referência, operador typeof, undefined vs null, coerção de tipos implícita e explícita, valores truthy/falsy e igualdade estrita em JavaScript.
+Primitivos, objetos, `typeof`, coerção implícita e explícita, `null` vs `undefined`, truthy e falsy.
 
 ---
 
 ## Objetivo
 
-- Compreender o sistema de tipos dinâmico do JavaScript
-- Identificar todos os tipos primitivos e de referência, utilizar corretamente o operador `typeof`, manipular conversões...
+Compreender o sistema de tipos dinâmico do JavaScript e evitar surpresas de coerção.
+
+- Diferenciar **valores primitivos** (imutáveis) de **objetos** (referência).
+- Inspecionar tipos com o operador `typeof` e reconhecer suas peculiaridades.
+- Compreender as características de **tipagem dinâmica** e **tipagem fraca**.
+- Aplicar **coerção explícita** e evitar armadilhas de coerção implícita.
+- Distinguir semanticamente **`undefined`** de **`null`**.
+- Identificar todos os 8 valores **falsy** e regras de avaliação booleana.
+- Priorizar sempre a **igualdade estrita (`===`)**.
 
 ---
 
 ## Mapa da Aula
 
-- Categorias de Tipos de Dados
-- Imutabilidade dos Primitivos
-- O Operador `typeof`
-- Tipagem Dinâmica e Tipagem Fraca (Weak Typing)
-- Coerção de Tipos (Implícita vs Explícita)
-- `undefined` vs `null`
-- Booleanos, Falsy e Truthy
-- Executando
+- Categorias: Primitivos vs Objetos.
+- Imutabilidade e operador `typeof`.
+- Tipagem Dinâmica e Tipagem Fraca.
+- Coerção Implícita vs Explícita.
+- `undefined` vs `null`.
+- Booleanos, Truthy e Falsy.
+- Comparação Estrita (`===`) vs Ampla (`==`).
+- Executando, Exercício e Revisão.
 
 ---
 
-## Introdução
+## Onde o Tipo Vive?
 
-- Esta aula apresenta o sistema de tipos de dados do ECMAScript, detalhando a separação entre valores primitivos imutáveis...
-
----
-
-## Categorias de Tipos de Dados
-
-- No ECMAScript, as variáveis não possuem tipo fixo
-- os valores armazenados é que possuem tipo
-- A linguagem divide seus tipos de dados em duas categorias fundamentais
-- Primitivos e Objetos (Tipos de Referência)
-- O diagrama a seguir ilustra a taxonomia completa dos tipos no JavaScript, destacando a separação entre primitivos e objetos
+- Em JavaScript, as **variáveis não possuem tipo fixo**.
+- Os **valores** armazenados é que possuem tipo.
+- A mesma variável pode guardar tipos diferentes ao longo do tempo.
+- Os tipos são divididos em duas grandes famílias:
+  - **Primitivos**: atômicos, imutáveis e copiados por valor.
+  - **Objetos**: estruturas compostas, mutáveis e tratadas por referência.
 
 ---
 
-## Categorias de Tipos de Dados: Comparação
+## Taxonomia dos Tipos de Dados
 
-| Categoria | Tipo (`typeof`) | Descrição | Exemplos de Literais |
-| :--- | :--- | :--- | :--- |
-| **Primitivo** | `undefined` | Ausência de valor atribuído por padrão | `undefined` |
-| **Primitivo** | `null` | Ausência intencional de referência a objeto (*retorna 'object' no typeof*) | `null` |
-| **Primitivo** | `boolean` | Valor lógico verdadeiro ou falso | `true`, `false` |
-| **Primitivo** | `number` | Número em ponto flutuante IEEE 754 (64-bit) | `42`, `-15`, `3.14`, `314e-2`, `0b1111`, `0o17`, `0xf`, `15_000`, `NaN` |
-| **Primitivo** | `bigint` | Inteiro com precisão arbitrária superior a 2⁵³ - 1 | `42n`, `9007199254740991n` |
-| ... | ... | ... | ... |
-
----
-
-## Valores primitivos
-
-```js
-console.log(undefined); // undefined
-console.log(null); // null
-console.log(true); // true
-console.log(false); // false
-console.log("Programacao para Web 2"); // Programacao para Web 2
-console.log(`Hello, ${1 + 1}`); // Hello, 2
-console.log(42); // 42
-console.log(42n); // 42n
-console.log(Symbol("id")); // Symbol(id)
+```txt
+Tipos em JavaScript
+├── Primitivos (7 tipos imutáveis)
+│   ├── number e bigint
+│   ├── string
+│   ├── boolean
+│   ├── undefined e null
+│   └── symbol
+└── Objetos (Tipos de referência)
+    ├── Object ({}) e Array ([])
+    ├── Function
+    └── Date, RegExp, Map, Set...
 ```
 
 ---
 
-## Valores objeto
+## Tipos Primitivos (1/2)
+
+| Tipo | Descrição | Exemplo Literal |
+| :--- | :--- | :--- |
+| `number` | Ponto flutuante IEEE 754 (64-bit) | `42`, `3.14`, `NaN`, `0xff` |
+| `bigint` | Inteiro de precisão arbitrária | `42n`, `9007199254740991n` |
+| `string` | Sequência imutável de caracteres | `"DevLab"`, `'JS'`, `` `Olá` `` |
+| `boolean` | Valor lógico binário | `true`, `false` |
+
+---
+
+## Tipos Especiais e Objetos (2/2)
+
+| Tipo | Descrição | Exemplo Literal |
+| :--- | :--- | :--- |
+| `undefined` | Variável não inicializada | `undefined` |
+| `null` | Ausência intencional de objeto | `null` (*typeof 'object'*) |
+| `symbol` | Identificador único de chave | `Symbol("id")` |
+| `object` | Estrutura de propriedades / listas | `{ a: 1 }`, `[1, 2, 3]` |
+| `function` | Objeto invocável (*callable*) | `function() {}`, `() => {}` |
+
+---
+
+## Literais Primitivos
 
 ```js
-console.log([]); // []
-console.log([1, 2, 3]); // [1, 2, 3]
-console.log([1, , 3]); // [1, <1 empty item>, 3]
-console.log([1010, "Fulano", true, ["DW", "PW2"]]);
-console.log({ id: 1010, name: "Fulano", active: true });
-console.log(new Date("2026-08-12T00:00:00.000Z"));
-console.log(/dw/i);
+console.log(42);           // number
+console.log(42n);          // bigint
+console.log("DevLab");     // string
+console.log(true);         // boolean
+console.log(undefined);    // undefined
+console.log(null);         // null
+console.log(Symbol("id")); // symbol
 ```
 
----
-
-## Hierarquia de tipos em uma imagem
-
-- A representação a seguir, do livro *JavaScript for impatient programmers*, resume a mesma taxonomia em forma de diagrama...
-- JavaScript for impatient programmers (Book)
+- Valores diretos enviados ao console.
+- Não dependem de declaração de variáveis.
 
 ---
 
-## Hierarquia de tipos em uma imagem: Comparação
+## Literais Numéricos e Bases
 
-| Category  | Types                               | Values                                                                                        |
-| --------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
-| Primitive | Undefined | `undefined`                                                                                    |
-| Primitive | Null      | `null`                                                                                        |
-| Primitive | Boolean   | `true`, `false`                                                                               |
-| Primitive | Number    | `-15`<br />`15`, `0b1111`, `0o17`, `0xf`<br />`-123.45`<br />`123.45`, `1.2345e2`, `12345E-2` |
-| Primitive | String    | `'Hello'`, `"Hello"`, `` `Hello` ``                                                           |
-| ... | ... | ... |
+```js
+console.log(15_000); // 15000 (separador numérico legível)
+console.log(0b1111);  // 15    (binário: prefixo 0b)
+console.log(0o17);    // 15    (octal: prefixo 0o)
+console.log(0xf);     // 15    (hexadecimal: prefixo 0x)
+```
+
+- Todos são convertidos para o mesmo tipo `number` (IEEE 754).
+- O sublinhado `_` melhora a legibilidade de números grandes.
+
+---
+
+## Valores de Objeto
+
+```js
+console.log([1, 2, 3]);              // Array (lista ordenada)
+console.log({ id: 1, name: "Ana" }); // Object (chave-valor)
+console.log(new Date("2026-08-12")); // Date (instância de data)
+console.log(/javascript/i);          // RegExp (expressão regular)
+```
+
+- Objetos agregam múltiplos dados e comportamentos.
+- Variáveis guardam endereços de referência na memória *Heap*.
 
 ---
 
 ## Imutabilidade dos Primitivos
 
-- Valores primitivos são imutáveis
-- Métodos chamados em uma string ou number retornam novos valores sem alterar a instância original
-
----
-
-## Imutabilidade de primitivos
-
 ```js
 let title = "javascript";
-title.toUpperCase(); // Retorna "JAVASCRIPT"
-console.log(title); // Continua "javascript" (imutable)
+title.toUpperCase(); // Retorna novo valor "JAVASCRIPT"
 
-title = title.toUpperCase(); // Reatribuição do identificador para o novo valor
+console.log(title); // "javascript" (o original não mudou!)
+
+title = title.toUpperCase(); // Reatribuição do identificador
 console.log(title); // "JAVASCRIPT"
 ```
 
----
-
-## O Operador `typeof`
-
-- O operador unário `typeof` inspeciona e retorna uma string representando o tipo do operando atual
-- Na especificação inicial do JavaScript (1995), os valores eram representados por rótulos de tipo em memória de 32 bits
-- O rótulo para objetos era `000`
-- Como o ponteiro para `null` era um ponteiro nulo (`0x00`), o `typeof null` retornou `"object"`
-- Esse comportamento foi mantido no ECMAScript para preservar compatibilidade com a web antiga
-
----
-
-## Exemplos com typeof
-
-```js
-console.log(typeof 42); // "number"
-console.log(typeof "DevLab"); // "string"
-console.log(typeof true); // "boolean"
-console.log(typeof undefined); // "undefined"
-console.log(typeof Symbol()); // "symbol"
-console.log(typeof 10n); // "bigint"
-console.log(typeof {}); // "object"
-console.log(typeof [1, 2]); // "object" (Arrays são objetos!)
-console.log(typeof function() {}); // "function"
-```
+- Primitivos não podem ser alterados internamente.
+- Métodos de string ou number sempre produzem **novos valores**.
 
 ---
 
 ## O Operador `typeof`
 
-```js
-console.log(typeof null); // "object" (Erro histórico do JS!)
-```
-
----
-
-## Inspecionando tipos
+- Operador unário que retorna uma `string` indicando o tipo.
+- Inspeciona o tipo do operando em tempo de execução.
+- Permite validação dinâmica de tipos antes de executar operações.
 
 ```js
-console.log(typeof undefined); // "undefined"
-console.log(typeof null); // "object"
-console.log(typeof true); // "boolean"
-console.log(typeof "Hello"); // "string"
-console.log(typeof 42); // "number"
-console.log(typeof 42n); // "bigint"
+console.log(typeof 42);           // "number"
+console.log(typeof "DevLab");     // "string"
+console.log(typeof true);         // "boolean"
+console.log(typeof undefined);    // "undefined"
 console.log(typeof Symbol("id")); // "symbol"
-console.log(typeof []); // "object"
-console.log(Array.isArray([])); // true
-console.log(typeof {}); // "object"
-console.log(typeof function () {}); // "function"
+console.log(typeof 10n);          // "bigint"
+console.log(typeof {});           // "object"
+console.log(typeof function() {});// "function"
 ```
 
 ---
 
-## Tipagem Dinâmica e Tipagem Fraca (Weak Typing)
-
-- Utilize coerção explícita (`Number(val)`, `String(val)`).
-- Utilize sempre igualdade estrita (`===`) em vez de igualdade ampla (`==`).
-
----
-
-## Tipagem Dinâmica e Tipagem Fraca (Weak Typing): Comparação
-
-| Operação | Resultado | Comportamento da Tipagem Fraca |
-| :--- | :--- | :--- |
-| `"5" + 2` | `"52"` | O operador `+` com string converte `2` para `"2"` e concatena. |
-| `"5" - 2` | `3` | O operador `-` força conversão da string `"5"` para o número `5`. |
-| `"5" * "2"` | `10` | O operador `*` converte ambas as strings para números. |
-| `true + 1` | `2` | O booleano `true` é convertido para `1`. |
-| `false * 10` | `0` | O booleano `false` é convertido para `0`. |
-
----
-
-## Tipagem Dinâmica e Tipagem Fraca (Weak Typing): Comparação
-
-| Característica | Tipagem Fraca (JavaScript) | Tipagem Forte (Python / Rust) |
-| :--- | :--- | :--- |
-| **Operação `"5" + 2`** | Retorna `"52"` (Converte `2` para string `"2"`) | Lança `TypeError` (Não concatena str com int automaticamente) |
-| **Operação `"5" - 2`** | Retorna `3` (Converte `"5"` para número `5`) | Lança `TypeError` |
-| **Execução** | Tenta converter silenciosamente em runtime | Lança exceção ou exige conversão explícita |
-
----
-
-## Reatribuição com tipos diferentes
+## Armadilha Histórica: `typeof null`
 
 ```js
-let data = 42;            // number
+console.log(typeof null); // "object" (Bug histórico de 1995!)
+```
+
+- Na 1ª versão do JS (1995), o rótulo de tipo para objeto era `000`.
+- O ponteiro nulo (`0x00`) coincidiu com o rótulo de objetos.
+- O retorno `"object"` foi mantido para não quebrar sites existentes.
+- `null` **é primitivo**, apesar do retorno histórico do `typeof`.
+
+---
+
+## Identificando Arrays
+
+```js
+console.log(typeof []);          // "object"
+console.log(Array.isArray([]));  // true
+console.log(Array.isArray({}));  // false
+```
+
+- `typeof` retorna `"object"` para arrays e objetos literais.
+- Para verificar se um valor é um array, use `Array.isArray(valor)`.
+
+---
+
+## Tipagem Dinâmica
+
+- O tipo pertence ao valor, não à variável.
+- Uma variável pode ser reatribuída com valores de tipos diferentes.
+
+```js
+let data = 42;
 console.log(typeof data); // "number"
 
-data = "DevLab";          // reatribuído para string
+data = "DevLab";
 console.log(typeof data); // "string"
+
+data = [1, 2, 3];
+console.log(typeof data); // "object"
 ```
 
 ---
 
-## Exemplos de comportamento da tipagem fraca
+## Tipagem Fraca (Weak Typing)
+
+- JavaScript tenta resolver operações entre tipos incompatíveis.
+- O motor realiza **conversão automática (coerção implícita)**.
+- O script continua executando, mas pode gerar comportamentos inesperados.
 
 ```js
-console.log("10" + 5);    // "105" (String)
-console.log("10" - 5);    // 5     (Number)
-console.log(true + true); // 2     (Number: 1 + 1)
-console.log("10" == 10);  // true  (Coerção implícita na igualdade ampla)
+console.log("5" + 2);   // "52" (Operador + com string concatena!)
+console.log("5" - 2);   // 3    (Operador - converte para number)
+console.log("5" * "2"); // 10   (Multiplicação converte ambos para number)
+console.log(true + 1);  // 2    (true é convertido para 1)
 ```
 
 ---
 
-## Coerção de Tipos (Implícita vs Explícita)
+## Tipagem Fraca vs Tipagem Forte
 
-- Coerção é o processo de conversão de um valor de um tipo de dado para outro
-- Coerção Explícita (Casting) Ocorre quando o desenvolvedor converte o tipo intencionalmente usando funções construtoras...
-- Coerção Implícita Ocorre automaticamente quando o motor JavaScript tenta realizar uma operação entre tipos incompatíveis
-- O operador de igualdade ampla (`==`) tenta realizar coerção implícita de tipos antes de comparar, gerando resultados...
-- Sempre utilize a igualdade estrita (`===`) e a desigualdade estrita (`!==`), que comparam o tipo e o valor sem coerção
+| Operação | JavaScript (Fraca) | Python / Rust (Forte) |
+| :--- | :--- | :--- |
+| `"5" + 2` | `"52"` (converte `2` para texto) | `TypeError` (não soma str com int) |
+| `"5" - 2` | `3` (converte `"5"` para número) | `TypeError` |
+| `true + 1` | `2` (`true` vira `1`) | `TypeError` |
+| **Abordagem** | Converte silenciosamente | Lança exceção imediata |
 
 ---
 
-## Conversão explícita
+## Coerção Explícita (Casting)
+
+- Conversão intencional feita pelo desenvolvedor no código.
+- Usa funções nativas como `Number()`, `String()` e `Boolean()` (sem `new`).
 
 ```js
 const input = "42";
-const count = Number(input); // 42 (number)
-const text = String(100); // "100" (string)
-const isValid = Boolean(1); // true (boolean)
+const count = Number(input);  // 42 (number)
+const text = String(100);     // "100" (string)
+const isValid = Boolean(1);   // true (boolean)
+const px = parseInt("42px");  // 42 (number)
 ```
+
+- Torna a intenção explícita e evita efeitos colaterais.
 
 ---
 
-## Coerção implícita e surpresas
+## Falhas de Coerção e Erros
 
 ```js
-console.log("5" + 2); // "52" (Operador + com string realiza concatenação!)
-console.log("5" - 2); // 3 (Operador - força conversão para number)
-console.log("5" * "2"); // 10 (Multiplicação força conversão numérica)
-console.log(true + 1); // 2 (true é convertido para 1)
-console.log(false + 1); // 1 (false é convertido para 0)
+console.log(Number("abc")); // NaN (Not-a-Number)
+console.log(Number(""));    // 0
+
+// Tipos estritos lançam erro para evitar perda de precisão:
+// console.log(1n + 1);
+// TypeError: Cannot mix BigInt and other types
+
+// console.log("id: " + Symbol("id"));
+// TypeError: Cannot convert a Symbol value to a string
 ```
+
+- `NaN` indica que a conversão numérica falhou.
 
 ---
 
-## Coerção de Tipos (Implícita vs Explícita)
+## Comparação Ampla (`==`) vs Estrita (`===`)
+
+- `==` realiza **coerção implícita** antes de comparar os valores.
+- `===` compara **tipo e valor** sem nenhuma conversão.
 
 ```js
-console.log("0" == 0); // true (Coerção implícita de string para number)
-console.log(0 == false); // true
-console.log("" == false); // true
+console.log("0" == 0);    // true  (converte string para number)
+console.log(0 == false);  // true  (false vira 0)
+console.log("" == false); // true  ("" e false viram 0)
+
+console.log("0" === 0);   // false (string !== number)
+console.log(0 === false); // false (number !== boolean)
 ```
+
+- **Regra de ouro**: Use sempre `===` e `!==`.
 
 ---
 
 ## `undefined` vs `null`
 
-- `undefined`: Significa que a variável foi declarada, mas ainda não recebeu nenhum valor, ou que uma função não retornou...
-- `null`: Significa a ausência intencional de um objeto ou valor. É atribuído programaticamente pelo desenvolvedor para...
-
----
-
-## Comparação entre undefined e null
+- Ambos indicam ausência de valor, mas com semânticas distintas:
+  - **`undefined`**: Variável declarada sem valor atribuído (padrão da engine).
+  - **`null`**: Ausência intencional de valor/objeto (atribuído pelo dev).
 
 ```js
 let unassigned;
-console.log(unassigned); // undefined
+console.log(unassigned); // undefined (automático)
 
-const emptyUser = null; // Definido intencionalmente como vazio
-console.log(emptyUser); // null
-
-console.log(undefined == null); // true (Igualdade ampla)
-console.log(undefined === null); // false (Tipos diferentes!)
+const currentUser = null; // Intencionalmente sem usuário logado
+console.log(currentUser); // null
 ```
 
 ---
 
-## Ausência de valor
+## Comparando `undefined` e `null`
 
 ```js
-let notInitialized;
-const empty = null;
+console.log(undefined == null);  // true  (ambos representam "vazio")
+console.log(undefined === null); // false (tipos distintos!)
 
-console.log(notInitialized); // undefined
-console.log(typeof notInitialized); // "undefined"
-console.log(empty); // null
-console.log(typeof empty); // "object"
+console.log(typeof undefined);   // "undefined"
+console.log(typeof null);        // "object"
 ```
 
----
-
-## Booleanos, Falsy e Truthy
-
-- `0n` (BigInt zero)
-- `""` (string vazia)
-- `NaN` (Not-a-Number)
-- `document.all` (em navegadores)
+- `==` considera ambos equivalentes por representarem ausência.
+- `===` distingue os dois tipos com segurança.
 
 ---
 
-## Booleanos, Falsy e Truthy: Comparação
+## Booleanos: Os 8 Valores Falsy
 
-| Valor | Conversão |
-| ----- | --------- |
-| `false` | `false` |
-| `0`, `-0`, `0n` | `false` |
-| `""` | `false` |
-| `null` | `false` |
-| `undefined` | `false` |
-| ... | ... |
+Em contextos condicionais, apenas estes **8 valores** viram `false`:
+
+1. `false`
+2. `0` e `-0`
+3. `0n` (BigInt zero)
+4. `""` (string vazia)
+5. `null`
+6. `undefined`
+7. `NaN`
+8. `document.all` (navegadores)
 
 ---
 
-## Testando Truthy e Falsy
+## Valores Truthy
+
+- **Qualquer valor fora da lista dos 8 Falsy é Truthy!**
 
 ```js
-console.log(Boolean("")); // false (Falsy)
-console.log(Boolean("0")); // true (Truthy! String não-vazia)
-console.log(Boolean([])); // true (Truthy! Array é objeto)
-console.log(Boolean({})); // true (Truthy! Objeto)
+console.log(Boolean(""));      // false (string vazia)
+console.log(Boolean("0"));     // true (string com conteúdo)
+console.log(Boolean("false")); // true (string com conteúdo)
+console.log(Boolean([]));      // true (array vazio é truthy!)
+console.log(Boolean({}));      // true (objeto vazio é truthy!)
 ```
+
+- **Cuidado**: `[]` e `{}` são avaliados como `true` em condicionais.
 
 ---
 
-## Conversão booleana
+## Aprofundamento no Curso
 
-```js
-console.log(Boolean(false)); // false
-console.log(Boolean(0)); // false
-console.log(Boolean(0n)); // false
-console.log(Boolean("")); // false
-console.log(Boolean(null)); // false
-console.log(Boolean(undefined)); // false
-console.log(Boolean(NaN)); // false
-
-console.log(Boolean([])); // true
-console.log(Boolean({})); // true
-```
-
----
-
-## Aprofundamento nos Próximos Tipos do Curso
-
-- 🔤 Strings, Template Literals e Symbols: Imutabilidade, interpolação, manipulação avançada de texto, códigos Unicode e...
-- 🔢 Numbers, BigInt e Math: Precisão IEEE 754, números inteiros de precisão arbitrária (`BigInt`), operações com `Math` e...
-- 📋 Arrays e Métodos de Iteração: Coleções ordenadas, mutações, métodos funcionais (`map`, `filter`, `reduce`) e...
-- 📦 Objetos e Protótipos: Propriedades, métodos, herança prototípica, manipulação de chaves e objetos imutáveis.
-- 🗂️ Coleções Estruturadas (Map, Set, WeakMap, WeakSet): Estruturas de dados avançadas para chave-valor e conjuntos com...
+- **Strings e Symbols**: Interpolação, manipulação e chaves únicas.
+- **Numbers e BigInt**: Ponto flutuante IEEE 754 e inteiros gigantes.
+- **Arrays**: Métodos funcionais (`map`, `filter`, `reduce`).
+- **Objetos e Classes**: Chave-valor e herança prototípica.
+- **Map e Set**: Estruturas de dados para chaves e conjuntos.
+- **Date e RegExp**: Manipulação temporal e expressões regulares.
 
 ---
 
 ## Executando
-
-- Crie um arquivo `types.js`:
-- Execute via Node.js:
-- Verifique o resultado:
-
----
-
-## types.js
 
 ```js
 const val1 = "10";
@@ -401,17 +400,15 @@ console.log("Soma com +:", val1 + val2);
 console.log("Soma com Number():", Number(val1) + val2);
 ```
 
+- Observe o contraste entre concatenação e soma aritmética.
+
 ---
 
-## Terminal
+## Terminal e Saída
 
 ```bash
 node types.js
 ```
-
----
-
-## Output
 
 ```txt
 Tipo val1: string
@@ -424,37 +421,49 @@ Soma com Number(): 15
 
 ## Exercício
 
-- Inspecione os tipos dos seguintes valores usando `typeof`: `42`, `"Texto"`, `true`, `undefined`, `null`, `Symbol()`,...
-- Explique a diferença entre `undefined` e `null`;
-- Liste 5 valores que são convertidos para `false` em condicionais (falsy);
-- Escreva uma função que receba uma entrada e utilize coerção explícita para somar dois números passados como texto.
+1. Inspecione tipos de `42`, `"Texto"`, `true`, `undefined`, `null`, `Symbol()`, `[]`, `{}` e `function(){}` com `typeof`.
+2. Explique a diferença semântica entre `undefined` e `null`.
+3. Liste 5 valores avaliados como *falsy*.
+4. Crie uma função que receba duas strings e retorne a soma numérica usando coerção explícita.
 
 ---
 
-## Perguntas de revisão
+## Solução do Exercício
 
-- O que significa dizer que o tipo está no valor, não na variável
-- Por que `typeof null` retorna `"object"`
-- Quais valores são avaliados como Falsy em JavaScript
-- O que ocorre no comando `"10" + 5` vs `"10" - 5`
-- Por que `NaN === NaN` retorna `false` e qual a forma correta de testá-lo
+```js
+console.log(typeof 42);      // "number"
+console.log(typeof "Texto"); // "string"
+console.log(typeof null);    // "object" (bug histórico)
+console.log(typeof []);      // "object" (use Array.isArray)
+
+// undefined = não inicializado por padrão
+// null = ausência intencional definida no código
+
+function sumStrings(a, b) {
+  return Number(a) + Number(b);
+}
+console.log(sumStrings("15", "25")); // 40
+```
 
 ---
 
-## Próxima aula
+## Perguntas de Revisão
 
-- Com o entendimento completo de tipos de dados, coerção e igualdade, o próximo passo é aprender a combinar valores em...
-- Expressões e Operadores
-- Operadores aritméticos, lógicos, relacionais e regras de precedência
+- O que significa o tipo pertencer ao valor e não à variável?
+- Por que `typeof null` retorna `"object"`?
+- Quais são os 8 valores *falsy* em JavaScript?
+- Por que `"10" + 5` resulta em `"105"`, mas `"10" - 5` resulta em `5`?
+- Por que `NaN === NaN` retorna `false` e como testá-lo corretamente?
+- Por que coleções vazias `[]` e `{}` são avaliadas como *truthy*?
 
 ---
 
 ## Resumo da Aula
 
-- Revise categorias de Tipos de Dados
-- Revise imutabilidade dos Primitivos
-- Revise o Operador `typeof`
-- Revise tipagem Dinâmica e Tipagem Fraca (Weak Typing)
-- Revise coerção de Tipos (Implícita vs Explícita)
-- Revise `undefined` vs `null`
-- Revise booleanos, Falsy e Truthy
+- 7 tipos primitivos imutáveis e tipo Objeto para coleções.
+- Variáveis são dinamicamente tipadas.
+- `typeof` identifica primitivos, exceto `null` (`"object"`).
+- Tipagem fraca realiza coerções implícitas perigosas.
+- Use coerção explícita (`Number()`, `String()`, `Boolean()`).
+- Compare sempre com igualdade estrita (`===` e `!==`).
+- Apenas 8 valores são *falsy*; todos os demais são *truthy*.

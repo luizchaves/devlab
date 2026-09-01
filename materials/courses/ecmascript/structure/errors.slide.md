@@ -3,398 +3,411 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+    font-size: 1.5rem;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding-bottom: 0;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Tratamento de Erros"
-description: "Slides completos da aula JavaScript: Tratamento de Erros."
+description: "Hierarquia do objeto Error, tratamento com try/catch/finally, lançamento com throw e criação de erros customizados em JavaScript."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Tratamento de Erros
 
-Hierarquia do objeto Error, tratamento com try/catch/finally, lançamento com throw e criação de erros customizados em JavaScript.
+Estrutura `try...catch...finally`, `throw`, tipos de erro nativos, `cause` e erros customizados.
 
 ---
 
 ## Objetivo
 
-- Compreender o ciclo de vida de exceções em JavaScript, aplicar o bloco `try...catch...finally` para evitar interrupções...
+Compreender o ciclo de vida de exceções e implementar tolerância a falhas em JavaScript.
+
+- Interceptar exceções em tempo de execução com **`try...catch...finally`**.
+- Lançar erros estruturados intencionalmente utilizando **`throw`**.
+- Preservar diagnósticos de causa raiz com a opção **`cause` (ES2022)**.
+- Reconhecer os principais tipos nativos (**`TypeError`**, **`ReferenceError`**, **`SyntaxError`**, **`RangeError`**).
+- Criar e identificar **erros customizados** com classes e **`instanceof`**.
+- Tratar falhas em fluxos assíncronos com **Promises (`.catch`)** e **`async/await`**.
 
 ---
 
 ## Mapa da Aula
 
-- O Bloco `try...catch...finally`
-- Lançamento de Exceções (`throw`)
-- Tipos de Erros Nativos em JavaScript
-- Erros Personalizados (*Custom Errors*)
-- Tratamento de Erros em Código Assíncrono
-- Executando
-- Próxima aula
-
----
-
-## Introdução
-
-- Esta aula apresenta os mecanismos para Tratamento de Erros e Gestão de Exceções em JavaScript
-- como utilizar a estrutura `try...catch...finally`, disparar erros com `throw`, identificar exceções nativas (`TypeError`,...
+- Ciclo de Vida de Exceções e `try...catch...finally`
+- Garantia de Execução do `finally` e Optional Catch
+- Lançamento com `throw` e o Objeto `Error`
+- Encadeamento de Diagnóstico com `cause`
+- Hierarquia de Erros Nativos do JavaScript
+- Criação de Classes de Erros Customizados
+- Tratamento em Código Assíncrono (Promises e `async/await`)
+- Execução, Exercício, Desafio e Revisão
 
 ---
 
 ## O Bloco `try...catch...finally`
 
-- Quando ocorre um erro em tempo de execução (*runtime error*), o JavaScript interrompe imediatamente a execução do script...
-- Para interceptar essas exceções e tratar a falha de forma graciosa sem encerrar o programa, utiliza-se a estrutura...
-
----
-
-## Fluxo de Controle
-
-- `try`: Contém o bloco de código sujeito a falhas (ex: operações de I/O, parsing de JSON, requisições de rede).
-- `catch`: Intercepta o objeto de erro lançado e permite tomar medidas corretivas (ex: registrar logs, exibir mensagens...
-- `finally`: Executado incondicionalmente ao término da operação. É ideal para tarefas de limpeza (*cleanup*), como fechar...
-
----
-
-## Fluxo de Controle
+Controla a execução e impede a interrupção abrupta da aplicação:
 
 ```js
 try {
-// Código protegido que pode lançar uma exceção
+  // Bloco monitorado sujeito a falhas (I/O, parsing, rede)
 } catch (error) {
-// Bloco executado SOMENTE se ocorrer um erro no bloco try
+  // Executado SOMENTE se ocorrer exceção no try
 } finally {
-// Bloco executado SEMPRE, independentemente de ter ocorrido erro ou não
+  // Executado SEMPRE ao término (sucesso ou falha)
 }
 ```
 
+- **`try`**: isola o código de risco.
+- **`catch`**: intercepta o erro para log ou recuperação amigável.
+- **`finally`**: executa tarefas incondicionais de limpeza (*cleanup*).
+
 ---
 
-## Exemplo: try...catch...finally
+## Exemplo: Parsing Seguro com `try/catch`
 
 ```js
 function parseUserData(jsonString) {
-console.log("Iniciando processamento...");
+  try {
+    const user = JSON.parse(jsonString);
+    console.log(`Usuário: ${user.name}`);
+    return user;
+  } catch (error) {
+    console.error(`Falha: ${error.message}`);
+    return null;
+  } finally {
+    console.log("Limpeza de recursos finalizada.");
+  }
+}
 
-try {
- const user = JSON.parse(jsonString);
- console.log(`Usuário carregado: ${user.name}`);
- return user;
-} catch (error) {
- console.error(`Falha ao ler JSON: ${error.message}`);
- return null;
-} finally {
- console.log("Finalizando operação (limpeza de recursos).\n");
-  // ...
-// 1. Caso de Sucesso:
-parseUserData('{"name": "Ana"}');
-
-// 2. Caso de Erro de Sintaxe no JSON:
-parseUserData('JSON_INVÁLIDO');
+parseUserData('{"name": "Ana"}'); // "Usuário: Ana" -> "Limpeza..."
+parseUserData("JSON_INVALIDO");    // "Falha: Unexpected token..." -> "Limpeza..."
 ```
 
 ---
 
-## Opcional: Catch sem Parâmetro (ES2019)
+## Garantia do Bloco `finally`
 
-- A partir do ES2019, caso você não precise inspecionar os detalhes do objeto de erro, é possível omitir os parênteses do...
+O bloco `finally` **sempre executa**, mesmo quando há `return` dentro do `try` ou `catch`:
+
+```js
+function checkConnection() {
+  try {
+    console.log("Conectando ao banco...");
+    return "OK";
+  } finally {
+    console.log("Fechando conexão (cleanup garantido)!");
+  }
+}
+
+const status = checkConnection();
+console.log(`Retorno recebido: ${status}`);
+```
+
+```txt
+Conectando ao banco...
+Fechando conexão (cleanup garantido)!
+Retorno recebido: OK
+```
 
 ---
 
 ## Optional Catch Binding (ES2019)
 
+Quando os detalhes do erro não são necessários, o parâmetro do `catch` pode ser omitido:
+
 ```js
-try {
-performRiskyAction();
-} catch {
-console.log("Ação falhou, mas não precisamos dos detalhes do erro.");
+function isValidJSON(text) {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    // Parâmetro (error) omitido intencionalmente
+    return false;
+  }
 }
+
+console.log(isValidJSON('{"a": 1}')); // true
+console.log(isValidJSON("invalido")); // false
 ```
 
 ---
 
 ## Lançamento de Exceções (`throw`)
 
-- A instrução `throw` permite interromper o fluxo normal do programa e lançar uma exceção intencionalmente
-- Em JavaScript, é possível lançar qualquer tipo de dado (strings, números, booleanos ou objetos), mas a boa prática padrão...
-
----
-
-## O Objeto `Error` Nativo
-
-- `.message`: A mensagem descritiva do erro.
-- `.name`: O nome do tipo de erro (por padrão, `"Error"`).
-- `.stack`: A pilha de chamadas (*stack trace*) que mostra em qual linha e arquivo a exceção foi gerada.
-- `.cause` *(ES2022)*: Propriedade para encadear a causa raiz original do erro.
-
----
-
-## Lançando erros com throw new Error()
+A instrução **`throw`** interrompe o fluxo normal e dispara uma exceção:
 
 ```js
 function divide(a, b) {
-if (typeof a !== "number" || typeof b !== "number") {
- throw new TypeError("Ambos os argumentos devem ser números.");
-}
-
-if (b === 0) {
- throw new RangeError("Divisão por zero não é permitida.");
-}
-
-return a / b;
+  if (typeof a !== "number" || typeof b !== "number") {
+    throw new TypeError("Ambos os argumentos devem ser números.");
+  }
+  if (b === 0) {
+    throw new RangeError("Divisão por zero não permitida.");
+  }
+  return a / b;
 }
 
 try {
-console.log(divide(10, 2)); // 5
-divide(10, 0);             // Lança RangeError
-} catch (error) {
-console.log(`[${error.name}]: ${error.message}`);
+  console.log(divide(10, 2)); // 5
+  divide(10, 0);              // Dispara RangeError
+} catch (err) {
+  console.log(`[${err.name}]: ${err.message}`); // "[RangeError]: Divisão por zero..."
 }
 ```
 
 ---
 
-## Encadeamento de Erro com `cause` (ES2022)
+## O Objeto `Error` e Encadeamento com `cause`
 
-- Introduzida no ES2022, a opção `cause` permite encapsular um erro de baixo nível em um erro de alto nível com mais...
-
----
-
-## Encadeamento de causa com cause (ES2022)
+O `Error` captura a mensagem, o nome e o rastreamento da pilha (*stack trace*):
 
 ```js
-function readConfigFile() {
-try {
- JSON.parse("JSON_CORRUPTO");
-} catch (originalError) {
- // Encapsula o erro original na propriedade 'cause'
- throw new Error("Falha ao carregar as configurações do sistema.", {
-   cause: originalError,
- });
-}
+function loadSettings(rawContent) {
+  try {
+    return JSON.parse(rawContent);
+  } catch (originalError) {
+    // ES2022: Encapsula o erro raiz através da propriedade cause
+    throw new Error("Falha ao inicializar configurações.", {
+      cause: originalError,
+    });
+  }
 }
 
 try {
-readConfigFile();
-} catch (error) {
-console.error(error.message); // "Falha ao carregar as configurações do sistema."
-console.error("Causa raiz:", error.cause.message); // "Unexpected token 'J'..."
+  loadSettings("TEXTO_INVALIDO");
+} catch (err) {
+  console.error(err.message);        // "Falha ao inicializar configurações."
+  console.error(err.cause.message);  // "Unexpected token 'T'..."
 }
 ```
 
 ---
 
-## Tipos de Erros Nativos em JavaScript
+## Tipos de Erro Nativos do JavaScript
 
-- O JavaScript possui um conjunto de subclasses nativas da classe base `Error`, cada uma representando uma categoria...
-
----
-
-## Tipos de Erros Nativos em JavaScript: Comparação
-
-| Tipo de Erro | Causa Comum | Exemplo de Código |
+| Tipo | Causa Comum | Exemplo |
 | :--- | :--- | :--- |
-| **`TypeError`** | Operação executada em tipo incompatível ou acesso a `null`/`undefined`. | `"texto".push(1)` ou `null.prop` |
-| **`ReferenceError`** | Acesso a uma variável que não foi declarada no escopo ou acessada na TDZ. | `console.log(naoDeclarado)` |
-| **`SyntaxError`** | Código ferindo a gramática da linguagem ou JSON malformatado. | `JSON.parse("{ bad }")` |
-| **`RangeError`** | Número ou argumento fora do intervalo numérico aceitável. | `new Array(-1)` ou estouro de pilha |
-| **`URIError`** | Uso de caracteres inválidos nas funções `decodeURI()` ou `encodeURI()`. | `decodeURIComponent("%")` |
-| **`AggregateError`** | Agrupa múltiplos erros em uma única exceção (ex: `Promise.any()`). | `Promise.any([p1_falsas])` |
+| **`TypeError`** | Operação em tipo incompatível ou leitura em `null`/`undefined`. | `"txt".push(1)` |
+| **`ReferenceError`** | Acesso a identificador não declarado ou em TDZ. | `console.log(x)` |
+| **`SyntaxError`** | Sintaxe inválida da linguagem ou JSON malformatado. | `JSON.parse("{")` |
+| **`RangeError`** | Valor numérico fora dos limites válidos. | `(42).toFixed(200)` |
+| **`URIError`** | Sequência inválida em `decodeURI()` ou `encodeURI()`. | `decodeURIComponent("%")` |
 
 ---
 
-## Exemplos de erros nativos
+## Identificação com `instanceof`
 
 ```js
-// 1. TypeError
 try {
-const num = 42;
-num.toUpperCase(); // Método de String chamado em Number
+  const value = null;
+  value.calculate(); // Dispara TypeError
 } catch (err) {
-console.log(err instanceof TypeError); // true
-}
-
-// 2. ReferenceError
-try {
-console.log(nonExistentVar);
-} catch (err) {
-console.log(err instanceof ReferenceError); // true
+  if (err instanceof TypeError) {
+    console.log("Erro de Tipo detectado!"); // "Erro de Tipo detectado!"
+  } else if (err instanceof ReferenceError) {
+    console.log("Erro de Referência!");
+  } else {
+    console.log("Outro erro:", err.message);
+  }
 }
 ```
 
----
-
-## Erros Personalizados (*Custom Errors*)
-
-- Em aplicações de grande porte, é recomendável criar classes de erros customizadas herdando de `Error`
-- Isso permite categorizar falhas de negócio (como erros de validação de formulário, autenticação ou banco de dados) e...
+- O operador `instanceof` permite roteamento granular de erros no bloco `catch`.
 
 ---
 
-## Criando e identificando Erros Personalizados
+## Erros Customizados (Classes com `extends Error`)
+
+Permitem modelar regras de negócio e falhas de domínio específicas:
 
 ```js
 class ValidationError extends Error {
-constructor(message, field) {
- super(message);
- this.name = "ValidationError";
- this.field = field;
-}
-}
-
-class NotFoundError extends Error {
-constructor(message) {
- super(message);
- this.name = "NotFoundError";
-  // ...
- console.error(`[Não Encontrado]: ${error.message}`);
-} else {
- console.error(`[Erro Inesperado]: ${error.message}`);
-}
-}
-```
-
----
-
-## Tratamento de Erros em Código Assíncrono
-
-- O tratamento de erros em operações assíncronas varia de acordo com o padrão utilizado (Promises ou `async/await`)
-
----
-
-## Tratamento com Promises (`.catch()`)
-
-- Nas Promises, exceções lançadas ou rejeições ocorridas dentro da cadeia assíncrona são capturadas pelo método `.catch()`:
-
----
-
-## Tratamento de erro em Promises
-
-```js
-function fetchUser(id) {
-return new Promise((resolve, reject) => {
- if (id <= 0) {
-   reject(new Error("ID de usuário inválido."));
- } else {
-   resolve({ id, name: "Lucas" });
- }
-});
+  constructor(message, field) {
+    super(message);
+    this.name = "ValidationError";
+    this.field = field;
+  }
 }
 
-fetchUser(-1)
-.then((user) => console.log(user))
-.catch((error) => console.error(`[Promise Error]: ${error.message}`))
-.finally(() => console.log("Operação de busca encerrada."));
-```
+function validateEmail(email) {
+  if (!email || !email.includes("@")) {
+    throw new ValidationError("E-mail corporativo inválido.", "email");
+  }
+  return true;
+}
 
----
-
-## Tratamento com `async/await` (`try...catch`)
-
-- Funções declaradas com `async` permitem utilizar a sintaxe tradicional `try...catch` para capturar exceções de Promises...
-
----
-
-## Tratamento de erro com async/await
-
-```js
-async function loadData() {
 try {
- const user = await fetchUser(-1);
- console.log(user);
-} catch (error) {
- console.error(`[Async/Await Error]: ${error.message}`);
-} finally {
- console.log("Finalizado.");
+  validateEmail("contatodevlab.org");
+} catch (err) {
+  console.log(`[${err.name}] Campo '${err.field}': ${err.message}`);
+  // "[ValidationError] Campo 'email': E-mail corporativo inválido."
 }
-}
-
-loadData();
 ```
 
 ---
 
-## Executando
+## Tratamento de Erros Assíncronos
 
-- Crie um arquivo chamado `error-demo.js`:
-- Execute o arquivo com Node.js no terminal:
-
----
-
-## error-demo.js
+**1. Promises com `.catch()`:**
 
 ```js
-class AppError extends Error {
-  constructor(msg, code) {
-    super(msg);
-    this.name = "AppError";
-    this.code = code;
+function fetchHost(id) {
+  return id > 0 ? Promise.resolve({ id, ip: "10.0.0.1" }) : Promise.reject(new Error("ID inválido"));
+}
+
+fetchHost(-1)
+  .then((data) => console.log(data))
+  .catch((err) => console.error(`[Catch]: ${err.message}`)) // "[Catch]: ID inválido"
+  .finally(() => console.log("Finalizado."));              // "Finalizado."
+```
+
+**2. `async/await` com `try...catch`:**
+
+```js
+async function loadHost() {
+  try {
+    const host = await fetchHost(-1);
+    console.log(host);
+  } catch (err) {
+    console.error(`[Async Error]: ${err.message}`); // "[Async Error]: ID inválido"
+  }
+}
+loadHost();
+```
+
+---
+
+## Exercício Prático: Leitor Seguro de JSON
+
+Crie a função `parseJSONSafe(jsonString, fallback = {})`:
+
+1. Utilize `try` para converter `jsonString` com `JSON.parse()`.
+2. No `catch`, registre o erro com `console.error` e retorne o `fallback`.
+3. Adicione `finally` exibindo `"Tentativa de parsing concluída."`.
+4. Teste com `'{"status":"ok"}'` e com `'{ bad }'`.
+
+---
+
+## Solução do Exercício
+
+```js
+function parseJSONSafe(jsonString, fallback = {}) {
+  try {
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error(`[Erro no JSON]: ${error.message}`);
+    return fallback;
+  } finally {
+    console.log("Tentativa de parsing concluída.");
   }
 }
 
-function processOrder(amount) {
-  if (amount <= 0) {
-    throw new AppError("O valor do pedido deve ser maior que zero.", "INVALID_AMOUNT");
+console.log(parseJSONSafe('{"status":"ok"}'));
+// Tentativa de parsing concluída.
+// { status: 'ok' }
+
+console.log(parseJSONSafe('{ bad }', { status: "fallback" }));
+// [Erro no JSON]: Unexpected token 'b'...
+// Tentativa de parsing concluída.
+// { status: 'fallback' }
+```
+
+---
+
+## Desafio: Saque Bancário Granular
+
+1. Crie a classe `InsufficientFundsError` herdando de `Error` com `balance` e `amount`.
+2. Crie `BankAccount` com método `withdraw(amount)`.
+3. Lance `TypeError` para `amount <= 0` e `InsufficientFundsError` se `amount > balance`.
+4. Trate os erros com `try/catch` usando `instanceof`.
+
+---
+
+## Solução do Desafio
+
+```js
+class InsufficientFundsError extends Error {
+  constructor(balance, amount) {
+    super(`Saldo insuficiente: disp R$ ${balance}, pedido R$ ${amount}`);
+    this.name = "InsufficientFundsError";
+    this.balance = balance;
+    this.amount = amount;
   }
-  // ...
-    console.error("Erro desconhecido:", err);
+}
+
+class BankAccount {
+  constructor(balance) { this.balance = balance; }
+  withdraw(amount) {
+    if (typeof amount !== "number" || amount <= 0) {
+      throw new TypeError("Valor de saque inválido.");
+    }
+    if (amount > this.balance) {
+      throw new InsufficientFundsError(this.balance, amount);
+    }
+    return (this.balance -= amount);
+  }
+}
+```
+
+---
+
+## Execução da Solução do Desafio
+
+```js
+const account = new BankAccount(200);
+
+try {
+  account.withdraw(300);
+} catch (error) {
+  if (error instanceof InsufficientFundsError) {
+    console.error(`[Recusado]: ${error.message}`);
+    // "[Recusado]: Saldo insuficiente: disp R$ 200, pedido R$ 300"
+  } else if (error instanceof TypeError) {
+    console.error(`[Tipo]: ${error.message}`);
   }
 } finally {
-  console.log("Processamento de pedidos concluído.");
+  console.log(`Saldo final: R$ ${account.balance}`);
+  // "Saldo final: R$ 200"
 }
 ```
 
 ---
 
-## Terminal
+## Perguntas de Revisão
 
-```bash
-node error-demo.js
-```
-
----
-
-## Output
-
-```txt
-Pedido de R$ 150.00 processado com sucesso!
-[INVALID_AMOUNT]: O valor do pedido deve ser maior que zero.
-Processamento de pedidos concluído.
-```
-
----
-
-## Bloco try...catch...finally
-
-- O que acontece se uma exceção for lançada dentro do bloco `try` e não houver um bloco `catch` correspondente
-- O bloco `finally` é executado se houver uma instrução `return` dentro do bloco `try`
-
----
-
-## Tipos de Erro e Exceções Customizadas
-
-- Qual é a diferença essencial entre `TypeError` e `ReferenceError`
-- Para que serve a propriedade `cause` ao instanciar `new Error(message, )` no ES2022
-- Como podemos identificar e tratar diferentes tipos de erros em um único bloco `catch`
-
----
-
-## Próxima aula
-
-- Módulos ES (ESM)
-- Sistemas de módulos, ES Modules (import/export), CommonJS e dynamic imports
+- O que acontece se uma exceção lançada no `try` não encontrar bloco `catch`?
+- O bloco `finally` roda se o bloco `try` executar uma instrução `return`?
+- Qual a diferença essencial entre `TypeError` e `ReferenceError`?
+- Para que serve a propriedade `cause` ao instanciar `new Error(msg, { cause })`?
+- Por que devemos estender a classe `Error` ao criar erros customizados?
+- Como o operador `instanceof` ajuda no tratamento seletivo de falhas?
+- Como o tratamento de exceções se integra a funções assíncronas (`async/await`)?
 
 ---
 
 ## Resumo da Aula
 
-- Revise o Bloco `try...catch...finally`
-- Revise lançamento de Exceções (`throw`)
-- Revise tipos de Erros Nativos em JavaScript
-- Revise erros Personalizados (*Custom Errors*)
-- Revise tratamento de Erros em Código Assíncrono
-- Revise executando
-- Revise próxima aula
+- **Prevenção de Falhas**: `try...catch...finally` intercepta erros sem quebrar a execução.
+- **Limpeza Garantida**: `finally` sempre executa, mesmo após `return` antecipado.
+- **Lançamento Estruturado**: dispare instâncias de `Error` com `throw`.
+- **Causa Raiz**: utilize `{ cause: err }` no ES2022 para rastreabilidade de diagnósticos.
+- **Erros Nativos**: identifique `TypeError`, `ReferenceError`, `SyntaxError` e `RangeError`.
+- **Custom Errors**: estenda `Error` e filtre no `catch` via `instanceof`.
+- **Assincronismo**: use `.catch()` em Promises ou envolva chamadas `await` com `try/catch`.

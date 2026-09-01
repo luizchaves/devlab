@@ -3,96 +3,97 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
-title: "JavaScript: Variáveis, Escopo e Hoisting"
-description: "Slides completos da aula JavaScript: Variáveis, Escopo e Hoisting."
+title: 'JavaScript: Variáveis, Escopo e Hoisting'
+description: 'Slides completos da aula JavaScript: Variáveis, Escopo e Hoisting.'
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Variáveis, Escopo e Hoisting
 
-Declaração de variáveis com var, let e const, escopo lexical e de bloco, hoisting, Temporal Dead Zone (TDZ) e imutabilidade de bindings em JavaScript.
+`var`, `let`, `const`, escopo, _hoisting_ e TDZ.
 
 ---
 
 ## Objetivo
 
-- Compreender como o JavaScript gerencia variáveis na memória, diferenciando declarações com `var`, `let` e `const`
-- Dominar as regras de escopo (global, função e bloco), o comportamento de *hoisting*, a Zona Morta Temporal (TDZ) e as...
+- Associar **nomes** a valores.
+- Escolher entre `const`, `let` e `var`.
+- Diferenciar reassociação de mutação.
+- Ler escopos global, de função e de bloco.
+- Explicar _hoisting_ e _Temporal Dead Zone_.
 
 ---
 
 ## Mapa da Aula
 
-- Variáveis e Declaração de Identificadores
-- Palavras-Chave de Declaração: `var`, `let` e `const`
-- Reassociação e mutação
-- Escopo Lexical e de Bloco
-- Hoisting e a Zona Morta Temporal (TDZ)
-- Case sensitive
-- Boas práticas
-- Executando
+- Variáveis e identificadores.
+- Declaração, inicialização e nomes.
+- `var`, `let`, `const`, reassociação e mutação.
+- Escopo lexical, blocos, funções e laços.
+- _Hoisting_, TDZ e globais implícitas.
+- Exercício, desafio e revisão.
 
 ---
 
-## Introdução
+## Variável é Nome
 
-- Esta aula apresenta as formas de declarar identificadores em JavaScript, detalhando as diferenças cruciais entre `var`,...
-
----
-
-## Variáveis e Declaração de Identificadores
-
-- Sem variáveis, o mesmo valor precisa ser repetido no código, dificultando a manutenção e ocultando a intenção do programa
-- Ao declarar uma variável, um valor recebe um nome simbólico e pode ser reutilizado
-- O diagrama a seguir ilustra o modelo de armazenamento da memória, diferenciando valores primitivos mantidos diretamente...
-- Diagrama da página
-- Armazenamento na Memória
+- Variável cria um **identificador**.
+- O identificador aponta para um valor.
+- O valor pode ser primitivo ou objeto.
+- A palavra-chave define as regras do nome.
 
 ---
 
-## Valor repetido vs Identificador nomeado
+## Modelo de Memória
 
-```js
-// Sem variável: valores soltos e sem semântica
-console.log(79.9 * 0.9);
-console.log(79.9 * 0.9 + 12);
+```txt
+Pilha (stack)                 Heap
+--------------                -----------------------------------
+user  = 0x00A4  --ponteiro--> 0x00A4 -> { name: "Ana",  age: 25 }
+price = 79.9
 
-// Com variável: significado claro e reutilização
-const price = 79.9;
-const discount = 0.9;
-const shipping = 12;
-
-const finalPrice = price * discount + shipping;
-console.log(finalPrice);
+primitivo = valor direto      objeto = referência
 ```
 
----
-
-## Por que variáveis existem
-
-- Sem variáveis, o mesmo valor precisa ser repetido e o código perde intenção
-- Com uma variável, o valor ganha nome e pode ser reutilizado
-- Ao nomear os valores, o cálculo fica mais legível e cada parte passa a ter uma responsabilidade clara
-- Um bom nome reduz a necessidade de comentário
-- `total`, `price` e `shipping` explicam melhor o cálculo do que nomes como `x`, `y` e `z`
+- `user` guarda um endereço para a _heap_.
+- O objeto vive fora da variável.
+- `price` guarda um valor primitivo direto.
+- Reassociar troca o endereço guardado.
 
 ---
 
-## Valor repetido
+## Valor Repetido
 
 ```js
 console.log(79.9 * 0.9);
 console.log(79.9 * 0.9 + 12);
 ```
 
+- O cálculo funciona.
+- A intenção fica escondida.
+- Manutenção exige procurar literais repetidos.
+
 ---
 
-## Valor nomeado
+## Valor Nomeado
 
 ```js
 const price = 79.9;
@@ -106,33 +107,50 @@ console.log(subtotal); // 71.91
 console.log(total); // 83.91
 ```
 
+- Cada literal ganha um papel no cálculo.
+- `subtotal` evita repetir a fórmula.
+- `total` combina as etapas nomeadas.
+
+---
+
+## Bons Nomes
+
+- `price` comunica o valor base.
+- `discountFactor` explica a regra de desconto.
+- `shipping` separa o frete.
+- `subtotal` mostra a etapa intermediária.
+- `total` entrega o resultado final.
+
 ---
 
 ## Identificadores
 
-- O nome da variável é chamado de identificador
-- Ele pode usar letras, dígitos, `` e `$`, mas não pode começar com dígito nem usar palavras reservadas como nome
-- Os exemplos abaixo estão comentados porque representam erros de sintaxe
-- se forem descomentados, o arquivo deixa de executar
-- Nesta página aparecem erros de sintaxe, como `SyntaxError`, e erros em tempo de execução
+- Podem usar letras, dígitos, `_` e `$`.
+- Não podem começar com dígito.
+- Não podem ser palavras reservadas.
+- Diferenciam maiúsculas e minúsculas.
 
 ---
 
-## Identificadores válidos
+## Identificadores Válidos
 
 ```js
 const _total = 10;
 const $price = 19.9;
-const fullName = "Fulano";
+const fullName = 'Fulano';
 
 console.log(_total); // 10
 console.log($price); // 19.9
 console.log(fullName); // Fulano
 ```
 
+- `_` e `$` são permitidos no início.
+- `fullName` segue `camelCase`.
+- Dígitos só podem aparecer depois do primeiro caractere.
+
 ---
 
-## Identificadores inválidos
+## Identificadores Inválidos
 
 ```js
 // SyntaxError: Invalid or unexpected token.
@@ -141,13 +159,21 @@ console.log(fullName); // Fulano
 // SyntaxError: Identifier is a reserved word.
 // const let = 10;
 
-// O caractere - é operador de subtração, não parte do nome.
+// "-" é subtração, não parte do nome.
 // const full-name = "Fulano";
 ```
 
+- O arquivo falha antes de executar.
+- Palavras reservadas continuam proibidas.
+- Use `kebab-case` apenas em nomes de arquivo.
+
 ---
 
-## variables.js
+## Sintaxe vs Execução
+
+- `SyntaxError` impede a interpretação do arquivo.
+- `TypeError` acontece durante a execução.
+- Terminal e Console indicam tipo, arquivo e linha.
 
 ```js
 const total = 1n + 1;
@@ -156,180 +182,94 @@ console.log(total);
 
 ---
 
-## Convenções de Nomenclatura (Naming Conventions)
+## Erro em Execução
 
-- Use `SCREAMINGSNAKECASE` exclusivamente para valores fixos e imutáveis conhecidos antes da execução (hardcoded), como...
-- Use `camelCase` para variáveis declaradas com `const` cujo valor é atribuído dinamicamente em tempo de execução...
+```txt
+TypeError: Cannot mix BigInt and other types
+```
 
----
-
-## Convenções de Nomenclatura (Naming Conventions): Comparação
-
-| Convenção | Padrão | Exemplo | Uso Recomendado |
-| :--- | :--- | :--- | :--- |
-| **`camelCase`** | primeira palavra em minúscula, subsequentes com inicial maiúscula | `userName`, `totalPrice`, `calculateTax()` | Variáveis comuns (`let`/`const`), parâmetros, propriedades de objetos e funções. |
-| **`SCREAMING_SNAKE_CASE`** *(ou `UPPER_SNAKE_CASE`)* | todas as letras em maiúsculas separadas por underline `_` | `API_URL`, `MAX_ATTEMPTS`, `DEFAULT_TIMEOUT` | Constantes imutáveis de configuração global e "valores mágicos" conhecidos em tempo de código. |
-| **`PascalCase`** | inicial de cada palavra em maiúscula | `UserProfile`, `OrderController`, `Button` | Classes, funções construtoras, interfaces/tipos e Componentes de UI (React, Vue, Svelte). |
-| **`kebab-case`** | todas as letras minúsculas separadas por hífen `-` | `user-service.js`, `array-utils.js`, `syntax-cascade.mdx` | Nomes de arquivos de código, scripts, arquivos de estilo, pastas de módulos e rotas Web. |
+- O código é sintaticamente válido.
+- A falha acontece ao somar `bigint` e `number`.
+- A mensagem aponta o tipo do problema.
 
 ---
 
-## Inicialização
+## Convenções de Nomes
 
-- Declarar é criar o nome
-- Inicializar é atribuir o primeiro valor
-- `const` precisa ser inicializada na declaração
+| Convenção          | Exemplo           | Uso comum           |
+| ------------------ | ----------------- | ------------------- |
+| `camelCase`        | `totalPrice`      | variáveis e funções |
+| `UPPER_SNAKE_CASE` | `MAX_ATTEMPTS`    | constantes fixas    |
+| `PascalCase`       | `UserProfile`     | classes e tipos     |
+| `kebab-case`       | `user-service.js` | arquivos e rotas    |
 
 ---
 
-## Declaração sem inicialização
+## `const` Não Exige Caixa Alta
+
+```js
+const API_BASE_URL = 'https://api.exemplo.com';
+const MAX_RETRY_COUNT = 3;
+
+const userList = await fetchUsers();
+const currentElement = document.querySelector('#main');
+```
+
+- Caixa alta: valor fixo de configuração.
+- `camelCase`: valor calculado ou obtido em execução.
+
+---
+
+## Declaração e Inicialização
+
+- Declarar é criar o nome.
+- Inicializar é atribuir o primeiro valor.
+- `let` pode começar sem valor.
+- `const` precisa nascer com valor.
 
 ```js
 let value;
-
 console.log(value); // undefined
-console.log(typeof value); // "undefined"
 
 value = 100;
 value += 50;
-
 console.log(value); // 150
 ```
 
 ---
 
-## const precisa de valor inicial
+## `const` Precisa de Valor
 
 ```js
-const defaultChoice = "const";
+const defaultChoice = 'const';
 console.log(defaultChoice); // "const"
 
 // SyntaxError: Missing initializer in const declaration.
 // const missingValue;
 ```
 
----
-
-## Palavras-Chave de Declaração: `var`, `let` e `const`
-
-- O ECMAScript oferece três palavras-chave para criar variáveis, cada uma com regras de escopo e reatribuição distintas
-- A instrução `const` impede que o identificador seja reassociado a outro objeto ou valor na memória
-- No entanto, o conteúdo interno de objetos e arrays declarados com `const` pode ser modificado (mutação):
+- `defaultChoice` nasce com valor.
+- `missingValue` nem chega a ser criada.
+- O erro é de sintaxe, não de execução.
 
 ---
 
-## Palavras-Chave de Declaração: `var`, `let` e `const`: Comparação
+## `var`, `let` e `const`
 
-| Palavra-Chave | Escopo | Reatribuição | Redeclaração no mesmo escopo | Hoisting |
-| :--- | :--- | :--- | :--- | :--- |
-| `var` | Função ou Global | Permitida | Permitida | Inicializada como `undefined` |
-| `let` | Bloco | Permitida | Proibida (SyntaxError) | Não inicializada (TDZ) |
-| `const` | Bloco | Proibida (TypeError) | Proibida (SyntaxError) | Não inicializada (TDZ) |
-
----
-
-## Comportamento de reatribuição
-
-```js
-// const exige valor inicial e impede reassociação do identificador
-const birthYear = 1995;
-// birthYear = 1996; // TypeError: Assignment to constant variable.
-
-// let permite alteração posterior do valor
-let currentAge = 28;
-currentAge = 29; // OK
-
-// var permite reatribuição e redeclaração (Evitar em código moderno)
-var userRole = "admin";
-var userRole = "super-admin"; // Sem erro, substitui a declaração anterior
-```
+| Palavra | Escopo        | Reassocia? | Redeclara? | Antes da linha |
+| ------- | ------------- | ---------- | ---------- | -------------- |
+| `var`   | função/global | sim        | sim        | `undefined`    |
+| `let`   | bloco         | sim        | não        | TDZ            |
+| `const` | bloco         | não        | não        | TDZ            |
 
 ---
 
-## Palavras-Chave de Declaração: `var`, `let` e `const`
+## Escolha Prática
 
-```js
-const user = { name: "Ana", age: 25 };
-user.age = 26; // Permitido! Mutação da propriedade interna.
-// user = { name: "Carlos" }; // Erro! Reatribuição do identificador.
-```
-
----
-
-## Panorama da declaração
-
-- Em JavaScript moderno, as declarações mais usadas são `const` e `let`
-- `var` ainda aparece em códigos antigos, bibliotecas e materiais legados, mas deve ser evitado como padrão em novos arquivos
-- Declara uma associação que não pode ser trocada por outro valor
-- Use como padrão quando não houver reassociação
-- Declara uma variável que pode receber outro valor depois
-
----
-
-## Panorama da declaração: Comparação
-
-| Palavra-chave | Pode reassociar? | Escopo principal | Uso recomendado |
-| -------------- | ---------------- | ---------------- | --------------- |
-| `const` | Não | Bloco | Valor que não será trocado |
-| `let` | Sim | Bloco | Valor que muda durante a execução |
-| `var` | Sim | Função | Código legado |
-
----
-
-## Declarações
-
-```js
-var declaredWithVar = 10;
-let declaredWithLet = 20;
-const declaredWithConst = 30;
-
-console.log(declaredWithVar); // 10
-console.log(declaredWithLet); // 20
-console.log(declaredWithConst); // 30
-```
-
----
-
-## Redeclaração
-
-- `var` permite declarar novamente o mesmo nome no mesmo escopo
-- `let` e `const` evitam isso
-- Com `let` e `const`, a tentativa de repetir o mesmo nome no mesmo escopo é bloqueada antes da execução
-
----
-
-## Redeclaração com var
-
-```js
-var course = "DW";
-var course = "Desenvolvimento Web";
-
-console.log(course); // "Desenvolvimento Web"
-```
-
----
-
-## Redeclaração bloqueada
-
-```js
-// SyntaxError: Identifier 'semester' has already been declared.
-// let semester = "2026.2";
-// let semester = "2027.1";
-
-// SyntaxError: Identifier 'number' has already been declared.
-// let number = 10;
-// var number = 20;
-```
-
----
-
-## Reassociação e mutação
-
-- Reassociar é fazer a variável apontar para outro valor
-- `var` e `let` permitem isso
-- `const` não permite
-- `const` impede a troca da associação, mas não transforma objetos e arrays em valores imutáveis
-- O conteúdo interno ainda pode mudar
+- Use `const` por padrão.
+- Use `let` quando o valor mudar.
+- Evite `var` em código novo.
+- Leia `var` em código legado.
 
 ---
 
@@ -350,15 +290,19 @@ console.log(declaredWithLet); // 200
 // declaredWithConst = 300;
 ```
 
+- `var` e `let` aceitam novo valor.
+- `const` bloqueia a troca do valor associado.
+- O erro só acontece se a linha comentada rodar.
+
 ---
 
-## Mutação de array declarado com const
+## Mutação de Array
 
 ```js
 const values = [];
 
-values.push("A");
-values.push("B");
+values.push('A');
+values.push('B');
 
 console.log(values); // ["A", "B"]
 
@@ -366,56 +310,132 @@ console.log(values); // ["A", "B"]
 // values = [1, 2];
 ```
 
+- `push()` muda o array.
+- A atribuição troca a associação.
+
 ---
 
-## Mutação de objeto declarado com const
+## Mutação de Objeto
 
 ```js
-const user = { name: "Alice" };
+const user = { name: 'Alice' };
 
-user.name = "Bob";
+user.name = 'Bob';
 
 console.log(user); // { name: "Bob" }
+
+// TypeError: Assignment to constant variable.
+// user = { name: "Carlos" };
+```
+
+- `user.name` muda o objeto existente.
+- `user = {}` tentaria trocar a referência.
+- Mutação e reassociação são operações diferentes.
+
+---
+
+## Referências Compartilhadas
+
+| Momento              | `values`       | `alias`     | Comparação |
+| -------------------- | -------------- | ----------- | ---------- |
+| `let alias = values` | `[1, 2, 3]`    | mesmo array | `true`     |
+| `alias.push(4)`      | `[1, 2, 3, 4]` | mesmo array | `true`     |
+| `alias = [9, 9]`     | `[1, 2, 3, 4]` | novo array  | `false`    |
+
+- Mutação muda o objeto compartilhado.
+- Reassociação troca só um identificador.
+
+---
+
+## Alias em Código
+
+```js
+const values = [1, 2, 3];
+let alias = values;
+
+alias.push(4);
+console.log(values); // [1, 2, 3, 4]
+console.log(values === alias); // true
+
+alias = [9, 9];
+console.log(values); // [1, 2, 3, 4]
+console.log(alias); // [9, 9]
+console.log(values === alias); // false
 ```
 
 ---
 
-## Escopo Lexical e de Bloco
+## O Que Observar no Alias
 
-- Escopo determina em quais partes do código um determinado identificador está visível e pode ser acessado
-- O JavaScript utiliza Escopo Lexical, o que significa que o acesso às variáveis é determinado pela posição onde o código...
-- O diagrama a seguir ilustra as fronteiras de escopo (Global, Função e Bloco) e a cadeia de busca (*Scope Chain*),...
-- Diagrama da página
-- Fronteiras de Escopo e Cadeia de Busca (Scope Chain)
-
----
-
-## Escopo de Bloco (`let` e `const`)
-
-- Um bloco é delimitado por chaves ` ` (como em instruções `if`, `for`, `while` ou blocos autônomos)
-- Identificadores criados com `let` e `const` dentro de um bloco existem apenas naquele contexto
+- `alias` começa apontando para o mesmo array.
+- `push()` altera o objeto compartilhado.
+- `alias = [9, 9]` cria outro destino.
+- `values === alias` mostra quando a referência mudou.
 
 ---
 
-## Isolamento de bloco
+## Redeclaração
+
+```js
+var course = 'DW';
+var course = 'Desenvolvimento Web';
+
+console.log(course); // "Desenvolvimento Web"
+
+// SyntaxError: Identifier 'semester' has already been declared.
+// let semester = "2026.2";
+// let semester = "2027.1";
+```
+
+- `var` aceita a segunda declaração.
+- `let` bloqueia repetição no mesmo escopo.
+- O bloqueio evita sobrescrita acidental.
+
+---
+
+## Escopo Lexical
+
+- Escopo define onde o nome é visível.
+- A busca depende da posição do código.
+- JavaScript procura de dentro para fora.
+- Nome ausente gera `ReferenceError`.
+
+---
+
+## Fronteiras de Escopo
+
+```txt
+global
+`-- função
+    `-- bloco { if / for / while }
+
+busca: bloco -> função -> global -> ReferenceError
+```
+
+- `let` e `const` respeitam bloco.
+- `var` fica no escopo da função.
+
+---
+
+## Escopo de Bloco
 
 ```js
 if (true) {
-const blockScoped = "Visível apenas dentro do bloco";
-var functionScoped = "Vaza para fora do bloco!";
-console.log(blockScoped); // "Visível apenas dentro do bloco"
+  const blockScoped = 'só dentro do bloco';
+  var functionScoped = 'vaza do bloco';
+
+  console.log(blockScoped);
 }
 
-// console.log(blockScoped); // ReferenceError: blockScoped is not defined
-console.log(functionScoped); // "Vaza para fora do bloco!" (Comportamento do var)
+// ReferenceError: blockScoped is not defined.
+// console.log(blockScoped);
+
+console.log(functionScoped); // "vaza do bloco"
 ```
 
----
-
-## Escopo de Função e Global
-
-- Variáveis declaradas fora de qualquer função ou bloco pertencem ao escopo global
-- Variáveis declaradas com `var` dentro de uma função pertencem exclusivamente àquela função
+- `blockScoped` morre ao sair do bloco.
+- `functionScoped` continua visível.
+- Esse vazamento é uma surpresa comum do `var`.
 
 ---
 
@@ -423,230 +443,172 @@ console.log(functionScoped); // "Vaza para fora do bloco!" (Comportamento do var
 
 ```js
 function calculateTotal() {
-var internalTax = 0.15;
-return 100 * (1 + internalTax);
+  var internalTax = 0.15;
+  return 100 * (1 + internalTax);
 }
 
-calculateTotal();
-// console.log(internalTax); // ReferenceError: internalTax is not defined
+console.log(calculateTotal()); // 114.99999999999999
+
+// ReferenceError: internalTax is not defined.
+// console.log(internalTax);
 ```
 
----
-
-## Panorama do escopo
-
-- Escopo define onde uma variável pode ser acessada
-- `let` e `const` respeitam escopo de bloco, ou seja, o trecho entre ``
-- `var` tem escopo de função
-- Por isso, uma variável declarada dentro de um bloco pode continuar acessível fora dele quando está na mesma função
-- Fora da função, ela não fica disponível
+- `internalTax` pertence à função.
+- Fora da função, o nome não existe.
+- O retorno entrega o valor calculado.
 
 ---
 
-## Escopo de bloco
+## Sombreamento
 
 ```js
-let semester = "2026.2";
-console.log(semester); // "2026.2"
+let semester = '2026.2';
 
 if (true) {
-let semester = "inside block";
-const period = "morning";
+  let semester = 'inside block';
+  const period = 'morning';
 
-console.log(semester); // "inside block"
-console.log(period); // "morning"
+  console.log(semester); // "inside block"
+  console.log(period); // "morning"
 }
 
 console.log(semester); // "2026.2"
 ```
 
----
-
-## Escopo de função com var
-
-```js
-function testBlockScope() {
-if (true) {
- var functionScoped = 1;
- let blockScoped = 2;
-
- console.log(blockScoped); // 2
-}
-
-console.log(functionScoped); // 1
-
-// ReferenceError: blockScoped is not defined.
-// console.log(blockScoped);
-}
-
-testBlockScope();
-
-// ReferenceError: functionScoped is not defined.
-// console.log(functionScoped);
-```
+- O `semester` interno sombreia o externo.
+- O bloco cria um escopo próprio.
+- Ao sair do bloco, volta o nome externo.
 
 ---
 
-## Escopo de função
-
-```js
-function greeting() {
-const message = "Hello";
-console.log(message); // "Hello"
-}
-
-greeting();
-
-// ReferenceError: message is not defined.
-// console.log(message);
-```
-
----
-
-## Escopo em laços
-
-- `let` cria uma nova associação por iteração em laços `for`
-- `var`, por ter escopo de função, compartilha a mesma variável entre as iterações
-
----
-
-## var e let em callbacks
+## Laços e Callbacks
 
 ```js
 const callbacksWithVar = [];
 const callbacksWithLet = [];
 
 for (var i = 0; i < 3; i++) {
-callbacksWithVar.push(() => i);
+  callbacksWithVar.push(() => i);
 }
 
 for (let j = 0; j < 3; j++) {
-callbacksWithLet.push(() => j);
+  callbacksWithLet.push(() => j);
 }
 
-console.log(callbacksWithVar.map((callback) => callback())); // [3, 3, 3]
-console.log(callbacksWithLet.map((callback) => callback())); // [0, 1, 2]
+const resultVar = callbacksWithVar.map((callback) => callback());
+const resultLet = callbacksWithLet.map((callback) => callback());
+
+console.log(resultVar); // [3, 3, 3]
+console.log(resultLet); // [0, 1, 2]
 ```
 
 ---
 
-## Hoisting e a Zona Morta Temporal (TDZ)
+## Por Que o Laço Muda?
 
-- *Hoisting* (Elevação) é o mecanismo do mecanismo JS que processa as declarações de variáveis e funções antes de executar...
+- `var i` compartilha uma variável.
+- Os callbacks leem `i` depois do laço.
+- No fim, `i` vale `3`.
+- `let j` cria uma associação por iteração.
+
+---
+
+## Hoisting
+
+- Declarações são processadas antes da execução.
+- `var` começa como `undefined`.
+- `let` e `const` entram na TDZ.
+- Declare antes de usar.
 
 ---
 
 ## Hoisting com `var`
 
-- Declarações com `var` são elevadas ao topo de seu escopo e inicializadas com `undefined`
-
----
-
-## Elevação de var
-
 ```js
-console.log(userName); // undefined (Não lança erro de referência!)
-var userName = "Beatriz";
+console.log(userName); // undefined
 
-// O código acima é interpretado pelo V8 como:
-// var userName;
-// console.log(userName);
-// userName = "Beatriz";
+var userName = 'Beatriz';
+
+console.log(userName); // "Beatriz"
 ```
 
----
-
-## Hoisting com `let` e `const` (TDZ)
-
-- Use camelCase para variáveis e funções (`totalAmount`, `getUserProfile`).
-- Use UPPERSNAKECASE para constantes verdadeiras de tempo de compilação/configuração (`MAXRETRYCOUNT`, `APIBASEURL`).
-- Prefira nomes descritivos em vez de abreviações genéricas (`customerAddress` em vez de `cAddr`).
+- A leitura antes da declaração não falha.
+- O valor inicial é `undefined`.
+- A atribuição acontece depois.
 
 ---
 
-## Acessando variável na TDZ
+## Modelo Mental do `var`
 
 ```js
-// Início do escopo do bloco
-// console.log(product); // ReferenceError: Cannot access 'product' before initialization (TDZ!)
+var userName;
+console.log(userName); // undefined
+userName = 'Beatriz';
+```
 
-let product = "Notebook"; // Fim da TDZ para 'product'
+- A declaração sobe.
+- A atribuição continua no lugar.
+- Por isso a primeira leitura recebe `undefined`.
+
+---
+
+## Temporal Dead Zone (TDZ)
+
+- **Definição**: Intervalo entre a entrada no escopo e a inicialização da variável.
+- `let` e `const` são elevados (*hoisted*), mas ficam **não inicializados**.
+- Qualquer acesso durante a TDZ lança `ReferenceError`.
+
+```js
+// Início do escopo (TDZ ativa para product)
+// console.log(product); // ReferenceError: Cannot access 'product' before initialization
+
+let product = 'Notebook'; // Fim da TDZ (inicialização)
+
 console.log(product); // "Notebook"
 ```
 
 ---
 
-## Panorama do hoisting
-
-- Declarações são processadas antes da execução do código, comportamento chamado de *hoisting*
-- Com `var`, a variável existe antes da linha de declaração, mas começa como `undefined`
-- Com `let` e `const`, acessar a variável antes da declaração gera erro por causa da *Temporal Dead Zone*
-- Mesmo conhecendo *hoisting*, escreva o código na ordem de leitura
-- declare a variável antes de acessar seu valor
-
----
-
-## Hoisting com var
+## TDZ com `let` e `const`
 
 ```js
-console.log(hoistedVar); // undefined
+// console.log(tdzLet);   // ReferenceError: Cannot access 'tdzLet' before initialization
+let tdzLet = 10;
 
-var hoistedVar = 10;
-
-console.log(hoistedVar); // 10
+// console.log(tdzConst); // ReferenceError: Cannot access 'tdzConst' before initialization
+const tdzConst = 10;
 ```
 
----
-
-## Temporal Dead Zone
-
-```js
-// ReferenceError: Cannot access 'tdzLet' before initialization.
-// console.log(tdzLet);
-// let tdzLet = 10;
-
-// ReferenceError: Cannot access 'tdzConst' before initialization.
-// console.log(tdzConst);
-// const tdzConst = 10;
-```
+- O nome existe no escopo desde o início.
+- O acesso falha antes da linha de inicialização.
+- A inicialização formal encerra a TDZ.
 
 ---
 
-## Globais implícitas
-
-- Quando uma atribuição é feita sem declaração, JavaScript pode criar uma variável global implícita em scripts não estritos
-- Esse comportamento é perigoso porque espalha estado pelo programa
-- Use `const`, `let` ou, ao ler código antigo, `var`
-- Não dependa de globais implícitas
-
----
-
-## Global implícita
+## Globais Implícitas
 
 ```js
 function createImplicitGlobal() {
-implicitTotal = 100;
-return implicitTotal;
+  implicitTotal = 100;
+  return implicitTotal;
 }
 
 console.log(createImplicitGlobal()); // 100
 console.log(globalThis.implicitTotal); // 100
+
 delete globalThis.implicitTotal;
 
-// Com "use strict" ou dentro de ES modules:
+// Com "use strict" ou ES modules:
 // ReferenceError: implicitTotal is not defined.
 ```
 
----
-
-## Case sensitive
-
-- JavaScript diferencia letras maiúsculas e minúsculas
-- Portanto, `number`, `Number` e `NUMBER` são nomes diferentes
+- A falta de `const`, `let` ou `var` cria o risco.
+- Em modo estrito, a atribuição vira erro.
+- Declare sempre para limitar o escopo.
 
 ---
 
-## Case sensitive
+## Case Sensitive
 
 ```js
 const number = 8;
@@ -658,127 +620,91 @@ console.log(Number); // 80
 console.log(NUMBER); // 800
 ```
 
----
-
-## Boas práticas
-
-- A tabela final concentra escolhas que ajudam a reduzir surpresa em programas pequenos e também em projetos maiores
-- Este resumo mostra a regra mais comum em código moderno
-- `const` por padrão e `let` quando o valor muda
+- `number`, `Number` e `NUMBER` são nomes diferentes.
+- Evite nomes que dependem só de caixa.
 
 ---
 
-## Boas práticas: Comparação
+## Boas Práticas
 
-| Prática | Motivo |
-| ------- | ------ |
-| Prefira `const` | A maior parte dos nomes não precisa ser reassociada |
-| Use `let` quando houver mudança | Deixa explícito que o valor varia com o tempo |
-| Evite `var` em código novo | Reduz surpresas de escopo, redeclaração e *hoisting* |
-| Declare sempre | Evita globais implícitas |
-| Use nomes descritivos | Facilita leitura, revisão e depuração |
-| Converta explicitamente quando necessário | Reduz resultados inesperados |
-
----
-
-## Resumo prático
-
-```js
-const defaultChoice = "const";
-let changesOverTime = 0;
-
-changesOverTime += 1;
-
-console.log(defaultChoice); // "const"
-console.log(changesOverTime); // 1
-```
+| Prática                | Motivo                       |
+| ---------------------- | ---------------------------- |
+| Prefira `const`        | reduz reassociação acidental |
+| Use `let` quando mudar | deixa variação explícita     |
+| Evite `var`            | reduz surpresa de escopo     |
+| Declare sempre         | evita global implícita       |
+| Nomeie bem             | facilita revisão             |
 
 ---
 
 ## Executando
 
-- Crie um arquivo chamado `variables.js`:
-- Execute o arquivo via Node.js no terminal:
-- Observe a saída gerada:
-- Execute com Node.js:
-- Se preferir usar o navegador, crie uma página HTML carregando o arquivo:
-
----
-
-## variables.js
-
 ```js
-const appName = "DevLab";
+const appName = 'DevLab';
 let activeUsers = 100;
 
 if (true) {
-  let sessionToken = "abc-123";
-  console.log(`[${appName}] Usuários: ${activeUsers}, Token: ${sessionToken}`);
+  let sessionToken = 'abc-123';
+  console.log(`[${appName}] Usuários: ${activeUsers}`);
+  console.log(`Token: ${sessionToken}`);
 }
 ```
 
+- `appName` permanece estável.
+- `activeUsers` poderia mudar durante a execução.
+- `sessionToken` só existe dentro do bloco.
+
 ---
 
-## Terminal
+## Terminal e Saída
 
 ```bash
 node variables.js
 ```
 
----
-
-## Output
-
 ```txt
-[DevLab] Usuários: 100, Token: abc-123
+[DevLab] Usuários: 100
+Token: abc-123
 ```
 
 ---
 
 ## Exercício
 
-- Declare uma constante `courseName` com o nome de uma disciplina e uma variável reatribuível `studentCount` com o número...
-- Tente reatribuir `courseName` e observe a exceção gerada no terminal;
-- Atualize `studentCount` somando 5 novos alunos e imprima o novo valor;
-- Demonstre a Zona Morta Temporal (TDZ) tentando acessar uma variável `let` antes de sua linha de declaração em um bloco `if`.
-- Declare `name`, `price`, `quantity` e `discount`;
+1. Declare `courseName` com `const`.
+2. Declare `studentCount` com `let`.
+3. Some 5 em `studentCount`.
+4. Tente reatribuir `courseName`.
+5. Demonstre uma TDZ em bloco `if`.
 
 ---
 
 ## Desafio
 
-- Adicione um novo produto com `push()`;
-- Altere o preço de um produto;
-- Calcule o total do carrinho;
-- Explique por que essas mudanças são possíveis mesmo quando `cart` foi declarado
-- Inclua um caso com `0.1 + 0.2` e registre o que acontece.
+1. Crie um array `cart` com produtos.
+2. Adicione um produto com `push()`.
+3. Altere o preço de um produto.
+4. Calcule o total do carrinho.
+5. Explique por que `const cart` permite mutação.
 
 ---
 
-## Variáveis e Escopo
+## Perguntas de Revisão
 
-- Qual é a diferença prática entre `let` e `const`
-- Por que `const` não torna um objeto imutável
-- Por que evitar `var` em código JS moderno
-- O que é a Zona Morta Temporal (TDZ)
-- Por que evitar `var` em código novo
-
----
-
-## Próxima aula
-
-- Após dominar a criação de identificadores, escopo e hoisting, o próximo passo é entender a natureza dos dados armazenados...
-- Tipos de Dados e Coerção
-- Tipos primitivos, typeof, coerção implícita e explícita, undefined vs null e igualdade estrita
+- Qual é a diferença entre `let` e `const`?
+- Por que `const` não torna objeto imutável?
+- Por que evitar `var` em código moderno?
+- O que é a _Temporal Dead Zone_?
+- O que muda entre `var` e `let` em callbacks?
+- Por que globais implícitas são perigosas?
 
 ---
 
 ## Resumo da Aula
 
-- Revise variáveis e Declaração de Identificadores
-- Revise palavras-Chave de Declaração: `var`, `let` e `const`
-- Revise reassociação e mutação
-- Revise escopo Lexical e de Bloco
-- Revise hoisting e a Zona Morta Temporal (TDZ)
-- Revise case sensitive
-- Revise boas práticas
+- Variáveis dão nomes a valores.
+- `const` protege a associação.
+- Objetos e arrays ainda podem sofrer mutação.
+- `let` e `const` têm escopo de bloco.
+- `var` tem escopo de função e _hoisting_ antigo.
+- TDZ bloqueia acesso antecipado a `let` e `const`.

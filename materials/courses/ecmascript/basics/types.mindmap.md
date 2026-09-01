@@ -12,14 +12,10 @@ markmap:
 - Identificar todos os tipos primitivos e de referência, utilizar corretamente o operador `typeof`.
 
 ## Categorias de Tipos de Dados
-- Primitivo: `undefined`; Ausência de valor atribuído por padrão
-- Primitivo: `null`; Ausência intencional de referência a objeto (retorna 'object' no typeof)
-### Hierarquia de tipos em uma imagem
-- Category: Types; Values
-- Primitive: Undefined; `undefined`
-- Primitive: Null; `null`
-- Primitive: Boolean; `true`, `false`
-- Primitive: Number; `-15``15`, `0b1111`, `0o17`, `0xf``-123.45``123.45`, `1.2345e2`, `12345E-2`
+- Primitivos (7 tipos imutáveis): `number`, `bigint`, `string`, `boolean`, `undefined`, `null`, `symbol`.
+- Formatos Numéricos: separador (`15_000`), binário (`0b1111`), octal (`0o17`), hexadecimal (`0xf`).
+- Objetos (Tipos de Referência): `Object`, `Array`, `Function`, `Date`, `RegExp`, `Map`, `Set`.
+- Ausência de valor: `undefined` (não inicializado) vs `null` (intencional).
 
 ## Imutabilidade dos Primitivos
 - Valores primitivos são imutáveis.

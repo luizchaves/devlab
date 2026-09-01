@@ -7,109 +7,52 @@ markmap:
 
 # JavaScript: Strings e Template Literals
 
-## Objetivo
-- Compreender o tipo de dado String em JavaScript, reconhecer a imutabilidade das strings.
+## Ideia Central
 
-## Criação e Literais de String
-- Delimitador: Nome; Uso Principal
-- `'...'`: Aspas Simples; Literal de texto simples
-- `"..."`: Aspas Duplas; Literal de texto simples
-- `` `...` ``: Template Literal; Interpolação e textos multilinhas
-- Em JavaScript, uma String é uma sequência de caracteres imutável usada para representar texto.
-- As strings podem ser criadas utilizando três tipos de delimitadores: aspas simples (`'`).
+- **Representação Textual**: sequência imutável de caracteres e código Unicode.
+- **Ecossistema Funcional**: rica biblioteca de métodos em `String.prototype`.
 
-## Conversão para String
-- Função `String(valor)`: É a forma mais direta e segura de conversão explícita.
-- Método `.toString()`: Método presente no protótipo da maioria dos tipos de dados (números, booleanos, arrays.
-- Literais numéricos exigem cuidado ao chamar `.toString()` diretamente.
-- `.toString(radix)` converte números para bases como binário, octal ou hexadecimal.
-- Qualquer tipo de dado em JavaScript pode ser convertido para String de forma explícita ou implícita.
+## Criação e Conversão
 
-## Caracteres de Escape e Unicode
-- Sequência: Descrição; Exemplo
-- `\'`: Aspa simples literal; `'D\'água'`
-- `\"`: Aspa dupla literal; `"Disse: \"Olá!\""`
-- `\\`: Barra invertida literal; `"C:\\Arquivos"`
-- `\n`: Nova linha (Line Feed); `"Linha 1\nLinha 2"`
-- `\t`: Tabulação (Tab); `"Item:\tValor"`
+- **Literais**: aspas simples (`'`), duplas (`"`) e template literals (`` ` ``).
+- **Primitivo vs Objeto**: evite `new String()` para não criar instâncias de objeto desnecessárias.
+- **Função `String(valor)`**: conversão universal segura (inclusive para `null` e `undefined`).
+- **Método `.toString()`**:
+  - Parênteses em literais: `(42).toString()` para evitar conflito com ponto decimal.
+  - Bases numéricas: `(42).toString(radix)` (ex: base 2 para binário, base 16 para hex).
 
-## Imutabilidade e Acesso por Índice
-- Strings em JavaScript são primitivos imutáveis.
-- Isso significa que, uma vez criada, uma string não pode ter seus caracteres alterados individualmente.
-### Notação de Colchetes e .at()
-- Os caracteres de uma string podem ser lidos por índices inteiros a partir do zero (`0`), similar a um array.
-### Inspeção de Códigos Unicode com `codePointAt()`
-- Cada caractere possui um número inteiro correspondente na tabela Unicode (por exemplo.
-- Dê preferência ao método `.codePointAt()` em relação ao antigo `.charCodeAt()`.
-- Para realizar o caminho inverso (converter um número de código Unicode em caractere).
+## Imutabilidade e Acesso
+
+- **Imutabilidade**: nenhuma operação altera a string original na memória.
+- **Acesso por Índice**: `str[0]`, propriedade `.length`, método `.at(-1)` com suporte a negativos.
+- **Unicode e Emojis**: `.codePointAt()` e `String.fromCodePoint()` suportam 32 bits.
+- **Caracteres de Escape**: `\n`, `\t`, `\\`, `\"`, `\'`, `\uXXXX`.
 
 ## Concatenação e Template Literals
-### Concatenação com o Operador `+`
-- O operador `+` realiza a junção de strings.
-- Se um dos operandos for uma string, o outro será convertido para string automaticamente (coerção).
-### Template Literals (Interpolação de Expressões)
-- Elas também suportam textos multilinhas sem a necessidade de `\n`.
 
-## Métodos do Objeto String
-- O objeto `String` oferece um rico conjunto de métodos para buscar, fatiar, transformar e formatar textos.
-### 1. Busca e Inspeção
-- `includes(search)`: Verifica se a string contém o trecho informado; `boolean`
-- `startsWith(search)`: Verifica se a string começa com o trecho informado; `boolean`
-- `indexOf(search)`: Retorna o primeiro índice onde o trecho foi encontrado; Índice ou `-1`
-- `lastIndexOf(search)`: Retorna o último índice onde o trecho foi encontrado; Índice ou `-1`
-- Métodos usados para verificar a existência de padrões ou localizar posições de caracteres em uma string.
-### 2. Extração e Fatiamento
-- `split(separator)`: Divide a string em um array utilizando o separador informado; Novo `Array`
-- Métodos usados para extrair partes de uma string ou dividi-la em um array de pedaços.
-### 3. Transformação e Ajustes de Formato
-- `toUpperCase()`: Converte todos os caracteres para maiúsculas; Nova `string`
-- `toLowerCase()`: Converte todos os caracteres para minúsculas; Nova `string`
-- `trim()`: Remove espaços em branco do início e do final; Nova `string`
-- `trimStart()` / `trimEnd()`: Remove espaços apenas do início ou apenas do final; Nova `string`
-- `padStart(targetLength, pad)`: Preenche o início até atingir o tamanho alvo; Nova `string`
-### 4. Comparação de Strings e `localeCompare()`
-- Tipo de Comparação: Sintaxe / Exemplo; Resultado
-- Operador `>`: `"á" > "b"`; `true`
-- `localeCompare()`: `"á".localeCompare("b", "pt-BR")`; `-1` (negativo)
-- Ignorando case e acentos: `"á".localeCompare("A", "pt-BR", { sensitivity: 'base' })`; `0`
-- Comparação por Unicode (Operadores ``)
-### 5. Métodos que Aceitam Expressões Regulares (Regex)
-- `match(regex)`: Sim; Busca correspondências do padrão regex na string
-- `matchAll(regex)`: Sim (requer flag `/g`); Retorna um iterador com todas as correspondências e grupos de captura
-- `search(regex)`: Sim; Retorna a posição do primeiro caractere que casa com a regex
-- `replace(regex, sub)`: Sim; Substitui o padrão encontrado pela string de substituição
-- `replaceAll(regex, sub)`: Sim (requer flag `/g`); Substitui todas as ocorrências do padrão regex
-### 6. Normalização de Unicode com `normalize()`
-- Forma Composta (NFC): Um único ponto de código Unicode (ex: `"é"` como `"\u00E9"`).
-- Forma Decomposta (NFD): O caractere base acompanhado do caractere combinador de acento (ex: `"e"` + `"\u0301"`).
-- Em Unicode, um mesmo caractere acentuado pode ser representado de duas formas diferentes na memória
-- O método `str.normalize(form)` padroniza a string em uma das formas normais Unicode (`"NFC"` ou `"NFD"`).
+- **Operador `+`**: concatenação simples com coerção automática.
+- **Template Literals**: interpolação com `${expressão}` e suporte nativo a multilinhas.
+
+## Métodos de Manipulação
+
+- **Busca**: `includes()`, `startsWith()`, `endsWith()`, `indexOf()`, `lastIndexOf()`.
+- **Fatiamento**: `slice(start, end)` (suporta negativos) e `split(separator)` (retorna Array).
+- **Transformação**: `toUpperCase()`, `toLowerCase()`, `trim()`, `padStart()`, `padEnd()`, `repeat()`.
+- **Substituição**: `replace()` (primeira ocorrência) e `replaceAll()` (todas as ocorrências).
+- **Comparação por Idioma**: `localeCompare("pt-BR")` para ordenação alfabética com acentos.
+- **Expressões Regulares**: suporte a regex em `search()`, `match()`, `matchAll()` e `replace()`.
+- **Normalização**: `.normalize("NFD")` para padronização e remoção de acentos.
 
 ## O Tipo Primitivo Symbol
-- Diferente de strings ou números, cada valor criado por `Symbol()` é único na memória.
-### 1. Propriedades de Objetos e Não-Enumerabilidade
-- Não Enumerabilidade: Propriedades com chave `Symbol` não aparecem em loops `for...in`.
-- Acesso Direto e Reflexão: Para listar as chaves de símbolos de um objeto.
-### 2. Registro Global de Símbolos (`Symbol.for` e `Symbol.keyFor`)
-- `Symbol.for(chave)`: Procura um símbolo no registro global com o nome fornecido. Se existir, ele é retornado.
-- Quando é necessário reutilizar o mesmo símbolo em diferentes arquivos, módulos ou escopos da aplicação.
-### 3. Símbolos Conhecidos (*Well-Known Symbols*)
-- Símbolo Nativo: Propósito / Aplicação
-- `Symbol.iterator`: Define o método de iteração padrão para loops `for...of` e espalhamento `...`.
-- `Symbol.toPrimitive`: Customiza a coerção de tipo quando o objeto é convertido para `string` ou `number`.
-- `Symbol.toStringTag`: Personaliza o rótulo retornado por `Object.prototype.toString.call(obj)`.
-- `Symbol.hasInstance`: Personaliza o resultado do operador `instanceof`.
 
-## Resumo e Boas Práticas
-- Lembre-se de que strings são imutáveis; métodos sempre retornam novas strings.
-- Utilize `slice()` em vez do obsoleto `substr()`.
-- Lembre-se de que `.length` mede unidades de código de 16 bits.
-- Dê preferência a Template Literals (crases) para concatenar variáveis ou criar HTML multilinha.
-- Sanitize dados de entrada de formulários usando `.trim()` e `.toLowerCase()`.
-- Prefira aspas simples (`'`) ou duplas (`"`) de forma consistente no seu projeto.
+- **Identificador Único**: cada `Symbol()` possui referência exclusiva na memória.
+- **Chaves Privadas**: não aparecem em `for...in`, `Object.keys()` ou `JSON.stringify()`.
+- **Registro Global**: compartilhamento entre módulos com `Symbol.for()` e `Symbol.keyFor()`.
+- **Well-Known Symbols**: protocolos da linguagem como `Symbol.iterator` e `Symbol.toPrimitive`.
 
-## Síntese de Estudo
-- **Página**: aprofunda conceitos, exemplos e exercícios
-- **Slides**: organizam a exposição em sala
-- **Mapa mental**: revisa relações entre tópicos
-- **Prática**: execute os exemplos antes de memorizar regras
+## Boas Práticas
+
+- **Prefira Template Literals** para montagem de mensagens e templates de texto.
+- **Use `localeCompare()`** para ordenar arrays de strings respeitando regras gramaticais.
+- **Evite `.substr()`**: padronize o uso de `.slice()`.
+- **Sanitize dados de entrada** com `.trim()` e `.toLowerCase()`.

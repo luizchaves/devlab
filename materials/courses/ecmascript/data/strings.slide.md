@@ -3,806 +3,440 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+    font-size: 1.5rem;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding-bottom: 0;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Strings e Template Literals"
-description: "Slides completos da aula JavaScript: Strings e Template Literals."
+description: "Criação, imutabilidade, caracteres de escape, concatenação, template literals e principais métodos do objeto String em JavaScript."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Strings e Template Literals
 
-Criação, imutabilidade, caracteres de escape, concatenação, template literals e principais métodos do objeto String em JavaScript.
+Delimitadores, imutabilidade, template literals, métodos do objeto `String` e `Symbol`.
 
 ---
 
 ## Objetivo
 
-- Compreender o tipo de dado String em JavaScript, reconhecer a imutabilidade das strings, dominar delimitadores e...
+Compreender o tipo de dado String, imutabilidade e manipulação avançada de texto em JavaScript.
+
+- Declarar strings com **aspas simples**, **duplas** e **Template Literals (crases)**.
+- Converter dados e bases numéricas com **`String()`** e **`.toString(radix)`**.
+- Aplicar **caracteres de escape**, inspeção de **Unicode (`codePointAt`)** e **`normalize()`**.
+- Dominar a **imutabilidade** e acesso com **`[i]`** e **`.at()`**.
+- Utilizar métodos de busca (**`includes`**, **`indexOf`**), fatiamento (**`slice`**, **`split`**) e formatação (**`trim`**, **`padStart`**, **`replace`**).
+- Comparar textos com regras de idioma usando **`localeCompare("pt-BR")`**.
+- Aplicar o tipo primitivo **`Symbol`** como identificador exclusivo de propriedades.
 
 ---
 
 ## Mapa da Aula
 
-- Criação e Literais de String
-- Conversão para String
-- Caracteres de Escape e Unicode
-- Imutabilidade e Acesso por Índice
+- Delimitadores e Primitivo vs Wrapper (`new String`)
+- Conversão e Bases Numéricas (`radix`)
+- Escape, Imutabilidade e Acesso por Índice
 - Concatenação e Template Literals
-- Métodos do Objeto String
-- O Tipo Primitivo Symbol
-- Resumo e Boas Práticas
+- Métodos de Busca, Fatiamento e Transformação
+- Comparação de Strings e `localeCompare`
+- Métodos com Regex e Normalização Unicode
+- O Tipo Primitivo `Symbol`
+- Exercício, Desafio e Revisão
 
 ---
 
-## Introdução
+## Literais de String e Delimitadores
 
-- Esta aula apresenta as Strings em JavaScript
-- como criar sequências de caracteres, manipular textos, utilizar interpolação com *template literals*, lidar com a...
-
----
-
-## Criação e Literais de String
-
-- Em JavaScript, uma String é uma sequência de caracteres imutável usada para representar texto
-- As strings podem ser criadas utilizando três tipos de delimitadores
-- aspas simples (`'`), aspas duplas (`"`) ou crases (`` ` ``)
-- Evite utilizar `new String()`
-- O operador `new` cria um objeto *wrapper* na memória em vez de uma string primitiva, fazendo com que `typeof new...
-
----
-
-## Criação e Literais de String: Comparação
+Sequências de caracteres imutáveis para representação textual:
 
 | Delimitador | Nome | Uso Principal | Exemplo |
-| ----------- | ---- | ------------- | ------- |
-| `'...'` | Aspas Simples | Literal de texto simples | `'Desenvolvimento Web'` |
-| `"..."` | Aspas Duplas | Literal de texto simples | `"JavaScript"` |
-| `` `...` `` | Template Literal | Interpolação e textos multilinhas | `` `Olá, ${nome}` `` |
+| :--- | :--- | :--- | :--- |
+| `'...'` | Aspas Simples | Literal simples | `'DevLab'` |
+| `"..."` | Aspas Duplas | Literal simples | `"JavaScript"` |
+| `` `...` `` | Template Literal | Interpolação e multilinhas | `` `Olá, ${nome}` `` |
+
+- Evite `new String()`: instancia um objeto *wrapper* na Heap, fazendo `typeof new String()` retornar `"object"`.
 
 ---
 
-## Formas de declaração de Strings
+## Conversão para String e Bases Numéricas
 
 ```js
-// 1. Aspas simples e duplas (equivalentes no comportamento)
-const single = 'Desenvolvimento Web';
-const double = "Curso de Redes de Computadores";
-
-// 2. Template Literals (crases)
-const template = `Tecnologia em Redes`;
-
-// 3. Função conversora String()
-const converted = String(42); // "42"
-
-// 4. Construtor new String() (EVITAR)
-const objectString = new String("Texto"); // Cria um objeto Wrapper
-```
-
----
-
-## Primitivo vs Objeto String
-
-```js
-const prim = "DevLab";
-const obj = new String("DevLab");
-
-console.log(typeof prim); // "string"
-console.log(typeof obj);  // "object"
-console.log(prim === obj); // false (tipos diferentes)
-```
-
----
-
-## Conversão para String
-
-- Função `String(valor)`: É a forma mais direta e segura de conversão explícita, pois funciona com qualquer tipo de dado,...
-- Método `.toString()`: Método presente no protótipo da maioria dos tipos de dados (números, booleanos, arrays, objetos).
-- Sintaxe com literais numéricos: Chamar `.toString()` diretamente em um número literal como `42.toString()` gera um erro...
-- Bases numéricas com `.toString(radix)`: Em valores numéricos, o método `.toString()` aceita um parâmetro opcional `radix`...
-- Coerção Implícita e Template Literals: O operador `+` converte operandos para string quando ao menos um deles for uma...
-
----
-
-## Exemplos de conversão para String e bases numéricas
-
-```js
-// 1. Função conversora String() (funciona com todos os tipos)
+// 1. Função conversora universal String()
 console.log(String(42));        // "42"
-console.log(String(true));      // "true"
 console.log(String(null));      // "null"
 console.log(String(undefined)); // "undefined"
 
-// 2. Método .toString()
-const active = true;
-console.log(active.toString()); // "true"
+// 2. Método .toString() em literais numéricos (use parênteses ou dois pontos)
+console.log((42).toString());   // "42"
+console.log(42..toString());   // "42"
 
-// Sintaxe com literais numéricos:
-// 42.toString(); // SyntaxError: Invalid or unexpected token
-  // ...
+// 3. Conversão de bases numéricas com radix (base 2 a 36):
+console.log((42).toString(2));   // "101010" (Binário - base 2)
+console.log((42).toString(8));   // "52"     (Octal - base 8)
 console.log((255).toString(16)); // "ff"     (Hexadecimal - base 16)
-
-// 3. Coerção implícita
-console.log("" + 100);          // "100"
-console.log(`Valor: ${100}`);   // "Valor: 100"
 ```
 
 ---
 
 ## Caracteres de Escape e Unicode
 
-- Quando uma string precisa conter caracteres reservados (como a própria aspa usada para delimitá-la) ou caracteres...
-
----
-
-## Caracteres de Escape e Unicode: Comparação
+Utilize a barra invertida (`\`) para escapar caracteres reservados ou de controle:
 
 | Sequência | Descrição | Exemplo |
-| --------- | --------- | ------- |
-| `\'` | Aspa simples literal | `'D\'água'` |
-| `\"` | Aspa dupla literal | `"Disse: \"Olá!\""` |
-| `\\` | Barra invertida literal | `"C:\\Arquivos"` |
-| `\n` | Nova linha (*Line Feed*) | `"Linha 1\nLinha 2"` |
-| `\t` | Tabulação (*Tab*) | `"Item:\tValor"` |
-| `\uXXXX` | Caractere Unicode (Hexadecimal 16-bit) | `"\u2661"` // `"♡"` |
-
----
-
-## Uso de sequências de escape
+| :--- | :--- | :--- |
+| `\'` e `\"` | Aspa simples e dupla literais | `"Disse: \"Olá!\""` |
+| `\\` | Barra invertida literal | `"C:\\projetos\\app"` |
+| `\n` e `\t` | Quebra de linha e Tabulação | `"Linha 1\nLinha 2"` |
+| `\uXXXX` | Ponto de código Unicode 16-bit | `"\u2661"` // `"♡"` |
 
 ```js
-const quote = "O professor disse: \"Pratiquem JavaScript!\"";
-const path = "C:\\projetos\\devlab\\script.js";
-const multiline = "Primeira linha\nSegunda linha";
+const quote = "O autor disse: \"Pratiquem código!\"";
 const heart = "Eu \u2661 JavaScript!";
-
-console.log(quote);     // "O professor disse: "Pratiquem JavaScript!""
-console.log(path);      // "C:\projetos\devlab\script.js"
-console.log(multiline); // "Primeira linha" e na linha seguinte "Segunda linha"
-console.log(heart);     // "Eu ♡ JavaScript!"
+console.log(quote); // "O autor disse: "Pratiquem código!""
+console.log(heart); // "Eu ♡ JavaScript!"
 ```
 
 ---
 
 ## Imutabilidade e Acesso por Índice
 
-- Strings em JavaScript são primitivos imutáveis
-- Isso significa que, uma vez criada, uma string não pode ter seus caracteres alterados individualmente
-
----
-
-## Notação de Colchetes e .at()
-
-- Os caracteres de uma string podem ser lidos por índices inteiros a partir do zero (`0`), similar a um array
-
----
-
-## Leitura de caracteres e propriedade length
+Strings são primitivos imutáveis: caracteres não podem ser alterados diretamente.
 
 ```js
 const text = "JavaScript";
 
-// Propriedade length (quantidade de caracteres)
+// Leitura por colchetes e length
 console.log(text.length); // 10
+console.log(text[0]);     // "J"
+console.log(text[9]);     // "t"
 
-// Leitura por índice (colchetes)
-console.log(text[0]); // "J"
-console.log(text[4]); // "S"
-console.log(text[9]); // "t"
-console.log(text[10]); // undefined (índice inexistente)
+// Método .at() (suporta índices negativos a partir do fim):
+console.log(text.at(-1)); // "t" (último)
+console.log(text.at(-2)); // "p" (penúltimo)
 
-// Método .at() (aceita índices negativos a partir do final)
-console.log(text.at(0));  // "J"
-console.log(text.at(-1)); // "t" (último caractere)
-console.log(text.at(-2)); // "p" (penúltimo caractere)
+// Tentativa de mutação:
+let lang = "JavaScript";
+lang[0] = "Y";          // Silenciosamente ignorado
+console.log(lang);      // "JavaScript"
 ```
 
 ---
 
-## Inspeção de Códigos Unicode com `codePointAt()`
+## Códigos Unicode: `codePointAt` e `fromCodePoint`
 
-- Cada caractere possui um número inteiro correspondente na tabela Unicode (por exemplo, o caractere `"1"` tem o código...
-- Dê preferência ao método `.codePointAt()` em relação ao antigo `.charCodeAt()`, pois ele suporta corretamente caracteres...
-- Para realizar o caminho inverso (converter um número de código Unicode em caractere), utiliza-se o método estático...
-
----
-
-## Códigos Unicode com codePointAt() e String.fromCodePoint()
+Prefira `codePointAt()` sobre `charCodeAt()`, pois ele suporta caracteres Unicode de 32-bit (como emojis) sem truncamento:
 
 ```js
-const str = "123 JavaScript 😀";
+const str = "A 😀";
 
-// Obtendo o código Unicode do caractere "1" na posição 0
-console.log(str.codePointAt(0)); // 49 (código ASCII/Unicode de "1")
-console.log(str.codePointAt(4)); // 74 (código de "J")
+// Posição 0: 'A' -> código 65
+console.log(str.codePointAt(0)); // 65
 
-// Emojis possuem pontos de código Unicode de 32-bit
-const emojiPos = str.indexOf("😀");
-console.log(str.codePointAt(emojiPos)); // 128512
+// Posição 2: Emoji 😀 -> código 128512 (32-bit)
+console.log(str.codePointAt(2)); // 128512
 
-// Conversão inversa: de código Unicode numérico para caractere String
-console.log(String.fromCodePoint(49));     // "1"
+// Conversão inversa (número -> caractere):
 console.log(String.fromCodePoint(65));     // "A"
 console.log(String.fromCodePoint(128512)); // "😀"
 ```
 
 ---
 
-## Tentativa de Mutação de Strings
+## Template Literals (Crases)
 
-- Tentativas de alterar um caractere de uma string usando colchetes são silenciosamente ignoradas (ou lançam erro no modo...
-- Nenhum método do objeto `String` altera a string original
-- Métodos como `.toUpperCase()`, `.trim()` ou `.replace()` sempre retornam uma nova string resultante do processamento
-
----
-
-## Imutabilidade de Strings
-
-```js
-let language = "JavaScript";
-
-// Tentativa de alterar o primeiro caractere
-language[0] = "Y";
-
-console.log(language); // "JavaScript" (não mudou!)
-
-// Para alterar, é necessário atribuir uma NOVA string à variável
-language = "Y" + language.slice(1);
-console.log(language); // "YavaScript"
-```
-
----
-
-## Concatenação e Template Literals
-
-- A junção de textos pode ser realizada através da concatenação tradicional com o operador `+` ou via Template Literals...
-
----
-
-## Concatenação com o Operador `+`
-
-- O operador `+` realiza a junção de strings
-- Se um dos operandos for uma string, o outro será convertido para string automaticamente (coerção)
-
----
-
-## Concatenação tradicional
-
-```js
-const firstName = "Luiz";
-const lastName = "Chaves";
-const fullName = firstName + " " + lastName;
-
-console.log(fullName); // "Luiz Chaves"
-
-// Coerção automática de números para string
-console.log("Aula " + 5); // "Aula 5"
-```
-
----
-
-## Template Literals (Interpolação de Expressões)
-
-- Introduzidas no ES6, as *template literals* permitem interpolar variáveis e expressões diretamente dentro do texto usando...
-- Elas também suportam textos multilinhas sem a necessidade de `\n`
-- Template literals | MDN
-
----
-
-## Interpolação e multilinhas com Template Literals
+Permitem interpolação direta com `${expressão}` e textos em múltiplas linhas:
 
 ```js
 const user = "Alice";
-const role = "Desenvolvedora";
+const role = "Dev";
 const age = 28;
 
-// Interpolação de variáveis e expressões JavaScript
-const greeting = `Usuário ${user} (${role}) tem ${age} anos. Próximo ano terá ${age + 1}.`;
+// 1. Interpolação de variáveis e expressões
+const greeting = `Usuário ${user} (${role}) terá ${age + 1} anos.`;
 console.log(greeting);
-// "Usuário Alice (Desenvolvedora) tem 28 anos. Próximo ano terá 29."
+// "Usuário Alice (Dev) terá 29 anos."
 
-// Criação de HTML multilinha de forma limpa
-const cardHtml = `
-<div class="user-card">
-<h2>${user}</h2>
-<p>Cargo: ${role}</p>
-</div>
-`;
-
-console.log(cardHtml);
+// 2. HTML multilinha nativo sem \n
+const card = `
+<div class="card">
+  <h2>${user}</h2>
+</div>`;
+console.log(card.trim());
 ```
 
 ---
 
-## Métodos do Objeto String
-
-- O objeto `String` oferece um rico conjunto de métodos para buscar, fatiar, transformar e formatar textos
-
----
-
-## Busca e Inspeção
-
-- Métodos usados para verificar a existência de padrões ou localizar posições de caracteres em uma string
-
----
-
-## Busca e Inspeção: Comparação
-
-| Método | Descrição | Retorno |
-| ------ | --------- | ------- |
-| `includes(search)` | Verifica se a string contém o trecho informado | `boolean` |
-| `startsWith(search)` | Verifica se a string começa com o trecho informado | `boolean` |
-| `endsWith(search)` | Verifica se a string termina com o trecho informado | `boolean` |
-| `indexOf(search)` | Retorna o primeiro índice onde o trecho foi encontrado | Índice ou `-1` |
-| `lastIndexOf(search)` | Retorna o último índice onde o trecho foi encontrado | Índice ou `-1` |
-
----
-
-## Exemplo de métodos de busca
+## Métodos de Busca e Inspeção
 
 ```js
 const filename = "relatorio-financeiro-2026.pdf";
 
+// 1. includes(): checagem de substring
 console.log(filename.includes("financeiro")); // true
-console.log(filename.startsWith("relatorio"));// true
-console.log(filename.endsWith(".pdf"));       // true
 
-const phrase = "A linguagem JavaScript é a linguagem da Web";
+// 2. startsWith() e endsWith(): checagens de borda
+console.log(filename.startsWith("relatorio")); // true
+console.log(filename.endsWith(".pdf"));        // true
+
+// 3. indexOf() e lastIndexOf(): posições de caracteres
+const phrase = "A linguagem JS é a linguagem Web";
 console.log(phrase.indexOf("linguagem"));     // 2 (primeira ocorrência)
-console.log(phrase.lastIndexOf("linguagem")); // 27 (última ocorrência)
+console.log(phrase.lastIndexOf("linguagem")); // 19 (última ocorrência)
 console.log(phrase.indexOf("Python"));        // -1 (não encontrado)
 ```
 
 ---
 
-## Extração e Fatiamento
+## Extração: `slice` vs `split`
 
-- Métodos usados para extrair partes de uma string ou dividi-la em um array de pedaços
-- O método `.substr(start, length)` foi marcado como obsoleto na especificação do JavaScript
-- Dê preferência ao método padrão `.slice(start, end)`
-
----
-
-## Extração e Fatiamento: Comparação
-
-| Método | Descrição | Retorno |
-| ------ | --------- | ------- |
-| `slice(start, end)` | Extrai um trecho do índice `start` até `end` (exclusivo). Suporta índices negativos. | Nova `string` |
-| `substring(start, end)` | Extrai um trecho de `start` até `end`. Trata negativos como `0`. | Nova `string` |
-| `split(separator)` | Divide a string em um array utilizando o separador informado | Novo `Array` |
-
----
-
-## Extração de trechos com slice() e split()
+- **`.slice(start, end)`**: extrai trecho de texto (aceita índices negativos).
+- **`.split(separator)`**: divide o texto e retorna um **`Array`**.
 
 ```js
 const email = "usuario@redes.ifpb.edu.br";
-
-// Encontrando a posição do caractere '@'
 const atIndex = email.indexOf("@");
 
-// Extraindo nome de usuário e domínio com slice()
+// Extração com slice():
 const username = email.slice(0, atIndex);
 const domain = email.slice(atIndex + 1);
-
 console.log(username); // "usuario"
 console.log(domain);   // "redes.ifpb.edu.br"
 
-// Dividindo a string em um Array com split()
+// Divisão em Array com split():
 const parts = email.split("@");
-console.log(parts); // [ "usuario", "redes.ifpb.edu.br" ]
-
-const words = "HTML,CSS,JavaScript,Node.js".split(",");
-console.log(words); // [ "HTML", "CSS", "JavaScript", "Node.js" ]
+console.log(parts); // [ 'usuario', 'redes.ifpb.edu.br' ]
 ```
+
+- Nota: Evite o método obsoleto `.substr()`.
 
 ---
 
 ## Transformação e Ajustes de Formato
 
-- Métodos usados para alterar a caixa de texto (maiúsculas/minúsculas), remover espaços em branco ou preencher caracteres...
-
----
-
-## Transformação e Ajustes de Formato: Comparação
-
-| Método | Descrição | Retorno |
-| ------ | --------- | ------- |
-| `toUpperCase()` | Converte todos os caracteres para maiúsculas | Nova `string` |
-| `toLowerCase()` | Converte todos os caracteres para minúsculas | Nova `string` |
-| `trim()` | Remove espaços em branco do início e do final | Nova `string` |
-| `trimStart()` / `trimEnd()` | Remove espaços apenas do início ou apenas do final | Nova `string` |
-| `padStart(targetLength, pad)` | Preenche o **início** até atingir o tamanho alvo | Nova `string` |
-| ... | ... | ... |
-
----
-
-## Exemplo de métodos de transformação
-
 ```js
-// 1. Ajuste de caixa de texto e remoção de espaços
-const rawInput = "  contato@EMPRESA.com  \n";
-const cleanEmail = rawInput.trim().toLowerCase();
-console.log(cleanEmail); // "contato@empresa.com"
+// 1. Limpeza de espaços e caixa de texto:
+const raw = "   contato@DEVLAB.org  \n";
+const clean = raw.trim().toLowerCase();
+console.log(clean); // "contato@devlab.org"
 
-// 2. Preenchimento de texto com padStart()
+// 2. Preenchimento de borda com padStart / padEnd:
 const code = "42";
-const formattedCode = code.padStart(6, "0");
-console.log(formattedCode); // "000042"
+console.log(code.padStart(5, "0")); // "00042"
+console.log(code.padEnd(5, "."));   // "42..."
 
-// 3. Substituição de texto com replace() e replaceAll()
-const text = "O gato subiu no telhado. O gato é esperto.";
-console.log(text.replace("gato", "cachorro"));    // "O cachorro subiu no telhado. O gato é esperto."
-console.log(text.replaceAll("gato", "cachorro")); // "O cachorro subiu no telhado. O cachorro é esperto."
-
-// 4. Repetição de strings
-const echo = "Olá! ".repeat(3);
-console.log(echo); // "Olá! Olá! Olá! "
+// 3. Repetição de strings:
+console.log("DevLab! ".repeat(3)); // "DevLab! DevLab! DevLab! "
 ```
 
 ---
 
-## Comparação de Strings e `localeCompare()`
+## Substituição: `replace` vs `replaceAll`
 
-- Comparação por Unicode (Operadores ` `):
-- Letras maiúsculas possuem códigos Unicode menores que minúsculas (`"Mesa" < "cadeira"` é `true` porque `'M'` tem valor 77...
-- Comparações textuais de números comparam caractere a caractere (`"2" > "10"` é `true` porque o caractere `"2"` vem depois...
-- Vogais acentuadas possuem códigos Unicode elevados (`"á" > "b"` é `true`, contrariando a ordem alfabética).
-- Comparação por Regras de Idioma (`localeCompare()`):
-
----
-
-## Comparação de Strings e `localeCompare()`: Comparação
-
-| Tipo de Comparação | Sintaxe / Exemplo | Resultado | Explicação |
-| ------------------ | ----------------- | --------- | ---------- |
-| Operador `>` | `"á" > "b"` | `true` | Comparação simples por código Unicode |
-| `localeCompare()` | `"á".localeCompare("b", "pt-BR")` | `-1` (negativo) | No português ("pt-BR"), "á" vem antes de "b" |
-| Ignorando case e acentos | `"á".localeCompare("A", "pt-BR", { sensitivity: 'base' })` | `0` | Trata acentos e maiúsculas como equivalentes |
-
----
-
-## Comparação de Strings e Ordenação
+- **`.replace()`**: substitui apenas a **primeira** ocorrência encontrada.
+- **`.replaceAll()`**: substitui **todas** as ocorrências do termo.
 
 ```js
-// Comparação lexicográfica tradicional (Unicode)
-console.log("banana" > "abacaxi"); // true
-console.log("Mesa" < "cadeira");   // true ('M' = 77, 'c' = 99 em Unicode)
-console.log("2" > "10");           // true ("2" vem depois de "1")
-console.log("á" > "b");            // true (código Unicode de 'á' é 225, de 'b' é 98)
+const text = "O gato subiu no telhado. O gato miou.";
 
-// Comparação correta por idioma com localeCompare()
+// Substitui apenas o primeiro:
+console.log(text.replace("gato", "cachorro"));
+// "O cachorro subiu no telhado. O gato miou."
+
+// Substitui todos:
+console.log(text.replaceAll("gato", "cachorro"));
+// "O cachorro subiu no telhado. O cachorro miou."
+```
+
+---
+
+## Comparação: Unicode vs `localeCompare`
+
+Operadores `<` e `>` comparam códigos Unicode (maiúsculas antes de minúsculas e acentos desordenados). Para ordem gramatical correta, use **`localeCompare()`**:
+
+```js
+// 1. Comparação Unicode tradicional (gera distorções alfabéticas):
+console.log("Mesa" < "cadeira"); // true ('M'=77 < 'c'=99)
+console.log("á" > "b");          // true (á=225 > b=98)
+
+// 2. Comparação correta com localeCompare("pt-BR"):
 console.log("á".localeCompare("b", "pt-BR")); // -1 ("á" vem antes de "b")
-console.log("b".localeCompare("á", "pt-BR")); // 1 ("b" vem depois de "á")
+console.log("b".localeCompare("á", "pt-BR")); // 1
 
-// Ignorando diferenças de maiúsculas/minúsculas e acentos:
-console.log("á".localeCompare("A", "pt-BR", { sensitivity: "base" })); // 0
-  // ...
-
-// Ordenação correta usando localeCompare():
-const frutasOrdenadas = [...frutas].sort((a, b) => a.localeCompare(b, "pt-BR"));
-console.log(frutasOrdenadas);
-// ["abacaxi", "Água", "banana", "Maçã"]
+// 3. Ordenação com sort():
+const frutas = ["Maçã", "abacaxi", "Água", "banana"];
+const ordenadas = [...frutas].sort((a, b) => a.localeCompare(b, "pt-BR"));
+console.log(ordenadas); // [ 'abacaxi', 'Água', 'banana', 'Maçã' ]
 ```
 
 ---
 
-## Métodos que Aceitam Expressões Regulares (Regex)
-
-- Vários métodos do protótipo `String` aceitam Expressões Regulares (Regex) como parâmetro, permitindo realizar buscas...
-
----
-
-## Métodos que Aceitam Expressões Regulares (Regex): Comparação
-
-| Método | Aceita Regex? | Descrição | Retorno |
-| ------ | ------------- | --------- | ------- |
-| `match(regex)` | Sim | Busca correspondências do padrão regex na string | `Array` ou `null` |
-| `matchAll(regex)` | Sim (requer flag `/g`) | Retorna um iterador com todas as correspondências e grupos de captura | Iterador |
-| `search(regex)` | Sim | Retorna a posição do primeiro caractere que casa com a regex | Índice ou `-1` |
-| `replace(regex, sub)` | Sim | Substitui o padrão encontrado pela string de substituição | Nova `string` |
-| `replaceAll(regex, sub)` | Sim (requer flag `/g`) | Substitui todas as ocorrências do padrão regex | Nova `string` |
-| `split(regex)` | Sim | Divide a string utilizando a regex como delimitador | Novo `Array` |
-
----
-
-## Exemplo de métodos de string com Regex
+## Métodos de String com Regex
 
 ```js
-const input = "Contatos: ana@email.com, bob123@site.org e carla_2026@dev.io";
+const input = "Contatos: ana@email.com, bob123@site.org";
 
-// 1. search(regex) - Retorna o índice do primeiro dígito numérico
-console.log(input.search(/\d+/)); // 31 (posição do dígito '1' em bob123)
+// 1. search(regex): busca índice do primeiro número
+console.log(input.search(/\d+/)); // 31
 
-// 2. match(regex) - Extrai a primeira ocorrência que combina com o padrão de e-mail
-const firstEmail = input.match(/[\w.-]+@[\w.-]+\.\w+/);
-console.log(firstEmail[0]); // "ana@email.com"
+// 2. match(regex): extrai primeiro casamento
+const first = input.match(/[\w.-]+@[\w.-]+\.\w+/);
+console.log(first[0]); // "ana@email.com"
 
-// 3. matchAll(regex) - Iterador para extrair todos os e-mails com grupos de captura
-const allEmails = input.matchAll(/([\w.-]+)@([\w.-]+\.\w+)/g);
-for (const match of allEmails) {
-  // ...
-console.log(sanitized); // "Contatos: ana@email.com, bob[OCULTO]@site.org e carla_[OCULTO]@dev.io"
+// 3. replace(regex): substitui padrões
+const masked = input.replace(/\d+/g, "[NUM]");
+console.log(masked); // "Contatos: ana@email.com, bob[NUM]@site.org"
 
-// 5. split(regex) - Divide o texto por múltiplos delimitadores (vírgula, ponto e vírgula ou espaço)
-const tags = "javascript; web, frontend   backend".split(/[\s,;]+/);
-console.log(tags); // [ "javascript", "web", "frontend", "backend" ]
+// 4. split(regex): divide por múltiplos separadores
+console.log("html, css; js  node".split(/[\s,;]+/));
+// [ 'html', 'css', 'js', 'node' ]
 ```
 
 ---
 
-## Normalização de Unicode com `normalize()`
+## Normalização Unicode com `normalize`
 
-- Forma Composta (NFC): Um único ponto de código Unicode (ex: `"é"` como `"\u00E9"`).
-- Forma Decomposta (NFD): O caractere base acompanhado do caractere combinador de acento (ex: `"e"` + `"\u0301"`).
-
----
-
-## Normalização Unicode e Remoção de Acentos
+Padroniza caracteres combinados (`NFC` / `NFD`) e permite remover acentos:
 
 ```js
-// Duas representações visivelmente idênticas, mas com códigos Unicode diferentes:
-const strNFC = "é";          // "\u00E9" (NFC)
-const strNFD = "e\u0301";    // "e" + "\u0301" (NFD)
+const str1 = "é";       // "\u00E9" (composto NFC)
+const str2 = "e\u0301"; // "e" + acento (decomposto NFD)
 
-console.log(strNFC === strNFD); // false (código na memória é diferente!)
-console.log(strNFC.normalize("NFC") === strNFD.normalize("NFC")); // true
+console.log(str1 === str2); // false (códigos diferentes na memória)
+console.log(str1.normalize() === str2.normalize()); // true
 
-// Aplicação clássica: Remoção elegante de acentos combinando NFD e Regex
+// Função clássica para remoção limpa de acentos:
 function removeAccents(text) {
-return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-console.log(removeAccents("Atenção! Olá, programação!")); 
+console.log(removeAccents("Atenção! Olá, programação!"));
 // "Atencao! Ola, programacao!"
 ```
 
 ---
 
-## O Tipo Primitivo Symbol
+## O Tipo Primitivo `Symbol`
 
-- Introduzido no ES6, `Symbol` é um tipo primitivo de dado imutável e com propósito único em JavaScript
-- servir como identificador exclusivo garantido
-- Diferente de strings ou números, cada valor criado por `Symbol()` é único na memória, mesmo que receba exatamente a mesma...
-- `Symbol` é uma função primitivadora, não um construtor de classe
-- Invocá-la com `new Symbol()` lança um erro `TypeError
-
----
-
-## Garantia de Unicidade dos Symbols
+Tipo primitivo que garante **identificador exclusivo** único na memória:
 
 ```js
 const id1 = Symbol("id");
 const id2 = Symbol("id");
 
-console.log(typeof id1); // "symbol"
-console.log(id1 === id2); // false (símbolos são sempre únicos!)
+console.log(typeof id1);  // "symbol"
+console.log(id1 === id2); // false (símbolos são SEMPRE únicos!)
+```
+
+- **Propriedades Ocultas**: Chaves `Symbol` não aparecem em `for...in`, `Object.keys()` ou `JSON.stringify()`.
+
+```js
+const SECRET = Symbol("secret");
+const user = { name: "Alice", [SECRET]: "12345" };
+
+console.log(Object.keys(user)); // [ 'name' ]
+console.log(user[SECRET]);      // "12345"
 ```
 
 ---
 
-## Propriedades de Objetos e Não-Enumerabilidade
+## Exercício Prático: Sanitização de E-mail
 
-- Não Enumerabilidade: Propriedades com chave `Symbol` não aparecem em loops `for...in`, `Object.keys()` ou serializações...
-- Acesso Direto e Reflexão: Para listar as chaves de símbolos de um objeto, utiliza-se `Object.getOwnPropertySymbols(obj)`...
+1. Declare `userEmail = "   ALICE.SILVA@Gmail.com   "`.
+2. Remova espaços das bordas e converta para minúsculas com `.trim().toLowerCase()`.
+3. Extraia o nome de usuário e o domínio com `indexOf("@")` e `slice()`.
+4. Verifique se o domínio termina com `"gmail.com"`.
 
 ---
 
-## Símbolos como chaves privadas de objetos
+## Solução do Exercício
 
 ```js
-const SECRET_KEY = Symbol("secret");
-const user = {
-name: "Alice",
-[SECRET_KEY]: "token_super_secreto_123"
-};
+const userEmail = "   ALICE.SILVA@Gmail.com   ";
 
-// 1. Não aparece em Object.keys() ou for...in
-console.log(Object.keys(user)); // [ "name" ]
+// 2. Sanitização
+const cleanEmail = userEmail.trim().toLowerCase();
 
-// 2. Não aparece em JSON.stringify()
-console.log(JSON.stringify(user)); // '{"name":"Alice"}'
+// 3. Extração de partes
+const atIndex = cleanEmail.indexOf("@");
+const username = cleanEmail.slice(0, atIndex);
+const domain = cleanEmail.slice(atIndex + 1);
 
-  // ...
+// 4. Verificação
+const isGmail = cleanEmail.endsWith("gmail.com");
 
-// 4. Reflexão para obter chaves Symbol
-const symbolKeys = Object.getOwnPropertySymbols(user);
-console.log(symbolKeys); // [ Symbol(secret) ]
-console.log(user[symbolKeys[0]]); // "token_super_secreto_123"
+console.log(cleanEmail); // "alice.silva@gmail.com"
+console.log(username);   // "alice.silva"
+console.log(domain);     // "gmail.com"
+console.log(isGmail);    // true
 ```
 
 ---
 
-## Registro Global de Símbolos (`Symbol.for` e `Symbol.keyFor`)
+## Desafio: Gerador de Slugs de URL
 
-- `Symbol.for(chave)`: Procura um símbolo no registro global com o nome fornecido. Se existir, ele é retornado; caso...
-- `Symbol.keyFor(simbolo)`: Recebe um símbolo registrado e retorna a string de sua chave global (ou `undefined` se for um...
+Crie a função `generateSlug(title)`:
 
----
-
-## Registro Global de Símbolos
-
-```js
-// Cria (ou recupera) o símbolo no registro global
-const globalSym1 = Symbol.for("app.userId");
-const globalSym2 = Symbol.for("app.userId");
-
-console.log(globalSym1 === globalSym2); // true (mesma referência global!)
-
-// Obtendo a chave de string a partir do símbolo registrado
-console.log(Symbol.keyFor(globalSym1)); // "app.userId"
-
-// Símbolos locais (criados via Symbol()) não possuem chave global
-const localSym = Symbol("app.userId");
-console.log(Symbol.keyFor(localSym)); // undefined
-```
-
----
-
-## Símbolos Conhecidos (*Well-Known Symbols*)
-
-- O ECMAScript possui um conjunto de símbolos nativos pré-definidos expostos como propriedades da função `Symbol`
-- Esses símbolos funcionam como ganchos de protocolo (*protocol hooks*) que permitem customizar como seus objetos...
-- String.prototype | MDN
-
----
-
-## Símbolos Conhecidos (*Well-Known Symbols*): Comparação
-
-| Símbolo Nativo | Propósito / Aplicação |
-| :--- | :--- |
-| **`Symbol.iterator`** | Define o método de iteração padrão para loops `for...of` e espalhamento `...`. |
-| **`Symbol.toPrimitive`** | Customiza a coerção de tipo quando o objeto é convertido para `string` ou `number`. |
-| **`Symbol.toStringTag`** | Personaliza o rótulo retornado por `Object.prototype.toString.call(obj)`. |
-| **`Symbol.hasInstance`** | Personaliza o resultado do operador `instanceof`. |
-
----
-
-## Customizando objetos com Well-Known Symbols
+1. Remova espaços das bordas e converta para minúsculas.
+2. Remova acentos combinando `.normalize("NFD")` e Regex.
+3. Remova pontuações (`:`, `!`, `?`) e substitua espaços por hífen `-`.
 
 ```js
-// 1. Symbol.toPrimitive: Personaliza conversão para primitivo
-const collection = {
-items: [10, 20, 30],
-[Symbol.toPrimitive](hint) {
- if (hint === "number") return this.items.length;
- if (hint === "string") return `Coleção com ${this.items.length} itens`;
- return this.items.join(",");
+function generateSlug(title) {
+  return title
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[:!?&]/g, "")
+    .split(/\s+/)
+    .join("-");
 }
-};
 
-console.log(Number(collection)); // 3 (hint === "number")
-console.log(String(collection)); // "Coleção com 3 itens" (hint === "string")
-  // ...
- return "CustomLogger";
-}
-}
-const logger = new CustomLogger();
-console.log(Object.prototype.toString.call(logger)); // "[object CustomLogger]"
+console.log(generateSlug("JavaScript: Estruturas de Dados!"));
+// "javascript-estruturas-de-dados"
+console.log(generateSlug("  A Importância da Web no Século 21?  "));
+// "a-importancia-da-web-no-seculo-21"
 ```
 
 ---
 
-## Resumo e Boas Práticas
+## Perguntas de Revisão
 
-- Lembre-se de que strings são imutáveis; métodos sempre retornam novas strings.
-- Utilize `slice()` em vez do obsoleto `substr()`.
-- Lembre-se de que `.length` mede unidades de código de 16 bits.
-- Dê preferência a Template Literals (crases) para concatenar variáveis ou criar HTML multilinha.
-- Sanitize dados de entrada de formulários usando `.trim()` e `.toLowerCase()`.
-
----
-
-## Executando
-
-- Crie um arquivo chamado `string-demo.js`:
-- Execute o arquivo com Node.js no terminal:
-- Modifique os valores e teste outros métodos de substituição e fatiamento no código.
-
----
-
-## string-demo.js
-
-```js
-const rawName = "  luiz carlos chaves  ";
-const cleanName = rawName.trim();
-
-// Capitalizando as primeiras letras das palavras
-const formattedName = cleanName
-  .split(" ")
-  .map((word) => word[0].toUpperCase() + word.slice(1))
-  .join(" ");
-
-console.log("Original:", `"${rawName}"`);
-console.log("Sanitizado:", `"${cleanName}"`);
-console.log("Formatado:", formattedName);
-```
-
----
-
-## Terminal
-
-```bash
-node string-demo.js
-```
-
----
-
-## Output
-
-```txt
-Original: "  luiz carlos chaves  "
-Sanitizado: "luiz carlos chaves"
-Formatado: Luiz Carlos Chaves
-```
-
----
-
-## Exercício
-
-- Crie uma variável `userEmail` contendo o valor `" ALICE.SILVA@Gmail.com "`;
-- Remova os espaços em branco das bordas e converta a string para letras minúsculas;
-- Extraia o nome do usuário (trecho antes do `@`) e o domínio (trecho após o `@`);
-- Verifique se o domínio do e-mail é do provedor `"gmail.com"`;
-- Imprima no console o e-mail sanitizado, o nome do usuário, o domínio e o resultado da verificação.
-
----
-
-## Desafio
-
-- Crie uma função `generateSlug(title)` que receba uma string;
-- Remova espaços das bordas e converta todo o texto para letras minúsculas;
-- Remova acentos utilizando `.normalize("NFD")` e Regex;
-- Remova pontuações especiais (como `!`, `?`, `,`, `:`);
-- Substitua todos os espaços internos por hífen (`-`);
-
----
-
-## Criação, Imutabilidade e Concatenação
-
-- O que significa dizer que as Strings em JavaScript são imutáveis
-- Qual é a vantagem de utilizar Template Literals (crases) em relação às aspas tradicionais
-- Por que a instrução `42.toString()` lança um erro de sintaxe (`SyntaxError`) e como podemos corrigi-la
-- Como converter um número inteiro para sua representação em binário ou hexadecimal em JavaScript utilizando `.toString()`
-- O que acontece ao tentar modificar um caractere de uma string usando colchetes (ex
-
----
-
-## Métodos de Busca e Extração
-
-- Qual é a diferença entre os métodos `.slice(start, end)` e `.substring(start, end)`
-- Por que o método `.substr()` deve ser evitado em código JavaScript moderno
-- Como o método `.split()` funciona e qual o tipo de dado do seu retorno
-- Qual é a vantagem do método `codePointAt()` em relação ao método legado `charCodeAt()`
-
----
-
-## Transformação e Boas Práticas
-
-- Para que serve o método `.padStart(targetLength, padString)` e em que cenário ele é útil
-- Qual é a diferença entre os métodos `.replace()` e `.replaceAll()`
-- Por que é uma boa prática aplicar `.trim()` em dados recebidos de formulários de usuários
-- Por que `typeof new String("teste")` retorna `"object"` e por que isso deve ser evitado
-- Qual é a limitação dos operadores ` ` ao comparar strings e por que o método `.localeCompare()` deve ser utilizado
-
----
-
-## Próxima aula
-
-- Numbers, BigInt e Math
-- Representação numérica, IEEE 754, BigInt, métodos de Number e objeto Math
+- Por que dizemos que strings são imutáveis em JavaScript?
+- Qual a vantagem de *Template Literals* sobre a concatenação com `+`?
+- Por que `(42).toString()` requer parênteses ou dois pontos?
+- Qual a diferença prática entre `.slice()` e `.substring()`?
+- Para que serve o método `.padStart()`?
+- Qual a diferença entre `replace()` e `replaceAll()`?
+- Por que devemos usar `localeCompare()` em vez de `<` ou `>` para ordenar português?
+- O que é o tipo primitivo `Symbol` e por que suas propriedades não saem no JSON?
 
 ---
 
 ## Resumo da Aula
 
-- Revise criação e Literais de String
-- Revise conversão para String
-- Revise caracteres de Escape e Unicode
-- Revise imutabilidade e Acesso por Índice
-- Revise concatenação e Template Literals
-- Revise métodos do Objeto String
-- Revise o Tipo Primitivo Symbol
+- **Delimitadores**: aspas para literais simples; crases (`` ` ``) para interpolação e multilinhas.
+- **Imutabilidade**: métodos nunca alteram o texto original, sempre geram novas strings.
+- **Conversão e Bases**: `String()`, `(num).toString()` e conversões binárias/hex com `radix`.
+- **Busca e Fatiamento**: `includes`, `indexOf`, `slice` e `split`.
+- **Formatação**: `trim`, `padStart`, `padEnd` e `replaceAll`.
+- **Internacionalização**: `localeCompare("pt-BR")` para ordenação e `normalize()` para acentos.
+- **Identificadores Únicos**: `Symbol` para propriedades privadas não colidentes.

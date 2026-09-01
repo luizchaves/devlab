@@ -3,285 +3,223 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+    font-size: 1.5rem;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding-bottom: 0;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: 'JavaScript: Objetos, Classes e Protótipos'
-description: 'Slides completos da aula JavaScript: Objetos, Classes e Protótipos.'
+description: 'Criação, notação literal, encadear opcional, desestruturação, operador spread, classes ES6+ (construtor, herança, campos privados), métodos estáticos do Object e JSON em JavaScript.'
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Objetos, Classes e Protótipos
 
-Criação, notação literal, encadear opcional, desestruturação, operador spread, classes ES6+ (construtor, herança, campos privados), métodos estáticos do Object e JSON em JavaScript.
+Notação literal, classes ES6+, encapsulamento (`#`), métodos de `Object` e JSON.
 
 ---
 
 ## Objetivo
 
-- Compreender a estrutura de dados de Objeto em JavaScript, dominar a criação por notação literal, diferenciar acesso por...
+Dominar a modelagem de dados, Programação Orientada a Objetos e manipulação de JSON em JavaScript.
+
+- Criar objetos com **notação literal `{}`** e **Property Shorthand**.
+- Acessar propriedades com **ponto**, **colchetes dinâmicos** e **Optional Chaining (`?.`)**.
+- Inspecionar existência com o **operador `in`** e **`Object.hasOwn()`**.
+- Aplicar **desestruturação** e o **operador spread (`...`)** para imutabilidade.
+- Declarar e instanciar **classes ES6+** com construtores, herança (`extends`, `super()`), métodos estáticos e **campos privados (`#`)**.
+- Iterar com **`Object.keys()`**, **`Object.values()`** e **`Object.entries()`**, e manipular dados com **`JSON.stringify()`** e **`JSON.parse()`**.
 
 ---
 
 ## Mapa da Aula
 
-- Criação de Objetos e Notação Literal
-- Property Shorthand (Sintaxe Abreviada de Propriedades)
-- Acesso, Modificação e Remoção de Propriedades
-- Desestruturação de Objetos (Destructuring)
-- Desestruturação em Parâmetros de Funções
-- Operador Spread e Imutabilidade em Objetos
-- Congelando Objetos com Object.freeze()
-- Classes em JavaScript (ES6+ e POO)
-
----
-
-## Introdução
-
-- Esta aula apresenta os Objetos e Classes em JavaScript
-- como estruturar dados em pares chave-valor, utilizar notação literal e desestruturação, mesclar objetos com o operador...
+- Notação Literal e Property Shorthand
+- Acesso a Propriedades (Ponto vs Colchetes)
+- Verificação de Existência (`in` vs `Object.hasOwn`)
+- Optional Chaining (`?.`) e Coalescência Nula (`??`)
+- Desestruturação e Parâmetros de Funções
+- Operador Spread (`...`) e `Object.freeze()`
+- Classes ES6+: Construtores, Métodos e Protótipos
+- Campos Privados (`#`) e Herança (`extends` / `super`)
+- Métodos Estáticos e Iteração (`Object.entries`)
+- Formato e Objeto Global JSON (`stringify` / `parse`)
+- Exercício, Desafio e Revisão
 
 ---
 
 ## Criação de Objetos e Notação Literal
 
-- Em JavaScript, um Objeto é uma coleção dinâmica de propriedades, onde cada propriedade é uma associação entre uma chave...
-- O valor de uma propriedade pode ser de qualquer tipo
-- primitivos, arrays, outros objetos ou funções (que recebem o nome de métodos)
-- O diagrama a seguir ilustra a representação de um objeto literal na memória Heap e sua ligação com a cadeia de protótipos...
-- Diagrama da página
-
----
-
-## Criação de Objetos e Notação Literal: Comparação
-
-| Elemento            | Descrição                                            | Exemplo                         |
-| ------------------- | ---------------------------------------------------- | ------------------------------- |
-| **Notação Literal** | Forma mais comum e legível de criar objetos com `{}` | `const user = { name: "Ana" };` |
-| **Chave (Key)**     | Identificador da propriedade (string ou Symbol)      | `name`, `age`, `"end-point"`    |
-| **Valor (Value)**   | Qualquer dado associado à chave                      | `"Ana"`, `28`, `true`, `[1, 2]` |
-| **Método**          | Uma função armazenada como valor de uma propriedade  | `sayHello() { return "Olá!"; }` |
-| **Tipo de Dado**    | Tipo de dado não primitivo em JavaScript             | `typeof {}` // `"object"`       |
-
----
-
-## Formas de criação de objetos
+Um **objeto** é uma coleção dinâmica de pares **chave-valor**:
 
 ```js
-// 1. Literal de Objeto (Recomendado)
 const student = {
   id: 2026101,
-  name: 'Fulano de Tal',
-  email: 'fulano@ifpb.edu.br',
-  active: true,
-  courses: ['DW', 'Redes'],
-  // Método do objeto (sintaxe abreviada do ES6)
+  name: "Fulano de Tal",
+  email: "fulano@ifpb.edu.br",
+  courses: ["DW", "Redes"],
+  // Método do objeto (sintaxe abreviada ES6)
   getSummary() {
     return `${this.name} (${this.email})`;
   },
 };
 
-console.log(student.name); // "Fulano de Tal"
-console.log(student.getSummary()); // "Fulano de Tal (fulano@ifpb.edu.br)"
+console.log(student.name);        // "Fulano de Tal"
+console.log(student.getSummary());// "Fulano de Tal (fulano@ifpb.edu.br)"
+console.log(typeof student);      // "object"
 ```
 
----
-
-## Property Shorthand (Sintaxe Abreviada de Propriedades)
-
-- Quando o nome da variável local é idêntico ao nome da chave do objeto que se deseja criar, o JavaScript permite omitir a...
-- A sintaxe abreviada ` ` é amplamente utilizada em código moderno para construir objetos de forma limpa a partir de...
-- Working with objects | MDN
+- Objetos são armazenados na memória Heap e passados por **referência**.
 
 ---
 
-## Uso de Property Shorthand
+## Property Shorthand (Propriedades Abreviadas)
+
+Quando o nome da variável é idêntico à chave do objeto, omita a repetição:
 
 ```js
-const name = 'Alice';
-const email = 'alice@gmail.com';
-const role = 'admin';
+const name = "Alice";
+const email = "alice@gmail.com";
+const role = "admin";
 
-// Forma tradicional (verbosa)
-const userOld = { name: name, email: email, role: role };
+// Forma tradicional:
+// const user = { name: name, email: email, role: role };
 
-// Forma moderna com Property Shorthand
+// Forma moderna com Property Shorthand:
 const user = { name, email, role };
 
-console.log(user); // { name: 'Alice', email: 'alice@gmail.com', role: 'admin' }
+console.log(user);
+// { name: 'Alice', email: 'alice@gmail.com', role: 'admin' }
 ```
 
 ---
 
-## Acesso, Modificação e Remoção de Propriedades
-
-- O acesso às propriedades de um objeto pode ser feito por Notação de Ponto (`obj.prop`) ou por Notação de Colchetes...
-
----
-
-## Notação de Ponto vs Notação de Colchetes
-
-- As duas notações acessam a mesma propriedade, mas só uma delas aceita nomes calculados em tempo de execução:
-
----
-
-## Acessando e alterando propriedades
+## Acesso: Ponto vs Colchetes
 
 ```js
 const host = {
-  hostname: 'web-server-01',
-  ip: '192.168.1.10',
-  'content-type': 'application/json', // Chave com hífen precisa de aspas!
-  200: 'OK', // Chave numérica
+  hostname: "web-server-01",
+  ip: "192.168.1.10",
+  "content-type": "application/json", // Chave com hífen
+  200: "OK",                         // Chave numérica
 };
 
-// 1. Notação de Ponto (mais comum)
+// 1. Notação de Ponto (mais comum e legível)
 console.log(host.hostname); // "web-server-01"
-console.log(host.ip); // "192.168.1.10"
 
-// 2. Notação de Colchetes (obrigatória para chaves com hífens, espaços ou números)
-console.log(host['content-type']); // "application/json"
-console.log(host[200]); // "OK"
+// 2. Notação de Colchetes (obrigatória para caracteres especiais e números)
+console.log(host["content-type"]); // "application/json"
+console.log(host[200]);            // "OK"
 
-// 3. Notação de Colchetes com Chaves Dinâmicas (variáveis)
-const targetKey = 'ip';
-console.log(host[targetKey]); // "192.168.1.10" (equivale a host.ip)
+// 3. Colchetes com Chaves Dinâmicas (variáveis)
+const key = "ip";
+console.log(host[key]); // "192.168.1.10"
 ```
 
 ---
 
-## Adição, Alteração e Remoção
+## Modificação e Remoção de Propriedades
 
-- Objetos em JavaScript são mutáveis por padrão
-- Propriedades podem ser atribuídas ou removidas a qualquer momento
-
----
-
-## Alterando a estrutura de um objeto
+Objetos são dinâmicos e mutáveis por padrão:
 
 ```js
-const config = {
-  theme: 'dark',
-  timeout: 5000,
-};
+const config = { theme: "dark", timeout: 5000 };
 
-// Adicionando nova propriedade
+// Adição de nova propriedade:
 config.retries = 3;
 
-// Alterando valor de propriedade existente
+// Modificação de propriedade existente:
 config.timeout = 10000;
 
 console.log(config); // { theme: 'dark', timeout: 10000, retries: 3 }
 
-// Removendo propriedade com o operador delete
+// Remoção com o operador delete:
 delete config.retries;
-console.log(config); // { theme: 'dark', timeout: 10000 }
 console.log(config.retries); // undefined
 ```
 
----
-
-## Verificação de Existência de Propriedades (Operador `in` e `Object.hasOwn`)
-
-- Operador `in`: Retorna `true` se a propriedade existir no objeto ou em qualquer nível da sua cadeia de protótipos...
-- `Object.hasOwn(obj, prop)`: Retorna `true` apenas se a propriedade for direta/própria do objeto (_own property_),...
+- `const` protege a ligação da variável, mas **não impede** alteração de propriedades internas.
 
 ---
 
-## Diferença entre o operador in e Object.hasOwn()
+## Verificação de Existência: `in` vs `Object.hasOwn`
+
+- **Operador `in`**: busca a propriedade no objeto e em toda a **cadeia de protótipos**.
+- **`Object.hasOwn(obj, prop)`**: verifica **apenas propriedades próprias/diretas**.
 
 ```js
-const user = { name: 'Bruno', age: 25 };
+const user = { name: "Bruno", age: 25 };
 
-// 1. Verificando propriedades diretas do objeto:
-console.log('name' in user); // true
-console.log(Object.hasOwn(user, 'name')); // true
+// Propriedades próprias diretas:
+console.log("name" in user);               // true
+console.log(Object.hasOwn(user, "name"));  // true
 
-// 2. Propriedade inexistente:
-console.log('email' in user); // false
-console.log(Object.hasOwn(user, 'email')); // false
-
-// 3. Propriedades herdadas do protótipo (ex: toString de Object.prototype):
-console.log('toString' in user); // true (encontrado na cadeia de protótipos)
-console.log(Object.hasOwn(user, 'toString')); // false (não é propriedade direta)
+// Propriedades herdadas de Object.prototype:
+console.log("toString" in user);              // true (está no protótipo)
+console.log(Object.hasOwn(user, "toString")); // false (não é propriedade direta)
 ```
 
 ---
 
-## Encadear Opcional (Optional Chaining: `?.`)
+## Optional Chaining (`?.`) e Coalescência Nula (`??`)
 
-- Ao acessar propriedades encadeadas em objetos aninhados, tentar ler um atributo de um valor `null` ou `undefined` causa...
-- O operador de Encadear Opcional (`?.`) permite acessar propriedades com segurança
-- caso o alvo seja `null` ou `undefined`, a expressão interrompe a avaliação (_short-circuiting_) e retorna `undefined` sem...
-- Declarar um objeto com `const` impede que a variável seja reassociada a um novo objeto na memória
-- No entanto, as propriedades internas do objeto continuam mutáveis — elas podem ser alteradas, adicionadas ou deletadas...
-
----
-
-## Acesso seguro com Optional Chaining
+Permite navegar em objetos aninhados com segurança, evitando `TypeError` se algum nível for `null` ou `undefined`:
 
 ```js
 const user = {
   id: 1,
-  name: 'Carlos',
-  profile: {
-    address: {
-      city: 'João Pessoa',
-    },
-  },
+  name: "Carlos",
+  profile: { address: { city: "João Pessoa" } },
 };
 
-// ❌ Sem Optional Chaining: se 'settings' for undefined, aceso gera TypeError
-// const theme = user.settings.theme; // TypeError: Cannot read properties of undefined
-// ...
-const theme = user?.settings?.theme; // undefined (objeto 'settings' não existe)
+// Acesso seguro:
+const city = user?.profile?.address?.city; // "João Pessoa"
+const zip = user?.profile?.address?.zip;   // undefined (sem erro)
+const theme = user?.settings?.theme;       // undefined (settings não existe)
 
-// 💡 Combinando com Coalescência Nula (??) para definir valor padrão
-const userCity = user?.profile?.address?.city ?? 'Cidade não cadastrada';
-const userTheme = user?.settings?.theme ?? 'light';
-```
-
----
-
-## Encadear Opcional (Optional Chaining: `?.`)
-
-```js
-const server = { port: 8080 };
-server.port = 9090; // PERMITIDO (altera propriedade interna)
-
-// server = { port: 3000 }; // ERRO: TypeError (Assignment to constant variable)
+// Combinando com fallback via ??
+const currentTheme = user?.settings?.theme ?? "light";
+console.log(currentTheme); // "light"
 ```
 
 ---
 
 ## Desestruturação de Objetos (Destructuring)
 
-- A desestruturação de objetos permite extrair propriedades de um objeto e atribuí-las diretamente a variáveis locais com...
-
----
-
-## Desestruturação básica de Objetos
+Extrai propriedades diretamente para variáveis locais:
 
 ```js
 const person = {
-  firstName: 'Maria',
-  lastName: 'Silva',
+  firstName: "Maria",
   age: 30,
-  city: 'João Pessoa',
+  city: "João Pessoa",
 };
 
-// Extraindo propriedades com os mesmos nomes das chaves
+// 1. Extração simples
 const { firstName, age } = person;
-console.log(firstName); // "Maria"
-console.log(age); // 30
+console.log(firstName, age); // "Maria" 30
 
-// ...
+// 2. Renomeando variáveis (chave: novoNome)
+const { city: location } = person;
 console.log(location); // "João Pessoa"
 
-// Extraindo com valor padrão caso a propriedade não exista
-const { role = 'visitante' } = person;
+// 3. Atribuindo valor padrão para propriedade ausente
+const { role = "visitante" } = person;
 console.log(role); // "visitante"
 ```
 
@@ -289,97 +227,74 @@ console.log(role); // "visitante"
 
 ## Desestruturação em Parâmetros de Funções
 
-- A desestruturação é extremamente útil em parâmetros de funções, permitindo receber objetos de opção com clareza
-- Destructuring assignment | MDN
-
----
-
-## Desestruturação no parâmetro da função
+Ideal para funções que recebem objetos de configuração:
 
 ```js
-function displayServerInfo({ hostname, ip, port = 80 }) {
+function displayServer({ hostname, ip, port = 80 }) {
   console.log(`Servidor ${hostname} rodando em http://${ip}:${port}`);
 }
 
-const webServer = {
-  hostname: 'api-server',
-  ip: '10.0.0.15',
+const server = {
+  hostname: "api-server",
+  ip: "10.0.0.15",
   port: 3000,
 };
 
-displayServerInfo(webServer); // "Servidor api-server rodando em http://10.0.0.15:3000"
+displayServer(server);
+// "Servidor api-server rodando em http://10.0.0.15:3000"
 ```
 
 ---
 
-## Operador Spread e Imutabilidade em Objetos
+## Operador Spread (`...`) e Imutabilidade
 
-- O operador de espalhamento (`...`) permite copiar e mesclar propriedades de objetos de forma rasa (_shallow copy_)
-- O diagrama a seguir ilustra o processo de cópia das propriedades do objeto base e a sobreposição de chaves especificadas
-- Diagrama da página
-- Cópia Rasa e Mesclagem de Propriedades com Operador Spread
-
----
-
-## Operador Spread em Objetos
+Copia propriedades de forma rasa (*shallow copy*) e permite mesclagens:
 
 ```js
 const baseConfig = {
-  env: 'development',
+  env: "development",
   debug: true,
   port: 3000,
 };
 
-// Criando uma cópia e sobrescrevendo a propriedade 'env' e 'port'
+// Copia baseConfig e sobrescreve env e port
 const prodConfig = {
   ...baseConfig,
-  env: 'production',
+  env: "production",
   port: 8080,
 };
 
-console.log(baseConfig); // { env: 'development', debug: true, port: 3000 }
-console.log(prodConfig); // { env: 'production', debug: true, port: 8080 }
+console.log(baseConfig.port); // 3000 (inalterado)
+console.log(prodConfig.port); // 8080
 ```
 
 ---
 
-## Congelando Objetos com Object.freeze()
+## Imutabilidade com `Object.freeze()`
 
-- Se você precisa impedir que um objeto tenha suas propriedades alteradas, adicionadas ou deletadas, pode utilizar...
-
----
-
-## Imutabilidade com Object.freeze()
+Impede qualquer alteração, inclusão ou exclusão de propriedades de um objeto:
 
 ```js
 const immutableConfig = Object.freeze({
-  apiUrl: 'https://api.devlab.org',
-  version: 'v1',
+  apiUrl: "https://api.devlab.org",
+  version: "v1",
 });
 
-// Tentativa de alteração é ignorada em modo padrão (ou lança erro em strict mode)
-immutableConfig.version = 'v2';
+// Alterações são bloqueadas silenciosamente (ou disparam erro no strict mode):
+immutableConfig.version = "v2";
 immutableConfig.timeout = 5000;
 
-console.log(immutableConfig); // { apiUrl: 'https://api.devlab.org', version: 'v1' }
+console.log(immutableConfig);
+// { apiUrl: 'https://api.devlab.org', version: 'v1' }
 ```
 
----
-
-## Classes em JavaScript (ES6+ e POO)
-
-- Introduzidas no ES2015 (ES6), as Classes oferecem uma sintaxe moderna baseada em protótipos (\*prototype-based...
+- Nota: `Object.freeze` realiza congelamento raso (*shallow freeze*).
 
 ---
 
-## Declaração de Classes e o Construtor
+## Classes ES6+ e Construtores
 
-- Uma classe é declarada com a palavra-chave `class`
-- O método especial `constructor()` é executado automaticamente quando um novo objeto é instanciado com o operador `new`
-
----
-
-## Declaração básica de uma Classe
+Sintaxe orientada a objetos sobre a cadeia de protótipos do JavaScript:
 
 ```js
 class User {
@@ -388,99 +303,75 @@ class User {
     this.email = email;
   }
 
-  // Método de instância (armazenado no User.prototype)
+  // Método de instância (compartilhado via User.prototype)
   getProfile() {
     return `${this.name} (${this.email})`;
   }
 }
 
-const user1 = new User('Ana Silva', 'ana@devlab.org');
+const user1 = new User("Ana Silva", "ana@devlab.org");
 console.log(user1.getProfile()); // "Ana Silva (ana@devlab.org)"
 ```
 
 ---
 
-## Mapeamento entre Classes e a Cadeia de Protótipos
+## Campos Privados (`#`) e Encapsulamento
 
-- No JavaScript, a instrução `class` é apenas um açúcar sintático (_syntactic sugar_) construído sobre a cadeia de...
-- O diagrama a seguir ilustra a estrutura de memória de uma instância criada via `class` e sua vinculação com...
-- Diagrama da página
-- Instanciação de Classe e Mapeamento com a Cadeia de Protótipos
-
----
-
-## Encapsulamento com Atributos Privados (`#`) e Getters/Setters
-
-- No ES2022, o JavaScript introduziu os campos privados prefixados com `#`
-- Atributos e métodos privados não podem ser acessados diretamente de fora da classe, garantindo encapsulamento no tempo de...
-
----
-
-## Atributos privados e métodos de acesso get/set
+Campos iniciados com `#` (ES2022+) são estritamente privados em tempo de execução:
 
 ```js
 class BankAccount {
-owner;
-// Atributo privado (ES2022+) - inacessível fora da classe
-#balance = 0;
+  owner;
+  #balance = 0; // Campo privado inacessível fora da classe
 
-constructor(owner, initialBalance) {
- this.owner = owner;
- this.#balance = initialBalance;
+  constructor(owner, initialBalance) {
+    this.owner = owner;
+    this.#balance = initialBalance;
+  }
+
+  get balance() { return this.#balance; }
+
+  deposit(amount) {
+    if (amount <= 0) throw new Error("Valor deve ser positivo.");
+    this.#balance += amount;
+  }
 }
 
-// Getter para leitura controlada
-get balance() {
-  // ...
+const account = new BankAccount("Carlos", 500);
 account.deposit(200);
 console.log(account.balance); // 700
-
-// ❌ Tentativa de acesso direto gera erro de sintaxe:
-// console.log(account.#balance); // SyntaxError: Private field '#balance' must be declared in an enclosing class
+// console.log(account.#balance); // SyntaxError!
 ```
 
 ---
 
-## Herança de Classes com `extends` e `super`
+## Herança com `extends` e `super()`
 
-- Uma classe pode herdar propriedades e métodos de outra classe utilizando a palavra-chave `extends`
-- No construtor da subclasse, a função `super()` deve ser obrigatoriamente chamada antes de utilizar a referência `this`
-- O diagrama a seguir ilustra a relação de herança entre a classe base `User` e a subclasse `Admin`
-- Diagrama da página
-- Diagrama de Classes (UML / POO)
-
----
-
-## Herança com extends e invocação de super()
+Uma subclasse herda métodos e construtor da classe base:
 
 ```js
 class Admin extends User {
   constructor(name, email, permissions) {
-    // Chama o construtor da classe pai (User)
-    super(name, email);
+    super(name, email); // Invocação obrigatória do construtor pai
     this.permissions = permissions;
   }
 
   // Sobrescrita de método (Method Overriding)
   getProfile() {
-    return `[ADMIN] ${super.getProfile()} - Permissões: ${this.permissions.join(', ')}`;
+    return `[ADMIN] ${super.getProfile()} - Permissões: ${this.permissions.join(", ")}`;
   }
 }
 
-const admin = new Admin('Beatriz', 'beatriz@devlab.org', ['CREATE', 'DELETE']);
+const admin = new Admin("Beatriz", "beatriz@devlab.org", ["READ", "WRITE"]);
 console.log(admin.getProfile());
-// "[ADMIN] Beatriz (beatriz@devlab.org) - Permissões: CREATE, DELETE"
+// "[ADMIN] Beatriz (beatriz@devlab.org) - Permissões: READ, WRITE"
 ```
 
 ---
 
-## Métodos e Campos Estáticos (`static`)
+## Membros Estáticos (`static`)
 
-- Métodos e propriedades marcados com a palavra-chave `static` pertencem à própria classe, e não às instâncias criadas a...
-
----
-
-## Uso de métodos e atributos estáticos
+Atributos e métodos estáticos pertencem à **própria classe**, e não às instâncias:
 
 ```js
 class MathUtils {
@@ -493,255 +384,146 @@ class MathUtils {
 
 console.log(MathUtils.PI); // 3.14159
 console.log(MathUtils.calculateCircleArea(5)); // 78.53975
+
+// Instâncias não possuem métodos estáticos:
+// const m = new MathUtils();
+// m.calculateCircleArea(5); // TypeError: m.calculateCircleArea is not a function
 ```
 
 ---
 
 ## Iteração sobre Objetos
 
-- Diferente de arrays, objetos comuns não são diretamente iteráveis com `for...of`
-- JavaScript oferece o laço `for...in` e métodos estáticos auxiliares no objeto `Object` para inspecionar chaves e valores
-- Object.entries() | MDN
-
----
-
-## Iteração sobre Objetos: Comparação
-
-| Método / Estrutura    | Retorno                | Descrição                                                |
-| --------------------- | ---------------------- | -------------------------------------------------------- |
-| `for...in`            | Chaves (`string`)      | Laço que percorre as chaves enumeráveis do objeto        |
-| `Object.keys(obj)`    | `Array<string>`        | Retorna um array com os nomes das chaves do objeto       |
-| `Object.values(obj)`  | `Array<any>`           | Retorna um array com os valores de todas as propriedades |
-| `Object.entries(obj)` | `Array<[string, any]>` | Retorna um array de pares `[chave, valor]`               |
-
----
-
-## Iterando sobre objetos com Object.keys, values e entries
-
 ```js
-const scores = {
-  Alice: 95,
-  Bruno: 80,
-  Carla: 90,
-};
+const scores = { Alice: 95, Bruno: 80, Carla: 90 };
 
-// 1. Object.keys() - Obtendo lista de chaves
-const names = Object.keys(scores);
-console.log(names); // [ 'Alice', 'Bruno', 'Carla' ]
+// 1. Object.keys() -> Array de chaves
+console.log(Object.keys(scores)); // ['Alice', 'Bruno', 'Carla']
 
-// 2. Object.values() - Obtendo lista de valores
-const points = Object.values(scores);
-// ...
+// 2. Object.values() -> Array de valores
+console.log(Object.values(scores)); // [95, 80, 90]
 
-// Iterando com for...of sobre Object.entries() usando desestruturação
+// 3. Object.entries() -> Array de pares [chave, valor]
+console.log(Object.entries(scores)); 
+// [['Alice', 95], ['Bruno', 80], ['Carla', 90]]
+
+// Iterando com for...of e desestruturação:
 for (const [student, score] of Object.entries(scores)) {
-  console.log(`Estudante: ${student} | Nota: ${score}`);
+  console.log(`${student}: ${score}`);
 }
 ```
 
 ---
 
-## O Formato e Objeto JSON
+## Objeto vs Formato JSON
 
-- JSON (_JavaScript Object Notation_) é um formato leve e estritamente textual para troca de dados entre sistemas (por...
-- Apesar de derivar da sintaxe de objetos do JavaScript, o formato JSON possui regras estritas:
+**JSON** (*JavaScript Object Notation*) é um padrão textual rigoroso para transmissão de dados:
 
----
-
-## O Formato e Objeto JSON: Comparação
-
-| Característica                     | Objeto JavaScript                         | Formato JSON                                                        |
-| ---------------------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| **Nomes de Chaves**                | Podem ser sem aspas (`name: "Ana"`)       | **Devem** estar entre aspas duplas (`"name": "Ana"`)                |
-| **Strings**                        | Aspas simples, duplas ou crases           | **Devem** usar apenas aspas duplas (`"..."`)                        |
-| **Tipos de Dados Aceitos**         | Primitivos, arrays, objetos e **funções** | Apenas primitivos (número, string, boolean, null), arrays e objetos |
-| **Vírgula Final (Trailing Comma)** | Permitida (`{ a: 1, }`)                   | **Proibida** (`{ "a": 1 }`)                                         |
+| Regra | Objeto JavaScript | Formato JSON |
+| :--- | :--- | :--- |
+| **Aspas nas chaves** | Opcionais (`name: "Ana"`) | **Obrigatórias com aspas duplas** (`"name": "Ana"`) |
+| **Aspas nas strings** | Aspas simples, duplas ou crases | **Apenas aspas duplas** (`"..."`) |
+| **Tipos aceitos** | Primitivos, arrays, objetos, **funções** | Primitivos, arrays e objetos (sem funções) |
+| **Vírgula final** | Permitida (`{ a: 1, }`) | **Proibida** (`{ "a": 1 }`) |
 
 ---
 
-## Exemplo de arquivo ou payload JSON válido
-
-```json
-{
-  "id": 101,
-  "name": "Servidor Principal",
-  "active": true,
-  "tags": ["web", "production"],
-  "specs": {
-    "cpu": 4,
-    "ram": "16GB"
-  }
-}
-```
-
----
-
-## O Objeto Global JSON (stringify e parse)
-
-- `JSON.stringify(obj)`: Converte um objeto/valor JavaScript em uma string no formato JSON.
-- `JSON.parse(jsonString)`: Converte uma string JSON em um objeto/valor JavaScript.
-
----
-
-## Uso de JSON.stringify() e JSON.parse()
+## Objeto Global JSON: `stringify` e `parse`
 
 ```js
-const userObject = {
+const user = {
   id: 1,
-  name: 'Carlos',
-  email: 'carlos@gmail.com',
+  name: "Carlos",
+  email: "carlos@gmail.com",
 };
 
-// 1. Serialização (Objeto JS -> String JSON)
-const jsonString = JSON.stringify(userObject);
+// 1. Serialização: Objeto JS -> String JSON
+const jsonString = JSON.stringify(user);
 console.log(typeof jsonString); // "string"
 console.log(jsonString); // '{"id":1,"name":"Carlos","email":"carlos@gmail.com"}'
 
-// 2. Deserialização (String JSON -> Objeto JS)
-const parsedObject = JSON.parse(jsonString);
-console.log(typeof parsedObject); // "object"
-console.log(parsedObject.name); // "Carlos"
+// 2. Desserialização: String JSON -> Objeto JS
+const parsedUser = JSON.parse(jsonString);
+console.log(typeof parsedUser); // "object"
+console.log(parsedUser.name);   // "Carlos"
 ```
 
----
-
-## Resumo e Boas Práticas
-
-- Use notação literal ` ` para declarar objetos.
-- Utilize Property Shorthand (` `) para simplificar a criação a partir de variáveis.
-- Prefira desestruturação para extrair propriedades de objetos.
-- Utilize `Object.keys()`, `Object.values()` e `Object.entries()` para iterar sobre objetos de forma funcional.
-- Lembre-se de que JSON requer chaves com aspas duplas e não aceita funções nem `undefined`.
+- Propriedades com valor `undefined`, `Function` ou `Symbol` são **omitidas** pelo `stringify`.
 
 ---
 
-## Executando
+## Exercício Prático: Dispositivo de Rede
 
-- Crie um arquivo chamado `object-demo.js`:
-- Execute o arquivo com Node.js no terminal:
-- Modifique as propriedades do objeto e teste a desserialização com `JSON.parse()`.
-
----
-
-## object-demo.js
+1. Crie o objeto `networkHost` com `name`, `ip`, `mask` e `active`.
+2. Adicione a propriedade `gateway = "192.168.1.254"`.
+3. Remova a propriedade `active` com o operador `delete`.
+4. Extraia `name`, `ip` e `gateway` usando desestruturação e exiba formatado.
 
 ```js
-const serverConfig = {
-  hostname: 'api.devlab.org',
-  port: 8080,
-  ssl: true,
-  endpoints: ['/users', '/products'],
+const networkHost = {
+  name: "Router-01",
+  ip: "192.168.1.1",
+  mask: "255.255.255.0",
+  active: true,
 };
 
-// Desestruturação e operador Spread
-const { hostname, port } = serverConfig;
-const updatedConfig = { ...serverConfig, port: 443, env: 'production' };
+networkHost.gateway = "192.168.1.254";
+delete networkHost.active;
 
-// Conversão para JSON
-const jsonPayload = JSON.stringify(updatedConfig, null, 2);
-
-console.log('Host original:', `${hostname}:${port}`);
-console.log('Configuração atualizada:', updatedConfig);
-console.log('Payload JSON formatado:\n', jsonPayload);
+const { name, ip, gateway } = networkHost;
+console.log(`Dispositivo: ${name} | IP: ${ip} | Gateway: ${gateway}`);
+// "Dispositivo: Router-01 | IP: 192.168.1.1 | Gateway: 192.168.1.254"
 ```
 
 ---
 
-## Terminal
+## Desafio: Relatório de Servidores em JSON
 
-```bash
-node object-demo.js
+```js
+const jsonInput = `[
+  { "id": 1, "hostname": "web-01", "ip": "10.0.0.1", "cpuUsage": 45, "online": true },
+  { "id": 2, "hostname": "db-01", "ip": "10.0.0.2", "cpuUsage": 88, "online": true },
+  { "id": 3, "hostname": "cache-01", "ip": "10.0.0.3", "cpuUsage": 12, "online": false }
+]`;
+
+const servers = JSON.parse(jsonInput);
+const onlineServers = servers.filter((s) => s.online);
+
+const report = onlineServers.map(({ hostname, cpuUsage }) => ({
+  host: hostname,
+  load: `${cpuUsage}%`,
+}));
+
+console.log(report);
+// [ { host: 'web-01', load: '45%' }, { host: 'db-01', load: '88%' } ]
+
+console.log(JSON.stringify(report, null, 2));
+// [
+//   { "host": "web-01", "load": "45%" },
+//   { "host": "db-01", "load": "88%" }
+// ]
 ```
 
 ---
 
-## Output
+## Perguntas de Revisão
 
-```txt
-Host original: api.devlab.org:8080
-Configuração atualizada: {
-  hostname: 'api.devlab.org',
-  port: 443,
-  ssl: true,
-  endpoints: [ '/users', '/products' ],
-  env: 'production'
-}
-Payload JSON formatado:
- {
-  // ...
-  ],
-  "env": "production"
-}
-```
-
----
-
-## Exercício
-
-- Crie um objeto `networkHost` com as propriedades `name` (`"Router-01"`), `ip` (`"192.168.1.1"`), `mask`...
-- Adicione uma nova propriedade `gateway` com o valor `"192.168.1.254"`;
-- Remova a propriedade `active` usando o operador `delete`;
-- Utilize a desestruturação para extrair `name`, `ip` e `gateway` em variáveis locais;
-- Imprima no console uma string formatada no padrão: `"Dispositivo: [NAME] | IP: [IP] | Gateway: [GATEWAY]"`.
-
----
-
-## Desafio
-
-- Crie uma string JSON chamada `jsonInput` contendo um array de objetos de servidores com as chaves `"id"`, `"hostname"`,...
-- Converta a string JSON para um array de objetos JavaScript usando `JSON.parse()`;
-- Utilize `filter` para selecionar apenas os servidores que estão `"online"`;
-- Utilize `Object.entries()` ou `map` para extrair um relatório contendo apenas o `hostname` e o status da CPU em formato...
-- Imprima o resultado final no console e converta o relatório de servidores online de volta para uma string JSON com...
-
----
-
-## Criação e Acesso
-
-- Qual é a diferença entre Notação de Ponto (`obj.prop`) e Notação de Colchetes (`obj["prop"]`)
-- O que acontece ao tentar acessar uma propriedade que não existe em um objeto
-- O que é Property Shorthand e quando podemos utilizá-lo
-
----
-
-## Desestruturação e Imutabilidade
-
-- Como funciona a atribuição por desestruturação em objetos e como renomear uma variável durante a extração
-- Declarar um objeto com `const` impede a alteração de suas propriedades internas
-- Como o operador Spread (`...`) auxilia na atualização imutável de um objeto
-
----
-
-## Métodos do Object e JSON
-
-- Quais são as diferenças entre os métodos `Object.keys()`, `Object.values()` e `Object.entries()`
-- Quais são as principais diferenças entre um Objeto JavaScript e uma string no formato JSON
-- Para que servem os métodos `JSON.stringify()` e `JSON.parse()`
-- O que acontece com propriedades de valor `undefined` ou funções ao executar `JSON.stringify()`
-
----
-
-## Classes e Orientação a Objetos
-
-- Qual é a relação entre a sintaxe de `class` no ES6+ e a cadeia de protótipos em JavaScript
-- Como funcionam os campos privados (`#`) e qual a diferença em relação a atributos convenções comuns
-- Para que servem a palavra-chave `extends` e a função `super()` em subclasses
-
----
-
-## Próxima aula
-
-- Map, Set e Coleções
-- Coleções chave-valor com Map, conjuntos de valores únicos com Set e versões de referência fraca com WeakMap e WeakSet
+- Qual a diferença entre notação de ponto (`obj.prop`) e notação de colchetes (`obj["prop"]`)?
+- O que é *Property Shorthand* e quando podemos utilizá-lo?
+- Declarar um objeto com `const` impede a alteração de suas propriedades internas?
+- Qual a diferença entre o operador `in` e o método `Object.hasOwn()`?
+- Para que serve o operador de *Optional Chaining* (`?.`)?
+- O que é *shallow copy* e como realizá-la com o operador spread (`...`)?
+- Como funcionam os campos privados (`#`) em classes ES6+?
+- Quais são as 4 diferenças principais entre um objeto JS e o padrão textual JSON?
 
 ---
 
 ## Resumo da Aula
 
-- Revise criação de Objetos e Notação Literal
-- Revise property Shorthand (Sintaxe Abreviada de Propriedades)
-- Revise acesso, Modificação e Remoção de Propriedades
-- Revise desestruturação de Objetos (Destructuring)
-- Revise desestruturação em Parâmetros de Funções
-- Revise operador Spread e Imutabilidade em Objetos
-- Revise congelando Objetos com Object.freeze()
+- **Objetos Literais**: pares chave-valor na Heap com sintaxe concisa (`{ prop }`).
+- **Acesso Seguro**: notação de colchetes dinâmicos e *Optional Chaining* (`?.`).
+- **Imutabilidade**: `...spread` para cópias não destrutivas e `Object.freeze()`.
+- **Classes Modernas**: `class`, `constructor`, herança com `extends`/`super()` e campos `#`.
+- **Iteração**: `Object.keys()`, `Object.values()` e `Object.entries()`.
+- **Intercâmbio de Dados**: formato JSON com `JSON.stringify()` e `JSON.parse()`.
