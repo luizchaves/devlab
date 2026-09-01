@@ -58,6 +58,19 @@ Antes de fechar o deck, faça uma revisão de cobertura: liste mentalmente as se
 página, confira se cada uma virou slide, trecho de código, visual ou parte de um resumo, e
 ajuste qualquer ponto em que a explicação tenha ficado rasa demais para uma aula ao vivo.
 
+Antes de entregar, faça uma revisão didática final:
+
+- corte redundância entre slides vizinhos;
+- confirme que cada slide tem um único ponto principal;
+- compacte bullets para uma linha sempre que possível;
+- remova frases incompletas, reticências de truncamento e placeholders como
+  "Diagrama da página";
+- remova referências que dependem do slide seguinte para fazer sentido;
+- confirme que exercícios, desafio, revisão e resumo fecham o arco sem misturar conteúdo
+  de outro tópico;
+- não crie slide ou seção `Próxima Aula`; links de continuidade pertencem à página `.mdx`,
+  não ao deck de projeção.
+
 ---
 
 ## 🧭 Tipos de página
@@ -116,6 +129,7 @@ Comentários dentro do bloco devem ajudar a leitura do slide:
 
 - reduza comentários longos da página para frases curtas;
 - prefira comentários que expliquem o **porquê** ou o efeito observado;
+- identifique ou cite as linhas de código relevantes (ex: no texto `Na linha 3...` ou via comentário curto `// linha 4: ...`) para guiar a atenção visual da turma;
 - remova comentários que repetem exatamente o que a linha já diz;
 - prefira saída esperada no fim da própria linha quando couber, por exemplo
   `console.log(total); // 55`;
@@ -123,8 +137,7 @@ Comentários dentro do bloco devem ajudar a leitura do slide:
   mova a saída completa para um bloco `txt` separado;
 - quando o comentário competir com o código, mova a explicação para 1-2 bullets antes ou
   depois do bloco;
-- mantenha saídas esperadas como comentário curto quando elas forem essenciais para
-  entender o comportamento.
+- mantenha saídas esperadas como comentário curto em todos os exemplos, exercícios e desafios.
 
 ---
 
@@ -136,7 +149,10 @@ um ponto de aprendizagem:
 - prefira títulos diretos e específicos (`## Ordem das Condições`, `## Fall-through`) em
   vez de frases longas;
 - use bullets compactos como apoio à fala, normalmente 3-5 por slide;
-- cada bullet deve ter uma ideia só, com 1-2 linhas no máximo;
+- cada bullet deve ter uma ideia só e, por padrão, caber em uma linha;
+- quando um bullet passar de uma linha, corte palavras, divida o slide ou troque por
+  tabela, código ou diagrama;
+- nunca deixe frases incompletas, reticências de truncamento ou placeholders no deck final;
 - quando houver imagem, SVG, diagrama ou código bom, reduza os bullets para abrir espaço;
 - não repita em bullet o que o código ou a imagem já mostram claramente;
 - prefira código, imagem ou tabela quando isso ensinar melhor do que texto corrido;
@@ -152,6 +168,11 @@ Prioridade visual sugerida:
 3. **Tabela curta** quando a aula compara opções.
 4. **Diagrama ASCII** quando não há asset pronto e o fluxo precisa ser visual.
 5. **Bullets** para contexto, regra, cuidado e síntese.
+
+Para comparações de estado, antes/depois, permissões, responsabilidades ou efeitos de uma
+operação, prefira uma tabela curta quando ela ficar mais clara que setas em ASCII. Use
+diagrama ASCII apenas quando a forma espacial ajudar de verdade; se o desenho parecer
+improvisado, troque por tabela ou divida a explicação em slides menores.
 
 Em slides de código, a melhor composição costuma ser:
 
@@ -170,8 +191,21 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Arrays"
@@ -182,6 +216,8 @@ description: "Slides completos da aula de Arrays em JavaScript (criação, índi
 - `title` **idêntico** ao `title` da aula `.mdx` e do mapa mental.
 - Não invente tema: todos os decks usam `theme: default`.
 - O bloco `style` é o que produz a paginação `3 / 21`.
+- O `padding-bottom` reserva rodapé e evita colisão entre paginação e conteúdo.
+- A paginação deve ficar pequena (`0.6em`) e discreta.
 
 ---
 
@@ -206,12 +242,14 @@ description: "Slides completos da aula de Arrays em JavaScript (criação, índi
    (`## Template Literals (Crase)` / `## Template Literals (Exemplo de Código)`).
 6. **`## Executando`** - comandos e verificações quando a página tiver essa seção.
 7. **`## Exercício`** - enunciado curto com dados de entrada e 2-3 passos numerados.
-8. **`## Solução do Exercício`** - código comentado e saída esperada quando a página
-   incluir solução ou quando o usuário pedir.
+8. **`## Solução do Exercício`** (ou bloco de código do exercício/desafio) - **SEMPRE inclua comentários de saída esperada** (`// output`) em `console.log()` ou chamadas de função, ou um bloco `txt` de saída, permitindo visualizar o resultado da execução imediatamente.
 9. **`## Resumo da Aula`** - 5-7 bullets de fechamento. Se passar disso, divida em
    `## Resumo da Aula (Parte 1)` e `## Resumo da Aula (Parte 2)`.
 
 Separe **todo** slide com `---` em linha isolada.
+
+Não adicione seção `## Próxima Aula` ao final do deck. O encerramento do deck é o resumo;
+continuidade, navegação e links para a aula seguinte ficam na página `.mdx`.
 
 Tamanho real dos decks: 128-547 linhas (~15 a 45 slides). Aulas de fundamento ficam
 perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.
@@ -289,3 +327,6 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
    recortes melhores.
 10. **Visual sem propósito**: imagens e SVGs são bem-vindos quando explicam fluxo,
     arquitetura ou tela; se só ocupam espaço, remova.
+11. **Falta de output em código e exercícios**: nunca deixe chamadas de `console.log()`
+    ou resoluções de exercícios/desafios sem a respectiva saída esperada documentada
+    em comentário `// output` ou bloco `txt`.

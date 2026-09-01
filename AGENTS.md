@@ -103,7 +103,8 @@ Ao planejar refatorações de grande porte, migrações ou novas funcionalidades
    `examples/`** antes de escrever a página, e importe com `<SourceCode>`.
 4. Registre a página na sidebar em `astro.config.mjs` — as sidebars são explícitas,
    não autogeradas; uma página fora dela existe mas não aparece na navegação.
-5. Rode `pnpm build && pnpm check:links && pnpm check:doc-lines`.
+5. **Sincronize os materiais (`materials/`)**: tanto ao criar quanto ao **editar** uma aula (inclusão, remoção ou ajuste de seções, conceitos ou código), verifique e atualize os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) do tópico correspondente para manter paridade com o `.mdx`.
+6. Rode `pnpm build && pnpm check:links && pnpm check:doc-lines`.
 
 Página nova de projeto (não de conceito) abre com `<ProjectLinks>` e, se for entrar
 na homepage, entra também em `src/lib/projects.ts` — os cartões apenas percorrem essa

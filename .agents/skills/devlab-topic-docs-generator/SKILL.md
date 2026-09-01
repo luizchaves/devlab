@@ -489,3 +489,4 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 18. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
     do Codespaces — crie a pasta ou passe `devcontainer={false}`.
 19. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
+20. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em uma aula e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
