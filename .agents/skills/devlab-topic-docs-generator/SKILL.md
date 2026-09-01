@@ -1,18 +1,18 @@
 ---
 name: devlab-topic-docs-generator
 description: >-
-  Cria e mantém páginas de aula do DevLab em Astro Starlight (`.md` / `.mdx`) sob
+  Cria e mantém páginas de tópicos do DevLab em Astro Starlight (`.md` / `.mdx`) sob
   `src/content/docs/courses/`. Use sempre que o usuário pedir para criar, atualizar,
-  expandir ou revisar uma aula/tópico de disciplina (ECMAScript, Arrays, Strings,
+  expandir ou revisar um tópico de disciplina/guia (ECMAScript, Arrays, Strings,
   Funções, HTML, CSS, Express, Prisma, etc.).
 ---
 
-# DevLab — Gerador de Páginas de Aula
+# DevLab — Gerador de Páginas de Tópicos
 
-Guia para escrever aulas do DevLab seguindo as convenções **reais** do repositório.
+Guia para escrever tópicos e guias do DevLab seguindo as convenções **reais** do repositório.
 
 > **Fonte da verdade**: o `README.md` da raiz (seções "Como criar uma disciplina",
-> "Como criar uma aula `.md`", "Quando usar `.mdx`", "Componentes" e "Expressive Code").
+> "Como criar uma página `.md`", "Quando usar `.mdx`", "Componentes" e "Expressive Code").
 > Em caso de conflito entre este guia e o README, o README vence — e este arquivo
 > deve ser corrigido.
 
@@ -45,8 +45,8 @@ Use `.md` por padrão. Só troque para `.mdx` quando a página **precisar de com
 | `<ApiRequest>`, `<ApiResponse>`, `<HtmlPreview>`| `.mdx`   |
 | Expressões JS (`{projects.map(…)}`)             | `.mdx`   |
 
-Aulas longas de JavaScript normalmente acabam em `.mdx` (usam `<Aside>` e `<Steps>`);
-aulas curtas de conceito podem ficar em `.md` com `:::tip[…]`.
+Tópicos longos de JavaScript normalmente acabam em `.mdx` (usam `<Aside>` e `<Steps>`);
+tópicos curtos de conceito podem ficar em `.md` com `:::tip[…]`.
 
 ---
 
@@ -66,7 +66,7 @@ sidebar:
 - `title`: prefixado pela trilha (`JavaScript: …`, `HTML: …`, `CSS: …`) e **idêntico**
   ao `title` dos slides e do mapa mental do mesmo tópico.
 - `description`: uma frase densa listando o que a página cobre (vira `<meta>`).
-- `course`: obrigatório nas aulas (schema estendido em `src/content.config.ts`).
+- `course`: obrigatório nos tópicos (schema estendido em `src/content.config.ts`).
 - `project`: opcional, aponta para um projeto de `examples/`.
 - `sidebar.label`: rótulo curto para a navegação quando o `title` é longo
   (`label: "Map e Set"` para `title: "JavaScript: Map e Set"`). Usado em ~40% das páginas.
@@ -85,11 +85,11 @@ import FileTree from '@components/FileTree.astro';
 
 ## 🔗 Linha de materiais
 
-Logo após um parágrafo curto de abertura ("Esta aula apresenta…"), inclua a linha de
+Logo após um parágrafo curto de abertura ("Este tópico apresenta…"), inclua a linha de
 materiais quando existirem slides/mapa mental do tópico:
 
 ```mdx
-Materiais: [slides da aula](../../../../slides/courses/ecmascript/data/arrays/) e [mapa mental](../../../../mindmaps/courses/ecmascript/data/arrays/).
+Materiais: [slides do tópico](../../../../slides/courses/ecmascript/data/arrays/) e [mapa mental](../../../../mindmaps/courses/ecmascript/data/arrays/).
 ```
 
 **Profundidade do `../`** — conte os segmentos da URL da página, não as pastas do disco:
@@ -105,14 +105,14 @@ Só cite materiais que **existem** em `slides/` e `mindmaps/`. Não linke arquiv
 
 ---
 
-## 📐 Estrutura da aula
+## 📐 Estrutura do tópico
 
-Ordem observada nas 16 aulas de `ecmascript`. Nem toda seção é obrigatória,
-mas **`Objetivo`, `Exercício` e `Próxima aula` são**, e a ordem relativa deve ser mantida.
+Ordem observada nos tópicos de `ecmascript`. Nem toda seção é obrigatória,
+mas **`Objetivo`, `Exercício` e `Próximo tópico` são**, e a ordem relativa deve ser mantida.
 
-1. **Parágrafo de abertura** — o que a aula apresenta, em 1–3 linhas.
+1. **Parágrafo de abertura** — o que o tópico apresenta, em 1–3 linhas.
 2. **`Materiais: …`** — slides e mapa mental.
-3. **`## Objetivo`** — 1 parágrafo denso ou lista curta com o que o aluno vai dominar.
+3. **`## Objetivo`** — 1 parágrafo denso ou lista curta com o que o leitor vai dominar.
 4. **Seções de conteúdo** (`## …`, subdivididas com `### …`) — conceito a conceito,
    cada uma com: explicação → tabela comparativa quando houver taxonomia → bloco de
    código comentado → `<Aside>` de armadilha ou dica.
@@ -126,7 +126,7 @@ mas **`Objetivo`, `Exercício` e `Próxima aula` são**, e a ordem relativa deve
    `### <Subtema>`, cada uma com `<details><summary>Possível resposta</summary>`.
 9. **`## Referências`** — links MDN/spec agrupados por assunto, formato
    `[Array | MDN](https://developer.mozilla.org/…)`.
-10. **`## Próxima aula`** — 1 frase de ligação + link relativo para o próximo tópico:
+10. **`## Próximo tópico`** — 1 frase de ligação + link relativo para o próximo tópico:
     `[Strings](../strings/): Criação, template literals e métodos do objeto String.`
 
 Padrão do bloco de resposta:
@@ -189,11 +189,11 @@ Regras de divisão:
 2. Todo código completo, `package.json`, `.env.example`, `requests.http`, árvore de
    diretórios e captura de tela pertence à página de projeto.
 3. Cada uma linka a outra: a de conceito termina apontando "veja aplicado em
-   [Projeto X](../../practice/x/)"; a de projeto abre dizendo quais aulas ela aplica.
-4. Se um projeto aparece em duas aulas de conceito, ele continua tendo **uma** página de
-   projeto — as duas aulas apontam para ela.
+   [Projeto X](../../practice/x/)"; a de projeto abre dizendo quais tópicos ela aplica.
+4. Se um projeto aparece em dois tópicos de conceito, ele continua tendo **uma** página de
+   projeto — os dois tópicos apontam para ela.
 5. Materiais de turmas diferentes sobre a mesma aplicação (LP2, DW) viram **uma página de
-   projeto por aplicação**, não seções "Exemplo completo (LP2)" penduradas no fim da aula
+   projeto por aplicação**, não seções "Exemplo completo (LP2)" penduradas no fim da página
    de conceito.
 
 ## 🔗 Botões de acesso ao código (GitHub e Codespaces)
@@ -470,23 +470,23 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 6. **Duplicar código de `examples/`**: use `<SourceCode>`.
 7. **Fechar tags**: `<Aside>`, `<Tabs>`, `<TabItem>`, `<Steps>`, `<details>` sempre com
    fechamento; dentro de `<details>` deixe uma linha em branco antes do conteúdo Markdown.
-8. **Título divergente**: `title` da aula, dos slides e do mapa mental devem coincidir.
+8. **Título divergente**: `title` do tópico, dos slides e do mapa mental devem coincidir.
 9. **Tabela ou código colado no título**: viola a regra do parágrafo de entrada — sempre uma
    frase de contexto entre o `##`/`###` e a tabela ou o bloco de código.
 10. **Subseção solitária**: um único `###` dentro de um `##` — dissolva no texto ou crie a
     segunda subseção.
 11. **Diagrama Mermaid sem `<Mermaid>`**: uma cerca ` ```mermaid ` não é renderizada pelo
     site; o componente é obrigatório.
-12. **Parágrafo monolítico**: blocos de texto muito longos e densos dificultam a leitura — divida em mais parágrafos curtos para deixar a aula mais didática.
+12. **Parágrafo monolítico**: blocos de texto muito longos e densos dificultam a leitura — divida em mais parágrafos curtos para deixar o tópico mais didático.
 13. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
 14. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
 15. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
-16. **Página-despejo**: aula de conceito com "Exemplo completo (LP2)" no fim, despejando a
+16. **Página-despejo**: tópico de conceito com "Exemplo completo (LP2)" no fim, despejando a
     árvore de arquivos e dez `<SourceCode>` seguidos — isso é uma página de projeto
     disfarçada; mova para `practice/` e deixe o link.
-17. **Página de projeto sem `<ProjectLinks>`**: o aluno fica sem o botão do GitHub e sem o
+17. **Página de projeto sem `<ProjectLinks>`**: o leitor fica sem o botão do GitHub e sem o
     do Codespaces, e precisa caçar o caminho do projeto no repositório.
 18. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
     do Codespaces — crie a pasta ou passe `devcontainer={false}`.
 19. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
-20. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em uma aula e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
+20. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.

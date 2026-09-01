@@ -43,6 +43,12 @@
   - [x] `[TASK-023.3]` Converter os blocos escritos à mão das páginas de conceito em `<SourceCode>` — de 172 para **6** (todos comparações `del`/`ins`), e de ~38 para **114 recortes reais**; só `api/construction` segue sem projeto, por ser página de projeto de API
   - [x] `[TASK-023.4]` Redirecionar as seis páginas de projeto antigas e remover os quatro diretórios órfãos (`hello-simple`, `hello-lang`, `invest-app-prismajs-simple` e `prisma`)
   - [x] `[TASK-023.5]` Construir e rodar a imagem da etapa 12 — o build revelou **cinco defeitos** que a leitura não pegava (`prisma generate` sem schema, pnpm não pinada, `EACCES` em `uploads/` e no volume, `prisma.config.ts` ausente no runtime, `loadEnvFile` sem `.env`); corrigidos e verificados: `docker compose up` sobe *healthy*, aplica migrations, e os dados sobrevivem ao restart
+- [ ] **[TASK-024] Inclusão e Integração de Exercícios e BrainCheck:**
+  - [ ] `[TASK-024.1]` Avaliar a inclusão do acervo de exercícios do `ifpb/exercises` no DevLab (migração/incorporação dos problemas práticos ou estruturação via `exercises/*.exercise.md` vinculados às aulas)
+  - [ ] `[TASK-024.2]` Avaliar a inclusão/integração do BrainCheck (`brain-check-questions` / quizzes interativos) no DevLab (seção de quizzes embutida ou estruturação via `exercises/*.braincheck.md`)
+- [x] **[TASK-025] Padronização de Terminologia (Tópico / Página em vez de Aula):**
+  - [x] `[TASK-025.1]` Atualizar convenções de escrita em `AGENTS.md` e nas skills de geração de conteúdo (`.agents/skills/`)
+  - [x] `[TASK-025.2]` Substituir cabeçalhos `## Próxima aula` por `## Próximo tópico` e harmonizar linguagem nos arquivos `.mdx` em `src/content/docs/`
 
 ### Concluídos (Conteúdo)
 

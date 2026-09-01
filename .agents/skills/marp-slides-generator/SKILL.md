@@ -68,7 +68,7 @@ Antes de entregar, faça uma revisão didática final:
 - remova referências que dependem do slide seguinte para fazer sentido;
 - confirme que exercícios, desafio, revisão e resumo fecham o arco sem misturar conteúdo
   de outro tópico;
-- não crie slide ou seção `Próxima Aula`; links de continuidade pertencem à página `.mdx`,
+- não crie slide ou seção `Próximo Tópico` ou `Próxima Aula`; links de continuidade pertencem à página `.mdx`,
   não ao deck de projeção.
 
 ---
@@ -231,25 +231,27 @@ description: "Slides completos da aula de Arrays em JavaScript (criação, índi
    muitas seções.
 4. **`## Por Que <Tópico> Importa?`** (opcional, comum nas aulas de abertura) - impacto
    no navegador / servidor / ferramentas + linha em *itálico* com a regra de ouro.
-5. **Slides de conteúdo** - **um conceito por slide**, título curto podendo usar código
-   (`## Repetição por Condição: \`while\``). Cada slide é uma destas formas:
-   - 3-5 bullets compactos com o termo em **negrito** e explicação curta;
-   - **uma** tabela comparativa (`| Termo | O que é | Exemplo |`);
-   - **um** bloco de código com tamanho adequado ao contexto;
-   - uma imagem ou SVG versionado quando ela melhorar a compreensão;
-   - um diagrama ASCII em ` ```txt ` quando não houver visual pronto.
-   Quando um conceito exige código + explicação, quebre em dois slides
-   (`## Template Literals (Crase)` / `## Template Literals (Exemplo de Código)`).
-6. **`## Executando`** - comandos e verificações quando a página tiver essa seção.
-7. **`## Exercício`** - enunciado curto com dados de entrada e 2-3 passos numerados.
+## 📐 Estrutura do deck
+
+Ordem de um deck:
+
+1. **Slide de título** - `theme: devlab`, `title`, `description`, `paginate: true`, etc.
+2. **`## Agenda`** ou **`## Roteiro`** - 4-6 tópicos principais do que será coberto.
+3. **`## Motivação`** ou **`## Por Que ...?`** - contexto e problema que o tópico resolve.
+4. **Conceito a conceito** - 2-4 slides por conceito principal:
+   - slide 1: definição, sintaxe e regras;
+   - slide 2: exemplo de código mínimo e focado;
+   - slide 3 (opcional): armadilha comum, comparação ou caso limite.
+5. **`## Arquitetura`** ou **`## Fluxo de Execução`** (quando aplicável) - diagrama
+   Mermaid ou tabela comparativa.
+6. **`## Boas Práticas`** ou **`## Cuidados e Armadilhas`** - 3-5 alertas cruciais.
+7. **`## Exercício Prático`** - enunciado de fixação com objetivo claro.
 8. **`## Solução do Exercício`** (ou bloco de código do exercício/desafio) - **SEMPRE inclua comentários de saída esperada** (`// output`) em `console.log()` ou chamadas de função, ou um bloco `txt` de saída, permitindo visualizar o resultado da execução imediatamente.
-9. **`## Resumo da Aula`** - 5-7 bullets de fechamento. Se passar disso, divida em
-   `## Resumo da Aula (Parte 1)` e `## Resumo da Aula (Parte 2)`.
+9. **`## Resumo do Tópico`** - 5-7 bullets de fechamento. Se passar disso, divida em
+   `## Resumo do Tópico (Parte 1)` e `## Resumo do Tópico (Parte 2)`.
 
 Separe **todo** slide com `---` em linha isolada.
 
-Não adicione seção `## Próxima Aula` ao final do deck. O encerramento do deck é o resumo;
-continuidade, navegação e links para a aula seguinte ficam na página `.mdx`.
 
 Tamanho real dos decks: 128-547 linhas (~15 a 45 slides). Aulas de fundamento ficam
 perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.

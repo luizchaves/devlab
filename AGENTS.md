@@ -12,12 +12,12 @@ entregar. Em caso de conflito, o README vence — e este arquivo deve ser corrig
 
 Portal de disciplinas e guias de programação, construído com **Astro 7 + Starlight**
 e publicado no GitHub Pages sob um `base` (`/devlab`). O conteúdo é escrito em
-Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
+Markdown/MDX e o código dos tópicos e exemplos existe de verdade, em projetos executáveis.
 
 | Dimensão                      | Estado atual                                  |
 | ----------------------------- | --------------------------------------------- |
 | Cursos e guias                | 14 (`src/lib/courses.ts`)                     |
-| Páginas de aula               | 255 arquivos `.mdx`                           |
+| Páginas de tópicos            | 255 arquivos `.mdx`                           |
 | Projetos executáveis          | 77 projetos em `examples/courses/`            |
 | Slides / mapas mentais        | 66 / 66 em `materials/`                       |
 | Devcontainers (Codespaces)    | 24 pastas em `.devcontainer/`                 |
@@ -25,17 +25,17 @@ Markdown/MDX e o código das aulas existe de verdade, em projetos executáveis.
 
 ## Regras invioláveis
 
-1. **Código de aula não é copiado para o Markdown.** Código que roda mora em
+1. **Código de tópicos não é copiado para o Markdown.** Código que roda mora em
    `examples/` e entra na página por `<SourceCode path="…" />`. Blocos escritos à mão
    só para o que **não** existe em `examples/`: pseudocódigo, comparações
    "antes/depois", trechos ilustrativos e comandos de terminal.
 2. **Links internos são relativos** — nunca escreva o `base` (`/devlab/…`) à mão. As
-   URLs terminam em barra (`trailingSlash: 'always'`), então de uma aula a irmã é
-   `../outra-aula/` e uma pasta vizinha é `../../database/sql/`.
+   URLs terminam em barra (`trailingSlash: 'always'`), então de um tópico o vizinho é
+   `../outro-topico/` e uma pasta vizinha é `../../database/sql/`.
 3. **Nunca edite artefatos gerados**: `dist/`, `.astro/`, `public/slides/`,
    `public/mindmaps/`, `public/examples/`. Eles saem do build — edite a origem
    (`materials/`, `examples/`, `src/`).
-4. **Escreva em português do Brasil** para conteúdo didático, páginas de aula, comentários de código e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**. **Especificações (`specs/`) e mensagens de commit devem ser escritas em inglês.** No código (variáveis, funções, tipos e rotas), use o **inglês** ao máximo, a não ser que sejam textos de interface do usuário (front-end em PT-BR) ou termos específicos de domínio.
+4. **Escreva em português do Brasil** para conteúdo didático, páginas de tópicos, comentários de código e nomes de seção. Nomes de arquivo e slugs ficam em **inglês kebab-case**. **Especificações (`specs/`) e mensagens de commit devem ser escritas em inglês.** No código (variáveis, funções, tipos e rotas), use o **inglês** ao máximo, a não ser que sejam textos de interface do usuário (front-end em PT-BR) ou termos específicos de domínio.
 5. **`examples/` não faz parte do workspace.** Cada projeto tem `package.json` e
    `node_modules` próprios; o build da documentação e o CI não instalam Express,
    Prisma nem nada de lá. Não adicione esses projetos ao workspace raiz.
@@ -67,10 +67,10 @@ usuário em vez de mexer nos artefatos de `public/`.
 
 | Caminho                     | Papel                                                        |
 | --------------------------- | ------------------------------------------------------------ |
-| `src/content/docs/courses/` | Conteúdo das aulas, um diretório por curso                    |
+| `src/content/docs/courses/` | Conteúdo dos tópicos e guias, um diretório por curso/guia     |
 | `src/components/`           | Componentes `.astro` do projeto (camadas finas sobre Starlight) |
 | `src/lib/`                  | Leitura de `examples/`, catálogo de cursos e projetos, `withBase()` |
-| `examples/courses/`         | Projetos executáveis, fonte única do código das aulas          |
+| `examples/courses/`         | Projetos executáveis, fonte única do código dos tópicos e guias |
 | `materials/`                | `*.slide.md` (Marp) e `*.mindmap.md` (markmap)                 |
 | `exercises/`                | `*.exercise.md` e `*.braincheck.md`                            |
 | `.devcontainer/`            | Uma pasta por projeto, para o botão "Abrir no Codespaces"      |
@@ -92,18 +92,18 @@ Ao planejar refatorações de grande porte, migrações ou novas funcionalidades
 2. **Executar as tarefas**: realize as alterações de forma incremental com commits atômicos em inglês (referenciando as tarefas em `docs/TODO.md`).
 3. **Mover ao concluir**: ao finalizar todas as etapas, atualize o status da spec para concluído e mova o arquivo para `specs/executed/spec-XXX-<name-in-kebab-case>.md` (`git mv specs/active/... specs/executed/...`).
 
-## Fluxo para criar ou alterar uma aula
+## Fluxo para criar ou alterar um tópico
 
 1. Localize o arquivo em `src/content/docs/courses/<curso>/<categoria>/<topico>.mdx`.
    Curso novo? Crie o diretório, o `index.mdx` e registre em `src/lib/courses.ts`.
 2. Escreva o frontmatter: `title`, `description` (uma frase densa, vira `<meta>`),
    `course` (id do curso) e, quando útil, `sidebar.label` / `sidebar.order` e
    `project`.
-3. Se a aula mostra código que roda, **crie ou reaproveite o projeto em
+3. Se o tópico mostra código que roda, **crie ou reaproveite o projeto em
    `examples/`** antes de escrever a página, e importe com `<SourceCode>`.
 4. Registre a página na sidebar em `astro.config.mjs` — as sidebars são explícitas,
    não autogeradas; uma página fora dela existe mas não aparece na navegação.
-5. **Sincronize os materiais (`materials/`)**: tanto ao criar quanto ao **editar** uma aula (inclusão, remoção ou ajuste de seções, conceitos ou código), verifique e atualize os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) do tópico correspondente para manter paridade com o `.mdx`.
+5. **Sincronize os materiais (`materials/`)**: tanto ao criar quanto ao **editar** um tópico (inclusão, remoção ou ajuste de seções, conceitos ou código), verifique e atualize os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) do tópico correspondente para manter paridade com o `.mdx`.
 6. Rode `pnpm build && pnpm check:links && pnpm check:doc-lines`.
 
 Página nova de projeto (não de conceito) abre com `<ProjectLinks>` e, se for entrar
@@ -112,14 +112,15 @@ lista.
 
 ## Convenções de escrita
 
-A estrutura completa das aulas está em
+A estrutura completa dos tópicos está em
 [`.agents/skills/devlab-topic-docs-generator/SKILL.md`](.agents/skills/devlab-topic-docs-generator/SKILL.md).
 O essencial:
 
-- **Ordem da aula**: parágrafo de abertura → linha `Materiais:` (só se os arquivos
+- **Terminologia padrão**: Use **"tópico"** (unidade de conhecimento/conceitual) ou **"página"** (documento/interface) em vez de "aula" no conteúdo didático e nos cabeçalhos.
+- **Ordem do tópico**: parágrafo de abertura → linha `Materiais:` (só se os arquivos
   existirem) → `## Objetivo` → seções de conteúdo → `## Executando` →
   `## Exercício` → `## Desafio` → `## Perguntas de revisão` → `## Referências` →
-  `## Próxima aula`. `Objetivo`, `Exercício` e `Próxima aula` são obrigatórios.
+  `## Próximo tópico`. `Objetivo`, `Exercício` e `Próximo tópico` são obrigatórios.
 - **Sempre um parágrafo antes de uma tabela ou de um bloco de código.** Nada de
   título seguido direto de código: o texto diz o que olhar, citando a linha, a função
   ou a variável em questão.
@@ -135,7 +136,7 @@ O essencial:
   arquivo. A única exceção é a comparação antes/depois (`del`/`ins`), onde o título
   orienta e os marcadores deixam claro que aquilo é uma transição.
 - **`.md` por padrão, `.mdx` quando precisar de componente.** Na prática hoje todas
-  as 255 páginas são `.mdx`, porque quase toda aula usa `<Aside>` ou `<SourceCode>`.
+  as 255 páginas são `.mdx`, porque quase todo tópico usa `<Aside>` ou `<SourceCode>`.
 - Em `.mdx`, importe **apenas** o que for usado.
 
 ## Componentes
