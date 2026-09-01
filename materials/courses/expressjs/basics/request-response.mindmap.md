@@ -7,28 +7,35 @@ markmap:
 
 # Express.js: Requisição e Resposta
 
-## Ideia Central
+## Objeto `req` (Entrada)
 
-- **Conceito**: Os objetos req e res do Express: cabeçalhos, negociação de conteúdo, métodos que encerram a resposta, redirecionamento, download e arquivos estáticos.
-- **Ecossistema**: Node.js, Express.js e TypeScript
+- **Identificação da Chamada**: `req.method`, `req.path`, `req.originalUrl`, `req.protocol`, `req.ip`.
+- **Cabeçalhos HTTP**:
+  - `req.get(header)`: leitura case-insensitive segura.
+  - `req.headers`: objeto com cabeçalhos em letras minúsculas.
+- **Validação de Formato**: `req.is('application/json')` para proteção de handlers.
+- **Extração de Dados**: `req.params` (rota), `req.query` (busca na URL) e `req.body` (payload JSON).
 
-## Principais Pontos
+## Objeto `res` (Saída)
 
-### Anatomia de uma mensagem HTTP
-- Estruturas e convenções de **Anatomia de uma mensagem HTTP**
-### Lendo a requisição
-- Estruturas e convenções de **Lendo a requisição**
-### Negociação de conteúdo
-- Estruturas e convenções de **Negociação de conteúdo**
-### Escrevendo a resposta
-- Estruturas e convenções de **Escrevendo a resposta**
-### Redirecionamento
-- Estruturas e convenções de **Redirecionamento**
-### Arquivos estáticos e download
-- Estruturas e convenções de **Arquivos estáticos e download**
+- **Configuração (Encadeáveis)**:
+  - `res.status(code)`: definição do código HTTP.
+  - `res.set(name, value)`: inclusão de cabeçalhos de resposta.
+  - `res.type(mime)`: definição do Content-Type.
+- **Término (Finalizam Conexão)**:
+  - `res.json(data)`: serialização JSON e encerramento.
+  - `res.send(body)`: envio inferido de dados, texto ou buffer.
+  - `res.redirect(status, url)`: desvio HTTP (301, 302, 303, 307).
+  - `res.sendFile()`: transmissão inline de arquivos.
+  - `res.download()`: download forçado com nome de arquivo sugerido.
 
-## Boas Práticas
+## Negociação e Eventos do Ciclo
 
-- Manter responsabilidades separadas por módulo
-- Tratar erros de forma centralizada e previsível
-- Documentar rotas e contratos de entrada/saída
+- **Negociação de Conteúdo**: `res.format()` mapeando formatos com base no cabeçalho `Accept` (406 se incompatível).
+- **Métricas e Logs**: `res.on('finish')` para leitura do status e cálculo de duração de resposta.
+- **Segurança de Fluxo**: uso obrigatório de `return res...` para impedir `ERR_HTTP_HEADERS_SENT`.
+
+## Arquivos Estáticos e Cache
+
+- **Servidor de Assets**: `express.static('public')` com prioridade na cadeia de middlewares.
+- **Otimização de Tráfego**: geração automática de `ETag`, cabeçalhos `Cache-Control` e respostas `304 Not Modified`.
