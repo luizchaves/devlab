@@ -7,83 +7,51 @@ markmap:
 
 # JavaScript: Arrays e Métodos Funcionais
 
-## Objetivo
-- Reconhecer a estrutura de dados de Array em JavaScript, dominar técnicas de criação.
+## Ideia Central
 
-## Criação e Estrutura de Arrays
-- Notação Literal: Forma mais comum e recomendada de criar arrays; `const items = [1, 2, 3];`
-- Indexação: Elementos são acessados por índices inteiros a partir de 0; `items[0]` // `1`
-- Heterogeneidade: Pode armazenar primitivos, objetos e até outros arrays; `[42, "texto", true, { id: 1 }]`
-- Tipo de Dado: Internamente é um objeto especial; `typeof []` // `"object"`
-- Verificação: Teste oficial para checar se um valor é array; `Array.isArray([])` // `true`
-- Em JavaScript, um Array é uma lista ordenada de valores.
+- **Coleção Ordenada**: lista dinâmica e heterogênea indexada numericamente a partir de 0.
+- **Paradigmas**: manipulação mutadora clássica e processamento funcional imutável.
 
-## Acesso, Modificação e Propriedade length
-- Os elementos de um array são acessados e modificados usando colchetes e índices numéricos inteiros.
-- O primeiro elemento fica no índice `0` e o último no índice `array.length - 1`.
-### A Propriedade length e Arrays Esparsos
-- A propriedade `length` indica o número de posições do array.
-### O Operador delete
-- O operador `delete` pode ser usado em arrays, mas deve ser evitado na maioria dos cenários.
+## Criação e Estrutura
 
-## Operador Spread e Desestruturação (Destructuring)
-### Operador Spread (`...`)
-- O operador `...` permite espalhar os elementos de um array dentro de outro array ou como argumentos de uma função.
-### Desestruturação de Arrays
-- A desestruturação permite extrair valores de um array diretamente para variáveis de forma posicional.
+- **Literal de Array**: sintaxe recomendada `[1, 2, 3]`.
+- **Validação de Tipo**: `Array.isArray(val)` (evita o falso positivo `typeof [] === 'object'`).
+- **Geração de Intervalos**: `Array.from({ length: 5 }, (_, i) => i + 1)` para sequências.
 
-## Iteração em Arrays
-- Estrutura: Sintaxe; Uso Principal
-- `for` tradicional: `for (let i = 0; i < arr.length; i++)`; Controle total sobre índices e passos
-- `for...of`: `for (const item of arr)`; Percorrer valores de forma simples e legível
-- `forEach()`: `arr.forEach((item, index) => ...)`; Executar uma função para cada elemento
-- Os índices são convertidos para `string` (ex: `"0"`, `"1"`).
-- A ordem de iteração não é garantidamente numérico-sequencial.
+## Acesso e Desestruturação
 
-## Métodos do Objeto Array
-- Mutadores: Alteram o array original (in-place).
-- Não-Mutadores Modernos (ES2023): Alternativas imutáveis (Change Array by Copy) para alteração de elementos.
-- Acessores / Consulta: Não alteram o array original e retornam um novo valor ou array.
-### Métodos Mutadores (Modificam o Array Original)
-- `push(...items)`: Adiciona um ou mais elementos ao final; Novo `length`
-- `pop()`: Remove e retorna o último elemento; O elemento removido
-- `unshift(...items)`: Adiciona um ou mais elementos no início; Novo `length`
-- `shift()`: Remove e retorna o primeiro elemento; O elemento removido
-- `splice(start, deleteCount, ...items)`: Adiciona/remove elementos em qualquer posição; Array com elementos removidos
-### Métodos Não-Mutadores Modernos (ES2023)
-- Método Mutador / Clássico: Equivalente Não-Mutador (ES2023); Descrição do Resultado
-- `sort(compareFn)`: `toSorted(compareFn)`; Retorna um novo array ordenado
-- `reverse()`: `toReversed()`; Retorna um novo array invertido
-- `splice(start, deleteCount, ...items)`: `toSpliced(start, deleteCount, ...items)`.
-- `arr[index] = newValue`: `with(index, newValue)`; Retorna um novo array substituindo a posição informada
-### Métodos Acessores e de Consulta (Preservam o Array Original)
-- `includes(value)`: Verifica se um valor existe no array; `boolean`
-- `indexOf(value)`: Procura o primeiro índice do valor; Índice ou `-1` se não achar
-- `lastIndexOf(value)`: Procura o último índice do valor; Índice ou `-1` se não achar
-- `join(separator)`: Concatena todos os elementos em uma string; `string`
-- Estes métodos não modificam o array original.
-### Métodos de Iteração e Programação Funcional (Higher-Order Functions)
-- `map(fn)`: O novo valor transformado; Novo array com valores transformados
-- `filter(fn)`: `true` para manter o item, `false` para descartar; Novo array com itens filtrados
-- `reduce(fn, init)`: O acumulador atualizado a cada iteração; Valor único acumulado
-- `every(fn)`: `true` se o item atende à condição; `true` se todos atenderem
-- `some(fn)`: `true` se o item atende à condição; `true` se ao menos um atender
+- **Indexação**: leitura com colchetes `arr[0]` e tamanho dinâmico `.length`.
+- **Acesso Moderno com `.at()`**: suporte nativo a índices negativos (`.at(-1)`).
+- **Desestruturação Posicional**: `const [first, ...rest] = arr` e troca de variáveis (*swap*).
+- **Operador Spread (`...`)**: clonagem rasa (*shallow copy*) e fusão sem mutação.
 
-## Resumo e Boas Práticas
-- Use a notação literal `[]` para criar arrays.
-- Teste se um valor é um array com `Array.isArray(valor)`.
-- Evite o operador `delete`; prefira métodos mutadores ou imutáveis.
-- Em aplicações modernas, dê preferência a métodos que não alteram o original (`map`, `filter`, `reduce`, `concat`.
-- Para ordenação sem alterar o original, utilize os métodos imutáveis modernos como `.toSorted()`.
-- Preferencialmente, declare referências de arrays com `const`. Isso impede a reassociação da variável.
+## Métodos Mutadores Clássicos
 
-## Gerando Intervalos e Sequências Numéricas (*Range*)
-- Ao contrário de linguagens como Python (que possuem a função nativa `range()`).
-- No entanto, é muito comum precisar gerar sequências numéricas para repetições ou iterações.
+- **Bordas**: `push()` / `pop()` (fim) e `unshift()` / `shift()` (início).
+- **Corte e Emenda**: `splice(start, deleteCount, ...items)`.
+- **Ordenação In-place (`.sort()`)**:
+  - Números: requer comparador `(a, b) => a - b`.
+  - Strings com acentos: requer `(a, b) => a.localeCompare(b, "pt-BR")`.
+  - Algoritmo Timsort (ordenação estável).
 
-## Síntese de Estudo
-- **Página**: aprofunda conceitos, exemplos e exercícios
-- **Slides**: organizam a exposição em sala
-- **Mapa mental**: revisa relações entre tópicos
-- **Prática**: execute os exemplos antes de memorizar regras
+## Métodos Não-Mutadores do ES2023
 
+- **Cópia Segura (*Change Array by Copy*)**:
+  - `toSorted()`: retorna novo array ordenado.
+  - `toReversed()`: retorna novo array invertido.
+  - `toSpliced()`: retorna novo array com emendas.
+  - `with(index, val)`: retorna cópia com elemento substituído.
+- **Busca Reversa**: `findLast()` e `findLastIndex()`.
+
+## Métodos Funcionais de Ordem Superior
+
+- **Mapeamento**: `map()` para transformações 1:1 e `flatMap()` para achatar.
+- **Filtragem**: `filter()` para seleção por predicado booleano.
+- **Redução e Agregação**: `reduce()` para acumular totais e agrupar objetos.
+- **Busca e Predicados**: `find()`, `findIndex()`, `includes()`, `some()`, `every()`.
+
+## Boas Práticas
+
+- **Priorize Imutabilidade**: prefira `spread`, `map`, `filter` e métodos do ES2023.
+- **Iteração Limpa**: use `for...of` em vez de `for...in` para arrays.
+- **Sempre forneça função comparadora ao ordenar**: previna armadilhas de ordenação lexicográfica.
