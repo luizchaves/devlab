@@ -263,7 +263,7 @@ Convenções adotadas:
 
 - **Links internos são relativos**, para continuarem corretos sob o `base` do GitHub
   Pages sem precisar escrevê-lo. Atenção: as URLs terminam em barra
-  (`/courses/express/architecture/mvc/`), então a partir de uma aula uma *irmã* é `../rest-api/`
+  (`/courses/expressjs/architecture/mvc/`), então a partir de uma aula uma *irmã* é `../rest-api/`
   e uma pasta vizinha é `../../database/sql/`. Em páginas `index`, que já são o
   diretório, vale a forma direta (`javascript/`).
 - Toda aula termina com **Exercício** e **Próxima aula**.
