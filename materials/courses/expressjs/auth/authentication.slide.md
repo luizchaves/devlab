@@ -27,7 +27,7 @@ Autenticação em uma API Express: sessão com estado versus token sem estado, a
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/auth`
+- Projeto executável: `examples/courses/expressjs/projects/auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -315,11 +315,11 @@ export function signOut() {
 
 ## Arquivos-Chave da Aula
 
-- **src/utils/jwt.ts**: `examples/courses/express/projects/auth/src/utils/jwt.ts` (linhas marcadas `39-41,50-51,55`)
-- **src/utils/jwt.ts**: `examples/courses/express/projects/auth/src/utils/jwt.ts` (linhas marcadas `66-72,76-78,82-84`)
-- **src/controllers/auth-controller.ts**: `examples/courses/express/projects/auth/src/controllers/auth-controller.ts` (linhas marcadas `39-42,44-49`)
-- **src/middlewares/authenticate.ts**: `examples/courses/express/projects/auth/src/middlewares/authenticate.ts` (linhas marcadas `13,15-17,20`)
-- **src/routes/investment-router.ts**: `examples/courses/express/projects/auth/src/routes/investment-router.ts` (linhas marcadas `10`)
+- **src/utils/jwt.ts**: `examples/courses/expressjs/projects/auth/src/utils/jwt.ts` (linhas marcadas `39-41,50-51,55`)
+- **src/utils/jwt.ts**: `examples/courses/expressjs/projects/auth/src/utils/jwt.ts` (linhas marcadas `66-72,76-78,82-84`)
+- **src/controllers/auth-controller.ts**: `examples/courses/expressjs/projects/auth/src/controllers/auth-controller.ts` (linhas marcadas `39-42,44-49`)
+- **src/middlewares/authenticate.ts**: `examples/courses/expressjs/projects/auth/src/middlewares/authenticate.ts` (linhas marcadas `13,15-17,20`)
+- **src/routes/investment-router.ts**: `examples/courses/expressjs/projects/auth/src/routes/investment-router.ts` (linhas marcadas `10`)
 
 ---
 

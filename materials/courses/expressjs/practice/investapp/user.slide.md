@@ -30,7 +30,7 @@ Sétima etapa do InvestApp: model User com hash Argon2id nativo, relação entre
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-prismajs-user`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-prismajs-user`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -214,7 +214,7 @@ npx prisma migrate dev --name add_user_model
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-prismajs-user
+   cd examples/courses/expressjs/projects/invest-app-prismajs-user
    npm install
    cp .env.example .env
 ```
@@ -277,8 +277,8 @@ npx prisma studio
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-prismajs-relation \
-  examples/courses/express/projects/invest-app-prismajs-user || true
+  examples/courses/expressjs/projects/invest-app-prismajs-relation \
+  examples/courses/expressjs/projects/invest-app-prismajs-user || true
 ```
 
 ---
@@ -301,12 +301,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **prisma/schema.prisma**: `examples/courses/express/projects/invest-app-prismajs-user/prisma/schema.prisma` (linhas marcadas `20-21,33-39`)
-- **src/utils/password.ts**: `examples/courses/express/projects/invest-app-prismajs-user/src/utils/password.ts` (linhas marcadas `10,14-23,33-46`)
-- **src/models/User.ts**: `examples/courses/express/projects/invest-app-prismajs-user/src/models/User.ts` (linhas marcadas `3,9,18,41-49`)
-- **src/schemas/user.schema.ts**: `examples/courses/express/projects/invest-app-prismajs-user/src/schemas/user.schema.ts` (linhas marcadas `12-17`)
-- **src/controllers/users.controller.ts**: `examples/courses/express/projects/invest-app-prismajs-user/src/controllers/users.controller.ts` (linhas marcadas `8-10,17-19`)
-- **src/routes/users.routes.ts**: `examples/courses/express/projects/invest-app-prismajs-user/src/routes/users.routes.ts` (linhas marcadas `11`)
+- **prisma/schema.prisma**: `examples/courses/expressjs/projects/invest-app-prismajs-user/prisma/schema.prisma` (linhas marcadas `20-21,33-39`)
+- **src/utils/password.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-user/src/utils/password.ts` (linhas marcadas `10,14-23,33-46`)
+- **src/models/User.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-user/src/models/User.ts` (linhas marcadas `3,9,18,41-49`)
+- **src/schemas/user.schema.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-user/src/schemas/user.schema.ts` (linhas marcadas `12-17`)
+- **src/controllers/users.controller.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-user/src/controllers/users.controller.ts` (linhas marcadas `8-10,17-19`)
+- **src/routes/users.routes.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-user/src/routes/users.routes.ts` (linhas marcadas `11`)
 
 ---
 

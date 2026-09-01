@@ -30,7 +30,7 @@ Décima etapa do InvestApp: upload de arquivo com multer para criar e atualizar 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-upload`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-upload`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -199,7 +199,7 @@ npm install -D @types/multer
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-upload
+   cd examples/courses/expressjs/projects/invest-app-upload
    npm install
 ```
 
@@ -250,8 +250,8 @@ npm install -D @types/multer
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-email \
-  examples/courses/express/projects/invest-app-upload || true
+  examples/courses/expressjs/projects/invest-app-email \
+  examples/courses/expressjs/projects/invest-app-upload || true
 ```
 
 ---
@@ -274,12 +274,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **A cadeia de middlewares da rota de upload**: `examples/courses/express/projects/invest-app-upload/src/routes/images.routes.ts` (linhas marcadas `14`)
-- **src/config/multer.ts**: `examples/courses/express/projects/invest-app-upload/src/config/multer.ts` (linhas marcadas `13-17,24-26,27-35`)
-- **src/routes/images.routes.ts**: `examples/courses/express/projects/invest-app-upload/src/routes/images.routes.ts` (linhas marcadas `12,14,15`)
-- **src/controllers/images.controller.ts**: `examples/courses/express/projects/invest-app-upload/src/controllers/images.controller.ts` (linhas marcadas `7-11,18,30`)
-- **prisma/schema.prisma**: `examples/courses/express/projects/invest-app-upload/prisma/schema.prisma` (linhas marcadas `46`)
-- **src/models/Image.ts**: `examples/courses/express/projects/invest-app-upload/src/models/Image.ts` (linhas marcadas `10,17`)
+- **A cadeia de middlewares da rota de upload**: `examples/courses/expressjs/projects/invest-app-upload/src/routes/images.routes.ts` (linhas marcadas `14`)
+- **src/config/multer.ts**: `examples/courses/expressjs/projects/invest-app-upload/src/config/multer.ts` (linhas marcadas `13-17,24-26,27-35`)
+- **src/routes/images.routes.ts**: `examples/courses/expressjs/projects/invest-app-upload/src/routes/images.routes.ts` (linhas marcadas `12,14,15`)
+- **src/controllers/images.controller.ts**: `examples/courses/expressjs/projects/invest-app-upload/src/controllers/images.controller.ts` (linhas marcadas `7-11,18,30`)
+- **prisma/schema.prisma**: `examples/courses/expressjs/projects/invest-app-upload/prisma/schema.prisma` (linhas marcadas `46`)
+- **src/models/Image.ts**: `examples/courses/expressjs/projects/invest-app-upload/src/models/Image.ts` (linhas marcadas `10,17`)
 
 ---
 

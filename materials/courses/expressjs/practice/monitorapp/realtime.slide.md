@@ -30,7 +30,7 @@ Décima primeira etapa do MonitorApp: painel que se atualiza sozinho com Server-
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-realtime`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-realtime`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -227,7 +227,7 @@ Cenário: CA12.3 - A tela muda sozinha
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-realtime/back
+   cd examples/courses/expressjs/projects/monitor-app-realtime/back
    npm install
    npm run db:migrate
    npm run db:seed
@@ -254,12 +254,12 @@ Cenário: CA12.3 - A tela muda sozinha
 
 ## Arquivos-Chave da Aula
 
-- **back/src/services/events.ts**: `examples/courses/express/projects/monitor-app-realtime/back/src/services/events.ts` (linhas marcadas `3-10,17-20`)
-- **back/src/routes/events.routes.ts**: `examples/courses/express/projects/monitor-app-realtime/back/src/routes/events.routes.ts` (linhas marcadas `19-28,32-36,43-46`)
-- **back/src/models/Ping.ts**: `examples/courses/express/projects/monitor-app-realtime/back/src/models/Ping.ts` (linhas marcadas `28-37`)
-- **front/js/lib/events.js**: `examples/courses/express/projects/monitor-app-realtime/front/js/lib/events.js` (linhas marcadas `11-14,34-36`)
-- **front/js/index.js**: `examples/courses/express/projects/monitor-app-realtime/front/js/index.js` (linhas marcadas `127-143`)
-- **front/js/host.js**: `examples/courses/express/projects/monitor-app-realtime/front/js/host.js`
+- **back/src/services/events.ts**: `examples/courses/expressjs/projects/monitor-app-realtime/back/src/services/events.ts` (linhas marcadas `3-10,17-20`)
+- **back/src/routes/events.routes.ts**: `examples/courses/expressjs/projects/monitor-app-realtime/back/src/routes/events.routes.ts` (linhas marcadas `19-28,32-36,43-46`)
+- **back/src/models/Ping.ts**: `examples/courses/expressjs/projects/monitor-app-realtime/back/src/models/Ping.ts` (linhas marcadas `28-37`)
+- **front/js/lib/events.js**: `examples/courses/expressjs/projects/monitor-app-realtime/front/js/lib/events.js` (linhas marcadas `11-14,34-36`)
+- **front/js/index.js**: `examples/courses/expressjs/projects/monitor-app-realtime/front/js/index.js` (linhas marcadas `127-143`)
+- **front/js/host.js**: `examples/courses/expressjs/projects/monitor-app-realtime/front/js/host.js`
 
 ---
 

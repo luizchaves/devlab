@@ -30,7 +30,7 @@ Décima segunda etapa do MonitorApp: testes de unidade com node:test, testes de 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-test`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-test`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -221,7 +221,7 @@ npm install -D vitest @vitest/coverage-v8 jsdom
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-test/back
+   cd examples/courses/expressjs/projects/monitor-app-test/back
    npm install
    npm run db:migrate
    npm test
@@ -233,7 +233,7 @@ npm install -D vitest @vitest/coverage-v8 jsdom
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-test/front
+   cd examples/courses/expressjs/projects/monitor-app-test/front
    npm install
    npm test
    npm run coverage
@@ -259,12 +259,12 @@ npm install -D vitest @vitest/coverage-v8 jsdom
 
 ## Arquivos-Chave da Aula
 
-- **back/src/lib/ping.test.ts**: `examples/courses/express/projects/monitor-app-test/back/src/lib/ping.test.ts` (linhas marcadas `14-20`)
-- **back/src/schemas/host.schema.test.ts**: `examples/courses/express/projects/monitor-app-test/back/src/schemas/host.schema.test.ts` (linhas marcadas `11-25`)
-- **back/src/index.ts**: `examples/courses/express/projects/monitor-app-test/back/src/index.ts` (linhas marcadas `37-48`)
-- **back/src/routes.test.ts**: `examples/courses/express/projects/monitor-app-test/back/src/routes.test.ts` (linhas marcadas `10-18,33-49`)
-- **back/src/routes.test.ts: o isolamento por dono**: `examples/courses/express/projects/monitor-app-test/back/src/routes.test.ts` (linhas marcadas `115-124`)
-- **front/js/lib/format.test.js**: `examples/courses/express/projects/monitor-app-test/front/js/lib/format.test.js` (linhas marcadas `10-12`)
+- **back/src/lib/ping.test.ts**: `examples/courses/expressjs/projects/monitor-app-test/back/src/lib/ping.test.ts` (linhas marcadas `14-20`)
+- **back/src/schemas/host.schema.test.ts**: `examples/courses/expressjs/projects/monitor-app-test/back/src/schemas/host.schema.test.ts` (linhas marcadas `11-25`)
+- **back/src/index.ts**: `examples/courses/expressjs/projects/monitor-app-test/back/src/index.ts` (linhas marcadas `37-48`)
+- **back/src/routes.test.ts**: `examples/courses/expressjs/projects/monitor-app-test/back/src/routes.test.ts` (linhas marcadas `10-18,33-49`)
+- **back/src/routes.test.ts: o isolamento por dono**: `examples/courses/expressjs/projects/monitor-app-test/back/src/routes.test.ts` (linhas marcadas `115-124`)
+- **front/js/lib/format.test.js**: `examples/courses/expressjs/projects/monitor-app-test/front/js/lib/format.test.js` (linhas marcadas `10-12`)
 
 ---
 

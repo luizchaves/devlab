@@ -27,7 +27,7 @@ Roteamento no Express: caminhos e padrões, parâmetros de rota, query string e 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/task-api-router`
+- Projeto executável: `examples/courses/expressjs/projects/task-api-router`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -212,7 +212,7 @@ app.use('/tasks', taskRouter);
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/task-api-router
+   cd examples/courses/expressjs/projects/task-api-router
    pnpm install
 ```
 

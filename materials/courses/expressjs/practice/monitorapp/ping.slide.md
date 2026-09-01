@@ -30,7 +30,7 @@ Oitava etapa do MonitorApp: execução do comando ping do sistema com node:child
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-ping`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-ping`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -216,7 +216,7 @@ Cenário: CA08.3 - Host fora do ar
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-ping/back
+   cd examples/courses/expressjs/projects/monitor-app-ping/back
    npm install
    cp .env.example .env
    npm run db:migrate
@@ -229,7 +229,7 @@ Cenário: CA08.3 - Host fora do ar
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-ping/front
+   cd examples/courses/expressjs/projects/monitor-app-ping/front
    npm install
    npm run dev
 ```
@@ -252,12 +252,12 @@ Cenário: CA08.3 - Host fora do ar
 
 ## Arquivos-Chave da Aula
 
-- **back/src/lib/ping.ts**: `examples/courses/express/projects/monitor-app-ping/back/src/lib/ping.ts` (linhas marcadas `41-54`)
-- **back/src/models/Ping.ts**: `examples/courses/express/projects/monitor-app-ping/back/src/models/Ping.ts` (linhas marcadas `18-28`)
-- **back/src/services/monitor.ts**: `examples/courses/express/projects/monitor-app-ping/back/src/services/monitor.ts` (linhas marcadas `11-15,23-35`)
-- **back/src/index.ts**: `examples/courses/express/projects/monitor-app-ping/back/src/index.ts` (linhas marcadas `29-34`)
-- **back/src/routes/pings.routes.ts**: `examples/courses/express/projects/monitor-app-ping/back/src/routes/pings.routes.ts` (linhas marcadas `9-10`)
-- **front/js/services/api.js**: `examples/courses/express/projects/monitor-app-ping/front/js/services/api.js` (linhas marcadas `8-14`)
+- **back/src/lib/ping.ts**: `examples/courses/expressjs/projects/monitor-app-ping/back/src/lib/ping.ts` (linhas marcadas `41-54`)
+- **back/src/models/Ping.ts**: `examples/courses/expressjs/projects/monitor-app-ping/back/src/models/Ping.ts` (linhas marcadas `18-28`)
+- **back/src/services/monitor.ts**: `examples/courses/expressjs/projects/monitor-app-ping/back/src/services/monitor.ts` (linhas marcadas `11-15,23-35`)
+- **back/src/index.ts**: `examples/courses/expressjs/projects/monitor-app-ping/back/src/index.ts` (linhas marcadas `29-34`)
+- **back/src/routes/pings.routes.ts**: `examples/courses/expressjs/projects/monitor-app-ping/back/src/routes/pings.routes.ts` (linhas marcadas `9-10`)
+- **front/js/services/api.js**: `examples/courses/expressjs/projects/monitor-app-ping/front/js/services/api.js` (linhas marcadas `8-14`)
 
 ---
 

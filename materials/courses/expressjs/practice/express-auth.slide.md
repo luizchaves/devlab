@@ -30,7 +30,7 @@ Cadastro, autenticação por JWT e autorização por posse e papel, com hash Arg
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/auth`
+- Projeto executável: `examples/courses/expressjs/projects/auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -94,7 +94,7 @@ Cadastro, autenticação por JWT e autorização por posse e papel, com hash Arg
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/auth
+   cd examples/courses/expressjs/projects/auth
 ```
 
 ---
@@ -178,8 +178,8 @@ Cadastro, autenticação por JWT e autorização por posse e papel, com hash Arg
 
 ## Arquivos-Chave da Aula
 
-- **src/utils/password.ts**: `examples/courses/express/projects/auth/src/utils/password.ts`
-- **src/utils/jwt.ts**: `examples/courses/express/projects/auth/src/utils/jwt.ts`
+- **src/utils/password.ts**: `examples/courses/expressjs/projects/auth/src/utils/password.ts`
+- **src/utils/jwt.ts**: `examples/courses/expressjs/projects/auth/src/utils/jwt.ts`
 
 ---
 

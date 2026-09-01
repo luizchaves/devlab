@@ -30,7 +30,7 @@ Sétima etapa do MonitorApp: schema declarativo com Prisma, migrations versionad
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-prisma`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-prisma`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -245,7 +245,7 @@ cp .env.example .env
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-prisma/back
+   cd examples/courses/expressjs/projects/monitor-app-prisma/back
    npm install
    cp .env.example .env
    npm run db:migrate
@@ -258,7 +258,7 @@ cp .env.example .env
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-prisma/front
+   cd examples/courses/expressjs/projects/monitor-app-prisma/front
    npm install
    npm run dev
 ```
@@ -283,12 +283,12 @@ cp .env.example .env
 
 ## Arquivos-Chave da Aula
 
-- **back/prisma/schema.prisma**: `examples/courses/express/projects/monitor-app-prisma/back/prisma/schema.prisma` (linhas marcadas `17,19,25,28,36`)
-- **back/prisma/migrations/20260301000000_init/migration.sql**: `examples/courses/express/projects/monitor-app-prisma/back/prisma/migrations/20260301000000_init/migration.sql` (linhas marcadas `27-32,38-41`)
-- **back/src/database/database.ts**: `examples/courses/express/projects/monitor-app-prisma/back/src/database/database.ts` (linhas marcadas `9,12`)
-- **back/prisma.config.ts**: `examples/courses/express/projects/monitor-app-prisma/back/prisma.config.ts`
-- **back/src/database/seed.ts**: `examples/courses/express/projects/monitor-app-prisma/back/src/database/seed.ts` (linhas marcadas `17,24,26-33`)
-- **back/src/models/Host.ts**: `examples/courses/express/projects/monitor-app-prisma/back/src/models/Host.ts` (linhas marcadas `8-21,38,64`)
+- **back/prisma/schema.prisma**: `examples/courses/expressjs/projects/monitor-app-prisma/back/prisma/schema.prisma` (linhas marcadas `17,19,25,28,36`)
+- **back/prisma/migrations/20260301000000_init/migration.sql**: `examples/courses/expressjs/projects/monitor-app-prisma/back/prisma/migrations/20260301000000_init/migration.sql` (linhas marcadas `27-32,38-41`)
+- **back/src/database/database.ts**: `examples/courses/expressjs/projects/monitor-app-prisma/back/src/database/database.ts` (linhas marcadas `9,12`)
+- **back/prisma.config.ts**: `examples/courses/expressjs/projects/monitor-app-prisma/back/prisma.config.ts`
+- **back/src/database/seed.ts**: `examples/courses/expressjs/projects/monitor-app-prisma/back/src/database/seed.ts` (linhas marcadas `17,24,26-33`)
+- **back/src/models/Host.ts**: `examples/courses/expressjs/projects/monitor-app-prisma/back/src/models/Host.ts` (linhas marcadas `8-21,38,64`)
 
 ---
 

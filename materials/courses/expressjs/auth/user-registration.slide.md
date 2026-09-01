@@ -27,7 +27,7 @@ A rota pública de cadastro em uma API Express: modelo de usuário, hash da senh
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/auth`
+- Projeto executável: `examples/courses/expressjs/projects/auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -234,8 +234,8 @@ export function findByEmailWithPassword(email: string): UserWithPassword | undef
 
 ## Arquivos-Chave da Aula
 
-- **src/models/user-model.ts**: `examples/courses/express/projects/auth/src/models/user-model.ts` (linhas marcadas `12-15,33`)
-- **src/controllers/auth-controller.ts**: `examples/courses/express/projects/auth/src/controllers/auth-controller.ts` (linhas marcadas `11,17-19,21-23`)
+- **src/models/user-model.ts**: `examples/courses/expressjs/projects/auth/src/models/user-model.ts` (linhas marcadas `12-15,33`)
+- **src/controllers/auth-controller.ts**: `examples/courses/expressjs/projects/auth/src/controllers/auth-controller.ts` (linhas marcadas `11,17-19,21-23`)
 
 ---
 

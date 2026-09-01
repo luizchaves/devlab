@@ -28,7 +28,7 @@ Aplicação de controle de investimentos construída em treze etapas: front est�
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-test`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-test`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -144,7 +144,7 @@ Aplicação de controle de investimentos construída em treze etapas: front est�
 
 ## Protótipo visual e telas principais
 
-- Conheça as telas do InvestApp renderizadas a partir dos arquivos do projeto local em `examples/courses/express/projects/invest-app-static/`:
+- Conheça as telas do InvestApp renderizadas a partir dos arquivos do projeto local em `examples/courses/expressjs/projects/invest-app-static/`:
 - Painel principal com métricas da carteira, cartões de ativos e formulário para registrar novos investimentos:
 - Interface de autenticação do investidor com validação visual de e-mail e senha:
 - Formulário de cadastro de novo usuário integrado ao hash de senha no servidor:
@@ -222,7 +222,7 @@ Aplicação de controle de investimentos construída em treze etapas: front est�
 - Nada que foi introduzido desaparece depois: o TypeScript da etapa 3 vale até a 12, a validação da etapa 4 continua nas rotas de todas as seguintes, e o...
 - As duas únicas remoções do trilho são substituições explicadas na própria página: o array em memória sai na etapa 6, quando o banco entra, e os scripts...
 - Cada etapa resolve exatamente um problema novo e mantém tudo que veio antes.
-- O código de todo o projeto reside 100% no próprio repositório, dentro de `examples/courses/express/projects/`.
+- O código de todo o projeto reside 100% no próprio repositório, dentro de `examples/courses/expressjs/projects/`.
 
 ---
 
@@ -230,8 +230,8 @@ Aplicação de controle de investimentos construída em treze etapas: front est�
 
 ```bash
   git diff --no-index -- \
-    examples/courses/express/projects/invest-app-static \
-    examples/courses/express/projects/invest-app-api || true
+    examples/courses/expressjs/projects/invest-app-static \
+    examples/courses/expressjs/projects/invest-app-api || true
 ```
 
 ---
@@ -240,15 +240,15 @@ Aplicação de controle de investimentos construída em treze etapas: front est�
 
 ```bash
   git diff --no-index -- \
-    examples/courses/express/projects/invest-app-db-simple \
-    examples/courses/express/projects/invest-app-prismajs-relation || true
+    examples/courses/expressjs/projects/invest-app-db-simple \
+    examples/courses/expressjs/projects/invest-app-prismajs-relation || true
 ```
 
 ---
 
 ## Execução dos projetos locais
 
-- Cada página de etapa aponta para uma pasta em `examples/courses/express/projects/`. Localmente:
+- Cada página de etapa aponta para uma pasta em `examples/courses/expressjs/projects/`. Localmente:
 - A etapa 7 em diante instala o Prisma; a etapa 3 acrescenta `typescript` e `@types/*`.
 - Rode `npm install` de novo sempre que trocar de pasta: o `package.json` é diferente.
 
@@ -257,7 +257,7 @@ Aplicação de controle de investimentos construída em treze etapas: front est�
 ## Execução dos projetos locais: Exemplo
 
 ```bash
-cd examples/courses/express/projects/invest-app-db-simple
+cd examples/courses/expressjs/projects/invest-app-db-simple
 npm install
 npm run dev
 ```

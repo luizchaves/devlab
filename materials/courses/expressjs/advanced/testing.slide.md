@@ -27,7 +27,7 @@ Testes de uma API Express: node:test nativo, testes de unidade e de integração
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/auth`
+- Projeto executável: `examples/courses/expressjs/projects/auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -378,8 +378,8 @@ test('cadastra um investimento pela interface', async ({ page }) => {
 
 ## Arquivos-Chave da Aula
 
-- **src/utils/jwt.test.ts**: `examples/courses/express/projects/auth/src/utils/jwt.test.ts` (linhas marcadas `1-2,12-18`)
-- **src/utils/password.test.ts**: `examples/courses/express/projects/auth/src/utils/password.test.ts`
+- **src/utils/jwt.test.ts**: `examples/courses/expressjs/projects/auth/src/utils/jwt.test.ts` (linhas marcadas `1-2,12-18`)
+- **src/utils/password.test.ts**: `examples/courses/expressjs/projects/auth/src/utils/password.test.ts`
 
 ---
 

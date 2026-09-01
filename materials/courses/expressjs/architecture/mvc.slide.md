@@ -27,7 +27,7 @@ Arquitetura em camadas de uma aplicação Express: model, controller, router e m
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/mvc`
+- Projeto executável: `examples/courses/expressjs/projects/mvc`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -132,7 +132,7 @@ router.get('/', userController.index);
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/typescript
+   cd examples/courses/expressjs/projects/typescript
 ```
 
 ---
@@ -274,9 +274,9 @@ router.post('/', validate(['name', 'email']), userController.store);
 
 ## Arquivos-Chave da Aula
 
-- **src/app.ts**: `examples/courses/express/projects/typescript/src/app.ts` (linhas marcadas `17,20-21`)
-- **src/controllers/user-controller.ts**: `examples/courses/express/projects/typescript/src/controllers/user-controller.ts`
-- **src/models/user-model.ts**: `examples/courses/express/projects/typescript/src/models/user-model.ts`
+- **src/app.ts**: `examples/courses/expressjs/projects/typescript/src/app.ts` (linhas marcadas `17,20-21`)
+- **src/controllers/user-controller.ts**: `examples/courses/expressjs/projects/typescript/src/controllers/user-controller.ts`
+- **src/models/user-model.ts**: `examples/courses/expressjs/projects/typescript/src/models/user-model.ts`
 
 ---
 

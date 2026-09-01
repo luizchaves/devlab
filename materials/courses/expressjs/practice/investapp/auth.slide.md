@@ -30,7 +30,7 @@ Oitava etapa do InvestApp: login com JWT, middleware isAuthenticated, investimen
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-auth`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -244,7 +244,7 @@ base64url(cabeçalho) . base64url(payload) . base64url(HMAC-SHA256(cabeçalho.pa
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-auth
+   cd examples/courses/expressjs/projects/invest-app-auth
    npm install
    cp .env.example .env
 ```
@@ -307,8 +307,8 @@ base64url(cabeçalho) . base64url(payload) . base64url(HMAC-SHA256(cabeçalho.pa
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-prismajs-user \
-  examples/courses/express/projects/invest-app-auth || true
+  examples/courses/expressjs/projects/invest-app-prismajs-user \
+  examples/courses/expressjs/projects/invest-app-auth || true
 ```
 
 ---
@@ -331,12 +331,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **src/utils/jwt.ts**: `examples/courses/express/projects/invest-app-auth/src/utils/jwt.ts` (linhas marcadas `11,39-41,44-56`)
-- **src/middlewares/isAuthenticated.ts**: `examples/courses/express/projects/invest-app-auth/src/middlewares/isAuthenticated.ts` (linhas marcadas `7,10,14,17,22`)
-- **src/types/express.d.ts**: `examples/courses/express/projects/invest-app-auth/src/types/express.d.ts` (linhas marcadas `6`)
-- **src/controllers/auth.controller.ts**: `examples/courses/express/projects/invest-app-auth/src/controllers/auth.controller.ts` (linhas marcadas `12,16,20,26`)
-- **src/models/Investment.ts**: `examples/courses/express/projects/invest-app-auth/src/models/Investment.ts` (linhas marcadas `20-22,33,41-49,59`)
-- **public/js/signin.js**: `examples/courses/express/projects/invest-app-auth/public/js/signin.js` (linhas marcadas `13,16`)
+- **src/utils/jwt.ts**: `examples/courses/expressjs/projects/invest-app-auth/src/utils/jwt.ts` (linhas marcadas `11,39-41,44-56`)
+- **src/middlewares/isAuthenticated.ts**: `examples/courses/expressjs/projects/invest-app-auth/src/middlewares/isAuthenticated.ts` (linhas marcadas `7,10,14,17,22`)
+- **src/types/express.d.ts**: `examples/courses/expressjs/projects/invest-app-auth/src/types/express.d.ts` (linhas marcadas `6`)
+- **src/controllers/auth.controller.ts**: `examples/courses/expressjs/projects/invest-app-auth/src/controllers/auth.controller.ts` (linhas marcadas `12,16,20,26`)
+- **src/models/Investment.ts**: `examples/courses/expressjs/projects/invest-app-auth/src/models/Investment.ts` (linhas marcadas `20-22,33,41-49,59`)
+- **public/js/signin.js**: `examples/courses/expressjs/projects/invest-app-auth/public/js/signin.js` (linhas marcadas `13,16`)
 
 ---
 

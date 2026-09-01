@@ -30,7 +30,7 @@ Quinta etapa do InvestApp: documentação OpenAPI gerada a partir dos schemas Zo
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-swagger`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-swagger`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -180,7 +180,7 @@ npm install -D @types/swagger-ui-express
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-swagger
+   cd examples/courses/expressjs/projects/invest-app-swagger
    npm install
 ```
 
@@ -214,8 +214,8 @@ npm install -D @types/swagger-ui-express
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-validation/src \
-  examples/courses/express/projects/invest-app-swagger/src || true
+  examples/courses/expressjs/projects/invest-app-validation/src \
+  examples/courses/expressjs/projects/invest-app-swagger/src || true
 ```
 
 ---
@@ -260,10 +260,10 @@ security: [{ bearerAuth: [] }],
 
 ## Arquivos-Chave da Aula
 
-- **src/docs/openapi.ts**: `examples/courses/express/projects/invest-app-swagger/src/docs/openapi.ts` (linhas marcadas `1,13-15,18-20,22-24`)
-- **src/docs/openapi.ts: as rotas**: `examples/courses/express/projects/invest-app-swagger/src/docs/openapi.ts` (linhas marcadas `72-73,87-94`)
-- **src/routes/docs.routes.ts**: `examples/courses/express/projects/invest-app-swagger/src/routes/docs.routes.ts` (linhas marcadas `9,12`)
-- **src/index.ts**: `examples/courses/express/projects/invest-app-swagger/src/index.ts` (linhas marcadas `5,19`)
+- **src/docs/openapi.ts**: `examples/courses/expressjs/projects/invest-app-swagger/src/docs/openapi.ts` (linhas marcadas `1,13-15,18-20,22-24`)
+- **src/docs/openapi.ts: as rotas**: `examples/courses/expressjs/projects/invest-app-swagger/src/docs/openapi.ts` (linhas marcadas `72-73,87-94`)
+- **src/routes/docs.routes.ts**: `examples/courses/expressjs/projects/invest-app-swagger/src/routes/docs.routes.ts` (linhas marcadas `9,12`)
+- **src/index.ts**: `examples/courses/expressjs/projects/invest-app-swagger/src/index.ts` (linhas marcadas `5,19`)
 
 ---
 

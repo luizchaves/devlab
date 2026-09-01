@@ -16,7 +16,7 @@ e registra o plano de correção derivado delas.
 
 A auditoria cobriu as 13 etapas de cada trilha: 26 páginas `.mdx` em
 `src/content/docs/courses/express/practice/` e 26 pastas em
-`examples/courses/express/projects/`.
+`examples/courses/expressjs/projects/`.
 
 ## Método
 
@@ -200,7 +200,7 @@ precisar apagar o histórico. Nenhuma página avisa isso.
 
 ### B4 · `public/js/signin.js` da etapa 8 é um arquivo vazio
 
-O arquivo `examples/courses/express/projects/invest-app-prismajs-user/public/js/signin.js` tem
+O arquivo `examples/courses/expressjs/projects/invest-app-prismajs-user/public/js/signin.js` tem
 0 bytes, e a tela `signin.html` da mesma etapa o carrega. O conteúdo real só aparece na etapa 9,
 com 434 bytes. É um defeito no projeto, não na documentação.
 
@@ -240,8 +240,8 @@ Nem tudo falhou, e os dois eixos abaixo não precisam de trabalho:
 
 ### Achado colateral
 
-As pastas `examples/courses/express/projects/invest-app-mvc` e
-`examples/courses/express/projects/invest-app-prismajs-simple` não são referenciadas por nenhuma
+As pastas `examples/courses/expressjs/projects/invest-app-mvc` e
+`examples/courses/expressjs/projects/invest-app-prismajs-simple` não são referenciadas por nenhuma
 página, por `src/lib/projects.ts`, pelo `astro.config.mjs` nem por `.devcontainer/`. São etapas
 órfãs de uma versão anterior da trilha.
 

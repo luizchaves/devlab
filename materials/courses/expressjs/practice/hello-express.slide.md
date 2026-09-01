@@ -30,7 +30,7 @@ Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/hello`
+- Projeto executável: `examples/courses/expressjs/projects/hello`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -74,7 +74,7 @@ Primeiro servidor HTTP com Express, com rotas, parâmetros e JSON.
 
 ## Executando
 
-- cd examples/courses/express/projects/hello
+- cd examples/courses/expressjs/projects/hello
 
 ---
 

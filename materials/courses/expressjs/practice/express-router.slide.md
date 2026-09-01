@@ -30,7 +30,7 @@ Rotas separadas em módulos com express.Router().
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/router`
+- Projeto executável: `examples/courses/expressjs/projects/router`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -74,7 +74,7 @@ Rotas separadas em módulos com express.Router().
 
 ## Executando
 
-- cd examples/courses/express/projects/router
+- cd examples/courses/expressjs/projects/router
 
 ---
 

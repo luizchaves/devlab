@@ -30,7 +30,7 @@ Quarta etapa do MonitorApp: validação estrita de body, query e params com sche
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-validation`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-validation`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -222,7 +222,7 @@ npm install zod
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-validation/back
+   cd examples/courses/expressjs/projects/monitor-app-validation/back
    npm install
    npm run dev
 ```
@@ -232,7 +232,7 @@ npm install zod
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-validation/front
+   cd examples/courses/expressjs/projects/monitor-app-validation/front
    npm install
    npm run dev
 ```
@@ -255,11 +255,11 @@ npm install zod
 
 ## Arquivos-Chave da Aula
 
-- **back/src/middlewares/validate.ts**: `examples/courses/express/projects/monitor-app-validation/back/src/middlewares/validate.ts` (linhas marcadas `11-20`)
-- **back/src/schemas/host.schema.ts**: `examples/courses/express/projects/monitor-app-validation/back/src/schemas/host.schema.ts` (linhas marcadas `8-14`)
-- **back/src/routes/hosts.routes.ts**: `examples/courses/express/projects/monitor-app-validation/back/src/routes/hosts.routes.ts` (linhas marcadas `16-20`)
-- **back/src/errors/HttpError.ts**: `examples/courses/express/projects/monitor-app-validation/back/src/errors/HttpError.ts` (linhas marcadas `3,8`)
-- **back/src/middlewares/errorHandlers.ts**: `examples/courses/express/projects/monitor-app-validation/back/src/middlewares/errorHandlers.ts` (linhas marcadas `14-18`)
+- **back/src/middlewares/validate.ts**: `examples/courses/expressjs/projects/monitor-app-validation/back/src/middlewares/validate.ts` (linhas marcadas `11-20`)
+- **back/src/schemas/host.schema.ts**: `examples/courses/expressjs/projects/monitor-app-validation/back/src/schemas/host.schema.ts` (linhas marcadas `8-14`)
+- **back/src/routes/hosts.routes.ts**: `examples/courses/expressjs/projects/monitor-app-validation/back/src/routes/hosts.routes.ts` (linhas marcadas `16-20`)
+- **back/src/errors/HttpError.ts**: `examples/courses/expressjs/projects/monitor-app-validation/back/src/errors/HttpError.ts` (linhas marcadas `3,8`)
+- **back/src/middlewares/errorHandlers.ts**: `examples/courses/expressjs/projects/monitor-app-validation/back/src/middlewares/errorHandlers.ts` (linhas marcadas `14-18`)
 
 ---
 

@@ -30,7 +30,7 @@ Quinta etapa do MonitorApp: documento OpenAPI 3 gerado a partir dos mesmos schem
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-swagger`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-swagger`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -180,7 +180,7 @@ npm install -D @types/swagger-ui-express
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-swagger/back
+   cd examples/courses/expressjs/projects/monitor-app-swagger/back
    npm install
    npm run dev
 ```
@@ -212,9 +212,9 @@ npm install -D @types/swagger-ui-express
 
 ## Arquivos-Chave da Aula
 
-- **back/src/docs/openapi.ts**: `examples/courses/express/projects/monitor-app-swagger/back/src/docs/openapi.ts` (linhas marcadas `9-18`)
-- **back/src/routes/docs.routes.ts**: `examples/courses/express/projects/monitor-app-swagger/back/src/routes/docs.routes.ts` (linhas marcadas `9,12`)
-- **back/src/index.ts**: `examples/courses/express/projects/monitor-app-swagger/back/src/index.ts` (linhas marcadas `17-18`)
+- **back/src/docs/openapi.ts**: `examples/courses/expressjs/projects/monitor-app-swagger/back/src/docs/openapi.ts` (linhas marcadas `9-18`)
+- **back/src/routes/docs.routes.ts**: `examples/courses/expressjs/projects/monitor-app-swagger/back/src/routes/docs.routes.ts` (linhas marcadas `9,12`)
+- **back/src/index.ts**: `examples/courses/expressjs/projects/monitor-app-swagger/back/src/index.ts` (linhas marcadas `17-18`)
 
 ---
 

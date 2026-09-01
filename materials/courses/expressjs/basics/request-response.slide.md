@@ -49,7 +49,7 @@ Dominar o fluxo completo de dados e metadados entre cliente e servidor HTTP no E
 
 ## Projeto de Referência
 
-- **Projeto modelo**: `examples/courses/express/projects/task-api-hello`
+- **Projeto modelo**: `examples/courses/expressjs/projects/task-api-hello`
 - Os objetos `req` e `res` são o canal de comunicação entre o cliente HTTP e os handlers do servidor:
 
 ```txt

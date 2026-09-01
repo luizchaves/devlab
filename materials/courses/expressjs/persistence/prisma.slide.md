@@ -27,7 +27,7 @@ Modelagem declarativa e acesso a dados com o Prisma ORM em uma API Express: sche
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/prisma`
+- Projeto executável: `examples/courses/expressjs/projects/prisma`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -313,9 +313,9 @@ const comPosts = await prisma.user.findUnique({
 
 ## Arquivos-Chave da Aula
 
-- **prisma/schema.prisma**: `examples/courses/express/projects/prisma/prisma/schema.prisma`
-- **src/lib/prisma.js**: `examples/courses/express/projects/prisma/src/lib/prisma.js`
-- **prisma/seed.js**: `examples/courses/express/projects/prisma/prisma/seed.js`
+- **prisma/schema.prisma**: `examples/courses/expressjs/projects/prisma/prisma/schema.prisma`
+- **src/lib/prisma.js**: `examples/courses/expressjs/projects/prisma/src/lib/prisma.js`
+- **prisma/seed.js**: `examples/courses/expressjs/projects/prisma/prisma/seed.js`
 
 ---
 

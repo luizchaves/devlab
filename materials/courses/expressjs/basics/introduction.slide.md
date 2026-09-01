@@ -49,7 +49,7 @@ Compreender a arquitetura básica de servidores HTTP com Express 5 em Node.js.
 
 ## Projeto de Referência
 
-- **Projeto modelo**: `examples/courses/express/projects/task-api-hello`
+- **Projeto modelo**: `examples/courses/expressjs/projects/task-api-hello`
 - Estrutura mínima de uma API HTTP em Node.js com Express 5:
 
 ```txt
@@ -241,7 +241,7 @@ app.get('/tasks/count', (req, res) => {
 1. Suba o servidor com `node --watch src/server.js`:
 
 ```bash
-cd examples/courses/express/projects/task-api-hello
+cd examples/courses/expressjs/projects/task-api-hello
 npm install
 npm run dev
 ```

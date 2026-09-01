@@ -30,7 +30,7 @@ Quinta etapa do InvestApp: persistência com node:sqlite, invólucro de promessa
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-db-simple`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-db-simple`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -181,7 +181,7 @@ Cenário: CA06.3 - Nenhum valor entra na string SQL
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-db-simple
+   cd examples/courses/expressjs/projects/invest-app-db-simple
    npm install
 ```
 
@@ -233,8 +233,8 @@ Cenário: CA06.3 - Nenhum valor entra na string SQL
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-validation/src \
-  examples/courses/express/projects/invest-app-db-simple/src || true
+  examples/courses/expressjs/projects/invest-app-validation/src \
+  examples/courses/expressjs/projects/invest-app-db-simple/src || true
 ```
 
 ---
@@ -257,12 +257,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **src/database/database.ts**: `examples/courses/express/projects/invest-app-db-simple/src/database/database.ts` (linhas marcadas `2,4,25,31,35,48-50`)
-- **src/database/migration.ts**: `examples/courses/express/projects/invest-app-db-simple/src/database/migration.ts` (linhas marcadas `7-12,14`)
-- **src/database/seeders.ts**: `examples/courses/express/projects/invest-app-db-simple/src/database/seeders.ts` (linhas marcadas `10,14-16`)
-- **src/database/load.ts**: `examples/courses/express/projects/invest-app-db-simple/src/database/load.ts`
-- **src/models/Investment.ts**: `examples/courses/express/projects/invest-app-db-simple/src/models/Investment.ts` (linhas marcadas `6-12,14-33`)
-- **src/database/seeders.json**: `examples/courses/express/projects/invest-app-db-simple/src/database/seeders.json`
+- **src/database/database.ts**: `examples/courses/expressjs/projects/invest-app-db-simple/src/database/database.ts` (linhas marcadas `2,4,25,31,35,48-50`)
+- **src/database/migration.ts**: `examples/courses/expressjs/projects/invest-app-db-simple/src/database/migration.ts` (linhas marcadas `7-12,14`)
+- **src/database/seeders.ts**: `examples/courses/expressjs/projects/invest-app-db-simple/src/database/seeders.ts` (linhas marcadas `10,14-16`)
+- **src/database/load.ts**: `examples/courses/expressjs/projects/invest-app-db-simple/src/database/load.ts`
+- **src/models/Investment.ts**: `examples/courses/expressjs/projects/invest-app-db-simple/src/models/Investment.ts` (linhas marcadas `6-12,14-33`)
+- **src/database/seeders.json**: `examples/courses/expressjs/projects/invest-app-db-simple/src/database/seeders.json`
 
 ---
 

@@ -30,7 +30,7 @@ API de usuários em TypeScript executada nativamente pelo Node, com camadas, tip
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/typescript`
+- Projeto executável: `examples/courses/expressjs/projects/typescript`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -93,7 +93,7 @@ API de usuários em TypeScript executada nativamente pelo Node, com camadas, tip
 ## Executando: Exemplo
 
 ```bash
-   cd examples/courses/express/projects/typescript
+   cd examples/courses/expressjs/projects/typescript
 ```
 
 ---
@@ -170,8 +170,8 @@ API de usuários em TypeScript executada nativamente pelo Node, com camadas, tip
 
 ## Arquivos-Chave da Aula
 
-- **tsconfig.json**: `examples/courses/express/projects/typescript/tsconfig.json` (linhas marcadas `4,10-13`)
-- **package.json**: `examples/courses/express/projects/typescript/package.json` (linhas marcadas `7-14`)
+- **tsconfig.json**: `examples/courses/expressjs/projects/typescript/tsconfig.json` (linhas marcadas `4,10-13`)
+- **package.json**: `examples/courses/expressjs/projects/typescript/package.json` (linhas marcadas `7-14`)
 
 ---
 

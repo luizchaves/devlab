@@ -224,8 +224,8 @@ app.use('/api/v2', v2Router);
 
 ## Arquivos-Chave da Aula
 
-- **src/routes/user-router.ts**: `examples/courses/express/projects/typescript/src/routes/user-router.ts`
-- **src/middlewares/error-handler.ts**: `examples/courses/express/projects/typescript/src/middlewares/error-handler.ts`
+- **src/routes/user-router.ts**: `examples/courses/expressjs/projects/typescript/src/routes/user-router.ts`
+- **src/middlewares/error-handler.ts**: `examples/courses/expressjs/projects/typescript/src/middlewares/error-handler.ts`
 
 ---
 

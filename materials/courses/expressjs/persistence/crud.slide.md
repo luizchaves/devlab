@@ -97,7 +97,7 @@ export async function index(req, res) {
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/prisma
+   cd examples/courses/expressjs/projects/prisma
 ```
 
 ---
@@ -191,11 +191,11 @@ export async function index(req, res) {
 
 ## Arquivos-Chave da Aula
 
-- **src/controllers/user-controller.js**: `examples/courses/express/projects/prisma/src/controllers/user-controller.js` (linhas marcadas `4`)
-- **store**: `examples/courses/express/projects/prisma/src/controllers/user-controller.js`
-- **index e show**: `examples/courses/express/projects/prisma/src/controllers/user-controller.js`
-- **update**: `examples/courses/express/projects/prisma/src/controllers/user-controller.js`
-- **destroy**: `examples/courses/express/projects/prisma/src/controllers/user-controller.js`
+- **src/controllers/user-controller.js**: `examples/courses/expressjs/projects/prisma/src/controllers/user-controller.js` (linhas marcadas `4`)
+- **store**: `examples/courses/expressjs/projects/prisma/src/controllers/user-controller.js`
+- **index e show**: `examples/courses/expressjs/projects/prisma/src/controllers/user-controller.js`
+- **update**: `examples/courses/expressjs/projects/prisma/src/controllers/user-controller.js`
+- **destroy**: `examples/courses/expressjs/projects/prisma/src/controllers/user-controller.js`
 
 ---
 

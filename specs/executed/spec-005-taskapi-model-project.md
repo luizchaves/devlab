@@ -114,7 +114,7 @@ become `task-*` as well.
 | 8 | `+ tags` (many-to-many with `Tag`) |
 | 9 | `+ userId` (ownership, enforced by the authorization middleware) |
 
-**Directory prefix**: `examples/courses/express/projects/task-api-<step>/`,
+**Directory prefix**: `examples/courses/expressjs/projects/task-api-<step>/`,
 matching the `invest-app-*` / `monitor-app-*` family while signalling that this
 one is an API, not an application.
 
@@ -255,7 +255,7 @@ redirects. `pnpm validate` must pass at the end of every phase.
 
 ### Phase 0 — Foundations
 
-- Create `examples/courses/express/projects/task-api-hello`, `-router`, `-mvc`
+- Create `examples/courses/expressjs/projects/task-api-hello`, `-router`, `-mvc`
   as `git mv` of `hello`, `router`, `mvc`, adding the `Task` resource alongside
   `User` and `// #region` markers for every range the pages will cut.
 - Create `src/content/docs/courses/expressjs/practice/taskapi/index.mdx`
@@ -343,5 +343,5 @@ three sibling projects, and belongs to no trail.
 - Final audit: no concept page under `src/content/docs/courses/expressjs/`
   outside `practice/` carries a hand-written fence with a `title="src/…"`,
   `title="prisma/…"` or `title="tests/…"` path.
-- `examples/courses/express/projects/` contains no directory referenced by zero
+- `examples/courses/expressjs/projects/` contains no directory referenced by zero
   pages.

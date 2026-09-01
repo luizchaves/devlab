@@ -30,7 +30,7 @@ Décima terceira etapa do MonitorApp: duas imagens Docker — a API em Node e o 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-test`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-test`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -211,7 +211,7 @@ test-results
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-test
+   cd examples/courses/expressjs/projects/monitor-app-test
    docker compose up --build
 ```
 
@@ -262,10 +262,10 @@ test-results
 
 ## Arquivos-Chave da Aula
 
-- **back/Dockerfile**: `examples/courses/express/projects/monitor-app-test/back/Dockerfile` (linhas marcadas `3-5,12,17,19-20,24`)
-- **front/Dockerfile**: `examples/courses/express/projects/monitor-app-test/front/Dockerfile` (linhas marcadas `6-7,9-11`)
-- **front/nginx.conf**: `examples/courses/express/projects/monitor-app-test/front/nginx.conf` (linhas marcadas `8-16`)
-- **compose.yaml**: `examples/courses/express/projects/monitor-app-test/compose.yaml` (linhas marcadas `4-13,22-23`)
+- **back/Dockerfile**: `examples/courses/expressjs/projects/monitor-app-test/back/Dockerfile` (linhas marcadas `3-5,12,17,19-20,24`)
+- **front/Dockerfile**: `examples/courses/expressjs/projects/monitor-app-test/front/Dockerfile` (linhas marcadas `6-7,9-11`)
+- **front/nginx.conf**: `examples/courses/expressjs/projects/monitor-app-test/front/nginx.conf` (linhas marcadas `8-16`)
+- **compose.yaml**: `examples/courses/expressjs/projects/monitor-app-test/compose.yaml` (linhas marcadas `4-13,22-23`)
 
 ---
 

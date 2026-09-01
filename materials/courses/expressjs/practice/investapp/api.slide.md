@@ -30,7 +30,7 @@ Segunda etapa do InvestApp: CRUD de investimentos sobre um array, front-end est�
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-api`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-api`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -240,7 +240,7 @@ npm install -D tailwindcss @tailwindcss/cli
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-api
+   cd examples/courses/expressjs/projects/invest-app-api
 ```
 
 ---
@@ -314,12 +314,12 @@ npm install -D tailwindcss @tailwindcss/cli
 
 ## Arquivos-Chave da Aula
 
-- **src/index.js**: `examples/courses/express/projects/invest-app-api/src/index.js` (linhas marcadas `20-27`)
-- **src/data/investments.js**: `examples/courses/express/projects/invest-app-api/src/data/investments.js`
-- **src/routes.js**: `examples/courses/express/projects/invest-app-api/src/routes.js` (linhas marcadas `14-28`)
-- **public/js/services/api.js**: `examples/courses/express/projects/invest-app-api/public/js/services/api.js` (linhas marcadas `1,20-26`)
-- **public/js/index.js**: `examples/courses/express/projects/invest-app-api/public/js/index.js` (linhas marcadas `74-118`)
-- **public/index.html**: `examples/courses/express/projects/invest-app-api/public/index.html` (linhas marcadas `40,47,52,58,99`)
+- **src/index.js**: `examples/courses/expressjs/projects/invest-app-api/src/index.js` (linhas marcadas `20-27`)
+- **src/data/investments.js**: `examples/courses/expressjs/projects/invest-app-api/src/data/investments.js`
+- **src/routes.js**: `examples/courses/expressjs/projects/invest-app-api/src/routes.js` (linhas marcadas `14-28`)
+- **public/js/services/api.js**: `examples/courses/expressjs/projects/invest-app-api/public/js/services/api.js` (linhas marcadas `1,20-26`)
+- **public/js/index.js**: `examples/courses/expressjs/projects/invest-app-api/public/js/index.js` (linhas marcadas `74-118`)
+- **public/index.html**: `examples/courses/expressjs/projects/invest-app-api/public/index.html` (linhas marcadas `40,47,52,58,99`)
 
 ---
 

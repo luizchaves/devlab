@@ -30,7 +30,7 @@ Primeira etapa do InvestApp: telas estáticas em HTML e Tailwind CSS, sem JavaSc
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-static`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-static`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -215,7 +215,7 @@ Cenário: CA01.3 - Os campos já declaram o contrato futuro
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-static
+   cd examples/courses/expressjs/projects/invest-app-static
 ```
 
 ---
@@ -248,12 +248,12 @@ Cenário: CA01.3 - Os campos já declaram o contrato futuro
 
 ## Arquivos-Chave da Aula
 
-- **index.html**: `examples/courses/express/projects/invest-app-static/index.html` (linhas marcadas `84-111`)
-- **css/components.css**: `examples/courses/express/projects/invest-app-static/css/components.css` (linhas marcadas `148-208`)
-- **signup.html**: `examples/courses/express/projects/invest-app-static/signup.html` (linhas marcadas `26-73`)
-- **signin.html**: `examples/courses/express/projects/invest-app-static/signin.html` (linhas marcadas `26-51`)
-- **profile.html**: `examples/courses/express/projects/invest-app-static/profile.html` (linhas marcadas `36-49,52-63`)
-- **vite.config.js**: `examples/courses/express/projects/invest-app-static/vite.config.js` (linhas marcadas `14,16,22-27`)
+- **index.html**: `examples/courses/expressjs/projects/invest-app-static/index.html` (linhas marcadas `84-111`)
+- **css/components.css**: `examples/courses/expressjs/projects/invest-app-static/css/components.css` (linhas marcadas `148-208`)
+- **signup.html**: `examples/courses/expressjs/projects/invest-app-static/signup.html` (linhas marcadas `26-73`)
+- **signin.html**: `examples/courses/expressjs/projects/invest-app-static/signin.html` (linhas marcadas `26-51`)
+- **profile.html**: `examples/courses/expressjs/projects/invest-app-static/profile.html` (linhas marcadas `36-49,52-63`)
+- **vite.config.js**: `examples/courses/expressjs/projects/invest-app-static/vite.config.js` (linhas marcadas `14,16,22-27`)
 
 ---
 

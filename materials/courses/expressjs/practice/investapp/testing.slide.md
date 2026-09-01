@@ -30,7 +30,7 @@ Décima primeira etapa do InvestApp: testes de rotas com node:test e supertest, 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-test`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-test`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -240,7 +240,7 @@ npm install -D @vitest/coverage-v8
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-test
+   cd examples/courses/expressjs/projects/invest-app-test
    npm install
 ```
 
@@ -267,8 +267,8 @@ npm install -D @vitest/coverage-v8
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-upload \
-  examples/courses/express/projects/invest-app-test || true
+  examples/courses/expressjs/projects/invest-app-upload \
+  examples/courses/expressjs/projects/invest-app-test || true
 ```
 
 ---
@@ -291,12 +291,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **src/schemas/investment.schema.test.ts**: `examples/courses/express/projects/invest-app-test/src/schemas/investment.schema.test.ts` (linhas marcadas `24-56`)
-- **public/js/lib/format.test.js**: `examples/courses/express/projects/invest-app-test/public/js/lib/format.test.js` (linhas marcadas `7-9,23-28`)
-- **src/routes.test.ts**: `examples/courses/express/projects/invest-app-test/src/routes.test.ts` (linhas marcadas `3,7,10-24,31-43`)
-- **src/routes.test.ts: o teste de isolamento**: `examples/courses/express/projects/invest-app-test/src/routes.test.ts`
-- **public/js/services/api.test.js**: `examples/courses/express/projects/invest-app-test/public/js/services/api.test.js` (linhas marcadas `7-10,14,22-29,46-48,62`)
-- **tests/invest-app.spec.js**: `examples/courses/express/projects/invest-app-test/tests/invest-app.spec.js` (linhas marcadas `26-32,35-39,42-52`)
+- **src/schemas/investment.schema.test.ts**: `examples/courses/expressjs/projects/invest-app-test/src/schemas/investment.schema.test.ts` (linhas marcadas `24-56`)
+- **public/js/lib/format.test.js**: `examples/courses/expressjs/projects/invest-app-test/public/js/lib/format.test.js` (linhas marcadas `7-9,23-28`)
+- **src/routes.test.ts**: `examples/courses/expressjs/projects/invest-app-test/src/routes.test.ts` (linhas marcadas `3,7,10-24,31-43`)
+- **src/routes.test.ts: o teste de isolamento**: `examples/courses/expressjs/projects/invest-app-test/src/routes.test.ts`
+- **public/js/services/api.test.js**: `examples/courses/expressjs/projects/invest-app-test/public/js/services/api.test.js` (linhas marcadas `7-10,14,22-29,46-48,62`)
+- **tests/invest-app.spec.js**: `examples/courses/expressjs/projects/invest-app-test/tests/invest-app.spec.js` (linhas marcadas `26-32,35-39,42-52`)
 
 ---
 

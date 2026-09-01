@@ -30,7 +30,7 @@ Décima etapa do MonitorApp: login com credenciais, JWT HS256 assinado com node:
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-auth`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -288,7 +288,7 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YjFkZWI0ZCIsImV4cCI6MTc3Mn0.Xr2
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-auth/back
+   cd examples/courses/expressjs/projects/monitor-app-auth/back
    npm install
    cp .env.example .env
    npm run db:migrate
@@ -301,7 +301,7 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YjFkZWI0ZCIsImV4cCI6MTc3Mn0.Xr2
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-auth/front
+   cd examples/courses/expressjs/projects/monitor-app-auth/front
    npm install
    npm run dev
 ```
@@ -326,12 +326,12 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YjFkZWI0ZCIsImV4cCI6MTc3Mn0.Xr2
 
 ## Arquivos-Chave da Aula
 
-- **back/src/utils/jwt.ts**: `examples/courses/express/projects/monitor-app-auth/back/src/utils/jwt.ts` (linhas marcadas `37-39,57-72`)
-- **back/src/middlewares/isAuthenticated.ts**: `examples/courses/express/projects/monitor-app-auth/back/src/middlewares/isAuthenticated.ts` (linhas marcadas `7,14-19`)
-- **back/src/types/express.d.ts**: `examples/courses/express/projects/monitor-app-auth/back/src/types/express.d.ts`
-- **back/src/controllers/auth.controller.ts**: `examples/courses/express/projects/monitor-app-auth/back/src/controllers/auth.controller.ts` (linhas marcadas `12-20,23-27`)
-- **back/src/models/Host.ts**: `examples/courses/express/projects/monitor-app-auth/back/src/models/Host.ts` (linhas marcadas `38-47,49-58`)
-- **back/src/controllers/hosts.controller.ts**: `examples/courses/express/projects/monitor-app-auth/back/src/controllers/hosts.controller.ts` (linhas marcadas `7-19,33-45`)
+- **back/src/utils/jwt.ts**: `examples/courses/expressjs/projects/monitor-app-auth/back/src/utils/jwt.ts` (linhas marcadas `37-39,57-72`)
+- **back/src/middlewares/isAuthenticated.ts**: `examples/courses/expressjs/projects/monitor-app-auth/back/src/middlewares/isAuthenticated.ts` (linhas marcadas `7,14-19`)
+- **back/src/types/express.d.ts**: `examples/courses/expressjs/projects/monitor-app-auth/back/src/types/express.d.ts`
+- **back/src/controllers/auth.controller.ts**: `examples/courses/expressjs/projects/monitor-app-auth/back/src/controllers/auth.controller.ts` (linhas marcadas `12-20,23-27`)
+- **back/src/models/Host.ts**: `examples/courses/expressjs/projects/monitor-app-auth/back/src/models/Host.ts` (linhas marcadas `38-47,49-58`)
+- **back/src/controllers/hosts.controller.ts**: `examples/courses/expressjs/projects/monitor-app-auth/back/src/controllers/hosts.controller.ts` (linhas marcadas `7-19,33-45`)
 
 ---
 

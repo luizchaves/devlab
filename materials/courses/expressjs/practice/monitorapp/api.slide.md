@@ -30,7 +30,7 @@ Segunda etapa do MonitorApp: CRUD de hosts sobre um array, front-end no Vite con
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-api`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-api`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -235,7 +235,7 @@ npm install express cors morgan
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-api/back
+   cd examples/courses/expressjs/projects/monitor-app-api/back
    npm install
    npm run dev
 ```
@@ -245,7 +245,7 @@ npm install express cors morgan
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-api/front
+   cd examples/courses/expressjs/projects/monitor-app-api/front
    npm install
    npm run dev
 ```
@@ -303,12 +303,12 @@ npm install express cors morgan
 
 ## Arquivos-Chave da Aula
 
-- **back/src/index.js**: `examples/courses/express/projects/monitor-app-api/back/src/index.js` (linhas marcadas `11-19`)
-- **back/src/data/hosts.js**: `examples/courses/express/projects/monitor-app-api/back/src/data/hosts.js`
-- **back/src/routes.js**: `examples/courses/express/projects/monitor-app-api/back/src/routes.js` (linhas marcadas `15-27`)
-- **front/vite.config.js**: `examples/courses/express/projects/monitor-app-api/front/vite.config.js` (linhas marcadas `12-16`)
-- **back/src/index.js**: `examples/courses/express/projects/monitor-app-api/back/src/index.js`
-- **front/css/tailwind.css**: `examples/courses/express/projects/monitor-app-api/front/css/tailwind.css` (linhas marcadas `11-12`)
+- **back/src/index.js**: `examples/courses/expressjs/projects/monitor-app-api/back/src/index.js` (linhas marcadas `11-19`)
+- **back/src/data/hosts.js**: `examples/courses/expressjs/projects/monitor-app-api/back/src/data/hosts.js`
+- **back/src/routes.js**: `examples/courses/expressjs/projects/monitor-app-api/back/src/routes.js` (linhas marcadas `15-27`)
+- **front/vite.config.js**: `examples/courses/expressjs/projects/monitor-app-api/front/vite.config.js` (linhas marcadas `12-16`)
+- **back/src/index.js**: `examples/courses/expressjs/projects/monitor-app-api/back/src/index.js`
+- **front/css/tailwind.css**: `examples/courses/expressjs/projects/monitor-app-api/front/css/tailwind.css` (linhas marcadas `11-12`)
 
 ---
 

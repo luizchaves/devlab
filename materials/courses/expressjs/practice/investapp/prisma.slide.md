@@ -30,7 +30,7 @@ Sexta etapa do InvestApp: migração da camada de dados do SQL escrito à mão p
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-prismajs-relation`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-prismajs-relation`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -247,7 +247,7 @@ npx prisma studio
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-prismajs-relation
+   cd examples/courses/expressjs/projects/invest-app-prismajs-relation
    npm install
    cp .env.example .env
 ```
@@ -294,11 +294,11 @@ npx prisma studio
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-db-simple/src/models \
-  examples/courses/express/projects/invest-app-prismajs-relation/src/models || true
+  examples/courses/expressjs/projects/invest-app-db-simple/src/models \
+  examples/courses/expressjs/projects/invest-app-prismajs-relation/src/models || true
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-db-simple/src/routes.js \
-  examples/courses/express/projects/invest-app-prismajs-relation/src/routes.js || true
+  examples/courses/expressjs/projects/invest-app-db-simple/src/routes.js \
+  examples/courses/expressjs/projects/invest-app-prismajs-relation/src/routes.js || true
 ```
 
 ---
@@ -321,12 +321,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **prisma/schema.prisma**: `examples/courses/express/projects/invest-app-prismajs-relation/prisma/schema.prisma` (linhas marcadas `18-21`)
-- **prisma.config.ts**: `examples/courses/express/projects/invest-app-prismajs-relation/prisma.config.ts` (linhas marcadas `5,13,16,18`)
-- **src/database/database.ts**: `examples/courses/express/projects/invest-app-prismajs-relation/src/database/database.ts` (linhas marcadas `1,9,12,14`)
-- **src/models/Investment.ts**: `examples/courses/express/projects/invest-app-prismajs-relation/src/models/Investment.ts` (linhas marcadas `8-11,13-37`)
-- **src/database/seed.ts**: `examples/courses/express/projects/invest-app-prismajs-relation/src/database/seed.ts` (linhas marcadas `13-19,23,26`)
-- **prisma/seeders.json**: `examples/courses/express/projects/invest-app-prismajs-relation/prisma/seeders.json`
+- **prisma/schema.prisma**: `examples/courses/expressjs/projects/invest-app-prismajs-relation/prisma/schema.prisma` (linhas marcadas `18-21`)
+- **prisma.config.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-relation/prisma.config.ts` (linhas marcadas `5,13,16,18`)
+- **src/database/database.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-relation/src/database/database.ts` (linhas marcadas `1,9,12,14`)
+- **src/models/Investment.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-relation/src/models/Investment.ts` (linhas marcadas `8-11,13-37`)
+- **src/database/seed.ts**: `examples/courses/expressjs/projects/invest-app-prismajs-relation/src/database/seed.ts` (linhas marcadas `13-19,23,26`)
+- **prisma/seeders.json**: `examples/courses/expressjs/projects/invest-app-prismajs-relation/prisma/seeders.json`
 
 ---
 

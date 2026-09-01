@@ -30,7 +30,7 @@ Aplicação Express organizada em MVC, com CRUD completo e tratamento de erros c
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/mvc`
+- Projeto executável: `examples/courses/expressjs/projects/mvc`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -75,7 +75,7 @@ Aplicação Express organizada em MVC, com CRUD completo e tratamento de erros c
 
 ## Executando
 
-- cd examples/courses/express/projects/mvc
+- cd examples/courses/expressjs/projects/mvc
 
 ---
 

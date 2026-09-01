@@ -42,7 +42,7 @@ export const projects: Project[] = [
     tech: ['Express.js', 'TypeScript', 'Prisma', 'JWT', 'Zod', 'Tailwind CSS'],
     concepts: ['Trilha de 13 Etapas', 'Arquitetura REST', 'ORM Prisma', 'Autenticação', 'Upload'],
     docs: '/courses/expressjs/practice/investapp/',
-    source: 'examples/courses/express/projects/invest-app-test',
+    source: 'examples/courses/expressjs/projects/invest-app-test',
   },
   {
     id: 'monitor-app',
@@ -55,7 +55,7 @@ export const projects: Project[] = [
     tech: ['Express.js', 'TypeScript', 'Prisma', 'SSE', 'JWT', 'Tailwind CSS'],
     concepts: ['Trilha de 13 Etapas', 'Ping Assíncrono', 'Sockets TCP', 'Tempo Real (SSE)', 'RBAC'],
     docs: '/courses/expressjs/practice/monitorapp/',
-    source: 'examples/courses/express/projects/monitor-app-test',
+    source: 'examples/courses/expressjs/projects/monitor-app-test',
   },
 
   // --- GUIA / TRILHA EXPRESS.JS ---
@@ -70,7 +70,7 @@ export const projects: Project[] = [
     tech: ['Express.js', 'TypeScript', 'Zod', 'Prisma', 'node:crypto'],
     concepts: ['Trilha de 12 Etapas', 'MVC', 'Validação', 'Autenticação', 'Observabilidade'],
     docs: '/courses/expressjs/practice/taskapi/',
-    source: 'examples/courses/express/projects/task-api-test',
+    source: 'examples/courses/expressjs/projects/task-api-test',
   },
   // --- FRONT-END & WEB APIS ---
   {

@@ -30,7 +30,7 @@ Terceira etapa do InvestApp: migração para TypeScript e reorganização em rou
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-typescript`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-typescript`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -217,7 +217,7 @@ npm install -D typescript @types/node @types/express @types/morgan tsx
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-typescript
+   cd examples/courses/expressjs/projects/invest-app-typescript
    npm install
 ```
 
@@ -277,8 +277,8 @@ npm install -D typescript @types/node @types/express @types/morgan tsx
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-api/src \
-  examples/courses/express/projects/invest-app-typescript/src || true
+  examples/courses/expressjs/projects/invest-app-api/src \
+  examples/courses/expressjs/projects/invest-app-typescript/src || true
 ```
 
 ---
@@ -301,12 +301,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **tsconfig.json**: `examples/courses/express/projects/invest-app-typescript/tsconfig.json` (linhas marcadas `6,8,15-17`)
-- **src/index.ts**: `examples/courses/express/projects/invest-app-typescript/src/index.ts` (linhas marcadas `4-5,18-22`)
-- **src/types/Investment.d.ts**: `examples/courses/express/projects/invest-app-typescript/src/types/Investment.d.ts` (linhas marcadas `1-5,7-10`)
-- **src/models/Investment.ts**: `examples/courses/express/projects/invest-app-typescript/src/models/Investment.ts` (linhas marcadas `5-15,65`)
-- **src/data/investments.ts**: `examples/courses/express/projects/invest-app-typescript/src/data/investments.ts` (linhas marcadas `3`)
-- **src/controllers/investments.controller.ts**: `examples/courses/express/projects/invest-app-typescript/src/controllers/investments.controller.ts` (linhas marcadas `19-43`)
+- **tsconfig.json**: `examples/courses/expressjs/projects/invest-app-typescript/tsconfig.json` (linhas marcadas `6,8,15-17`)
+- **src/index.ts**: `examples/courses/expressjs/projects/invest-app-typescript/src/index.ts` (linhas marcadas `4-5,18-22`)
+- **src/types/Investment.d.ts**: `examples/courses/expressjs/projects/invest-app-typescript/src/types/Investment.d.ts` (linhas marcadas `1-5,7-10`)
+- **src/models/Investment.ts**: `examples/courses/expressjs/projects/invest-app-typescript/src/models/Investment.ts` (linhas marcadas `5-15,65`)
+- **src/data/investments.ts**: `examples/courses/expressjs/projects/invest-app-typescript/src/data/investments.ts` (linhas marcadas `3`)
+- **src/controllers/investments.controller.ts**: `examples/courses/expressjs/projects/invest-app-typescript/src/controllers/investments.controller.ts` (linhas marcadas `19-43`)
 
 ---
 

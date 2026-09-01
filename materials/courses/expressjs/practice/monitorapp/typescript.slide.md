@@ -30,7 +30,7 @@ Terceira etapa do MonitorApp: migração da API para TypeScript com separação 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-typescript`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-typescript`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -229,7 +229,7 @@ npm install -D typescript @types/node @types/express @types/morgan @types/cors
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-typescript/back
+   cd examples/courses/expressjs/projects/monitor-app-typescript/back
    npm install
 ```
 
@@ -261,12 +261,12 @@ npm install -D typescript @types/node @types/express @types/morgan @types/cors
 
 ## Arquivos-Chave da Aula
 
-- **back/tsconfig.json**: `examples/courses/express/projects/monitor-app-typescript/back/tsconfig.json` (linhas marcadas `8,13,15-17`)
-- **back/src/index.ts**: `examples/courses/express/projects/monitor-app-typescript/back/src/index.ts` (linhas marcadas `16-20`)
-- **back/src/types/Host.d.ts**: `examples/courses/express/projects/monitor-app-typescript/back/src/types/Host.d.ts`
-- **back/src/models/Host.ts**: `examples/courses/express/projects/monitor-app-typescript/back/src/models/Host.ts` (linhas marcadas `6-16`)
-- **back/src/controllers/hosts.controller.ts**: `examples/courses/express/projects/monitor-app-typescript/back/src/controllers/hosts.controller.ts` (linhas marcadas `7-17,31-41`)
-- **back/src/errors/HttpError.ts**: `examples/courses/express/projects/monitor-app-typescript/back/src/errors/HttpError.ts`
+- **back/tsconfig.json**: `examples/courses/expressjs/projects/monitor-app-typescript/back/tsconfig.json` (linhas marcadas `8,13,15-17`)
+- **back/src/index.ts**: `examples/courses/expressjs/projects/monitor-app-typescript/back/src/index.ts` (linhas marcadas `16-20`)
+- **back/src/types/Host.d.ts**: `examples/courses/expressjs/projects/monitor-app-typescript/back/src/types/Host.d.ts`
+- **back/src/models/Host.ts**: `examples/courses/expressjs/projects/monitor-app-typescript/back/src/models/Host.ts` (linhas marcadas `6-16`)
+- **back/src/controllers/hosts.controller.ts**: `examples/courses/expressjs/projects/monitor-app-typescript/back/src/controllers/hosts.controller.ts` (linhas marcadas `7-17,31-41`)
+- **back/src/errors/HttpError.ts**: `examples/courses/expressjs/projects/monitor-app-typescript/back/src/errors/HttpError.ts`
 
 ---
 

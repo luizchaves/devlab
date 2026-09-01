@@ -30,7 +30,7 @@ Décima segunda etapa do InvestApp: empacotamento da aplicação em Docker com D
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-test`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-test`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -203,7 +203,7 @@ docker compose up -d --build
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-test
+   cd examples/courses/expressjs/projects/invest-app-test
 ```
 
 ---
@@ -247,8 +247,8 @@ docker compose up -d --build
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-upload \
-  examples/courses/express/projects/invest-app-test || true
+  examples/courses/expressjs/projects/invest-app-upload \
+  examples/courses/expressjs/projects/invest-app-test || true
 ```
 
 ---
@@ -271,8 +271,8 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **Dockerfile**: `examples/courses/express/projects/invest-app-test/Dockerfile` (linhas marcadas `3-5,9-13,19-22,26-27,31`)
-- **compose.yaml**: `examples/courses/express/projects/invest-app-test/compose.yaml` (linhas marcadas `5,8,11-13,15-17`)
+- **Dockerfile**: `examples/courses/expressjs/projects/invest-app-test/Dockerfile` (linhas marcadas `3-5,9-13,19-22,26-27,31`)
+- **compose.yaml**: `examples/courses/expressjs/projects/invest-app-test/compose.yaml` (linhas marcadas `5,8,11-13,15-17`)
 
 ---
 

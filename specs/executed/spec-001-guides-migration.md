@@ -289,10 +289,10 @@ sugestão: ESM como linguagem fica no guia de ECMAScript; `require`,
 | `express/system-call.mdx` | 91 | `express/advanced/system-call.mdx` | Ping com Regex · Ping Package · 5 `<SourceCode>` |
 | `express/user-registration.mdx` | 144 | `express/auth/user-registration.mdx` | banco · migration · model · router · teste · view · 10 `<SourceCode>` |
 | `express/authentication.mdx` | 127 | `express/auth/authentication.mdx` | router · teste · view · 11 `<SourceCode>` |
-| `projects/hello-express.mdx` | 74 | `express/practice/hello-express.mdx` | walkthrough de `examples/courses/express/projects/hello` |
-| `projects/express-router.mdx` | 77 | `express/practice/express-router.mdx` | walkthrough de `examples/courses/express/projects/router` |
-| `projects/express-mvc.mdx` | 110 | `express/practice/express-mvc.mdx` | walkthrough de `examples/courses/express/projects/mvc` |
-| `projects/express-prisma.mdx` | 100 | `express/practice/express-prisma.mdx` | walkthrough de `examples/courses/express/projects/prisma` |
+| `projects/hello-express.mdx` | 74 | `express/practice/hello-express.mdx` | walkthrough de `examples/courses/expressjs/projects/hello` |
+| `projects/express-router.mdx` | 77 | `express/practice/express-router.mdx` | walkthrough de `examples/courses/expressjs/projects/router` |
+| `projects/express-mvc.mdx` | 110 | `express/practice/express-mvc.mdx` | walkthrough de `examples/courses/expressjs/projects/mvc` |
+| `projects/express-prisma.mdx` | 100 | `express/practice/express-prisma.mdx` | walkthrough de `examples/courses/expressjs/projects/prisma` |
 
 **Absorver também `lp2-ctii-jp/expressjs/`**, que tem 4 aulas que a DW não tem:
 `validation.mdx`, `email.mdx`, `upload-file.mdx`, `test.mdx` → `express/advanced/`.
@@ -380,16 +380,16 @@ espelhando os guias.
 | `examples/courses/web-api/local-storage/` | `examples/courses/web-api/local-storage/` | `web-api/storage/local-storage` |
 | `examples/courses/web-api/fetch-api/` | `examples/courses/web-api/fetch-api/` | `web-api/http/fetch` — **hoje órfão** |
 | `examples/courses/nodejs/http/` | `examples/courses/nodejs/http/` | `nodejs/http/server` |
-| `examples/courses/express/codes/` (14 projetos) | `examples/courses/express/projects/` | consolidado em `projects/` (removido) |
-| `examples/courses/express/projects/hello/` | `examples/courses/express/projects/hello/` | `express/practice/hello-express` |
-| `examples/courses/express/projects/router/` | `examples/courses/express/projects/router/` | `express/practice/express-router` |
-| `examples/courses/express/projects/mvc/` | `examples/courses/express/projects/mvc/` | `express/practice/express-mvc` |
-| `examples/courses/express/projects/prisma/` | `examples/courses/express/projects/prisma/` | `express/practice/express-prisma` |
+| `examples/courses/expressjs/codes/` (14 projetos) | `examples/courses/expressjs/projects/` | consolidado em `projects/` (removido) |
+| `examples/courses/expressjs/projects/hello/` | `examples/courses/expressjs/projects/hello/` | `express/practice/hello-express` |
+| `examples/courses/expressjs/projects/router/` | `examples/courses/expressjs/projects/router/` | `express/practice/express-router` |
+| `examples/courses/expressjs/projects/mvc/` | `examples/courses/expressjs/projects/mvc/` | `express/practice/express-mvc` |
+| `examples/courses/expressjs/projects/prisma/` | `examples/courses/expressjs/projects/prisma/` | `express/practice/express-prisma` |
 | `examples/courses/database/servers/` (4 servidores) | `examples/courses/database/` | `database/basics/dbms` |
 | `examples/courses/packages/vite/` | `examples/courses/packages/vite/` | `packages/build/vite` |
 | `examples/courses/packages/json-server/` | `examples/courses/packages/json-server/` | `packages/mock/json-server` |
 | `examples/courses/packages/chartjs/` | `examples/courses/packages/chartjs/` | `packages/ui/chartjs` |
-| `examples/courses/express/api-rest/` | `examples/courses/express/api-rest/` | `express/api/rest` — **hoje órfão** |
+| `examples/courses/expressjs/api-rest/` | `examples/courses/expressjs/api-rest/` | `express/api/rest` — **hoje órfão** |
 | `examples/lp2/`, `examples/pw2/` | manter | disciplinas LP2 e PW2 |
 
 Quem mexe nisso precisa atualizar em conjunto:
@@ -408,18 +408,18 @@ Não são referenciados por nenhum `.mdx`. Decidir: virar exemplo de alguma pág
 do guia, ou remover.
 
 ```
-examples/courses/express/api-rest
+examples/courses/expressjs/api-rest
 examples/courses/css/introduction
 examples/courses/css/table
 examples/courses/database/servers/mongo-server
-examples/courses/express/codes/bmi-api
-examples/courses/express/codes/bmi-body-param
-examples/courses/express/codes/bmi-query-param
-examples/courses/express/codes/bmi-route-param
-examples/courses/express/codes/hello-lang
-examples/courses/express/codes/hello-simple
-examples/courses/express/codes/monitor-app-mvc
-examples/courses/express/codes/monitor-app-prismajs-simple
+examples/courses/expressjs/codes/bmi-api
+examples/courses/expressjs/codes/bmi-body-param
+examples/courses/expressjs/codes/bmi-query-param
+examples/courses/expressjs/codes/bmi-route-param
+examples/courses/expressjs/codes/hello-lang
+examples/courses/expressjs/codes/hello-simple
+examples/courses/expressjs/codes/monitor-app-mvc
+examples/courses/expressjs/codes/monitor-app-prismajs-simple
 examples/courses/html/introduction
 examples/courses/web-api/fetch-api
 ```

@@ -283,9 +283,9 @@ process.on('uncaughtException', (error) => {
 
 ## Arquivos-Chave da Aula
 
-- **src/errors/HttpError.ts**: `examples/courses/express/projects/typescript/src/errors/HttpError.ts`
-- **src/middlewares/error-handler.ts**: `examples/courses/express/projects/typescript/src/middlewares/error-handler.ts` (linhas marcadas `15,17-19,24`)
-- **src/middlewares/error-handler.ts**: `examples/courses/express/projects/typescript/src/middlewares/error-handler.ts`
+- **src/errors/HttpError.ts**: `examples/courses/expressjs/projects/typescript/src/errors/HttpError.ts`
+- **src/middlewares/error-handler.ts**: `examples/courses/expressjs/projects/typescript/src/middlewares/error-handler.ts` (linhas marcadas `15,17-19,24`)
+- **src/middlewares/error-handler.ts**: `examples/courses/expressjs/projects/typescript/src/middlewares/error-handler.ts`
 
 ---
 

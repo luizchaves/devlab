@@ -30,7 +30,7 @@ Sexta etapa do MonitorApp: o array em memória dá lugar a um banco SQLite com o
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-db-simple`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-db-simple`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -190,7 +190,7 @@ npm run db:reload   # recomeça do zero
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-db-simple/back
+   cd examples/courses/expressjs/projects/monitor-app-db-simple/back
    npm install
    npm run db:load
    npm run dev
@@ -201,7 +201,7 @@ npm run db:reload   # recomeça do zero
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-db-simple/front
+   cd examples/courses/expressjs/projects/monitor-app-db-simple/front
    npm install
    npm run dev
 ```
@@ -225,12 +225,12 @@ npm run db:reload   # recomeça do zero
 
 ## Arquivos-Chave da Aula
 
-- **back/src/database/database.ts**: `examples/courses/express/projects/monitor-app-db-simple/back/src/database/database.ts` (linhas marcadas `23-46`)
-- **back/src/database/migration.ts**: `examples/courses/express/projects/monitor-app-db-simple/back/src/database/migration.ts` (linhas marcadas `6-14`)
-- **back/src/database/seeders.ts**: `examples/courses/express/projects/monitor-app-db-simple/back/src/database/seeders.ts`
-- **back/src/database/load.ts**: `examples/courses/express/projects/monitor-app-db-simple/back/src/database/load.ts`
-- **back/src/models/Host.ts**: `examples/courses/express/projects/monitor-app-db-simple/back/src/models/Host.ts` (linhas marcadas `14-34`)
-- **back/src/database/seeders.json**: `examples/courses/express/projects/monitor-app-db-simple/back/src/database/seeders.json`
+- **back/src/database/database.ts**: `examples/courses/expressjs/projects/monitor-app-db-simple/back/src/database/database.ts` (linhas marcadas `23-46`)
+- **back/src/database/migration.ts**: `examples/courses/expressjs/projects/monitor-app-db-simple/back/src/database/migration.ts` (linhas marcadas `6-14`)
+- **back/src/database/seeders.ts**: `examples/courses/expressjs/projects/monitor-app-db-simple/back/src/database/seeders.ts`
+- **back/src/database/load.ts**: `examples/courses/expressjs/projects/monitor-app-db-simple/back/src/database/load.ts`
+- **back/src/models/Host.ts**: `examples/courses/expressjs/projects/monitor-app-db-simple/back/src/models/Host.ts` (linhas marcadas `14-34`)
+- **back/src/database/seeders.json**: `examples/courses/expressjs/projects/monitor-app-db-simple/back/src/database/seeders.json`
 
 ---
 

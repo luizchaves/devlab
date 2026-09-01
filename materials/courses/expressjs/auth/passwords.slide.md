@@ -27,7 +27,7 @@ Como guardar senhas com segurança: função de hash, sal, funções de derivaç
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/auth`
+- Projeto executável: `examples/courses/expressjs/projects/auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -339,9 +339,9 @@ node --test "src/utils/*.test.ts"
 
 ## Arquivos-Chave da Aula
 
-- **src/utils/password.ts**: `examples/courses/express/projects/auth/src/utils/password.ts` (linhas marcadas `36-43`)
-- **src/utils/password.ts**: `examples/courses/express/projects/auth/src/utils/password.ts` (linhas marcadas `75`)
-- **src/utils/password.test.ts**: `examples/courses/express/projects/auth/src/utils/password.test.ts` (linhas marcadas `8-9`)
+- **src/utils/password.ts**: `examples/courses/expressjs/projects/auth/src/utils/password.ts` (linhas marcadas `36-43`)
+- **src/utils/password.ts**: `examples/courses/expressjs/projects/auth/src/utils/password.ts` (linhas marcadas `75`)
+- **src/utils/password.test.ts**: `examples/courses/expressjs/projects/auth/src/utils/password.test.ts` (linhas marcadas `8-9`)
 
 ---
 

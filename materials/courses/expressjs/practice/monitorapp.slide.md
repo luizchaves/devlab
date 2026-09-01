@@ -28,7 +28,7 @@ Aplicação de monitoramento de hosts de rede construída em treze etapas: front
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-test`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-test`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -144,7 +144,7 @@ Aplicação de monitoramento de hosts de rede construída em treze etapas: front
 
 ## Protótipo visual e telas principais
 
-- Conheça as telas do MonitorApp renderizadas a partir dos arquivos do projeto local em `examples/courses/express/projects/monitor-app-static/front/`:
+- Conheça as telas do MonitorApp renderizadas a partir dos arquivos do projeto local em `examples/courses/expressjs/projects/monitor-app-static/front/`:
 - Painel principal com métricas da rede, cartões de host com estado e latência, e formulário para cadastrar um novo endereço:
 - Detalhe de um host: última latência, média, disponibilidade, gráfico da série e tabela de medições:
 - Interface de autenticação com e-mail e senha:
@@ -230,8 +230,8 @@ Aplicação de monitoramento de hosts de rede construída em treze etapas: front
 
 ```bash
   git diff --no-index -- \
-    examples/courses/express/projects/monitor-app-static \
-    examples/courses/express/projects/monitor-app-api || true
+    examples/courses/expressjs/projects/monitor-app-static \
+    examples/courses/expressjs/projects/monitor-app-api || true
 ```
 
 ---
@@ -240,15 +240,15 @@ Aplicação de monitoramento de hosts de rede construída em treze etapas: front
 
 ```bash
   git diff --no-index -- \
-    examples/courses/express/projects/monitor-app-db-simple \
-    examples/courses/express/projects/monitor-app-prisma || true
+    examples/courses/expressjs/projects/monitor-app-db-simple \
+    examples/courses/expressjs/projects/monitor-app-prisma || true
 ```
 
 ---
 
 ## Execução dos projetos locais
 
-- Cada página de etapa aponta para uma pasta em `examples/courses/express/projects/`.
+- Cada página de etapa aponta para uma pasta em `examples/courses/expressjs/projects/`.
 - Como front e API são projetos separados, cada um tem o seu `npm install` e o seu terminal:
 - A etapa 7 em diante instala o Prisma; a etapa 3 acrescenta `typescript` e `@types/*`; a etapa 12 acrescenta `supertest`, `vitest` e o Playwright.
 - Rode `npm install` de novo sempre que trocar de pasta: o `package.json` é diferente.
@@ -258,7 +258,7 @@ Aplicação de monitoramento de hosts de rede construída em treze etapas: front
 ## Execução dos projetos locais: Exemplo
 
 ```bash
-cd examples/courses/express/projects/monitor-app-prisma/back
+cd examples/courses/expressjs/projects/monitor-app-prisma/back
 npm install
 cp .env.example .env
 npm run db:migrate

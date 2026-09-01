@@ -30,7 +30,7 @@ CRUD persistente com Express, Prisma ORM e SQLite.
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/prisma`
+- Projeto executável: `examples/courses/expressjs/projects/prisma`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -83,7 +83,7 @@ CRUD persistente com Express, Prisma ORM e SQLite.
 
 ## Executando
 
-- cd examples/courses/express/projects/prisma
+- cd examples/courses/expressjs/projects/prisma
 
 ---
 
@@ -115,7 +115,7 @@ CRUD persistente com Express, Prisma ORM e SQLite.
 
 ## Arquivos-Chave da Aula
 
-- **prisma/schema.prisma**: `examples/courses/express/projects/prisma/prisma/schema.prisma`
+- **prisma/schema.prisma**: `examples/courses/expressjs/projects/prisma/prisma/schema.prisma`
 
 ---
 

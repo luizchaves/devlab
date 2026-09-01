@@ -27,7 +27,7 @@ Migração de uma API Express de JavaScript para TypeScript: execução nativa d
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/typescript`
+- Projeto executável: `examples/courses/expressjs/projects/typescript`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -304,10 +304,10 @@ export {};
 
 ## Arquivos-Chave da Aula
 
-- **tsconfig.json**: `examples/courses/express/projects/typescript/tsconfig.json` (linhas marcadas `4,10-13`)
-- **package.json**: `examples/courses/express/projects/typescript/package.json` (linhas marcadas `7-14`)
-- **src/types/user.ts**: `examples/courses/express/projects/typescript/src/types/user.ts`
-- **src/models/user-model.ts**: `examples/courses/express/projects/typescript/src/models/user-model.ts` (linhas marcadas `20-22`)
+- **tsconfig.json**: `examples/courses/expressjs/projects/typescript/tsconfig.json` (linhas marcadas `4,10-13`)
+- **package.json**: `examples/courses/expressjs/projects/typescript/package.json` (linhas marcadas `7-14`)
+- **src/types/user.ts**: `examples/courses/expressjs/projects/typescript/src/types/user.ts`
+- **src/models/user-model.ts**: `examples/courses/expressjs/projects/typescript/src/models/user-model.ts` (linhas marcadas `20-22`)
 
 ---
 

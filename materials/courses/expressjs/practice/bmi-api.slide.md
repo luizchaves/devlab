@@ -30,7 +30,7 @@ O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de 
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/bmi-query-param`
+- Projeto executável: `examples/courses/expressjs/projects/bmi-query-param`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -98,7 +98,7 @@ O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de 
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/bmi-query-param
+   cd examples/courses/expressjs/projects/bmi-query-param
 ```
 
 ---
@@ -150,10 +150,10 @@ O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de 
 
 ## Arquivos-Chave da Aula
 
-- **src/bmi.js**: `examples/courses/express/projects/bmi-query-param/src/bmi.js`
-- **src/index.js**: `examples/courses/express/projects/bmi-query-param/src/index.js` (linhas marcadas `6-8`)
-- **src/index.js**: `examples/courses/express/projects/bmi-route-param/src/index.js` (linhas marcadas `6-8`)
-- **src/index.js**: `examples/courses/express/projects/bmi-body-param/src/index.js` (linhas marcadas `6,9`)
+- **src/bmi.js**: `examples/courses/expressjs/projects/bmi-query-param/src/bmi.js`
+- **src/index.js**: `examples/courses/expressjs/projects/bmi-query-param/src/index.js` (linhas marcadas `6-8`)
+- **src/index.js**: `examples/courses/expressjs/projects/bmi-route-param/src/index.js` (linhas marcadas `6-8`)
+- **src/index.js**: `examples/courses/expressjs/projects/bmi-body-param/src/index.js` (linhas marcadas `6,9`)
 
 ---
 

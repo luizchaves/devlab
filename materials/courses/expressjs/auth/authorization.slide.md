@@ -27,7 +27,7 @@ Controle de acesso em uma API Express: 401 versus 403, autorização por posse d
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/auth`
+- Projeto executável: `examples/courses/expressjs/projects/auth`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -256,10 +256,10 @@ router.delete('/:id', requireInvestmentOwner, investmentController.destroy);
 
 ## Arquivos-Chave da Aula
 
-- **src/middlewares/authorize.ts**: `examples/courses/express/projects/auth/src/middlewares/authorize.ts` (linhas marcadas `39-41`)
-- **src/controllers/investment-controller.ts**: `examples/courses/express/projects/auth/src/controllers/investment-controller.ts`
-- **src/middlewares/authorize.ts**: `examples/courses/express/projects/auth/src/middlewares/authorize.ts` (linhas marcadas `12,18-20`)
-- **src/routes/user-router.ts**: `examples/courses/express/projects/auth/src/routes/user-router.ts` (linhas marcadas `9`)
+- **src/middlewares/authorize.ts**: `examples/courses/expressjs/projects/auth/src/middlewares/authorize.ts` (linhas marcadas `39-41`)
+- **src/controllers/investment-controller.ts**: `examples/courses/expressjs/projects/auth/src/controllers/investment-controller.ts`
+- **src/middlewares/authorize.ts**: `examples/courses/expressjs/projects/auth/src/middlewares/authorize.ts` (linhas marcadas `12,18-20`)
+- **src/routes/user-router.ts**: `examples/courses/expressjs/projects/auth/src/routes/user-router.ts` (linhas marcadas `9`)
 
 ---
 

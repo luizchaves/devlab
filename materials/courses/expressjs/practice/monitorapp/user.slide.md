@@ -30,7 +30,7 @@ Nona etapa do MonitorApp: entidade User, hash de senha com Argon2id usando apena
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-user`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-user`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -237,7 +237,7 @@ $argon2id$v=19$m=65536,t=3,p=4$c2FsdGVzdGVzYWx0$aGFzaGVzdGVoYXNoZXN0ZWhhc2hlc3Rl
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-user/back
+   cd examples/courses/expressjs/projects/monitor-app-user/back
    npm install
    npm run db:migrate
    npm run dev
@@ -248,7 +248,7 @@ $argon2id$v=19$m=65536,t=3,p=4$c2FsdGVzdGVzYWx0$aGFzaGVzdGVoYXNoZXN0ZWhhc2hlc3Rl
 ## Executando: Exemplo 2
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-user/front
+   cd examples/courses/expressjs/projects/monitor-app-user/front
    npm install
    npm run dev
 ```
@@ -273,12 +273,12 @@ $argon2id$v=19$m=65536,t=3,p=4$c2FsdGVzdGVzYWx0$aGFzaGVzdGVoYXNoZXN0ZWhhc2hlc3Rl
 
 ## Arquivos-Chave da Aula
 
-- **back/prisma/schema.prisma**: `examples/courses/express/projects/monitor-app-user/back/prisma/schema.prisma` (linhas marcadas `11-18,26-27`)
-- **back/src/utils/password.ts**: `examples/courses/express/projects/monitor-app-user/back/src/utils/password.ts` (linhas marcadas `33-47,75`)
-- **back/src/models/User.ts**: `examples/courses/express/projects/monitor-app-user/back/src/models/User.ts` (linhas marcadas `9,18`)
-- **back/src/schemas/user.schema.ts**: `examples/courses/express/projects/monitor-app-user/back/src/schemas/user.schema.ts` (linhas marcadas `11-17`)
-- **back/src/controllers/users.controller.ts**: `examples/courses/express/projects/monitor-app-user/back/src/controllers/users.controller.ts` (linhas marcadas `8-10,17-19`)
-- **back/src/routes/users.routes.ts**: `examples/courses/express/projects/monitor-app-user/back/src/routes/users.routes.ts` (linhas marcadas `10-11`)
+- **back/prisma/schema.prisma**: `examples/courses/expressjs/projects/monitor-app-user/back/prisma/schema.prisma` (linhas marcadas `11-18,26-27`)
+- **back/src/utils/password.ts**: `examples/courses/expressjs/projects/monitor-app-user/back/src/utils/password.ts` (linhas marcadas `33-47,75`)
+- **back/src/models/User.ts**: `examples/courses/expressjs/projects/monitor-app-user/back/src/models/User.ts` (linhas marcadas `9,18`)
+- **back/src/schemas/user.schema.ts**: `examples/courses/expressjs/projects/monitor-app-user/back/src/schemas/user.schema.ts` (linhas marcadas `11-17`)
+- **back/src/controllers/users.controller.ts**: `examples/courses/expressjs/projects/monitor-app-user/back/src/controllers/users.controller.ts` (linhas marcadas `8-10,17-19`)
+- **back/src/routes/users.routes.ts**: `examples/courses/expressjs/projects/monitor-app-user/back/src/routes/users.routes.ts` (linhas marcadas `10-11`)
 
 ---
 

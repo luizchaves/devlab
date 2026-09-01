@@ -30,7 +30,7 @@ Primeira etapa do MonitorApp: quatro telas estáticas em HTML e Tailwind CSS den
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/monitor-app-static`
+- Projeto executável: `examples/courses/expressjs/projects/monitor-app-static`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -218,7 +218,7 @@ Cenário: CA01.3 - Os campos já declaram o contrato futuro
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/monitor-app-static/front
+   cd examples/courses/expressjs/projects/monitor-app-static/front
 ```
 
 ---
@@ -250,12 +250,12 @@ Cenário: CA01.3 - Os campos já declaram o contrato futuro
 
 ## Arquivos-Chave da Aula
 
-- **front/index.html**: `examples/courses/express/projects/monitor-app-static/front/index.html` (linhas marcadas `114-133`)
-- **front/css/components.css**: `examples/courses/express/projects/monitor-app-static/front/css/components.css` (linhas marcadas `108-158`)
-- **front/host.html**: `examples/courses/express/projects/monitor-app-static/front/host.html` (linhas marcadas `54-60`)
-- **front/signup.html**: `examples/courses/express/projects/monitor-app-static/front/signup.html` (linhas marcadas `21-39`)
-- **front/signin.html**: `examples/courses/express/projects/monitor-app-static/front/signin.html` (linhas marcadas `21-31`)
-- **front/vite.config.js**: `examples/courses/express/projects/monitor-app-static/front/vite.config.js` (linhas marcadas `9-18`)
+- **front/index.html**: `examples/courses/expressjs/projects/monitor-app-static/front/index.html` (linhas marcadas `114-133`)
+- **front/css/components.css**: `examples/courses/expressjs/projects/monitor-app-static/front/css/components.css` (linhas marcadas `108-158`)
+- **front/host.html**: `examples/courses/expressjs/projects/monitor-app-static/front/host.html` (linhas marcadas `54-60`)
+- **front/signup.html**: `examples/courses/expressjs/projects/monitor-app-static/front/signup.html` (linhas marcadas `21-39`)
+- **front/signin.html**: `examples/courses/expressjs/projects/monitor-app-static/front/signin.html` (linhas marcadas `21-31`)
+- **front/vite.config.js**: `examples/courses/expressjs/projects/monitor-app-static/front/vite.config.js` (linhas marcadas `9-18`)
 
 ---
 

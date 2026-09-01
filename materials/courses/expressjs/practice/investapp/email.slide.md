@@ -30,7 +30,7 @@ Nona etapa do InvestApp: configuração de SMTP com nodemailer e envio de e-mail
 
 ## Projeto de Referência
 
-- Projeto executável: `examples/courses/express/projects/invest-app-email`
+- Projeto executável: `examples/courses/expressjs/projects/invest-app-email`
 - Use o código real como base da aula, dos testes manuais e das alterações propostas.
 - Os slides resumem decisões; a implementação completa continua nos arquivos de exemplo.
 
@@ -195,7 +195,7 @@ npm install -D @types/nodemailer
 ## Executando: Exemplo 1
 
 ```bash
-   cd examples/courses/express/projects/invest-app-email
+   cd examples/courses/expressjs/projects/invest-app-email
    npm install
 ```
 
@@ -247,8 +247,8 @@ npm install -D @types/nodemailer
 
 ```bash
 git diff --no-index -- \
-  examples/courses/express/projects/invest-app-auth/src \
-  examples/courses/express/projects/invest-app-email/src || true
+  examples/courses/expressjs/projects/invest-app-auth/src \
+  examples/courses/expressjs/projects/invest-app-email/src || true
 ```
 
 ---
@@ -271,12 +271,12 @@ git diff --no-index -- \
 
 ## Arquivos-Chave da Aula
 
-- **src/services/SendMail.ts**: `examples/courses/express/projects/invest-app-email/src/services/SendMail.ts` (linhas marcadas `13-16,20-27,29-31`)
-- **src/config/mail.ts**: `examples/courses/express/projects/invest-app-email/src/config/mail.ts` (linhas marcadas `8-16,18-22`)
-- **src/controllers/users.controller.ts**: `examples/courses/express/projects/invest-app-email/src/controllers/users.controller.ts` (linhas marcadas `5,19-23`)
-- **public/js/signup.js**: `examples/courses/express/projects/invest-app-email/public/js/signup.js` (linhas marcadas `10,16,17-26,28,31`)
-- **public/js/signup.js: os manipuladores**: `examples/courses/express/projects/invest-app-email/public/js/signup.js` (linhas marcadas `35,43,64`)
-- **public/js/signin.js**: `examples/courses/express/projects/invest-app-email/public/js/signin.js` (linhas marcadas `11,17,19,22,26-33`)
+- **src/services/SendMail.ts**: `examples/courses/expressjs/projects/invest-app-email/src/services/SendMail.ts` (linhas marcadas `13-16,20-27,29-31`)
+- **src/config/mail.ts**: `examples/courses/expressjs/projects/invest-app-email/src/config/mail.ts` (linhas marcadas `8-16,18-22`)
+- **src/controllers/users.controller.ts**: `examples/courses/expressjs/projects/invest-app-email/src/controllers/users.controller.ts` (linhas marcadas `5,19-23`)
+- **public/js/signup.js**: `examples/courses/expressjs/projects/invest-app-email/public/js/signup.js` (linhas marcadas `10,16,17-26,28,31`)
+- **public/js/signup.js: os manipuladores**: `examples/courses/expressjs/projects/invest-app-email/public/js/signup.js` (linhas marcadas `35,43,64`)
+- **public/js/signin.js**: `examples/courses/expressjs/projects/invest-app-email/public/js/signin.js` (linhas marcadas `11,17,19,22,26-33`)
 
 ---
 
