@@ -128,7 +128,9 @@ recebe só o que é preciso para rodar:
 />
 
 Copiar os manifestos **antes** do código é o que aproveita o cache: enquanto as dependências
-não mudarem, a camada de instalação não é refeita.
+não mudarem, a camada de instalação não é refeita. O `prisma/` vem junto porque o
+`postinstall` do projeto roda `prisma generate`, que precisa do schema — e o schema muda
+muito menos que `src/`, então o cache continua valendo.
 
 <SourceCode
   path="examples/courses/express/projects/task-api-test/Dockerfile"
@@ -139,6 +141,13 @@ não mudarem, a camada de instalação não é refeita.
 <Aside type="danger" title="Não rode como root">
   O padrão da imagem `node` é o usuário `root`. Se a aplicação for comprometida, o atacante
   herda esse usuário dentro do contêiner. Um `useradd` e um `USER app` custam duas linhas.
+</Aside>
+
+<Aside type="caution" title="Usuário sem privilégio não cria diretório sozinho">
+  `uploads/` e `data/` estão no `.dockerignore`, então não vêm no contexto — e o `app` não
+  pode criá-los em `/app`. Sem o `mkdir` com `chown` **antes** do `USER`, o processo morre
+  no arranque com `EACCES`. Vale também para o volume: montado sobre um caminho que pertence
+  ao root, ele continua pertencendo ao root.
 </Aside>
 
 O `HEALTHCHECK` fecha o ciclo aberto na etapa 1: o `/health` que nasceu como a primeira rota
@@ -167,9 +176,20 @@ imagem e aparece em qualquer `docker history`.
   lang="yaml"
 />
 
-O banco e os uploads moram em volumes: derrubar o contêiner não pode apagar os dados. E o
-`JWT_SECRET` usa a sintaxe `${VAR:?}`, que **recusa subir** sem a variável — em produção ela
-vem de um gerenciador de segredos, nunca do arquivo.
+O banco e os uploads moram em volumes: derrubar o contêiner não pode apagar os dados. O
+`command` aplica as migrations antes de subir o servidor, para que um contêiner novo sobre
+um volume vazio se vire sozinho — e chama o binário do `node_modules`, porque `pnpm` não
+existe no estágio de runtime.
+
+O `JWT_SECRET` usa a sintaxe `${VAR:?}`, que recusa subir sem a variável.
+
+<Aside type="danger" title="O compose lê o `.env` do diretório sozinho">
+  E é por isso que o `${VAR:?}` pode não barrar nada: se houver um `.env` ao lado do
+  `compose.yaml` — e há, porque o desenvolvimento precisa dele —, o compose o carrega e o
+  **segredo de desenvolvimento entra em produção em silêncio**. Em produção, use
+  `--env-file` apontando para outro arquivo, ou garanta que o `.env` não acompanhe o
+  deploy.
+</Aside>
 
 ## Código completo
 

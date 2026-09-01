@@ -2,7 +2,14 @@ import { defineConfig } from 'prisma/config';
 
 // O Node carrega o `.env` sozinho desde a versao 20.6 — `process.loadEnvFile()`
 // aqui, e a flag `--env-file` nos scripts. Nao e preciso instalar `dotenv`.
-process.loadEnvFile();
+//
+// Em conteiner nao existe `.env` (ele esta no .dockerignore) e as variaveis vem
+// do ambiente: sem o try, `loadEnvFile` lanca ENOENT e derruba as migrations.
+try {
+  process.loadEnvFile();
+} catch {
+  // Sem arquivo: as variaveis ja estao em process.env.
+}
 
 /**
  * A partir do Prisma 7 a string de conexao e o comando de seed saem do

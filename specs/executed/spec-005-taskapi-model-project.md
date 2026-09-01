@@ -203,10 +203,29 @@ Every phase ended green on `pnpm build`, `check:links`, `check:doc-lines`, `lint
 and `check`. Every published step was started and exercised over HTTP, and every
 TypeScript step passes `pnpm typecheck`. Step 12's suite is 21 passing tests.
 
-**Not verified:** the `Dockerfile` and `compose.yaml` of step 12 were written but
-never built — the Docker daemon was not running on the machine. They follow the
-documented multi-stage pattern but should be built once before anyone relies on
-`deploy.mdx`.
+The step 12 image was later built and run. That pass found five defects that
+reading the Dockerfile had not:
+
+1. `postinstall: prisma generate` ran before `prisma/` was copied — the schema was
+   not there yet.
+2. Corepack installed a newer pnpm than the local one, which turns ignored build
+   scripts into a hard error. Fixed by pinning `packageManager`.
+3. The unprivileged `app` user could not create `uploads/`, so the process died at
+   startup with `EACCES`. The same applied to the compose volume, which stays
+   root-owned when mounted over a root-owned path.
+4. `prisma.config.ts` was not copied into the runtime stage, so `migrate deploy`
+   could not find the datasource.
+5. `process.loadEnvFile()` throws when there is no `.env`, which is exactly the
+   container's situation.
+
+All five are fixed and verified: `docker compose up` reports *healthy*, applies
+migrations on an empty volume, serves `/health`, `/ready`, `/metrics` and a `401`
+on `/tasks`, runs as `app`, and the data survives a restart.
+
+One documentation claim was wrong and is now corrected in `test.mdx`: `${VAR:?}`
+does **not** guarantee the secret comes from the environment, because Compose
+auto-loads a `.env` sitting next to `compose.yaml` — which means the development
+secret would silently reach production.
 
 Two refinements to the original plan, both recorded in place above:
 

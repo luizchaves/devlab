@@ -6,11 +6,15 @@ WORKDIR /app
 
 # Copiar os manifestos antes do codigo aproveita o cache: enquanto as
 # dependencias nao mudarem, esta camada nao e refeita.
+#
+# O `prisma/` vem junto porque o `postinstall` do projeto roda `prisma generate`,
+# que precisa do schema. Ele muda muito menos que `src/`, entao o cache continua
+# valendo a pena.
 COPY package.json pnpm-lock.yaml ./
+COPY prisma ./prisma
 RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm exec prisma generate
 # #endregion
 
 # #region runtime
@@ -20,6 +24,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# O Prisma precisa do OpenSSL para escolher o engine certo; sem ele, avisa a
+# cada arranque e pode usar o binario errado.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 # Nao rodar como root: se a aplicacao for comprometida, o atacante herda um
 # usuario sem privilegio.
 RUN useradd --user-group --create-home --shell /bin/false app
@@ -27,7 +36,16 @@ RUN useradd --user-group --create-home --shell /bin/false app
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/package.json ./package.json
 COPY --from=build --chown=app:app /app/prisma ./prisma
+# O `prisma.config.ts` carrega a string de conexao: sem ele, `migrate deploy`
+# nao encontra o datasource.
+COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build --chown=app:app /app/src ./src
+
+# Os diretorios de dados nao vem no contexto (estao no .dockerignore) e o
+# usuario `app` nao pode cria-los. Sem esta linha o processo morre no arranque
+# com EACCES — e um volume montado sobre um caminho root-owned continua
+# root-owned, entao ele precisa existir e ja pertencer ao `app`.
+RUN mkdir -p /app/uploads /app/data && chown app:app /app/uploads /app/data
 
 USER app
 

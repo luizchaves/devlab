@@ -37,12 +37,12 @@
 - [x] **[TASK-006]** Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
 - [ ] **[TASK-007]** Gerar slides das páginas de cada curso e guia
 - [ ] **[TASK-008]** Gerar `book.pdf` por guia ou curso
-- [ ] **[TASK-023] TaskAPI — projeto modelo do Guia de Express.js:** trilha concluída; falta só validar a imagem Docker (ver [spec](../specs/executed/spec-005-taskapi-model-project.md))
+- [x] **[TASK-023] TaskAPI — projeto modelo do Guia de Express.js:** (ver [spec](../specs/executed/spec-005-taskapi-model-project.md))
   - [x] `[TASK-023.1]` Auditar a origem do código das páginas de conceito — **172 blocos escritos à mão** com `title="src/…"` contra ~38 `<SourceCode>` reais, e 20 das 33 páginas sem nenhum projeto executável
   - [x] `[TASK-023.2]` Criar a trilha `task-api-*` em doze etapas cumulativas, só API, absorvendo `hello`, `router`, `mvc`, `typescript`, `prisma` e `auth` — **as doze publicadas**, cada uma executada e exercitada por HTTP; a 12 traz 21 testes
   - [x] `[TASK-023.3]` Converter os blocos escritos à mão das páginas de conceito em `<SourceCode>` — de 172 para **6** (todos comparações `del`/`ins`), e de ~38 para **114 recortes reais**; só `api/construction` segue sem projeto, por ser página de projeto de API
   - [x] `[TASK-023.4]` Redirecionar as seis páginas de projeto antigas e remover os quatro diretórios órfãos (`hello-simple`, `hello-lang`, `invest-app-prismajs-simple` e `prisma`)
-  - [ ] `[TASK-023.5]` Construir a imagem da etapa 12 — o `Dockerfile` e o `compose.yaml` foram escritos mas **nunca buildados** (daemon do Docker indisponível na máquina); validar antes de alguém confiar no `deploy.mdx`
+  - [x] `[TASK-023.5]` Construir e rodar a imagem da etapa 12 — o build revelou **cinco defeitos** que a leitura não pegava (`prisma generate` sem schema, pnpm não pinada, `EACCES` em `uploads/` e no volume, `prisma.config.ts` ausente no runtime, `loadEnvFile` sem `.env`); corrigidos e verificados: `docker compose up` sobe *healthy*, aplica migrations, e os dados sobrevivem ao restart
 
 ### Concluídos (Conteúdo)
 
