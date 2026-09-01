@@ -71,8 +71,10 @@ Por padrão, tudo o que é declarado dentro de um arquivo `.js` é **privado**:
 function sum(a, b) {
   return a + b;
 }
+```
 
-// main.js (tenta acessar diretamente)
+```js
+// main.js (tenta acessar diretamente sem importar)
 console.log(sum(2, 1));
 // ReferenceError: sum is not defined
 ```
@@ -93,26 +95,46 @@ console.log(sum(2, 1));
 
 ---
 
-## CommonJS: Padrão Legado do Node.js
+## CommonJS: Export e Import Padrão
 
 ```js
-// 1. Export e Import Default no CJS (lib.js / main.js)
-// lib.js
-module.exports = function sum(a, b) { return a + b; };
-// main.js
-const sum = require('./lib.js');
-console.log(sum(2, 1)); // 3
+// lib.js - Exportando a função principal
+module.exports = function sum(a, b) {
+  return a + b;
+};
+```
 
-// 2. Export e Import Nomeado no CJS
-// lib.js
+```js
+// main.js - Importando com require()
+const sum = require('./lib.js');
+
+console.log(sum(2, 1)); // 3
+```
+
+- `module.exports` expõe o valor diretamente.
+- `require('./lib.js')` carrega o módulo de forma síncrona no tempo de execução.
+
+---
+
+## CommonJS: Exportações Nomeadas
+
+```js
+// lib.js - Exportando múltiplas funções como propriedades de objeto
 module.exports = {
   sum: (a, b) => a + b,
   subtract: (a, b) => a - b,
 };
-// main.js
-const { sum: add, subtract } = require('./lib.js');
-console.log(add(2, 1), subtract(2, 1)); // 3 1
 ```
+
+```js
+// main.js - Desestruturando e renomeando na importação
+const { sum: add, subtract } = require('./lib.js');
+
+console.log(add(2, 1));      // 3
+console.log(subtract(2, 1)); // 1
+```
+
+- Permite exportar múltiplos membros em um único objeto exportado.
 
 ---
 
