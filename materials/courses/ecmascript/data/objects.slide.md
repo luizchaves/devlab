@@ -7,8 +7,8 @@ style: |
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
   }
 lang: pt-BR
-title: "JavaScript: Objetos, Classes e Protótipos"
-description: "Slides completos da aula JavaScript: Objetos, Classes e Protótipos."
+title: 'JavaScript: Objetos, Classes e Protótipos'
+description: 'Slides completos da aula JavaScript: Objetos, Classes e Protótipos.'
 ---
 
 <!-- _class: lead -->
@@ -57,13 +57,13 @@ Criação, notação literal, encadear opcional, desestruturação, operador spr
 
 ## Criação de Objetos e Notação Literal: Comparação
 
-| Elemento | Descrição | Exemplo |
-| -------- | --------- | ------- |
+| Elemento            | Descrição                                            | Exemplo                         |
+| ------------------- | ---------------------------------------------------- | ------------------------------- |
 | **Notação Literal** | Forma mais comum e legível de criar objetos com `{}` | `const user = { name: "Ana" };` |
-| **Chave (Key)** | Identificador da propriedade (string ou Symbol) | `name`, `age`, `"end-point"` |
-| **Valor (Value)** | Qualquer dado associado à chave | `"Ana"`, `28`, `true`, `[1, 2]` |
-| **Método** | Uma função armazenada como valor de uma propriedade | `sayHello() { return "Olá!"; }` |
-| **Tipo de Dado** | Tipo de dado não primitivo em JavaScript | `typeof {}` // `"object"` |
+| **Chave (Key)**     | Identificador da propriedade (string ou Symbol)      | `name`, `age`, `"end-point"`    |
+| **Valor (Value)**   | Qualquer dado associado à chave                      | `"Ana"`, `28`, `true`, `[1, 2]` |
+| **Método**          | Uma função armazenada como valor de uma propriedade  | `sayHello() { return "Olá!"; }` |
+| **Tipo de Dado**    | Tipo de dado não primitivo em JavaScript             | `typeof {}` // `"object"`       |
 
 ---
 
@@ -72,22 +72,19 @@ Criação, notação literal, encadear opcional, desestruturação, operador spr
 ```js
 // 1. Literal de Objeto (Recomendado)
 const student = {
-id: 2026101,
-name: "Fulano de Tal",
-email: "fulano@ifpb.edu.br",
-active: true,
-courses: ["DW", "Redes"],
-// Método do objeto (sintaxe abreviada do ES6)
-getSummary() {
- return `${this.name} (${this.email})`;
-},
+  id: 2026101,
+  name: 'Fulano de Tal',
+  email: 'fulano@ifpb.edu.br',
+  active: true,
+  courses: ['DW', 'Redes'],
+  // Método do objeto (sintaxe abreviada do ES6)
+  getSummary() {
+    return `${this.name} (${this.email})`;
+  },
 };
-  // ...
-server.port = 8080;
 
-console.log(student.name);        // "Fulano de Tal"
-console.log(student.getSummary());// "Fulano de Tal (fulano@ifpb.edu.br)"
-console.log(server.ip);           // "192.168.0.1"
+console.log(student.name); // "Fulano de Tal"
+console.log(student.getSummary()); // "Fulano de Tal (fulano@ifpb.edu.br)"
 ```
 
 ---
@@ -103,9 +100,9 @@ console.log(server.ip);           // "192.168.0.1"
 ## Uso de Property Shorthand
 
 ```js
-const name = "Alice";
-const email = "alice@gmail.com";
-const role = "admin";
+const name = 'Alice';
+const email = 'alice@gmail.com';
+const role = 'admin';
 
 // Forma tradicional (verbosa)
 const userOld = { name: name, email: email, role: role };
@@ -134,22 +131,22 @@ console.log(user); // { name: 'Alice', email: 'alice@gmail.com', role: 'admin' }
 
 ```js
 const host = {
-hostname: "web-server-01",
-ip: "192.168.1.10",
-"content-type": "application/json", // Chave com hífen precisa de aspas!
-200: "OK",                         // Chave numérica
+  hostname: 'web-server-01',
+  ip: '192.168.1.10',
+  'content-type': 'application/json', // Chave com hífen precisa de aspas!
+  200: 'OK', // Chave numérica
 };
 
 // 1. Notação de Ponto (mais comum)
 console.log(host.hostname); // "web-server-01"
-console.log(host.ip);       // "192.168.1.10"
+console.log(host.ip); // "192.168.1.10"
 
 // 2. Notação de Colchetes (obrigatória para chaves com hífens, espaços ou números)
-console.log(host["content-type"]); // "application/json"
-console.log(host[200]);            // "OK"
+console.log(host['content-type']); // "application/json"
+console.log(host[200]); // "OK"
 
 // 3. Notação de Colchetes com Chaves Dinâmicas (variáveis)
-const targetKey = "ip";
+const targetKey = 'ip';
 console.log(host[targetKey]); // "192.168.1.10" (equivale a host.ip)
 ```
 
@@ -166,8 +163,8 @@ console.log(host[targetKey]); // "192.168.1.10" (equivale a host.ip)
 
 ```js
 const config = {
-theme: "dark",
-timeout: 5000,
+  theme: 'dark',
+  timeout: 5000,
 };
 
 // Adicionando nova propriedade
@@ -189,26 +186,26 @@ console.log(config.retries); // undefined
 ## Verificação de Existência de Propriedades (Operador `in` e `Object.hasOwn`)
 
 - Operador `in`: Retorna `true` se a propriedade existir no objeto ou em qualquer nível da sua cadeia de protótipos...
-- `Object.hasOwn(obj, prop)`: Retorna `true` apenas se a propriedade for direta/própria do objeto (*own property*),...
+- `Object.hasOwn(obj, prop)`: Retorna `true` apenas se a propriedade for direta/própria do objeto (_own property_),...
 
 ---
 
 ## Diferença entre o operador in e Object.hasOwn()
 
 ```js
-const user = { name: "Bruno", age: 25 };
+const user = { name: 'Bruno', age: 25 };
 
 // 1. Verificando propriedades diretas do objeto:
-console.log("name" in user);               // true
-console.log(Object.hasOwn(user, "name")); // true
+console.log('name' in user); // true
+console.log(Object.hasOwn(user, 'name')); // true
 
 // 2. Propriedade inexistente:
-console.log("email" in user);              // false
-console.log(Object.hasOwn(user, "email"));// false
+console.log('email' in user); // false
+console.log(Object.hasOwn(user, 'email')); // false
 
 // 3. Propriedades herdadas do protótipo (ex: toString de Object.prototype):
-console.log("toString" in user);               // true (encontrado na cadeia de protótipos)
-console.log(Object.hasOwn(user, "toString")); // false (não é propriedade direta)
+console.log('toString' in user); // true (encontrado na cadeia de protótipos)
+console.log(Object.hasOwn(user, 'toString')); // false (não é propriedade direta)
 ```
 
 ---
@@ -217,7 +214,7 @@ console.log(Object.hasOwn(user, "toString")); // false (não é propriedade dire
 
 - Ao acessar propriedades encadeadas em objetos aninhados, tentar ler um atributo de um valor `null` ou `undefined` causa...
 - O operador de Encadear Opcional (`?.`) permite acessar propriedades com segurança
-- caso o alvo seja `null` ou `undefined`, a expressão interrompe a avaliação (*short-circuiting*) e retorna `undefined` sem...
+- caso o alvo seja `null` ou `undefined`, a expressão interrompe a avaliação (_short-circuiting_) e retorna `undefined` sem...
 - Declarar um objeto com `const` impede que a variável seja reassociada a um novo objeto na memória
 - No entanto, as propriedades internas do objeto continuam mutáveis — elas podem ser alteradas, adicionadas ou deletadas...
 
@@ -227,23 +224,23 @@ console.log(Object.hasOwn(user, "toString")); // false (não é propriedade dire
 
 ```js
 const user = {
-id: 1,
-name: "Carlos",
-profile: {
- address: {
-   city: "João Pessoa"
- }
-}
+  id: 1,
+  name: 'Carlos',
+  profile: {
+    address: {
+      city: 'João Pessoa',
+    },
+  },
 };
 
 // ❌ Sem Optional Chaining: se 'settings' for undefined, aceso gera TypeError
 // const theme = user.settings.theme; // TypeError: Cannot read properties of undefined
-  // ...
-const theme = user?.settings?.theme;          // undefined (objeto 'settings' não existe)
+// ...
+const theme = user?.settings?.theme; // undefined (objeto 'settings' não existe)
 
 // 💡 Combinando com Coalescência Nula (??) para definir valor padrão
-const userCity = user?.profile?.address?.city ?? "Cidade não cadastrada";
-const userTheme = user?.settings?.theme ?? "light";
+const userCity = user?.profile?.address?.city ?? 'Cidade não cadastrada';
+const userTheme = user?.settings?.theme ?? 'light';
 ```
 
 ---
@@ -269,22 +266,22 @@ server.port = 9090; // PERMITIDO (altera propriedade interna)
 
 ```js
 const person = {
-firstName: "Maria",
-lastName: "Silva",
-age: 30,
-city: "João Pessoa",
+  firstName: 'Maria',
+  lastName: 'Silva',
+  age: 30,
+  city: 'João Pessoa',
 };
 
 // Extraindo propriedades com os mesmos nomes das chaves
 const { firstName, age } = person;
 console.log(firstName); // "Maria"
-console.log(age);       // 30
+console.log(age); // 30
 
-  // ...
+// ...
 console.log(location); // "João Pessoa"
 
 // Extraindo com valor padrão caso a propriedade não exista
-const { role = "visitante" } = person;
+const { role = 'visitante' } = person;
 console.log(role); // "visitante"
 ```
 
@@ -301,13 +298,13 @@ console.log(role); // "visitante"
 
 ```js
 function displayServerInfo({ hostname, ip, port = 80 }) {
-console.log(`Servidor ${hostname} rodando em http://${ip}:${port}`);
+  console.log(`Servidor ${hostname} rodando em http://${ip}:${port}`);
 }
 
 const webServer = {
-hostname: "api-server",
-ip: "10.0.0.15",
-port: 3000,
+  hostname: 'api-server',
+  ip: '10.0.0.15',
+  port: 3000,
 };
 
 displayServerInfo(webServer); // "Servidor api-server rodando em http://10.0.0.15:3000"
@@ -317,7 +314,7 @@ displayServerInfo(webServer); // "Servidor api-server rodando em http://10.0.0.1
 
 ## Operador Spread e Imutabilidade em Objetos
 
-- O operador de espalhamento (`...`) permite copiar e mesclar propriedades de objetos de forma rasa (*shallow copy*)
+- O operador de espalhamento (`...`) permite copiar e mesclar propriedades de objetos de forma rasa (_shallow copy_)
 - O diagrama a seguir ilustra o processo de cópia das propriedades do objeto base e a sobreposição de chaves especificadas
 - Diagrama da página
 - Cópia Rasa e Mesclagem de Propriedades com Operador Spread
@@ -328,16 +325,16 @@ displayServerInfo(webServer); // "Servidor api-server rodando em http://10.0.0.1
 
 ```js
 const baseConfig = {
-env: "development",
-debug: true,
-port: 3000,
+  env: 'development',
+  debug: true,
+  port: 3000,
 };
 
 // Criando uma cópia e sobrescrevendo a propriedade 'env' e 'port'
 const prodConfig = {
-...baseConfig,
-env: "production",
-port: 8080,
+  ...baseConfig,
+  env: 'production',
+  port: 8080,
 };
 
 console.log(baseConfig); // { env: 'development', debug: true, port: 3000 }
@@ -356,12 +353,12 @@ console.log(prodConfig); // { env: 'production', debug: true, port: 8080 }
 
 ```js
 const immutableConfig = Object.freeze({
-apiUrl: "https://api.devlab.org",
-version: "v1",
+  apiUrl: 'https://api.devlab.org',
+  version: 'v1',
 });
 
 // Tentativa de alteração é ignorada em modo padrão (ou lança erro em strict mode)
-immutableConfig.version = "v2";
+immutableConfig.version = 'v2';
 immutableConfig.timeout = 5000;
 
 console.log(immutableConfig); // { apiUrl: 'https://api.devlab.org', version: 'v1' }
@@ -371,7 +368,7 @@ console.log(immutableConfig); // { apiUrl: 'https://api.devlab.org', version: 'v
 
 ## Classes em JavaScript (ES6+ e POO)
 
-- Introduzidas no ES2015 (ES6), as Classes oferecem uma sintaxe moderna baseada em protótipos (*prototype-based...
+- Introduzidas no ES2015 (ES6), as Classes oferecem uma sintaxe moderna baseada em protótipos (\*prototype-based...
 
 ---
 
@@ -386,18 +383,18 @@ console.log(immutableConfig); // { apiUrl: 'https://api.devlab.org', version: 'v
 
 ```js
 class User {
-constructor(name, email) {
- this.name = name;
- this.email = email;
+  constructor(name, email) {
+    this.name = name;
+    this.email = email;
+  }
+
+  // Método de instância (armazenado no User.prototype)
+  getProfile() {
+    return `${this.name} (${this.email})`;
+  }
 }
 
-// Método de instância (armazenado no User.prototype)
-getProfile() {
- return `${this.name} (${this.email})`;
-}
-}
-
-const user1 = new User("Ana Silva", "ana@devlab.org");
+const user1 = new User('Ana Silva', 'ana@devlab.org');
 console.log(user1.getProfile()); // "Ana Silva (ana@devlab.org)"
 ```
 
@@ -405,7 +402,7 @@ console.log(user1.getProfile()); // "Ana Silva (ana@devlab.org)"
 
 ## Mapeamento entre Classes e a Cadeia de Protótipos
 
-- No JavaScript, a instrução `class` é apenas um açúcar sintático (*syntactic sugar*) construído sobre a cadeia de...
+- No JavaScript, a instrução `class` é apenas um açúcar sintático (_syntactic sugar_) construído sobre a cadeia de...
 - O diagrama a seguir ilustra a estrutura de memória de uma instância criada via `class` e sua vinculação com...
 - Diagrama da página
 - Instanciação de Classe e Mapeamento com a Cadeia de Protótipos
@@ -458,19 +455,19 @@ console.log(account.balance); // 700
 
 ```js
 class Admin extends User {
-constructor(name, email, permissions) {
- // Chama o construtor da classe pai (User)
- super(name, email);
- this.permissions = permissions;
+  constructor(name, email, permissions) {
+    // Chama o construtor da classe pai (User)
+    super(name, email);
+    this.permissions = permissions;
+  }
+
+  // Sobrescrita de método (Method Overriding)
+  getProfile() {
+    return `[ADMIN] ${super.getProfile()} - Permissões: ${this.permissions.join(', ')}`;
+  }
 }
 
-// Sobrescrita de método (Method Overriding)
-getProfile() {
- return `[ADMIN] ${super.getProfile()} - Permissões: ${this.permissions.join(", ")}`;
-}
-}
-
-const admin = new Admin("Beatriz", "beatriz@devlab.org", ["CREATE", "DELETE"]);
+const admin = new Admin('Beatriz', 'beatriz@devlab.org', ['CREATE', 'DELETE']);
 console.log(admin.getProfile());
 // "[ADMIN] Beatriz (beatriz@devlab.org) - Permissões: CREATE, DELETE"
 ```
@@ -487,11 +484,11 @@ console.log(admin.getProfile());
 
 ```js
 class MathUtils {
-static PI = 3.14159;
+  static PI = 3.14159;
 
-static calculateCircleArea(radius) {
- return this.PI * radius * radius;
-}
+  static calculateCircleArea(radius) {
+    return this.PI * radius * radius;
+  }
 }
 
 console.log(MathUtils.PI); // 3.14159
@@ -510,12 +507,12 @@ console.log(MathUtils.calculateCircleArea(5)); // 78.53975
 
 ## Iteração sobre Objetos: Comparação
 
-| Método / Estrutura | Retorno | Descrição |
-| ------------------ | ------- | --------- |
-| `for...in` | Chaves (`string`) | Laço que percorre as chaves enumeráveis do objeto |
-| `Object.keys(obj)` | `Array<string>` | Retorna um array com os nomes das chaves do objeto |
-| `Object.values(obj)` | `Array<any>` | Retorna um array com os valores de todas as propriedades |
-| `Object.entries(obj)` | `Array<[string, any]>` | Retorna um array de pares `[chave, valor]` |
+| Método / Estrutura    | Retorno                | Descrição                                                |
+| --------------------- | ---------------------- | -------------------------------------------------------- |
+| `for...in`            | Chaves (`string`)      | Laço que percorre as chaves enumeráveis do objeto        |
+| `Object.keys(obj)`    | `Array<string>`        | Retorna um array com os nomes das chaves do objeto       |
+| `Object.values(obj)`  | `Array<any>`           | Retorna um array com os valores de todas as propriedades |
+| `Object.entries(obj)` | `Array<[string, any]>` | Retorna um array de pares `[chave, valor]`               |
 
 ---
 
@@ -523,9 +520,9 @@ console.log(MathUtils.calculateCircleArea(5)); // 78.53975
 
 ```js
 const scores = {
-Alice: 95,
-Bruno: 80,
-Carla: 90,
+  Alice: 95,
+  Bruno: 80,
+  Carla: 90,
 };
 
 // 1. Object.keys() - Obtendo lista de chaves
@@ -534,11 +531,11 @@ console.log(names); // [ 'Alice', 'Bruno', 'Carla' ]
 
 // 2. Object.values() - Obtendo lista de valores
 const points = Object.values(scores);
-  // ...
+// ...
 
 // Iterando com for...of sobre Object.entries() usando desestruturação
 for (const [student, score] of Object.entries(scores)) {
-console.log(`Estudante: ${student} | Nota: ${score}`);
+  console.log(`Estudante: ${student} | Nota: ${score}`);
 }
 ```
 
@@ -546,19 +543,19 @@ console.log(`Estudante: ${student} | Nota: ${score}`);
 
 ## O Formato e Objeto JSON
 
-- JSON (*JavaScript Object Notation*) é um formato leve e estritamente textual para troca de dados entre sistemas (por...
+- JSON (_JavaScript Object Notation_) é um formato leve e estritamente textual para troca de dados entre sistemas (por...
 - Apesar de derivar da sintaxe de objetos do JavaScript, o formato JSON possui regras estritas:
 
 ---
 
 ## O Formato e Objeto JSON: Comparação
 
-| Característica | Objeto JavaScript | Formato JSON |
-| -------------- | ----------------- | ------------ |
-| **Nomes de Chaves** | Podem ser sem aspas (`name: "Ana"`) | **Devem** estar entre aspas duplas (`"name": "Ana"`) |
-| **Strings** | Aspas simples, duplas ou crases | **Devem** usar apenas aspas duplas (`"..."`) |
-| **Tipos de Dados Aceitos** | Primitivos, arrays, objetos e **funções** | Apenas primitivos (número, string, boolean, null), arrays e objetos |
-| **Vírgula Final (Trailing Comma)** | Permitida (`{ a: 1, }`) | **Proibida** (`{ "a": 1 }`) |
+| Característica                     | Objeto JavaScript                         | Formato JSON                                                        |
+| ---------------------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
+| **Nomes de Chaves**                | Podem ser sem aspas (`name: "Ana"`)       | **Devem** estar entre aspas duplas (`"name": "Ana"`)                |
+| **Strings**                        | Aspas simples, duplas ou crases           | **Devem** usar apenas aspas duplas (`"..."`)                        |
+| **Tipos de Dados Aceitos**         | Primitivos, arrays, objetos e **funções** | Apenas primitivos (número, string, boolean, null), arrays e objetos |
+| **Vírgula Final (Trailing Comma)** | Permitida (`{ a: 1, }`)                   | **Proibida** (`{ "a": 1 }`)                                         |
 
 ---
 
@@ -566,14 +563,14 @@ console.log(`Estudante: ${student} | Nota: ${score}`);
 
 ```json
 {
-"id": 101,
-"name": "Servidor Principal",
-"active": true,
-"tags": ["web", "production"],
-"specs": {
- "cpu": 4,
- "ram": "16GB"
-}
+  "id": 101,
+  "name": "Servidor Principal",
+  "active": true,
+  "tags": ["web", "production"],
+  "specs": {
+    "cpu": 4,
+    "ram": "16GB"
+  }
 }
 ```
 
@@ -590,20 +587,20 @@ console.log(`Estudante: ${student} | Nota: ${score}`);
 
 ```js
 const userObject = {
-id: 1,
-name: "Carlos",
-email: "carlos@gmail.com",
+  id: 1,
+  name: 'Carlos',
+  email: 'carlos@gmail.com',
 };
 
 // 1. Serialização (Objeto JS -> String JSON)
 const jsonString = JSON.stringify(userObject);
 console.log(typeof jsonString); // "string"
-console.log(jsonString);        // '{"id":1,"name":"Carlos","email":"carlos@gmail.com"}'
+console.log(jsonString); // '{"id":1,"name":"Carlos","email":"carlos@gmail.com"}'
 
 // 2. Deserialização (String JSON -> Objeto JS)
 const parsedObject = JSON.parse(jsonString);
 console.log(typeof parsedObject); // "object"
-console.log(parsedObject.name);   // "Carlos"
+console.log(parsedObject.name); // "Carlos"
 ```
 
 ---
@@ -630,22 +627,22 @@ console.log(parsedObject.name);   // "Carlos"
 
 ```js
 const serverConfig = {
-  hostname: "api.devlab.org",
+  hostname: 'api.devlab.org',
   port: 8080,
   ssl: true,
-  endpoints: ["/users", "/products"],
+  endpoints: ['/users', '/products'],
 };
 
 // Desestruturação e operador Spread
 const { hostname, port } = serverConfig;
-const updatedConfig = { ...serverConfig, port: 443, env: "production" };
+const updatedConfig = { ...serverConfig, port: 443, env: 'production' };
 
 // Conversão para JSON
 const jsonPayload = JSON.stringify(updatedConfig, null, 2);
 
-console.log("Host original:", `${hostname}:${port}`);
-console.log("Configuração atualizada:", updatedConfig);
-console.log("Payload JSON formatado:\n", jsonPayload);
+console.log('Host original:', `${hostname}:${port}`);
+console.log('Configuração atualizada:', updatedConfig);
+console.log('Payload JSON formatado:\n', jsonPayload);
 ```
 
 ---

@@ -7,8 +7,8 @@ style: |
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
   }
 lang: pt-BR
-title: "JavaScript: Arrays e Métodos Funcionais"
-description: "Slides completos da aula JavaScript: Arrays e Métodos Funcionais."
+title: 'JavaScript: Arrays e Métodos Funcionais'
+description: 'Slides completos da aula JavaScript: Arrays e Métodos Funcionais.'
 ---
 
 <!-- _class: lead -->
@@ -41,7 +41,7 @@ Criação, geração de intervalos (range), manipulação, iteração, desestrut
 ## Introdução
 
 - Esta aula apresenta os Arrays em JavaScript
-- como criar coleções ordenadas de dados, gerar sequências numéricas (*range*), acessar e modificar elementos por índice,...
+- como criar coleções ordenadas de dados, gerar sequências numéricas (_range_), acessar e modificar elementos por índice,...
 
 ---
 
@@ -56,13 +56,13 @@ Criação, geração de intervalos (range), manipulação, iteração, desestrut
 
 ## Criação e Estrutura de Arrays: Comparação
 
-| Característica | Descrição | Exemplo |
-| -------------- | --------- | ------- |
-| **Notação Literal** | Forma mais comum e recomendada de criar arrays | `const items = [1, 2, 3];` |
-| **Indexação** | Elementos são acessados por índices inteiros a partir de 0 | `items[0]` // `1` |
-| **Heterogeneidade** | Pode armazenar primitivos, objetos e até outros arrays | `[42, "texto", true, { id: 1 }]` |
-| **Tipo de Dado** | Internamente é um objeto especial | `typeof []` // `"object"` |
-| **Verificação** | Teste oficial para checar se um valor é array | `Array.isArray([])` // `true` |
+| Característica      | Descrição                                                  | Exemplo                          |
+| ------------------- | ---------------------------------------------------------- | -------------------------------- |
+| **Notação Literal** | Forma mais comum e recomendada de criar arrays             | `const items = [1, 2, 3];`       |
+| **Indexação**       | Elementos são acessados por índices inteiros a partir de 0 | `items[0]` // `1`                |
+| **Heterogeneidade** | Pode armazenar primitivos, objetos e até outros arrays     | `[42, "texto", true, { id: 1 }]` |
+| **Tipo de Dado**    | Internamente é um objeto especial                          | `typeof []` // `"object"`        |
+| **Verificação**     | Teste oficial para checar se um valor é array              | `Array.isArray([])` // `true`    |
 
 ---
 
@@ -74,14 +74,14 @@ const numbers = [10, 20, 30, 40];
 const empty = [];
 
 // 2. Arrays com múltiplos tipos de dados
-const mixed = [42, "JavaScript", true, null, { role: "admin" }, [1, 2]];
+const mixed = [42, 'JavaScript', true, null, { role: 'admin' }, [1, 2]];
 
 // 3. Construtor Array
 const items = new Array(10, 20, 30); // [10, 20, 30]
-const fixedLength = new Array(5);    // Cria um array com 5 posições vazias (<5 empty items>)
+const fixedLength = new Array(5); // Cria um array com 5 posições vazias (<5 empty items>)
 
 // 4. Array.from() - Cria array a partir de iteráveis ou coleções
-const digits = Array.from("12345"); // ["1", "2", "3", "4", "5"]
+const digits = Array.from('12345'); // ["1", "2", "3", "4", "5"]
 
 console.log(numbers); // [ 10, 20, 30, 40 ]
 console.log(mixed[1]); // "JavaScript"
@@ -93,9 +93,9 @@ console.log(mixed[5][0]); // 1 (acessando elemento do array aninhado)
 ## Testando o tipo de Array
 
 ```js
-console.log(typeof [1, 2, 3]);        // "object"
+console.log(typeof [1, 2, 3]); // "object"
 console.log(Array.isArray([1, 2, 3])); // true
-console.log(Array.isArray({}));        // false
+console.log(Array.isArray({})); // false
 ```
 
 ---
@@ -116,7 +116,7 @@ console.log(Array.isArray({}));        // false
 ## Acessando e alterando elementos
 
 ```js
-const colors = ["vermelho", "verde", "azul"];
+const colors = ['vermelho', 'verde', 'azul'];
 
 // Leitura por índice
 console.log(colors[0]); // "vermelho"
@@ -124,15 +124,15 @@ console.log(colors[2]); // "azul"
 console.log(colors[3]); // undefined (índice inexistente)
 
 // Novo método .at() (aceita índices negativos a partir do final)
-console.log(colors.at(0));  // "vermelho"
+console.log(colors.at(0)); // "vermelho"
 console.log(colors.at(-1)); // "azul" (último elemento)
 console.log(colors.at(-2)); // "verde" (penúltimo elemento)
 
-  // ...
+// ...
 console.log(colors); // [ "vermelho", "amarelo", "azul" ]
 
 // Adicionando novo elemento em índice futuro
-colors[3] = "roxo";
+colors[3] = 'roxo';
 console.log(colors); // [ "vermelho", "amarelo", "azul", "roxo" ]
 ```
 
@@ -148,14 +148,14 @@ console.log(colors); // [ "vermelho", "amarelo", "azul", "roxo" ]
 ## Comportamento da propriedade length
 
 ```js
-const fruits = ["maçã", "banana", "laranja"];
+const fruits = ['maçã', 'banana', 'laranja'];
 console.log(fruits.length); // 3
 
 // Atribuindo valor a um índice distante cria posições vazias (array esparso)
-fruits[5] = "uva";
-console.log(fruits);        // [ 'maçã', 'banana', 'laranja', <2 empty items>, 'uva' ]
+fruits[5] = 'uva';
+console.log(fruits); // [ 'maçã', 'banana', 'laranja', <2 empty items>, 'uva' ]
 console.log(fruits.length); // 6
-console.log(fruits[3]);     // undefined
+console.log(fruits[3]); // undefined
 
 // Reduzindo o length diretamente altera/trunca o array!
 fruits.length = 2;
@@ -167,7 +167,7 @@ console.log(fruits); // [ 'maçã', 'banana' ] (elementos excedentes foram desca
 ## O Operador delete
 
 - O operador `delete` pode ser usado em arrays, mas deve ser evitado na maioria dos cenários
-- O operador `delete` remove o valor mas mantém a chave/posição como um slot vazio (*empty*), criando um array esparso sem...
+- O operador `delete` remove o valor mas mantém a chave/posição como um slot vazio (_empty_), criando um array esparso sem...
 - Para remover elementos reajustando o tamanho do array, utilize métodos como `.splice()`, `.pop()`, `.shift()` ou `.filter()`
 
 ---
@@ -178,9 +178,9 @@ console.log(fruits); // [ 'maçã', 'banana' ] (elementos excedentes foram desca
 const numbers = [10, 20, 30, 40];
 delete numbers[2];
 
-console.log(numbers);        // [ 10, 20, <1 empty item>, 40 ]
+console.log(numbers); // [ 10, 20, <1 empty item>, 40 ]
 console.log(numbers.length); // 4 (o tamanho NÃO diminuiu)
-console.log(numbers[2]);     // undefined
+console.log(numbers[2]); // undefined
 ```
 
 ---
@@ -206,12 +206,12 @@ const original = [1, 2, 3];
 const copy = [...original];
 copy.push(4);
 console.log(original); // [ 1, 2, 3 ] (permanece inalterado)
-console.log(copy);     // [ 1, 2, 3, 4 ]
+console.log(copy); // [ 1, 2, 3, 4 ]
 
 // Concatenação de múltiplos arrays
-const front = ["HTML", "CSS"];
-const back = ["Node.js", "SQL"];
-const fullstack = [...front, "JavaScript", ...back];
+const front = ['HTML', 'CSS'];
+const back = ['Node.js', 'SQL'];
+const fullstack = [...front, 'JavaScript', ...back];
 
 console.log(fullstack); // [ 'HTML', 'CSS', 'JavaScript', 'Node.js', 'SQL' ]
 ```
@@ -237,14 +237,20 @@ console.log(y); // 20
 
 // Pulando posições e definindo valor padrão
 const [first, , third, fourth = 0] = [100, 200, 300];
-console.log(first);  // 100
-console.log(third);  // 300
+console.log(first); // 100
+console.log(third); // 300
 console.log(fourth); // 0 (assumiu valor padrão por falta de elemento)
 
 // Coletando o restante com o operador Rest (...)
-const [leader, vice, ...others] = ["Ana", "Bruno", "Carlos", "Daniela", "Eduardo"];
+const [leader, vice, ...others] = [
+  'Ana',
+  'Bruno',
+  'Carlos',
+  'Daniela',
+  'Eduardo',
+];
 console.log(leader); // "Ana"
-console.log(vice);   // "Bruno"
+console.log(vice); // "Bruno"
 console.log(others); // [ 'Carlos', 'Daniela', 'Eduardo' ]
 ```
 
@@ -260,11 +266,11 @@ console.log(others); // [ 'Carlos', 'Daniela', 'Eduardo' ]
 
 ## Iteração em Arrays: Comparação
 
-| Estrutura | Sintaxe | Uso Principal |
-| --------- | ------- | ------------- |
-| `for` tradicional | `for (let i = 0; i < arr.length; i++)` | Controle total sobre índices e passos |
-| `for...of` | `for (const item of arr)` | Percorrer valores de forma simples e legível |
-| `forEach()` | `arr.forEach((item, index) => ...)` | Executar uma função para cada elemento |
+| Estrutura         | Sintaxe                                | Uso Principal                                |
+| ----------------- | -------------------------------------- | -------------------------------------------- |
+| `for` tradicional | `for (let i = 0; i < arr.length; i++)` | Controle total sobre índices e passos        |
+| `for...of`        | `for (const item of arr)`              | Percorrer valores de forma simples e legível |
+| `forEach()`       | `arr.forEach((item, index) => ...)`    | Executar uma função para cada elemento       |
 
 ---
 
@@ -295,10 +301,10 @@ console.log(`${index + 1}. ${lang}`); // "1. JavaScript", "2. Python", ...
 
 ## Métodos do Objeto Array
 
-- Mutadores: Alteram o array original (*in-place*).
-- Não-Mutadores Modernos (ES2023): Alternativas imutáveis (*Change Array by Copy*) para alteração de elementos.
+- Mutadores: Alteram o array original (_in-place_).
+- Não-Mutadores Modernos (ES2023): Alternativas imutáveis (_Change Array by Copy_) para alteração de elementos.
 - Acessores / Consulta: Não alteram o array original e retornam um novo valor ou array.
-- Iteradores / Funcionais (Higher-Order Functions): Recebem uma função de *callback* para processar os elementos.
+- Iteradores / Funcionais (Higher-Order Functions): Recebem uma função de _callback_ para processar os elementos.
 - Geradores de Intervalos (Range): Técnicas avançadas com `Array.from()`, `fill()`, `keys()` ou geradores para criar...
 
 ---
@@ -315,14 +321,14 @@ console.log(`${index + 1}. ${lang}`); // "1. JavaScript", "2. Python", ...
 
 ## Métodos Mutadores (Modificam o Array Original): Comparação
 
-| Método | Ação | Retorno |
-| ------ | ---- | ------- |
-| `push(...items)` | Adiciona um ou mais elementos ao **final** | Novo `length` |
-| `pop()` | Remove e retorna o **último** elemento | O elemento removido |
-| `unshift(...items)` | Adiciona um ou mais elementos no **início** | Novo `length` |
-| `shift()` | Remove e retorna o **primeiro** elemento | O elemento removido |
+| Método                                 | Ação                                          | Retorno                       |
+| -------------------------------------- | --------------------------------------------- | ----------------------------- |
+| `push(...items)`                       | Adiciona um ou mais elementos ao **final**    | Novo `length`                 |
+| `pop()`                                | Remove e retorna o **último** elemento        | O elemento removido           |
+| `unshift(...items)`                    | Adiciona um ou mais elementos no **início**   | Novo `length`                 |
+| `shift()`                              | Remove e retorna o **primeiro** elemento      | O elemento removido           |
 | `splice(start, deleteCount, ...items)` | Adiciona/remove elementos em qualquer posição | Array com elementos removidos |
-| ... | ... | ... |
+| ...                                    | ...                                           | ...                           |
 
 ---
 
@@ -332,21 +338,21 @@ console.log(`${index + 1}. ${lang}`); // "1. JavaScript", "2. Python", ...
 const stack = [10, 20];
 
 // Inserção e remoção nas extremidades
-stack.push(30);       // Adiciona 30 no final -> [10, 20, 30]
-stack.unshift(5);     // Adiciona 5 no início -> [5, 10, 20, 30]
-const last = stack.pop();   // Remove 30 -> stack fica [5, 10, 20]
+stack.push(30); // Adiciona 30 no final -> [10, 20, 30]
+stack.unshift(5); // Adiciona 5 no início -> [5, 10, 20, 30]
+const last = stack.pop(); // Remove 30 -> stack fica [5, 10, 20]
 const first = stack.shift(); // Remove 5  -> stack fica [10, 20]
 
 console.log(last, first); // 30 5
-console.log(stack);       // [ 10, 20 ]
+console.log(stack); // [ 10, 20 ]
 
 // Uso do splice() para alteração, inserção e remoção no meio do array
-  // ...
+// ...
 
 // 3. Apenas remoção (no índice 1, remove 2 elementos sem inserir novos)
 const removedMonths = months.splice(1, 2);
 console.log(removedMonths); // [ 'Fev', 'Mar' ] (elementos removidos)
-console.log(months);        // [ 'Jan', 'Abr', 'Maio' ] (array modificado)
+console.log(months); // [ 'Jan', 'Abr', 'Maio' ] (array modificado)
 ```
 
 ---
@@ -371,20 +377,20 @@ console.log(numbers); // [ 1, 2, 5, 10, 20 ]
 
 - No ES2023, o JavaScript introduziu o conjunto de métodos Change Array by Copy (`toSorted`, `toReversed`, `toSpliced` e...
 - Eles oferecem alternativas imutáveis para operações clássicas de manipulação de arrays, retornando uma nova cópia...
-- Estes métodos imutáveis evitam efeitos colaterais indesejados (*side effects*) e facilitam a manipulação de dados em...
+- Estes métodos imutáveis evitam efeitos colaterais indesejados (_side effects_) e facilitam a manipulação de dados em...
 
 ---
 
 ## Métodos Não-Mutadores Modernos (ES2023): Comparação
 
-| Método Mutador / Clássico | Equivalente Não-Mutador (ES2023) | Descrição do Resultado |
-| ------------------------- | -------------------------------- | --------------------- |
-| `sort(compareFn)` | `toSorted(compareFn)` | Retorna um novo array ordenado |
-| `reverse()` | `toReversed()` | Retorna um novo array invertido |
-| `splice(start, deleteCount, ...items)` | `toSpliced(start, deleteCount, ...items)` | Retorna um novo array com as alterações aplicadas |
-| `arr[index] = newValue` | `with(index, newValue)` | Retorna um novo array substituindo a posição informada |
-| `find(fn)` | `findLast(fn)` | Retorna o **último** elemento que atende à condição |
-| `findIndex(fn)` | `findLastIndex(fn)` | Retorna o **índice do último** elemento encontrado |
+| Método Mutador / Clássico              | Equivalente Não-Mutador (ES2023)          | Descrição do Resultado                                 |
+| -------------------------------------- | ----------------------------------------- | ------------------------------------------------------ |
+| `sort(compareFn)`                      | `toSorted(compareFn)`                     | Retorna um novo array ordenado                         |
+| `reverse()`                            | `toReversed()`                            | Retorna um novo array invertido                        |
+| `splice(start, deleteCount, ...items)` | `toSpliced(start, deleteCount, ...items)` | Retorna um novo array com as alterações aplicadas      |
+| `arr[index] = newValue`                | `with(index, newValue)`                   | Retorna um novo array substituindo a posição informada |
+| `find(fn)`                             | `findLast(fn)`                            | Retorna o **último** elemento que atende à condição    |
+| `findIndex(fn)`                        | `findLastIndex(fn)`                       | Retorna o **índice do último** elemento encontrado     |
 
 ---
 
@@ -395,15 +401,15 @@ const numbers = [3, 1, 4, 1, 5, 9];
 
 // 1. toSorted(): Cópia ordenada (original inalterado)
 const sorted = numbers.toSorted((a, b) => a - b);
-console.log(sorted);  // [ 1, 1, 3, 4, 5, 9 ]
+console.log(sorted); // [ 1, 1, 3, 4, 5, 9 ]
 console.log(numbers); // [ 3, 1, 4, 1, 5, 9 ]
 
 // 2. toReversed(): Cópia invertida (original inalterado)
 const reversed = numbers.toReversed();
 console.log(reversed); // [ 9, 5, 1, 4, 1, 3 ]
-console.log(numbers);  // [ 3, 1, 4, 1, 5, 9 ]
+console.log(numbers); // [ 3, 1, 4, 1, 5, 9 ]
 
-  // ...
+// ...
 console.log(numbers); // [ 3, 1, 4, 1, 5, 9 ]
 
 // 5. findLast(): Encontra a última ocorrência que satisfaz a condição
@@ -423,60 +429,58 @@ console.log(lastOdd); // 9
 
 ## Métodos Acessores e de Consulta (Preservam o Array Original): Comparação
 
-| Método | Descrição | Retorno |
-| ------ | --------- | ------- |
-| `includes(value)` | Verifica se um valor existe no array | `boolean` |
-| `indexOf(value)` | Procura o primeiro índice do valor | Índice ou `-1` se não achar |
-| `lastIndexOf(value)` | Procura o último índice do valor | Índice ou `-1` se não achar |
-| `join(separator)` | Concatena todos os elementos em uma string | `string` |
-| `slice(start, end)` | Extrai uma fatia do array sem alterar o original | Novo `Array` |
-| ... | ... | ... |
+| Método               | Descrição                                        | Retorno                     |
+| -------------------- | ------------------------------------------------ | --------------------------- |
+| `includes(value)`    | Verifica se um valor existe no array             | `boolean`                   |
+| `indexOf(value)`     | Procura o primeiro índice do valor               | Índice ou `-1` se não achar |
+| `lastIndexOf(value)` | Procura o último índice do valor                 | Índice ou `-1` se não achar |
+| `join(separator)`    | Concatena todos os elementos em uma string       | `string`                    |
+| `slice(start, end)`  | Extrai uma fatia do array sem alterar o original | Novo `Array`                |
 
 ---
 
 ## Exemplo de métodos acessores
 
 ```js
-const letters = ["a", "b", "c", "d", "b"];
+const letters = ['a', 'b', 'c', 'd', 'b'];
 
 // Busca de valores e índices
-console.log(letters.includes("c"));   // true
-console.log(letters.includes("z"));   // false
-console.log(letters.indexOf("b"));    // 1
-console.log(letters.lastIndexOf("b"));// 4
+console.log(letters.includes('c')); // true
+console.log(letters.includes('z')); // false
+console.log(letters.indexOf('b')); // 1
+console.log(letters.lastIndexOf('b')); // 4
 
 // Conversão para string com join()
-const tags = ["web", "javascript", "frontend"];
-console.log(tags.join(" - ")); // "web - javascript - frontend"
+const tags = ['web', 'javascript', 'frontend'];
+console.log(tags.join(' - ')); // "web - javascript - frontend"
 
 // Fatiamento com slice(start, end) -> end não é incluído
 const numbers = [10, 20, 30, 40, 50];
 const subArray = numbers.slice(1, 4);
 
 console.log(subArray); // [ 20, 30, 40 ]
-console.log(numbers);  // [ 10, 20, 30, 40, 50 ] (Original preservado)
+console.log(numbers); // [ 10, 20, 30, 40, 50 ] (Original preservado)
 ```
 
 ---
 
 ## Métodos de Iteração e Programação Funcional (Higher-Order Functions)
 
-- Estilo Declarativo: Em vez de controlar manualmente variáveis e índices em laços `for` (estilo imperativo), declara-se *o...
+- Estilo Declarativo: Em vez de controlar manualmente variáveis e índices em laços `for` (estilo imperativo), declara-se \*o...
 - Imutabilidade e Funções Puras: Os métodos funcionais não alteram o array original; eles calculam e retornam um novo array...
-- Encadeamento (*Chaining*): Permite compor pipelines de dados elegantes encadeando chamadas consecutivas (ex:...
+- Encadeamento (_Chaining_): Permite compor pipelines de dados elegantes encadeando chamadas consecutivas (ex:...
 
 ---
 
 ## Métodos de Iteração e Programação Funcional (Higher-Order Functions): Comparação
 
-| Método | O que a função callback deve retornar | Retorno do método |
-| ------ | ------------------------------------- | ----------------- |
-| `map(fn)` | O novo valor transformado | Novo array com valores transformados |
-| `filter(fn)` | `true` para manter o item, `false` para descartar | Novo array com itens filtrados |
-| `reduce(fn, init)` | O acumulador atualizado a cada iteração | Valor único acumulado |
-| `every(fn)` | `true` se o item atende à condição | `true` se **todos** atenderem |
-| `some(fn)` | `true` se o item atende à condição | `true` se **ao menos um** atender |
-| ... | ... | ... |
+| Método             | O que a função callback retorna                   | Retorno do método                    |
+| ------------------ | ------------------------------------------------- | ------------------------------------ |
+| `map(fn)`          | O novo valor transformado                         | Novo array com valores transformados |
+| `filter(fn)`       | `true` para manter o item, `false` para descartar | Novo array com itens filtrados       |
+| `reduce(fn, init)` | O acumulador atualizado a cada iteração           | Valor único acumulado                |
+| `every(fn)`        | `true` se o item atende à condição                | `true` se **todos** atenderem        |
+| `some(fn)`         | `true` se o item atende à condição                | `true` se **ao menos um** atender    |
 
 ---
 
@@ -495,10 +499,10 @@ console.log(evens); // [ 2, 4, 6 ]
 
 // Encadeamento (Chaining) de métodos funcionais
 const result = numbers
-.filter((n) => n > 2)
-.map((n) => n * 10);
+  .filter((n) => n > 2)
+  .map((n) => n * 10);
 
-console.log(result); // [ 30, 40, 50 ]
+console.log(result); // [ 30, 40, 50, 60 ]
 ```
 
 ---
@@ -507,9 +511,9 @@ console.log(result); // [ 30, 40, 50 ]
 
 ```js
 const cart = [
-{ product: "Teclado", price: 150 },
-{ product: "Mouse", price: 80 },
-{ product: "Monitor", price: 900 },
+  { product: 'Teclado', price: 150 },
+  { product: 'Mouse', price: 80 },
+  { product: 'Monitor', price: 900 },
 ];
 
 // Somando o preço total do carrinho
@@ -523,9 +527,9 @@ console.log(`Total: R$ ${total}`); // "Total: R$ 1130"
 
 ```js
 const users = [
-{ id: 1, name: "Alice", age: 25, active: true },
-{ id: 2, name: "Bruno", age: 17, active: true },
-{ id: 3, name: "Carla", age: 30, active: false },
+  { id: 1, name: 'Alice', age: 25, active: true },
+  { id: 2, name: 'Bruno', age: 17, active: true },
+  { id: 3, name: 'Carla', age: 30, active: false },
 ];
 
 // find(): Encontra o primeiro usuário menor de idade
@@ -533,8 +537,8 @@ const underage = users.find((user) => user.age < 18);
 console.log(underage); // { id: 2, name: "Bruno", age: 17, active: true }
 
 // findIndex(): Encontra o índice da posição da Carla
-const carlaIndex = users.findIndex((user) => user.name === "Carla");
-  // ...
+const carlaIndex = users.findIndex((user) => user.name === 'Carla');
+// ...
 console.log(hasInactive); // true
 
 // every(): Verifica se todos os usuários são maiores de 18 anos
@@ -572,10 +576,10 @@ const filtered = numbers.filter((n) => n > 20);
 const doubled = filtered.map((n) => n * 2);
 const sum = doubled.reduce((total, n) => total + n, 0);
 
-console.log("Original:", numbers);
-console.log("Filtrados (> 20):", filtered);
-console.log("Dobrados:", doubled);
-console.log("Soma total:", sum);
+console.log('Original:', numbers);
+console.log('Filtrados (> 20):', filtered);
+console.log('Dobrados:', doubled);
+console.log('Soma total:', sum);
 ```
 
 ---
@@ -619,11 +623,11 @@ Soma total: 240
 
 ---
 
-## Gerando Intervalos e Sequências Numéricas (*Range*)
+## Gerando Intervalos e Sequências Numéricas (_Range_)
 
 - Ao contrário de linguagens como Python (que possuem a função nativa `range()`), o JavaScript não disponibiliza um...
 - No entanto, é muito comum precisar gerar sequências numéricas para repetições ou iterações
-- Existem diversas formas idiomáticas de criar um *range* em JavaScript utilizando os métodos estáticos e funcionais do...
+- Existem diversas formas idiomáticas de criar um _range_ em JavaScript utilizando os métodos estáticos e funcionais do...
 
 ---
 
