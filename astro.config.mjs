@@ -980,6 +980,14 @@ export default defineConfig({
                       label: '12. Testes e deploy',
                       link: '/courses/expressjs/practice/taskapi/test/',
                     },
+                    {
+                      label: 'Especificação da API',
+                      link: '/courses/expressjs/practice/taskapi/api-spec/',
+                    },
+                    {
+                      label: 'Próximos passos',
+                      link: '/courses/expressjs/practice/taskapi/next-steps/',
+                    },
                   ],
                 },
                 {

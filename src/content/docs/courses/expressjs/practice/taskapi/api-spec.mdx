@@ -1,0 +1,537 @@
+---
+title: "TaskAPI: Especificação da API"
+description: "Contrato completo da API final da TaskAPI: convenções, autenticação, tarefas, upload de avatar, ping sob demanda, eventos SSE, saúde, métricas, documentação e formato de erro."
+course: expressjs
+sidebar:
+  label: "Especificação da API"
+---
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este documento é o **contrato** da TaskAPI no estado final da etapa 12. Ele descreve o que o
+servidor aceita e devolve, sem depender da organização interna em rotas, controllers, models e
+serviços. A [visão geral](../) explica por que a TaskAPI existe; esta página fixa a interface
+HTTP que as aulas de conceito usam como referência.
+
+<Aside type="tip" title="Esta página e o OpenAPI">
+  A [etapa 6](../openapi/) publica `GET /openapi.json` e `GET /docs`. Esse documento é gerado
+  a partir dos mesmos schemas Zod que validam as requisições. Esta página é a leitura humana do
+  contrato final: ela inclui também as rotas que aparecem depois da documentação automática,
+  como avatar, ping, eventos, readiness e métricas.
+</Aside>
+
+## Convenções gerais
+
+| Aspecto | Regra |
+| ------- | ----- |
+| **Base** | `http://localhost:3000` em desenvolvimento |
+| **Formato** | JSON em requisição e resposta, exceto avatar (`multipart/form-data`), eventos (`text/event-stream`) e métricas (`text/plain`) |
+| **Content-Type** | Toda rota com corpo JSON exige `application/json`; outro tipo responde `415` |
+| **Autenticação** | `Authorization: Bearer <token>` nas rotas privadas |
+| **Identificadores** | `User.id` é UUID; `Task.id` e `Tag.id` são inteiros gerados pelo servidor |
+| **Datas** | ISO 8601 em UTC para `createdAt` e `verifiedAt`; `dueDate` usa `YYYY-MM-DD` |
+| **Paginação** | `GET /tasks` devolve `{ data, meta }`, com `page`, `perPage`, `total` e `totalPages` |
+| **Tempo real** | Eventos SSE são agrupados por dono: cada usuário recebe apenas eventos das próprias tarefas |
+
+### Formato de erro
+
+Toda falha prevista responde com a chave `error`. Quando a validação falha, `issues` traz a lista
+do Zod, incluindo a origem (`body`, `query` ou `params`) no caminho do campo.
+
+<Tabs>
+  <TabItem label="Erro simples">
+    ```json title="404 Not Found"
+    {
+      "error": {
+        "status": 404,
+        "message": "Tarefa nao encontrada"
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Erro de validação">
+    ```json title="422 Unprocessable Entity"
+    {
+      "error": {
+        "status": 422,
+        "message": "Dados invalidos",
+        "issues": [
+          {
+            "code": "too_small",
+            "path": ["body", "title"],
+            "message": "O titulo deve ter no minimo 3 caracteres"
+          }
+        ]
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### Status codes usados
+
+| Código | Quando |
+| ------ | ------ |
+| `200` | Leitura bem-sucedida, atualização que devolve recurso, verificação de e-mail ou medição de ping |
+| `201` | Conta, tarefa ou avatar criado |
+| `204` | Remoção concluída, sem corpo |
+| `400` | Token de verificação inválido ou upload sem arquivo |
+| `401` | Token ausente, inválido ou expirado; credenciais inválidas |
+| `404` | Recurso inexistente **ou pertencente a outro usuário** |
+| `409` | Conflito de unicidade: e-mail ou título repetido no escopo certo |
+| `415` | Corpo enviado com `Content-Type` diferente de `application/json` |
+| `422` | `body`, `query` ou `params` não passaram no schema Zod |
+| `429` | Limite de requisições excedido |
+| `500` | Falha não prevista; a resposta não expõe detalhes internos |
+| `503` | Readiness falhou porque o banco não respondeu |
+
+<Aside type="caution" title="Por que tarefa de outra pessoa responde 404">
+  Responder `403` confirmaria que o id existe. A TaskAPI trata "não existe" e "não é sua" como
+  a mesma resposta, para impedir enumeração de ids. Essa decisão é testada na
+  [etapa 12](../test/).
+</Aside>
+
+## Autenticação
+
+O cadastro cria a conta e dispara um e-mail de verificação, mas não inicia sessão. O token nasce
+somente no login e carrega a identidade que os controllers usam para isolar as consultas.
+
+<Mermaid title="Do cadastro à rota privada">
+{`
+sequenceDiagram
+  participant C as Cliente
+  participant A as TaskAPI
+  participant D as SQLite
+  participant M as Serviço de e-mail
+
+  C->>A: POST /auth/signup
+  A->>D: cria User com hash Argon2id e verifyToken
+  A-->>M: sendWelcome(email, token)
+  A-->>C: 201 User público
+  C->>A: POST /auth/signin
+  A->>D: busca usuário pelo e-mail
+  A->>A: verifyPassword em tempo constante
+  A-->>C: 200 { token, user }
+  C->>A: GET /tasks (Authorization: Bearer ...)
+  A->>A: verifyJwt -> req.auth.sub
+  A->>D: WHERE userId = req.auth.sub
+  D-->>A: apenas tarefas do dono
+  A-->>C: 200 { data, meta }
+`}
+</Mermaid>
+
+O JWT é assinado com HS256 usando `node:crypto`. Ele não é criptografado: o payload pode ser lido
+por qualquer cliente, e a assinatura só garante que ele não foi alterado.
+
+```json title="Payload do token"
+{
+  "sub": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "name": "Ana",
+  "email": "ana@example.com",
+  "role": "user",
+  "iat": 1772409600,
+  "exp": 1772413200
+}
+```
+
+## Mapa dos endpoints
+
+| Método | Caminho | Autenticado | Sucesso | Erros |
+| ------ | ------- | ----------- | ------- | ----- |
+| GET | `/health` | não | `200` | — |
+| GET | `/ready` | não | `200` | `503` |
+| GET | `/metrics` | não | `200` | — |
+| GET | `/docs` | não | `200` | — |
+| GET | `/openapi.json` | não | `200` | — |
+| POST | `/auth/signup` | não | `201` | `409`, `415`, `422`, `429` |
+| POST | `/auth/signin` | não | `200` | `401`, `415`, `422`, `429` |
+| GET | `/auth/verify?token=` | não | `200` | `400`, `429` |
+| GET | `/auth/me` | sim | `200` | `401`, `429` |
+| POST | `/auth/me/avatar` | sim | `201` | `400`, `401`, `429` |
+| GET | `/tasks` | sim | `200` | `401`, `422`, `429` |
+| GET | `/tasks/:id` | sim | `200` | `401`, `404`, `422`, `429` |
+| POST | `/tasks` | sim | `201` | `401`, `409`, `415`, `422`, `429` |
+| PUT | `/tasks/:id` | sim | `200` | `401`, `404`, `415`, `422`, `429` |
+| DELETE | `/tasks/:id` | sim | `204` | `401`, `404`, `422`, `429` |
+| GET | `/ping?host=` | sim | `200` | `401`, `422`, `429` |
+| GET | `/events` | sim | fluxo | `401`, `429` |
+| GET | `/uploads/:arquivo` | não | arquivo | `404` |
+
+## Recurso `auth`
+
+As rotas de autenticação são a porta de entrada do usuário. A senha nunca sai na resposta, nem
+como hash.
+
+### `POST /auth/signup`
+
+| Campo | Tipo | Regra |
+| ----- | ---- | ----- |
+| `name` | `string` | obrigatório, mínimo de 2 caracteres |
+| `email` | `string` | obrigatório, formato de e-mail, único no sistema |
+| `password` | `string` | obrigatório, mínimo de 8 caracteres |
+
+<ApiRequest method="POST" path="/auth/signup" baseUrl="http://localhost:3000">
+{`
+  {
+    "name": "Ana",
+    "email": "ana@example.com",
+    "password": "senha-de-desenvolvimento"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "name": "Ana",
+    "email": "ana@example.com",
+    "role": "user",
+    "avatar": null,
+    "verifiedAt": null,
+    "createdAt": "2026-03-01T12:00:00.000Z"
+  }
+`}
+</ApiResponse>
+
+O cadastro gera `verifyToken` no banco e chama `sendWelcome`, mas esse envio é efeito colateral.
+O servidor responde `201` sem esperar o SMTP.
+
+### `POST /auth/signin`
+
+<ApiRequest method="POST" path="/auth/signin" baseUrl="http://localhost:3000">
+{`
+  {
+    "email": "ana@example.com",
+    "password": "senha-de-desenvolvimento"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={200}>
+{`
+  {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "name": "Ana",
+      "email": "ana@example.com",
+      "role": "user",
+      "avatar": null,
+      "verifiedAt": null,
+      "createdAt": "2026-03-01T12:00:00.000Z"
+    }
+  }
+`}
+</ApiResponse>
+
+E-mail inexistente e senha errada devolvem a mesma resposta `401`, para não entregar quais
+endereços existem no cadastro.
+
+### `GET /auth/me`
+
+Devolve o usuário do token atual. É a rota que um cliente chama ao abrir a aplicação para saber
+se ainda há sessão válida.
+
+### `GET /auth/verify?token=...`
+
+Confirma o e-mail a partir do token enviado na mensagem de boas-vindas.
+
+<ApiResponse status={200}>
+{`
+  {
+    "status": "verified"
+  }
+`}
+</ApiResponse>
+
+### `POST /auth/me/avatar`
+
+Recebe um arquivo no campo `avatar`, grava em `uploads/` e atualiza o caminho público do usuário.
+O corpo é `multipart/form-data`, não JSON.
+
+<ApiRequest method="POST" path="/auth/me/avatar" baseUrl="http://localhost:3000" description="Requer Authorization e um campo de formulário chamado avatar" />
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "name": "Ana",
+    "email": "ana@example.com",
+    "role": "user",
+    "avatar": "uploads/1772409600000-avatar.png",
+    "verifiedAt": "2026-03-01T12:05:00.000Z",
+    "createdAt": "2026-03-01T12:00:00.000Z"
+  }
+`}
+</ApiResponse>
+
+## Recurso `tasks`
+
+Tarefas são sempre privadas. O cliente nunca envia `userId`: o dono vem de `req.auth.sub`, que
+nasceu do token.
+
+### Representação
+
+```json title="Task"
+{
+  "id": 1,
+  "title": "Proteger a API",
+  "description": null,
+  "done": false,
+  "priority": "high",
+  "dueDate": "2026-03-10",
+  "createdAt": "2026-03-01T12:00:00.000Z",
+  "tags": [
+    { "id": 1, "name": "segurança", "color": "#0ea5e9" }
+  ]
+}
+```
+
+As tags existem no modelo final, mas o contrato atual de criação e atualização de tarefas ainda
+não aceita `tags` no corpo. Elas aparecem porque o model já carrega a relação com `include`.
+
+### `GET /tasks`
+
+Aceita filtros e paginação por query. Todos são opcionais.
+
+| Parâmetro | Regra | Efeito |
+| --------- | ----- | ------ |
+| `page` | inteiro positivo, padrão `1` | página retornada |
+| `perPage` | inteiro positivo, máximo `100`, padrão `10` | tamanho da página |
+| `done` | `true` ou `false` | filtra pelo estado da tarefa |
+| `priority` | `low`, `medium` ou `high` | filtra pela prioridade |
+| `q` | texto não vazio | busca no título |
+| `sort` | `title`, `-title`, `dueDate`, `-dueDate`, `createdAt`, `-createdAt` | ordenação; padrão `-createdAt` |
+
+<ApiRequest method="GET" path="/tasks?priority=high&sort=-createdAt" baseUrl="http://localhost:3000" description="Requer Authorization" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "data": [
+      {
+        "id": 1,
+        "title": "Proteger a API",
+        "description": null,
+        "done": false,
+        "priority": "high",
+        "dueDate": null,
+        "createdAt": "2026-03-01T12:00:00.000Z",
+        "tags": []
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "perPage": 10,
+      "total": 1,
+      "totalPages": 1
+    }
+  }
+`}
+</ApiResponse>
+
+### `POST /tasks`
+
+| Campo | Tipo | Regra |
+| ----- | ---- | ----- |
+| `title` | `string` | obrigatório, mínimo de 3 caracteres; único por usuário |
+| `description` | `string | null` | opcional, máximo de 500 caracteres |
+| `priority` | `low | medium | high` | opcional, padrão `medium` |
+| `dueDate` | `string | null` | opcional, formato `YYYY-MM-DD` |
+
+<ApiRequest method="POST" path="/tasks" baseUrl="http://localhost:3000">
+{`
+  {
+    "title": "Proteger a API",
+    "priority": "high",
+    "dueDate": "2026-03-10"
+  }
+`}
+</ApiRequest>
+
+<ApiResponse status={201}>
+{`
+  {
+    "id": 1,
+    "title": "Proteger a API",
+    "description": null,
+    "done": false,
+    "priority": "high",
+    "dueDate": "2026-03-10",
+    "createdAt": "2026-03-01T12:00:00.000Z",
+    "tags": []
+  }
+`}
+</ApiResponse>
+
+Criar uma tarefa publica um evento `task.created` para clientes conectados em `/events`.
+
+### `GET /tasks/:id`
+
+Busca uma tarefa do usuário autenticado. Uma tarefa de outro usuário responde `404`, igual a uma
+tarefa inexistente.
+
+### `PUT /tasks/:id`
+
+Atualiza parcialmente a tarefa. Todos os campos do corpo são opcionais, e chaves desconhecidas
+são recusadas pelo schema.
+
+| Campo | Tipo | Regra |
+| ----- | ---- | ----- |
+| `title` | `string` | mínimo de 3 caracteres |
+| `description` | `string | null` | máximo de 500 caracteres |
+| `priority` | `low | medium | high` | prioridade final |
+| `dueDate` | `string | null` | formato `YYYY-MM-DD` |
+| `done` | `boolean` | estado de conclusão |
+
+Atualizar uma tarefa publica `task.updated` no fluxo SSE do dono.
+
+### `DELETE /tasks/:id`
+
+Remove a tarefa do usuário autenticado e responde `204`, sem corpo.
+
+## Operação
+
+As rotas operacionais não fazem parte do domínio de tarefas, mas são parte do contrato de deploy
+da etapa final.
+
+### `GET /health`
+
+Liveness probe. Responde sem consultar o banco.
+
+<ApiResponse status={200}>
+{`
+  {
+    "status": "ok",
+    "uptime": 12.48
+  }
+`}
+</ApiResponse>
+
+### `GET /ready`
+
+Readiness probe. Consulta o banco com `SELECT 1`.
+
+<Tabs>
+  <TabItem label="Pronto">
+    ```json title="200 OK"
+    {
+      "status": "ready",
+      "database": "up"
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Indisponível">
+    ```json title="503 Service Unavailable"
+    {
+      "status": "not-ready",
+      "database": "down"
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### `GET /metrics`
+
+Expõe contadores de requisições e percentis de duração no formato de texto do Prometheus.
+
+```txt title="Resposta"
+# HELP http_requests_total Requisicoes atendidas, por metodo e status.
+# TYPE http_requests_total counter
+http_requests_total{method="GET",status="200"} 12
+# HELP http_request_duration_ms Duracao das requisicoes em milissegundos.
+# TYPE http_request_duration_ms summary
+http_request_duration_ms{quantile="0.95"} 18
+```
+
+## Ping sob demanda
+
+### `GET /ping?host=...`
+
+Executa o comando de ping do sistema com `execFile`, sem passar por shell. O parâmetro `host`
+aceita letras, números, ponto e hífen.
+
+<ApiRequest method="GET" path="/ping?host=example.com" baseUrl="http://localhost:3000" description="Requer Authorization" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "host": "example.com",
+    "reachable": true,
+    "latencyMs": 18
+  }
+`}
+</ApiResponse>
+
+<Aside type="caution" title="Validação de host não é autorização de rede">
+  O schema impede caracteres perigosos e URLs completas, mas não bloqueia faixas privadas nem
+  loopback. Uma API pública que mede hosts arbitrários ainda precisa decidir quais redes podem
+  ser verificadas.
+</Aside>
+
+## Eventos SSE
+
+### `GET /events`
+
+Abre uma resposta `text/event-stream` autenticada. O servidor mantém a conexão aberta e escreve
+eventos quando uma tarefa do usuário é criada ou atualizada.
+
+```http title="Resposta"
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+X-Accel-Buffering: no
+
+event: task.created
+data: {"id":1,"title":"Proteger a API","done":false,"priority":"high","tags":[]}
+
+: keep-alive
+
+event: task.updated
+data: {"id":1,"title":"Proteger a API","done":true,"priority":"high","tags":[]}
+```
+
+| Elemento | Significado |
+| -------- | ----------- |
+| `event:` | nome do evento enviado ao cliente |
+| `data:` | payload JSON em uma linha |
+| `: keep-alive` | comentário usado para manter a conexão viva em proxies |
+| linha em branco | fim de uma mensagem SSE |
+
+## Documentação executável
+
+O arquivo `requests.http` da etapa final é o companheiro executável desta especificação. Ele
+registra o fluxo básico: saúde, readiness, métricas, CORS, cadastro, login, usuário atual,
+listagem, criação de tarefa, token ausente, token adulterado e limite do login.
+
+```http title="requests.http (trecho)"
+@baseUrl = http://localhost:3000
+@token = {{signin.response.body.$.token}}
+
+### Login — guarda o token para as proximas requisicoes
+# @name signin
+POST {{baseUrl}}/auth/signin
+Content-Type: application/json
+
+{
+  "email": "ana@example.com",
+  "password": "senha-de-desenvolvimento"
+}
+
+### Listar as minhas tarefas
+GET {{baseUrl}}/tasks
+Authorization: Bearer {{token}}
+```
+
+## Projetos irmãos
+
+A TaskAPI é deliberadamente menor que o [InvestApp](../../investapp/) e o
+[MonitorApp](../../monitorapp/). Comparar as especificações mostra a diferença entre uma API de
+referência para aulas de conceito e uma aplicação final com front-end, backlog de produto e
+infraestrutura completa.

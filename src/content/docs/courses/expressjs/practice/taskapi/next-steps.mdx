@@ -1,0 +1,323 @@
+---
+title: "TaskAPI: Próximos passos"
+description: "O que fazer depois da etapa 12 da TaskAPI: limitações conhecidas, melhorias de contrato, evolução de arquitetura, qualidade, segurança e desafios graduados."
+course: expressjs
+sidebar:
+  label: "Próximos passos"
+---
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Doze etapas depois, a TaskAPI tem autenticação, validação, banco relacional, documentação,
+serviços externos, eventos, observabilidade, testes e uma imagem Docker. Ela não virou produto:
+continua sendo uma **API de referência** para as aulas de conceito do guia.
+
+Esta página indica o que vem depois sem perder esse papel. Cada item aponta uma limitação real
+do código final e sugere uma evolução que cabe como exercício, refatoração guiada ou comparação
+com as trilhas completas.
+
+<Aside type="tip" title="Como usar esta página">
+  Escolha um item pequeno, altere a etapa final em `examples/courses/express/projects/task-api-test`,
+  rode `pnpm test` dentro dela e depois confira a documentação com `pnpm check:doc-lines`. A
+  TaskAPI é fonte de recortes do guia; qualquer deslocamento de linha pode quebrar uma aula.
+</Aside>
+
+## Limitações conhecidas
+
+Estas limitações não impedem a TaskAPI de cumprir o papel didático, mas são os próximos pontos
+que apareceriam em uma API mantida por mais tempo.
+
+| Limitação | Onde | Por que importa | Dificuldade |
+| --------- | ---- | --------------- | ----------- |
+| **OpenAPI parcial** | `src/docs/openapi.ts` | O documento automático ainda não descreve avatar, verificação de e-mail, ping, eventos, readiness e métricas | ⭐ |
+| **Tags sem endpoint próprio** | `schema.prisma` e `models/task-model.ts` | A relação `Task` N-N `Tag` existe, mas o contrato de tarefa ainda não permite criar, trocar ou filtrar por tags | ⭐⭐ |
+| **Eventos sem replay** | `services/events-service.ts` | Quem se conecta depois de uma mudança não recebe o último estado; precisa buscar `/tasks` de novo | ⭐ |
+| **Rate limit em memória** | `middlewares/rate-limit.ts` | Com duas instâncias, cada processo conta só as próprias requisições e o limite efetivo aumenta | ⭐⭐ |
+| **Upload em disco local** | `config/upload.ts` e `uploads/` | Em mais de uma instância, o avatar pode estar em um contêiner diferente daquele que serve a leitura | ⭐⭐ |
+| **Ping aceita redes internas** | `schemas/ping.ts` | O schema restringe caracteres, mas uma API pública ainda poderia ser usada para sondar `127.0.0.1` ou redes privadas | ⭐⭐ |
+| **Sem ambiente de teste isolado** | testes de rota | A suíte limpa o que cria, mas ainda depende da configuração local do banco | ⭐ |
+| **Sem CI do exemplo final** | repositório | A documentação valida o site, mas a suíte da TaskAPI não roda automaticamente em pull request | ⭐ |
+
+<Aside type="caution" title="A primeira melhoria é contratual">
+  Antes de acrescentar recurso novo, feche a diferença entre código e contrato. A
+  [Especificação da API](../api-spec/) descreve a superfície final; o OpenAPI deve alcançar a
+  mesma lista para que ferramentas e pessoas leiam a mesma verdade.
+</Aside>
+
+## Evoluções de contrato
+
+### Completar o OpenAPI
+
+Hoje o OpenAPI nasceu na etapa 6 para ensinar documentação gerada a partir de schemas. Depois
+disso, a aplicação ganhou rotas novas. A evolução mais natural é transformar esse documento em
+contrato completo.
+
+<Steps>
+
+1. **Adicionar schemas das rotas faltantes.** Descreva `pingSchema`, o usuário público com
+   `avatar` e `verifiedAt`, e os corpos de erro `400`, `429` e `503`.
+
+2. **Registrar paths operacionais.** Inclua `/ready`, `/metrics`, `/events`, `/auth/verify` e
+   `/auth/me/avatar`, mesmo quando o corpo não for JSON Schema comum.
+
+3. **Conferir com `requests.http`.** Cada bloco executável deve ter um endpoint equivalente no
+   documento, ou uma razão clara para ficar fora.
+
+</Steps>
+
+### Dar vida às tags
+
+O schema Prisma já tem `Tag` e a relação muitos-para-muitos. Falta decidir o contrato: tags são
+recurso independente, campo embutido de `Task` ou os dois.
+
+| Caminho | Vantagem | Custo |
+| ------- | -------- | ----- |
+| `tags: string[]` no corpo de tarefa | Menos endpoints; bom para o começo | Menos controle de cor, renomeação e exclusão |
+| `/tags` como recurso próprio | Contrato mais explícito e reutilizável | Mais controllers, testes e telas futuras |
+| Ambos | Melhor ergonomia para cliente | Mais regras de consistência para documentar |
+
+Para manter a TaskAPI pequena, comece com `tags: string[]` em `POST /tasks` e `PUT /tasks/:id`.
+Se isso crescer demais, é sinal de que o domínio deixou de ser simples e merece um projeto
+próprio.
+
+### Refinar paginação
+
+A TaskAPI já tem `page` e `perPage`, o que é suficiente para ensinar paginação por offset. O
+próximo passo é mostrar onde ela começa a falhar.
+
+<Mermaid title="Offset hoje e cursor depois">
+{`
+flowchart TB
+  Hoje["GET /tasks?page=3&perPage=10"]
+  Problema["Itens podem entrar entre uma página e outra"]
+  Depois["GET /tasks?after=cursor"]
+  Garantia["O cursor ancora a próxima página em um item conhecido"]
+
+  Hoje --> Problema --> Depois --> Garantia
+`}
+</Mermaid>
+
+Cursor pagination é um bom desafio depois que a aula de
+[Paginação e Filtros](../../../api/pagination/) estiver dominada.
+
+## Evoluções de arquitetura
+
+### Estado compartilhado fora do processo
+
+A etapa final ainda usa memória do processo para rate limit, métricas e conexões SSE. Isso é
+ótimo para ensinar a mecânica, mas é o primeiro ponto que quebra quando a API escala para mais
+de uma instância.
+
+<Mermaid title="O que sai da memória do processo">
+{`
+flowchart TB
+  subgraph Hoje["Hoje · uma instância"]
+    API1["Express"]
+    MEM["Map em memória<br/>rate limit, métricas, SSE"]
+    API1 --- MEM
+  end
+
+  subgraph Depois["Depois · várias instâncias"]
+    APIA["Express A"]
+    APIB["Express B"]
+    REDIS[("Redis<br/>rate limit + pub/sub")]
+    PROM[("Prometheus<br/>métricas")]
+    APIA --> REDIS
+    APIB --> REDIS
+    APIA --> PROM
+    APIB --> PROM
+  end
+
+  Hoje --> Depois
+`}
+</Mermaid>
+
+Faça essa evolução em partes: primeiro rate limit em Redis, depois pub/sub para eventos, e por
+último métricas acumuladas por coletor externo.
+
+### Upload fora do contêiner
+
+O avatar em `uploads/` é simples de entender, mas não é um bom contrato de produção. Um
+exercício realista é trocar o armazenamento por objeto externo e manter o mesmo campo `avatar`
+na resposta.
+
+| Opção | O que muda no contrato |
+| ----- | ---------------------- |
+| Volume compartilhado | Quase nada, mas ainda prende o deploy a uma máquina |
+| S3 compatível | `avatar` pode virar URL assinada ou chave de objeto |
+| Proxy interno `/uploads` | O cliente continua lendo o mesmo caminho, e o servidor busca o objeto |
+
+### E-mail transacional de verdade
+
+O serviço de e-mail já tem a fronteira certa: o controller chama `sendWelcome`, e o cadastro não
+depende de SMTP. O próximo passo é transformar o envio em fila, para retentar falhas e registrar
+estado.
+
+```txt title="Fluxo sugerido"
+POST /auth/signup
+  -> cria User
+  -> cria EmailJob(status="pending")
+  -> worker envia
+  -> EmailJob(status="sent" | "failed")
+```
+
+Esse desenho permite responder `201` rápido e ainda saber se a mensagem saiu.
+
+## Qualidade e operação
+
+### Teste isolado de banco
+
+A suíte atual prova regras importantes, mas ainda depende da configuração local. O próximo passo
+é cada execução apontar para um banco descartável.
+
+<Steps>
+
+1. Gere um `DATABASE_URL` temporário no `before`.
+2. Rode `prisma migrate deploy` contra esse arquivo.
+3. Semeie apenas os dados necessários ao teste.
+4. Apague o arquivo no `after`.
+
+</Steps>
+
+Isso remove interferência entre execuções e permite rodar testes em paralelo com mais confiança.
+
+### CI para o exemplo final
+
+Um workflow mínimo para a TaskAPI final precisa instalar dependências dentro da pasta de exemplo,
+rodar migrations e executar a suíte.
+
+```yaml title=".github/workflows/task-api.yml"
+name: TaskAPI
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/courses/express/projects/task-api-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: examples/courses/express/projects/task-api-test/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: cp .env.example .env
+      - run: pnpm db:migrate
+      - run: pnpm test
+```
+
+Depois de adicionar o workflow, qualquer mudança em arquivo recortado pelas aulas deve rodar
+também `pnpm check:doc-lines` na raiz.
+
+### Cobertura do contrato
+
+A suíte testa autenticação, isolamento e ping, mas ainda não percorre toda a especificação
+humana. Um próximo incremento útil é criar testes de contrato para:
+
+| Rota | Caso que falta fixar |
+| ---- | -------------------- |
+| `GET /ready` | banco indisponível responde `503` |
+| `GET /metrics` | resposta usa formato de texto do Prometheus |
+| `GET /events` | cliente só recebe eventos do próprio dono |
+| `GET /auth/verify` | token repetido não verifica duas vezes |
+| `POST /auth/me/avatar` | ausência do campo `avatar` responde `400` |
+
+## Segurança
+
+A TaskAPI já tem cabeçalhos de segurança, CORS por origem, limite global, limite específico no
+login, JWT assinado e hash Argon2id. O que falta são decisões que uma aplicação pública cobraria.
+
+<Steps>
+
+1. **Refresh token.** Token de acesso curto mais refresh em cookie `httpOnly`, com revogação por
+   dispositivo.
+
+2. **Validação de rede no ping.** Recuse `localhost`, loopback, link-local e faixas privadas na
+   rota pública, mesmo que o serviço de ping continue testável internamente.
+
+3. **Política de avatar.** Limite tamanho, tipo MIME real e dimensões; hoje o ponto central da
+   aula é o fluxo de upload, não uma política completa de mídia.
+
+4. **Auditoria.** Registre login, troca de avatar, criação, atualização e remoção de tarefa com
+   `userId`, `requestId` e horário.
+
+5. **Segredos gerenciados.** `JWT_SECRET` não deve vir do arquivo de desenvolvimento em deploy.
+   A etapa 12 já exige a variável no `compose.yaml`; falta conectar a um gerenciador real.
+
+</Steps>
+
+<Aside type="danger" title="O ping é a melhoria de segurança mais específica">
+  Limite de login e segredo forte valem para qualquer API. A rota `/ping` é diferente: ela
+  transforma uma requisição HTTP em chamada de sistema contra um alvo escolhido pelo usuário.
+  Essa é a superfície que mais depende do domínio e, portanto, a que merece a revisão mais
+  cuidadosa antes de publicar.
+</Aside>
+
+## Desafios graduados
+
+Cada desafio deve terminar com teste e atualização da [Especificação da API](../api-spec/)
+quando alterar contrato.
+
+<Steps>
+
+1. **OpenAPI completo** ⭐ — faça `GET /openapi.json` cobrir todos os endpoints listados na
+   especificação humana. Critério: a tabela de endpoints desta página e o objeto `paths` têm a
+   mesma superfície.
+
+2. **Tags no corpo de tarefa** ⭐⭐ — aceite `tags: string[]` em criação e atualização, crie tags
+   inexistentes com cor padrão e permita `GET /tasks?tag=segurança`. Critério: uma tarefa de outro
+   usuário com a mesma tag não aparece.
+
+3. **SSE testável** ⭐⭐ — crie teste que abre `/events`, cria uma tarefa e confirma que o cliente
+   autenticado recebe `task.created`. Critério: um segundo usuário conectado não recebe o evento.
+
+4. **Ping protegido contra SSRF** ⭐⭐⭐ — bloqueie loopback, link-local e redes privadas na rota
+   HTTP. Critério: `GET /ping?host=127.0.0.1` responde `422`, mas o teste unitário do parser de
+   ping continua independente da rede.
+
+5. **Rate limit distribuído** ⭐⭐⭐ — troque o `Map` em memória por Redis mantendo a mesma função
+   `rateLimit(name, max, windowMs)`. Critério: duas instâncias da API compartilham o mesmo teto.
+
+</Steps>
+
+## Onde continuar no DevLab
+
+<CardGrid>
+  <Card title="Especificação da API" icon="document">
+    Leia o contrato final antes de alterar qualquer rota.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../api-spec/">Abrir contrato</a>
+    </div>
+  </Card>
+
+  <Card title="InvestApp" icon="seti:folder">
+    A trilha completa em domínio financeiro, com front na mesma origem e upload de avatar.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../investapp/">Ver projeto</a>
+    </div>
+  </Card>
+
+  <Card title="MonitorApp" icon="bars">
+    A trilha completa com front separado, ping real, histórico temporal e eventos em tempo real.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../monitorapp/">Ver projeto</a>
+    </div>
+  </Card>
+
+  <Card title="Guia de Express.js" icon="open-book">
+    Volte às aulas de conceito que usam a TaskAPI como referência executável.
+
+    <div class="page-badges">
+      <a class="page-badge" href="../../../">Abrir guia</a>
+    </div>
+  </Card>
+</CardGrid>
