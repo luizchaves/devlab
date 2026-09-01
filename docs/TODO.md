@@ -37,11 +37,12 @@
 - [x] **[TASK-006]** Padronizar todos os comandos `npm install` com 3 tabs (npm, yarn, pnpm)
 - [ ] **[TASK-007]** Gerar slides das páginas de cada curso e guia
 - [ ] **[TASK-008]** Gerar `book.pdf` por guia ou curso
-- [ ] **[TASK-023] TaskAPI — projeto modelo do Guia de Express.js:**
-  - [x] `[TASK-023.1]` Auditar a origem do código das páginas de conceito — **172 blocos escritos à mão** com `title="src/…"` contra ~38 `<SourceCode>` reais, e 20 das 33 páginas sem nenhum projeto executável (ver [spec](../specs/active/spec-005-taskapi-model-project.md))
-  - [ ] `[TASK-023.2]` Criar a trilha `task-api-*` em doze etapas cumulativas, só API, absorvendo `hello`, `router`, `mvc`, `typescript`, `prisma` e `auth` — **etapas 1 a 6 publicadas e testadas**; faltam 7 a 12
-  - [ ] `[TASK-023.3]` Converter os blocos escritos à mão das páginas de conceito em `<SourceCode>` recortado das etapas, fase a fase por seção da sidebar — **Fundamentos, Arquitetura e APIs HTTP convertidos** (12 páginas); faltam Persistência, Autenticação, Segurança e Avançados
-  - [ ] `[TASK-023.4]` Redirecionar as páginas de projeto antigas e remover os diretórios órfãos — **4 redirects criados** e os três órfãos removidos (`hello-simple`, `hello-lang` e `invest-app-prismajs-simple`, do qual sobrara só um `.env` não versionado); `express-prisma` e `express-auth` saem nas fases 4 e 5
+- [ ] **[TASK-023] TaskAPI — projeto modelo do Guia de Express.js:** trilha concluída; falta só validar a imagem Docker (ver [spec](../specs/executed/spec-005-taskapi-model-project.md))
+  - [x] `[TASK-023.1]` Auditar a origem do código das páginas de conceito — **172 blocos escritos à mão** com `title="src/…"` contra ~38 `<SourceCode>` reais, e 20 das 33 páginas sem nenhum projeto executável
+  - [x] `[TASK-023.2]` Criar a trilha `task-api-*` em doze etapas cumulativas, só API, absorvendo `hello`, `router`, `mvc`, `typescript`, `prisma` e `auth` — **as doze publicadas**, cada uma executada e exercitada por HTTP; a 12 traz 21 testes
+  - [x] `[TASK-023.3]` Converter os blocos escritos à mão das páginas de conceito em `<SourceCode>` — de 172 para **6** (todos comparações `del`/`ins`), e de ~38 para **114 recortes reais**; só `api/construction` segue sem projeto, por ser página de projeto de API
+  - [x] `[TASK-023.4]` Redirecionar as seis páginas de projeto antigas e remover os quatro diretórios órfãos (`hello-simple`, `hello-lang`, `invest-app-prismajs-simple` e `prisma`)
+  - [ ] `[TASK-023.5]` Construir a imagem da etapa 12 — o `Dockerfile` e o `compose.yaml` foram escritos mas **nunca buildados** (daemon do Docker indisponível na máquina); validar antes de alguém confiar no `deploy.mdx`
 
 ### Concluídos (Conteúdo)
 

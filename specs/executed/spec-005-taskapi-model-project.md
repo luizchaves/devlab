@@ -1,6 +1,6 @@
 # Spec 005 — TaskAPI, the Model Project of the Express.js Guide
 
-Status: **In progress** — phases 0-3 done, 4-8 pending
+Status: **Completed**
 Date: 2026-08-30
 Related: `docs/TODO.md` → `[TASK-023]`
 
@@ -177,27 +177,56 @@ directories are 5, 6, 7, 10, 11 and 12.
 
 ## Progress
 
-| Phase | State | What landed |
-| ----- | ----- | ----------- |
-| 0 Foundations | **done** | `task-api-hello/-router/-mvc` from `git mv`, trail overview page, `task-api` card in `projects.ts`, sidebar subtree, 4 redirects, `hello-simple` and `hello-lang` removed |
-| 1 Fundamentos | **done** | `task-api-typescript`; `introduction`, `routes`, `request-response`, `middleware`, `controllers`, `typescript` converted |
-| 2 Arquitetura | **done** | `architecture/mvc` converted against steps 3-4 |
-| 3 APIs HTTP | **done** | `task-api-validation` (Zod) and `task-api-openapi`; `rest`, `error-handling`, `validation`, `pagination`, `documentation` converted |
-| 4 Persistência | pending | steps 7-8; `node-sqlite`, `prisma`, `crud`, `relations` |
-| 5 Autenticação | pending | step 9; `passwords`, `user-registration`, `authentication`, `authorization` |
-| 6 Segurança | pending | step 10; `cors`, `hardening`, `config`, `logging`, `observability` |
-| 7 Avançados | pending | steps 11-12; `upload-file`, `email`, `realtime`, `system-call`, `testing`, `deploy` |
-| 8 Closing | pending | devcontainers, `AGENTS.md`, `README.md`, `docs/PRD.md`, move spec to `executed/` |
+| Phase | What landed |
+| ----- | ----------- |
+| 0 Foundations | `task-api-hello/-router/-mvc` from `git mv`, trail overview page, `task-api` card in `projects.ts`, sidebar subtree, redirects, orphans removed |
+| 1 Fundamentos | `task-api-typescript`; `introduction`, `routes`, `request-response`, `middleware`, `controllers`, `typescript` |
+| 2 Arquitetura | `architecture/mvc` against steps 3-4 |
+| 3 APIs HTTP | `task-api-validation` (Zod) and `task-api-openapi`; `rest`, `error-handling`, `validation`, `pagination`, `documentation` |
+| 4 Persistência | `task-api-sqlite` and `task-api-prisma`; `node-sqlite`, `prisma`, `crud`, `relations` |
+| 5 Autenticação | `task-api-auth`; `passwords`, `user-registration`, `authentication`, `authorization` |
+| 6 Segurança | `task-api-hardening`; `config`, `logging`, `observability`, `cors`, `hardening` |
+| 7 Avançados | `task-api-services` and `task-api-test`; `upload-file`, `email`, `realtime`, `system-call`, `testing`, `deploy` |
+| 8 Closing | devcontainers, `AGENTS.md`, `README.md`, `docs/PRD.md`, this spec moved to `executed/` |
 
-Every phase above ended green on `pnpm build`, `check:links`, `check:doc-lines`,
-`lint` and `check`. Each published step was also started and exercised over HTTP
-(`/health`, CRUD, and the error paths), and every TypeScript step passes
-`pnpm typecheck`.
+## Result
 
-Note on `invest-app-prismajs-simple`: spec-002 had in fact removed every tracked
-file of that project. What survived was a single untracked `.env` holding the
-boilerplate Prisma comment and `DATABASE_URL="file:./dev.db"` — no secret, no
-code. That leftover directory is now deleted, so the three orphans are gone.
+| Metric | Before | After |
+| ------ | ------ | ----- |
+| Hand-written fences carrying a `title="src/…"` | 172 | 6, all `del`/`ins` before/after diffs |
+| Real cutouts (`<SourceCode>` + `<CodeTabs>`) | ~38 | 114 |
+| Concept pages with no executable project | 20 of 33 | 1 (`api/construction`, a design page, which links the trail) |
+| Standalone Express projects | 9 | 1 (`bmi-api`, standalone on purpose) + the 12-step trail |
+| Orphaned example directories | 3 | 0 |
+
+Every phase ended green on `pnpm build`, `check:links`, `check:doc-lines`, `lint`
+and `check`. Every published step was started and exercised over HTTP, and every
+TypeScript step passes `pnpm typecheck`. Step 12's suite is 21 passing tests.
+
+**Not verified:** the `Dockerfile` and `compose.yaml` of step 12 were written but
+never built — the Docker daemon was not running on the machine. They follow the
+documented multi-stage pattern but should be built once before anyone relies on
+`deploy.mdx`.
+
+Two refinements to the original plan, both recorded in place above:
+
+1. `Task` is the resource from step 1 and `User` arrives at step 9, rather than
+   `User` being primary throughout. See "Design — TaskAPI".
+2. The audit criterion allows a hand-written fence to keep a `title="src/…"` when
+   it is a `del`/`ins` before/after comparison — the markers make the transition
+   explicit, and the title is what orients the reader. Everywhere else the title
+   is dropped.
+
+Three notes for whoever touches this next:
+
+- Dotfiles are outside the `import.meta.glob` in `src/lib/source-files.ts`, which
+  is what keeps `.env` unreachable from the docs. `.env.example` and
+  `.dockerignore` are therefore hand-written fences kept in sync by hand.
+- `AGENTS.md` and `README.md` claimed that `mark`/`ins`/`del` over `lines`/`region`
+  used the snippet's numbering. They use the original file's; `offsetMarkers`
+  shifts them. Both files were corrected.
+- The rate limiter needs a distinct `name` per limiter, or two limiters on the same
+  route share a counter. This was a real bug found by the smoke test.
 
 ## Phase Plan
 
