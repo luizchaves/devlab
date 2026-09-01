@@ -9,26 +9,36 @@ markmap:
 
 ## Ideia Central
 
-- **Conceito**: O que o Express resolve sobre o módulo http do Node.js: instalação, o primeiro servidor, o ciclo requisição/resposta e a anatomia de uma rota.
-- **Ecossistema**: Node.js, Express.js e TypeScript
+- **Camada sobre o `node:http`**: abstração ergonômica para servidores HTTP em Node.js.
+- **Produtividade**: roteamento declarativo, middlewares e simplificação de requisição e resposta.
 
-## Principais Pontos
+## O Que o Express Resolve
 
-### O que o Express resolve
-- Estruturas e convenções de **O que o Express resolve**
-### Instalação
-- Estruturas e convenções de **Instalação**
-### O primeiro servidor
-- Estruturas e convenções de **O primeiro servidor**
-### O ciclo de uma requisição
-- Estruturas e convenções de **O ciclo de uma requisição**
-### Anatomia de uma rota
-- Estruturas e convenções de **Anatomia de uma rota**
-### Onde os dados chegam e por onde saem
-- Estruturas e convenções de **Onde os dados chegam e por onde saem**
+- **Roteamento**: métodos declarativos (`app.get`, `app.post`) substituem cadeias `if/else`.
+- **Parâmetros de URL**: extração automática de `/tasks/:id` em `req.params.id`.
+- **Corpo JSON**: `express.json()` acumula buffers e popula `req.body`.
+- **Respostas JSON**: `res.status().json()` define status, headers e serialização.
+- **Middlewares**: cadeia de execução sequencial e reutilizável com `app.use()`.
+- **Arquivos Estáticos**: `express.static('public')` para servir assets sem código manual.
+
+## Ciclo e Anatomia da Requisição
+
+- **Fluxo Linear**: Cliente $\rightarrow$ `node:http` $\rightarrow$ Middlewares $\rightarrow$ Rota $\rightarrow$ `res.json()`.
+- **Ordem de Avaliação**: rotas avaliadas na ordem de declaração (específicas antes de dinâmicas).
+- **Término do Ciclo**: obrigatório invocar um método finalizador (`res.json()`, `res.send()`).
+
+## Manipulação de Dados (`req` e `res`)
+
+- **Entrada (`req`)**:
+  - `req.params`: parâmetros de rota nomeados.
+  - `req.query`: parâmetros de busca da URL (*query string*).
+  - `req.body`: corpo JSON da requisição.
+- **Saída (`res`)**:
+  - `res.status(code)`: definição do código HTTP.
+  - `res.json(data)`: envio de payload e encerramento da conexão.
 
 ## Boas Práticas
 
-- Manter responsabilidades separadas por módulo
-- Tratar erros de forma centralizada e previsível
-- Documentar rotas e contratos de entrada/saída
+- **Ordem dos Middlewares**: registre `express.json()` antes de qualquer rota com payload.
+- **Endpoint de Saúde**: mantenha `GET /health` para orquestradores e diagnóstico.
+- **Prevenção de Colisões**: declare rotas estáticas (`/tasks/count`) antes de parâmetros (`/tasks/:id`).
