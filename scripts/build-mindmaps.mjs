@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const materialsDir = join(projectRoot, 'materials');
 const outputDir = join(projectRoot, 'public', 'mindmaps');
+const force = process.argv.includes('--force');
 
 const controlsStyle = `<style>
 .mindmap-level-controls {
@@ -116,6 +118,56 @@ function listMindmapFiles(dir) {
   });
 }
 
+function getBinaryPath(name) {
+  const localBin = join(
+    projectRoot,
+    'node_modules',
+    '.bin',
+    name + (process.platform === 'win32' ? '.cmd' : '')
+  );
+  return existsSync(localBin) ? localBin : name;
+}
+
+async function mapConcurrent(items, limit, fn) {
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const i = index++;
+      await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+}
+
+function runMarkmap(mindmapFile, outputFile) {
+  return new Promise((resolve, reject) => {
+    const markmapBin = getBinaryPath('markmap');
+    const child = spawn(markmapBin, [mindmapFile, '-o', outputFile, '--offline', '--no-open'], {
+      shell: process.platform === 'win32',
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    let stderr = '';
+    child.stderr?.on('data', (data) => {
+      stderr += data;
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(
+          new Error(`Falha ao gerar mapa mental (${mindmapFile}):\n${stderr || `Código ${code}`}`)
+        );
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`Erro ao executar markmap em ${mindmapFile}: ${err.message}`));
+    });
+  });
+}
+
 function addControls(outputFile) {
   let html = readFileSync(outputFile, 'utf-8');
 
@@ -136,36 +188,62 @@ function addControls(outputFile) {
   writeFileSync(outputFile, html);
 }
 
-if (!existsSync(materialsDir)) {
-  console.log('materials/ não encontrado. Nenhum mapa mental gerado.');
-  process.exit(0);
-}
-
-const mindmapFiles = listMindmapFiles(materialsDir);
-
-if (mindmapFiles.length === 0) {
-  console.log('Nenhum arquivo *.mindmap.md encontrado em materials/.');
-  process.exit(0);
-}
-
-for (const mindmapFile of mindmapFiles) {
-  const rel = mindmapFile.endsWith('/index.mindmap.md')
-    ? relative(materialsDir, mindmapFile).replace(/\.mindmap\.md$/, '.html')
-    : relative(materialsDir, mindmapFile).replace(/\.mindmap\.md$/, '/index.html');
-  const outputFile = join(outputDir, rel);
-
-  mkdirSync(dirname(outputFile), { recursive: true });
-
-  const result = spawnSync('markmap', [mindmapFile, '-o', outputFile, '--offline', '--no-open'], {
-    shell: process.platform === 'win32',
-    stdio: 'inherit',
-  });
-
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
+async function main() {
+  if (!existsSync(materialsDir)) {
+    console.log('materials/ não encontrado. Nenhum mapa mental gerado.');
+    process.exit(0);
   }
 
-  addControls(outputFile);
+  const mindmapFiles = listMindmapFiles(materialsDir);
+
+  if (mindmapFiles.length === 0) {
+    console.log('Nenhum arquivo *.mindmap.md encontrado em materials/.');
+    process.exit(0);
+  }
+
+  const pending = [];
+  let cachedCount = 0;
+
+  for (const mindmapFile of mindmapFiles) {
+    const rel = mindmapFile.endsWith('/index.mindmap.md')
+      ? relative(materialsDir, mindmapFile).replace(/\.mindmap\.md$/, '.html')
+      : relative(materialsDir, mindmapFile).replace(/\.mindmap\.md$/, '/index.html');
+    const outputFile = join(outputDir, rel);
+
+    if (!force && existsSync(outputFile)) {
+      const sourceMtime = statSync(mindmapFile).mtimeMs;
+      const targetMtime = statSync(outputFile).mtimeMs;
+      if (targetMtime >= sourceMtime) {
+        cachedCount++;
+        continue;
+      }
+    }
+
+    pending.push({ mindmapFile, outputFile });
+  }
+
+  if (pending.length === 0) {
+    console.log(
+      `✓ Todos os ${mindmapFiles.length} mapa(s) mental(is) estão em cache e atualizados.`
+    );
+    return;
+  }
+
+  const concurrency = Math.max(1, Math.min(availableParallelism?.() ?? 4, 16));
+
+  await mapConcurrent(pending, concurrency, async ({ mindmapFile, outputFile }) => {
+    mkdirSync(dirname(outputFile), { recursive: true });
+    await runMarkmap(mindmapFile, outputFile);
+    addControls(outputFile);
+  });
+
+  const cacheMsg = cachedCount > 0 ? ` (${cachedCount} em cache)` : '';
+  console.log(
+    `${pending.length} mapa(s) mental(is) gerado(s)${cacheMsg} com concorrência ${concurrency}.`
+  );
 }
 
-console.log(`${mindmapFiles.length} mapa(s) mental(is) gerado(s).`);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
