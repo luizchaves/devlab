@@ -228,10 +228,10 @@ improvisado, troque por tabela ou divida a explicação em slides menores.
 
 Em slides de código, a melhor composição costuma ser:
 
-- título curto;
-- 1 frase ou 2 bullets dizendo o que observar;
-- bloco de código legível;
-- comentários curtos no próprio código mostrando saída, efeito ou decisão importante.
+- título curto e focado;
+- **1 frase descritiva contextualizando a regra ou o que observar** (evite slides vazios contendo apenas título e código solto; inclua sempre uma linha de introdução antes do bloco de código quando não houver risco de overflow);
+- bloco de código legível com dados essenciais;
+- comentários curtos no próprio código mostrando saída esperada (`// output`), efeito ou decisão importante.
 
 ---
 

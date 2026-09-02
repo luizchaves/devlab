@@ -112,6 +112,8 @@ console.log(user);
 
 ## Acesso: Ponto vs Colchetes
 
+Notação de ponto para chaves diretas; colchetes para dinâmicas ou caracteres especiais:
+
 ```js
 const host = {
   hostname: "web-server-01",
@@ -463,6 +465,8 @@ console.log(MathUtils.calculateCircleArea(5)); // 78.53975
 
 ## Iteração sobre Objetos
 
+Métodos estáticos de `Object` para inspecionar chaves, valores e pares:
+
 ```js
 const scores = { Alice: 95, Bruno: 80, Carla: 90 };
 
@@ -498,6 +502,8 @@ for (const [student, score] of Object.entries(scores)) {
 ---
 
 ## Objeto Global JSON: `stringify` e `parse`
+
+Conversão bidirecional entre objetos em memória e strings textuais JSON:
 
 ```js
 const user = {
