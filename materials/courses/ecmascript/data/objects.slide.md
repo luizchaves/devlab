@@ -179,6 +179,28 @@ console.log(Object.hasOwn(user, "toString")); // false (não é propriedade dire
 
 ---
 
+## Opcionalidade de Chaves: `undefined` vs Ausência
+
+Propriedades são dinâmicas: ler chave inexistente devolve `undefined`:
+
+```js
+const account = { id: 101, nickname: undefined };
+
+// 1. Ambas as leituras retornam undefined:
+console.log(account.nickname); // undefined (chave existe)
+console.log(account.avatar);   // undefined (chave inexistente)
+
+// 2. Object.hasOwn revela a existência da chave:
+console.log(Object.hasOwn(account, "nickname")); // true
+console.log(Object.hasOwn(account, "avatar"));   // false
+
+// 3. delete expurga a chave do objeto:
+delete account.nickname;
+console.log(Object.hasOwn(account, "nickname")); // false
+```
+
+---
+
 ## Optional Chaining (`?.`) e Coalescência Nula (`??`)
 
 Permite navegar em objetos aninhados com segurança, evitando `TypeError` se algum nível for `null` ou `undefined`:
@@ -199,6 +221,26 @@ const theme = user?.settings?.theme;       // undefined (settings não existe)
 const currentTheme = user?.settings?.theme ?? "light";
 console.log(currentTheme); // "light"
 ```
+
+---
+
+## Padrão Clássico (`&&`) vs Optional Chaining (`?.`)
+
+Antes do ES2020, usava-se o operador `&&` como guarda defensiva:
+
+```js
+// 1. Padrão clássico pré-ES2020 com operador lógico && (verboso):
+const cityOld =
+  user && user.profile && user.profile.address && user.profile.address.city;
+
+// 2. Padrão moderno com Optional Chaining (?.):
+const cityModern = user?.profile?.address?.city;
+
+console.log(cityOld === cityModern); // true
+```
+
+- `&&` interrompe no primeiro valor *falsy*, mas pode falhar com `0`, `""` ou `false`.
+- `?.` avalia estritamente contra `null` e `undefined` (*short-circuiting* seguro).
 
 ---
 
@@ -301,9 +343,9 @@ console.log(originalUser === aliasUser); // true (mesmo endereço)
 
 ---
 
-## Comparação de Objetos: Referência vs Conteúdo
+## Comparação de Objetos: Referência (`==` e `===`)
 
-`===` compara o **endereço de memória**, e não o conteúdo estrutural:
+Tanto `==` quanto `===` comparam o **endereço de memória**, e não o conteúdo:
 
 ```js
 const userA = { name: "Carlos", age: 28 };
@@ -311,10 +353,33 @@ const userB = { name: "Carlos", age: 28 };
 
 // Mesmo conteúdo, mas endereços de memória distintos:
 console.log(userA === userB); // false
+console.log(userA == userB);  // false
 console.log({} === {});       // false (cada {} aloca nova referência)
 ```
 
-*Dica: para testar igualdade de conteúdo, compare propriedade por propriedade.*
+---
+
+## Comparação Profunda de Objetos (Deep Equality)
+
+Para comparar conteúdo estrutural recursivamente:
+
+```js
+function isDeepEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== "object" || !a || typeof b !== "object" || !b) return false;
+  const keysA = Object.keys(a), keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  return keysA.every((k) => Object.hasOwn(b, k) && isDeepEqual(a[k], b[k]));
+}
+
+const obj1 = { id: 1, info: { role: "admin" } };
+const obj2 = { id: 1, info: { role: "admin" } };
+
+console.log(obj1 === obj2);           // false (referências distintas)
+console.log(isDeepEqual(obj1, obj2)); // true (conteúdo idêntico)
+```
+
+*Nota: `JSON.stringify(a) === JSON.stringify(b)` falha com ordem de chaves, `undefined` e `Date`.*
 
 ---
 
@@ -423,6 +488,24 @@ console.log(user1.getProfile()); // "Ana Silva (ana@devlab.org)"
 
 ---
 
+## Métodos de `Object.prototype` e Coerção
+
+Métodos herdados automaticamente por todas as instâncias e objetos:
+
+| Método | Retorno | Descrição / Uso |
+| :--- | :--- | :--- |
+| **`toString()`** | `string` | Representação textual (`${obj}`, `String(obj)`). |
+| **`valueOf()`** | `any` | Valor primitivo em operações matemáticas (`+`, `*`). |
+| **`hasOwnProperty()`** | `boolean` | Checagem de propriedade direta (legado; use `Object.hasOwn`). |
+| **`isPrototypeOf()`** | `boolean` | Testa se o objeto está na cadeia de protótipos de outro. |
+
+```js
+const item = { name: "Livro", price: 50, valueOf() { return this.price; } };
+console.log(item + 10); // 60 (valueOf() invocado na coerção)
+```
+
+---
+
 ## Extensão de Protótipos e o `this`
 
 Métodos de protótipo exigem `function` tradicional para vincular o `this`:
@@ -464,17 +547,29 @@ console.log(account.balance); // 700
 
 ---
 
+## Pilar da POO: Encapsulamento
+
+- Proteger o estado interno e as regras de negócio contra mutações diretas.
+- Expõe apenas interfaces públicas controladas e métodos de validação.
+- No JS moderno (ES2022+): **campos privados com prefixo `#`** e métodos *get/set*.
+
+---
+
 ## Herança com `extends` e `super()`
 
 Uma subclasse herda métodos e construtor da classe base:
 
 ```js
+class User {
+  constructor(name, email) { this.name = name; this.email = email; }
+  getProfile() { return `${this.name} (${this.email})`; }
+}
+
 class Admin extends User {
   constructor(name, email, permissions) {
     super(name, email); // Invocação obrigatória do construtor pai
     this.permissions = permissions;
   }
-
   // Sobrescrita de método (Method Overriding)
   getProfile() {
     return `[ADMIN] ${super.getProfile()} (${this.permissions.join(", ")})`;
@@ -485,6 +580,47 @@ const admin = new Admin("Beatriz", "beatriz@devlab.org", ["READ", "WRITE"]);
 console.log(admin.getProfile());
 // "[ADMIN] Beatriz (beatriz@devlab.org) (READ, WRITE)"
 ```
+
+---
+
+## Pilar da POO: Polimorfismo
+
+- Múltiplas subclasses respondem à mesma interface de métodos com comportamentos especializados.
+- Permite que o chamador invoque o mesmo método (`greet()`, `getProfile()`) sem precisar saber detalhes específicos da subclasse.
+- No JS moderno: herança com `extends`, `super()` e sobrescrita de métodos.
+
+---
+
+## Sobrescrita (*Overriding*) vs Sobrecarga (*Overloading*)
+
+- **Sobrescrita (*Overriding*)**: Subclasse redefine método do pai (`super.metodo()`).
+- **Sobrecarga (*Overloading*)**: Múltiplos métodos de mesmo nome. **Não existe em JS** (o último substitui os anteriores).
+
+```js
+class Calculator {
+  // ❌ O segundo add substitui o primeiro:
+  add(a) { return a + 10; }
+  add(a, b) { return a + b; }
+
+  // ✅ Simulação idiomática com valor padrão:
+  sum(a, b = 10) { return a + b; }
+}
+
+const calc = new Calculator();
+console.log(calc.add(5));     // NaN (5 + undefined)
+console.log(calc.sum(5));     // 15 (usa b = 10)
+console.log(calc.sum(5, 20)); // 25
+```
+
+---
+
+## POO no TypeScript: O que a linguagem adiciona?
+
+- **Interfaces e `implements`**: contratos estritos de tipos para polimorfismo robusto.
+- **Classes Abstratas (`abstract class`)**: modelos base que não podem ser instanciados.
+- **Modificadores de Acesso**: `public`, `private`, `protected` e `readonly`.
+- **Parameter Properties**: declaração e atribuição simplificada no construtor.
+- **Assinaturas de Sobrecarga**: múltiplas assinaturas checadas em tempo de compilação.
 
 ---
 

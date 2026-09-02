@@ -19,16 +19,22 @@ markmap:
 - **Ponto vs Colchetes**:
   - `obj.prop`: simples e direto.
   - `obj["prop"]` e `obj[var]`: para chaves dinâmicas, numéricas ou com caracteres especiais.
-- **Existência de Propriedades**:
+- **Existência e Opcionalidade de Chaves**:
+  - Natureza dinâmica: chaves não definidas retornam `undefined`.
   - Operador `in`: busca no objeto e na cadeia de protótipos.
-  - `Object.hasOwn(obj, prop)`: restringe a busca a propriedades próprias diretas.
-- **Optional Chaining (`?.`)**: navegação segura contra `null` e `undefined`.
+  - `Object.hasOwn(obj, prop)`: detecta propriedades próprias mesmo com valor `undefined`.
+  - Operador `delete`: remoção efetiva da chave.
+- **Optional Chaining (`?.`)**: navegação segura contra `null` e `undefined` (substitui o padrão clássico com `&&`).
 
 ## Desestruturação e Imutabilidade
 
 - **Identidade e Referência**:
-  - Objetos operam por endereço na *Heap*; `===` compara referências (`{} === {}` é `false`).
+  - Objetos operam por endereço na *Heap*; `==` e `===` comparam referências (`{} === {}` é `false`).
   - Atribuição simples copia o ponteiro, propagando mutações para a origem.
+- **Comparação Profunda (*Deep Equality*)**:
+  - Inspeção recursiva de chaves e valores.
+  - Limitações de `JSON.stringify` (ordem de chaves, `undefined`, datas).
+  - Utilitários: `assert.deepStrictEqual` de `node:assert` e asserções em testes.
 - **Desestruturação**: `const { name, age, role = 'user' } = person`.
 - **Renomeação**: `const { city: location } = person`.
 - **Omissão com Rest**: `const { password: _p, ...publicUser } = user` (remoção imutável).
@@ -42,11 +48,17 @@ markmap:
 ## Classes ES6+ e Encapsulamento
 
 - **Declaração**: `class User { constructor(name) { this.name = name; } }`.
-- **Protótipos**: métodos de classe residem em `User.prototype`.
+- **Cadeia de Protótipos**:
+  - Métodos de classe residem em `User.prototype`.
+  - Raiz em `Object.prototype` (`toString()`, `valueOf()`, `hasOwnProperty()`, `isPrototypeOf()`).
 - **Extensão de Protótipos**: requer `function` tradicional para binding dinâmico de `this`.
 - **Campos Privados (`#`)**: atributos verdadeiramente encapsulados (ES2022+).
 - **Getters e Setters**: interfaces de leitura e validação controlada (`get prop()`, `set prop()`).
 - **Herança**: `class Admin extends User` com chamada obrigatória de `super()`.
+- **Sobrescrita (*Overriding*)**: redefinição de métodos herdados com `super.metodo()`.
+- **Ausência de Sobrecarga (*Overloading*)**:
+  - JavaScript não suporta sobrecarga nativa por assinatura (última substitui anterior).
+  - Simulação via parâmetros padrão, checagem de tipos ou objetos de opções.
 - **Membros Estáticos (`static`)**: métodos utilitários atrelados à função construtora.
 
 ## Iteração sobre Objetos
@@ -73,5 +85,7 @@ markmap:
 
 - **Use Property Shorthand e Desestruturação** para código limpo e idiomático.
 - **Combine `?.` com `??`** para evitar erros de leitura em dados aninhados de APIs.
-- **Lembre-se da referência de `const`**: use `Object.freeze()` quando a imutabilidade for estrita.
 - **Prefira `Object.hasOwn`** sobre o método legado `hasOwnProperty`.
+- **Gerenciamento de Imutabilidade**: spread para cópia rasa, `structuredClone` para aninhamentos e `Object.freeze` para dados estáticos.
+- **POO Moderna**: campos privados `#` para encapsulamento e `extends`/`super()` para polimorfismo.
+- **Intercâmbio Seguro**: utilize `JSON.stringify` e `JSON.parse` para serialização de payloads.
