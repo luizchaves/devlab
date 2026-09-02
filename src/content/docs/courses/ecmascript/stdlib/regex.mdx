@@ -36,6 +36,7 @@ As *flags* alteram a forma como a busca por padrões é executada.
 | `m` | *Multiline* | Faz as âncoras `^` e `$` corresponderem ao início e fim de cada linha |
 | `u` | *Unicode* | Ativa o suporte completo a caracteres Unicode de 32-bit |
 | `s` | *Dot All* | Faz o caractere ponto (`.`) corresponder também a quebras de linha (`\n`) |
+| `y` | *Sticky* | Busca apenas a partir da posição exata indicada por `lastIndex`, sem avançar pelo resto do texto |
 
 ```js title="Formas de criação e uso de flags"
 // 1. Notação Literal (com a flag 'i' para ignorar maiúsculas/minúsculas)
@@ -47,6 +48,14 @@ const regexConstructor = new RegExp(term, "i");
 
 console.log(regexLiteral.test("JavaScript"));     // true
 console.log(regexConstructor.test("JAVASCRIPT")); // true
+
+// 3. Flag 'y' (Sticky): busca a partir do índice exato definido em lastIndex
+const stickyPattern = /\d+/y;
+stickyPattern.lastIndex = 4;
+console.log(stickyPattern.test("abc 42 99")); // true (no índice 4 inicia "42")
+
+stickyPattern.lastIndex = 3;
+console.log(stickyPattern.test("abc 42 99")); // false (no índice 3 há espaço, não avança)
 ```
 
 <Aside type="tip" title="Atenção às Barras Invertidas no Construtor">
@@ -193,23 +202,69 @@ console.log(html.match(lazyRegex)[0]);
 
 Parênteses `(...)` são usados para agrupar expressões, criar grupos de captura e aplicar quantificadores a múltiplos caracteres. O operador pipe `|` permite alternância (opção OU).
 
-```js title="Exemplo de grupos e alternâncias"
-// Alternância (OU)
-const domainPattern = /\.(com|org|net|edu\.br)$/i;
+O JavaScript oferece três formas de agrupamento:
 
+| Tipo de Grupo | Sintaxe | Descrição | Exemplo |
+| ------------- | ------- | --------- | ------- |
+| **Captura Padrão** | `(padrão)` | Agrupa e captura o trecho em índices numéricos (`result[1]`, `result[2]`) | `/(\d{2})\/(\d{2})/` |
+| **Captura Nomeada** | `(?<nome>padrão)` | Agrupa e disponibiliza o trecho em `result.groups.nome` (ES2018+) | `/(?<ano>\d{4})/` |
+| **Não-Captura** | `(?:padrão)` | Agrupa para aplicar quantificadores ou alternâncias sem salvar no array de resultado | `/(?:https?\|ftp):\/\//` |
+
+O exemplo a seguir demonstra o uso de alternância, grupos de captura padrão e grupos de captura nomeados:
+
+```js title="Exemplo de grupos, alternâncias e grupos nomeados"
+// 1. Alternância (OU) com grupos de não-captura (?:)
+const domainPattern = /\.(?:com|org|net|edu\.br)$/i;
 console.log(domainPattern.test("site.com"));    // true
 console.log(domainPattern.test("ifpb.edu.br")); // true
 console.log(domainPattern.test("site.xyz"));    // false
 
-// Grupos de Captura
+// 2. Grupos de Captura Padrão (acesso por índice numérico)
 const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 const match = "22/08/2026".match(datePattern);
-
 if (match) {
   console.log("Dia:", match[1]); // "22"
   console.log("Mês:", match[2]); // "08"
   console.log("Ano:", match[3]); // "2026"
 }
+
+// 3. Grupos de Captura Nomeados (?<nome>)
+const isoDatePattern = /(?<ano>\d{4})-(?<mes>\d{2})-(?<dia>\d{2})/;
+const isoMatch = "2026-08-22".match(isoDatePattern);
+if (isoMatch) {
+  console.log(isoMatch.groups.ano); // "2026"
+  console.log(isoMatch.groups.mes); // "08"
+  console.log(isoMatch.groups.dia); // "22"
+}
+```
+
+### 6. Asserções de Inspeção (Lookaround: Lookahead e Lookbehind)
+
+As asserções de inspeção (*lookaround*) verificam se determinado padrão antecede ou sucede a posição atual no texto **sem consumir caracteres** (ou seja, a condição é verificada, mas o trecho inspecionado não entra na string casada final).
+
+A tabela a seguir compara os quatro tipos de asserções disponíveis em JavaScript:
+
+| Tipo | Sintaxe | Descrição | Exemplo |
+| ---- | ------- | --------- | ------- |
+| **Lookahead Positivo** | `(?=padrão)` | Exige que o padrão **suceda** a posição atual | `/\d+(?=px)/` (número seguido de "px") |
+| **Lookahead Negativo** | `(?!padrão)` | Exige que o padrão **NÃO suceda** a posição atual | `/\d+(?!px)/` (número não seguido de "px") |
+| **Lookbehind Positivo** | `(?<=padrão)` | Exige que o padrão **anteceda** a posição atual | `/(?<=R\$)\d+/` (número precedido por "R$") |
+| **Lookbehind Negativo** | `(?<!padrão)` | Exige que o padrão **NÃO anteceda** a posição atual | `/(?<!R\$)\d+/` (número não precedido por "R$") |
+
+O exemplo a seguir demonstra o lookbehind para extrair apenas o valor numérico após um prefixo monetário e lookaheads para validar uma senha com múltiplos requisitos independentes:
+
+```js title="Uso de Lookbehind e Lookahead"
+// 1. Lookbehind Positivo: extrai o número sem incluir o prefixo "R$"
+const priceText = "Total: R$150";
+const priceMatch = priceText.match(/(?<=R\$)\d+/);
+console.log(priceMatch[0]); // "150"
+
+// 2. Lookahead Positivo em validação de senha segura
+// Exige: >= 8 caracteres, >= 1 maiúscula, >= 1 minúscula, >= 1 dígito e >= 1 caractere especial
+const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+console.log(passwordPattern.test("DevLab@2026")); // true
+console.log(passwordPattern.test("fraca123"));    // false (sem maiúscula e sem caractere especial)
 ```
 
 ## Métodos de RegExp e String
@@ -244,28 +299,39 @@ console.log(result[1]); // "2026" (primeiro grupo de captura)
 
 ### 2. Métodos de String que Utilizam RegExp
 
-Do outro lado, as strings aceitam expressões regulares em cinco métodos, que cobrem busca, substituição e divisão:
+Do outro lado, as strings aceitam expressões regulares em métodos que cobrem busca por índice, captura, substituição e divisão:
 
 | Método | Descrição | Retorno |
 | ------ | --------- | ------- |
+| `str.search(regexp)` | Retorna o índice da primeira ocorrência encontrada ou `-1` se ausente | `number` |
 | `str.match(regexp)` | Retorna as correspondências encontradas | Array de correspondências ou `null` |
 | `str.matchAll(regexp)` | Retorna um iterador com todas as correspondências e grupos (exige flag `g`) | Iterador de correspondências |
-| `str.replace(regexp, newText)` | Substitui o padrão por um novo texto ou retorno de callback | Nova `string` |
+| `str.replace(regexp, newText)` | Substitui o padrão por novo texto, referências (`$1`, `$<nome>`) ou callback | Nova `string` |
 | `str.split(regexp)` | Divide a string utilizando a RegExp como separador | Novo `Array` |
+
+O exemplo a seguir demonstra a busca por índice, a captura múltipla, a divisão por delimitadores e a substituição com grupos de referência:
 
 ```js title="Métodos de String com Expressões Regulares"
 const text = "Contatos: ana@gmail.com, bruno@ifpb.edu.br e carla@hotmail.com";
 
-// 1. match() com flag /g: Encontra todos os e-mails
+// 1. search(): Encontra a posição inicial do primeiro padrão
+console.log(text.search(/@ifpb\.edu\.br/)); // 29
+
+// 2. match() com flag /g: Encontra todos os e-mails
 const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 const emails = text.match(emailPattern);
 console.log(emails); // [ 'ana@gmail.com', 'bruno@ifpb.edu.br', 'carla@hotmail.com' ]
 
-// 2. replace() com callback: Ocultando e-mails para privacidade
+// 3. replace() com grupos de referência ($1, $2) para reformatar datas
+const rawDate = "2026-08-22";
+const formattedDate = rawDate.replace(/(\d{4})-(\d{2})-(\d{2})/, "$3/$2/$1");
+console.log(formattedDate); // "22/08/2026"
+
+// 4. replace() com callback: Ocultando e-mails para privacidade
 const maskedText = text.replace(emailPattern, "[E-MAIL OCULTO]");
 console.log(maskedText); // "Contatos: [E-MAIL OCULTO], [E-MAIL OCULTO] e [E-MAIL OCULTO]"
 
-// 3. split() com RegExp: Dividindo por múltiplos separadores (vírgula, ponto e vírgula ou espaço)
+// 5. split() com RegExp: Dividindo por múltiplos separadores (vírgula, ponto e vírgula ou espaço)
 const items = "HTML; CSS, JavaScript   Node.js".split(/[\s,;]+/);
 console.log(items); // [ 'HTML', 'CSS', 'JavaScript', 'Node.js' ]
 ```

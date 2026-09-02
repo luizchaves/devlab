@@ -22,6 +22,7 @@ markmap:
 - `m`: Multiline; Faz as âncoras `^` e `$` corresponderem ao início e fim de cada linha
 - `u`: Unicode; Ativa o suporte completo a caracteres Unicode de 32-bit
 - `s`: Dot All; Faz o caractere ponto (`.`) corresponder também a quebras de linha (`\n`)
+- `y`: Sticky; Busca apenas a partir da posição exata de `lastIndex`
 
 ## Sintaxe Fundamental de RegExp
 ### 1. Classes de Caracteres
@@ -44,28 +45,34 @@ markmap:
 - As âncoras não correspondem a caracteres visíveis; elas especificam posições no texto.
 ### 4. Quantificadores
 - Quantificador: Significado; Exemplo
-- *``*: 0 ou mais vezes (equivalente a `{0,}`); `/a/`
+- `*`: 0 ou mais vezes (equivalente a `{0,}`); `/a*/`
 - `+`: 1 ou mais vezes (equivalente a `{1,}`); `/\d+/`
 - `?`: 0 ou 1 vez (opcional, equivalente a `{0,1}`); `/https?/` (aceita http ou https)
 - `{n}`: Exatamente `n` vezes; `/\d{4}/` (exatamente 4 dígitos)
 ### Quantificadores Gulosos (*Greedy*) vs. Não Gulosos (*Lazy / Non-greedy*)
 - Guloso (Greedy): `*`, `+`, `?`, `{n,m}`; Captura o máximo de texto
 - Não Guloso (Lazy): `*?`, `+?`, `??`, `{n,m}?`; Captura o mínimo de texto
-- Adicionando o caractere `?` logo após um quantificador (como `?`, `+?`, `??`, `{n,m}?`).
 ### 5. Grupos e Alternância
-- O operador pipe `|` permite alternância (opção OU).
+- Grupos Padrão: `(...)`; captura em índices numéricos (`result[1]`)
+- Grupos Nomeados: `(?<nome>...)`; acessíveis via `result.groups.nome`
+- Não-Captura: `(?:...)`; agrupa sem capturar no resultado
+- Alternância: `|`; operador OU
+### 6. Asserções (Lookaround)
+- Lookahead Positivo: `(?=padrão)`; exige padrão à frente sem consumi-lo
+- Lookahead Negativo: `(?!padrão)`; exige ausência de padrão à frente
+- Lookbehind Positivo: `(?<=padrão)`; exige padrão atrás sem consumi-lo
+- Lookbehind Negativo: `(?<!padrão)`; exige ausência de padrão atrás
 
 ## Métodos de RegExp e String
 ### 1. Métodos do Objeto RegExp
 - `regexp.test(str)`: Testa se o padrão existe na string; `boolean` (`true` ou `false`)
 - `regexp.exec(str)`: Executa a busca e retorna informações de grupos; Array de correspondência ou `null`
-- O próprio objeto da expressão regular expõe dois métodos, com propósitos bem distintos
 ### 2. Métodos de String que Utilizam RegExp
+- `str.search(regexp)`: Retorna o índice da primeira ocorrência ou `-1`
 - `str.match(regexp)`: Retorna as correspondências encontradas; Array de correspondências ou `null`
-- `str.matchAll(regexp)`: Retorna um iterador com todas as correspondências e grupos (exige flag `g`).
-- `str.replace(regexp, newText)`: Substitui o padrão por um novo texto ou retorno de callback; Nova `string`
+- `str.matchAll(regexp)`: Retorna um iterador com todas as correspondências e grupos (exige flag `g`)
+- `str.replace(regexp, newText)`: Substitui o padrão por novo texto, `$1`, `$<nome>` ou callback
 - `str.split(regexp)`: Divide a string utilizando a RegExp como separador; Novo `Array`
-- Do outro lado, as strings aceitam expressões regulares em cinco métodos, que cobrem busca, substituição e divisão
 
 ## Resumo e Boas Práticas
 - Teste seus padrões com casos positivos e negativos usando ferramentas como regex101.com.

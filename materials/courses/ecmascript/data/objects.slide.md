@@ -263,6 +263,25 @@ displayServer(server);
 
 ---
 
+## Omissão Imutável com Rest (`...rest`)
+
+Expurga propriedades sensíveis criando um novo objeto sem usar `delete`:
+
+```js
+const user = {
+  id: 101,
+  name: "Carlos",
+  email: "carlos@devlab.org",
+  passwordHash: "secret123",
+};
+
+// Isola o passwordHash e guarda o restante em publicUser
+const { passwordHash: _password, ...publicUser } = user;
+console.log(publicUser); // { id: 101, name: 'Carlos', email: 'carlos@devlab.org' }
+```
+
+---
+
 ## A Armadilha da Atribuição por Referência
 
 Atribuir um objeto a outra variável copia apenas a referência na memória:
@@ -319,6 +338,24 @@ const prodConfig = {
 
 console.log(baseConfig.port); // 3000 (inalterado)
 console.log(prodConfig.port); // 8080
+```
+
+---
+
+## Ordem de Precedência no Spread
+
+A última propriedade declarada sempre tem a precedência:
+
+```js
+const base = { name: "Tesouro Selic", value: 17476 };
+
+// 1. Sobrescrita: chave após o spread sobrescreve o base
+console.log({ ...base, name: "CDB XYZ" });
+// { name: 'CDB XYZ', value: 17476 }
+
+// 2. Precedência do spread: base sobrescreve a chave anterior
+console.log({ name: "CDB XYZ", ...base });
+// { name: 'Tesouro Selic', value: 17476 }
 ```
 
 ---
@@ -382,6 +419,24 @@ class User {
 
 const user1 = new User("Ana Silva", "ana@devlab.org");
 console.log(user1.getProfile()); // "Ana Silva (ana@devlab.org)"
+```
+
+---
+
+## Extensão de Protótipos e o `this`
+
+Métodos de protótipo exigem `function` tradicional para vincular o `this`:
+
+```js
+// ✅ Função tradicional: 'this' aponta para o array chamador
+Array.prototype.last = function () {
+  return this[this.length - 1];
+};
+
+console.log([10, 20, 30].last()); // 30
+
+// ❌ Arrow function: não possui 'this' dinâmico, captura léxico externo
+// Array.prototype.lastArrow = () => this[this.length - 1]; // undefined
 ```
 
 ---

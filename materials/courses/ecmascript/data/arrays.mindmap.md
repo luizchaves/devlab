@@ -45,6 +45,7 @@ markmap:
 
 ## Métodos Funcionais de Ordem Superior
 
+- **Iteração com Efeitos Colaterais**: `forEach()` para percorrer sem retornar novo array.
 - **Mapeamento**: `map()` para transformações 1:1 e `flatMap()` para achatar.
 - **Filtragem**: `filter()` para seleção por predicado booleano.
 - **Redução e Agregação**: `reduce()` para acumular totais e agrupar objetos.

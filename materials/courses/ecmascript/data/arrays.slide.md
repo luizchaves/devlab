@@ -250,9 +250,9 @@ console.log(numbers.toReversed()); // [ 5, 1, 4, 1, 3 ]
 
 ---
 
-## Métodos Funcionais: `map` e `filter`
+## Métodos Funcionais: `forEach`, `map` e `filter`
 
-Transformação e filtragem puras sem mutação:
+Iteração, transformação e filtragem de coleções:
 
 ```js
 const products = [
@@ -261,11 +261,14 @@ const products = [
   { name: "Livro JS", price: 50, category: "livros" },
 ];
 
-// 1. filter(): seleciona itens que atendem ao critério
+// 1. forEach((item, index, array) => void) - itera com efeitos colaterais
+products.forEach((p) => console.log(`${p.name}: R$${p.price}`));
+
+// 2. filter((item, index, array) => boolean) - seleciona itens
 const hardware = products.filter((p) => p.category === "hardware");
 console.log(hardware.length); // 2
 
-// 2. map(): transforma cada item em um novo valor
+// 3. map((item, index, array) => novoItem) - transforma itens
 const productNames = products.map((p) => p.name);
 console.log(productNames); // [ 'Teclado', 'Mouse', 'Livro JS' ]
 ```
@@ -283,7 +286,7 @@ const cart = [
   { item: "Teclado", price: 250 },
 ];
 
-// Calcula o total acumulando o preço (valor inicial: 0)
+// reduce((acc, item, index, array) => novoAcc, valorInicial)
 const total = cart.reduce((acc, prod) => acc + prod.price, 0);
 console.log(total); // 3870
 
@@ -307,11 +310,11 @@ const users = [
   { id: 3, name: "Carla", active: true },
 ];
 
-// 1. find() e findIndex(): localiza o primeiro elemento
+// 1. find((user, index, array) => boolean) e findIndex(...)
 console.log(users.find((u) => u.id === 2)); // { id: 2, name: 'Bob', active: false }
 console.log(users.findIndex((u) => u.id === 3)); // 2
 
-// 2. some() e every(): testes booleanos na coleção
+// 2. some((user, index, array) => boolean) e every(...)
 console.log(users.some((u) => !u.active)); // true (existe ao menos um inativo)
 console.log(users.every((u) => u.active)); // false (nem todos estão ativos)
 

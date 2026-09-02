@@ -31,8 +31,11 @@ markmap:
   - Atribuição simples copia o ponteiro, propagando mutações para a origem.
 - **Desestruturação**: `const { name, age, role = 'user' } = person`.
 - **Renomeação**: `const { city: location } = person`.
+- **Omissão com Rest**: `const { password: _p, ...publicUser } = user` (remoção imutável).
 - **Em Funções**: `function setup({ host, port = 80 } = {})`.
-- **Operador Spread (`...`)**: cópia rasa (*shallow copy*) e sobreposição declarativa.
+- **Operador Spread (`...`)**:
+  - Cópia rasa (*shallow copy*) e sobreposição declarativa.
+  - Ordem de precedência: chaves após o spread sobrescrevem chaves anteriores.
 - **`structuredClone(obj)`**: clonagem profunda (*deep copy*) isolada para objetos aninhados.
 - **`Object.freeze()`**: congelamento raso para impedir adições, exclusões e alterações.
 
@@ -40,6 +43,7 @@ markmap:
 
 - **Declaração**: `class User { constructor(name) { this.name = name; } }`.
 - **Protótipos**: métodos de classe residem em `User.prototype`.
+- **Extensão de Protótipos**: requer `function` tradicional para binding dinâmico de `this`.
 - **Campos Privados (`#`)**: atributos verdadeiramente encapsulados (ES2022+).
 - **Getters e Setters**: interfaces de leitura e validação controlada (`get prop()`, `set prop()`).
 - **Herança**: `class Admin extends User` com chamada obrigatória de `super()`.
