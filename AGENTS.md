@@ -223,6 +223,12 @@ Conteúdo de Python usa **`uv`** para ambiente e execução, nunca `venv` + `pip
 existe; um link para material inexistente quebra o `pnpm check:links`. Não linke
 arquivos `.excalidraw`: eles não são copiados para `public/`.
 
+No `pnpm dev` não é preciso parar o servidor para revisar um material: salvar o
+`.slide.md` ou o `.mindmap.md` regenera apenas aquele arquivo e recarrega a aba
+aberta, e as URLs de diretório (`/slides/…/`) resolvem o `index.html` sozinhas. O
+comportamento vem de `scripts/vite-plugin-materials-dev.mjs`, que só atua em
+desenvolvimento e não altera o build de produção.
+
 ## Estilo de código
 
 - **Biome** com aspas simples, ponto e vírgula, vírgula final `es5`, indentação de 2

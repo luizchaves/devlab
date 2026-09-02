@@ -144,6 +144,12 @@ pnpm dev
 
 O site sobe em `http://localhost:4321/devlab/` (o caminho inclui o `base`).
 
+Durante o `pnpm dev`, os materiais gerados em `public/` já respondem nas URLs de
+diretório (`/devlab/slides/<curso>/<categoria>/<topico>/` e a equivalente de
+`mindmaps/`), e salvar um `.slide.md` ou `.mindmap.md` em `materials/` regenera só
+aquele material e recarrega a aba aberta. Isso vem do plugin
+`scripts/vite-plugin-materials-dev.mjs`, ativo apenas no servidor de desenvolvimento.
+
 | Comando            | O que faz                                        |
 | ------------------ | ------------------------------------------------ |
 | `pnpm dev`         | Servidor de desenvolvimento com HMR              |

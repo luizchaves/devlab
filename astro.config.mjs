@@ -2,6 +2,7 @@
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
+import materialsDev from './scripts/vite-plugin-materials-dev.mjs';
 import { BASE_PATH, REPO_URL, SITE_URL } from './site.config.mjs';
 
 /**
@@ -1275,7 +1276,9 @@ export default defineConfig({
     }),
   ],
   vite: {
-    plugins: [tailwindcss()],
+    // `materialsDev` so atua em `astro dev`: resolve `index.html` de slides e mapas
+    // mentais e regenera o material quando o arquivo de `materials/` e salvo.
+    plugins: [tailwindcss(), materialsDev()],
     server: {
       watch: {
         // Os projetos de `examples/` sao instalados de forma independente.
