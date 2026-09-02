@@ -153,6 +153,8 @@ Comentários dentro do bloco devem ajudar a leitura do slide:
 
 - **Nunca omita a saída esperada para economizar espaço vertical**: slides didáticos devem ser completos e demonstrar visualmente o resultado observado de cada instrução relevante (`console.log`, prints e retornos).
 - **Simplifique os dados de entrada quando a saída for multilinha**: se a saída esperada ocupar várias linhas (como objetos formatados com `JSON.stringify(..., null, 2)`, estruturas de dados aninhadas ou arrays extensos), reduza a quantidade de campos ou elementos do exemplo de entrada (ex: de 4 propriedades para 2). Dessa forma, tanto a declaração quanto a saída esperada completa cabem no slide com folga visual e sem risco de corte/overflow.
+- **Simplifique código extenso para preservar margem inferior**: o conteúdo do slide nunca deve encostar na borda inferior nem colidir com a paginação (`P / N`). Em classes, funções ou construtores, condense métodos de 1 linha (ex: `constructor(initial) { this.#balance = initial; }`, `get balance() { return this.#balance; }`) ou remova validações secundárias para manter o bloco de código enxuto (~10-14 linhas).
+- **Evite bullet solitário (item único na lista)**: nunca use uma lista de um único bullet no final de um slide ou após um bloco de código (ex: `- Nota: ...`). Quando houver apenas uma observação complementar, use um parágrafo formatado com ênfase (ex: `*Nota: \`Object.freeze()\` realiza congelamento raso (shallow freeze).*` ou `*Dica: ...*`) em vez de abrir um marcador de lista isolado.
 
 ### Passo a passo de execução e comandos no terminal
 

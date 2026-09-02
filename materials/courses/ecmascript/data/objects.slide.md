@@ -156,7 +156,7 @@ delete config.retries;
 console.log(config.retries); // undefined
 ```
 
-- `const` protege a ligação da variável, mas **não impede** alteração de propriedades internas.
+*Nota: `const` impede a reassociação da variável, mas não a mutação de propriedades internas.*
 
 ---
 
@@ -278,7 +278,7 @@ console.log(originalUser.role); // "admin" (original foi modificado!)
 console.log(originalUser === aliasUser); // true (mesmo endereço)
 ```
 
-- Para evitar esse efeito colateral, gere uma cópia com **Spread** ou **`structuredClone()`**.
+*Dica: use spread `{ ...obj }` ou `structuredClone()` para evitar mutações acidentais.*
 
 ---
 
@@ -295,7 +295,7 @@ console.log(userA === userB); // false
 console.log({} === {});       // false (cada {} aloca nova referência)
 ```
 
-- Para testar igualdade estrutural profunda, compare propriedade por propriedade.
+*Dica: para testar igualdade de conteúdo, compare propriedade por propriedade.*
 
 ---
 
@@ -359,7 +359,7 @@ console.log(immutableConfig);
 // { apiUrl: 'https://api.devlab.org', version: 'v1' }
 ```
 
-- Nota: `Object.freeze` realiza congelamento raso (*shallow freeze*).
+*Nota: `Object.freeze()` realiza congelamento raso (shallow freeze).*
 
 ---
 
@@ -392,26 +392,19 @@ Campos iniciados com `#` (ES2022+) são estritamente privados em tempo de execu�
 
 ```js
 class BankAccount {
-  owner;
-  #balance = 0; // Campo privado inacessível fora da classe
+  #balance = 0; // Privado
 
-  constructor(owner, initialBalance) {
-    this.owner = owner;
-    this.#balance = initialBalance;
-  }
+  constructor(initial) { this.#balance = initial; }
 
   get balance() { return this.#balance; }
 
-  deposit(amount) {
-    if (amount <= 0) throw new Error("Valor deve ser positivo.");
-    this.#balance += amount;
-  }
+  deposit(amount) { this.#balance += amount; }
 }
 
-const account = new BankAccount("Carlos", 500);
+const account = new BankAccount(500);
 account.deposit(200);
 console.log(account.balance); // 700
-// console.log(account.#balance); // SyntaxError!
+// console.log(account.#balance); // SyntaxError (campo privado)
 ```
 
 ---
@@ -429,13 +422,13 @@ class Admin extends User {
 
   // Sobrescrita de método (Method Overriding)
   getProfile() {
-    return `[ADMIN] ${super.getProfile()} - Permissões: ${this.permissions.join(", ")}`;
+    return `[ADMIN] ${super.getProfile()} (${this.permissions.join(", ")})`;
   }
 }
 
 const admin = new Admin("Beatriz", "beatriz@devlab.org", ["READ", "WRITE"]);
 console.log(admin.getProfile());
-// "[ADMIN] Beatriz (beatriz@devlab.org) - Permissões: READ, WRITE"
+// "[ADMIN] Beatriz (beatriz@devlab.org) (READ, WRITE)"
 ```
 
 ---
