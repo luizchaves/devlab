@@ -85,6 +85,7 @@ console.log(typeof student);      // "object"
 ```
 
 - Objetos são armazenados na memória Heap e passados por **referência**.
+- A palavra-chave **`this`** dentro do método referencia o próprio objeto (`student`).
 
 ---
 
