@@ -43,7 +43,26 @@ markmap:
   - Cópia rasa (*shallow copy*) e sobreposição declarativa.
   - Ordem de precedência: chaves após o spread sobrescrevem chaves anteriores.
 - **`structuredClone(obj)`**: clonagem profunda (*deep copy*) isolada para objetos aninhados.
-- **`Object.freeze()`**: congelamento raso para impedir adições, exclusões e alterações.
+
+## Recursos Estáticos de Object
+
+- **Inspeção e Iteração**:
+  - `Object.hasOwn(obj, prop)`: propriedade própria, sem subir no protótipo.
+  - `Object.keys(obj)`: chaves próprias enumeráveis.
+  - `Object.values(obj)`: valores das propriedades.
+  - `Object.entries(obj)`: pares `[chave, valor]` para `for...of`, `map` e `filter`.
+  - `for...in`: chaves enumeráveis do objeto e da cadeia de protótipos.
+- **Transformação e Mesclagem**:
+  - `Object.fromEntries(pairs)`: reconstrói objeto a partir de pares.
+  - `Object.assign(target, ...sources)`: copia propriedades para um alvo mutável.
+- **Protótipos e Descritores**:
+  - `Object.create(proto)`: cria objeto com protótipo explícito.
+  - `Object.getPrototypeOf(obj)`: lê o protótipo efetivo.
+  - `Object.defineProperty(obj, prop, descriptor)`: controla escrita, enumeração e configuração.
+- **Proteção e Comparação**:
+  - `Object.freeze(obj)`: bloqueia alterações, inclusões e exclusões.
+  - `Object.seal(obj)`: bloqueia inclusões e exclusões, mas permite alterar valores existentes.
+  - `Object.is(a, b)`: compara valores com tratamento específico para `NaN`, `+0` e `-0`.
 
 ## Classes ES6+ e Encapsulamento
 
@@ -60,13 +79,6 @@ markmap:
   - JavaScript não suporta sobrecarga nativa por assinatura (última substitui anterior).
   - Simulação via parâmetros padrão, checagem de tipos ou objetos de opções.
 - **Membros Estáticos (`static`)**: métodos utilitários atrelados à função construtora.
-
-## Iteração sobre Objetos
-
-- **`Object.keys(obj)`**: lista com todas as chaves próprias enumeráveis.
-- **`Object.values(obj)`**: lista com os valores das propriedades.
-- **`Object.entries(obj)`**: pares `[chave, valor]` ideais para desestruturação em `for...of`.
-- **Laço `for...in`**: itera sobre chaves enumeráveis do objeto e protótipo.
 
 ## Formato e Manipulação de JSON
 
@@ -86,6 +98,7 @@ markmap:
 - **Use Property Shorthand e Desestruturação** para código limpo e idiomático.
 - **Combine `?.` com `??`** para evitar erros de leitura em dados aninhados de APIs.
 - **Prefira `Object.hasOwn`** sobre o método legado `hasOwnProperty`.
+- **Agrupe recursos de Object por intenção**: inspeção, transformação, protótipos e proteção.
 - **Gerenciamento de Imutabilidade**: spread para cópia rasa, `structuredClone` para aninhamentos e `Object.freeze` para dados estáticos.
 - **POO Moderna**: campos privados `#` para encapsulamento e `extends`/`super()` para polimorfismo.
 - **Intercâmbio Seguro**: utilize `JSON.stringify` e `JSON.parse` para serialização de payloads.
