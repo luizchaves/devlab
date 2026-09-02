@@ -55,7 +55,7 @@ markmap:
 - Tipagem fraca: Coerção implícita de tipos durante operações aritméticas e concatenações
 - Multiparadigma: Estilos funcional e orientado a eventos no navegador (callbacks e escutadores)
 - Protótipos: Herança direta entre objetos por meio da cadeia de protótipos (prototype chain)
-- ASI: Inserção automática de ponto e vírgula (estilos com e sem ';' padronizados por formatadores)
+- ASI: Inserção automática de ponto e vírgula (estilos com e sem ';' padronizados por linters e formatadores)
 
 ## Comentários em JavaScript
 - Anotações no código ignoradas pelo motor de execução
