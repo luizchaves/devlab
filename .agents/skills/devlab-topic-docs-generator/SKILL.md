@@ -300,6 +300,16 @@ A tabela a seguir resume essa cronologia e o contexto histórico de cada mudanç
 O parágrafo de entrada de um elemento visual ou bloco de código costuma terminar em dois-pontos
 e nomear explicitamente o que o leitor observará ("O exemplo a seguir demonstra as principais formas de declarar arrays:", "A tabela abaixo compara as principais diferenças de ambiente:").
 
+### 🪜 Progressão didática: apresentação básica antes do aprofundamento
+
+**O aprofundamento de um recurso deve ficar sempre depois da sua citação e demonstração básica.**
+
+1. **Nunca amontoe variações antes do primeiro contato**: Ao introduzir uma sintaxe ou recurso (como desestruturação, classes, funções ou métodos), apresente primeiro o caso fundamental com seu respectivo exemplo mínimo. Não liste renomeações, valores padrão, aliases, flags secundárias ou casos de borda no parágrafo que introduz o conceito básico.
+2. **Ciclo Didático Contínuo (Conceito Base → Exemplo Mínimo → Variação/Aprofundamento → Exemplo da Variação)**:
+   - **Etapa 1 (Fundamento)**: Apresente o que o recurso faz em sua essência e demonstre com um trecho de código conciso e focado.
+   - **Etapa 2 (Aprofundamento)**: Apresente as variações ou extensões sintáticas (ex: renomeação de variáveis, valores padrão, operador rest) em parágrafo próprio, sucedido pelo exemplo prático correspondente.
+3. **Coerência entre explicação e exemplo**: Não mencione recursos avançados em um parágrafo introdutório se o bloco de código logo abaixo demonstra apenas a forma básica. Mantenha cada explicação estritamente conectada ao trecho visual ou executável apresentado.
+
 ### 🚫 Proibição de travessões (`—`) para orações intercaladas e apostos
 
 **Não utilize travessões (`— ... —` ou `—`) para isolar orações intercaladas, apostos explicativos, exemplos ou comentários.** O uso de travessões no meio de períodos é considerado um antipadrão e vício de escrita gerada por IA.
