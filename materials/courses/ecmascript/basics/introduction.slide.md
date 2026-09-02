@@ -136,16 +136,6 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
-## Onde o Código Executa?
-
-- O mesmo núcleo da linguagem pode aparecer em ambientes diferentes
-- Cada ambiente adiciona suas próprias APIs e restrições
-- **Navegador**: manipulação de DOM, resposta a eventos, validação e consumo de APIs
-- **Node.js**: scripts, servidores HTTP, APIs, ferramentas e automações
-- **Ferramentas**: linters, formatadores, testes e bundlers
-
----
-
 ## O Que a Linguagem Oferece?
 
 - No uso diário, é comum dizer apenas "JavaScript"
@@ -321,13 +311,12 @@ return price * (1 - discount);
 
 ---
 
-## Como Executar JavaScript
+## Como Executar JavaScript?
 
-- Existem várias formas de executar um primeiro código JavaScript
-- Elas não são uma sequência obrigatória
-- são cenários diferentes
-- Escolha o ambiente conforme o que você quer testar
-- Executa arquivos JavaScript pelo terminal, sem depender de uma página HTML
+- O mesmo núcleo da linguagem pode ser executado em múltiplos ambientes
+- **Runtime fora do navegador**: servidores, APIs, CLIs e ferramentas (Node.js, Deno, Bun)
+- **Console do navegador**: testes rápidos de expressões e Web APIs no DevTools
+- **Arquivo no navegador**: manipulação de DOM, eventos e páginas Web via tag `<script>`
 
 ---
 

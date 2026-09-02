@@ -34,11 +34,6 @@ markmap:
 - Edições anuais da especificação (ES2015/ES6 até ES2024+)
 - Disponibilidade em runtimes e navegadores
 
-## Onde o Código Executa?
-- Navegador: manipulação de DOM, resposta a eventos, validação e consumo de APIs
-- Node.js: scripts, servidores HTTP, APIs, ferramentas e automações
-- Ferramentas: linters, formatadores, testes e bundlers
-
 ## O Que a Linguagem Oferece?
 - Núcleo vs Ambientes: ECMAScript (linguagem base), Web APIs (navegador), Node.js APIs (servidor), npm (pacotes)
 - Valores e tipos: `number`, `string`, `boolean`, `undefined`, `null`, objetos
@@ -64,10 +59,11 @@ markmap:
 - Múltiplas Linhas (`/* ... */`): blocos de texto ou desativação temporária de código
 - Documentação JSDoc (`/** ... */`): padrão oficial com tags @param e @returns para autocompletar e inteligência no editor
 
-## Como Executar JavaScript
-- Existem várias formas de executar um primeiro código JavaScript.
-- Elas não são uma sequência obrigatória; são cenários diferentes.
-- Escolha o ambiente conforme o que você quer testar.
+## Como Executar JavaScript?
+- Três cenários principais de execução conforme o objetivo do teste:
+- Runtime fora do navegador: servidores, APIs, CLIs e automações (Node.js, Deno, Bun)
+- Console do navegador: testes rápidos de expressões e Web APIs no DevTools
+- Arquivo no navegador: manipulação de DOM e eventos via `<script>` em HTML
 ### Runtimes fora do navegador
 - Verifique a versão instalada
 - Crie um arquivo JavaScript
