@@ -8,7 +8,7 @@ style: |
   }
 lang: pt-BR
 title: "JavaScript: Introdução e Ecossistema"
-description: "Slides completos da aula JavaScript: Introdução e Ecossistema."
+description: "Slides completos do tópico JavaScript: Introdução e Ecossistema."
 ---
 
 <!-- _class: lead -->
@@ -25,16 +25,17 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
 - Por Que JavaScript Importa?
-- Origem e a História dos Nomes
-- JavaScript, ECMAScript e Web APIs
-- Onde o Código Executa?
+- De Onde Vêm os Nomes JavaScript e ECMAScript?
+- Padronização, TC39 e Evolução
 - O Que a Linguagem Oferece?
 - Características Importantes
 - Comentários em JavaScript
-- Evolução da Linguagem
+- Como Executar JavaScript?
+  - Motores de Execução
+  - Navegador, Node.js e npm
 
 ---
 
@@ -58,7 +59,7 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
-## Origem e a História dos Nomes
+## De Onde Vêm os Nomes JavaScript e ECMAScript?
 
 - JavaScript foi criado em maio de 1995 por Brendan Eich enquanto trabalhava na Netscape
 - A linguagem foi desenvolvida em apenas 10 dias com o objetivo de adicionar comportamento dinâmico e interatividade às...
@@ -86,26 +87,11 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
-## Padronização ECMA-262 e o TC39
+## Padronização ECMA-262, TC39 e Evolução
 
 - **ECMAScript**: especificação formal da linguagem mantida pelo comitê TC39 da Ecma International
 - **JavaScript**: implementação prática do padrão executada nos ambientes
-- **Motores (*engines*)**: programas que executam o código (V8 no Chrome/Node.js, SpiderMonkey, JavaScriptCore)
 - Publicação anual consolidada no padrão oficial **ECMA-262**
-
----
-
-## Fluxo do Motor V8 (JIT Compiler)
-
-- **Scanner & Parser**: divide o código em tokens e constrói a AST (Árvore Sintática Abstrata)
-- **Interpretador Ignition**: gera *bytecode* e inicia execução imediata com *profiling*
-- **Compilador JIT TurboFan**: compila funções frequentes (*hot code*) em código de máquina nativo
-- **Desotimização (*Deopt*)**: reverte ao Ignition se os tipos observados mudarem em tempo de execução
-
----
-
-## Evolução da Linguagem
-
 - O comitê TC39 organiza propostas em estágios (*stages*) de maturação
 - Processo aberto com testes, implementação em motores e feedback
 - Novas edições formais da especificação publicadas anualmente
@@ -160,7 +146,7 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ## O Que a Linguagem Oferece?
 
-- ECMAScript define a base da linguagem que será usada nas próximas aulas
+- ECMAScript define a base da linguagem que será usada nos próximos tópicos
 - A tabela abaixo mostra partes que aparecerão com frequência durante a disciplina
 - Aprender JavaScript não significa memorizar todas as bibliotecas
 - Primeiro vem a linguagem
@@ -286,7 +272,7 @@ return amount * 0.20;
 
 ---
 
-## Comentários de Documentação JSDoc (`/ ... */`)
+## Comentários de Documentação JSDoc (`/** ... */`)
 
 - Explique o PORQUÊ, não o O QUÊ: Evite comentar o que o código já deixa óbvio (`let x = 10; // declara x como 10`)....
 - Priorize Código Autoexplicativo: Nomes claros para variáveis e funções reduzem drasticamente a necessidade de comentários...
@@ -317,6 +303,57 @@ return price * (1 - discount);
 - **Runtime fora do navegador**: servidores, APIs, CLIs e ferramentas (Node.js, Deno, Bun)
 - **Console do navegador**: testes rápidos de expressões e Web APIs no DevTools
 - **Arquivo no navegador**: manipulação de DOM, eventos e páginas Web via tag `<script>`
+
+---
+
+## Motores de Execução
+
+- Ambientes como navegadores, Node.js, Deno e Bun precisam de um motor para executar JavaScript
+- **V8**: usado no Google Chrome e no Node.js
+- **SpiderMonkey**: usado no Mozilla Firefox
+- **JavaScriptCore**: usado no Safari da Apple
+- A especificação define a linguagem; os motores implementam e otimizam sua execução
+
+---
+
+## Fluxo do Motor V8 (JIT Compiler)
+
+- **Scanner & Parser**: divide o código em tokens e constrói a AST (Árvore Sintática Abstrata)
+- **Interpretador Ignition**: gera *bytecode* e inicia execução imediata com *profiling*
+- **Compilador JIT TurboFan**: compila funções frequentes (*hot code*) em código de máquina nativo
+- **Desotimização (*Deopt*)**: reverte ao Ignition se os tipos observados mudarem em tempo de execução
+
+---
+
+## Navegador, Node.js e npm
+
+- Quando usamos JavaScript no navegador, o arquivo normalmente faz parte de uma página Web
+- Quando usamos JavaScript no Node.js, o arquivo é executado como programa no sistema operacional
+- O `npm` será importante porque muitos projetos Web dependem de pacotes
+- Vite, Bootstrap, Tailwind, Express, Prisma e várias ferramentas de teste ou build entram no projeto por meio do...
+- Mas o ecossistema JavaScript não depende apenas do `npm`
+
+---
+
+## Navegador, Node.js e npm: Comparação
+
+| Ambiente | Como executar | Uso comum |
+| -------- | ------------- | --------- |
+| Navegador | `<script>`, Console, DevTools | interagir com HTML, CSS, eventos, DOM e APIs Web |
+| Node.js | `node arquivo.js` | criar scripts, servidores, APIs e automações |
+| npm | `npm install`, `npm run`, `npx` | instalar pacotes e executar tarefas do projeto |
+
+---
+
+## Navegador, Node.js e npm: Comparação
+
+| Ferramenta | Tipo | Uso comum |
+| ---------- | ---- | --------- |
+| [pnpm](https://pnpm.io/) | Gerenciador de pacotes | Alternativa ao npm com foco em velocidade, economia de disco e monorepos |
+| [Yarn](https://yarnpkg.com/) | Gerenciador de pacotes | Alternativa ao npm com foco em projetos reproduzíveis e organização de dependências |
+| [Bun](https://bun.com/) | Runtime e toolkit | Executar JavaScript/TypeScript, instalar pacotes, rodar testes e empacotar projetos |
+| [Deno](https://deno.com/) | Runtime e toolkit | Executar JavaScript/TypeScript com permissões de segurança, ferramentas integradas e suporte moderno a módulos |
+| [JSR](https://jsr.io/) | Registro de pacotes | Registro moderno para JavaScript e TypeScript, com foco em ESM e TypeScript |
 
 ---
 
@@ -400,42 +437,10 @@ Olá, página
 
 ---
 
-## Navegador, Node.js e npm
-
-- Quando usamos JavaScript no navegador, o arquivo normalmente faz parte de uma página Web
-- Quando usamos JavaScript no Node.js, o arquivo é executado como programa no sistema operacional
-- O `npm` será importante porque muitos projetos Web dependem de pacotes
-- Vite, Bootstrap, Tailwind, Express, Prisma e várias ferramentas de teste ou build entram no projeto por meio do...
-- Mas o ecossistema JavaScript não depende apenas do `npm`
-
----
-
-## Navegador, Node.js e npm: Comparação
-
-| Ambiente | Como executar | Uso comum |
-| -------- | ------------- | --------- |
-| Navegador | `<script>`, Console, DevTools | interagir com HTML, CSS, eventos, DOM e APIs Web |
-| Node.js | `node arquivo.js` | criar scripts, servidores, APIs e automações |
-| npm | `npm install`, `npm run`, `npx` | instalar pacotes e executar tarefas do projeto |
-
----
-
-## Navegador, Node.js e npm: Comparação
-
-| Ferramenta | Tipo | Uso comum |
-| ---------- | ---- | --------- |
-| [pnpm](https://pnpm.io/) | Gerenciador de pacotes | Alternativa ao npm com foco em velocidade, economia de disco e monorepos |
-| [Yarn](https://yarnpkg.com/) | Gerenciador de pacotes | Alternativa ao npm com foco em projetos reproduzíveis e organização de dependências |
-| [Bun](https://bun.com/) | Runtime e toolkit | Executar JavaScript/TypeScript, instalar pacotes, rodar testes e empacotar projetos |
-| [Deno](https://deno.com/) | Runtime e toolkit | Executar JavaScript/TypeScript com permissões de segurança, ferramentas integradas e suporte moderno a módulos |
-| [JSR](https://jsr.io/) | Registro de pacotes | Registro moderno para JavaScript e TypeScript, com foco em ESM e TypeScript |
-
----
-
 ## O que você vai aprender?
 
 - O módulo de JavaScript / ECMAScript é estruturado de forma incremental
-- Ao longo das próximas aulas, você estudará os seguintes tópicos
+- Ao longo dos próximos tópicos, você estudará os seguintes conteúdos
 - Conceitos essenciais da linguagem, declaração de variáveis, coerção de tipos, operadores e estruturas de controle de fluxo
 - Declaração de funções, Arrow Functions, escopos, closures, callbacks e organização modular de código com ES Modules e...
 - Manipulação de listas imutáveis com HOFs, fatiamento de texto, precisão numérica, fusos horários, expressões regulares e...
@@ -485,20 +490,18 @@ console.log(message.toUpperCase());
 
 ---
 
-## Próxima aula
+## Próximo tópico
 
-- Na próxima aula, o estudo da sintaxe da linguagem começa pela declaração e escopo de valores
+- No próximo tópico, o estudo da sintaxe da linguagem começa pela declaração e escopo de valores
 - Variáveis e Escopo
 - Declaração com var, let e const, escopo de bloco, hoisting e TDZ
 
 ---
 
-## Resumo da Aula
+## Resumo do Tópico
 
-- Revise por Que JavaScript Importa?
-- Revise origem e a História dos Nomes
-- Revise javaScript, ECMAScript e Web APIs
-- Revise onde o Código Executa?
-- Revise o Que a Linguagem Oferece?
-- Revise características Importantes
-- Revise comentários em JavaScript
+- Revise por que JavaScript importa
+- Revise de onde vêm os nomes JavaScript e ECMAScript
+- Revise padronização ECMA-262, TC39 e evolução da linguagem
+- Revise o que a linguagem oferece
+- Revise como JavaScript é executado em motores, navegadores, runtimes e ferramentas

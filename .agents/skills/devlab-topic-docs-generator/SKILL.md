@@ -143,7 +143,7 @@ Padrão do bloco de resposta:
 
 ## 🧪 Seções de Teste e Didática de Testes
 
-Ao escrever ou atualizar seções de testes em aulas de conceito ou de projetos práticos:
+Ao escrever ou atualizar seções de testes em tópicos de conceito ou de projetos práticos:
 
 1. **Parágrafos explicativos obrigatórios por teste**: Sempre inclua um parágrafo (`<p>` ou texto Markdown) antes de cada bloco de código ou caso de teste individual. Explique explicitamente a intenção do teste, o cenário avaliado, o código HTTP esperado e a razão de cada asserção.
 2. **Requisições `.http` recolhíveis (`<details>`)**: Em testes de endpoints de API, forneça o trecho correspondente do arquivo `requests.http` em um bloco recolhível `<details><summary>Requisição .http correspondente</summary>...</details>`.
@@ -259,6 +259,12 @@ parágrafos curtos em vez de criar blocos de texto longos e monolíticos. O uso 
 parágrafos espaçados torna a leitura mais fluida, melhora a escaneabilidade do conteúdo e
 ajuda o estudante a absorver cada conceito passo a passo.
 
+**Linearidade e coesão entre seções:** Antes de finalizar um tópico, revise a sequência de
+`##`, `###` e parágrafos (`<p>`) como uma narrativa contínua. Cada seção deve preparar a
+próxima, evitar saltos conceituais e manter textos relacionados no mesmo bloco temático.
+Quando um parágrafo, tabela, lista ou `<Aside>` parecer deslocado, mova-o para a seção onde
+ele reforça o raciocínio principal ou reescreva a transição para explicitar a conexão.
+
 Exemplos de correção de encadeamento:
 
 Errado (tabela colada no título ou lista sem introdução da tabela):
@@ -347,7 +353,7 @@ Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai at
 
 ### Diagramas e Recursos Visuais
 
-**Obrigatoriedade de Recursos Visuais**: Sempre que a aula abordar conceitos abstratos, arquiteturas, fluxos de execução, hierarquias, eixos de layout (como Box Model, Flexbox, Grid, escopos, ciclo de vida) ou comparações de modelos, **é obrigatório incluir diagramas visuais ou recursos gráficos** para reforçar a didática.
+**Obrigatoriedade de Recursos Visuais**: Sempre que o tópico abordar conceitos abstratos, arquiteturas, fluxos de execução, hierarquias, eixos de layout (como Box Model, Flexbox, Grid, escopos, ciclo de vida) ou comparações de modelos, **é obrigatório incluir diagramas visuais ou recursos gráficos** para reforçar a didática.
 
 **Obrigatoriedade de Legenda / Caption**: **Todo diagrama, figura ou imagem deve obrigatoriamente possuir uma legenda ou título descritivo (`caption`)**.
 - Em diagramas `<Mermaid>`, o atributo `title="..."` é **obrigatório** (ex: `<Mermaid title="Fluxo de execução da Fetch API">`).
@@ -375,7 +381,7 @@ Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai at
    - O diagrama vai entre crases dentro de `{...}` (como em `<FileTree>`), para evitar que o MDX interprete chaves e setas no texto.
    - Utilize estilos e cores (`style NoID fill:#...`) quando a diferenciação de áreas for didaticamente relevante (ex: camadas do Box Model, eixos do Flexbox).
    - Prefira Mermaid a desenho ASCII quando o diagrama tiver caixas e ligações; mantenha ` ```txt ` apenas para saídas de terminal, estruturas de arquivo e esquemas monoespaçados.
-   - **Diagramas de Classe (`classDiagram`)**: **Obrigatório para tópicos de Classes/POO**. Toda aula ou tópico que abordar Classes e Programação Orientada a Objetos (POO) deve obrigatoriamente incluir um diagrama de classe Mermaid (`classDiagram`) ilustrando a estrutura das classes, atributos, métodos e relacionamentos de herança (`extends`):
+   - **Diagramas de Classe (`classDiagram`)**: **Obrigatório para tópicos de Classes/POO**. Todo tópico que abordar Classes e Programação Orientada a Objetos (POO) deve obrigatoriamente incluir um diagrama de classe Mermaid (`classDiagram`) ilustrando a estrutura das classes, atributos, métodos e relacionamentos de herança (`extends`):
 
      ```mdx
      <Mermaid title="Diagrama de Classes (UML / POO): Herança entre User e Admin">
@@ -448,10 +454,10 @@ Do projeto (alias `@components`):
 | ---------------------- | --- |
 | `<SourceCode path…>`   | código real de `examples/` (props extras: `region`, `mark`, `lang`) |
 | `<CodeTabs files={…}>` | mesmo trecho em vários arquivos |
-| `<FileTree>`           | árvore de diretórios do projeto da aula |
+| `<FileTree>`           | árvore de diretórios do projeto do tópico |
 | `<HtmlPreview path… height="24rem" serveFromPublic>` | preview vivo de HTML de `examples/` |
 | `<PackageManagerTabs package="…" dev run="…" exec="…" create="…">` | comandos npm/pnpm/yarn |
-| `<ApiRequest method="POST" path="/users" baseUrl="…">` / `<ApiResponse status={201}>` | aulas de API |
+| `<ApiRequest method="POST" path="/users" baseUrl="…">` / `<ApiResponse status={201}>` | tópicos de API |
 | `<ProjectLinks path… devcontainer… preview…>` | botões "Ver no GitHub" e "Abrir no Codespaces" (obrigatório em páginas de projeto) |
 | `<ProjectCard {...project}>` | listagens em `projects/index.mdx` |
 
@@ -475,7 +481,7 @@ Sempre que uma página for **criada, renomeada ou reestruturada**, essas altera�
 ## 🔍 Links internos
 
 - Sempre **relativos** (sobrevivem ao `base` do GitHub Pages).
-- URLs terminam em `/`: aula irmã é `../strings/`, categoria vizinha é `../../database/sql/`.
+- URLs terminam em `/`: tópico irmão é `../strings/`, categoria vizinha é `../../database/sql/`.
 - Em páginas `index`, a forma direta vale: `javascript/`.
 
 ---
@@ -517,16 +523,19 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 11. **Diagrama Mermaid sem `<Mermaid>`**: uma cerca ` ```mermaid ` não é renderizada pelo
     site; o componente é obrigatório.
 12. **Parágrafo monolítico**: blocos de texto muito longos e densos dificultam a leitura — divida em mais parágrafos curtos para deixar o tópico mais didático.
-13. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
-14. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
-15. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
-16. **Página-despejo**: tópico de conceito com "Exemplo completo (LP2)" no fim, despejando a
+13. **Sequência fragmentada**: seções, parágrafos, listas ou `<Aside>` aparecem em ordem
+    que quebra a narrativa do tópico. Redistribua o conteúdo ou reescreva as transições
+    para manter linearidade e coesão entre os blocos.
+14. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
+15. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
+16. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
+17. **Página-despejo**: tópico de conceito com "Exemplo completo (LP2)" no fim, despejando a
     árvore de arquivos e dez `<SourceCode>` seguidos — isso é uma página de projeto
     disfarçada; mova para `practice/` e deixe o link.
-17. **Página de projeto sem `<ProjectLinks>`**: o leitor fica sem o botão do GitHub e sem o
+18. **Página de projeto sem `<ProjectLinks>`**: o leitor fica sem o botão do GitHub e sem o
     do Codespaces, e precisa caçar o caminho do projeto no repositório.
-18. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
+19. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
     do Codespaces — crie a pasta ou passe `devcontainer={false}`.
-19. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
-20. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
-21. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
+20. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
+21. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
+22. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
