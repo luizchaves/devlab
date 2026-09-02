@@ -88,11 +88,19 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ## Padronização ECMA-262 e o TC39
 
-- Em termos simples, ECMAScript é a especificação teórica da linguagem, enquanto JavaScript é a implementação prática mais...
-- O diagrama a seguir ilustra a arquitetura do motor de execução V8 (usado no Chrome e no Node.js) desde o parse do código...
-- Diagrama da página
-- Fluxo de Compilação e Execução do Motor V8 (JIT Compiler)
-- Na consulta feita em 22 de agosto de 2026, a publicação oficial mais recente da Ecma International era ECMA-262, 17ª...
+- **ECMAScript**: especificação formal da linguagem mantida pelo comitê TC39 da Ecma International
+- **JavaScript**: implementação prática do padrão executada nos ambientes
+- **Motores (*engines*)**: programas que executam o código (V8 no Chrome/Node.js, SpiderMonkey, JavaScriptCore)
+- Publicação anual consolidada no padrão oficial **ECMA-262**
+
+---
+
+## Fluxo do Motor V8 (JIT Compiler)
+
+- **Scanner & Parser**: divide o código em tokens e constrói a AST (Árvore Sintática Abstrata)
+- **Interpretador Ignition**: gera *bytecode* e inicia execução imediata com *profiling*
+- **Compilador JIT TurboFan**: compila funções frequentes (*hot code*) em código de máquina nativo
+- **Desotimização (*Deopt*)**: reverte ao Ignition se os tipos observados mudarem em tempo de execução
 
 ---
 

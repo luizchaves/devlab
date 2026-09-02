@@ -25,9 +25,9 @@ markmap:
 - JavaScript: Dezembro / 1995; Parceria de marketing com a Sun Microsystems (marca hoje pertencente à Oracle).
 - ECMAScript: 1996 - Presente; Especificação técnica oficial e padronizada pela Ecma International (ECMA-262).
 ### Padronização ECMA-262 e o TC39
-- Em termos simples, ECMAScript é a especificação teórica da linguagem.
-- Na consulta feita em 22 de agosto de 2026, a publicação oficial mais recente da Ecma International era ECMA-262.
-- O rascunho vivo mantido pelo comitê TC39 já apontava para a edição seguinte da especificação.
+- ECMAScript: especificação formal mantida pelo comitê TC39 (padrão ECMA-262)
+- Motores de execução: V8 (Chrome/Node.js), SpiderMonkey (Firefox), JavaScriptCore (Safari)
+- Pipeline do V8: Scanner/Parser (AST) -> Ignition (Bytecode) -> TurboFan (JIT nativo) -> Desotimização (Deopt)
 
 ## JavaScript, ECMAScript e Web APIs
 - ECMAScript: Define a linguagem base; variáveis, funções, objetos, arrays, classes, módulos, promises
