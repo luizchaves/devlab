@@ -16,6 +16,10 @@ style: |
   }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    position: absolute;
+    bottom: 24px;
+    right: 32px;
+    padding: 0;
     font-size: 0.6em;
     color: #71717a;
   }
@@ -238,19 +242,28 @@ console.log("5" + 2); // "52"
 
 ---
 
-## Comentários: Linha Única e Bloco
+## Comentário de Linha Única (`//`)
 
 - Anotações no código ignoradas pelo motor de execução
 - Documentam intenções, decisões e regras
 - Linha única (`//`): nota curta até o fim da linha
-- Bloco (`/* ... */`): explicação maior ou trecho temporário
 
 ```js
 // Define a taxa de desconto para clientes VIP
 const VIP_DISCOUNT = 0.15;
 
 const total = 100; // Valor base da compra
+```
 
+---
+
+## Comentário de Bloco (`/* ... */`)
+
+- Útil para explicações maiores
+- Também pode desativar trechos temporários
+- Remova código morto antes de versionar
+
+```js
 /*
 Cálculo de tributação para produtos importados.
 Considera a alíquota estadual (ICMS) e federal.
@@ -345,82 +358,57 @@ function applyDiscount(price, discount) {
 
 ---
 
-## Runtimes fora do navegador
+## Execução com Node.js
 
-- Verifique a versão instalada
-- Crie um arquivo JavaScript
-- Execute o arquivo pelo terminal
-- Modo Interativo (Node.js REPL)
-- Teste TypeScript quando fizer sentido
+1. Criar o arquivo `main.js`:
 
----
+```js
+// main.js
+console.log("Olá, Node.js");
+```
 
-## Terminal
+2. Executar no terminal e conferir a saída:
 
 ```bash
-node -v
+$ node main.js
+Olá, Node.js
 ```
 
 ---
 
-## Saída
+## Node.js: Modo Interativo (REPL)
 
-```txt
-v24.19.0
+- Digite `node` sem argumentos para abrir o prompt interativo (`>`):
+
+```bash
+$ node
+> const name = "DevLab";
+undefined
+> `Olá, ${name}!`;
+'Olá, DevLab!'
+> .exit
 ```
 
 ---
 
-## main.js
+## Execução no Navegador
+
+- **Console do DevTools** (teste e inspeção rápida):
 
 ```js
-console.log("Olá, Node.js"); // "Olá, Node.js"
+console.log("Olá, navegador"); // Saída na aba Console do DevTools
 ```
 
----
-
-## Console do navegador
-
-- Abra o DevTools do navegador e use a aba Console para testar expressões rápidas
-
----
-
-## Console do navegador
-
-```js
-console.log("Olá, navegador"); // "Olá, navegador"
-```
-
----
-
-## Arquivo carregado pelo navegador
-
-- Crie a página HTML
-- Crie o arquivo JavaScript
-- Abra a página no navegador
-
----
-
-## index.html
+- **Arquivo vinculado via HTML**:
 
 ```html
+<!-- index.html -->
 <script src="main.js"></script>
 ```
 
----
-
-## main.js
-
 ```js
-console.log("Olá, página"); // "Olá, página"
-```
-
----
-
-## Console
-
-```txt
-Olá, página
+// main.js
+console.log("Olá, página"); // Executado ao carregar a página
 ```
 
 ---
@@ -442,27 +430,11 @@ Olá, página
 - No Node.js: teste uma API do runtime
 - Nos dois ambientes: execute código ECMAScript puro
 
----
-
-## Exercício
-
 ```js
 console.log(document.title); // título da página atual
-```
 
----
-
-## Exercício
-
-```js
 console.log(process.version); // "v24.19.0"
-```
 
----
-
-## Exercício
-
-```js
 const message = "JavaScript";
 console.log(message.toUpperCase()); // "JAVASCRIPT"
 ```
@@ -471,11 +443,11 @@ console.log(message.toUpperCase()); // "JAVASCRIPT"
 
 ## Perguntas de revisão
 
-- Qual é a diferença entre JavaScript e ECMAScript
-- Por que JavaScript se tornou tão importante na Web
-- O que são Web APIs
-- Por que `document` funciona no navegador e não em um script Node comum
-- Para que serve Node.js
+- Qual é a diferença entre JavaScript e ECMAScript?
+- Por que o JavaScript se tornou tão importante na Web?
+- O que são Web APIs?
+- Por que `document` funciona no navegador e não em um script Node comum?
+- Para que serve o Node.js?
 
 ---
 
