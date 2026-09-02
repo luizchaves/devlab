@@ -57,19 +57,10 @@ markmap:
 - Multiparadigma: Aceita estilos diferentes de programação; funções, objetos, callbacks, classes e composição
 
 ## Comentários em JavaScript
-- Comentários são anotações inseridas no código que o motor de execução ignora totalmente.
-- JavaScript suporta três formatos de comentários
-### 1. Comentário de Linha Única (`//`)
-- Inicia com duas barras (`//`) e estende-se até o fim da linha.
-- É ideal para notas curtas e diretas.
-### 2. Comentário de Múltiplas Linhas (`/* ... */`)
-- Inicia com `/` e encerra em `/`.
-- É utilizado para explicações mais detalhadas ou para desativar blocos inteiros de código.
-### 3. Comentários de Documentação JSDoc (`/** ... */`)
-- Explique o porquê, não o que o código já deixa evidente.
-- Iniciam com `/*` e encerram com `/`.
-- O JSDoc é o padrão oficial de documentação da comunidade JavaScript.
-- Ele permite descrever parâmetros (`@param`), tipos e valores de retorno (`@returns`).
+- Anotações no código ignoradas pelo motor de execução
+- Linha Única (`//`): notas curtas que vão até o fim da linha
+- Múltiplas Linhas (`/* ... */`): blocos de texto ou desativação temporária de código
+- Documentação JSDoc (`/** ... */`): padrão oficial com tags @param e @returns para autocompletar e inteligência no editor
 
 ## Evolução da Linguagem
 - Estágio: Ideia geral
