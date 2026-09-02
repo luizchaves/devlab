@@ -136,7 +136,17 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
-## JavaScript, ECMAScript e Web APIs
+## Onde o Código Executa?
+
+- O mesmo núcleo da linguagem pode aparecer em ambientes diferentes
+- Cada ambiente adiciona suas próprias APIs e restrições
+- **Navegador**: manipulação de DOM, resposta a eventos, validação e consumo de APIs
+- **Node.js**: scripts, servidores HTTP, APIs, ferramentas e automações
+- **Ferramentas**: linters, formatadores, testes e bundlers
+
+---
+
+## O Que a Linguagem Oferece?
 
 - No uso diário, é comum dizer apenas "JavaScript"
 - A aplicação combina a linguagem ECMAScript com APIs fornecidas pelo ambiente
@@ -146,7 +156,7 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
-## JavaScript, ECMAScript e Web APIs: Comparação
+## Linguagem vs APIs de Ambiente
 
 | Termo | Papel | Exemplos |
 | ----- | ----- | -------- |
@@ -155,16 +165,6 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 | Web APIs | Recursos oferecidos pelo navegador | DOM, eventos, `fetch`, `localStorage`, timers, console |
 | Node.js APIs | Recursos oferecidos pelo Node.js | sistema de arquivos, processos, servidor HTTP, módulos nativos |
 | npm | Ecossistema de pacotes | Express, Vite, Prisma, Chart.js, bibliotecas de teste |
-
----
-
-## Onde o Código Executa?
-
-- O mesmo núcleo da linguagem pode aparecer em ambientes diferentes
-- Cada ambiente adiciona suas próprias APIs e restrições
-- Executa scripts associados a páginas Web
-- É o ambiente usado para manipular DOM, responder a eventos, validar formulários e consumir APIs pela interface
-- Executa JavaScript fora do navegador
 
 ---
 

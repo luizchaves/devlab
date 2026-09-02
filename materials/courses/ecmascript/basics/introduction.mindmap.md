@@ -34,24 +34,20 @@ markmap:
 - Edições anuais da especificação (ES2015/ES6 até ES2024+)
 - Disponibilidade em runtimes e navegadores
 
-## JavaScript, ECMAScript e Web APIs
-- ECMAScript: Define a linguagem base (variáveis, funções, objetos, arrays, classes, módulos, promises)
-- JavaScript: Nome comum da linguagem usada pelos desenvolvedores nos arquivos `.js` ou `<script>`
-- Web APIs: Recursos fornecidos pelo navegador (DOM, eventos, `fetch`, `localStorage`, timers, console)
-- Node.js APIs: Recursos exclusivos do runtime no servidor (`process`, `Buffer`, `node:fs`, `node:http`, `node:path`)
-- npm: Ecossistema de pacotes (Express, Vite, Prisma, bibliotecas de teste)
-
 ## Onde o Código Executa?
-- O mesmo núcleo da linguagem pode aparecer em ambientes diferentes.
-- Cada ambiente adiciona suas próprias APIs e restrições.
+- Navegador: manipulação de DOM, resposta a eventos, validação e consumo de APIs
+- Node.js: scripts, servidores HTTP, APIs, ferramentas e automações
+- Ferramentas: linters, formatadores, testes e bundlers
 
 ## O Que a Linguagem Oferece?
-- Área: Exemplos; Por que importa
-- Valores e tipos: `number`, `string`, `boolean`, `undefined`, `null`, objetos; Representar dados da aplicação
-- Variáveis: `let`, `const`; Guardar valores e controlar escopo
-- Expressões e operadores: `+`, `===`, `&&`, `??`, `?.`; Calcular, comparar e compor valores
-- Controle de fluxo: `if`, `switch`, `for`, `while`; Decidir caminhos e repetir tarefas
-- Funções: declarações, arrow functions, callbacks; Organizar comportamento reutilizável
+- Núcleo vs Ambientes: ECMAScript (linguagem base), Web APIs (navegador), Node.js APIs (servidor), npm (pacotes)
+- Valores e tipos: `number`, `string`, `boolean`, `undefined`, `null`, objetos
+- Variáveis: `let`, `const` (controle de escopo)
+- Expressões e operadores: `+`, `===`, `&&`, `??`, `?.`
+- Controle de fluxo: `if`, `switch`, `for`, `while`
+- Funções: declarações, arrow functions, callbacks
+- Objetos e arrays: modelagem e manipulação de coleções
+- Módulos e assincronismo: `import`/`export`, `Promise`, `async`/`await`
 
 ## Características Importantes
 - Alto nível: Gerenciamento automático de memória via Garbage Collector
