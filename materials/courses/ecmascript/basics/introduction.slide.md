@@ -191,6 +191,9 @@ value = "10";
 console.log(typeof value); // "string"
 ```
 
+- O tipo pertence ao valor em memória, não ao nome da variável
+- Permite reatribuição com tipos distintos em tempo de execução
+
 ---
 
 ## Conversão automática
@@ -199,6 +202,9 @@ console.log(typeof value); // "string"
 console.log("5" * 2); // 10
 console.log("5" + 2); // "52"
 ```
+
+- Multiplicação (`*`): força conversão numérica (`"5"` vira `5`, resultado `10`)
+- Adição (`+`): prioriza concatenação quando há string (`2` vira `"2"`, resultado `"52"`)
 
 ---
 
