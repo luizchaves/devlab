@@ -199,9 +199,9 @@ console.log(currentTheme); // "light"
 
 ---
 
-## Desestruturação de Objetos (Destructuring)
+## Desestruturação Básica de Objetos
 
-Extrai propriedades diretamente para variáveis locais:
+Extrai propriedades por chave (a ordem das variáveis é livre):
 
 ```js
 const person = {
@@ -210,15 +210,28 @@ const person = {
   city: "João Pessoa",
 };
 
-// 1. Extração simples
-const { firstName, age } = person;
+// Extração por nome da chave (a ordem é irrelevante)
+const { age, firstName } = person;
 console.log(firstName, age); // "Maria" 30
+```
 
-// 2. Renomeando variáveis (chave: novoNome)
+---
+
+## Desestruturação: Renomeação e Valores Padrão
+
+Renomeie identificadores e defina valores de *fallback*:
+
+```js
+const person = {
+  firstName: "Maria",
+  city: "João Pessoa",
+};
+
+// 1. Renomeando variáveis locais (chave: novoNome)
 const { city: location } = person;
 console.log(location); // "João Pessoa"
 
-// 3. Atribuindo valor padrão para propriedade ausente
+// 2. Valor padrão para propriedade ausente ou undefined
 const { role = "visitante" } = person;
 console.log(role); // "visitante"
 ```
@@ -227,22 +240,59 @@ console.log(role); // "visitante"
 
 ## Desestruturação em Parâmetros de Funções
 
-Ideal para funções que recebem objetos de configuração:
+Ideal para parâmetros nomeados e objetos de opções (ordem livre):
 
 ```js
 function displayServer({ hostname, ip, port = 80 }) {
   console.log(`Servidor ${hostname} rodando em http://${ip}:${port}`);
 }
 
+// Propriedades enviadas em qualquer ordem
 const server = {
-  hostname: "api-server",
   ip: "10.0.0.15",
   port: 3000,
+  hostname: "api-server",
 };
 
 displayServer(server);
 // "Servidor api-server rodando em http://10.0.0.15:3000"
 ```
+
+---
+
+## A Armadilha da Atribuição por Referência
+
+Atribuir um objeto a outra variável copia apenas a referência na memória:
+
+```js
+const originalUser = { name: "Ana", role: "user" };
+
+// Ambas apontam para o mesmo objeto na Heap
+const aliasUser = originalUser;
+aliasUser.role = "admin";
+
+console.log(originalUser.role); // "admin" (original foi modificado!)
+console.log(originalUser === aliasUser); // true (mesmo endereço)
+```
+
+- Para evitar esse efeito colateral, gere uma cópia com **Spread** ou **`structuredClone()`**.
+
+---
+
+## Comparação de Objetos: Referência vs Conteúdo
+
+`===` compara o **endereço de memória**, e não o conteúdo estrutural:
+
+```js
+const userA = { name: "Carlos", age: 28 };
+const userB = { name: "Carlos", age: 28 };
+
+// Mesmo conteúdo, mas endereços de memória distintos:
+console.log(userA === userB); // false
+console.log({} === {});       // false (cada {} aloca nova referência)
+```
+
+- Para testar igualdade estrutural profunda, compare propriedade por propriedade.
 
 ---
 
@@ -266,6 +316,24 @@ const prodConfig = {
 
 console.log(baseConfig.port); // 3000 (inalterado)
 console.log(prodConfig.port); // 8080
+```
+
+---
+
+## Cópia Rasa vs Cópia Profunda (`structuredClone`)
+
+O spread copia apenas o 1º nível; use `structuredClone()` para aninhamentos:
+
+```js
+const user = { name: "Beatriz", address: { city: "João Pessoa" } };
+
+// 1. Cópia rasa: address ainda é compartilhado!
+const shallow = { ...user };
+shallow.address.city = "Campina Grande"; // AFETA user.address.city!
+
+// 2. Cópia profunda: 100% isolada e independente
+const deep = structuredClone(user);
+deep.address.city = "Cabedelo"; // user.address.city continua intacto
 ```
 
 ---
@@ -448,7 +516,35 @@ console.log(typeof parsedUser); // "object"
 console.log(parsedUser.name);   // "Carlos"
 ```
 
-- Propriedades com valor `undefined`, `Function` ou `Symbol` são **omitidas** pelo `stringify`.
+---
+
+## JSON: Indentação para Depuração
+
+O 3º argumento de `JSON.stringify(valor, replacer, espaço)` indenta a saída:
+
+```js
+const user = { id: 1, name: "Carlos", roles: ["admin", "editor"] };
+
+// Saída compacta (padrão de rede):
+console.log(JSON.stringify(user));
+// '{"id":1,"name":"Carlos","roles":["admin","editor"]}'
+
+// Saída indentada com 2 espaços (depuração/logs):
+console.log(JSON.stringify(user, null, 2));
+```
+
+---
+
+## JSON: Restrições de Tipos e Incompatibilidades
+
+Nem todos os valores do JavaScript sobrevivem à serialização:
+
+- **`Date`**: vira string ISO 8601 (não volta como `Date` no `JSON.parse()`).
+- **`undefined`, funções e `Symbol`**: omitidos em objetos; viram `null` em arrays.
+- **`NaN`, `Infinity`**: convertidos para `null`.
+- **`BigInt`**: lança erro de execução (`TypeError`).
+- **`Map`, `Set`, `RegExp`**: serializados como objetos vazios `{}`.
+- **Referências circulares**: lançam `TypeError`.
 
 ---
 
