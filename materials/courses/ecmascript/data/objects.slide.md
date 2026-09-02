@@ -607,11 +607,12 @@ console.log(JSON.stringify(report, null, 2));
 - Qual a diferença entre notação de ponto (`obj.prop`) e notação de colchetes (`obj["prop"]`)?
 - O que é *Property Shorthand* e quando podemos utilizá-lo?
 - Declarar um objeto com `const` impede a alteração de suas propriedades internas?
+- Por que `{ a: 1 } === { a: 1 }` é `false` e como clonar objetos aninhados com `structuredClone()`?
 - Qual a diferença entre o operador `in` e o método `Object.hasOwn()`?
 - Para que serve o operador de *Optional Chaining* (`?.`)?
 - O que é *shallow copy* e como realizá-la com o operador spread (`...`)?
 - Como funcionam os campos privados (`#`) em classes ES6+?
-- Quais são as 4 diferenças principais entre um objeto JS e o padrão textual JSON?
+- Quais são as principais diferenças e restrições de tipos entre um objeto JS e o padrão JSON?
 
 ---
 
@@ -619,7 +620,7 @@ console.log(JSON.stringify(report, null, 2));
 
 - **Objetos Literais**: pares chave-valor na Heap com sintaxe concisa (`{ prop }`).
 - **Acesso Seguro**: notação de colchetes dinâmicos e *Optional Chaining* (`?.`).
-- **Imutabilidade**: `...spread` para cópias não destrutivas e `Object.freeze()`.
+- **Imutabilidade e Clonagem**: referências na Heap, `...spread` para cópias rasas e `structuredClone()` para cópias profundas.
 - **Classes Modernas**: `class`, `constructor`, herança com `extends`/`super()` e campos `#`.
 - **Iteração**: `Object.keys()`, `Object.values()` e `Object.entries()`.
-- **Intercâmbio de Dados**: formato JSON com `JSON.stringify()` e `JSON.parse()`.
+- **Intercâmbio de Dados**: formato JSON com `JSON.stringify()`, formatação com indentação e `JSON.parse()`.

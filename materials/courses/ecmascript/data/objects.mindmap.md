@@ -26,10 +26,14 @@ markmap:
 
 ## Desestruturação e Imutabilidade
 
+- **Identidade e Referência**:
+  - Objetos operam por endereço na *Heap*; `===` compara referências (`{} === {}` é `false`).
+  - Atribuição simples copia o ponteiro, propagando mutações para a origem.
 - **Desestruturação**: `const { name, age, role = 'user' } = person`.
 - **Renomeação**: `const { city: location } = person`.
 - **Em Funções**: `function setup({ host, port = 80 } = {})`.
-- **Operador Spread (`...`)**: cópia rasa e sobreposição declarativa de propriedades.
+- **Operador Spread (`...`)**: cópia rasa (*shallow copy*) e sobreposição declarativa.
+- **`structuredClone(obj)`**: clonagem profunda (*deep copy*) isolada para objetos aninhados.
 - **`Object.freeze()`**: congelamento raso para impedir adições, exclusões e alterações.
 
 ## Classes ES6+ e Encapsulamento
@@ -54,7 +58,11 @@ markmap:
   - Chaves e strings obrigatoriamente com aspas duplas (`"chave": "valor"`).
   - Sem vírgula final (*trailing comma*).
   - Não aceita funções, `undefined` ou `Symbol`.
-- **Serialização**: `JSON.stringify(obj)` converte objetos em strings JSON.
+- **Restrições de Tipos**:
+  - `Date` vira string ISO 8601; `undefined` e funções são omitidos; `NaN`/`Infinity` viram `null`.
+- **Serialização e Depuração**:
+  - `JSON.stringify(obj)`: converte objetos em strings JSON compactas.
+  - `JSON.stringify(obj, null, 2)`: saída formatada com indentação (*pretty-print*).
 - **Desserialização**: `JSON.parse(string)` converte strings JSON em objetos JS.
 
 ## Boas Práticas
