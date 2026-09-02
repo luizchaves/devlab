@@ -274,8 +274,50 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
+            property: 'og:image:secure_url',
+            content: `${SITE_URL}${BASE_PATH === '/' ? '' : BASE_PATH}/og-image.png`,
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:type',
+            content: 'image/png',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:width',
+            content: '1200',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:height',
+            content: '630',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:alt',
+            content: 'DevLab — Portal de disciplinas e guias de programação',
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
             name: 'twitter:image',
             content: `${SITE_URL}${BASE_PATH === '/' ? '' : BASE_PATH}/og-image.png`,
+          },
+        },
+        {
+          tag: 'meta',
+          attrs: {
+            name: 'twitter:image:alt',
+            content: 'DevLab — Portal de disciplinas e guias de programação',
           },
         },
       ],
