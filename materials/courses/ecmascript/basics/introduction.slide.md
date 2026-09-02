@@ -104,6 +104,38 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ---
 
+## Evolução da Linguagem
+
+- O comitê TC39 organiza propostas em estágios (*stages*) de maturação
+- Processo aberto com testes, implementação em motores e feedback
+- Novas edições formais da especificação publicadas anualmente
+
+---
+
+## Estágios do TC39 (Stages)
+
+| Estágio | Ideia geral |
+| ------- | ----------- |
+| Stage 0 | Ideia inicial, ainda muito experimental |
+| Stage 1 | Proposta com problema e direção discutidos |
+| Stage 2 | Rascunho mais concreto da solução |
+| Stage 3 | Candidato próximo de finalização |
+| Stage 4 | Recurso finalizado, pronto para entrar na especificação |
+
+---
+
+## Principais Edições do ECMAScript
+
+| Edição | Exemplos importantes |
+| ------ | -------------------- |
+| ES2015 | `let`, `const`, arrow functions, classes, modules, promises |
+| ES2017 | `async`/`await` |
+| ES2020 | optional chaining (`?.`), nullish coalescing (`??`), `BigInt` |
+| ES2022 | class fields, private fields (`#name`), top-level `await` |
+| ES2024 | `Object.groupBy()`, `Map.groupBy()`, `Promise.withResolvers()` |
+
+---
+
 ## JavaScript, ECMAScript e Web APIs
 
 - No uso diário, é comum dizer apenas "JavaScript"
@@ -286,39 +318,6 @@ function applyDiscount(price, discount) {
 return price * (1 - discount);
 }
 ```
-
----
-
-## Evolução da Linguagem
-
-- TC39 Proposals, com propostas ativas;
-- Finished Proposals,
-- ECMAScript draft, com o rascunho vivo da próxima
-
----
-
-## Evolução da Linguagem: Comparação
-
-| Estágio | Ideia geral |
-| ------- | ----------- |
-| Stage 0 | Ideia inicial, ainda muito experimental |
-| Stage 1 | Proposta com problema e direção discutidos |
-| Stage 2 | Rascunho mais concreto da solução |
-| Stage 3 | Candidato próximo de finalização |
-| Stage 4 | Recurso finalizado, pronto para entrar na especificação |
-
----
-
-## Evolução da Linguagem: Comparação
-
-| Edição | Exemplos importantes | Por que marcou a linguagem |
-| ------ | -------------------- | -------------------------- |
-| ES2015 | `let`, `const`, arrow functions, classes, modules, promises | Modernizou a sintaxe e consolidou a base do JavaScript usado hoje |
-| ES2017 | `async`/`await` | Tornou código assíncrono mais parecido com código sequencial |
-| ES2020 | optional chaining (`?.`), nullish coalescing (`??`), `BigInt` | Reduziu verificações repetitivas de `null`/`undefined` e adicionou inteiros grandes |
-| ES2021 | logical assignment (`&&=`, `\|\|=`, `??=`), `String.prototype.replaceAll()` | Melhorou atribuições condicionais e manipulação de strings |
-| ES2022 | class fields, private fields (`#name`), top-level `await` | Fortaleceu a sintaxe de classes e simplificou módulos assíncronos |
-| ... | ... | ... |
 
 ---
 

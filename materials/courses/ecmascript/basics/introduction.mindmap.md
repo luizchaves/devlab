@@ -29,6 +29,11 @@ markmap:
 - Motores de execução: V8 (Chrome/Node.js), SpiderMonkey (Firefox), JavaScriptCore (Safari)
 - Pipeline do V8: Scanner/Parser (AST) -> Ignition (Bytecode) -> TurboFan (JIT nativo) -> Desotimização (Deopt)
 
+## Evolução da Linguagem
+- Estágios do TC39 (Stages 0 a 4) para amadurecimento de novas propostas
+- Edições anuais da especificação (ES2015/ES6 até ES2024+)
+- Disponibilidade em runtimes e navegadores
+
 ## JavaScript, ECMAScript e Web APIs
 - ECMAScript: Define a linguagem base (variáveis, funções, objetos, arrays, classes, módulos, promises)
 - JavaScript: Nome comum da linguagem usada pelos desenvolvedores nos arquivos `.js` ou `<script>`
@@ -62,14 +67,6 @@ markmap:
 - Linha Única (`//`): notas curtas que vão até o fim da linha
 - Múltiplas Linhas (`/* ... */`): blocos de texto ou desativação temporária de código
 - Documentação JSDoc (`/** ... */`): padrão oficial com tags @param e @returns para autocompletar e inteligência no editor
-
-## Evolução da Linguagem
-- Estágio: Ideia geral
-- Stage 0: Ideia inicial, ainda muito experimental
-- Stage 1: Proposta com problema e direção discutidos
-- Stage 2: Rascunho mais concreto da solução
-- Stage 3: Candidato próximo de finalização
-- Stage 4: Recurso finalizado, pronto para entrar na especificação
 
 ## Como Executar JavaScript
 - Existem várias formas de executar um primeiro código JavaScript.
