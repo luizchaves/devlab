@@ -210,9 +210,9 @@ console.log("5" + 2); // "52"
 
 ## Comentários em JavaScript
 
-- Comentários são anotações inseridas no código que o motor de execução ignora totalmente
-- Eles servem para documentar intenções, explicar regras de negócio ou desativar temporariamente instruções durante o...
-- JavaScript suporta três formatos de comentários:
+- Anotações no código ignoradas pelo motor de execução
+- Servem para documentar intenções, regras de negócio ou desativar código em desenvolvimento
+- Três formatos: linha única (`//`), bloco (`/* ... */`) e JSDoc (`/** ... */`)
 
 ---
 
