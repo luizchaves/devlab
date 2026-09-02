@@ -294,6 +294,21 @@ A tabela a seguir resume essa cronologia e o contexto histórico de cada mudanç
 O parágrafo de entrada de um elemento visual ou bloco de código costuma terminar em dois-pontos
 e nomear explicitamente o que o leitor observará ("O exemplo a seguir demonstra as principais formas de declarar arrays:", "A tabela abaixo compara as principais diferenças de ambiente:").
 
+### 🚫 Proibição de travessões (`—`) para orações intercaladas e apostos
+
+**Não utilize travessões (`— ... —` ou `—`) para isolar orações intercaladas, apostos explicativos, exemplos ou comentários.** O uso de travessões no meio de períodos é considerado um antipadrão e vício de escrita gerada por IA.
+
+Em vez de travessões, utilize a pontuação padrão da língua portuguesa:
+1. **Vírgulas (`,`)**: para apostos e orações explicativas fluidas.
+   - *Errado:* `Com o surgimento de implementações concorrentes — como o JScript da Microsoft —, a Netscape...`
+   - *Certo:* `Com o surgimento de implementações concorrentes, como o JScript da Microsoft, a Netscape...`
+2. **Parênteses (`(...)`)**: para esclarecimentos adicionais, siglas, formatos ou listagens pontuais.
+   - *Errado:* `As interfaces do navegador — DOM, eventos, armazenamento e rede — e as ferramentas...`
+   - *Certo:* `As interfaces do navegador (DOM, eventos, armazenamento e rede) e as ferramentas...`
+3. **Dois-pontos (`:`) ou períodos separados**: para explicações que concluem um raciocínio.
+   - *Errado:* `O comando acima imprime cada passo da busca — a ferramenta certa quando um import falha.`
+   - *Certo:* `O comando acima imprime cada passo da busca: é a ferramenta certa quando um import falha.`
+
 ---
 
 ## 🧱 Subseções e diagramas
@@ -514,3 +529,4 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
     do Codespaces — crie a pasta ou passe `devcontainer={false}`.
 19. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
 20. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
+21. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.

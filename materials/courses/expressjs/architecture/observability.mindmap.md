@@ -9,7 +9,7 @@ markmap:
 
 ## Ideia Central
 
-- **Conceito**: Os três sinais da observabilidade em uma API Express — logs, métricas e rastros —, instrumentação com OpenTelemetry, spans e atributos, exportação por OTLP, correlação entre trace e log e métricas RED.
+- **Conceito**: Os três sinais da observabilidade em uma API Express (logs, métricas e rastros), instrumentação com OpenTelemetry, spans e atributos, exportação por OTLP, correlação entre trace e log e métricas RED.
 - **Ecossistema**: Node.js, Express.js e TypeScript
 
 ## Principais Pontos

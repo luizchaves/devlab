@@ -38,7 +38,7 @@ Décima etapa do MonitorApp: login com credenciais, JWT HS256 assinado com node:
 
 ## Mapa da Aula
 
-- **Requisitos, histórias e critérios**: US10 — Entrar no sistema · RF06, US11 — Ver apenas os meus hosts · RF07, Tasks da etapa
+- **Requisitos, histórias e critérios**: US10: Entrar no sistema · RF06, US11: Ver apenas os meus hosts · RF07, Tasks da etapa
 - **Estrutura da aplicação**
 - **O que muda nesta etapa**
 - **Descrição das tarefas**: TK10.1 · Criar `src/utils/jwt.ts` (O token, sem biblioteca), TK10.2 · Criar `src/middlewares/isAuthenticated.ts`, TK10.3 · Criar a rota `POST /api/signin`

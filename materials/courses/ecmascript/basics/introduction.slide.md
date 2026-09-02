@@ -67,10 +67,11 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 
 ## A Evolução dos Nomes da Linguagem
 
-- Mocha (Maio de 1995): Nome de código original do protótipo desenvolvido por Brendan Eich na Netscape.
-- LiveScript (Setembro de 1995): Primeiro nome comercial oficial utilizado no lançamento beta do Netscape Navigator 2.0.
-- JavaScript (Dezembro de 1995): Renomeada para JavaScript em uma estratégia de marketing conjunta entre a Netscape e a Sun...
-- ECMAScript (1996 - Presente): Com o surgimento de implementações concorrentes (como o JScript da Microsoft), a Netscape...
+- Transição rápida de nomes no primeiro ano da linguagem (1995–1996)
+- **Mocha**: codinome do protótipo desenvolvido em 10 dias por Brendan Eich na Netscape
+- **LiveScript**: primeiro lançamento comercial no Netscape Navigator 2.0 (beta)
+- **JavaScript**: estratégia conjunta entre Netscape e Sun para alavancar a marca Java
+- **ECMAScript**: padronização aberta pela Ecma International (ECMA-262) garantindo neutralidade
 
 ---
 

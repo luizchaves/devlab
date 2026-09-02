@@ -122,6 +122,7 @@ O essencial:
   `## Exercício` → `## Desafio` → `## Perguntas de revisão` → `## Referências` →
   `## Próximo tópico`. `Objetivo`, `Exercício` e `Próximo tópico` são obrigatórios.
 - **Sempre um parágrafo antes de qualquer elemento que difere de `<p>` (tabelas, listas, imagens, diagramas ou blocos de código).** Nada de elemento colado em título ou em outro elemento sem texto introdutório: o texto apresenta o contexto, diz o que observar e conecta a explicação ao elemento.
+- **Evite travessões (`—`) para orações intercaladas e apostos.** Esse formato é considerado um antipadrão e vício de escrita de IA. Utilize a pontuação gramatical padrão da língua portuguesa: vírgulas (`,`), parênteses (`(...)`), dois-pontos (`:`) ou períodos diretos.
 - **Nunca uma subseção isolada.** Se `### A` existe, `### B` também precisa existir;
   caso contrário, o conteúdo vira prosa da seção-mãe.
 - **Diagramas em Mermaid** (`<Mermaid>` ou fence ```mermaid```), não em imagem.

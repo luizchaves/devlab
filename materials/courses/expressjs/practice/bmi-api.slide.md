@@ -8,14 +8,14 @@ style: |
   }
 lang: pt-BR
 title: "Projeto: BMI API"
-description: "O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de rota e corpo da requisição — para comparar as origens de dados de uma requisição."
+description: "O mesmo cálculo de IMC exposto de três formas (query string, parâmetro de rota e corpo da requisição) para comparar as origens de dados de uma requisição."
 ---
 
 <!-- _class: lead -->
 
 # Projeto: BMI API
 
-O mesmo cálculo de IMC exposto de três formas — query string, parâmetro de rota e corpo da requisição — para comparar as origens de dados de uma requisição.
+O mesmo cálculo de IMC exposto de três formas (query string, parâmetro de rota e corpo da requisição) para comparar as origens de dados de uma requisição.
 
 ---
 

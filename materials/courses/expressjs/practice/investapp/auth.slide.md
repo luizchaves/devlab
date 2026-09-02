@@ -38,7 +38,7 @@ Oitava etapa do InvestApp: login com JWT, middleware isAuthenticated, investimen
 
 ## Mapa da Aula
 
-- **Requisitos, histórias e critérios**: US09 — Entrar no sistema · RF03, US10 — Ver apenas a minha carteira · RF04, Tasks da etapa
+- **Requisitos, histórias e critérios**: US09: Entrar no sistema · RF03, US10: Ver apenas a minha carteira · RF04, Tasks da etapa
 - **Estrutura da aplicação**
 - **O que muda nesta etapa**
 - **Descrição das tarefas**: TK09.1 · Criar `src/utils/jwt.ts` e `src/middlewares/isAuthenticated.ts`, TK09.2 · Criar a rota `POST /api/signin` (Login e emissão do token), TK09.3 · Modificar `src/models/Investment.ts` (Consultas escopadas pelo dono)

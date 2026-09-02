@@ -48,7 +48,7 @@ Operações assíncronas, Promises: estados, criação, encadeamento com then/ca
 ## O que é Assincronismo em JavaScript?
 
 - O JavaScript executa código em um ambiente de linha de execução única (*single-threaded*) guiado por um Event Loop
-- Operações de entrada e saída (I/O) — como buscar dados em uma API, ler um arquivo do disco ou aguardar um temporizador —...
+- Operações de entrada e saída (I/O), como buscar dados em uma API, ler um arquivo do disco ou aguardar um temporizador...
 - Se o JavaScript congelasse a execução até essas operações terminarem, a interface do usuário travaria
 - Para evitar isso, as operações de I/O são executadas de forma assíncrona
 

@@ -8,14 +8,14 @@ style: |
   }
 lang: pt-BR
 title: "MonitorApp: Docker"
-description: "Décima terceira etapa do MonitorApp: duas imagens Docker — a API em Node e o front compilado servido por Nginx —, orquestração com Compose e volume nomeado para o banco."
+description: "Décima terceira etapa do MonitorApp: duas imagens Docker (a API em Node e o front compilado servido por Nginx), orquestração com Compose e volume nomeado para o banco."
 ---
 
 <!-- _class: lead -->
 
 # MonitorApp: Docker
 
-Décima terceira etapa do MonitorApp: duas imagens Docker — a API em Node e o front compilado servido por Nginx —, orquestração com Compose e volume nomeado para o banco.
+Décima terceira etapa do MonitorApp: duas imagens Docker (a API em Node e o front compilado servido por Nginx), orquestração com Compose e volume nomeado para o banco.
 
 ---
 
