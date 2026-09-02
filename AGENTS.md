@@ -42,6 +42,7 @@ Markdown/MDX e o código dos tópicos e exemplos existe de verdade, em projetos 
 6. **Não instale dependência nova sem pedir.** A stack é fechada e o CI é
    `--frozen-lockfile`. Cada projeto de `examples/` deve documentar em seu próprio `README.md` ou `PRD.md` a motivação e utilidade das dependências utilizadas.
 7. **Atualize a documentação `.md` sempre que necessário.** Sempre que alterar convenções, rotas, estrutura de diretórios, regras de projeto ou fluxos de trabalho, atualize imediatamente os arquivos de documentação correspondentes (`AGENTS.md`, `README.md`, `docs/PRD.md`, `docs/TODO.md` ou `specs/`). A documentação deve refletir fielmente o estado real do repositório a cada entrega.
+8. **Valide alterações em skills com builds reais.** Sempre que alterar diretrizes, regras ou templates de uma skill em `.agents/skills/` (como `marp-slides-generator`, `markmap-mindmap-generator` ou `devlab-topic-docs-generator`), valide na prática aplicando os ajustes em um material/tópico de teste, execute o build correspondente (`pnpm build:slides`, `pnpm build:mindmaps` ou `pnpm build`) e inspecione o resultado gerado para garantir que a saída final reflete fielmente o comportamento esperado.
 
 ## Comandos
 
@@ -271,9 +272,15 @@ Em `.agents/skills/`, use quando a tarefa for a delas:
 | `markmap-mindmap-generator`  | Mapa mental `.mindmap.md`                         |
 | `excalidraw-generator`       | Diagrama/slides no estilo lousa (`.excalidraw`)   |
 
-As skills de slides e mapas mentais ainda citam os diretórios antigos `slides/` e
-`mindmaps/`; o local correto hoje é `materials/`, com os sufixos `.slide.md` e
-`.mindmap.md`.
+As skills de slides e mapas mentais utilizam o diretório `materials/`, com os sufixos `.slide.md` e `.mindmap.md`.
+
+### Validação ao alterar Skills
+
+Sempre que modificar instruções, regras ou templates de uma skill em `.agents/skills/`:
+1. **Valide no arquivo em foco**: aplique e confira os ajustes no arquivo de material/tópico trabalhado, sem modificar outras páginas existentes desnecessariamente.
+2. **Execute o build correspondente** (`pnpm build:slides`, `pnpm build:mindmaps` ou `pnpm build`).
+3. **Inspecione o artefato gerado** (ex: o HTML em `public/slides/...` ou o resultado renderizado) para assegurar que a saída final segue fielmente o comportamento esperado.
+4. **Rode a validação geral** (`pnpm validate`) antes de concluir a entrega.
 
 ## O que evitar
 

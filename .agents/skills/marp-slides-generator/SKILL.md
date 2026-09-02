@@ -66,6 +66,10 @@ Antes de entregar, faça uma revisão didática final:
   apenas introduz um tipo de código, comentário ou comando e o próximo mostra a aplicação;
 - evite slides com muito espaço branco quando a explicação e o exemplo relacionado cabem
   juntos sem prejudicar leitura, ritmo ou foco visual;
+- preserve margem visual no fim do slide: não una blocos se a fusão aproximar código,
+  tabela ou bullets da paginação ou criar risco de overflow no rodapé;
+- em comentários, comandos e exemplos curtos, prefira agrupar explicação e aplicação do
+  mesmo subtipo. Separe subtipos diferentes quando a fusão deixar o slide alto demais;
 - depois de fundir slides, revise novamente os novos pares adjacentes, porque a numeração
   muda e pode revelar outra quebra artificial do mesmo tema;
 - compacte bullets para uma linha sempre que possível;
@@ -145,6 +149,35 @@ Comentários dentro do bloco devem ajudar a leitura do slide:
   depois do bloco;
 - mantenha saídas esperadas como comentário curto em todos os exemplos, exercícios e desafios.
 
+### Passo a passo de execução e comandos no terminal
+
+Em slides que ensinam comandos, terminal, criação/execução de arquivos ou passo a passo operacional:
+
+- **Causalidade explícita (Causa → Ação → Efeito)**: Todo procedimento prático deve mostrar com total clareza **como o resultado final foi gerado**. O slide não pode saltar etapas essenciais.
+- **Explicação distribuída conjuntamente com a ação (Co-localização)**:
+  - Nunca coloque uma lista de bullets explicativos no topo do slide e em seguida jogue blocos de código/comandos empilhados embaixo de forma desconectada.
+  - O texto explicativo (o que fazer ou observar) deve ser distribuído **junto** a cada etapa ou bloco prático, intercalando explicação, código e resultado.
+- **Tríade de Execução de Código**:
+  1. **Origem / Arquivo**: Identifique o arquivo criado ou editado (ex: comentário inicial `// main.js` ou `<!-- index.html -->`).
+  2. **Comando de execução**: Mostre exatamente o comando digitado no terminal (ex: `$ node main.js`, `$ pnpm dev`).
+  3. **Saída gerada**: Apresente a saída real resultante (no terminal ou no console da ferramenta).
+- **Sessões de terminal com prompt `$ `**: Para comandos com saída no terminal, use o prefixo `$ ` na linha de comando e o texto seguinte para a saída:
+  ```bash
+  $ node main.js
+  Olá, Node.js
+  ```
+- **Sessões interativas (REPL / DevTools)**: Use os prompts característicos do ambiente (ex: `>` no REPL do Node.js) para que fique evidente que se trata de uma sessão interativa:
+  ```bash
+  $ node
+  > const total = 10 * 2;
+  undefined
+  > total;
+  20
+  > .exit
+  ```
+- **Não misture fluxos desconexos no mesmo slide**: Se o tópico ensina "Executar arquivo com Node", "Testar no REPL" e "Executar no Navegador", **não** comprima tudo em uma lista superficial de bullets com blocos soltos. Dedique um slide para cada fluxo ou separe em lâminas sequenciais bem encadeadas.
+- **Identificação clara de ambiente**: No navegador, diferencie explicitamente o teste rápido no **Console do DevTools** da importação de script em um documento HTML via `<script src="...">`.
+
 ---
 
 ## 🧩 Composição de cada slide
@@ -152,8 +185,9 @@ Comentários dentro do bloco devem ajudar a leitura do slide:
 Um slide não deve parecer uma página de texto comprimida. Construa cada slide ao redor de
 um ponto de aprendizagem:
 
-- prefira títulos diretos e específicos (`## Ordem das Condições`, `## Fall-through`) em
+- prefira títulos diretos e específicos (`## Ordem das Condições`, `## Fall-through`, `## Execução com Node.js`) em
   vez de frases longas;
+- em slides de procedimentos e execução prática, estruture as etapas em sequência numerada (`1. Criar o arquivo...`, `2. Executar no terminal...`), distribuindo e conectando a explicação diretamente a cada bloco de código/comando;
 - use bullets compactos como apoio à fala, normalmente 3-5 por slide;
 - cada bullet deve ter uma ideia só e, por padrão, caber em uma linha;
 - quando um bullet passar de uma linha, corte palavras, divida o slide ou troque por
@@ -166,8 +200,11 @@ um ponto de aprendizagem:
   boa legibilidade, especialmente em tópicos de código, comentários e comandos curtos;
 - se um slide ficar visualmente vazio, procure combiná-lo com o slide anterior ou seguinte
   do mesmo tema antes de criar uma lâmina nova;
+- se a combinação deixar pouco respiro no rodapé, volte atrás e divida por subtipo
+  didático, por exemplo comentário de linha, comentário de bloco e JSDoc;
 - em slides de output ou saída esperada, prefira mostrar apenas o bloco `txt`; não adicione
   bullets explicando o que o próprio output já evidencia;
+- no slide final de resumo (`## Resumo do Tópico`), feche o arco espelhando os eixos do `## Mapa do Tópico`, usando 4-6 bullets compactos de 1 linha (como checklist `Revise...` ou termos-chave em negrito);
 - se a explicação precisa de muitos bullets, divida em dois slides com títulos mais
   específicos.
 
@@ -214,6 +251,10 @@ style: |
   }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    position: absolute;
+    bottom: 24px;
+    right: 32px;
+    padding: 0;
     font-size: 0.6em;
     color: #71717a;
   }
@@ -226,42 +267,35 @@ description: "Slides completos do tópico Arrays em JavaScript (criação, índi
 - `title` **idêntico** ao `title` do tópico `.mdx` e do mapa mental.
 - Não invente tema: todos os decks usam `theme: default`.
 - O bloco `style` é o que produz a paginação `3 / 21`.
-- O `padding-bottom` reserva rodapé e evita colisão entre paginação e conteúdo.
+- O `padding-bottom: 70px` no `section` reserva o respiro inferior do conteúdo.
+- A numeração em `section::after` é posicionada com `position: absolute; bottom: 24px; right: 32px; padding: 0;` no canto inferior direito, fora da área útil do conteúdo, evitando sobreposição (*overlap*) com códigos, tabelas ou listas longas.
 - A paginação deve ficar pequena (`0.6em`) e discreta.
 
 ---
 
-## 📐 Arco do deck
-
-1. **Capa** - `<!-- _class: lead -->`, `# <título do tópico>` e uma linha de subtítulo
-   listando os eixos do tópico.
-2. **`## Objetivo`** - frase de abertura + 4-6 bullets com verbo no infinitivo
-   ("Entender…", "Diferenciar…", "Executar…"), termos-chave em **negrito**.
-3. **`## Mapa do Tópico`** - 3-6 blocos quando a página for longa, de projeto ou tiver
-   muitas seções.
-4. **`## Por Que <Tópico> Importa?`** (opcional, comum nos tópicos de abertura) - impacto
-   no navegador / servidor / ferramentas + linha em *itálico* com a regra de ouro.
 ## 📐 Estrutura do deck
 
 Ordem de um deck:
 
-1. **Slide de título** - `theme: devlab`, `title`, `description`, `paginate: true`, etc.
-2. **`## Agenda`** ou **`## Roteiro`** - 4-6 tópicos principais do que será coberto.
-3. **`## Motivação`** ou **`## Por Que ...?`** - contexto e problema que o tópico resolve.
-4. **Conceito a conceito** - 2-4 slides por conceito principal:
+1. **Capa** - `<!-- _class: lead -->`, `# <título do tópico>` e uma linha de subtítulo listando os eixos do tópico.
+2. **`## Objetivo`** - frase de abertura ou bullets com verbos no infinitivo ("Entender…", "Diferenciar…", "Executar…"), termos-chave em **negrito**.
+3. **`## Mapa do Tópico`** (ou `## Agenda`) - 3-6 blocos quando a página for longa, de projeto ou tiver muitas seções.
+4. **`## Por Que <Tópico> Importa?`** (ou `## Motivação`) - impacto no navegador / servidor / ferramentas + linha em *itálico* com a regra de ouro.
+5. **Conceito a conceito / Passo a passo operacional** - 2-4 slides por conceito principal:
    - slide 1: definição, sintaxe e regras;
    - slide 2: exemplo de código mínimo e focado;
-   - slide 3 (opcional): armadilha comum, comparação ou caso limite.
-5. **`## Arquitetura`** ou **`## Fluxo de Execução`** (quando aplicável) - diagrama
-   Mermaid ou tabela comparativa.
-6. **`## Boas Práticas`** ou **`## Cuidados e Armadilhas`** - 3-5 alertas cruciais.
-7. **`## Exercício Prático`** - enunciado de fixação com objetivo claro.
-8. **`## Solução do Exercício`** (ou bloco de código do exercício/desafio) - **SEMPRE inclua comentários de saída esperada** (`// output`) em `console.log()` ou chamadas de função, ou um bloco `txt` de saída, permitindo visualizar o resultado da execução imediatamente.
-9. **`## Resumo do Tópico`** - 5-7 bullets de fechamento. Se passar disso, divida em
-   `## Resumo do Tópico (Parte 1)` e `## Resumo do Tópico (Parte 2)`.
+   - slide 3 (opcional): armadilha comum, comparação, caso limite ou passo a passo de execução (arquivo → comando → saída).
+6. **`## Arquitetura`** ou **`## Fluxo de Execução`** (quando aplicável) - diagrama ASCII em bloco `txt` ou tabela comparativa.
+7. **`## Boas Práticas`** ou **`## Cuidados e Armadilhas`** - 3-5 alertas cruciais.
+8. **`## Exercício Prático`** - enunciado de fixação com objetivo claro.
+9. **`## Solução do Exercício`** (ou bloco de código do exercício/desafio) - **SEMPRE inclua comentários de saída esperada** (`// output`) em `console.log()` ou chamadas de função, ou um bloco `txt` de saída, permitindo visualizar o resultado da execução imediatamente.
+10. **`## Perguntas de revisão`** - 3-5 perguntas conceituais para fixação. **Toda pergunta DEVE obrigatoriamente terminar com ponto de interrogação (`?`)**.
+11. **`## Resumo do Tópico`** - 4-6 bullets fechando o arco didático da aula, alinhados diretamente com os eixos apresentados no `## Mapa do Tópico`. Pode seguir dois padrões recomendados:
+    - **Padrão Checklist de Revisão**: Bullets objetivos orientados à ação recapitulando os eixos centrais (ex: `- Revise por que...`, `- Revise a evolução...`, `- Revise o que a linguagem oferece...`, `- Revise como executar...`).
+    - **Padrão Síntese Conceitual**: Bullets com termos destacados em negrito e resumo direto da lição principal de cada eixo (ex: `- **Conceito**: síntese da regra de ouro...`).
+    - Se o resumo passar de 6-7 bullets, divida em `## Resumo do Tópico (Parte 1)` e `## Resumo do Tópico (Parte 2)`.
 
 Separe **todo** slide com `---` em linha isolada.
-
 
 Tamanho real dos decks: 128-547 linhas (~15 a 45 slides). Tópicos de fundamento ficam
 perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
@@ -272,6 +306,7 @@ perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
 
 - Português (pt-BR), termos técnicos em inglês em *itálico* (`*shallow copy*`,
   `*empty slots*`) e identificadores em `` `crase` ``.
+- **Pontuação obrigatória em perguntas**: Em slides de `## Perguntas de revisão` e em qualquer questionamento didático, **toda pergunta DEVE terminar com ponto de interrogação (`?`)**. Nunca deixe perguntas sem interrogação ou com ponto final.
 - Blocos de código com ` ```js ` (não `javascript`); os demais: `html`, `css`, `bash`,
   `json`, `txt`.
 - Evite emojis nos slides. Eles raramente ajudam na leitura técnica e criam ruído visual.
@@ -317,6 +352,13 @@ pnpm validate
 Roda lint + `astro check` + build completo + `check:links` — use quando o tópico linkar
 o deck pela primeira vez (o link só resolve depois que o HTML existe).
 
+### Validação da Skill
+
+Ao atualizar regras ou templates nesta skill:
+1. Valide o impacto no arquivo de slide em foco (`pnpm build:slides`).
+2. Inspecione o HTML gerado em `public/slides/<caminho>/index.html` para certificar-se de que a formatação, paginação e clareza visual atendem às novas diretrizes.
+3. Não altere ou regere desnecessariamente outros slides existentes do repositório.
+
 ---
 
 ## ⚠️ Armadilhas
@@ -342,9 +384,17 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
 11. **Falta de output em código e exercícios**: nunca deixe chamadas de `console.log()`
     ou resoluções de exercícios/desafios sem a respectiva saída esperada documentada
     em comentário `// output` ou bloco `txt`.
-12. **Quebra artificial de tema**: não separe introdução e exemplo de um mesmo código,
+12. **Passo a passo de execução incompleto ou desconexo**: listar bullets genéricos de etapas (ex: "verifique a versão", "crie arquivo", "use REPL") e soltar comandos e códigos fragmentados sem mostrar a criação do arquivo, o comando exato de execução (`$ node main.js`) e a saída gerada no terminal, deixando incompreensível como o resultado foi gerado.
+13. **Separação em bloco de explicação e ação**: empilhar todos os bullets explicativos no topo do slide e soltar blocos de código/terminal embaixo sem vinculação direta. A explicação de cada passo deve sempre ser distribuída junto com o bloco prático correspondente.
+14. **Blocos de código sem identificação de contexto**: soltar trechos de código em slides práticos sem indicar o nome do arquivo (`// main.js`, `<!-- index.html -->`) ou o ambiente onde rodam (terminal, REPL ou console do navegador).
+15. **Comando ou saída sem correspondência**: mostrar um comando de terminal sem sua saída esperada, ou mostrar uma saída sem o comando que a gerou.
+16. **Quebra artificial de tema**: não separe introdução e exemplo de um mesmo código,
     comentário ou comando quando houver espaço para manter tudo em um slide legível.
-13. **Espaço branco excessivo**: um slide com poucos bullets e muito vazio costuma indicar
+17. **Espaço branco excessivo**: um slide com poucos bullets e muito vazio costuma indicar
     que a explicação pode ser fundida a um exemplo, tabela curta ou slide vizinho do mesmo tema.
-14. **Fusão incompleta**: depois de unir dois slides, revise o novo slide seguinte. Ele pode
+18. **Fusão incompleta**: depois de unir dois slides, revise o novo slide seguinte. Ele pode
     ter virado o próximo candidato a fusão por tratar do mesmo código, comentário ou comando.
+19. **Fusão com risco de overflow**: não resolva espaço branco criando slides lotados.
+    Se código, tabela ou bullets ficarem próximos da paginação, separe por subtipo ou
+    corte ruído.
+20. **Pergunta sem ponto de interrogação**: omitir o ponto de interrogação (`?`) ao final dos itens em slides de `## Perguntas de revisão` ou em questionamentos conceituais.
