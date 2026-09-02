@@ -236,40 +236,63 @@ só precisa de `npm install`.
 
 ## 📝 Regra do parágrafo de entrada e didática do texto
 
-**Nenhuma tabela ou bloco de código aparece logo abaixo de um título.** Sempre escreva ao
-menos um parágrafo entre o `##`/`###` e a tabela ou o bloco — o texto diz o que vem a
-seguir e por que importa; a tabela/código mostra. Vale também para blocos em sequência:
-dois blocos de código colados precisam de uma frase entre eles.
+**Apresentação e explicação obrigatórias de qualquer elemento que difere de `<p>`:**
+Toda tabela, lista, imagem, diagrama (`<Mermaid>`), bloco de código (fence ou `<SourceCode>`),
+preview interativo (`<HtmlPreview>`), grade de cartões (`<CardGrid>`) ou callout (`<Aside>`)
+deve ser obrigatoriamente apresentado, contextualizado e explicado por um parágrafo (`<p>`)
+anterior.
+
+**Nenhum elemento não-`<p>` colado em título ou em outro elemento:**
+1. **Nunca cole um elemento logo abaixo de um título**: sempre escreva ao menos um parágrafo
+   explicativo entre o `##`/`###` e a tabela, lista, imagem, diagrama ou código.
+2. **Nunca encadeie elementos sem texto explicativo intermediário**:
+   - Uma lista seguida diretamente de uma tabela precisa de um parágrafo de ligação e introdução.
+   - Uma tabela seguida de um bloco de código precisa de uma frase explicativa entre eles.
+   - Dois blocos de código consecutivos precisam de uma frase contextualizando o que o segundo bloco demonstra.
+   - Um callout (`<Aside>`) seguido de uma tabela ou diagrama precisa de texto introdutório antes do elemento visual.
+3. **Exceções**: blocos de código encadeados diretamente dentro de `<Steps>` (onde os itens
+   numerados já exercem a função condutora) e blocos de saída (`txt title="Output"`) que sucedem
+   imediatamente o comando de execução.
 
 **Uso de parágrafos curtos e didáticos:** Prefira fragmentar as explicações em múltiplos
 parágrafos curtos em vez de criar blocos de texto longos e monolíticos. O uso frequente de
 parágrafos espaçados torna a leitura mais fluida, melhora a escaneabilidade do conteúdo e
 ajuda o estudante a absorver cada conceito passo a passo.
 
-Errado:
+Exemplos de correção de encadeamento:
+
+Errado (tabela colada no título ou lista sem introdução da tabela):
 
 ```mdx
-### Métodos mutadores
+### A Evolução dos Nomes
 
-| Método | Efeito |
-| ------ | ------ |
+1. **Mocha** (1995): protótipo.
+2. **LiveScript** (1995): lançamento comercial.
+
+| Nome | Ano | Contexto |
+| :--- | :--- | :--- |
+| **Mocha** | 1995 | Protótipo. |
 ```
 
-Certo:
+Certo (com parágrafo introdutório apresentando a tabela):
 
 ```mdx
-### Métodos mutadores
+### A Evolução dos Nomes
 
-Estes métodos alteram o array original e devolvem o resultado da operação, não uma cópia:
+A linguagem passou por transições rápidas nos seus primeiros meses de vida:
 
-| Método | Efeito |
-| ------ | ------ |
+1. **Mocha** (1995): protótipo.
+2. **LiveScript** (1995): lançamento comercial.
+
+A tabela a seguir resume essa cronologia e o contexto histórico de cada mudança de nome:
+
+| Nome | Ano | Contexto |
+| :--- | :--- | :--- |
+| **Mocha** | 1995 | Protótipo. |
 ```
 
-O parágrafo de entrada de um bloco de código costuma terminar em dois-pontos e nomear o que
-o exemplo demonstra ("O exemplo a seguir demonstra as principais formas de declarar arrays:").
-A exceção são os blocos encadeados dentro de `<Steps>`, onde o item numerado já cumpre esse
-papel, e o bloco `txt title="Output"` que segue imediatamente o comando que o produziu.
+O parágrafo de entrada de um elemento visual ou bloco de código costuma terminar em dois-pontos
+e nomear explicitamente o que o leitor observará ("O exemplo a seguir demonstra as principais formas de declarar arrays:", "A tabela abaixo compara as principais diferenças de ambiente:").
 
 ---
 
@@ -471,8 +494,9 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 7. **Fechar tags**: `<Aside>`, `<Tabs>`, `<TabItem>`, `<Steps>`, `<details>` sempre com
    fechamento; dentro de `<details>` deixe uma linha em branco antes do conteúdo Markdown.
 8. **Título divergente**: `title` do tópico, dos slides e do mapa mental devem coincidir.
-9. **Tabela ou código colado no título**: viola a regra do parágrafo de entrada — sempre uma
-   frase de contexto entre o `##`/`###` e a tabela ou o bloco de código.
+9. **Elemento não-`<p>` (tabela, lista, código, diagrama, imagem) sem introdução ou colado**:
+   viola a regra do parágrafo de entrada — todo elemento que difere de `<p>` deve ser
+   precedido de um parágrafo explicativo que o apresenta e contextualiza.
 10. **Subseção solitária**: um único `###` dentro de um `##` — dissolva no texto ou crie a
     segunda subseção.
 11. **Diagrama Mermaid sem `<Mermaid>`**: uma cerca ` ```mermaid ` não é renderizada pelo

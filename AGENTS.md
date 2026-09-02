@@ -121,9 +121,7 @@ O essencial:
   existirem) → `## Objetivo` → seções de conteúdo → `## Executando` →
   `## Exercício` → `## Desafio` → `## Perguntas de revisão` → `## Referências` →
   `## Próximo tópico`. `Objetivo`, `Exercício` e `Próximo tópico` são obrigatórios.
-- **Sempre um parágrafo antes de uma tabela ou de um bloco de código.** Nada de
-  título seguido direto de código: o texto diz o que olhar, citando a linha, a função
-  ou a variável em questão.
+- **Sempre um parágrafo antes de qualquer elemento que difere de `<p>` (tabelas, listas, imagens, diagramas ou blocos de código).** Nada de elemento colado em título ou em outro elemento sem texto introdutório: o texto apresenta o contexto, diz o que observar e conecta a explicação ao elemento.
 - **Nunca uma subseção isolada.** Se `### A` existe, `### B` também precisa existir;
   caso contrário, o conteúdo vira prosa da seção-mãe.
 - **Diagramas em Mermaid** (`<Mermaid>` ou fence ```mermaid```), não em imagem.
