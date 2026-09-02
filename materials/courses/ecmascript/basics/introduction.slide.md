@@ -238,64 +238,47 @@ console.log("5" + 2); // "52"
 
 ---
 
-## Comentários em JavaScript
+## Comentários: Linha Única e Bloco
 
 - Anotações no código ignoradas pelo motor de execução
-- Documentam intenções, decisões e regras de negócio
-- Três formatos: linha única (`//`), bloco (`/* ... */`) e JSDoc (`/** ... */`)
+- Documentam intenções, decisões e regras
 - Linha única (`//`): nota curta até o fim da linha
+- Bloco (`/* ... */`): explicação maior ou trecho temporário
 
 ```js
 // Define a taxa de desconto para clientes VIP
 const VIP_DISCOUNT = 0.15;
 
 const total = 100; // Valor base da compra
-```
 
----
-
-## Comentário de Múltiplas Linhas (`/* ... */`)
-
-- Inicia com `/*` e encerra em `*/`
-- É utilizado para explicações mais detalhadas ou para desativar blocos inteiros de código
-
----
-
-## Comentário de bloco
-
-```js
 /*
 Cálculo de tributação para produtos importados.
 Considera a alíquota estadual (ICMS) e federal.
 Atualizado conforme a legislação vigente.
 */
 function calculateTax(amount) {
-return amount * 0.20;
+  return amount * 0.20;
 }
 ```
 
 ---
 
-## Comentários de Documentação JSDoc (`/** ... */`)
+## Comentários JSDoc
 
-- Explique o **porquê**, não o que a linha já mostra
-- Prefira nomes claros antes de adicionar comentários
-- Remova código morto antes de versionar
-
----
-
-## Documentação com JSDoc
+- Use para documentar contratos de funções
+- Explique parâmetros, retorno e intenção
+- Evite código morto comentado
 
 ```js
 /**
-* Calcula o preço final aplicando desconto.
-*
-* @param {number} price - Preço original do produto.
-* @param {number} discount - Taxa de desconto de 0 a 1 (ex: 0.10 para 10%).
-* @returns {number} Valor final com o desconto aplicado.
-*/
+ * Calcula o preço final aplicando desconto.
+ *
+ * @param {number} price - Preço original.
+ * @param {number} discount - Taxa de 0 a 1.
+ * @returns {number} Valor final.
+ */
 function applyDiscount(price, discount) {
-return price * (1 - discount);
+  return price * (1 - discount);
 }
 ```
 

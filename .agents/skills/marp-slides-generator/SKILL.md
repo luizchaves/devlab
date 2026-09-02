@@ -66,6 +66,8 @@ Antes de entregar, faça uma revisão didática final:
   apenas introduz um tipo de código, comentário ou comando e o próximo mostra a aplicação;
 - evite slides com muito espaço branco quando a explicação e o exemplo relacionado cabem
   juntos sem prejudicar leitura, ritmo ou foco visual;
+- depois de fundir slides, revise novamente os novos pares adjacentes, porque a numeração
+  muda e pode revelar outra quebra artificial do mesmo tema;
 - compacte bullets para uma linha sempre que possível;
 - remova frases incompletas, reticências de truncamento e placeholders como
   "Diagrama da página";
@@ -344,3 +346,5 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
     comentário ou comando quando houver espaço para manter tudo em um slide legível.
 13. **Espaço branco excessivo**: um slide com poucos bullets e muito vazio costuma indicar
     que a explicação pode ser fundida a um exemplo, tabela curta ou slide vizinho do mesmo tema.
+14. **Fusão incompleta**: depois de unir dois slides, revise o novo slide seguinte. Ele pode
+    ter virado o próximo candidato a fusão por tratar do mesmo código, comentário ou comando.
