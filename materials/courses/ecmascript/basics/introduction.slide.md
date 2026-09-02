@@ -241,20 +241,9 @@ console.log("5" + 2); // "52"
 ## Comentários em JavaScript
 
 - Anotações no código ignoradas pelo motor de execução
-- Documentam intenções, regras de negócio e decisões
-- Também podem desativar código durante desenvolvimento
+- Documentam intenções, decisões e regras de negócio
 - Três formatos: linha única (`//`), bloco (`/* ... */`) e JSDoc (`/** ... */`)
-
----
-
-## Comentário de Linha Única (`//`)
-
-- Inicia com duas barras (`//`) e estende-se até o fim da linha
-- É ideal para notas curtas e diretas
-
----
-
-## Comentário de linha única
+- Linha única (`//`): nota curta até o fim da linha
 
 ```js
 // Define a taxa de desconto para clientes VIP

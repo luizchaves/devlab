@@ -3,7 +3,7 @@ name: marp-slides-generator
 description: >-
   Cria e mantém decks de slides didáticos em Markdown para o Marp CLI (`materials/**/*.slide.md`)
   do DevLab, compilados em HTML por `pnpm build:slides`. Use sempre que o usuário pedir
-  slides de aula, apresentação de um tópico, deck Marp ou material de projeção.
+  slides de tópico, apresentação de um tópico, deck Marp ou material de projeção.
 ---
 
 # DevLab — Gerador de Slides Marp
@@ -19,14 +19,14 @@ Guia para escrever decks Marp seguindo o padrão **real** dos decks existentes e
 materials/courses/<course-id>/<categoria>/<topico>.slide.md
 ```
 
-O caminho **espelha** o da aula, e o build gera a URL pública:
+O caminho **espelha** o do tópico, e o build gera a URL pública:
 
 | Arquivo | Resultado |
 | ------- | --------- |
-| `src/content/docs/courses/ecmascript/data/arrays.mdx` | aula |
+| `src/content/docs/courses/ecmascript/data/arrays.mdx` | tópico |
 | `materials/courses/ecmascript/data/arrays.slide.md`   | fonte do deck |
 | `public/slides/courses/ecmascript/data/arrays/index.html` | HTML gerado |
-| `/slides/courses/ecmascript/data/arrays/`             | URL linkada na aula |
+| `/slides/courses/ecmascript/data/arrays/`             | URL linkada no tópico |
 
 `public/slides/` é gitignorado: **versione apenas o `.md`**.
 
@@ -41,34 +41,38 @@ fonte principal:
 - todo `##` conceitual relevante deve aparecer no deck como um ou mais slides;
 - subseções densas (`###`) devem virar slide próprio, tabela, diagrama, imagem útil ou
   exemplo curto;
-- páginas de projeto, guias, referências e aulas conceituais têm estruturas diferentes:
+- páginas de projeto, guias, referências e tópicos conceituais têm estruturas diferentes:
   não force sempre o mesmo roteiro; comece com a estrutura sugerida em `Arco do deck`,
   mas adapte para que a sequência preserve a intenção didática da página;
 - o deck pode resumir, mas não deve reduzir uma página longa a 5-8 slides genéricos;
-- mantenha densidade proporcional: aulas de 500+ linhas normalmente precisam de 25-50
-  slides, e aulas muito densas podem passar disso se os slides continuarem legíveis;
-- preserve o arco da aula: objetivo, conceitos, exemplos, execução/exercício quando a
+- mantenha densidade proporcional: tópicos de 500+ linhas normalmente precisam de 25-50
+  slides, e tópicos muito densos podem passar disso se os slides continuarem legíveis;
+- preserve o arco do tópico: objetivo, conceitos, exemplos, execução/exercício quando a
   página tiver esse material, resumo.
 
-Use o deck como roteiro de aula, não como índice superficial. Se um tópico existe na
+Use o deck como roteiro de exposição, não como índice superficial. Se um tópico existe na
 página porque ensina uma regra, uma exceção ou uma comparação importante, ele precisa ter
 representação no slide.
 
 Antes de fechar o deck, faça uma revisão de cobertura: liste mentalmente as seções da
 página, confira se cada uma virou slide, trecho de código, visual ou parte de um resumo, e
-ajuste qualquer ponto em que a explicação tenha ficado rasa demais para uma aula ao vivo.
+ajuste qualquer ponto em que a explicação tenha ficado rasa demais para uma exposição ao vivo.
 
 Antes de entregar, faça uma revisão didática final:
 
 - corte redundância entre slides vizinhos;
 - confirme que cada slide tem um único ponto principal;
+- una slides vizinhos do mesmo tema quando houver espaço, principalmente quando um slide
+  apenas introduz um tipo de código, comentário ou comando e o próximo mostra a aplicação;
+- evite slides com muito espaço branco quando a explicação e o exemplo relacionado cabem
+  juntos sem prejudicar leitura, ritmo ou foco visual;
 - compacte bullets para uma linha sempre que possível;
 - remova frases incompletas, reticências de truncamento e placeholders como
   "Diagrama da página";
 - remova referências que dependem do slide seguinte para fazer sentido;
 - confirme que exercícios, desafio, revisão e resumo fecham o arco sem misturar conteúdo
   de outro tópico;
-- não crie slide ou seção `Próximo Tópico` ou `Próxima Aula`; links de continuidade pertencem à página `.mdx`,
+- não crie slide ou seção `Próximo Tópico`; links de continuidade pertencem à página `.mdx`,
   não ao deck de projeção.
 
 ---
@@ -77,14 +81,14 @@ Antes de entregar, faça uma revisão didática final:
 
 Use o formato da página como guia para a estrutura do deck:
 
-- **Aula conceitual**: priorize definição, motivação, regra, exceção, exemplo mínimo e
+- **Tópico conceitual**: priorize definição, motivação, regra, exceção, exemplo mínimo e
   resumo. Código entra para provar a regra, não para listar todos os casos.
 - **Página de projeto**: preserve contexto, requisitos, árvore de arquivos, tarefas,
   fluxo de execução, trechos reais e validação. O deck precisa mostrar onde mexer no
   projeto e por quê.
 - **Guia de referência**: agrupe por famílias de uso, compare opções em tabelas e mostre
   exemplos curtos. Evite transformar o deck em catálogo linha a linha.
-- **Aula de ferramenta ou ambiente**: mostre comandos, arquivos de configuração e erros
+- **Tópico de ferramenta ou ambiente**: mostre comandos, arquivos de configuração e erros
   comuns em sequência operacional.
 
 Quando a página já tem uma ordem didática clara, siga essa ordem. Quando a página é muito
@@ -156,6 +160,10 @@ um ponto de aprendizagem:
 - quando houver imagem, SVG, diagrama ou código bom, reduza os bullets para abrir espaço;
 - não repita em bullet o que o código ou a imagem já mostram claramente;
 - prefira código, imagem ou tabela quando isso ensinar melhor do que texto corrido;
+- não quebre explicação e exemplo em slides separados quando eles couberem juntos com
+  boa legibilidade, especialmente em tópicos de código, comentários e comandos curtos;
+- se um slide ficar visualmente vazio, procure combiná-lo com o slide anterior ou seguinte
+  do mesmo tema antes de criar uma lâmina nova;
 - em slides de output ou saída esperada, prefira mostrar apenas o bloco `txt`; não adicione
   bullets explicando o que o próprio output já evidencia;
 - se a explicação precisa de muitos bullets, divida em dois slides com títulos mais
@@ -163,9 +171,9 @@ um ponto de aprendizagem:
 
 Prioridade visual sugerida:
 
-1. **Código real** quando a aula ensina sintaxe, API, fluxo de projeto ou comportamento.
+1. **Código real** quando o tópico ensina sintaxe, API, fluxo de projeto ou comportamento.
 2. **Imagem/SVG versionado** quando existe uma tela, arquitetura, fluxo ou diagrama pronto.
-3. **Tabela curta** quando a aula compara opções.
+3. **Tabela curta** quando o tópico compara opções.
 4. **Diagrama ASCII** quando não há asset pronto e o fluxo precisa ser visual.
 5. **Bullets** para contexto, regra, cuidado e síntese.
 
@@ -209,11 +217,11 @@ style: |
   }
 lang: pt-BR
 title: "JavaScript: Arrays"
-description: "Slides completos da aula de Arrays em JavaScript (criação, índices, métodos mutadores e acessores, HOFs)."
+description: "Slides completos do tópico Arrays em JavaScript (criação, índices, métodos mutadores e acessores, HOFs)."
 ---
 ```
 
-- `title` **idêntico** ao `title` da aula `.mdx` e do mapa mental.
+- `title` **idêntico** ao `title` do tópico `.mdx` e do mapa mental.
 - Não invente tema: todos os decks usam `theme: default`.
 - O bloco `style` é o que produz a paginação `3 / 21`.
 - O `padding-bottom` reserva rodapé e evita colisão entre paginação e conteúdo.
@@ -223,13 +231,13 @@ description: "Slides completos da aula de Arrays em JavaScript (criação, índi
 
 ## 📐 Arco do deck
 
-1. **Capa** - `<!-- _class: lead -->`, `# <título da aula>` e uma linha de subtítulo
-   listando os eixos da aula.
+1. **Capa** - `<!-- _class: lead -->`, `# <título do tópico>` e uma linha de subtítulo
+   listando os eixos do tópico.
 2. **`## Objetivo`** - frase de abertura + 4-6 bullets com verbo no infinitivo
    ("Entender…", "Diferenciar…", "Executar…"), termos-chave em **negrito**.
-3. **`## Mapa da Aula`** - 3-6 blocos quando a página for longa, de projeto ou tiver
+3. **`## Mapa do Tópico`** - 3-6 blocos quando a página for longa, de projeto ou tiver
    muitas seções.
-4. **`## Por Que <Tópico> Importa?`** (opcional, comum nas aulas de abertura) - impacto
+4. **`## Por Que <Tópico> Importa?`** (opcional, comum nos tópicos de abertura) - impacto
    no navegador / servidor / ferramentas + linha em *itálico* com a regra de ouro.
 ## 📐 Estrutura do deck
 
@@ -253,8 +261,8 @@ Ordem de um deck:
 Separe **todo** slide com `---` em linha isolada.
 
 
-Tamanho real dos decks: 128-547 linhas (~15 a 45 slides). Aulas de fundamento ficam
-perto de 150 linhas; aulas densas (objetos, módulos, HTML) passam de 400.
+Tamanho real dos decks: 128-547 linhas (~15 a 45 slides). Tópicos de fundamento ficam
+perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
 
 ---
 
@@ -304,7 +312,7 @@ inteiro se o Marp reclamar de um arquivo.
 pnpm validate
 ```
 
-Roda lint + `astro check` + build completo + `check:links` — use quando a aula linkar
+Roda lint + `astro check` + build completo + `check:links` — use quando o tópico linkar
 o deck pela primeira vez (o link só resolve depois que o HTML existe).
 
 ---
@@ -316,7 +324,7 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
    linhas de código com explicação, o texto tende a vazar. Divida em `(Parte 1)` /
    `(Parte 2)` ou corte ruído.
 3. **Perder o bloco `style`**: a paginação passa a mostrar só o número, sem o total.
-4. **Título fora de sincronia** com a aula e o mapa mental do mesmo tópico.
+4. **Título fora de sincronia** com o tópico e o mapa mental correspondente.
 5. **Cercas aninhadas**: ao mostrar Markdown dentro de Markdown, use cercas externas de
    4 crases.
 6. **Editar `public/slides/`**: é saída de build, sobrescrita e gitignorada.
@@ -324,7 +332,7 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
    `<!-- _class: lead -->`; não coloque um `---` extra logo após o frontmatter.
 8. **Cobertura fraca**: se a página tem várias seções e o deck só cobre os títulos mais
    óbvios, revise contra o sumário da página antes de entregar.
-9. **Código de menos em página prática**: se a aula é baseada em projeto e quase não há
+9. **Código de menos em página prática**: se o tópico é baseado em projeto e quase não há
    trechos de código, o deck vira palestra abstrata. Volte aos `<SourceCode>` e escolha
    recortes melhores.
 10. **Visual sem propósito**: imagens e SVGs são bem-vindos quando explicam fluxo,
@@ -332,3 +340,7 @@ o deck pela primeira vez (o link só resolve depois que o HTML existe).
 11. **Falta de output em código e exercícios**: nunca deixe chamadas de `console.log()`
     ou resoluções de exercícios/desafios sem a respectiva saída esperada documentada
     em comentário `// output` ou bloco `txt`.
+12. **Quebra artificial de tema**: não separe introdução e exemplo de um mesmo código,
+    comentário ou comando quando houver espaço para manter tudo em um slide legível.
+13. **Espaço branco excessivo**: um slide com poucos bullets e muito vazio costuma indicar
+    que a explicação pode ser fundida a um exemplo, tabela curta ou slide vizinho do mesmo tema.
