@@ -292,8 +292,11 @@ Ordem de um deck:
    - slide 3 (opcional): armadilha comum, comparação, caso limite ou passo a passo de execução (arquivo → comando → saída).
 6. **`## Arquitetura`** ou **`## Fluxo de Execução`** (quando aplicável) - diagrama ASCII em bloco `txt` ou tabela comparativa.
 7. **`## Boas Práticas`** ou **`## Cuidados e Armadilhas`** - 3-5 alertas cruciais.
-8. **`## Exercício Prático`** - enunciado de fixação com objetivo claro.
-9. **`## Solução do Exercício`** (ou bloco de código do exercício/desafio) - **SEMPRE inclua comentários de saída esperada** (`// output`) em `console.log()` ou chamadas de função, ou um bloco `txt` de saída, permitindo visualizar o resultado da execução imediatamente.
+8. **`## Exercício Prático: <Tema>`** e **`## Desafio: <Tema>`** - **SEMPRE inclua o enunciado completo com as instruções e etapas claras** do exercício/desafio.
+   - **Separação de slides (Enunciado vs Solução)**: Nunca omita o enunciado para colocar apenas o código de solução. Quando o enunciado junto com o código/saída ultrapassar o limite visual do slide, **divida obrigatoriamente em dois slides**:
+     - Slide 1: `## Exercício Prático: <Tema>` (ou `## Desafio: <Tema>`) contendo apenas o enunciado e os requisitos numerados;
+     - Slide 2: `## Solução do Exercício: <Tema>` (ou `## Solução do Desafio: <Tema>`) contendo o código de resolução com as saídas esperadas (`// output`).
+9. **`## Solução do Exercício` / `## Solução do Desafio`** - **SEMPRE inclua comentários de saída esperada** (`// output`) em `console.log()` ou chamadas de função, ou um bloco `txt` de saída, permitindo visualizar o resultado da execução imediatamente.
 10. **`## Perguntas de revisão`** - 3-5 perguntas conceituais para fixação. **Toda pergunta DEVE obrigatoriamente terminar com ponto de interrogação (`?`)**.
 11. **`## Resumo do Tópico`** - 4-6 bullets fechando o arco didático da aula, alinhados diretamente com os eixos apresentados no `## Mapa do Tópico`. Pode seguir dois padrões recomendados:
     - **Padrão Checklist de Revisão**: Bullets objetivos orientados à ação recapitulando os eixos centrais (ex: `- Revise por que...`, `- Revise a evolução...`, `- Revise o que a linguagem oferece...`, `- Revise como executar...`).

@@ -555,10 +555,17 @@ Nem todos os valores do JavaScript sobrevivem à serialização:
 
 ## Exercício Prático: Dispositivo de Rede
 
-1. Crie o objeto `networkHost` com `name`, `ip`, `mask` e `active`.
+1. Crie o objeto `networkHost` com as propriedades:
+   - `name`: `"Router-01"`, `ip`: `"192.168.1.1"`
+   - `mask`: `"255.255.255.0"`, `active`: `true`
 2. Adicione a propriedade `gateway = "192.168.1.254"`.
 3. Remova a propriedade `active` com o operador `delete`.
-4. Extraia `name`, `ip` e `gateway` usando desestruturação e exiba formatado.
+4. Extraia `name`, `ip` e `gateway` usando desestruturação.
+5. Imprima: `"Dispositivo: [NAME] | IP: [IP] | Gateway: [GATEWAY]"`.
+
+---
+
+## Solução do Exercício: Dispositivo de Rede
 
 ```js
 const networkHost = {
@@ -579,6 +586,16 @@ console.log(`Dispositivo: ${name} | IP: ${ip} | Gateway: ${gateway}`);
 ---
 
 ## Desafio: Relatório de Servidores em JSON
+
+1. Crie uma string `jsonInput` com array de servidores (`id`, `hostname`, `ip`, `cpuUsage`, `online`).
+2. Converta a string para array de objetos JS com `JSON.parse()`.
+3. Filtre apenas os servidores `online === true`.
+4. Mapeie para um relatório simplificado com `host` e `load` (`${cpuUsage}%`).
+5. Imprima o resultado e converta para JSON formatado (`JSON.stringify(..., null, 2)`).
+
+---
+
+## Solução do Desafio: Relatório de Servidores em JSON
 
 ```js
 const jsonInput = `[
