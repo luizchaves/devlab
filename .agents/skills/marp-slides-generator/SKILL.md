@@ -149,6 +149,11 @@ Comentários dentro do bloco devem ajudar a leitura do slide:
   depois do bloco;
 - mantenha saídas esperadas como comentário curto em todos os exemplos, exercícios e desafios.
 
+### Simplificação de exemplos para evitar overflow vertical
+
+- **Nunca omita a saída esperada para economizar espaço vertical**: slides didáticos devem ser completos e demonstrar visualmente o resultado observado de cada instrução relevante (`console.log`, prints e retornos).
+- **Simplifique os dados de entrada quando a saída for multilinha**: se a saída esperada ocupar várias linhas (como objetos formatados com `JSON.stringify(..., null, 2)`, estruturas de dados aninhadas ou arrays extensos), reduza a quantidade de campos ou elementos do exemplo de entrada (ex: de 4 propriedades para 2). Dessa forma, tanto a declaração quanto a saída esperada completa cabem no slide com folga visual e sem risco de corte/overflow.
+
 ### Passo a passo de execução e comandos no terminal
 
 Em slides que ensinam comandos, terminal, criação/execução de arquivos ou passo a passo operacional:

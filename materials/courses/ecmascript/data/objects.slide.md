@@ -524,14 +524,18 @@ console.log(parsedUser.name);   // "Carlos"
 O 3º argumento de `JSON.stringify(valor, replacer, espaço)` indenta a saída:
 
 ```js
-const user = { id: 1, name: "Carlos", roles: ["admin", "editor"] };
+const user = { id: 1, name: "Carlos" };
 
-// Saída compacta (padrão de rede):
+// Saída compacta (padrão para tráfego na rede):
 console.log(JSON.stringify(user));
-// '{"id":1,"name":"Carlos","roles":["admin","editor"]}'
+// '{"id":1,"name":"Carlos"}'
 
-// Saída indentada com 2 espaços (depuração/logs):
+// Saída formatada com 2 espaços (depuração):
 console.log(JSON.stringify(user, null, 2));
+// {
+//   "id": 1,
+//   "name": "Carlos"
+// }
 ```
 
 ---
