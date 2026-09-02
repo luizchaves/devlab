@@ -30,12 +30,11 @@ markmap:
 - Pipeline do V8: Scanner/Parser (AST) -> Ignition (Bytecode) -> TurboFan (JIT nativo) -> Desotimização (Deopt)
 
 ## JavaScript, ECMAScript e Web APIs
-- ECMAScript: Define a linguagem base; variáveis, funções, objetos, arrays, classes, módulos, promises
-- JavaScript: Nome comum da linguagem usada pelos desenvolvedores; código escrito em arquivos `.js` ou dentro de ``
-- Web APIs: Recursos oferecidos pelo navegador; DOM, eventos, `fetch`, `localStorage`, timers, console
-- Node.js APIs: Recursos oferecidos pelo Node.js; sistema de arquivos, processos, servidor HTTP, módulos nativos
-- npm: Ecossistema de pacotes; Express, Vite, Prisma, Chart.js, bibliotecas de teste
-- No uso diário, é comum dizer apenas "JavaScript".
+- ECMAScript: Define a linguagem base (variáveis, funções, objetos, arrays, classes, módulos, promises)
+- JavaScript: Nome comum da linguagem usada pelos desenvolvedores nos arquivos `.js` ou `<script>`
+- Web APIs: Recursos fornecidos pelo navegador (DOM, eventos, `fetch`, `localStorage`, timers, console)
+- Node.js APIs: Recursos exclusivos do runtime no servidor (`process`, `Buffer`, `node:fs`, `node:http`, `node:path`)
+- npm: Ecossistema de pacotes (Express, Vite, Prisma, bibliotecas de teste)
 
 ## Onde o Código Executa?
 - O mesmo núcleo da linguagem pode aparecer em ambientes diferentes.

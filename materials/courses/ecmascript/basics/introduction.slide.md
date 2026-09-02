@@ -107,10 +107,10 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 ## JavaScript, ECMAScript e Web APIs
 
 - No uso diário, é comum dizer apenas "JavaScript"
-- Tecnicamente, porém, uma página no navegador mistura a linguagem ECMAScript com APIs fornecidas pelo ambiente
-- Por isso, `Array`, `Object`, `Promise` e `Map` pertencem à linguagem
-- Já `document.querySelector`, `addEventListener`, `fetch` no navegador e `localStorage` são recursos do ambiente Web
-- Um código pode ser JavaScript válido e ainda assim não funcionar em todos os lugares
+- A aplicação combina a linguagem ECMAScript com APIs fornecidas pelo ambiente
+- **Linguagem**: `Array`, `Object`, `Promise` e `Map`
+- **Ambiente Web**: `document.querySelector`, `addEventListener` e `localStorage`
+- **Ambiente Node.js**: `process`, `Buffer`, `node:fs` e `node:http`
 
 ---
 
