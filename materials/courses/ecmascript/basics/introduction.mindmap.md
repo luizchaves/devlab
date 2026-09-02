@@ -49,12 +49,13 @@ markmap:
 - Funções: declarações, arrow functions, callbacks; Organizar comportamento reutilizável
 
 ## Características Importantes
-- Alto nível: Esconde muitos detalhes de memória e máquina; criar objetos e arrays sem alocar memória manualmente
-- Interpretada: Não há etapa de compilação separada; o motor lê e executa o código; basta `node arquivo.js` para rodar
-- Linguagem de script: Nasceu para automatizar comportamento dentro de um ambiente hospedeiro.
-- Tipagem dinâmica: O tipo pertence ao valor, não à variável; uma variável pode receber número e depois string
-- Tipagem fraca: Algumas conversões podem ocorrer automaticamente; `'5' * 2` resulta em `10`
-- Multiparadigma: Aceita estilos diferentes de programação; funções, objetos, callbacks, classes e composição
+- Alto nível: Gerenciamento automático de memória via Garbage Collector
+- Execução JIT: Combina interpretação rápida e compilação nativa em tempo de execução
+- Tipagem dinâmica: Tipos vinculados aos dados em memória e não às variáveis
+- Tipagem fraca: Coerção implícita de tipos durante operações aritméticas e concatenações
+- Multiparadigma: Estilos funcional e orientado a eventos no navegador (callbacks e escutadores)
+- Protótipos: Herança direta entre objetos por meio da cadeia de protótipos (prototype chain)
+- ASI: Inserção automática de ponto e vírgula pelo analisador sintático
 
 ## Comentários em JavaScript
 - Anotações no código ignoradas pelo motor de execução

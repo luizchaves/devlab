@@ -177,7 +177,15 @@ História do JavaScript, especificação ECMA-262, papel do comitê TC39, motore
 | Linguagem de script | Nasceu para automatizar comportamento dentro de um ambiente hospedeiro | um `<script>` que reage a um clique na página |
 | Tipagem dinâmica | O tipo pertence ao valor, não à variável | uma variável pode receber número e depois string |
 | Tipagem fraca | Algumas conversões podem ocorrer automaticamente | `'5' * 2` resulta em `10` |
-| ... | ... | ... |
+
+---
+
+## Características Importantes: Arquitetura
+
+- **Alto nível**: gerenciamento de memória automático com *Garbage Collector*
+- **Multiparadigma**: funções como cidadãs de 1ª classe que viabilizam a programação orientada a eventos no navegador (callbacks)
+- **Protótipos**: objetos herdam métodos diretamente pela cadeia de protótipos (*prototype chain*)
+- **ASI**: inserção automática de ponto e vírgula pelo analisador sintático
 
 ---
 
