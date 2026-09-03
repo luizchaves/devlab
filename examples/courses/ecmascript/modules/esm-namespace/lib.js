@@ -1,10 +1,10 @@
+export const PI = 3.14;
+
 export function sum(a, b) {
   return a + b;
 }
 
-export const subtract = (a, b) => a - b;
-
 export default {
+  PI,
   sum,
-  subtract,
 };

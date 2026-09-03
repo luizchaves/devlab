@@ -4,8 +4,8 @@ export function sum(a, b) {
   return a + b;
 }
 
-export function minus(a, b) {
+export function subtract(a, b) {
   return a - b;
 }
 
-export default { sum, minus, PI };
+export default { sum, subtract, PI };

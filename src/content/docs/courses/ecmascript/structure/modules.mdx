@@ -5,42 +5,94 @@ course: ecmascript
 sidebar:
   label: "Módulos ES (ESM)"
 ---
-import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 import SourceCode from '@components/SourceCode.astro';
 import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta os **Módulos** em JavaScript: como dividir uma aplicação em arquivos isolados, tornar públicos apenas os valores desejados e consumir tanto código do próprio projeto quanto pacotes instalados pelo npm.
 
 Materiais: [slides do tópico](../../../../slides/courses/ecmascript/structure/modules/) e
 [mapa mental](../../../../mindmaps/courses/ecmascript/structure/modules/)
 
-Um módulo é um arquivo de código JavaScript isolado. Tudo o que é declarado dentro
-de um módulo (variáveis, funções, classes) é por padrão **privado** ao seu próprio
-escopo e só fica acessível para outros arquivos quando é explicitamente **exportado**.
-
 ## Objetivo
 
-Compreender o conceito de modularização em JavaScript, diferenciar o sistema legado
-**CommonJS** (`require`/`module.exports`) do padrão moderno **ES Modules** (`import`/`export`),
-dominar as sintaxes de exportação nomeada e *default*, utilizar *aliases* (`as`),
-*namespace imports* (`import * as`), *dynamic imports* (`await import()`), entender
-especificadores relativos versus pacotes npm, compreender o versionamento semântico (**SemVer**)
-e configurar o Node.js para interpretar arquivos como módulos ES.
+Dominar a modularização de aplicações JavaScript, do arquivo isolado até o consumo de pacotes da comunidade. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que cada arquivo tem escopo privado e o que um sistema de módulos resolve.
+- Diferenciar o sistema legado **CommonJS** (`require`/`module.exports`) do padrão **ES Modules** (`import`/`export`).
+- Escolher entre exportação nomeada e *default*, aplicando *aliases* com `as`.
+- Usar *namespace imports* (`import * as`) e *dynamic imports* (`await import()`) quando o cenário pedir.
+- Reconhecer a avaliação única dos módulos e o comportamento dos vínculos vivos (*live bindings*).
+- Configurar o Node.js para ESM, distinguir especificadores relativos de pacotes npm e interpretar as versões do **SemVer**.
 
 ## O que acontece sem módulos?
 
-Se você tentar declarar uma função em um arquivo e chamá-la em outro sem exportar nem importar:
+Enquanto todo o código cabe em um arquivo só, nada disso é necessário. O projeto inteiro é um arquivo:
+
+<FileTree>
+{`
+  function-sum/
+  └── index.js    declara e usa a função sum
+`}
+</FileTree>
+
+Dentro desse arquivo, a função declarada no topo está visível para todo o restante do código:
+
+<SourceCode path="examples/courses/ecmascript/modules/function-sum/index.js" title="function-sum/index.js" />
+
+O problema aparece quando o projeto cresce e esse mesmo código é dividido em dois arquivos, cada um com sua responsabilidade:
+
+<FileTree>
+{`
+  no-module/
+  ├── lib.js     declara a função sum
+  └── main.js    tenta chamar a função sum
+`}
+</FileTree>
+
+A biblioteca passa a declarar apenas a função:
 
 <SourceCode path="examples/courses/ecmascript/modules/no-module/lib.js" title="no-module/lib.js" />
 
+O arquivo principal a utiliza como se ela ainda estivesse no mesmo arquivo:
+
 <SourceCode path="examples/courses/ecmascript/modules/no-module/main.js" title="no-module/main.js" />
 
-Ao executar o arquivo `main.js` com o Node.js (`node main.js`), o código falha com um erro de referência:
+Ao executar o arquivo principal com o Node.js, o código falha com um erro de referência:
+
+```bash title="Terminal"
+node main.js
+```
 
 ```txt title="Output"
 ReferenceError: sum is not defined
     at Object.<anonymous> (main.js:1:13)
 ```
 
-Como cada arquivo possui um escopo privado e isolado, a função `sum` declarada em `lib.js` **não é visível** no arquivo `main.js`. Para compartilhar valores entre arquivos, é preciso usar um sistema de módulos.
+Como cada arquivo possui um escopo privado e isolado, a função `sum` declarada em `lib.js` **não é visível** no arquivo `main.js`. Um sistema de módulos é justamente o mecanismo que constrói a ponte entre os dois escopos, de forma explícita.
+
+O diagrama a seguir contrasta as duas situações, o arquivo isolado e o arquivo conectado por `export`/`import`:
+
+<Mermaid title="Escopos isolados antes e depois de um sistema de módulos">
+{`
+flowchart TD
+  subgraph Isolado["Sem módulos"]
+    A["lib.js<br/>function sum(a, b)"]
+    B["main.js<br/>sum(2, 1)"]
+    A -. "sum não é visível" .-> B
+  end
+
+  Isolado -- "declarar export e import" --> Modular
+
+  subgraph Modular["Com ES Modules"]
+    C["lib.js<br/>export function sum(a, b)"]
+    D["main.js<br/>import { sum }<br/>from './lib.js'"]
+    C -- "vínculo explícito" --> D
+  end
+`}
+</Mermaid>
 
 ## Sistemas de módulos em JavaScript
 
@@ -48,69 +100,65 @@ Historicamente, JavaScript não possuía um sistema oficial de módulos. Para re
 desenvolvimento de aplicações no servidor com Node.js, surgiram padrões como o **CommonJS**.
 A partir do ES6 (ES2015), o ecossistema padronizou o **ES Modules (ESM)**.
 
-<CardGrid>
-  <Card title="CommonJS (CJS)" icon="document">
-    Sistema tradicional do Node.js (`require` e `module.exports`). Carregamento síncrono em tempo de execução.
-  </Card>
+Os dois sistemas convivem até hoje no Node.js, e a tabela a seguir resume as diferenças que
+mais aparecem no dia a dia:
 
-  <Card title="ES Modules (ESM)" icon="rocket">
-    Padrão oficial do ECMAScript (`import` e `export`). Carregamento estático, assíncrono e nativo em navegadores e Node.js moderno.
-  </Card>
-</CardGrid>
+| Característica | CommonJS (CJS) | ES Modules (ESM) |
+| :--- | :--- | :--- |
+| **Origem** | Convenção criada pelo Node.js | Padrão oficial do ECMAScript (ES6) |
+| **Exportação** | `module.exports = valor` | `export` e `export default` |
+| **Importação** | `require('./lib.js')` | `import ... from './lib.js'` |
+| **Carregamento** | Síncrono, em tempo de execução | Estático, analisado antes da execução |
+| **Onde roda** | Node.js | Node.js e navegadores |
+| **Configuração** | Padrão do Node.js sem `"type"` | Exige `"type": "module"` no `package.json` |
 
 ## CommonJS (CJS)
 
 No estilo CommonJS, a exportação é feita atribuindo valores ao objeto `module.exports`,
 e a importação é realizada através da função `require()`.
 
-Para exportar um único valor principal (*default export* no estilo CommonJS):
+O primeiro exemplo tem os dois arquivos de código e o `package.json` que mantém a pasta no modo
+CommonJS:
 
-```js title="cjs-default/lib.js"
-function sum(a, b) {
-  return a + b;
-}
+<FileTree>
+{`
+  cjs-default/
+  ├── lib.js          exporta uma única função
+  ├── main.js         consome a função exportada
+  └── package.json    marca a pasta como CommonJS
+`}
+</FileTree>
 
-module.exports = sum;
-```
+Para exportar um único valor principal (o equivalente ao *default export*), basta atribuir a
+própria função ao `module.exports`:
 
-```js title="cjs-default/main.js"
-// Importação default em CommonJS
-const add = require('./lib.js');
+<SourceCode path="examples/courses/ecmascript/modules/cjs-default/lib.js" title="cjs-default/lib.js" />
 
-console.log(add(2, 1)); // 3
-```
+Como `require()` devolve exatamente o valor que foi atribuído, o nome local no arquivo que
+importa é livre:
 
-Para exportar múltiplos valores nomeados no CommonJS, atribui-se um objeto ao `module.exports`:
+<SourceCode path="examples/courses/ecmascript/modules/cjs-default/main.js" title="cjs-default/main.js" />
 
-```js title="cjs-named/lib.js"
-function sum(a, b) {
-  return a + b;
-}
+O segundo exemplo repete essa estrutura, agora com uma biblioteca que expõe quatro operações:
 
-const subtract = function (a, b) {
-  return a - b;
-};
+<FileTree>
+{`
+  cjs-named/
+  ├── lib.js          exporta quatro funções dentro de um objeto
+  ├── main.js         importa com desestruturação
+  └── package.json    marca a pasta como CommonJS
+`}
+</FileTree>
 
-const multiply = (a, b) => a * b;
-const divide = (a, b) => a / b;
+Para expor vários valores de uma vez, atribui-se um objeto ao `module.exports`. Repare que a
+forma de declarar cada função (declaração, expressão ou *arrow*) não interfere na exportação:
 
-module.exports = {
-  sum,
-  subtract,
-  multiply,
-  divide,
-};
-```
+<SourceCode path="examples/courses/ecmascript/modules/cjs-named/lib.js" title="cjs-named/lib.js" />
 
-```js title="cjs-named/main.js"
-// Importação com desestruturação em CommonJS
-const { sum, subtract, multiply, divide } = require('./lib.js');
+Do outro lado, a desestruturação do objeto devolvido por `require()` extrai apenas os membros
+que interessam:
 
-console.log(sum(2, 1)); // 3
-console.log(subtract(2, 1)); // 1
-console.log(multiply(2, 1)); // 2
-console.log(divide(2, 1)); // 2
-```
+<SourceCode path="examples/courses/ecmascript/modules/cjs-named/main.js" title="cjs-named/main.js" />
 
 <Aside type="note" title="CommonJS é o padrão legado do Node.js">
   O CommonJS era o padrão exclusivo do Node.js em suas primeiras versões. Embora ainda
@@ -123,41 +171,31 @@ console.log(divide(2, 1)); // 2
 Com o **ES Modules (ESM)**, um módulo pode conter quantas exportações nomeadas (*named exports*)
 forem necessárias. Cada exportação deve possuir um nome único dentro do arquivo.
 
-```js title="esm-named/lib.js"
-// ESM (ECMAScript Modules) - Named exports
-export function sum(a, b) {
-  return a + b;
-}
+A pasta do exemplo é a mesma do caso anterior em CommonJS, trocando apenas o modo declarado no
+`package.json`:
 
-export const subtract = function (a, b) {
-  return a - b;
-};
+<FileTree>
+{`
+  esm-named/
+  ├── lib.js          exporta quatro funções nomeadas
+  ├── main.js         importa entre chaves e cria um alias
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
 
-export const multiply = (a, b) => {
-  return a * b;
-};
+A palavra-chave `export` funciona como um prefixo aplicado à declaração, seja ela uma função,
+uma expressão de função ou uma *arrow function*:
 
-export const divide = (a, b) => a / b;
-```
+<SourceCode path="examples/courses/ecmascript/modules/esm-named/lib.js" title="esm-named/lib.js" />
 
-Na importação, os membros desejados são extraídos entre chaves `{ ... }`. Caso seja
-necessário evitar conflitos de nomes ou melhorar a intenção, a palavra-chave `as`
-permite criar um *alias* (nome alternativo local):
+Na importação, os membros desejados são extraídos entre chaves `{ ... }` e os nomes precisam
+coincidir com os exportados. Quando é preciso evitar conflitos ou deixar a intenção mais clara,
+a palavra-chave `as` cria um *alias* local:
 
-```js title="esm-named/main.js"
-import { sum, subtract, multiply, divide } from './lib.js';
+<SourceCode path="examples/courses/ecmascript/modules/esm-named/main.js" title="esm-named/main.js" />
 
-console.log(sum(2, 1)); // 3
-console.log(subtract(2, 1)); // 1
-console.log(multiply(2, 1)); // 2
-console.log(divide(2, 1)); // 2
-
-// Criando um alias local com "as"
-import { sum as add } from './lib.js';
-console.log(add(2, 1)); // 3
-```
-
-A linguagem bloqueia declarações duplicadas ou importações de nomes inexistentes em tempo de compilação/análise estática:
+Por serem analisadas antes da execução, as importações nomeadas permitem que a linguagem
+detecte nomes duplicados ou inexistentes já na leitura do arquivo:
 
 ```js title="Erros em exportações e importações nomeadas"
 // SyntaxError: Identifier 'sum' has already been declared.
@@ -174,53 +212,63 @@ O *export default* é usado para definir o valor principal de um módulo (por ex
 instância de uma aplicação Express ou uma classe principal). Cada módulo pode ter no máximo
 **um** `export default`.
 
-```js title="esm-default/lib.js"
-function sum(a, b) {
-  return a + b;
-}
+O exemplo desta seção mantém a estrutura de dois arquivos:
 
-export default sum;
-```
+<FileTree>
+{`
+  esm-default/
+  ├── lib.js          exporta uma função como valor principal
+  ├── main.js         importa o default com dois nomes diferentes
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
+
+O módulo abaixo declara a função normalmente e a elege como valor principal na última linha:
+
+<SourceCode path="examples/courses/ecmascript/modules/esm-default/lib.js" title="esm-default/lib.js" />
 
 Ao importar um *export default*, **não** são utilizadas chaves `{}` e o nome da variável
-local é livre:
+local é livre, como mostram as duas importações do mesmo arquivo:
 
-```js title="esm-default/main.js"
-import add from './lib.js';
-import anyName from './lib.js';
+<SourceCode path="examples/courses/ecmascript/modules/esm-default/main.js" title="esm-default/main.js" />
 
-console.log(add(2, 1)); // 3
-console.log(anyName(2, 1)); // 3
-```
+As duas formas de exportação convivem no mesmo arquivo, como mostra a próxima pasta de exemplo:
 
-É possível exportar membros nomeados e um *export default* no mesmo arquivo e importá-los
-juntos em uma única linha de instrução:
+<FileTree>
+{`
+  esm-default-named/
+  ├── lib.js          combina exportações nomeadas e um export default
+  ├── main.js         importa o default e um nomeado na mesma instrução
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
 
-```js title="esm-npm/lib.js"
-export function sum(a, b) {
-  return a + b;
-}
+É comum expor funções nomeadas e, ao mesmo tempo, um objeto principal que agrupa todas elas:
 
-export const subtract = (a, b) => a - b;
+<SourceCode path="examples/courses/ecmascript/modules/esm-default-named/lib.js" title="esm-default-named/lib.js" />
 
-export default {
-  sum,
-  subtract,
-};
-```
+Nesse caso, uma única instrução de importação traz o *default* e os membros nomeados, com o
+valor principal sempre antes das chaves:
 
-```js title="Importando default e membros nomeados juntos"
-import MathLib, { sum as add } from './lib.js';
+<SourceCode path="examples/courses/ecmascript/modules/esm-default-named/main.js" title="esm-default-named/main.js" />
 
-console.log(MathLib.sum(2, 1)); // 3
-console.log(add(2, 1)); // 3
-```
+A tabela a seguir resume as diferenças entre as duas formas de exportar em ESM:
+
+| Característica | Named export | Default export |
+| :--- | :--- | :--- |
+| **Quantidade por arquivo** | Vários, com nomes únicos | No máximo um |
+| **Sintaxe de exportação** | `export const sum = ...` | `export default sum` |
+| **Sintaxe de importação** | `import { sum } from './lib.js'` | `import qualquerNome from './lib.js'` |
+| **Nome local** | Igual ao exportado, ou com `as` | Livre |
+| **Uso típico** | Utilitários e coleções de funções | Valor principal do módulo |
 
 <Aside type="caution" title="Erros comuns no export default">
   Tentar definir dois `export default` no mesmo arquivo resulta em erro de sintaxe.
   Além disso, tentar importar um *export default* usando chaves `{ sum }` fará o JavaScript
   procurar por uma exportação nomeada chamada `sum`, falhando caso ela não exista.
 </Aside>
+
+O trecho comentado a seguir registra as mensagens produzidas em cada um desses dois casos:
 
 ```js title="Erros em export default"
 // SyntaxError: Identifier '.default' has already been declared.
@@ -234,34 +282,35 @@ console.log(add(2, 1)); // 3
 ## Import de namespace (`import * as`)
 
 Quando um módulo expõe diversas exportações nomeadas (e opcionalmente um *export default*),
-podemos importar todo o módulo como um único objeto de *namespace* utilizando `import * as Alias`:
+podemos importar todo o módulo como um único objeto de *namespace* utilizando `import * as Alias`.
 
-```js title="esm-namespace/lib.js"
-export const PI = 3.14;
+A pasta de exemplo segue o mesmo formato das anteriores:
 
-export function sum(a, b) {
-  return a + b;
-}
+<FileTree>
+{`
+  esm-namespace/
+  ├── lib.js          exporta uma constante, uma função e um default
+  ├── main.js         importa o módulo inteiro com import * as
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
 
-export default {
-  PI,
-  sum,
-};
-```
+O módulo combina uma constante, uma função nomeada e um valor principal:
 
-```js title="esm-namespace/main.js"
-import * as Lib from './lib.js';
+<SourceCode path="examples/courses/ecmascript/modules/esm-namespace/lib.js" title="esm-namespace/lib.js" />
 
-console.log(Lib.sum(2, 1)); // 3
-console.log(Lib.PI); // 3.14
-console.log(Lib.default.PI); // 3.14
-console.log(Object.keys(Lib)); // ['PI', 'default', 'sum']
-```
+No arquivo que importa, todas as exportações passam a ser propriedades de um mesmo objeto, e o
+*export default* fica acessível pela chave `default`:
+
+<SourceCode path="examples/courses/ecmascript/modules/esm-namespace/main.js" title="esm-namespace/main.js" />
 
 <Aside type="caution" title="Objetos de namespace são somente leitura">
   O objeto retornado por `import * as` é **imutável (read-only)**. Qualquer tentativa
   de reatribuir ou alterar uma propriedade do objeto de namespace lançará um `TypeError`.
 </Aside>
+
+O trecho comentado a seguir mostra a mensagem devolvida ao tentar sobrescrever uma dessas
+propriedades:
 
 ```js title="Mutação de namespace é bloqueada"
 // TypeError: Cannot assign to read only property 'PI' of object '[object Module]'.
@@ -270,26 +319,31 @@ console.log(Object.keys(Lib)); // ['PI', 'default', 'sum']
 
 ## Imports dinâmicos (`import()`)
 
-Instruções `import` estáticas devem ser colocadas no nível superior (*top-level*) do arquivo.
-Elas são analisadas antes da execução do código. Se você precisar carregar um módulo sob demanda,
-condicionalmente ou dentro de uma função, utilize a função de **import dinâmico** `import()`,
-que retorna uma `Promise`.
+Instruções `import` estáticas devem ser colocadas no nível superior (*top-level*) do arquivo,
+porque são analisadas antes da execução do código. Quando o módulo só precisa ser carregado sob
+demanda, condicionalmente ou dentro de uma função, entra em cena a função de **import dinâmico**
+`import()`, que devolve uma `Promise`.
 
-```js title="esm-dynamic/main.js"
-const needsCalculation = true;
+A diferença deste exemplo não está na estrutura de arquivos, que continua a mesma, e sim no
+momento em que um deles é carregado:
 
-// SyntaxError: import declarations may only appear at top level of a module.
-// if (needsCalculation) {
-//   import { sum } from './lib.js';
-// }
+<FileTree>
+{`
+  esm-dynamic/
+  ├── lib.js          módulo carregado apenas quando necessário
+  ├── main.js         chama await import() dentro de um if
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
 
-if (needsCalculation) {
-  const { sum, default: MathLib } = await import('./lib.js');
+O módulo carregado sob demanda não tem nada de especial, é um ESM comum:
 
-  console.log(sum(2, 1)); // 3
-  console.log(MathLib.sum(2, 1)); // 3
-}
-```
+<SourceCode path="examples/courses/ecmascript/modules/esm-dynamic/lib.js" title="esm-dynamic/lib.js" />
+
+A diferença está em quem importa: a chamada acontece dentro do `if`, momento em que a condição
+já foi avaliada:
+
+<SourceCode path="examples/courses/ecmascript/modules/esm-dynamic/main.js" title="esm-dynamic/main.js" />
 
 <Aside type="tip" title="Desestruturando import() dinâmico">
   A chamada `await import('./lib.js')` resolve para um objeto de namespace. Para desestruturar
@@ -297,37 +351,76 @@ if (needsCalculation) {
   `default` é uma palavra reservada da linguagem.
 </Aside>
 
-## Avaliação única e Vínculos Vivos (Live Bindings)
+Escrever a mesma condição com um `import` estático não é possível, como registra o trecho
+comentado a seguir:
 
-Dois comportamentos fundamentais caracterizam a execução dos ES Modules no JavaScript:
-
-### 1. Avaliação Única (*Singleton Evaluation*)
-Um módulo é executado **apenas uma única vez**, na primeira oportunidade em que é importado. Se múltiplos arquivos da aplicação importarem o mesmo módulo `./counter.js`, o código de topo do módulo roda somente uma vez e sua instância exportada é armazenada em cache para todas as importações subsequentes.
-
-### 2. Vínculos Vivos (*Live Bindings*)
-As exportações em ESM não são cópias dos valores, mas **vínculos vivos (live bindings)**. Quando o módulo de origem altera o valor de uma variável exportada através de uma função interna, todos os módulos que a importaram observam o novo valor imediatamente. Contudo, o arquivo que importa o valor **não pode reatribuí-lo diretamente** — variáveis importadas comportam-se como constantes (*read-only bindings*).
-
-```js title="esm-live-bindings/counter.js"
-console.log("Módulo counter.js executado"); // Exibido apenas UMA vez ao iniciar
-
-export let count = 0;
-
-export function increment() {
-  count++;
-}
+```js title="Import estático dentro de um bloco"
+// SyntaxError: import declarations may only appear at top level of a module.
+// if (needsCalculation) {
+//   import { sum } from './lib.js';
+// }
 ```
 
-```js title="esm-live-bindings/main.js"
-import { count, increment } from './counter.js';
-import { count as countRef } from './counter.js';
+## Avaliação única e vínculos vivos (Live Bindings)
 
-console.log(count); // 0
-increment();
-console.log(count);    // 1 (vínculo vivo: reflete a mutação feita por increment())
-console.log(countRef); // 1 (compartilha a mesma referência do módulo)
+Dois comportamentos fundamentais caracterizam a execução dos ES Modules e explicam por que um
+módulo pode guardar estado compartilhado por toda a aplicação.
 
-// Tentativa de alterar a variável importada diretamente:
-// count = 10; // TypeError: Assignment to constant variable.
+### Avaliação única (*Singleton Evaluation*)
+
+Um módulo é executado **apenas uma única vez**, na primeira oportunidade em que é importado. Se
+vários arquivos da aplicação importarem o mesmo módulo, o código do topo roda somente na
+primeira vez e o resultado fica em cache para todas as importações seguintes.
+
+O exemplo desta seção usa dois arquivos, o módulo que guarda o estado e o arquivo que o consome:
+
+<FileTree>
+{`
+  esm-live-bindings/
+  ├── counter.js      exporta a variável count e a função increment
+  ├── main.js         importa o módulo duas vezes
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
+
+O módulo a seguir imprime uma mensagem no topo justamente para tornar esse momento visível:
+
+<SourceCode path="examples/courses/ecmascript/modules/esm-live-bindings/counter.js" title="esm-live-bindings/counter.js" />
+
+Como a variável `count` vive no escopo do módulo e não é recriada a cada importação, ela se
+comporta como um estado único compartilhado por todos os arquivos que a importam.
+
+### Vínculos vivos (*Live Bindings*)
+
+As exportações em ESM não são cópias dos valores, mas **vínculos vivos (live bindings)**. Quando
+o módulo de origem altera o valor de uma variável exportada através de uma função interna, todos
+os módulos que a importaram observam o novo valor imediatamente.
+
+O arquivo abaixo importa `count` duas vezes, chama `increment()` e lê novamente as duas
+referências:
+
+<SourceCode path="examples/courses/ecmascript/modules/esm-live-bindings/main.js" title="esm-live-bindings/main.js" />
+
+A execução confirma tanto a avaliação única (a mensagem do módulo aparece uma só vez, apesar das
+duas importações) quanto o vínculo vivo:
+
+```bash title="Terminal"
+node main.js
+```
+
+```txt title="Output"
+Modulo counter.js executado
+0
+1
+1
+```
+
+O caminho inverso, porém, é bloqueado: o arquivo que importa o valor **não pode reatribuí-lo**,
+já que variáveis importadas se comportam como constantes (*read-only bindings*).
+
+```js title="Reatribuir uma importação é bloqueado"
+// TypeError: Assignment to constant variable.
+// count = 10;
 ```
 
 ## Resolução de módulos e regras no Node.js
@@ -366,22 +459,41 @@ Ao importar um módulo no Node.js, o formato do caminho especificado indica a es
 - **Especificador relativo**: Começa obrigatoriamente com `./` ou `../` e indica o caminho para um arquivo local do projeto.
 - **Especificador de pacote**: Não possui `./` ou `../`. O Node.js busca a biblioteca dentro da pasta `node_modules`.
 
-```js title="esm-npm/main.js"
-import MathLib, { sum as add } from './lib.js'; // Arquivo relativo local
-import { sqrt } from 'mathjs'; // Pacote instalado via npm
+O diagrama a seguir mostra a decisão que o Node.js toma a partir do texto do especificador:
 
-console.log(add(2, 1)); // 3
-console.log(sqrt(4)); // 2
-```
+<Mermaid title="Resolução de um especificador de import no Node.js">
+{`
+flowchart TD
+  A["import X from 'especificador'"] --> B{"Começa com ./ ou ../ ?"}
+  B -- "sim" --> C["Especificador relativo:<br/>arquivo do próprio projeto"]
+  C --> D["Extensão obrigatória<br/>./lib.js"]
+  B -- "não" --> E["Especificador de pacote:<br/>biblioteca instalada"]
+  E --> F["Procura em node_modules,<br/>subindo os diretórios"]
+`}
+</Mermaid>
+
+O exemplo desta seção parte de uma pasta com os arquivos de código e nada instalado ainda:
+
+<FileTree>
+{`
+  esm-npm/
+  ├── .gitignore      mantém node_modules fora do Git
+  ├── lib.js          biblioteca local do projeto
+  ├── main.js         importa o arquivo local e o pacote mathjs
+  └── package.json    marca a pasta como ES Modules
+`}
+</FileTree>
+
+O arquivo principal combina os dois casos, importando a biblioteca local e o pacote `mathjs`:
+
+<SourceCode path="examples/courses/ecmascript/modules/esm-npm/main.js" title="esm-npm/main.js" />
 
 Para utilizar pacotes da comunidade como `mathjs`, é necessário instalá-los através de um gerenciador de pacotes. O **npm** é o gerenciador padrão que acompanha o Node.js, mas também é muito comum utilizar alternativas como o **pnpm** (que otimiza o uso de espaço em disco e o tempo de instalação através de *hard links*) ou o **Yarn**.
 
-Antes da instalação, o `package.json` possui a configuração básica do projeto:
+Antes da instalação, o `package.json` possui apenas a configuração básica do projeto:
 
 ```json title="package.json (antes da instalação)"
 {
-  "name": "meu-projeto",
-  "private": true,
   "type": "module"
 }
 ```
@@ -390,39 +502,51 @@ No terminal, execute o comando de instalação do pacote de acordo com o gerenci
 
 <PackageManagerTabs package="mathjs" />
 
-Após a instalação, o npm atualiza automaticamente o `package.json`, adicionando a seção `"dependencies"` com o pacote baixado:
+Após a instalação, o gerenciador atualiza automaticamente o `package.json`, adicionando a seção `"dependencies"` com o pacote baixado:
 
-```json title="package.json (depois da instalação)" ins={5-7}
+```json title="package.json (depois da instalação)" ins={3-5}
 {
-  "name": "meu-projeto",
-  "private": true,
   "type": "module",
   "dependencies": {
-    "mathjs": "^14.0.1"
+    "mathjs": "^11.7.0"
   }
 }
 ```
 
 ### Versionamento semântico (SemVer)
 
-Ao instalar um pacote, o npm especifica sua versão no `package.json` utilizando o padrão **Semantic Versioning (SemVer)**. Uma versão no formato `MAJOR.MINOR.PATCH` (ex: `14.0.1`) é dividida em três números:
+Ao instalar um pacote, o npm especifica sua versão no `package.json` utilizando o padrão **Semantic Versioning (SemVer)**. Uma versão no formato `MAJOR.MINOR.PATCH` (ex: `11.7.0`) é dividida em três números:
 
-- **MAJOR (`14`)**: Mudanças incompatíveis que podem quebrar o código existente (*breaking changes*).
-- **MINOR (`0`)**: Adição de novas funcionalidades mantendo a compatibilidade retroativa.
-- **PATCH (`1`)**: Correção de *bugs* mantendo a compatibilidade retroativa.
+- **MAJOR (`11`)**: Mudanças incompatíveis que podem quebrar o código existente (*breaking changes*).
+- **MINOR (`7`)**: Adição de novas funcionalidades mantendo a compatibilidade retroativa.
+- **PATCH (`0`)**: Correção de *bugs* mantendo a compatibilidade retroativa.
 
 Os prefixos antes da versão indicam as regras de atualização automática aceitas pelo projeto:
 
 | Prefixo | Exemplo | Descrição de atualização |
 | :--- | :--- | :--- |
-| `^` (caret) | `"^14.0.1"` | Permite atualizações **MINOR** e **PATCH** (ex: `< 15.0.0`). É o padrão do npm. |
-| `~` (tilde) | `"~14.0.1"` | Permite apenas atualizações de **PATCH** (ex: `< 14.1.0`). |
-| Nenhum | `"14.0.1"` | Trava a dependência na versão **exata** especificada. |
+| `^` (caret) | `"^11.7.0"` | Permite atualizações **MINOR** e **PATCH** (ex: `< 12.0.0`). É o padrão do npm. |
+| `~` (tilde) | `"~11.7.0"` | Permite apenas atualizações de **PATCH** (ex: `< 11.8.0`). |
+| Nenhum | `"11.7.0"` | Trava a dependência na versão **exata** especificada. |
 
 Além de modificar o `package.json`, a instalação realiza outras duas ações essenciais:
 
 1. **Arquivo de trava (`package-lock.json`, `pnpm-lock.yaml` ou `yarn.lock`)**: Registra as versões exatas de toda a árvore de dependências para garantir instalações idênticas em diferentes ambientes.
 2. **`node_modules/`**: Cria a pasta onde o Node.js armazena o código-fonte do pacote baixado e de suas subdependências.
+
+Comparada com a árvore mostrada antes da instalação, a mesma pasta ganha duas entradas, ambas destacadas abaixo:
+
+<FileTree>
+{`
+  esm-npm/
+  ├── .gitignore              mantém node_modules fora do Git
+  ├── **node_modules/**       código do mathjs e de suas subdependências
+  ├── lib.js
+  ├── main.js
+  ├── **package-lock.json**   versões exatas de toda a árvore
+  └── package.json            agora com a seção dependencies
+`}
+</FileTree>
 
 <Aside type="caution" title="Adicione node_modules no .gitignore">
   A pasta `node_modules/` pode ter um tamanho considerável e **nunca** deve ser enviada para o controle de versão (Git). Inclua `node_modules/` no seu arquivo `.gitignore`:
@@ -434,107 +558,61 @@ Além de modificar o `package.json`, a instalação realiza outras duas ações 
   Para regenerar a pasta `node_modules/` em um repositório clonado ou em um servidor de produção, basta executar o comando de instalação (`npm install`, `pnpm install` ou `yarn install`) no terminal. O gerenciador utilizará o `package.json` e o arquivo de trava para baixar novamente todas as dependências do projeto.
 </Aside>
 
-## CommonJS e ESM lado a lado (LP2)
+## Resumo e Boas Práticas
 
-A mesma biblioteca escrita nos dois sistemas de módulos, exportando uma função e
-depois várias, para comparar as sintaxes diretamente.
+Esta seção consolida as decisões práticas do tópico. Use-a como referência rápida para escolher o sistema de módulos, a forma de exportação e a configuração do projeto.
 
-- [Common Javascript - CJS](https://nodejs.org/api/modules.html)
-- [ECMAScript Modules - ESM](https://nodejs.org/api/esm.html)
+### Escolha do sistema de módulos
 
-### Cenários
+Projetos novos nascem em ESM; o CommonJS aparece quando é preciso manter código legado.
 
-<SourceCode path="examples/courses/ecmascript/modules/function-sum/index.js" />
+- Adote **ES Modules** em qualquer projeto novo, no servidor ou no navegador, declarando `"type": "module"` no `package.json`.
+- Reserve **CommonJS** para manutenção de projetos antigos e para bibliotecas que ainda não publicaram uma versão ESM.
+- Não misture os dois sistemas no mesmo arquivo: `require()` não existe dentro de um módulo ES.
 
-```txt
-src
-├── lib.js
-└── main.js
-```
-
-|     | Uma Função | Várias Funções |
-| --- | ---------- | -------------- |
-| CJS | 1.1        | 2.1            |
-| ESM | 1.2        | 2.2            |
-
-### Cenário 1.1 - Uma função no CJS
-
-<SourceCode path="examples/courses/ecmascript/modules/cjs-default/lib.js" />
-
-<SourceCode path="examples/courses/ecmascript/modules/cjs-default/main.js" />
-
-### Cenário 1.2 - Uma função no ESM
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-default/lib.js" />
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-default/main.js" />
-
-**Warning:** To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-default/package.json" />
-
-### Cenário 2.1 - Várias funções no CJS
-
-<SourceCode path="examples/courses/ecmascript/modules/cjs-named/lib.js" />
-
-<SourceCode path="examples/courses/ecmascript/modules/cjs-named/main.js" />
-
-### Cenário 2.2 - Várias funções no ESM
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-named/lib.js" />
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-named/main.js" />
-
-### Resumo dos Cenários
+A tabela a seguir resume, lado a lado, a sintaxe equivalente nos dois sistemas:
 
 | Cenário | CommonJS | ES Modules |
-| ------- | -------- | ---------- |
-| **Uma função** | `module.exports = sum` / `const sum = require('./lib')` | `export default sum` / `import sum from './lib'` |
-| **Várias funções** | `module.exports = { sum, minus }` / `const { sum, minus } = require('./lib')` | `export { sum, minus }` / `import { sum, minus } from './lib'` |
+| :--- | :--- | :--- |
+| **Uma função** | `module.exports = sum` / `const sum = require('./lib.js')` | `export default sum` / `import sum from './lib.js'` |
+| **Várias funções** | `module.exports = { sum, subtract }` / `const { sum } = require('./lib.js')` | `export { sum, subtract }` / `import { sum } from './lib.js'` |
+| **Módulo inteiro** | `const Lib = require('./lib.js')` | `import * as Lib from './lib.js'` |
 
-```js title="CJS: exportando e importando"
-// lib.js — uma função
-module.exports = sum;
-// main.js
-const sum = require('./lib');
+### Exportações e importações
 
-// lib.js — várias funções
-module.exports = { sum, minus };
-// main.js
-const { sum, minus } = require('./lib');
-```
+Deixe explícito o que é público e mantenha o restante do arquivo privado.
 
-```js title="ESM: exportando e importando"
-// lib.js — uma função
-export default sum;
-// main.js
-import sum from './lib.js';
+- Prefira *named exports* para conjuntos de utilitários: eles permitem verificação estática de nomes e importações seletivas.
+- Reserve o *export default* para o valor principal do módulo, e nunca declare mais de um por arquivo.
+- Use `as` para resolver conflitos de nomes em vez de renomear a exportação de origem.
+- Recorra a `await import()` apenas quando o carregamento precisar ser condicional ou adiado; o `import` estático continua sendo o padrão.
 
-// lib.js — várias funções
-export { sum, minus };
-// main.js
-import { sum, minus } from './lib.js';
-```
+### Configuração e dependências
 
-### Named e Default
+Trate o `package.json` e o arquivo de trava como parte do código do projeto.
 
-<SourceCode path="examples/courses/ecmascript/modules/esm-default-named/lib.js" />
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-default-named/main.js" />
-
-### NPM
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-npm/lib.js" />
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-npm/main.js" />
-
-<PackageManagerTabs package="mathjs" />
-
-<SourceCode path="examples/courses/ecmascript/modules/esm-npm/package.json" />
+- Sempre informe a extensão do arquivo (`./lib.js`) em especificadores relativos no Node.js.
+- Versione o `package.json` e o arquivo de trava, e mantenha `node_modules/` no `.gitignore`.
+- Entenda o prefixo da versão antes de atualizar dependências: `^` libera MINOR e PATCH, `~` libera apenas PATCH e a versão sem prefixo trava a dependência.
 
 ## Executando
 
 Você pode testar a criação de módulos ES locais e a importação de pacotes externos instalados via npm.
+
+Ao final dos passos abaixo, a pasta do projeto terá duas entradas escritas por você e três geradas pela instalação do pacote:
+
+<FileTree>
+{`
+  modulo-demo/
+  ├── node_modules/       gerado pela instalação do mathjs
+  ├── index.js            arquivo principal, escrito no passo 4
+  ├── math.js             módulo local, escrito no passo 3
+  ├── package-lock.json   gerado pela instalação do mathjs
+  └── package.json        gerado no passo 1 e atualizado pela instalação
+`}
+</FileTree>
+
+Os passos a seguir criam cada uma dessas entradas, na ordem:
 
 <Steps>
 
@@ -748,9 +826,27 @@ Crie uma aplicação com carregamento condicional e dinâmico de módulos:
   Utiliza-se a função de import dinâmico `import('caminho.js')`, que retorna uma `Promise` que resolve para o objeto de namespace do módulo (podendo ser consumida com `await import()`).
 </details>
 
+### Execução e vínculos vivos
+
+**9. Quantas vezes o código do topo de um módulo é executado quando ele é importado por vários arquivos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Apenas uma vez. O módulo é avaliado na primeira importação e o resultado fica em cache para todas as importações seguintes, o que faz suas variáveis funcionarem como estado compartilhado.
+</details>
+
+**10. O que é um vínculo vivo (*live binding*) e por que não é possível reatribuir uma variável importada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A importação aponta para a variável do módulo de origem, e não para uma cópia do valor: alterações feitas lá dentro passam a ser visíveis imediatamente. A reatribuição no arquivo que importa é bloqueada com `TypeError` porque as importações se comportam como constantes (*read-only bindings*).
+</details>
+
 ### Resolução e Configuração
 
-**9. O que diferencia um especificador de arquivo relativo de um especificador de pacote npm?**
+**11. O que diferencia um especificador de arquivo relativo de um especificador de pacote npm?**
 
 <details>
   <summary>Possível resposta</summary>
@@ -758,7 +854,7 @@ Crie uma aplicação com carregamento condicional e dinâmico de módulos:
   Especificadores relativos começam obrigatoriamente com `./` ou `../` para indicar arquivos locais. Especificadores de pacote não contêm `./` e são buscados pelo Node.js dentro do diretório `node_modules`.
 </details>
 
-**10. Qual configuração é necessária no `package.json` para habilitar ES Modules em um projeto Node.js?**
+**12. Qual configuração é necessária no `package.json` para habilitar ES Modules em um projeto Node.js?**
 
 <details>
   <summary>Possível resposta</summary>
@@ -766,15 +862,17 @@ Crie uma aplicação com carregamento condicional e dinâmico de módulos:
   Incluir a propriedade `"type": "module"` no arquivo `package.json`.
 </details>
 
-**11. O que significam os três números e o símbolo `^` na versão `"^14.0.1"` de um pacote no `package.json` (SemVer)?**
+**13. O que significam os três números e o símbolo `^` na versão `"^11.7.0"` de um pacote no `package.json` (SemVer)?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  No SemVer (`MAJOR.MINOR.PATCH`), `14` é a versão MAJOR (mudanças que quebram código), `0` é a MINOR (novas funcionalidades retrocompatíveis) e `1` é a PATCH (correções de bugs). O símbolo `^` (caret) permite atualizar automaticamente para versões MINOR e PATCH mais recentes, bloqueando alterações na versão MAJOR.
+  No SemVer (`MAJOR.MINOR.PATCH`), `11` é a versão MAJOR (mudanças que quebram código), `7` é a MINOR (novas funcionalidades retrocompatíveis) e `0` é a PATCH (correções de bugs). O símbolo `^` (caret) permite atualizar automaticamente para versões MINOR e PATCH mais recentes, bloqueando alterações na versão MAJOR.
 </details>
 
 ## Referências
+
+As referências abaixo complementam a explicação da página com a documentação oficial dos recursos usados nos exemplos:
 
 - Guia de Módulos na MDN:
   - [JavaScript modules | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)
@@ -782,6 +880,7 @@ Crie uma aplicação com carregamento condicional e dinâmico de módulos:
   - [`export` statement | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export)
   - [`import()` dynamic import | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import)
 - Documentação do Node.js:
+  - [Node.js Modules: CommonJS modules](https://nodejs.org/api/modules.html)
   - [Node.js Modules: ECMAScript modules](https://nodejs.org/api/esm.html)
 - Versionamento Semântico:
   - [Semantic Versioning 2.0.0 (SemVer)](https://semver.org/lang/pt-BR/)

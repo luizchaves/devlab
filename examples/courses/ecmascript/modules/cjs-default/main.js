@@ -1,3 +1,4 @@
-const sum = require('./lib.js');
+// O nome local e livre: require() devolve o valor exportado
+const add = require('./lib.js');
 
-console.log(sum(2, 1)); //=> 3
+console.log(add(2, 1)); //=> 3

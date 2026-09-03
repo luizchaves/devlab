@@ -1,9 +1,14 @@
-function sum(a, b) {
+// A palavra-chave export prefixa qualquer forma de declaracao
+export function sum(a, b) {
   return a + b;
 }
 
-function minus(a, b) {
+export const subtract = function (a, b) {
   return a - b;
-}
+};
 
-export { minus, sum };
+export const multiply = (a, b) => {
+  return a * b;
+};
+
+export const divide = (a, b) => a / b;

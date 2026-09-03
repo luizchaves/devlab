@@ -47,7 +47,7 @@ Dominar a modularização moderna em JavaScript com ES Modules no Node.js e nave
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
 - Isolamento de Escopo e Necessidade de Módulos
 - Sistemas de Módulos: CommonJS (CJS) vs ES Modules (ESM)
@@ -79,7 +79,7 @@ console.log(sum(2, 1));
 // ReferenceError: sum is not defined
 ```
 
-- Para compartilhar valores e lógicas entre arquivos, é obrigatório **exportar** na origem e **importar** no destino.
+Para compartilhar valores e lógicas entre arquivos, é obrigatório **exportar** na origem e **importar** no destino.
 
 ---
 
@@ -134,7 +134,7 @@ console.log(add(2, 1));      // 3
 console.log(subtract(2, 1)); // 1
 ```
 
-- Permite exportar múltiplos membros em um único objeto exportado.
+Um único `module.exports` com um objeto expõe vários membros de uma vez.
 
 ---
 
@@ -184,7 +184,7 @@ console.log(multiply(3, 4)); // 12
 console.log(mult(2, 5));     // 10
 ```
 
-- **Atenção**: Importar default com `{ multiply }` falha com `SyntaxError`, pois busca um named export inexistente.
+**Atenção**: importar o default com `{ multiply }` falha com `SyntaxError`, pois busca um named export inexistente.
 
 ---
 
@@ -246,7 +246,7 @@ if (shouldLoad) {
 }
 ```
 
-- **Dica**: No import dinâmico, renomeie `default` como `{ default: Alias }`, pois `default` é palavra reservada da linguagem.
+**Dica**: no import dinâmico, renomeie `default` como `{ default: Alias }`, pois `default` é palavra reservada da linguagem.
 
 ---
 
@@ -312,7 +312,7 @@ Instalação com gerenciador de pacotes:
 npm install mathjs
 ```
 
-- A pasta `node_modules/` **nunca** vai para o Git (deve estar listada no `.gitignore`).
+A pasta `node_modules/` **nunca** vai para o Git (deve estar listada no `.gitignore`).
 
 ---
 
@@ -399,7 +399,7 @@ if (enableAdvanced) {
 
 ---
 
-## Resumo da Aula
+## Resumo do Tópico
 
 - **Escopo Isolado**: arquivos são módulos privados por definição.
 - **Padrão Moderno**: ESM (`import`/`export`) é o padrão oficial do JavaScript.
