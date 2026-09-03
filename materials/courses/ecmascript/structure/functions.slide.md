@@ -149,23 +149,24 @@ console.log(calculator.createArrow()(5)); // 10
 
 ## Retorno Padrão e Cláusulas de Guarda
 
-Toda função sem `return` explícito devolve `undefined`. Interrompa fluxos com retornos antecipados:
+Toda função sem `return` devolve `undefined`. Interrompa fluxos cedo com cláusulas de guarda:
 
 ```js
-// 1. Retorno padrão é undefined
-function greet(name) {
-  console.log(`Olá, ${name}`);
-}
-console.log(greet("DevLab")); // undefined
+// 1. Sem return: devolve undefined (gera NaN em cálculos seguintes)
+function showPower(base, exp) { console.log(base ** exp); }
+const res = showPower(2, 3); // Imprime 8
+console.log(res);            // undefined
+console.log(res * 2);        // NaN (undefined * 2)
 
-// 2. Guard Clause: evita aninhamentos desnecessários de if/else
+// 2. Com return explícito: reutilizável em expressões
+function calcPower(base, exp) { return base ** exp; }
+console.log(calcPower(2, 3) * 2); // 16
+
+// 3. Guard Clause: encerramento antecipado do fluxo
 function checkAge(age) {
   if (age < 18) return "menor de idade";
   return "maior de idade";
 }
-
-console.log(checkAge(16)); // "menor de idade"
-console.log(checkAge(21)); // "maior de idade"
 ```
 
 ---
@@ -203,10 +204,10 @@ function calc(n) { return n + 1; }
 function calc(n, m) { return n + m; } // Sobrescreve calc(n)!
 console.log(calc(5)); // NaN (5 + undefined)
 
-function sum(a, b) { return a + b; }
-function Sum(a, b) { return a * b; }
-console.log(sum(2, 3)); // 5
-console.log(Sum(2, 3)); // 6
+function power(a, b) { return a ** b; }
+function Power(a, b) { return Math.pow(a, b); }
+console.log(power(2, 3)); // 8
+console.log(Power(2, 3)); // 8 (identificador independente)
 ```
 
 ---
@@ -239,15 +240,17 @@ console.log(logEvent("Login")); // "[2026-09-02T...] Login"
 Capturam os argumentos restantes e os agrupam em uma instância legítima de `Array`:
 
 ```js
-function sumAll(multiplier, ...numbers) {
-  // 'numbers' é um Array real com suporte a reduce, map, filter
-  const sum = numbers.reduce((total, n) => total + n, 0);
-  return multiplier * sum;
+// 1. Coleta todos os argumentos em um Array real
+function sumAll(...numbers) {
+  return numbers.reduce((total, n) => total + n, 0);
 }
+console.log(sumAll(1, 2, 3)); // 6
 
-console.log(sumAll(2));             // 0
-console.log(sumAll(2, 1, 2, 3));    // 12 (2 * 6)
-console.log(sumAll(10, 5, 5, 5, 5));// 200 (10 * 20)
+// 2. Parâmetro posicional fixo seguido de rest
+function scaleSum(factor, ...numbers) {
+  return factor * sumAll(...numbers);
+}
+console.log(scaleSum(2, 1, 2, 3)); // 12 (fator 2 * soma 6)
 
 // Rest deve ser obrigatoriamente o último parâmetro:
 // function invalid(...nums, last) {} // SyntaxError!
@@ -280,22 +283,21 @@ const arrow = () => typeof arguments; // "undefined" (no navegador)
 
 ## Desestruturação em Parâmetros
 
-Extraia propriedades de objetos ou arrays na própria assinatura com valor padrão `= {}`:
+Extraia propriedades diretamente na assinatura com fallbacks seguros:
 
 ```js
-// Sempre inclua o fallback '= {}' para evitar TypeError se nada for passado
-function createUser({ name = "Anônimo", role = "user", active = true } = {}) {
-  return `${name} (${role}) - Ativo: ${active}`;
+// Desestruturação direta de propriedades
+function formatUser({ name, role }) { return `${name} (${role})`; }
+console.log(formatUser({ name: "Maria", role: "admin" })); // "Maria (admin)"
+
+// Propriedades padrão e fallback de objeto completo '= {}'
+function createUser({ name = "Anônimo", role = "user" } = {}) {
+  return `${name} (${role})`;
 }
 
-console.log(createUser({ name: "Alice", role: "admin" }));
-// "Alice (admin) - Ativo: true"
-
-console.log(createUser({ name: "Bob", active: false }));
-// "Bob (user) - Ativo: false"
-
-console.log(createUser());
-// "Anônimo (user) - Ativo: true"
+console.log(createUser({ name: "Bob", role: "editor" })); // "Bob (editor)"
+console.log(createUser({ name: "Alice" }));              // "Alice (user)"
+console.log(createUser());                               // "Anônimo (user)"
 ```
 
 ---

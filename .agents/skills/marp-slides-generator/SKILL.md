@@ -228,12 +228,14 @@ operação, prefira uma tabela curta quando ela ficar mais clara que setas em AS
 diagrama ASCII apenas quando a forma espacial ajudar de verdade; se o desenho parecer
 improvisado, troque por tabela ou divida a explicação em slides menores.
 
-Em slides de código, a melhor composição costuma ser:
-
 - título curto e focado;
 - **1 frase descritiva contextualizando a regra ou o que observar** (evite slides vazios contendo apenas título e código solto; inclua sempre uma linha de introdução antes do bloco de código quando não houver risco de overflow);
 - bloco de código legível com dados essenciais;
-- comentários curtos no próprio código mostrando saída esperada (`// output`), efeito ou decisão importante.
+- comentários curtos no próprio código mostrando saída esperada (`// output`), efeito ou decisão importante;
+- **Consistência e fidelidade semântica nos exemplos de código**:
+  - Todo identificador (função, variável, parâmetro) deve refletir fielmente o que o código executa.
+  - **Nunca distorça a operação da função apenas para criar um exemplo diferente ou artificial**: uma função chamada `sum` ou `sumAll` **nunca** deve multiplicar (`a * b` ou `sum * multiplier`), subtrair ou executar lógica contraditória ao seu nome. Se a função multiplica a soma por um fator, nomeie-a semanticamente como `scaleSum(factor, ...numbers)` ou `multiplySum(multiplier, ...numbers)`.
+  - Ao demonstrar *case sensitivity*, sobreposição de escopo ou variações sintáticas, utilize implementações válidas do domínio (por exemplo: `power(base, exp) { return base ** exp; }` vs `Power(base, exp) { return Math.pow(base, exp); }`, onde ambas mantêm a semântica de cálculo de potência).
 
 ---
 

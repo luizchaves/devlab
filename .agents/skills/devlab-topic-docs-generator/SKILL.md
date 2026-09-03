@@ -319,6 +319,16 @@ e nomear explicitamente o que o leitor observará ("O exemplo a seguir demonstra
    - **Etapa 2 (Aprofundamento)**: Apresente as variações ou extensões sintáticas (ex: renomeação de variáveis, valores padrão, operador rest) em parágrafo próprio, sucedido pelo exemplo prático correspondente.
 3. **Coerência entre explicação e exemplo**: Não mencione recursos avançados em um parágrafo introdutório se o bloco de código logo abaixo demonstra apenas a forma básica. Mantenha cada explicação estritamente conectada ao trecho visual ou executável apresentado.
 
+### 🎯 Consistência e fidelidade semântica nos exemplos de código
+
+**Todo código de exemplo, identificador, função ou variável deve possuir semântica real e coerente com seu propósito no domínio:**
+
+1. **Nunca distorça o comportamento da função apenas para gerar um exemplo artificial ou diferente**: uma função chamada `sum` ou `sumAll` **nunca** deve multiplicar (`a * b` ou `sum * multiplier`), subtrair ou realizar ações incoerentes com seu nome. Se a função multiplica a soma por um fator, nomeie-a de forma clara e semântica, como `scaleSum(factor, ...numbers)` ou `multiplySum(multiplier, ...numbers)`.
+2. **Demonstrações de *case sensitivity* ou sobreposição de escopo**: utilize implementações válidas e semânticas no domínio. Por exemplo:
+   - `function power(base, exponent) { return base ** exponent; }` vs `function Power(base, exponent) { return Math.pow(base, exponent); }` (ambas calculam potência de formas válidas, mantendo fidelidade semântica ao nome enquanto provam que identificadores com caixas diferentes são símbolos distintos no interpretador).
+   - Ou `function multiply(a, b) { return a * b; }` vs `function Multiply(a, b) { ... }`.
+3. **Nomes de parâmetros e variáveis descritivos**: utilize nomes que indiquem seu papel no cálculo (`base, exponent` ou `factor, multiplier` em vez de identificadores genéricos como `param1, param`).
+
 ### 🚫 Proibição de travessões (`—`) para orações intercaladas e apostos
 
 **Não utilize travessões (`— ... —` ou `—`) para isolar orações intercaladas, apostos explicativos, exemplos ou comentários.** O uso de travessões no meio de períodos é considerado um antipadrão e vício de escrita gerada por IA.
