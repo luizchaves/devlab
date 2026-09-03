@@ -68,10 +68,12 @@ Todos os números do tipo primitivo `number` utilizam o padrão internacional **
 ```js
 const integer = 42;
 const decimal = 49.90;
+const negative = -1250.75;
 const scientific = 2.5e6; // 2.500.000
 
 console.log(typeof integer);    // "number"
 console.log(typeof decimal);    // "number"
+console.log(typeof negative);   // "number"
 console.log(typeof scientific); // "number"
 ```
 
