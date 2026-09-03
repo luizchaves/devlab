@@ -48,7 +48,7 @@ Compreender o tipo de dado Number, limites de precisão e utilitários matemáti
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
 - Representação Numérica e Padrão IEEE 754
 - Bases Numéricas, Literais e Separador `_`
@@ -75,7 +75,7 @@ console.log(typeof decimal);    // "number"
 console.log(typeof scientific); // "number"
 ```
 
-- Evite `new Number(42)`: instancia um objeto *wrapper* na memória Heap (`typeof new Number` vira `"object"`).
+Evite `new Number(42)`: instancia um objeto *wrapper* na memória Heap (`typeof new Number` vira `"object"`).
 
 ---
 
@@ -424,7 +424,7 @@ console.log(generateInvoice(1500, 8.5, 100));
 
 ---
 
-## Resumo da Aula
+## Resumo do Tópico
 
 - **IEEE 754 (64-bit)**: tipo `number` unifica inteiros e ponto flutuante.
 - **Limites e BigInt**: inteiros seguros até $2^{53} - 1$; use `BigInt` (`123n`) acima disso.
