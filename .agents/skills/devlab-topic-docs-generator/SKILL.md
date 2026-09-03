@@ -443,6 +443,25 @@ Configuração em `ec.config.mjs`. Convenções em uso:
   1. **Via `<HtmlPreview path="examples/..." />`**: para mostrar o resultado vivo renderizado pelo navegador a partir de arquivos reais em `examples/`.
   2. **Via ` ```txt title="Resultado na tela" ` ou comentários explicativos**: para demonstrar/descrever exatamente como o elemento é desenhado no navegador (dimensões finais, alinhamento ou efeito visual).
 - Saída de execução de terminal ou navegador: ` ```txt title="Output" ` ou ` ```txt title="Resultado na tela" `.
+- **Nunca mostre a saída sem o comando que a produziu**: todo ` ```txt title="Output" ` deve vir
+  imediatamente depois do ` ```bash title="Terminal" ` que o gerou, mesmo quando o comando já foi
+  citado na prosa. O leitor precisa ver o par completo (comando e resultado) para reproduzir o
+  exemplo:
+
+  ````mdx
+  ```bash title="Terminal"
+  node main.js
+  ```
+
+  ```txt title="Output"
+  ReferenceError: sum is not defined
+  ```
+  ````
+- **Mostre a árvore de diretórios com `<FileTree>` sempre que o exemplo envolver mais de um
+  arquivo**: antes de exibir os `<SourceCode>` de uma pasta, apresente a estrutura para o leitor
+  saber quantos arquivos existem e qual é o papel de cada um. Use o comentário depois do nome
+  para dizer o papel do arquivo, e inclua também o que é gerado por ferramentas
+  (`node_modules/`, arquivos de trava) quando isso fizer parte da explicação.
 - Recursos disponíveis quando ajudarem: `{3}` / `{1-5}` (destaque de linhas),
   `showLineNumbers`, `mark="…"`, `ins` / `del`, `collapse={2-8}`, `wrap`.
 - Comentários dentro do código explicam entrada → transformação → saída, e o
@@ -561,3 +580,8 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 21. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
 22. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
 23. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
+24. **Saída sem comando**: um ` ```txt title="Output" ` solto, sem o ` ```bash title="Terminal" `
+    logo acima mostrando o comando que produziu aquele resultado.
+25. **Vários arquivos sem árvore**: exibir dois ou mais `<SourceCode>` da mesma pasta sem antes
+    apresentar a estrutura em `<FileTree>`, deixando o leitor sem noção de quantos arquivos
+    existem e do papel de cada um.

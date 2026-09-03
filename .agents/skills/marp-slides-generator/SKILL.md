@@ -321,6 +321,23 @@ perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
 - **Pontuação obrigatória em perguntas**: Em slides de `## Perguntas de revisão` e em qualquer questionamento didático, **toda pergunta DEVE terminar com ponto de interrogação (`?`)**. Nunca deixe perguntas sem interrogação ou com ponto final.
 - Blocos de código com ` ```js ` (não `javascript`); os demais: `html`, `css`, `bash`,
   `json`, `txt`.
+- **Nunca um bullet solitário**: uma lista de um item só não é lista, é um parágrafo com
+  marcador. Só abra lista quando houver **dois ou mais** itens no mesmo nível. O caso mais
+  comum é a observação final largada depois de um bloco de código: escreva-a como parágrafo
+  (com o rótulo em **negrito** quando for alerta ou dica) ou acrescente o segundo item que
+  faltava. Vale para listas com marcador e numeradas.
+
+  Errado:
+
+  ```markdown
+  - **Atenção**: importar o default com `{ nome }` falha com `SyntaxError`.
+  ```
+
+  Certo:
+
+  ```markdown
+  **Atenção**: importar o default com `{ nome }` falha com `SyntaxError`.
+  ```
 - Evite emojis nos slides. Eles raramente ajudam na leitura técnica e criam ruído visual.
 - Não escreva "abaixo" no texto do slide; prefira "a seguir", "no próximo exemplo",
   "neste trecho" ou uma referência concreta como "na linha 12".
@@ -410,3 +427,5 @@ Ao atualizar regras ou templates nesta skill:
     Se código, tabela ou bullets ficarem próximos da paginação, separe por subtipo ou
     corte ruído.
 20. **Pergunta sem ponto de interrogação**: omitir o ponto de interrogação (`?`) ao final dos itens em slides de `## Perguntas de revisão` ou em questionamentos conceituais.
+21. **Bullet solitário**: lista de um único item, quase sempre a observação final solta depois
+    de um bloco de código. Transforme em parágrafo ou acrescente o segundo item.
