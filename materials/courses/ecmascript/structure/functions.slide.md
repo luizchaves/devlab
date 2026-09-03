@@ -527,6 +527,7 @@ console.log(tracker(30));                                 // 180
 - O que é uma **closure** e qual problema ela resolve?
 - Como o `this` em Arrow Functions se diferencia de funções tradicionais?
 - Qual a diferença prática entre `call()`, `apply()` e `bind()`?
+- O que o método `.next()` devolve ao ser chamado em um objeto Generator?
 
 ---
 
