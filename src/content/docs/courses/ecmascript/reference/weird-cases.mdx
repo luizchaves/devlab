@@ -5,31 +5,24 @@ course: ecmascript
 sidebar:
   label: 'Casos "Bizarros"'
 ---
-
 import { Aside, Steps } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 
+Este tópico reúne comportamentos famosos do JavaScript que parecem estranhos à primeira vista: `NaN !== NaN`, `typeof null === "object"`, `0.1 + 0.2 !== 0.3`, coerções inesperadas de tipos e comparações contraintuitivas.
+
 Materiais: [slides do tópico](../../../../slides/courses/ecmascript/reference/weird-cases/)
 
-Este tópico reúne comportamentos famosos do JavaScript que parecem errados à primeira vista:
-`NaN !== NaN`, `typeof null === "object"`, `0.1 + 0.2 !== 0.3`, coerções inesperadas e
-arrays com espaços vazios.
-
-Quase todos esses casos deixam de ser "mágica" quando você separa três temas: representação
-numérica, compatibilidade histórica e conversão implícita de tipos.
+Quase todos esses casos deixam de ser inexplicáveis quando separamos quatro fundamentos da linguagem: representação numérica sob o padrão IEEE 754, compatibilidade histórica com as primeiras versões da web, regras de conversão implícita de tipos e comparação de referências de objetos na memória.
 
 ## Objetivo
 
-Entender os principais casos estranhos do JavaScript, identificar a regra que explica cada
-um, escolher APIs mais seguras (`Number.isNaN()`, `Object.is()`, `Array.isArray()`, `===`)
-e evitar que coerções implícitas transformem entradas comuns em bugs difíceis de rastrear.
+Entender os principais casos estranhos do JavaScript, identificar a regra formal da especificação que explica cada um, escolher APIs seguras (`Number.isNaN()`, `Object.is()`, `Array.isArray()`, `===`) e evitar que coerções implícitas transformem entradas comuns em bugs difíceis de rastrear.
 
 ## Três Fontes de Estranheza
 
-Muitos exemplos virais de JavaScript misturam sintomas diferentes. Antes de decorar casos,
-é melhor classificar a origem do comportamento.
+Muitos exemplos virais de JavaScript misturam sintomas diferentes. Antes de tentar memorizar casos isolados, é mais produtivo classificar a origem de cada comportamento.
 
-O mapa abaixo organiza as causas mais frequentes:
+O mapa a seguir organiza as causas mais frequentes:
 
 <Mermaid title="De onde vêm os casos estranhos">
 {`
@@ -40,138 +33,185 @@ flowchart TD
   A --> E["Objetos e referências"]
 
   B --> B1["0.1 + 0.2"]
-  B --> B2["NaN"]
-  C --> C1["typeof null"]
-  D --> D1["=="]
+  B --> B2["NaN !== NaN"]
+  B --> B3["Math.min() > Math.max()"]
+  C --> C1["typeof null === 'object'"]
+  D --> D1["== com coerção"]
   D --> D2["+ como soma ou concatenação"]
+  D --> D3["[] + {}"]
   E --> E1["[] !== []"]
 `}
 </Mermaid>
 
+A tabela a seguir correlaciona os casos clássicos com suas respectivas origens e as alternativas recomendadas:
+
 | Caso | Resultado | Causa principal | Forma segura |
 | :--- | :--- | :--- | :--- |
-| `NaN === NaN` | `false` | Regra IEEE 754 para "não é um número" | `Number.isNaN(value)` |
-| `typeof null` | `"object"` | Compatibilidade histórica | `value === null` |
-| `0.1 + 0.2 === 0.3` | `false` | Ponto flutuante binário | Comparar com tolerância |
-| `[] === []` | `false` | Objetos são comparados por referência | Comparar conteúdo |
-| `"5" + 2` | `"52"` | `+` também concatena strings | Converter antes |
-| `"5" - 2` | `3` | `-` força conversão numérica | Converter antes |
+| `NaN === NaN` | `false` | Regra IEEE 754 para valores indefinidos | `Number.isNaN(value)` ou `Object.is()` |
+| `typeof null` | `"object"` | Legado histórico da representação em C | `value === null` |
+| `0.1 + 0.2 === 0.3` | `false` | Ponto flutuante binário de 64 bits | Comparar com `Number.EPSILON` |
+| `[] === []` | `false` | Objetos comparados por referência | Comparar propriedades ou itens |
+| `"5" + 2` | `"52"` | `+` prioriza concatenação de string | `Number("5") + 2` |
+| `"5" - 2` | `3` | `-` força conversão numérica | `Number("5") - 2` |
+| `Math.min() > Math.max()` | `true` | Retornos iniciais `Infinity` e `-Infinity` | Passar arrays válidos: `Math.min(...arr)` |
+| `[] + {}` | `"[object Object]"` | Conversão implícita para primitivo string | Não somar estruturas heterogêneas |
 
 <Aside type="tip" title="Procure a categoria antes da resposta">
-  Ao encontrar um resultado estranho, pergunte: é número decimal, herança histórica, coerção
-  automática ou comparação de referências? Essa classificação costuma revelar a regra.
+  Ao encontrar um resultado inesperado, classifique a operação: trata-se de precisão numérica binária, herança histórica de compatibilidade, coerção de tipos ou comparação de ponteiros de memória? Essa distinção revela imediatamente a regra formal aplicada pela máquina virtual.
 </Aside>
 
 ## `NaN !== NaN`
 
-`NaN` significa *Not-a-Number*, mas o próprio nome engana: o tipo de `NaN` é `number`. Ele
-representa um resultado numérico inválido, como converter texto não numérico ou calcular uma
-operação sem resultado representável.
+`NaN` significa *Not-a-Number*, mas seu tipo primitivo formal é `number`. Ele representa um resultado numérico indefinido ou matematicamente inválido (como converter texto não-numérico ou calcular a raiz quadrada de um número negativo).
 
-O detalhe importante é que `NaN` não é igual a nenhum valor, nem a ele mesmo:
+Pela especificação IEEE 754, `NaN` não é igual a nenhum valor, nem mesmo a outro `NaN`:
 
-```js title="NaN não é igual a si mesmo"
+```js title="Comportamento de NaN"
 const value = Number("abc");
 
-console.log(value); // NaN
-console.log(typeof value); // "number"
-console.log(value === NaN); // false
-console.log(value !== value); // true
-console.log(Number.isNaN(value)); // true
+console.log(value);              // NaN
+console.log(typeof value);       // "number"
+console.log(value === NaN);      // false (nunca use === para testar NaN!)
+console.log(value !== value);    // true
+console.log(Number.isNaN(value));// true
+console.log(Object.is(NaN, NaN));// true
 ```
 
-<Aside type="caution" title="Não compare com NaN diretamente">
-  Use `Number.isNaN(value)` para verificar `NaN` sem coerção. A função global `isNaN()`
-  converte o valor antes do teste e pode aceitar entradas que você não queria aceitar.
+<Aside type="caution" title="Use Number.isNaN() em vez do isNaN() global">
+  O método estrito `Number.isNaN(value)` verifica se o valor atual é `NaN` sem realizar conversões prévias. A função global `isNaN("texto")` tenta converter a entrada para número antes do teste, retornando `true` para qualquer string não-numérica.
 </Aside>
 
 ## `typeof null === "object"`
 
-`null` representa ausência intencional de valor, mas `typeof null` retorna `"object"`. Esse
-é um comportamento antigo da linguagem, preservado porque mudar isso quebraria código real
-publicado na web.
+`null` representa a ausência intencional de qualquer valor de objeto. No entanto, o operador `typeof null` devolve a string `"object"`. Esse comportamento decorre da implementação original do JavaScript em 1995 (onde valores eram marcados com tags de tipo em binário e o ponteiro nulo compartilhava a tag de objeto `000`), sendo mantido até hoje para preservar a compatibilidade da web.
 
-O teste correto para `null` é comparação direta:
+O teste correto para `null` deve ser realizado com igualdade estrita:
 
-```js title="Testando null corretamente"
+```js title="Testando null com segurança"
 const selectedUser = null;
 
-console.log(typeof selectedUser); // "object"
-console.log(selectedUser === null); // true
-console.log(selectedUser == undefined); // true, mas depende de coerção
-console.log(selectedUser === undefined); // false
+console.log(typeof selectedUser);        // "object"
+console.log(selectedUser === null);       // true
+console.log(selectedUser == undefined);   // true (coerção do operador frouxo)
+console.log(selectedUser === undefined);  // false
 ```
 
-Para diferenciar objetos reais de `null`, combine os testes:
+Para validar se um dado é de fato um objeto sem falsos positivos com `null`:
 
-```js title="Objeto não nulo"
-function isObject(value) {
-  return typeof value === "object" && value !== null;
+```js title="Função utilitária para verificar objetos reais"
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-console.log(isObject({})); // true
-console.log(isObject([])); // true
-console.log(isObject(null)); // false
+console.log(isPlainObject({ name: "Ana" })); // true
+console.log(isPlainObject([1, 2]));          // false
+console.log(isPlainObject(null));            // false
 ```
 
-<Aside type="tip" title="Array também retorna object">
-  `typeof []` também é `"object"`. Para arrays, use `Array.isArray(value)`. Para `null`, use
-  `value === null`.
-</Aside>
+## `0.1 + 0.2 !== 0.3` e Ponto Flutuante
 
-## `0.1 + 0.2 !== 0.3`
+O JavaScript utiliza o formato de ponto flutuante de precisão dupla (64 bits) definido pela norma IEEE 754. Frações decimais simples como `0.1` ($1/10$) e `0.2` ($1/5$) transformam-se em dízimas periódicas quando convertidas para a base binária, acumulando resíduos infinitesimais de arredondamento.
 
-JavaScript usa o tipo `number` baseado em ponto flutuante binário de 64 bits. Alguns decimais
-simples para humanos não têm representação exata em binário, então pequenas diferenças de
-arredondamento aparecem.
+O exemplo a seguir demonstra a divergência e a forma correta de comparação:
 
-O exemplo clássico mostra a diferença:
-
-```js title="Precisão decimal em number"
+```js title="Precisão decimal em números de ponto flutuante"
 const result = 0.1 + 0.2;
 
 console.log(result); // 0.30000000000000004
 console.log(result === 0.3); // false
-console.log(Math.abs(result - 0.3) < Number.EPSILON); // true
+
+// Comparação segura usando a margem de tolerância Number.EPSILON:
+const areClose = Math.abs(result - 0.3) < Number.EPSILON;
+console.log(areClose); // true
 ```
 
-Em dinheiro, uma alternativa comum é trabalhar em centavos:
+Ao lidar com cálculos monetários e valores financeiros, a melhor prática consiste em operar com números inteiros (centavos) ou utilizar tipos como `BigInt`:
 
-```js title="Dinheiro em centavos"
-const priceInCents = 10;
-const taxInCents = 20;
-const totalInCents = priceInCents + taxInCents;
+```js title="Cálculos financeiros em centavos inteiros"
+const priceInCents = 10; // R$ 0,10
+const taxInCents = 20;   // R$ 0,20
+const totalInCents = priceInCents + taxInCents; // 30 centavos
 
-console.log(totalInCents); // 30
 console.log(totalInCents / 100); // 0.3
 ```
 
-<Aside type="caution" title="toFixed formata, não corrige o modelo">
-  `toFixed(2)` é útil para exibir valores, mas devolve string e não transforma ponto
-  flutuante em decimal exato. Para regras financeiras sérias, use inteiros ou biblioteca
-  decimal apropriada.
+## Limite de Inteiros Seguros e `BigInt`
+
+Como todos os números convencionais em JavaScript compartilham a representação de 64 bits, apenas 53 bits são reservados para a mantissa. Isso significa que inteiros acima de $2^{53} - 1$ (`Number.MAX_SAFE_INTEGER`, ou `9007199254740991`) perdem a capacidade de representar cada número sucessivo com precisão.
+
+O exemplo a seguir ilustra a perda de precisão com números gigantes:
+
+```js title="Perda de precisão com inteiros não-seguros"
+const max = Number.MAX_SAFE_INTEGER; // 9007199254740991
+
+console.log(max + 1 === max + 2); // true (ambos viram 9007199254740992!)
+
+// Solução moderna: utilizar BigInt com o sufixo 'n'
+const bigA = 9007199254740991n + 1n;
+const bigB = 9007199254740991n + 2n;
+
+console.log(bigA === bigB); // false (precisão arbitrária preservada!)
+```
+
+## `Math.min() > Math.max()`
+
+Quando executadas sem nenhum argumento, as funções matemáticas `Math.min()` e `Math.max()` produzem um resultado que parece paradoxal:
+
+```js title="Math.min() e Math.max() sem argumentos"
+console.log(Math.min()); // Infinity
+console.log(Math.max()); // -Infinity
+console.log(Math.min() > Math.max()); // true (Infinity > -Infinity)
+```
+
+**Por que isso acontece?**
+Para calcular o menor elemento de uma lista de valores, o algoritmo inicia sua variável acumuladora com o maior número possível (`Infinity`). Qualquer número fornecido será menor que `Infinity`. Analogamente, `Math.max()` inicia com `-Infinity`. Ao não receber argumentos, o valor inicial é retornado diretamente.
+
+## Coerções com Objetos e Arrays: `[] + {}` vs `{} + []`
+
+O operador `+` possui regras estritas de conversão: se um dos operandos não for primitivo, o interpretador tenta convertê-lo através dos métodos internos `[Symbol.toPrimitive]`, `valueOf()` e `toString()`.
+
+- `[]` (Array vazio) converte para a string vazia `""`.
+- `{}` (Objeto vazio) converte para a string `"[object Object]"`.
+
+O exemplo a seguir demonstra os resultados dessas somas:
+
+```js title="Soma de arrays e objetos literais"
+console.log([] + []); // "" (duas strings vazias concatenadas)
+console.log([] + {}); // "[object Object]" ("" + "[object Object]")
+console.log([1, 2] + [3, 4]); // "1,23,4" (concatena as representações textuais)
+```
+
+<Aside type="note" title="{} no início de uma linha no REPL">
+  Em alguns consoles ou REPLs, digitar `{}` no início de uma instrução faz com que as chaves sejam interpretadas como um **bloco de código vazio** (e não como objeto). Assim, `{} + []` vira `+[]` (que coage o array vazio para o número `0`). Quando avaliado como expressão regular, `({} + [])` resulta em `"[object Object]"`.
+</Aside>
+
+## Objetos Wrapper e Valores Truthy: `new Boolean(false)`
+
+Valores primitivos (`false`, `0`, `""`) são *falsy*. No entanto, instanciar objetos invólucros (*wrappers*) com a palavra-chave `new` cria instâncias no Heap. Em JavaScript, **qualquer objeto é truthy**, independentemente do valor interno que ele envelopa.
+
+O exemplo a seguir demonstra essa armadilha:
+
+```js title="Instanciação de objetos wrapper"
+const primitiveBool = false;
+const objectBool = new Boolean(false);
+
+console.log(Boolean(primitiveBool)); // false
+console.log(Boolean(objectBool));    // true (objetos são sempre truthy!)
+
+if (objectBool) {
+  console.log("Este bloco executa mesmo com false dentro do objeto!");
+}
+```
+
+<Aside type="caution" title="Nunca use new com tipos primitivos">
+  Evite `new Boolean()`, `new String()` ou `new Number()`. Para realizar conversões de tipo, invoque a função conversora pura sem `new`: `Boolean(val)`, `String(val)` ou `Number(val)`.
 </Aside>
 
 ## Igualdade: `==` vs `===`
 
-O operador `==` compara depois de aplicar coerções. O operador `===` compara sem converter
-tipos. Em código de aplicação, `===` é a escolha padrão porque a leitura fica previsível.
+O operador `==` (igualdade solta) aplica um algoritmo complexo de coerção automática de tipos antes de comparar os valores. O operador `===` (igualdade estrita) compara tipo e valor sem nenhuma conversão prévia.
 
-Os exemplos abaixo mostram por que `==` surpreende:
-
-```js title="Coerções com igualdade solta"
-console.log(0 == false); // true
-console.log("" == false); // true
-console.log("5" == 5); // true
-console.log(null == undefined); // true
-
-console.log(0 === false); // false
-console.log("" === false); // false
-console.log("5" === 5); // false
-console.log(null === undefined); // false
-```
-
-O fluxo mental para comparar valores em JavaScript deve favorecer a igualdade estrita:
+O fluxo de decisão a seguir orienta a escolha do operador:
 
 <Mermaid title="Escolha do operador de igualdade">
 {`
@@ -184,154 +224,142 @@ flowchart TD
 `}
 </Mermaid>
 
-<Aside type="tip" title="Regra prática">
-  Use `===` e `!==` como padrão. Quando quiser aceitar dois tipos de entrada, converta antes
-  com `Number()`, `String()` ou uma função de parsing do domínio.
-</Aside>
+Os exemplos a seguir contrastam os dois operadores:
 
-## Soma, Concatenação e Conversão
+```js title="Coerções com igualdade solta vs estrita"
+console.log(0 == false);        // true (coerção numérica)
+console.log("" == false);       // true (coerção numérica de string vazia)
+console.log("5" == 5);          // true (coerção de string para número)
+console.log(null == undefined); // true (regra especial da especificação)
 
-O operador `+` é ambíguo: ele soma números, mas concatena se algum lado virar string. Outros
-operadores aritméticos, como `-`, `*` e `/`, forçam conversão numérica.
-
-O contraste fica claro nestes exemplos:
-
-```js title="O operador + tem dois papéis"
-console.log(5 + 2); // 7
-console.log("5" + 2); // "52"
-console.log(5 + "2"); // "52"
-console.log("5" - 2); // 3
-console.log("5" * "2"); // 10
+console.log(0 === false);        // false
+console.log("" === false);       // false
+console.log("5" === 5);          // false
+console.log(null === undefined); // false
 ```
 
-Quando o valor vem de formulário, faça a conversão de forma explícita:
+## Soma, Concatenação e Conversão de Entradas
 
-```js title="Entrada de formulário como texto"
+O operador `+` atua como operador de soma ou de concatenação: se qualquer um dos operandos for uma string, todos os demais serão convertidos para texto. Em contrapartida, operadores aritméticos como `-`, `*` e `/` sempre forçam a conversão dos operandos para números.
+
+O exemplo a seguir ilustra a diferença de comportamento dos operadores aritméticos:
+
+```js title="Ambiguidade do operador +"
+console.log(5 + 2);     // 7
+console.log("5" + 2);   // "52"
+console.log(5 + "2");   // "52"
+console.log("5" - 2);   // 3 (força número)
+console.log("5" * "2"); // 10 (força número)
+```
+
+Ao processar valores recebidos de elementos HTML ou formulários, converta explicitamente o texto para número antes de realizar operações matemáticas:
+
+```js title="Tratamento explícito de entradas de formulário"
 const quantityInput = "3";
-const price = 25;
+const unitPrice = 25;
 
 const quantity = Number(quantityInput);
-const total = quantity * price;
+const total = quantity * unitPrice;
 
 console.log(total); // 75
 ```
 
-<Aside type="caution" title="Todo input HTML começa como string">
-  Mesmo um `<input type="number">` entrega texto em `input.value`. Converta antes de calcular
-  e valide `Number.isFinite()` para rejeitar entradas inválidas.
-</Aside>
+## Objetos, Arrays e Comparação de Referências
 
-## Objetos, Arrays e Referências
+Valores primitivos (números, strings, booleanos) são comparados por **valor**. Objetos, funções e arrays são comparados estritamente por **referência**: dois literais idênticos alocados em posições diferentes da memória nunca serão iguais.
 
-Primitivos são comparados por valor. Objetos e arrays são comparados por referência: duas
-estruturas com o mesmo conteúdo continuam sendo objetos diferentes se foram criadas em lugares
-diferentes da memória.
+O exemplo a seguir ilustra a comparação por referência na memória:
 
-O exemplo abaixo parece estranho só até lembrar que cada literal cria uma nova referência:
-
-```js title="Comparação por referência"
-console.log([] === []); // false
+```js title="Comparação de referências de objetos"
+console.log([] === []); // false (referências distintas na memória Heap)
 console.log({} === {}); // false
 
-const first = [];
-const second = first;
+const listA = [1, 2];
+const listB = listA;
 
-console.log(first === second); // true
+console.log(listA === listB); // true (ambos apontam para a mesma referência)
 ```
 
-Para comparar conteúdo, escolha uma regra explícita:
+Para verificar se o conteúdo de dois arrays é equivalente:
 
-```js title="Comparando conteúdo de arrays simples"
-function sameNumbers(a, b) {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
+```js title="Comparando o conteúdo de arrays"
+function areArraysEqual(a, b) {
+  return a.length === b.length && a.every((val, i) => val === b[i]);
 }
 
-console.log(sameNumbers([1, 2], [1, 2])); // true
-console.log(sameNumbers([1, 2], [2, 1])); // false
+console.log(areArraysEqual([1, 2], [1, 2])); // true
+console.log(areArraysEqual([1, 2], [2, 1])); // false
 ```
-
-<Aside type="note" title="JSON.stringify não é comparação universal">
-  Serializar pode funcionar em exemplos pequenos, mas falha com ordem de propriedades,
-  funções, `undefined`, símbolos, datas, `Map`, `Set` e referências circulares.
-</Aside>
 
 ## Arrays Esparsos
 
-Um array pode ter "buracos": posições sem valor definido. Isso é diferente de uma posição
-que existe contendo `undefined`.
+Um array esparso é um array que contém posições vazias (*holes*). Uma posição vazia é fundamentalmente diferente de uma posição que existe e armazena o valor `undefined`.
 
-O comportamento aparece quando alguns métodos pulam posições vazias:
+O exemplo a seguir demonstra o comportamento de arrays esparsos:
 
-```js title="Buracos em arrays"
+```js title="Buracos em arrays esparsos"
 const sparse = [1, , 3];
 const explicit = [1, undefined, 3];
 
-console.log(sparse.length); // 3
-console.log(1 in sparse); // false
-console.log(1 in explicit); // true
+console.log(sparse.length);   // 3
+console.log(1 in sparse);     // false (o índice 1 não existe no objeto array!)
+console.log(1 in explicit);   // true (o índice 1 existe e contém undefined)
 
-sparse.forEach((value) => console.log(value));
+sparse.forEach((val) => console.log(val));
 // 1
-// 3
+// 3 (a posição vazia é ignorada pelo forEach)
 ```
 
-Prefira criar arrays preenchidos quando quiser percorrer todas as posições:
+Para criar arrays de tamanho pré-definido com valores reais preenchidos, utilize `Array.from()`:
 
-```js title="Array preenchido"
+```js title="Criando arrays preenchidos de forma segura"
 const scores = Array.from({ length: 3 }, () => 0);
-
 console.log(scores); // [0, 0, 0]
-console.log(scores.map((score) => score + 1)); // [1, 1, 1]
 ```
 
-<Aside type="tip" title="Buraco não é valor">
-  Em um array esparso, a posição nem existe. Em `[undefined]`, a posição existe e guarda o
-  valor `undefined`. Alguns métodos tratam esses casos de maneira diferente.
-</Aside>
+## `map()` com `parseInt`: a Armadilha dos Argumentos Extras
 
-## map() com parseInt: a Armadilha dos Argumentos Extras
+Passar `parseInt` diretamente como callback para `.map()` produz resultados surpreendentes porque o método `.map(fn)` repassa três argumentos a cada iteração: `(elemento, índice, array)`.
 
-Passar `parseInt` diretamente para `.map()` é uma das pegadinhas mais famosas do JavaScript. O método `.map(callback)` repassa três argumentos ao callback: `(elemento, índice, array)`.
+Por sua vez, `parseInt(string, radix)` aceita como segundo argumento a base numérica (*radix*), que acaba recebendo o índice do array:
 
-Por sua vez, `parseInt(string, radix)` aceita um segundo parâmetro: a base numérica (*radix*). O índice do array acaba sendo repassado silenciosamente como base da conversão:
-
-```js title="Comportamento inesperado de ['1', '2', '3'].map(parseInt)"
+```js title="Armadilha clássica: map com parseInt"
 console.log(["1", "2", "3"].map(parseInt)); // [1, NaN, NaN]
 
-// O que realmente acontece em cada iteração:
-// 1. parseInt("1", 0) -> radix 0 é tratado como base 10 -> 1
-// 2. parseInt("2", 1) -> base 1 é inválida no sistema posicional -> NaN
-// 3. parseInt("3", 2) -> "3" não é um dígito válido em binário (base 2) -> NaN
+// O que ocorre internamente em cada passo:
+// 1. parseInt("1", 0) -> radix 0 assume base 10 padrão -> 1
+// 2. parseInt("2", 1) -> base 1 é matematicamente inválida -> NaN
+// 3. parseInt("3", 2) -> "3" não é um dígito válido no sistema binário -> NaN
 ```
 
-Para converter strings numéricas de um array com segurança, utilize `Number` ou uma arrow function com a base 10 explícita:
+Para converter strings numéricas em um array com total segurança, utilize `Number` ou uma arrow function especificando a base 10:
 
-```js title="Forma correta de mapear números"
+```js title="Forma segura de mapear números"
 console.log(["1", "2", "3"].map(Number)); // [1, 2, 3]
-console.log(["1", "2", "3"].map((n) => parseInt(n, 10))); // [1, 2, 3]
+console.log(["1", "2", "3"].map((str) => parseInt(str, 10))); // [1, 2, 3]
 ```
 
 ## Executando
 
-Teste os casos em um arquivo isolado para observar a saída sem misturar com o restante do
-projeto.
+Você pode testar e reproduzir esses comportamentos em um script Node.js ou no console interativo das DevTools do seu navegador.
 
 <Steps>
 
-1. Crie um arquivo `weird-cases.js`:
+1. Crie um arquivo chamado `weird-cases.js`:
 
    ```js title="weird-cases.js"
    console.log("NaN === NaN:", NaN === NaN);
    console.log("Number.isNaN(NaN):", Number.isNaN(NaN));
    console.log("typeof null:", typeof null);
-   console.log("0.1 + 0.2:", 0.1 + 0.2);
    console.log("0.1 + 0.2 === 0.3:", 0.1 + 0.2 === 0.3);
+   console.log("Math.min() > Math.max():", Math.min() > Math.max());
+   console.log("[] + {}:", [] + {});
    console.log("[] === []:", [] === []);
    console.log('"5" + 2:', "5" + 2);
    console.log('"5" - 2:', "5" - 2);
    ```
 
-2. Execute com Node.js:
+2. Execute o arquivo com Node.js no terminal:
 
    ```bash title="Terminal"
    node weird-cases.js
@@ -341,21 +369,21 @@ projeto.
    NaN === NaN: false
    Number.isNaN(NaN): true
    typeof null: object
-   0.1 + 0.2: 0.30000000000000004
    0.1 + 0.2 === 0.3: false
+   Math.min() > Math.max(): true
+   [] + {}: [object Object]
    [] === []: false
    "5" + 2: 52
    "5" - 2: 3
    ```
 
-3. Repita no console do navegador com <kbd>F12</kbd>. Os resultados são os mesmos porque
-   esses comportamentos pertencem à linguagem ECMAScript, não apenas ao Node.js.
+3. Abra o Console do seu navegador com <kbd>F12</kbd> e execute as mesmas instruções para constatar que as regras são universais em todos os ambientes ECMAScript.
 
 </Steps>
 
 ## Exercício
 
-Explique cada resultado antes de executar o arquivo:
+Avalie mentalmente cada instrução antes de verificar a resposta correspondente:
 
 1. `Number.isNaN(Number("abc"))`
 2. `typeof []`
@@ -370,21 +398,20 @@ Explique cada resultado antes de executar o arquivo:
   <summary>Possível resposta</summary>
 
   ```js title="answers.js"
-  console.log(Number.isNaN(Number("abc"))); // true
-  console.log(typeof []); // "object"
-  console.log(Array.isArray([])); // true
-  console.log("10" + 5); // "105"
-  console.log("10" - 5); // 5
-  console.log(Boolean("false")); // true
-  console.log([1, , 3].map((n) => n * 2)); // [2, empty, 6]
-  console.log(Object.is(NaN, NaN)); // true
+  console.log(Number.isNaN(Number("abc")));   // true
+  console.log(typeof []);                     // "object"
+  console.log(Array.isArray([]));             // true
+  console.log("10" + 5);                      // "105"
+  console.log("10" - 5);                      // 5
+  console.log(Boolean("false"));              // true
+  console.log([1, , 3].map((n) => n * 2));    // [2, <empty>, 6]
+  console.log(Object.is(NaN, NaN));           // true
   ```
 </details>
 
 ## Desafio
 
-Escreva uma função `safeSum(a, b)` que aceite números ou strings numéricas, rejeite valores
-inválidos e compare o resultado com um valor esperado usando tolerância decimal.
+Crie uma função `safeSum(a, b)` capaz de somar dois valores (números ou strings numéricas), rejeitar entradas não-finitas e comparar o resultado contra um valor esperado utilizando uma tolerância de ponto flutuante:
 
 <details>
   <summary>Possível resposta</summary>
@@ -394,7 +421,7 @@ inválidos e compare o resultado com um valor esperado usando tolerância decima
     const number = Number(value);
 
     if (!Number.isFinite(number)) {
-      throw new TypeError(`Valor inválido: ${value}`);
+      throw new TypeError(`Valor numérico inválido: ${value}`);
     }
 
     return number;
@@ -424,25 +451,23 @@ inválidos e compare o resultado com um valor esperado usando tolerância decima
 <details>
   <summary>Possível resposta</summary>
 
-  Porque `NaN` representa um resultado numérico inválido e, pela semântica de ponto flutuante,
-  não é igual a nenhum valor, nem a ele mesmo.
+  Porque `NaN` representa um resultado numérico inválido ou indefinido e, pela especificação IEEE 754, não é igual a nenhum valor, nem a si mesmo. Para testá-lo, utilize `Number.isNaN(val)` ou `Object.is(val, NaN)`.
 </details>
 
-**2. Qual é a forma recomendada de testar `NaN`?**
+**2. Por que `0.1 + 0.2` não resulta exatamente em `0.3`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Use `Number.isNaN(value)`, que testa `NaN` sem converter valores antes da comparação.
+  Porque os números em JavaScript usam ponto flutuante binário (IEEE 754 de 64 bits). Frações como $1/10$ e $1/5$ tornam-se dízimas periódicas em binário, gerando pequenos resíduos de arredondamento.
 </details>
 
-**3. Por que `0.1 + 0.2` não resulta exatamente em `0.3`?**
+**3. Por que `Math.min() > Math.max()` retorna `true` quando ambas são invocadas sem argumentos?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque `number` usa ponto flutuante binário. Alguns decimais não têm representação exata
-  nesse formato e geram pequenas diferenças de arredondamento.
+  Porque `Math.min()` inicializa sua busca com `Infinity` e `Math.max()` inicializa com `-Infinity`. Sem argumentos passados, os valores iniciais são devolvidos, resultando na comparação `Infinity > -Infinity`, que é `true`.
 </details>
 
 ### Tipos, coerção e referência
@@ -452,40 +477,34 @@ inválidos e compare o resultado com um valor esperado usando tolerância decima
 <details>
   <summary>Possível resposta</summary>
 
-  Por um comportamento histórico preservado por compatibilidade. Para testar `null`, use
-  `value === null`.
+  Por conta de um bug histórico na primeira versão do JavaScript em 1995 (onde o ponteiro nulo compartilhava a tag de tipo de objetos em C), que foi preservado para garantir a compatibilidade com a web existente.
 </details>
 
-**5. Por que `"5" + 2` resulta em `"52"`?**
+**5. Por que `[] === []` retorna `false`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque, quando há string na operação, `+` pode agir como concatenação. O número é convertido
-  para texto.
+  Porque cada literal de array `[]` aloca uma nova instância distinta na memória Heap. Objetos e arrays são comparados por referência de memória, e não pelo seu conteúdo interno.
 </details>
 
-**6. Por que `[] === []` retorna `false`?**
+**6. Por que `['1', '2', '3'].map(parseInt)` resulta em `[1, NaN, NaN]`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque cada literal de array cria um objeto novo. Objetos são comparados por referência,
-  não por conteúdo.
+  Porque o método `.map()` passa o índice de cada elemento como segundo argumento para o callback. A função `parseInt(string, radix)` interpreta esse índice como a base numérica da conversão, gerando bases inválidas como 1 e 2 para os números subsequentes.
 </details>
 
 ## Referências
 
-Documentação oficial e referência:
-
-- [Equality comparisons and sameness | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Equality_comparisons_and_sameness)
-- [`NaN` | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/NaN)
-- [`Number.isNaN()` | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isNaN)
-- [`typeof` | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof)
-- [Numbers and dates | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Numbers_and_strings)
-- [ECMAScript Language Specification](https://tc39.es/ecma262/)
+- Documentação oficial e guias da MDN:
+  - [Equality comparisons and sameness | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Equality_comparisons_and_sameness)
+  - [Global NaN | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/NaN)
+  - [Number.isNaN() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isNaN)
+  - [typeof operator | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof)
+  - [ECMAScript Language Specification (ECMA-262)](https://tc39.es/ecma262/)
 
 ## Próximo tópico
 
-Depois de entender as principais armadilhas, use o [Guia de Referência](../cheat-sheet/)
-para consultar operadores, métodos e APIs nativas do ECMAScript.
+Depois de entender as principais armadilhas, use o [Guia de Referência](../cheat-sheet/) para consultar operadores, métodos e APIs nativas do ECMAScript.
