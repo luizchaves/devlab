@@ -215,9 +215,9 @@ console.log(lang);        // "YavaScript"
 ## Estrutura de Indexação e Método `.at()`
 
 ```txt
-Índices [i] ou .at(i):   0   1   2   3   4   5   6   7   8   9
-Caracteres:             'J' 'a' 'v' 'a' 'S' 'c' 'r' 'i' 'p' 't'
-Índices Negativos .at():-10 -9  -8  -7  -6  -5  -4  -3  -2  -1
+Índice positivo [i] / .at(i):  0   1   2   3   4   5   6   7   8   9
+Caractere:                    'J' 'a' 'v' 'a' 'S' 'c' 'r' 'i' 'p' 't'
+Índice negativo .at(i):       -10  -9  -8  -7  -6  -5  -4  -3  -2  -1
 ```
 
 ```js
@@ -299,6 +299,10 @@ const cardHtml = `
 </div>
 `;
 console.log(cardHtml);
+// <div class="user-card">
+//   <h2>Alice</h2>
+//   <p>Cargo: Desenvolvedora</p>
+// </div>
 ```
 
 ---
@@ -440,6 +444,7 @@ console.log("Dev! ".repeat(3)); // "Dev! Dev! Dev! "
   - Acentos ficam fora da ordem: `"á" > "b"` (`true`, `'á'`=225 vs `'b'`=98).
 - **`localeCompare(target, locale, options)`**: Compara segundo as regras gramaticais do idioma.
   - Retorna **negativo** se a string vier antes, **positivo** se vier depois, e `0` se equivalentes.
+  - Aceita `{ sensitivity: "base" }` para tratar acentos e maiúsculas como equivalentes.
 
 ```js
 console.log("á" > "b");                       // true (incorreto gramaticalmente)
@@ -455,7 +460,7 @@ const frutas = ["Maçã", "abacaxi", "Água", "banana"];
 
 // 1. Ordenação padrão do sort() (usa Unicode - incorreta para acentos e maiúsculas):
 console.log([...frutas].sort());
-// ["Maçã", "banana", "abacaxi", "Água"]
+// ["Maçã", "abacaxi", "banana", "Água"]
 
 // 2. Ordenação correta em Português usando localeCompare():
 const frutasOrdenadas = [...frutas].sort((a, b) => a.localeCompare(b, "pt-BR"));
@@ -492,7 +497,7 @@ console.log(tags); // [ "js", "web", "react", "node" ]
 const input = "Contatos: ana@email.com, bob123@site.org e carla_2026@dev.io";
 
 // 1. search(regex) - Localiza posição do primeiro dígito numérico
-console.log(input.search(/\d+/)); // 31 (posição do '1' em bob123)
+console.log(input.search(/\d+/)); // 28 (posição do '1' em bob123)
 
 // 2. match(regex) - Extrai o primeiro e-mail encontrado
 const first = input.match(/[\w.-]+@[\w.-]+\.\w+/);
@@ -503,6 +508,9 @@ const all = input.matchAll(/([\w.-]+)@([\w.-]+\.\w+)/g);
 for (const m of all) {
   console.log(`${m[1]} -> ${m[2]}`);
 }
+// ana -> email.com
+// bob123 -> site.org
+// carla_2026 -> dev.io
 
 // 4. replace(regex) - Oculta dígitos numéricos
 console.log(input.replace(/\d+/g, "[OCULTO]"));
