@@ -102,11 +102,11 @@ console.log(1_000_000_000);   // 1000000000
 
 | Constante | Valor / Descrição |
 | :--- | :--- |
-| **`Number.MAX_SAFE_INTEGER`** | `9007199254740991` ($2^{53} - 1$) — maior inteiro seguro |
-| **`Number.MIN_SAFE_INTEGER`** | `-9007199254740991` ($-(2^{53} - 1)$) — menor inteiro seguro |
-| **`Number.MAX_VALUE`** | `1.7976931348623157e+308` — maior número positivo |
-| **`Number.MIN_VALUE`** | `5e-324` — menor positivo acima de zero |
-| **`Number.EPSILON`** | `2.220446049250313e-16` — menor diferença entre 1 e o próximo float |
+| **`Number.MAX_SAFE_INTEGER`** | `9007199254740991` ($2^{53} - 1$), maior inteiro seguro |
+| **`Number.MIN_SAFE_INTEGER`** | `-9007199254740991` ($-(2^{53} - 1)$), menor inteiro seguro |
+| **`Number.MAX_VALUE`** | `1.7976931348623157e+308`, maior número positivo |
+| **`Number.MIN_VALUE`** | `5e-324`, menor positivo acima de zero |
+| **`Number.EPSILON`** | `2.220446049250313e-16`, menor diferença entre 1 e o próximo float |
 
 ```js
 console.log(Number.isSafeInteger(9007199254740991));     // true
@@ -146,7 +146,7 @@ const diff = Math.abs((0.1 + 0.2) - 0.3);
 console.log(diff < Number.EPSILON); // true
 ```
 
-- **Valores Monetários**: guarde valores financeiros em centavos inteiros (`1099` para `R$ 10,99`) ou use bibliotecas decimais dedicadas.
+**Valores monetários**: guarde valores financeiros em centavos inteiros (`1099` para `R$ 10,99`) ou use bibliotecas decimais dedicadas.
 
 ---
 
@@ -190,10 +190,10 @@ console.log(typeof NaN); // "number"
 ```js
 console.log(NaN === NaN); // false!
 
-// ❌ Forma incorreta de testar:
+// Errado: comparação direta com NaN
 // if (result === NaN) { ... }
 
-// ✅ Formas seguras e corretas:
+// Correto: formas seguras de testar
 console.log(Number.isNaN(0 / 0));         // true
 console.log(Object.is(NaN, NaN));         // true
 console.log(Number.isNaN("texto"));       // false (estrito, sem coerção!)
