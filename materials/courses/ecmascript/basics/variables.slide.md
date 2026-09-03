@@ -62,21 +62,41 @@ description: 'Slides completos da aula JavaScript: Variáveis, Escopo e Hoisting
 
 ---
 
-## Modelo de Memória
+## Modelo Conceitual de Memória
 
 ```txt
-Pilha (stack)                 Heap
---------------                -----------------------------------
+Stack, modelo didático        Heap, modelo didático
+-----------------------       -----------------------------------
 user  = 0x00A4  --ponteiro--> 0x00A4 -> { name: "Ana",  age: 25 }
 price = 79.9
 
 primitivo = valor direto      objeto = referência
 ```
 
-- `user` guarda um endereço para a _heap_.
-- O objeto vive fora da variável.
+- Stack/heap ajudam como imagem mental, não como contrato ECMAScript.
+- `user` compartilha uma referência para o objeto.
 - `price` guarda um valor primitivo direto.
 - Reassociar troca o endereço guardado.
+
+---
+
+## Prática: Valor e Referência
+
+```js
+let price = 79.9;
+let copiedPrice = price;
+copiedPrice = 99.9;
+
+console.log(price);       // 79.9
+console.log(copiedPrice); // 99.9
+
+const user = { name: "Ana", age: 25 };
+const sameUser = user;
+sameUser.name = "Bia";
+
+console.log(user.name);     // "Bia"
+console.log(sameUser.name); // "Bia"
+```
 
 ---
 
@@ -171,26 +191,18 @@ console.log(fullName); // Fulano
 
 ## Sintaxe vs Execução
 
-- `SyntaxError` impede a interpretação do arquivo.
-- `TypeError` acontece durante a execução.
-- Terminal e Console indicam tipo, arquivo e linha.
-
 ```js
 const total = 1n + 1;
 console.log(total);
 ```
 
----
-
-## Erro em Execução
-
 ```txt
 TypeError: Cannot mix BigInt and other types
 ```
 
-- O código é sintaticamente válido.
-- A falha acontece ao somar `bigint` e `number`.
-- A mensagem aponta o tipo do problema.
+- `SyntaxError` impede a interpretação do arquivo.
+- `TypeError` acontece durante a execução.
+- Aqui o erro vem da mistura entre `bigint` e `number`.
 
 ---
 
@@ -254,6 +266,24 @@ console.log(defaultChoice); // "const"
 
 ---
 
+## Declaração Múltipla
+
+```js
+let width = 320, height = 240;
+const area = width * height;
+
+console.log(area); // 76800
+
+let retryCount = 0;
+let lastErrorMessage = '';
+```
+
+- A vírgula separa nomes na mesma declaração.
+- Todos compartilham a mesma palavra-chave inicial.
+- Prefira linhas separadas quando os papéis forem diferentes.
+
+---
+
 ## `var`, `let` e `const`
 
 | Palavra | Escopo        | Reassocia? | Redeclara? | Antes da linha |
@@ -261,6 +291,9 @@ console.log(defaultChoice); // "const"
 | `var`   | função/global | sim        | sim        | `undefined`    |
 | `let`   | bloco         | sim        | não        | TDZ            |
 | `const` | bloco         | não        | não        | TDZ            |
+
+- Leia por coluna: escopo, reassociação, redeclaração e leitura antes da linha.
+- A decisão prática é `const` por padrão, `let` quando o valor muda e `var` só em legado.
 
 ---
 
@@ -334,19 +367,6 @@ console.log(user); // { name: "Bob" }
 
 ---
 
-## Referências Compartilhadas
-
-| Momento              | `values`       | `alias`     | Comparação |
-| -------------------- | -------------- | ----------- | ---------- |
-| `let alias = values` | `[1, 2, 3]`    | mesmo array | `true`     |
-| `alias.push(4)`      | `[1, 2, 3, 4]` | mesmo array | `true`     |
-| `alias = [9, 9]`     | `[1, 2, 3, 4]` | novo array  | `false`    |
-
-- Mutação muda o objeto compartilhado.
-- Reassociação troca só um identificador.
-
----
-
 ## Alias em Código
 
 ```js
@@ -365,7 +385,21 @@ console.log(values === alias); // false
 
 ---
 
-## O Que Observar no Alias
+## Referências Compartilhadas
+
+| Momento              | `values`       | `alias`     | Comparação |
+| -------------------- | -------------- | ----------- | ---------- |
+| `let alias = values` | `[1, 2, 3]`    | mesmo array | `true`     |
+| `alias.push(4)`      | `[1, 2, 3, 4]` | mesmo array | `true`     |
+| `alias = [9, 9]`     | `[1, 2, 3, 4]` | novo array  | `false`    |
+
+- A tabela sintetiza o código anterior.
+- Mutação muda o objeto compartilhado.
+- Reassociação troca só um identificador.
+
+---
+
+## O que observar no alias?
 
 - `alias` começa apontando para o mesmo array.
 - `push()` altera o objeto compartilhado.
@@ -376,15 +410,18 @@ console.log(values === alias); // false
 
 ## Redeclaração
 
+Compare o mesmo nome declarado duas vezes no mesmo escopo:
+
 ```js
 var course = 'DW';
 var course = 'Desenvolvimento Web';
 
 console.log(course); // "Desenvolvimento Web"
 
+let semester = '2026.2';
+
 // SyntaxError: Identifier 'semester' has already been declared.
-// let semester = "2026.2";
-// let semester = "2027.1";
+// let semester = '2027.1';
 ```
 
 - `var` aceita a segunda declaração.
@@ -402,6 +439,26 @@ console.log(course); // "Desenvolvimento Web"
 
 ---
 
+## Scope Chain em Código
+
+```js
+const globalVar = 'global';
+
+function outerFunction() {
+  const functionVar = 'função';
+
+  if (true) {
+    const blockVar = 'bloco';
+    var legacyFunctionVar = 'var fica na função';
+    console.log(blockVar, functionVar, globalVar);
+  }
+
+  console.log(legacyFunctionVar);
+}
+```
+
+---
+
 ## Fronteiras de Escopo
 
 ```txt
@@ -412,7 +469,8 @@ global
 busca: bloco -> função -> global -> ReferenceError
 ```
 
-- `let` e `const` respeitam bloco.
+- A figura resume o código anterior.
+- A busca vai do bloco para fora.
 - `var` fica no escopo da função.
 
 ---
@@ -504,7 +562,7 @@ console.log(resultLet); // [0, 1, 2]
 
 ---
 
-## Por Que o Laço Muda?
+## Por que o laço muda?
 
 - `var i` compartilha uma variável.
 - Os callbacks leem `i` depois do laço.
@@ -585,9 +643,26 @@ const tdzConst = 10;
 
 ---
 
-## Globais Implícitas
+## O que `use strict` faz?
 
 ```js
+"use strict";
+
+function createImplicitGlobal() {
+  implicitTotal = 100;
+}
+```
+
+- Em script clássico, a diretiva precisa vir no início.
+- Ela transforma permissividades antigas em erro explícito.
+- ES modules já executam em modo estrito.
+
+---
+
+## Global Implícita na Prática
+
+```js
+// Script clássico sem "use strict":
 function createImplicitGlobal() {
   implicitTotal = 100;
   return implicitTotal;
@@ -602,9 +677,9 @@ delete globalThis.implicitTotal;
 // ReferenceError: implicitTotal is not defined.
 ```
 
-- A falta de `const`, `let` ou `var` cria o risco.
-- Em modo estrito, a atribuição vira erro.
-- Declare sempre para limitar o escopo.
+- `"use strict"` ativa regras mais rígidas em scripts clássicos.
+- ES modules já rodam em modo estrito automaticamente.
+- Atribuição sem declaração vira erro em vez de global implícita.
 
 ---
 
@@ -674,8 +749,8 @@ Token: abc-123
 1. Declare `courseName` com `const`.
 2. Declare `studentCount` com `let`.
 3. Some 5 em `studentCount`.
-4. Tente reatribuir `courseName`.
-5. Demonstre uma TDZ em bloco `if`.
+4. Inclua uma reatribuição comentada de `courseName`.
+5. Demonstre uma TDZ comentada em bloco `if`.
 
 ---
 
@@ -692,11 +767,13 @@ Token: abc-123
 ## Perguntas de Revisão
 
 - Qual é a diferença entre `let` e `const`?
+- Quando faz sentido trocar `const` por `let`?
 - Por que `const` não torna objeto imutável?
 - Por que evitar `var` em código moderno?
 - O que é a _Temporal Dead Zone_?
 - O que muda entre `var` e `let` em callbacks?
 - Por que globais implícitas são perigosas?
+- Por que `number`, `Number` e `NUMBER` são nomes diferentes?
 
 ---
 

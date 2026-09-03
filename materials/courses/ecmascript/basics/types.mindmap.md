@@ -65,4 +65,3 @@ markmap:
 - **Slides**: organizam a exposição em sala
 - **Mapa mental**: revisa relações entre tópicos
 - **Prática**: execute os exemplos antes de memorizar regras
-

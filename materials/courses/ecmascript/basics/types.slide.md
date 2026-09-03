@@ -152,7 +152,7 @@ console.log(/javascript/i);          // RegExp (expressão regular)
 ```
 
 - Objetos agregam múltiplos dados e comportamentos.
-- Variáveis guardam endereços de referência na memória *Heap*.
+- Atribuições de objeto compartilham uma referência para a mesma estrutura.
 
 ---
 

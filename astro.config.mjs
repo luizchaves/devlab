@@ -650,8 +650,8 @@ export default defineConfig({
                   label: 'Introdução e Ecossistema',
                   link: '/courses/ecmascript/basics/introduction/',
                 },
-                { label: 'Variáveis e Escopo', link: '/courses/ecmascript/basics/variables/' },
                 { label: 'Tipos de Dados e Coerção', link: '/courses/ecmascript/basics/types/' },
+                { label: 'Variáveis e Escopo', link: '/courses/ecmascript/basics/variables/' },
                 { label: 'Expressões e Operadores', link: '/courses/ecmascript/basics/operators/' },
                 {
                   label: 'Estruturas de Controle',

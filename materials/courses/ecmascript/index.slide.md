@@ -41,7 +41,7 @@ Guia de referência completo do JavaScript e ECMAScript: da sintaxe aos módulos
 
 ## Trilhas de Aprendizado
 
-- Introdução, ecossistema, variáveis, escopo, tipos de dados, coerção, operadores e estruturas de controle
+- Introdução, ecossistema, tipos de dados, coerção, variáveis, escopo, operadores e estruturas de controle
 - Funções de primeira classe, closures, tratamento de erros estruturado e modularização com ES Modules
 - Manipulação moderna de texto, números, datas, expressões regulares, arrays funcionais, objetos, classes e coleções Map/Set
 - Event Loop, Promises e programação assíncrona com Async/Await

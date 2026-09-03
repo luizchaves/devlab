@@ -417,7 +417,7 @@ console.log("Olá, página"); // Executado ao carregar a página
 
 - O módulo de JavaScript / ECMAScript é estruturado de forma incremental
 - Ao longo dos próximos tópicos, você estudará os seguintes conteúdos
-- Variáveis, tipos, operadores e controle de fluxo
+- Tipos, variáveis, operadores e controle de fluxo
 - Funções, escopos, callbacks e módulos
 - Arrays, strings, números, datas, regex e coleções
 - Assincronismo, erros e organização de código

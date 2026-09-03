@@ -81,6 +81,10 @@ Antes de entregar, faça uma revisão didática final:
 - remova referências que dependem do slide seguinte para fazer sentido;
 - confirme que exercícios, desafio, revisão e resumo fecham o arco sem misturar conteúdo
   de outro tópico;
+- confirme que títulos, bullets, enunciados e perguntas de revisão com forma interrogativa
+  terminam com ponto de interrogação (`?`);
+- procure slides em que o título é seguido diretamente por código, tabela ou diagrama e,
+  quando houver espaço visual, acrescente uma frase mínima de contexto antes do elemento;
 - não crie slide ou seção `Próximo Tópico`; links de continuidade pertencem à página `.mdx`,
   não ao deck de projeção.
 
@@ -171,6 +175,11 @@ Em slides que ensinam comandos, terminal, criação/execução de arquivos ou pa
   1. **Origem / Arquivo**: Identifique o arquivo criado ou editado (ex: comentário inicial `// main.js` ou `<!-- index.html -->`).
   2. **Comando de execução**: Mostre exatamente o comando digitado no terminal (ex: `$ node main.js`, `$ pnpm dev`).
   3. **Saída gerada**: Apresente a saída real resultante (no terminal ou no console da ferramenta).
+- **Co-localização de saída e erro**: Quando o comando, trecho de código e respectivo
+  output/erro cabem com margem visual, mantenha tudo no mesmo slide. Não coloque a execução em
+  um slide e o erro/output no slide seguinte apenas para criar suspense ou respiro. Separe em
+  slides diferentes somente quando houver risco real de overflow, e nesse caso repita no slide
+  de saída o comando ou a linha essencial que gerou aquele resultado.
 - **Sessões de terminal com prompt `$ `**: Para comandos com saída no terminal, use o prefixo `$ ` na linha de comando e o texto seguinte para a saída:
   ```bash
   $ node main.js
@@ -232,7 +241,11 @@ diagrama ASCII apenas quando a forma espacial ajudar de verdade; se o desenho pa
 improvisado, troque por tabela ou divida a explicação em slides menores.
 
 - título curto e focado;
-- **1 frase descritiva contextualizando a regra ou o que observar** (evite slides vazios contendo apenas título e código solto; inclua sempre uma linha de introdução antes do bloco de código quando não houver risco de overflow);
+- **1 frase descritiva contextualizando a regra ou o que observar** antes do primeiro
+  código, tabela, diagrama ou bloco visual, sempre que houver espaço viável. Evite slides
+  que saem direto do título para um bloco de código solto: a frase mínima deve explicar
+  o que o exemplo demonstra, qual comparação está sendo feita ou qual detalhe a turma deve
+  observar;
 - bloco de código legível com dados essenciais;
 - comentários curtos no próprio código mostrando saída esperada (`// output`), efeito ou decisão importante;
 - **Consistência e fidelidade semântica nos exemplos de código**:
@@ -326,7 +339,13 @@ perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
 
 - Português (pt-BR), termos técnicos em inglês em *itálico* (`*shallow copy*`,
   `*empty slots*`) e identificadores em `` `crase` ``.
-- **Pontuação obrigatória em perguntas**: Em slides de `## Perguntas de revisão` e em qualquer questionamento didático, **toda pergunta DEVE terminar com ponto de interrogação (`?`)**. Nunca deixe perguntas sem interrogação ou com ponto final.
+- **Pontuação obrigatória em perguntas**: Em slides de `## Perguntas de revisão` e em
+  qualquer questionamento didático, **toda pergunta DEVE terminar com ponto de
+  interrogação (`?`)**. A regra vale para títulos de slide (`## O que observar no alias?`),
+  bullets, enunciados, callouts e perguntas numeradas. Trate como pergunta qualquer frase
+  iniciada por formas interrogativas como "O que", "Por que", "Como", "Quando", "Qual",
+  "Quais", "Quem", "Onde" e "Para que". Se a intenção for apenas nomear um bloco, reescreva
+  como título declarativo (`Observações sobre alias`) em vez de deixar uma pergunta sem `?`.
 - Blocos de código com ` ```js ` (não `javascript`); os demais: `html`, `css`, `bash`,
   `json`, `txt`.
 - **Nunca um bullet solitário**: uma lista de um item só não é lista, é um parágrafo com
@@ -427,15 +446,19 @@ Ao atualizar regras ou templates nesta skill:
 13. **Separação em bloco de explicação e ação**: empilhar todos os bullets explicativos no topo do slide e soltar blocos de código/terminal embaixo sem vinculação direta. A explicação de cada passo deve sempre ser distribuída junto com o bloco prático correspondente.
 14. **Blocos de código sem identificação de contexto**: soltar trechos de código em slides práticos sem indicar o nome do arquivo (`// main.js`, `<!-- index.html -->`) ou o ambiente onde rodam (terminal, REPL ou console do navegador).
 15. **Comando ou saída sem correspondência**: mostrar um comando de terminal sem sua saída esperada, ou mostrar uma saída sem o comando que a gerou.
-16. **Quebra artificial de tema**: não separe introdução e exemplo de um mesmo código,
+16. **Título colado no elemento principal**: abrir um slide com `## Título` seguido
+    imediatamente por código, tabela ou diagrama quando há espaço para uma frase mínima
+    de contexto. Acrescente uma linha explicando o que observar antes do elemento.
+17. **Quebra artificial de tema**: não separe introdução e exemplo de um mesmo código,
     comentário ou comando quando houver espaço para manter tudo em um slide legível.
-17. **Espaço branco excessivo**: um slide com poucos bullets e muito vazio costuma indicar
+18. **Espaço branco excessivo**: um slide com poucos bullets e muito vazio costuma indicar
     que a explicação pode ser fundida a um exemplo, tabela curta ou slide vizinho do mesmo tema.
-18. **Fusão incompleta**: depois de unir dois slides, revise o novo slide seguinte. Ele pode
+19. **Fusão incompleta**: depois de unir dois slides, revise o novo slide seguinte. Ele pode
     ter virado o próximo candidato a fusão por tratar do mesmo código, comentário ou comando.
-19. **Fusão com risco de overflow**: não resolva espaço branco criando slides lotados.
+20. **Fusão com risco de overflow**: não resolva espaço branco criando slides lotados.
     Se código, tabela ou bullets ficarem próximos da paginação, separe por subtipo ou
     corte ruído.
-20. **Pergunta sem ponto de interrogação**: omitir o ponto de interrogação (`?`) ao final dos itens em slides de `## Perguntas de revisão` ou em questionamentos conceituais.
-21. **Bullet solitário**: lista de um único item, quase sempre a observação final solta depois
+21. **Pergunta sem ponto de interrogação**: omitir o ponto de interrogação (`?`) em títulos,
+    bullets, enunciados ou itens de `## Perguntas de revisão` que tenham forma interrogativa.
+22. **Bullet solitário**: lista de um único item, quase sempre a observação final solta depois
     de um bloco de código. Transforme em parágrafo ou acrescente o segundo item.

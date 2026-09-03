@@ -244,6 +244,13 @@ preview interativo (`<HtmlPreview>`), grade de cartões (`<CardGrid>`) ou callou
 deve ser obrigatoriamente apresentado, contextualizado e explicado por um parágrafo (`<p>`)
 anterior.
 
+**Tabelas não são autoexplicativas:**
+Toda tabela precisa de texto auxiliar suficiente para ensinar como ela deve ser lida. Em tabelas
+comparativas, não basta escrever "a tabela a seguir compara...": explique o significado das
+colunas, destaque as linhas decisivas e conecte a comparação ao próximo exemplo, decisão ou
+regra prática. Quando a tabela tiver mais de três colunas, inclua pelo menos um parágrafo
+posterior consolidando a leitura antes de avançar para código, callout, lista ou nova seção.
+
 **Nenhum elemento não-`<p>` colado em título ou em outro elemento:**
 1. **Nunca cole um elemento logo abaixo de um título**: sempre escreva ao menos um parágrafo
    explicativo entre o `##`/`###` e a tabela, lista, imagem, diagrama ou código.
@@ -260,6 +267,14 @@ anterior.
 parágrafos curtos em vez de criar blocos de texto longos e monolíticos. O uso frequente de
 parágrafos espaçados torna a leitura mais fluida, melhora a escaneabilidade do conteúdo e
 ajuda o estudante a absorver cada conceito passo a passo.
+
+**Pontuação em perguntas e títulos interrogativos:** Toda pergunta didática deve terminar
+com ponto de interrogação (`?`), independentemente de aparecer como título (`##`/`###`),
+item de revisão, bullet, callout ou enunciado. Trate como pergunta qualquer frase iniciada
+por formas interrogativas como "O que", "Por que", "Como", "Quando", "Qual", "Quais",
+"Quem", "Onde" e "Para que". Se a intenção for apenas nomear uma seção, reescreva como
+título declarativo (`Observações sobre alias`) em vez de deixar uma pergunta sem `?`
+(`O que observar no alias`).
 
 **Linearidade e coesão entre seções:** Antes de finalizar um tópico, revise a sequência de
 `##`, `###` e parágrafos (`<p>`) como uma narrativa contínua. Cada seção deve preparar a
@@ -438,6 +453,12 @@ Isso também mantém o índice lateral limpo: o `tableOfContents` do site vai at
 - Em imagens ou figuras estáticas (`![...]`), inclua a legenda/descrição explicativa de forma clara no atributo `alt` e/ou em um texto de legenda associado.
 - Em blocos de código e saídas, forneça o atributo `title="..."` (ex: ````js title="Exemplo de manipulação do DOM"````).
 
+**Código antes de diagrama dependente de código**: Quando um diagrama representa o comportamento
+de um trecho específico de código, apresente primeiro o código e depois o diagrama. O texto entre
+eles deve explicar que o visual sintetiza a execução recém-observada. Reserve diagramas antes do
+código apenas para modelos conceituais amplos, arquiteturas ou mapas que preparam uma seção inteira,
+não para figuras que dependem de uma atribuição, chamada, mutação ou fluxo demonstrado logo em seguida.
+
 **Orientação Vertical de Diagramas (Responsividade)**: **Se um diagrama ou figura for muito extenso na horizontal, ele deve ser obrigatoriamente reestruturado na vertical**.
 - Em diagramas `<Mermaid>`, prefira `flowchart TD` (Top-Down) ou organize os nós em subgrafos empilhados para evitar vazamentos laterais e barra de rolagem em dispositivos móveis.
 
@@ -580,6 +601,10 @@ Sempre que uma página for **criada, renomeada ou reestruturada**, essas altera�
 - Sempre **relativos** (sobrevivem ao `base` do GitHub Pages).
 - URLs terminam em `/`: tópico irmão é `../strings/`, categoria vizinha é `../../database/sql/`.
 - Em páginas `index`, a forma direta vale: `javascript/`.
+- Quando a ordem didática de tópicos mudar, atualize a cadeia inteira no mesmo ajuste:
+  sidebar explícita, páginas de visão geral, badges/listas de trilha e seções
+  `## Próximo tópico` das páginas afetadas. A navegação lateral e os links de continuidade
+  devem contar a mesma sequência.
 
 ---
 
@@ -648,3 +673,9 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
     seção e anuncia as subseções. Exceção: `## Perguntas de revisão`.
 27. **Título numerado**: `### 1. …`, `### 2. …` em vez de títulos simples. A ordem já vem da
     posição no documento; para sequência obrigatória, use `<Steps>` ou lista ordenada.
+28. **Pergunta sem ponto de interrogação**: títulos, bullets, callouts, enunciados e perguntas
+    de revisão com forma interrogativa precisam terminar em `?`; caso contrário, reescreva como
+    título declarativo.
+29. **Ordem didática divergente**: sidebar, índices, badges de trilha e `## Próximo tópico`
+    apontando sequências diferentes. Reordene todos juntos para evitar que o estudante siga
+    caminhos contraditórios.
