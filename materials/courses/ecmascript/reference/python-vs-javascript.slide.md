@@ -3,562 +3,629 @@ marp: true
 theme: default
 paginate: true
 style: |
+  section {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-bottom: 70px;
+    font-size: 1.5rem;
+  }
+  section.lead {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding-bottom: 0;
+  }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    position: absolute;
+    bottom: 24px;
+    right: 32px;
+    padding: 0;
+    font-size: 0.6em;
+    color: #71717a;
   }
 lang: pt-BR
 title: "JavaScript: Comparativo com Python"
-description: "Slides completos da aula JavaScript: Comparativo com Python."
+description: "Comparativo prático entre JavaScript e Python: execução, sintaxe, tipos, coleções, tuplas, funções, módulos, classes, assincronismo e APIs equivalentes."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Comparativo com Python
 
-Comparativo prático entre JavaScript e Python: execução, sintaxe, tipos, coleções, funções, módulos, ecossistema e APIs equivalentes de strings, arrays/listas, mapas/dicionários e conjuntos.
+Tradução conceitual, estruturas equivalentes, armadilhas e boas práticas.
 
 ---
 
 ## Objetivo
 
-- Comparar JavaScript e Python em modelo de execução, sintaxe, tipos, coleções, funções, módulos, ecossistema e APIs nativas
-- Ao final, você deve conseguir traduzir estruturas comuns entre as duas linguagens, evitar falsas equivalências,...
+Comparar JavaScript e Python em modelo de execução, sintaxe, tipagem, coleções, orientação a objetos e assincronismo.
+
+- Identificar os contextos de criação e execução de cada linguagem.
+- Reconhecer diferenças de blocos (indentação vs chaves `{}`).
+- Evitar armadilhas de tipagem, coerção e valores falsy (`[]`, `{}`).
+- Traduzir APIs de strings, listas/arrays, tuplas, dicionários/mapas e conjuntos.
+- Compreender diferenças fundamentais em funções, classes (`self` vs `this`) e módulos.
+- Entender o modelo assíncrono básico de cada ambiente.
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
-- Panorama Geral
-- Execução e Ambiente
-- Sintaxe e Blocos
-- Tipos e Coerção
-- Coleções e Objetos
-- Comparativo de APIs Nativas
-- Funções e Escopo
-- Executando
-
----
-
-## Introdução
-
-- Esta aula compara Python e JavaScript para ajudar quem já estudou uma das linguagens a transferir conceitos para a outra
-- As duas são dinâmicas, populares e multiparadigma, mas nasceram em contextos diferentes e tomam decisões de sintaxe,...
-- JavaScript começou como linguagem do navegador e depois foi para o servidor com Node.js
-- Python começou como linguagem de propósito geral no sistema operacional e ganhou força em automação, dados, ciência, APIs...
+- Panorama Geral e Ambientes de Execução
+- Sintaxe, Blocos e Operadores
+- A Armadilha dos Valores Falsy e Truthy
+- Tipos, Coerções e Comparadores de Igualdade
+- Coleções: Strings, Listas vs Arrays, Tuplas
+- Coleções: Dicionários vs Objetos e Maps, Conjuntos
+- Funções, Parâmetros e Escopo
+- Classes e Orientação a Objetos (`self` vs `this`)
+- Módulos, Ecossistema e Assincronismo
+- Exercício, Desafio e Revisão
 
 ---
 
-## Panorama Geral
-
-- Python e JavaScript são linguagens de alto nível, com tipagem dinâmica e suporte a múltiplos estilos de programação
-- A diferença principal está no ambiente padrão
-- JavaScript é nativo do navegador
-- Python é nativo do terminal, do sistema operacional e de ambientes de dados
-- A tabela resume as diferenças iniciais
-
----
-
-## Panorama Geral: Comparação
+## Panorama Geral: Comparativo Estrutural
 
 | Aspecto | Python | JavaScript |
 | :--- | :--- | :--- |
-| Origem | Linguagem de propósito geral | Linguagem de script para navegadores |
-| Ambiente clássico | Terminal, scripts, servidores e dados | Navegador e, com Node.js, servidores |
-| Delimitação de blocos | Indentação obrigatória | Chaves `{}` |
-| Final de instrução | Quebra de linha | Ponto e vírgula opcional |
-| Tipagem | Dinâmica e forte | Dinâmica, com coerções implícitas frequentes |
-| ... | ... | ... |
+| **Origem** | Propósito geral no SO (1991) | Scripting no navegador web (1995) |
+| **Ambientes** | Terminal, servidores, dados e IA | Navegador (web) e Node.js/Bun |
+| **Blocos** | Indentação obrigatória | Chaves `{ ... }` |
+| **Instrução** | Quebra de linha | Ponto e vírgula `;` (opcional) |
+| **Tipagem** | Dinâmica e forte | Dinâmica e flexível (com coerções) |
+| **Pacotes** | PyPI (`pip`, `uv`) | npm registry (`pnpm`, `npm`) |
+| **Manifesto** | `pyproject.toml` | `package.json` |
 
 ---
 
-## Execução e Ambiente
+## Execução: CPython vs Motores JS
 
-- Python costuma executar arquivos `.py` com o interpretador CPython
-- JavaScript executa no navegador, no Node.js ou em runtimes compatíveis
-- Em ambos os casos, existe uma etapa interna de preparação antes da execução real, mas o fluxo de trabalho para o...
-- O diagrama mostra os caminhos mais comuns
-- Diagrama da página
+```txt
+[Python]     script.py ──> CPython ──> Bytecode (.pyc) ──> Terminal / Servidor
+
+[JavaScript] script.js ──> Motor V8 ──> Compilação JIT ──> Navegador / Node.js
+```
+
+- **Python**: Execução tradicional via interpretador no terminal e servidores.
+- **JavaScript**: Compilação JIT de alta performance com APIs de DOM (navegador) ou I/O (Node.js).
 
 ---
 
-## hello.py
+## Hello World Lado a Lado
+
+Em Python, a execução clássica foca em scripts e terminal:
 
 ```py
+# hello.py
 name = "Ana"
-print(f"Olá, {name}")
+print(f"Olá, {name}!")
 ```
 
----
-
-## hello.js
+Em JavaScript, o código roda nativamente no Node.js ou no navegador:
 
 ```js
+// hello.js
 const name = "Ana";
-console.log(`Olá, ${name}`);
+console.log(`Olá, ${name}!`);
 ```
 
----
-
-## Sintaxe e Blocos
-
-- Python usa indentação como parte da sintaxe
-- JavaScript usa chaves para delimitar blocos e costuma usar indentação como convenção de leitura
-- O exemplo a seguir compara uma estrutura de decisão simples
-- Em JavaScript, as chaves deixam o bloco explícito
-- `None` parece `null`, mas JavaScript também tem `undefined`
+*Nota: `console.log()` exibe dados no console; `print()` imprime no stdout do terminal.*
 
 ---
 
-## Sintaxe e Blocos: Comparação
+## Sintaxe e Blocos de Controle
 
-| Ideia | Python | JavaScript |
-| :--- | :--- | :--- |
-| Comentário de linha | `# texto` | `// texto` |
-| String interpolada | `f"Olá, {name}"` | `` `Olá, ${name}` `` |
-| Bloco condicional | `if score >= 7:` | `if (score >= 7) { ... }` |
-| Valor nulo | `None` | `null` e `undefined` |
-| Booleanos | `True`, `False` | `true`, `false` |
-| ... | ... | ... |
-
----
-
-## Python: bloco por indentação
+Python usa indentação obrigatória; JavaScript usa chaves explícitas:
 
 ```py
-score = 8
-
-if score >= 7:
- print("Aprovado")
+# Python: indentação delimita o bloco
+score = 8.5
+if score >= 9.0:
+    print("Excelente")
+elif score >= 7.0:
+    print("Aprovado")
 else:
- print("Revisar conteúdo")
+    print("Recuperação")
 ```
 
----
-
-## JavaScript: bloco por chaves
-
 ```js
-const score = 8;
-
-if (score >= 7) {
-console.log("Aprovado");
+// JavaScript: chaves delimitam o bloco
+const score = 8.5;
+if (score >= 9.0) {
+  console.log("Excelente");
+} else if (score >= 7.0) {
+  console.log("Aprovado");
 } else {
-console.log("Revisar conteúdo");
+  console.log("Recuperação");
 }
 ```
 
 ---
 
-## Tipos e Coerção
+## Operadores e Equivalências
 
-- Python é dinâmico e forte
-- o tipo é decidido em runtime, mas operações incompatíveis tendem a falhar em vez de converter silenciosamente
-- JavaScript também é dinâmico, mas possui várias coerções automáticas
-- O exemplo abaixo evidencia a diferença
-- Em JavaScript, o operador `+` também concatena strings e pode converter números
-
----
-
-## Python: conversão precisa ser explícita
-
-```py
-age = 20
-
-# print("Idade: " + age)
-# TypeError: só concatena string com string
-
-print("Idade: " + str(age)) # Idade: 20
-```
-
----
-
-## JavaScript: coerção implícita
-
-```js
-const age = 20;
-
-console.log("Idade: " + age); // Idade: 20
-console.log("5" - 2); // 3
-console.log("5" + 2); // 52
-```
-
----
-
-## Coleções e Objetos
-
-- As estruturas mais usadas têm equivalentes conceituais, mas não são idênticas
-- A maior diferença para iniciantes é que o objeto literal de JavaScript parece um dicionário de Python, mas também carrega...
-- Esta tabela serve como mapa de tradução inicial
-- O exemplo compara filtragem e transformação de listas
-- Em JavaScript, a mesma intenção costuma combinar `filter()` e `map()`
-
----
-
-## Coleções e Objetos: Comparação
-
-| Conceito | Python | JavaScript |
+| Recurso | Python | JavaScript |
 | :--- | :--- | :--- |
-| Lista ordenada mutável | `list` | `Array` |
-| Registro chave-valor | `dict` | `Object` ou `Map` |
-| Conjunto sem repetição | `set` | `Set` |
-| Sequência imutável | `tuple` | Não há equivalente direto nativo |
-| Ausência de valor | `None` | `null` / `undefined` |
-| Iteração simples | `for item in items:` | `for (const item of items)` |
+| **Comentário** | `# texto` | `// texto` |
+| **Interpolação** | `f"Olá, {nome}"` | `` `Olá, ${nome}` `` |
+| **Condicional** | `if / elif / else` | `if / else if / else` |
+| **E / OU / NÃO** | `and` / `or` / `not` | `&&` / `\|\|` / `!` |
+| **Coalescência nula** | `val if val is not None else fallback` | `val ?? fallback` |
+| **Ternário** | `res if cond else fallback` | `cond ? res : fallback` |
+| **Ausência de valor** | `None` | `null` e `undefined` |
 
 ---
 
-## Python: list comprehension
+## A Armadilha dos Valores Falsy vs Truthy
+
+A interpretação booleana de coleções vazias é uma diferença crucial:
+
+| Valor Testado | Booleano em Python | Booleano em JavaScript |
+| :--- | :--- | :--- |
+| **Zero numérico** (`0`, `0.0`) | `False` | `false` |
+| **String vazia** (`""`) | `False` | `false` |
+| **Ausência de valor** | `None` $\rightarrow$ `False` | `null` / `undefined` $\rightarrow$ `false` |
+| **Não-número** (`NaN`) | `float('nan')` $\rightarrow$ `True` | `NaN` $\rightarrow$ `false` |
+| **Array vazio** (`[]`) | **`False`** | **`true`** (Truthy!) |
+| **Objeto vazio** (`{}`) | **`False`** | **`true`** (Truthy!) |
+
+*Atenção: Em JS, sempre verifique arrays vazios com `if (arr.length === 0)`.*
+
+---
+
+## Tipagem: Forte vs Coerções Automáticas
+
+Python recusa tipos incompatíveis; JavaScript realiza coerções automáticas:
 
 ```py
-numbers = [1, 2, 3, 4, 5]
-double_even = [number * 2 for number in numbers if number % 2 == 0]
-
-print(double_even) # [4, 8]
+# Python: tipagem forte (lança TypeError)
+price = 50
+# print("Total: " + price) # TypeError: can only concatenate str
+print("Total: " + str(price)) # "Total: 50"
 ```
-
----
-
-## JavaScript: filter + map
 
 ```js
-const numbers = [1, 2, 3, 4, 5];
-const doubleEven = numbers
-.filter((number) => number % 2 === 0)
-.map((number) => number * 2);
-
-console.log(doubleEven); // [4, 8]
+// JavaScript: coerção implícita de tipos
+const price = 50;
+console.log("Total: " + price); // "Total: 50" (converte número em string)
+console.log("100" - 20);         // 80 (converte string em número)
+console.log("100" + 20);         // "10020" (concatena string!)
 ```
 
 ---
 
-## Comparativo de APIs Nativas
+## Operadores de Igualdade
 
-- Aprender a sintaxe geral é só metade da tradução entre linguagens
-- No dia a dia, a maior parte do código chama métodos de strings, listas/arrays, dicionários/mapas e conjuntos
-- As tabelas abaixo não tentam cobrir toda a biblioteca padrão
-- Elas funcionam como um mapa prático
-- "se em Python eu usaria isto, o que costumo usar em JavaScript?"
+- **Python**: `==` compara valores; `is` compara identidade de objeto na memória.
+- **JavaScript**: adote sempre `===` (valor e tipo sem coerção).
+
+```py
+# Python
+list_a = [1, 2]
+list_b = [1, 2]
+print(list_a == list_b) # True (valores idênticos)
+print(list_a is list_b) # False (objetos distintos na memória)
+```
+
+```js
+// JavaScript
+console.log(42 == "42");  // true (coerção implícita - EVITE!)
+console.log(42 === "42"); // false (tipos distintos: number vs string)
+
+const arrA = [1, 2];
+const arrB = [1, 2];
+console.log(arrA === arrB); // false (compara referências de memória)
+```
 
 ---
 
-## Strings: `str` vs `String`
+## Strings: Métodos Equivalentes
 
-- Strings são imutáveis nas duas linguagens
-- Métodos de transformação devolvem uma nova string
-- eles não alteram o texto original
-- O exemplo abaixo mostra operações comuns lado a lado
-- Em JavaScript, a mesma cadeia usa métodos de `String` e `Array`
-
----
-
-## Strings: `str` vs `String`: Comparação
+Strings são sequências primitivas imutáveis em ambas as linguagens:
 
 | Tarefa | Python `str` | JavaScript `String` |
 | :--- | :--- | :--- |
-| Tamanho | `len(text)` | `text.length` |
-| Minúsculas | `text.lower()` | `text.toLowerCase()` |
-| Maiúsculas | `text.upper()` | `text.toUpperCase()` |
-| Remover espaços nas pontas | `text.strip()` | `text.trim()` |
-| Começa com | `text.startswith("Dev")` | `text.startsWith("Dev")` |
-| ... | ... | ... |
+| **Comprimento** | `len(text)` | `text.length` (unidades UTF-16) |
+| **Acesso por índice** | `text[0]`, `text[-1]` | `text[0]`, `text.at(-1)` |
+| **Fatiamento** | `text[0:4]` | `text.slice(0, 4)` |
+| **Minúsculas / Maiúsculas** | `text.lower()`, `text.upper()` | `text.toLowerCase()`, `text.toUpperCase()` |
+| **Remover espaços pontas** | `text.strip()` | `text.trim()` |
+| **Contém substring** | `"dev" in text` | `text.includes("dev")` |
+| **Substituição** | `text.replace("a", "b")` | `text.replace("a", "b")` |
+| **Dividir / Juntar** | `text.split(",")`, `", ".join(arr)` | `text.split(",")`, `arr.join(", ")` |
+
+*Nota: Em JS, emojis como `"😀".length` valem `2` devido a surrogate pairs UTF-16.*
 
 ---
 
-## Python: API de str
+## Prática com Strings
 
 ```py
-text = "  JavaScript,Python,TypeScript  "
-items = [item.strip().lower() for item in text.split(",")]
-
-print(items) # ['javascript', 'python', 'typescript']
-print(" / ".join(items)) # javascript / python / typescript
+# Python: manipulação encadeada de strings
+raw = "  JavaScript,Python,TypeScript  "
+items = [item.strip().lower() for item in raw.split(",")]
+print(" / ".join(items))
+# Saída: javascript / python / typescript
 ```
-
----
-
-## JavaScript: API de String
 
 ```js
-const text = "  JavaScript,Python,TypeScript  ";
-const items = text
-.split(",")
-.map((item) => item.trim().toLowerCase());
-
-console.log(items); // [ 'javascript', 'python', 'typescript' ]
-console.log(items.join(" / ")); // javascript / python / typescript
+// JavaScript: cadeia de métodos equivalentes
+const raw = "  JavaScript,Python,TypeScript  ";
+const items = raw
+  .split(",")
+  .map((item) => item.trim().toLowerCase());
+console.log(items.join(" / "));
+// Saída: javascript / python / typescript
 ```
 
 ---
 
-## Sequências Mutáveis: `list` vs `Array`
-
-- `list` em Python e `Array` em JavaScript representam sequências ordenadas e mutáveis
-- A semelhança é forte, mas a API idiomática muda
-- Python usa muitas funções globais e métodos mutadores
-- JavaScript usa muitos métodos de alta ordem no próprio array
-- O exemplo a seguir compara um pipeline de dados com filtro, transformação e ordenação
-
----
-
-## Sequências Mutáveis: `list` vs `Array`: Comparação
+## Listas vs Arrays
 
 | Tarefa | Python `list` | JavaScript `Array` |
 | :--- | :--- | :--- |
-| Tamanho | `len(items)` | `items.length` |
-| Adicionar no fim | `items.append(value)` | `items.push(value)` |
-| Remover do fim | `items.pop()` | `items.pop()` |
-| Adicionar vários | `items.extend(other)` | `items.push(...other)` ou `items.concat(other)` |
-| Inserir em posição | `items.insert(index, value)` | `items.splice(index, 0, value)` |
-| ... | ... | ... |
+| **Tamanho** | `len(items)` | `items.length` |
+| **Adicionar no fim** | `items.append(val)` | `items.push(val)` |
+| **Remover do fim** | `items.pop()` | `items.pop()` |
+| **Adicionar no início** | `items.insert(0, val)` | `items.unshift(val)` |
+| **Remover do início** | `items.pop(0)` | `items.shift()` |
+| **Filtrar** | `[x for x in items if cond(x)]` | `items.filter(cond)` |
+| **Transformar** | `[fn(x) for x in items]` | `items.map(fn)` |
+| **Reduzir / Acumular** | `functools.reduce(...)` | `items.reduce(...)` |
+| **Ordenar cópia** | `sorted(items)` | `items.toSorted((a, b) => a - b)` |
 
 ---
 
-## Python: list, sorted e comprehension
+## Pipelines: Comprehensions vs Métodos Funcionais
 
 ```py
-scores = [7, 10, 4, 8]
-approved = sorted([score + 1 for score in scores if score >= 7])
-
-print(approved) # [8, 9, 11]
-print(scores) # [7, 10, 4, 8]
+# Python: List Comprehension para filtrar e transformar
+numbers = [1, 2, 3, 4, 5, 6]
+evens_doubled = [n * 2 for n in numbers if n % 2 == 0]
+print(evens_doubled) # [4, 8, 12]
 ```
+
+```js
+// JavaScript: Métodos funcionais de Array (.filter + .map)
+const numbers = [1, 2, 3, 4, 5, 6];
+const evensDoubled = numbers
+  .filter((n) => n % 2 === 0)
+  .map((n) => n * 2);
+console.log(evensDoubled); // [ 4, 8, 12 ]
+```
+
+*Nota: Em JS, `toSorted((a, b) => a - b)` ordena números sem mutar o array original.*
 
 ---
 
-## JavaScript: Array, filter, map e toSorted
+## Sequências Imutáveis: `tuple` vs Array
+
+Python tem tuplas nativas imutáveis com hash; JavaScript adota arrays com convenções:
+
+```py
+# Python: tuplas nativas (imutáveis, usadas como chaves ou retornos)
+point = (10, 20)
+# point[0] = 15 # TypeError: 'tuple' object does not support item assignment
+x, y = point
+```
 
 ```js
-const scores = [7, 10, 4, 8];
-const approved = scores
-.filter((score) => score >= 7)
-.map((score) => score + 1)
-.toSorted((a, b) => a - b);
+// JavaScript: Arrays desestruturados ou congelados
+const point = Object.freeze([10, 20]);
+// point[0] = 15; // TypeError em strict mode
 
-console.log(approved); // [8, 9, 11]
-console.log(scores); // [7, 10, 4, 8]
+// Desestruturação de retornos múltiplos:
+const [x, y] = point;
 ```
 
 ---
 
 ## Chave-Valor: `dict` vs `Object` e `Map`
 
-- O `dict` de Python é a estrutura padrão para chave-valor
-- Em JavaScript existem duas escolhas comuns
-- objeto literal para registros com campos conhecidos e `Map` para mapa de chaves arbitrárias
-- O exemplo com objeto literal fica natural quando as propriedades fazem parte do modelo
-- Quando as chaves são dinâmicas, `Map` deixa a intenção mais explícita
-
----
-
-## Chave-Valor: `dict` vs `Object` e `Map`: Comparação
-
 | Tarefa | Python `dict` | JavaScript `Object` | JavaScript `Map` |
 | :--- | :--- | :--- | :--- |
-| Criar vazio | `{}` | `{}` | `new Map()` |
-| Ler valor | `user["name"]` | `user.name` ou `user["name"]` | `map.get("name")` |
-| Definir valor | `user["name"] = "Ana"` | `user.name = "Ana"` | `map.set("name", "Ana")` |
-| Valor padrão | `user.get("age", 0)` | `user.age ?? 0` | `map.get("age") ?? 0` |
-| Chaves | `user.keys()` | `Object.keys(user)` | `map.keys()` |
-| ... | ... | ... | ... |
+| **Criação** | `{"a": 1}` | `{ a: 1 }` | `new Map()` |
+| **Leitura** | `d["a"]`, `d.get("a", 0)` | `obj.a`, `obj.a ?? 0` | `map.get("a") ?? 0` |
+| **Escrita** | `d["b"] = 2` | `obj.b = 2` | `map.set("b", 2)` |
+| **Remoção** | `del d["a"]` | `delete obj.a` | `map.delete("a")` |
+| **Existe chave** | `"a" in d` | `Object.hasOwn(obj, "a")` | `map.has("a")` |
+| **Pares (entradas)**| `d.items()` | `Object.entries(obj)` | `map.entries()` |
 
----
-
-## JavaScript: Object como registro
-
-```js
-const user = {
-name: "Ana",
-role: "student",
-};
-
-console.log(Object.keys(user)); // [ 'name', 'role' ]
-console.log(user.name); // Ana
-```
-
----
-
-## JavaScript: Map como dicionário dinâmico
-
-```js
-const counters = new Map();
-
-counters.set("javascript", 2);
-counters.set("python", (counters.get("python") ?? 0) + 1);
-
-console.log(counters.has("python")); // true
-console.log([...counters.entries()]); // [ [ 'javascript', 2 ], [ 'python', 1 ] ]
-```
+- Use **`Object`** para registros estruturados com propriedades fixas.
+- Use **`Map`** para dicionários dinâmicos com chaves de tipos arbitrários.
 
 ---
 
 ## Conjuntos: `set` vs `Set`
 
-- As duas linguagens têm conjuntos para guardar valores sem repetição
-- A ideia é parecida
-- adicionar, testar presença, remover e combinar coleções
-- O exemplo abaixo mostra operações equivalentes com `Set`
-- Python expõe operações de conjunto com operadores próprios (`|`, `&`, `-`)
+Ambas mantêm valores únicos sem duplicação:
 
----
-
-## Conjuntos: `set` vs `Set`: Comparação
-
-| Tarefa | Python `set` | JavaScript `Set` |
-| :--- | :--- | :--- |
-| Criar | `set(items)` | `new Set(items)` |
-| Tamanho | `len(tags)` | `tags.size` |
-| Adicionar | `tags.add("js")` | `tags.add("js")` |
-| Testar presença | `"js" in tags` | `tags.has("js")` |
-| Remover | `tags.remove("js")` ou `tags.discard("js")` | `tags.delete("js")` |
-| ... | ... | ... |
-
----
-
-## JavaScript: operações com Set
+```py
+# Python: operadores nativos de conjunto
+front = {"html", "css", "js"}
+back = {"js", "python", "sql"}
+print(front | back) # União: {'html', 'css', 'js', 'python', 'sql'}
+print(front & back) # Interseção: {'js'}
+print(front - back) # Diferença: {'html', 'css'}
+```
 
 ```js
-const frontend = new Set(["html", "css", "javascript"]);
-const backend = new Set(["javascript", "sql", "python"]);
+// JavaScript: Set com sintaxe de espalhamento (spread)
+const front = new Set(["html", "css", "js"]);
+const back = new Set(["js", "python", "sql"]);
 
-const union = new Set([...frontend, ...backend]);
-const intersection = new Set([...frontend].filter((item) => backend.has(item)));
-const difference = new Set([...frontend].filter((item) => !backend.has(item)));
-
-console.log([...union]); // [ 'html', 'css', 'javascript', 'sql', 'python' ]
-console.log([...intersection]); // [ 'javascript' ]
+const union = new Set([...front, ...back]);
+const intersection = new Set([...front].filter((x) => back.has(x)));
+const difference = new Set([...front].filter((x) => !back.has(x)));
 console.log([...difference]); // [ 'html', 'css' ]
 ```
 
 ---
 
-## Funções e Escopo
+## Funções e Sintaxe
 
-- Python e JavaScript tratam funções como valores
-- você pode guardar uma função em variável, passar como argumento e retornar de outra função
-- A sintaxe, porém, muda bastante
-- O exemplo abaixo define uma função nomeada em Python
-- Em JavaScript, funções podem ser declarações, expressões ou arrow functions
+```py
+# Python: def e lambda
+def calculate_total(price, tax=0.1):
+    return price * (1 + tax)
+
+double = lambda x: x * 2
+
+print(calculate_total(100)) # 110.0
+print(double(5))            # 10
+```
+
+```js
+// JavaScript: function e arrow function
+function calculateTotal(price, tax = 0.1) {
+  return price * (1 + tax);
+}
+
+const double = (x) => x * 2;
+
+console.log(calculateTotal(100)); // 110
+console.log(double(5));            // 10
+```
 
 ---
 
-## Funções e Escopo: Comparação
+## Parâmetros Variáveis e Escopo
 
 | Recurso | Python | JavaScript |
 | :--- | :--- | :--- |
-| Parâmetro padrão | `def fn(x=1):` | `function fn(x = 1)` |
-| Vários argumentos posicionais | `*args` | `...args` |
-| Argumentos nomeados extras | `**kwargs` | Objeto de opções |
-| Função anônima curta | `lambda x: x * 2` | `(x) => x * 2` |
-| Escopo de bloco | Não para `if`/`for` | Sim com `let` e `const` |
-
----
-
-## Python: função nomeada
+| **Parâmetros posicionais extras** | `*args` (tupla) | `...rest` (Array legítimo) |
+| **Parâmetros nomeados extras** | `**kwargs` (dicionário) | Desestruturação: `{ a, b } = {}` |
+| **Escopo de bloco** | Não (`if` e `for` não criam escopo) | Sim (`let` e `const` respeitam blocos `{}`) |
+| **Funções de 1ª classe** | Sim (passadas como valores) | Sim (passadas como valores) |
 
 ```py
-def apply_discount(price, percent=10):
- return price * (1 - percent / 100)
-
-print(apply_discount(100)) # 90.0
+# Python: variável de loop vaza para o escopo externo
+for i in range(3): pass
+print(i) # 2 (existe fora do loop!)
 ```
-
----
-
-## JavaScript: arrow function
 
 ```js
-const applyDiscount = (price, percent = 10) => {
-return price * (1 - percent / 100);
-};
-
-console.log(applyDiscount(100)); // 90
+// JavaScript: let fica restrito ao bloco do loop
+for (let i = 0; i < 3; i++) {}
+// console.log(i); // ReferenceError: i is not defined
 ```
 
 ---
 
-## Executando
+## Classes: `self` Explícito vs `this` Implícito
 
-- Crie um arquivo `average.py`:
-- Execute com Python:
-- Crie um arquivo `average.js`:
-- Execute com Node.js:
-- No navegador, cole apenas a versão JavaScript no console das DevTools. Python não roda
-
----
-
-## average.py
+Em Python, métodos recebem `self` explicitamente na assinatura:
 
 ```py
-grades = [8, 7.5, 9]
-average = sum(grades) / len(grades)
+class Account:
+    def __init__(self, owner, balance=0):
+        self.owner = owner
+        self.balance = balance
 
-print(f"Média: {average:.2f}")
+    def deposit(self, amount):
+        self.balance += amount
+        return self.balance
+
+acc = Account("Ana", 100)
+acc.deposit(50)
+print(f"{acc.owner}: R$ {acc.balance}") # Ana: R$ 150
 ```
 
 ---
 
-## Terminal
+## Classes em JavaScript Moderno
 
-```bash
-python average.py
+Em JavaScript, `constructor()` inicializa a classe e `this` é implícito nos métodos:
+
+```js
+class Account {
+  constructor(owner, balance = 0) {
+    this.owner = owner;
+    this.balance = balance;
+  }
+
+  deposit(amount) {
+    this.balance += amount;
+    return this.balance;
+  }
+}
+
+const acc = new Account("Ana", 100);
+acc.deposit(50);
+console.log(`${acc.owner}: R$ ${acc.balance}`); // Ana: R$ 150
 ```
 
 ---
 
-## Output
+## Módulos e Gerenciadores de Pacotes
 
-```txt
-Média: 8.17
+| Aspecto | Python | JavaScript |
+| :--- | :--- | :--- |
+| **Importação** | `import math` / `from os import path` | `import math from "math"` / `import { fn }` |
+| **Exportação** | Implícita (símbolos do arquivo) | Explícita (`export const ...`, `export default`) |
+| **Repositório** | PyPI (*Python Package Index*) | npm (*Node Package Manager*) |
+| **Ferramentas** | `uv`, `pip`, `poetry` | `pnpm`, `npm`, `yarn` |
+| **Manifesto** | `pyproject.toml` / `requirements.txt` | `package.json` |
+
+```py
+# Python: importação de biblioteca padrão
+from datetime import datetime
+print(datetime.now().year)
+```
+
+```js
+// JavaScript (ESM): importação de módulos
+import { readFile } from "node:fs/promises";
+export const APP_VERSION = "2.0";
 ```
 
 ---
 
-## Exercício
+## Assincronismo e Concorrência
 
-- Comece com uma lista de cursos.
-- Cada curso deve ter `title` e `workload`.
-- Filtre apenas cursos com carga horária maior ou igual a 60.
-- Transforme o resultado em uma lista de títulos.
-- Escreva uma versão em Python.
+```py
+# Python: assincronismo explícito com asyncio
+import asyncio
 
----
+async def fetch_user():
+    await asyncio.sleep(0.1) # Simula I/O assíncrono
+    return {"name": "Ana"}
 
-## Desafio
+async def main():
+    user = await fetch_user()
+    print(user)
 
-- Implemente a mesma lógica em Python e JavaScript
-- receber uma lista de vendas, agrupar o total por categoria e imprimir o objeto/dicionário final
+asyncio.run(main())
+```
 
----
-
-## Modelo mental
-
-- Qual é a diferença mais importante entre o ambiente clássico de Python e o de JavaScript
-- As duas linguagens têm tipagem dinâmica
-- Por que indentação é mais crítica em Python
+- **Python**: Síncrono por padrão; `asyncio.run()` inicia o loop de eventos.
+- **JavaScript**: Assíncrono por natureza com *Event Loop* integrado e Promises nativas.
 
 ---
 
-## Tradução de conceitos
+## Assincronismo em JavaScript
 
-- Qual estrutura de JavaScript se aproxima de uma lista Python
-- Um objeto JavaScript é exatamente igual a um dicionário Python
-- Qual é o equivalente direto de `None` em JavaScript
+```js
+// JavaScript: Event Loop não-bloqueante e Promises
+const fetchUser = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  return { name: "Ana" };
+};
+
+const main = async () => {
+  const user = await fetchUser();
+  console.log(user);
+};
+
+main();
+```
+
+- Funções `async` devolvem Promises automaticamente.
+- O *Event Loop* processa tarefas assíncronas sem travar a thread principal.
 
 ---
 
-## Próxima aula
+## Exercício Prático: Pipeline de Cursos
 
-- Depois do mapa comparativo, siga para Casos "Bizarros"
-- `NaN`, `typeof null`, precisão decimal, coerção implícita e outras armadilhas famosas do JavaScript
+Traduza o pipeline de cursos entre as duas linguagens:
+
+1. Lista de cursos com `title` e `workload` (horas).
+2. Filtrar cursos com carga horária $\ge 60$ horas.
+3. Obter lista com os títulos dos cursos aprovados em maiúsculas.
+4. Versão Python com *list comprehension*.
+5. Versão JavaScript com `filter()` e `map()`.
 
 ---
 
-## Resumo da Aula
+## Solução do Exercício
 
-- Revise panorama Geral
-- Revise execução e Ambiente
-- Revise sintaxe e Blocos
-- Revise tipos e Coerção
-- Revise coleções e Objetos
-- Revise comparativo de APIs Nativas
-- Revise funções e Escopo
+```py
+# Python: courses.py
+courses = [
+    {"title": "HTML e CSS", "workload": 40},
+    {"title": "JavaScript Moderno", "workload": 80},
+    {"title": "Python Backend", "workload": 60},
+]
+titles = [c["title"].upper() for c in courses if c["workload"] >= 60]
+print(titles) # ['JAVASCRIPT MODERNO', 'PYTHON BACKEND']
+```
+
+```js
+// JavaScript: courses.js
+const courses = [
+  { title: "HTML e CSS", workload: 40 },
+  { title: "JavaScript Moderno", workload: 80 },
+  { title: "Python Backend", workload: 60 },
+];
+const titles = courses
+  .filter((c) => c.workload >= 60)
+  .map((c) => c.title.toUpperCase());
+console.log(titles); // [ 'JAVASCRIPT MODERNO', 'PYTHON BACKEND' ]
+```
+
+---
+
+## Desafio: Agrupamento Financeiro
+
+1. Crie uma lista de transações com `category` e `value`.
+2. Itere e acumule o valor total de cada categoria.
+3. Trate chaves inexistentes com valores padrão de forma segura (`.get()` em Python e `??` em JS).
+4. Imprima o dicionário / objeto acumulado final.
+
+---
+
+## Solução do Desafio
+
+```py
+# Python: transactions.py
+transactions = [
+    {"category": "food", "value": 45.0},
+    {"category": "transport", "value": 20.0},
+    {"category": "food", "value": 30.0},
+]
+totals = {}
+for item in transactions:
+    totals[item["category"]] = totals.get(item["category"], 0.0) + item["value"]
+print(totals) # {'food': 75.0, 'transport': 20.0}
+```
+
+```js
+// JavaScript: transactions.js
+const transactions = [
+  { category: "food", value: 45.0 },
+  { category: "transport", value: 20.0 },
+  { category: "food", value: 30.0 },
+];
+const totals = {};
+for (const item of transactions) {
+  totals[item.category] = (totals[item.category] ?? 0) + item.value;
+}
+console.log(totals); // { food: 75, transport: 20 }
+```
+
+---
+
+## Perguntas de Revisão
+
+- Por que dizemos que Python possui tipagem forte e JavaScript possui coerções implícitas?
+- Por que `if ([])` se comporta de forma oposta em Python e em JavaScript?
+- Qual a diferença entre `==` e `is` em Python vs `==` e `===` em JavaScript?
+- Qual a diferença entre usar um objeto literal `{}` e um `Map` ao comparar com `dict`?
+- Por que o método `.sort()` em JavaScript requer uma função de comparação para números?
+- Como difere o uso de `self` em Python de `this` em JavaScript na definição de classes?
+- Como funciona a execução assíncrona básica entre Python e JavaScript?
+
+---
+
+## Resumo do Tópico
+
+- **Execução**: CPython para scripts/backend; V8 e motores web para navegador/Node.js.
+- **Tipagem**: Python recusa tipos incompatíveis; JavaScript exige `===` estrito.
+- **Armadilha Falsy**: Em JS, `[]` e `{}` são **truthy** — verifique `arr.length === 0`.
+- **Coleções**: *Comprehensions* em Python vs `filter`/`map`/`reduce` em JavaScript.
+- **Tuplas**: `tuple` nativa em Python vs arrays desestruturados/congelados em JS.
+- **Classes**: `self` explícito nos métodos Python vs `this` implícito no JS.
+- **Módulos & Pacotes**: `uv`/`pip` com `pyproject.toml` vs `pnpm`/`npm` com `package.json`.
+- **Assincronismo**: `asyncio` opcional em Python vs *Event Loop* nativo no JS.
