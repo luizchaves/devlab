@@ -338,6 +338,55 @@ Em vez de travessões, utilize a pontuação padrão da língua portuguesa:
 
 ## 🧱 Subseções e diagramas
 
+**Toda seção abre com enunciado.** Um `##` nunca começa direto em `###`. Escreva ao menos um
+parágrafo entre os dois títulos, apresentando o que a seção reúne e como ela se divide. Sem esse
+enunciado o leitor salta de um título para outro sem saber o que vem pela frente, e o índice
+lateral exibe dois níveis encadeados sem conteúdo entre eles.
+
+Errado:
+
+```mdx
+## Conversão Numérica e Métodos do Protótipo
+
+### Conversão Explícita: `Number()`, `parseInt()` e `parseFloat()`
+```
+
+Certo:
+
+```mdx
+## Conversão Numérica e Métodos do Protótipo
+
+Transformar texto em número e número em texto são operações distintas: a primeira depende de
+funções de conversão, a segunda dos métodos de formatação do protótipo.
+
+### Conversão Explícita: `Number()`, `parseInt()` e `parseFloat()`
+```
+
+A única exceção é `## Perguntas de revisão`, cujos `###` são apenas rótulos de agrupamento das
+perguntas.
+
+**Título de seção não é item de lista numerada.** Não prefixe `##`, `###` ou `####` com
+`1.`, `2.`, `3.` Os títulos já aparecem em ordem no documento e no índice lateral, então o
+número só repete o que a posição informa, polui o `tableOfContents` e fica desatualizado assim
+que uma seção é inserida, removida ou reordenada. Quando a ordem for realmente obrigatória
+(um passo a passo), use `<Steps>` ou uma lista ordenada dentro da seção, não o título.
+
+Errado:
+
+```mdx
+### 1. Formatação de Moedas (*Currency*)
+
+### 2. Formatação de Porcentagem (*Percent*)
+```
+
+Certo:
+
+```mdx
+### Formatação de Moedas (*Currency*)
+
+### Formatação de Porcentagem (*Percent*)
+```
+
 **Subseção isolada não se justifica.** Só abra `###` dentro de um `##` quando houver **duas
 ou mais** — uma única subseção é apenas o corpo da seção com um título a mais. Se sobrar uma
 sozinha, dissolva o título no texto ou promova a subseção a `##`.
@@ -585,3 +634,7 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 25. **Vários arquivos sem árvore**: exibir dois ou mais `<SourceCode>` da mesma pasta sem antes
     apresentar a estrutura em `<FileTree>`, deixando o leitor sem noção de quantos arquivos
     existem e do papel de cada um.
+26. **Seção sem enunciado**: um `##` que começa direto em `###`, sem o parágrafo que apresenta a
+    seção e anuncia as subseções. Exceção: `## Perguntas de revisão`.
+27. **Título numerado**: `### 1. …`, `### 2. …` em vez de títulos simples. A ordem já vem da
+    posição no documento; para sequência obrigatória, use `<Steps>` ou lista ordenada.
