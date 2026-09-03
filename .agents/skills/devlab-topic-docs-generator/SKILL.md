@@ -85,7 +85,9 @@ import FileTree from '@components/FileTree.astro';
 
 ## 🔗 Linha de materiais
 
-Logo após um parágrafo curto de abertura ("Este tópico apresenta…"), inclua a linha de
+**Posicionamento obrigatório**: A linha de materiais deve ficar **sempre depois do parágrafo de introdução** e antes de `## Objetivo`. Nunca posicione a linha `Materiais:` antes do parágrafo de abertura nem colada diretamente após os imports.
+
+Logo após o parágrafo de abertura ("Este tópico apresenta…"), inclua a linha de
 materiais quando existirem slides/mapa mental do tópico:
 
 ```mdx
@@ -110,24 +112,25 @@ Só cite materiais que **existem** em `slides/` e `mindmaps/`. Não linke arquiv
 Ordem observada nos tópicos de `ecmascript`. Nem toda seção é obrigatória,
 mas **`Objetivo`, `Exercício` e `Próximo tópico` são**, e a ordem relativa deve ser mantida.
 
-1. **Parágrafo de abertura** — o que o tópico apresenta, em 1–3 linhas.
-2. **`Materiais: …`** — slides e mapa mental.
-3. **`## Objetivo`** — 1 parágrafo denso ou lista curta com o que o leitor vai dominar.
+1. **Parágrafo de abertura** — o que o tópico apresenta, em 1–3 linhas (iniciando preferencialmente por *"Este tópico apresenta..."*).
+2. **`Materiais: …`** — slides e mapa mental (obrigatoriamente **após** o parágrafo de introdução, nunca antes).
+3. **`## Objetivo`** — Formato bipartido obrigatório (**Geral + Específico**), inspirado no modelo pedagógico de referência de `functions.mdx`, `arrays.mdx` e `objects.mdx`:
+   - **Objetivo Geral (1 parágrafo introdutório)**: Inicia com um verbo abrangente no infinitivo (*Dominar*, *Compreender*, *Construir*), contextualizando a jornada pedagógica do fundamento à aplicação prática avançada. Encerra obrigatoriamente com a frase canônica de transição: `Ao final do tópico, o leitor deve ser capaz de:`.
+   - **Objetivos Específicos (lista de 4 a 6 marcadores)**: Cada item inicia obrigatoriamente com um verbo de ação no infinitivo (*Diferenciar*, *Manipular*, *Escolher*, *Aplicar*, *Explicar*), cobrindo as grandes seções do tópico. Termos técnicos em inglês ficam em itálico (`*guard clause*`, `*callbacks*`) e identificadores em código (`===`, `return`). Cada item termina com ponto final (`.`).
 4. **Seções de conteúdo** (`## …`, subdivididas com `### …`) — conceito a conceito,
    cada uma com: explicação → tabela comparativa quando houver taxonomia → bloco de
    código comentado → `<Aside>` de armadilha ou dica.
-5. **`## Resumo e Boas Práticas`** — recomendado em tópicos longos ou guias com muitos
-   conceitos práticos; deve consolidar decisões de uso sem virar uma grade apertada de cartões.
+5. **`## Resumo e Boas Práticas`** / **`## Boas práticas`** — recomendado em tópicos longos ou guias com muitos
+   conceitos práticos; estruturado preferencialmente em tabela de duas colunas (`| Prática | Motivo |`) acompanhada de um bloco executável ````js title="Resumo prático"```` consolidando o uso combinado das regras.
 6. **`## Executando`** — passo a passo em `<Steps>` para rodar o exemplo
-   (arquivo `.js` → `node arquivo.js` → bloco `txt title="Output"` → alternativa no
-   navegador com `<kbd>F12</kbd>`).
-7. **`## Exercício`** — enunciado numerado (5–10 itens), seguido de
+   (arquivo `.js` → `node arquivo.js` → bloco `txt title="Output"` ou `bash title="Terminal"` → teste alternativo de precedência ou erro).
+7. **`## Exercício`** — enunciado numerado (5–10 itens), com parágrafo introdutório antes da lista e parágrafo de transição antes do
    `<details><summary>Possível resposta</summary>` com a solução comentada.
-8. **`## Desafio`** — variação mais difícil, mesmo formato de `<details>`.
+8. **`## Desafio`** — variação mais complexa, mesmo formato de `<details>` e com parágrafo de transição prévio.
 9. **`## Perguntas de revisão`** — 8–12 perguntas em negrito e numeradas, agrupadas por
-   `### <Subtema>`, cada uma com `<details><summary>Possível resposta</summary>`.
+   `### <Subtema>`, cada pergunta terminando obrigatoriamente com ponto de interrogação (`?`), com `<details><summary>Possível resposta</summary>`.
 10. **`## Referências`** — links MDN/spec agrupados por assunto, formato
-   `[Array | MDN](https://developer.mozilla.org/…)`.
+    `[Array | MDN](https://developer.mozilla.org/…)`.
 11. **`## Próximo tópico`** — 1 frase de ligação + link relativo para o próximo tópico:
     `[Strings](../strings/): Criação, template literals e métodos do objeto String.`
 
