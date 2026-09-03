@@ -81,6 +81,24 @@ Evite `new Number(42)`: instancia um objeto *wrapper* na memória Heap (`typeof 
 
 ---
 
+## Anatomia de um Número de 64 Bits
+
+Os 64 bits são repartidos em três campos, e é essa divisão que fixa todos os limites do tipo:
+
+```txt
+  bit 63     bits 62-52              bits 51-0
+┌─────────┬──────────────┬────────────────────────────────┐
+│  Sinal  │   Expoente   │       Fração (mantissa)        │
+│  1 bit  │   11 bits    │            52 bits             │
+└─────────┴──────────────┴────────────────────────────────┘
+    ±        escala 2ⁿ         dígitos significativos
+```
+
+- **Fração (52 bits) + 1 bit implícito**: 53 dígitos significativos, ou seja, `MAX_SAFE_INTEGER` = $2^{53} - 1$ e `EPSILON` = $2^{-52}$.
+- **Expoente (11 bits)**: define o alcance da escala, de `MIN_VALUE` (`5e-324`) até `MAX_VALUE` (`1.79e+308`).
+
+---
+
 ## Literais e Bases Numéricas
 
 ```js
