@@ -325,7 +325,9 @@ perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
   marcador. Só abra lista quando houver **dois ou mais** itens no mesmo nível. O caso mais
   comum é a observação final largada depois de um bloco de código: escreva-a como parágrafo
   (com o rótulo em **negrito** quando for alerta ou dica) ou acrescente o segundo item que
-  faltava. Vale para listas com marcador e numeradas.
+  faltava. Vale para listas com marcador e numeradas, em qualquer nível de aninhamento: um
+  sub-item sozinho embaixo de um bullet também é bullet solitário, e costuma ser resolvido
+  incorporando o texto ao item pai.
 
   Errado:
 
