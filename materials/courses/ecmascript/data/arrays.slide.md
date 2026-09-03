@@ -100,12 +100,12 @@ console.log(mixed[5][0]); // 1 (acessando elemento do array aninhado)
 Internamente, arrays são objetos. `typeof []` retorna `"object"`, gerando falsos positivos:
 
 ```js
-// ❌ typeof não diferencia Array de Objeto literal ou null
+// Errado: typeof não diferencia Array de objeto literal ou null
 console.log(typeof [1, 2, 3]); // "object"
 console.log(typeof {});        // "object"
 console.log(typeof null);      // "object"
 
-// ✅ Array.isArray() é a forma oficial e segura de validação:
+// Correto: Array.isArray() é a forma oficial e segura de validação
 console.log(Array.isArray([1, 2, 3])); // true
 console.log(Array.isArray({}));        // false
 console.log(Array.isArray("texto"));   // false
@@ -168,7 +168,7 @@ O operador `delete` remove o valor, mas deixa a posição como um *empty slot*:
 ```js
 const numbers = [10, 20, 30, 40];
 
-// ❌ delete cria um array esparso sem alterar o length
+// Cuidado: delete cria um array esparso sem alterar o length
 delete numbers[2];
 
 console.log(numbers);        // [ 10, 20, <1 empty item>, 40 ]
@@ -235,14 +235,14 @@ const matrix = [[1, 2], [3, 4]];
 // 1. Cópia Rasa com spread: subarrays continuam compartilhados
 const shallow = [...matrix];
 shallow[0].push(99);
-console.log(matrix[0]); // [ 1, 2, 99 ] (❌ afetou a matriz original!)
+console.log(matrix[0]); // [ 1, 2, 99 ] (afetou a matriz original!)
 
 // 2. Cópia Profunda com structuredClone(): duplica todos os níveis
 const originalMatrix = [[1, 2], [3, 4]];
 const deep = structuredClone(originalMatrix);
 deep[0].push(99);
 
-console.log(originalMatrix[0]); // [ 1, 2 ] (✅ original preservado)
+console.log(originalMatrix[0]); // [ 1, 2 ] (original preservado)
 console.log(deep[0]);           // [ 1, 2, 99 ] (100% isolado)
 ```
 
@@ -398,11 +398,11 @@ Por padrão, `.sort()` converte itens em string e ordena por código Unicode:
 ```js
 const numbers = [10, 2, 5, 1, 20];
 
-// ❌ Padrão lexicográfico (incorreto para números):
+// Errado: padrão lexicográfico, incorreto para números
 numbers.sort();
 console.log(numbers); // [ 1, 10, 2, 20, 5 ]
 
-// ✅ Função de comparação numérica crescente:
+// Correto: função de comparação numérica crescente
 numbers.sort((a, b) => a - b);
 console.log(numbers); // [ 1, 2, 5, 10, 20 ]
 
@@ -422,11 +422,11 @@ A ordenação Unicode falha com caracteres acentuados e maiúsculas/minúsculas:
 ```js
 const fruits = ["Maçã", "abacaxi", "Água", "banana"];
 
-// ❌ Padrão Unicode: acentos e maiúsculas quebram a ordem alfabética
+// Errado: padrão Unicode, acentos e maiúsculas quebram a ordem alfabética
 fruits.sort();
 console.log(fruits); // [ 'Maçã', 'banana', 'abacaxi', 'Água' ]
 
-// ✅ Ordem gramatical correta em português (pt-BR):
+// Correto: ordem gramatical em português (pt-BR)
 fruits.sort((a, b) => a.localeCompare(b, "pt-BR"));
 console.log(fruits); // [ 'abacaxi', 'Água', 'banana', 'Maçã' ]
 ```
