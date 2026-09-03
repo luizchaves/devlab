@@ -250,6 +250,7 @@ style: |
     flex-direction: column;
     justify-content: flex-start;
     padding-bottom: 70px;
+    font-size: 1.5rem;
   }
   section.lead {
     justify-content: center;
@@ -275,6 +276,7 @@ description: "Slides completos do tópico Arrays em JavaScript (criação, índi
 - Não invente tema: todos os decks usam `theme: default`.
 - O bloco `style` é o que produz a paginação `3 / 21`.
 - O `padding-bottom: 70px` no `section` reserva o respiro inferior do conteúdo.
+- O `font-size: 1.5rem` no `section` padroniza o tamanho tipográfico confortável (~24px) para leitura em projeção 16:9 e acomoda blocos de código de 10-16 linhas com comentários sem risco de overflow.
 - A numeração em `section::after` é posicionada com `position: absolute; bottom: 24px; right: 32px; padding: 0;` no canto inferior direito, fora da área útil do conteúdo, evitando sobreposição (*overlap*) com códigos, tabelas ou listas longas.
 - A paginação deve ficar pequena (`0.6em`) e discreta.
 

@@ -116,17 +116,19 @@ mas **`Objetivo`, `Exercício` e `Próximo tópico` são**, e a ordem relativa d
 4. **Seções de conteúdo** (`## …`, subdivididas com `### …`) — conceito a conceito,
    cada uma com: explicação → tabela comparativa quando houver taxonomia → bloco de
    código comentado → `<Aside>` de armadilha ou dica.
-5. **`## Executando`** — passo a passo em `<Steps>` para rodar o exemplo
+5. **`## Resumo e Boas Práticas`** — recomendado em tópicos longos ou guias com muitos
+   conceitos práticos; deve consolidar decisões de uso sem virar uma grade apertada de cartões.
+6. **`## Executando`** — passo a passo em `<Steps>` para rodar o exemplo
    (arquivo `.js` → `node arquivo.js` → bloco `txt title="Output"` → alternativa no
    navegador com `<kbd>F12</kbd>`).
-6. **`## Exercício`** — enunciado numerado (5–10 itens), seguido de
+7. **`## Exercício`** — enunciado numerado (5–10 itens), seguido de
    `<details><summary>Possível resposta</summary>` com a solução comentada.
-7. **`## Desafio`** — variação mais difícil, mesmo formato de `<details>`.
-8. **`## Perguntas de revisão`** — 8–12 perguntas em negrito e numeradas, agrupadas por
+8. **`## Desafio`** — variação mais difícil, mesmo formato de `<details>`.
+9. **`## Perguntas de revisão`** — 8–12 perguntas em negrito e numeradas, agrupadas por
    `### <Subtema>`, cada uma com `<details><summary>Possível resposta</summary>`.
-9. **`## Referências`** — links MDN/spec agrupados por assunto, formato
+10. **`## Referências`** — links MDN/spec agrupados por assunto, formato
    `[Array | MDN](https://developer.mozilla.org/…)`.
-10. **`## Próximo tópico`** — 1 frase de ligação + link relativo para o próximo tópico:
+11. **`## Próximo tópico`** — 1 frase de ligação + link relativo para o próximo tópico:
     `[Strings](../strings/): Criação, template literals e métodos do objeto String.`
 
 Padrão do bloco de resposta:
@@ -264,6 +266,13 @@ ajuda o estudante a absorver cada conceito passo a passo.
 próxima, evitar saltos conceituais e manter textos relacionados no mesmo bloco temático.
 Quando um parágrafo, tabela, lista ou `<Aside>` parecer deslocado, mova-o para a seção onde
 ele reforça o raciocínio principal ou reescreva a transição para explicitar a conexão.
+
+**Resumo e Boas Práticas legível:** Em tópicos extensos e páginas de guia, use
+`## Resumo e Boas Práticas` antes de `## Executando` para consolidar decisões práticas.
+Prefira subtítulos `###` com parágrafos curtos e listas de 2–4 itens, agrupando recomendações
+por intenção de uso. Evite `<CardGrid>` em páginas comuns de tópico quando cada item tiver
+várias linhas; com a navegação lateral ativa, cartões ficam estreitos e prejudicam a leitura.
+Reserve `<CardGrid>` para páginas `index`, visões gerais ou destaques realmente curtos.
 
 Exemplos de correção de encadeamento:
 
@@ -536,16 +545,19 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 13. **Sequência fragmentada**: seções, parágrafos, listas ou `<Aside>` aparecem em ordem
     que quebra a narrativa do tópico. Redistribua o conteúdo ou reescreva as transições
     para manter linearidade e coesão entre os blocos.
-14. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
-15. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
-16. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
-17. **Página-despejo**: tópico de conceito com "Exemplo completo (LP2)" no fim, despejando a
+14. **Resumo apertado em `<CardGrid>`**: usar cartões longos em uma página comum de tópico,
+    deixando o texto estreito e difícil de ler. Para resumos extensos, prefira `###` com prosa
+    curta e listas objetivas.
+15. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
+16. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
+17. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
+18. **Página-despejo**: tópico de conceito com "Exemplo completo (LP2)" no fim, despejando a
     árvore de arquivos e dez `<SourceCode>` seguidos — isso é uma página de projeto
     disfarçada; mova para `practice/` e deixe o link.
-18. **Página de projeto sem `<ProjectLinks>`**: o leitor fica sem o botão do GitHub e sem o
+19. **Página de projeto sem `<ProjectLinks>`**: o leitor fica sem o botão do GitHub e sem o
     do Codespaces, e precisa caçar o caminho do projeto no repositório.
-19. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
+20. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
     do Codespaces — crie a pasta ou passe `devcontainer={false}`.
-20. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
-21. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
-22. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
+21. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
+22. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
+23. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
