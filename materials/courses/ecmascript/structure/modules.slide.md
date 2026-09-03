@@ -274,8 +274,8 @@ console.log(count); // 1 (reflete o novo valor!)
 
 Para utilizar ES Modules nativamente no Node.js:
 
-1. **`package.json`**: Declare `"type": "module"`.
-2. **Extensão Obrigatória**: Em caminhos relativos locais (`./` ou `../`), inclua sempre `.js`.
+- **`package.json`**: Declare `"type": "module"` para interpretar `.js` como ESM.
+- **Extensão Obrigatória**: Em caminhos relativos locais (`./` ou `../`), inclua sempre `.js`.
 
 ```json
 {
@@ -286,12 +286,24 @@ Para utilizar ES Modules nativamente no Node.js:
 ```
 
 ```js
-// Correto:
+// Correto (extensão explícita obrigatória em ESM):
 import { sum } from './lib.js';
-
-// Incorreto no Node.js ESM nativo (dispara ERR_MODULE_NOT_FOUND):
-// import { sum } from './lib';
 ```
+
+---
+
+## Extensões de Arquivo: .mjs vs .cjs vs .js
+
+O Node.js determina o formato pela extensão e pelo `package.json`:
+
+| Extensão | Formato Interpretado | Regra de Execução |
+| :--- | :--- | :--- |
+| **`.mjs`** | **Sempre ES Modules** | `import`/`export` e Top-Level Await direto |
+| **`.cjs`** | **Sempre CommonJS** | `require()` e `module.exports` direto |
+| **`.js`** | **Dinâmico** | ESM se `"type": "module"`, CJS caso contrário |
+
+- **`.mjs`**: Ideal para scripts autônomos sem `package.json` (`node script.mjs`).
+- **`.cjs`**: Permite manter arquivos CommonJS pontuais dentro de projetos ESM.
 
 ---
 
