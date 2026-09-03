@@ -249,19 +249,22 @@ Sem a instrução `break`, a execução continua nos `case` subsequentes:
 
 ```js
 // Agrupamento intencional de casos com fall-through:
-const selectedOperator = "-";
+const day = "saturday";
 
-switch (selectedOperator) {
-  case "+":
-  case "-":
-    console.log("Operador aditivo"); // "Operador aditivo"
+switch (day) {
+  case "saturday":
+  case "sunday":
+    console.log("Fim de semana"); // "Fim de semana"
     break;
-  case "*":
-  case "/":
-    console.log("Operador multiplicativo");
+  case "monday":
+  case "tuesday":
+  case "wednesday":
+  case "thursday":
+  case "friday":
+    console.log("Dia útil");
     break;
   default:
-    console.log("Inválido");
+    console.log("Dia inválido");
 }
 ```
 
@@ -459,24 +462,27 @@ console.log(numbers);
 
 ---
 
-## Desafio: Relatório de Operadores e Laço
+## Desafio: Classificação de Dias e Laço
 
-Classifique um operador com `switch` e gere uma sequência formatada:
+Classifique um dia com `switch` agrupando o fim de semana e gere uma sequência:
 
 ```js
-const selectedOperator = "-";
+const day = "saturday";
 
-switch (selectedOperator) {
-  case "+":
-  case "-":
-    console.log("additive operator"); // "additive operator"
+switch (day) {
+  case "saturday":
+  case "sunday":
+    console.log("weekend"); // "weekend"
     break;
-  case "*":
-  case "/":
-    console.log("multiplicative operator");
+  case "monday":
+  case "tuesday":
+  case "wednesday":
+  case "thursday":
+  case "friday":
+    console.log("weekday");
     break;
   default:
-    console.log("invalid");
+    console.log("invalid day");
 }
 
 for (let i = 1; i <= 10; i++) {
