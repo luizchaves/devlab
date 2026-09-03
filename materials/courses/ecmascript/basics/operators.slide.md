@@ -574,7 +574,7 @@ console.log(status === "approved"); // true
 
 ---
 
-## Resumo e Boas Práticas
+## Boas Práticas
 
 - **Igualdade Estrita**: priorize `===` e `!==` incondicionalmente em todas as checagens.
 - **Valores Padrão Seguros**: use `??` para preservar números válidos como `0` e strings vazias `""`.
