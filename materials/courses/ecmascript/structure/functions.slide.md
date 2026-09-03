@@ -135,18 +135,6 @@ console.log(calculator.createArrow()(5)); // 10
 
 ---
 
-## Comparação entre Formas de Declaração
-
-| Característica | Function Declaration | Function Expression | Arrow Function |
-| :--- | :--- | :--- | :--- |
-| **Sintaxe básica** | `function f() {}` | `const f = function() {}` | `const f = () => {}` |
-| **Hoisting** | Completo (corpo + nome) | TDZ (`const`/`let`) | TDZ (`const`/`let`) |
-| **Contexto `this`** | Dinâmico (na chamada) | Dinâmico (na chamada) | Léxico (escopo pai) |
-| **Objeto `arguments`** | Presente | Presente | Ausente (léxico) |
-| **Construtor (`new`)** | Sim | Sim (tradicional) | Não (`TypeError`) |
-
----
-
 ## Retorno Padrão e Cláusulas de Guarda
 
 Toda função sem `return` devolve `undefined`. Interrompa fluxos cedo com cláusulas de guarda:
@@ -278,6 +266,20 @@ console.log(inspectArgs(10, 20, 30)); // 60
 // Em Arrow Functions, arguments não existe (resolve no escopo externo):
 const arrow = () => typeof arguments; // "undefined" (no navegador)
 ```
+
+---
+
+## Comparação entre Formas de Declaração
+
+Depois de ver sintaxe, retorno, `this`, hoisting e `arguments`, a tabela fecha as diferenças principais:
+
+| Característica | Function Declaration | Function Expression | Arrow Function |
+| :--- | :--- | :--- | :--- |
+| **Sintaxe básica** | `function f() {}` | `const f = function() {}` | `const f = () => {}` |
+| **Hoisting** | Completo (corpo + nome) | TDZ (`const`/`let`) | TDZ (`const`/`let`) |
+| **Contexto `this`** | Dinâmico (na chamada) | Dinâmico (na chamada) | Léxico (escopo pai) |
+| **Objeto `arguments`** | Presente | Presente | Ausente (léxico) |
+| **Construtor (`new`)** | Sim | Sim (tradicional) | Não (`TypeError`) |
 
 ---
 

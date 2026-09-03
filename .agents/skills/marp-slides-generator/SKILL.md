@@ -72,6 +72,9 @@ Antes de entregar, faça uma revisão didática final:
   mesmo subtipo. Separe subtipos diferentes quando a fusão deixar o slide alto demais;
 - depois de fundir slides, revise novamente os novos pares adjacentes, porque a numeração
   muda e pode revelar outra quebra artificial do mesmo tema;
+- posicione slides de comparação, tabela síntese ou "antes/depois" depois dos tópicos que
+  alimentam a comparação. Primeiro apresente os conceitos, exemplos e exceções; depois use
+  a comparação para sintetizar e fechar o bloco didático antes de avançar para outro eixo;
 - compacte bullets para uma linha sempre que possível;
 - remova frases incompletas, reticências de truncamento e placeholders como
   "Diagrama da página";
@@ -295,7 +298,10 @@ Ordem de um deck:
 5. **Conceito a conceito / Passo a passo operacional** - 2-4 slides por conceito principal:
    - slide 1: definição, sintaxe e regras;
    - slide 2: exemplo de código mínimo e focado;
-   - slide 3 (opcional): armadilha comum, comparação, caso limite ou passo a passo de execução (arquivo → comando → saída).
+   - slide 3 (opcional): armadilha comum, caso limite ou passo a passo de execução
+     (arquivo → comando → saída).
+   - slide de comparação ou tabela síntese: use somente depois que os itens comparados já
+     foram apresentados, para fechar o bloco e consolidar as diferenças.
 6. **`## Arquitetura`** ou **`## Fluxo de Execução`** (quando aplicável) - diagrama ASCII em bloco `txt` ou tabela comparativa.
 7. **`## Boas Práticas`** ou **`## Cuidados e Armadilhas`** - 3-5 alertas cruciais.
 8. **`## Exercício Prático: <Tema>`** e **`## Desafio: <Tema>`** - **SEMPRE inclua o enunciado completo com as instruções e etapas claras** do exercício/desafio.
