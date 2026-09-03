@@ -47,7 +47,7 @@ Controlar a ordem de execução do programa através de estruturas de decisão, 
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
 - Statements de Controle
 - Decisão: `if`, `else if`, `else`
@@ -501,7 +501,7 @@ for (let i = 1; i <= 10; i++) {
 
 ---
 
-## Resumo da Aula
+## Resumo e Boas Práticas
 
 - **Decisão**: `if / else if / else` direciona caminhos; `switch` compara opções fixas com `===`.
 - **Prevenção de Erros**: use `{}` e nunca confunda `=` (atribuição) com `===` (comparação).
