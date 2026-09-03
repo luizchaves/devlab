@@ -70,4 +70,5 @@ markmap:
 - **Parênteses de Clareza**: explicite a precedência em cálculos compostos.
 - **Valores Padrão**: use `??` para preservar zeros numéricos e strings vazias.
 - **Proteção de Propriedades**: utilize `?.` em objetos dinâmicos ou de API externa.
+- **Evite Unários Empilhados**: prefira conversões explícitas com `Number()`.
 

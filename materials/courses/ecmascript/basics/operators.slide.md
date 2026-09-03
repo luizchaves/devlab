@@ -58,7 +58,7 @@ Compreender a avaliação de expressões, regras de precedência e os operadores
 - Atribuição, Atribuição Lógica e Desestruturação
 - Acesso, Optional Chaining e Espalhamento
 - Exercício e Desafio Práticos
-- Perguntas de Revisão e Síntese
+- Perguntas de Revisão e Boas Práticas
 
 ---
 
@@ -140,8 +140,9 @@ const celsius = (fahrenheit - 32) / 1.8;
 console.log(celsius); // 10
 ```
 
-- Multiplicação/divisão precedem soma/subtração.
-- Operadores lógicos: `&&` tem maior precedência que `||`.
+- Multiplicação e divisão precedem soma e subtração na árvore sintática (AST).
+- Parênteses reestruturam os nós da AST, forçando a avaliação prioritária.
+- Em operadores lógicos, `&&` possui precedência superior a `||`.
 
 ---
 
@@ -501,6 +502,8 @@ Crie um script para calcular o resumo financeiro de um pedido:
 
 ## Solução do Exercício
 
+Confira a implementação que combina cálculos, precedência explícita e operadores de escolha:
+
 ```js
 const unitPrice = 49.9, quantity = 3, discount = 0.1, shipping = 0;
 
@@ -537,6 +540,8 @@ Classifique a situação acadêmica de um estudante:
 
 ## Solução do Desafio
 
+Confira a resolução completa integrando optional chaining, coalescência e operador ternário:
+
 ```js
 const grade1 = 8, grade2 = 6, absences = 3;
 const student = { name: "Ana", address: null };
@@ -566,6 +571,15 @@ console.log(status === "approved"); // true
 - O que `student.address?.city` evita quando `address` é `null`?
 - Qual a diferença entre operadores **lógicos** e **bitwise** em relação a curto-circuito?
 - O que o operador `delete` realmente remove?
+
+---
+
+## Resumo e Boas Práticas
+
+- **Igualdade Estrita**: priorize `===` e `!==` incondicionalmente em todas as checagens.
+- **Valores Padrão Seguros**: use `??` para preservar números válidos como `0` e strings vazias `""`.
+- **Navegação em Objetos**: proteja leituras dinâmicas com `?.` para evitar `TypeError`.
+- **Agrupamento Explícito**: aplique parênteses `()` em expressões com múltiplos operadores.
 
 ---
 
