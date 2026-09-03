@@ -567,14 +567,14 @@ console.log(item + 10); // 60 (valueOf() invocado na coerção)
 Métodos de protótipo exigem `function` tradicional para vincular o `this`:
 
 ```js
-// ✅ Função tradicional: 'this' aponta para o array chamador
+// Correto: função tradicional, 'this' aponta para o array chamador
 Array.prototype.last = function () {
   return this[this.length - 1];
 };
 
 console.log([10, 20, 30].last()); // 30
 
-// ❌ Arrow function: não possui 'this' dinâmico, captura léxico externo
+// Errado: arrow function não tem 'this' dinâmico, captura o léxico externo
 // Array.prototype.lastArrow = () => this[this.length - 1]; // undefined
 ```
 
@@ -654,11 +654,11 @@ console.log(admin.getProfile());
 
 ```js
 class Calculator {
-  // ❌ O segundo add substitui o primeiro:
+  // Errado: o segundo add substitui o primeiro
   add(a) { return a + 10; }
   add(a, b) { return a + b; }
 
-  // ✅ Simulação idiomática com valor padrão:
+  // Correto: simulação idiomática com valor padrão
   sum(a, b = 10) { return a + b; }
 }
 
