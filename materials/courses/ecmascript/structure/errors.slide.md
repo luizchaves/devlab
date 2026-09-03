@@ -47,7 +47,7 @@ Compreender o ciclo de vida de exceções e implementar tolerância a falhas em 
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
 - Ciclo de Vida de Exceções e `try...catch...finally`
 - Garantia de Execução do `finally` e Optional Catch
@@ -402,7 +402,7 @@ try {
 
 ---
 
-## Resumo da Aula
+## Resumo e Boas Práticas
 
 - **Prevenção de Falhas**: `try...catch...finally` intercepta erros sem quebrar a execução.
 - **Limpeza Garantida**: `finally` sempre executa, mesmo após `return` antecipado.

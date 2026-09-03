@@ -6,17 +6,22 @@ sidebar:
   label: "Tratamento de Erros"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
 
-Este tópico apresenta os mecanismos para **Tratamento de Erros** e **Gestão de Exceções** em JavaScript: como utilizar a estrutura `try...catch...finally`, disparar erros com `throw`, identificar exceções nativas (`TypeError`, `ReferenceError`, `SyntaxError`), criar classes de erros customizadas e tratar falhas em fluxos assíncronos.
+Este tópico apresenta os mecanismos para tratamento de erros e tolerância a falhas em tempo de execução em JavaScript, detalhando o funcionamento da estrutura `try...catch...finally`, o disparo de exceções com `throw`, a taxonomia de erros nativos (`TypeError`, `ReferenceError`, `SyntaxError`, `RangeError`), o encadeamento de causa raiz com `cause` (ES2022), a criação de classes de erros customizadas e a gestão de erros em fluxos assíncronos.
 
 Materiais: [slides do tópico](../../../../slides/courses/ecmascript/structure/errors/) e
 [mapa mental](../../../../mindmaps/courses/ecmascript/structure/errors/)
 
 ## Objetivo
 
-Compreender o ciclo de vida de exceções em JavaScript, aplicar o bloco `try...catch...finally` para evitar interrupções inesperadas da aplicação, disparar erros estruturados com `throw`, utilizar a propriedade `cause` para encadeamento de diagnósticos, criar erros personalizados estendendo a classe `Error` e manipular falhas em Promises e funções `async/await`.
+Dominar a gestão de exceções e a recuperação de falhas em tempo de execução em JavaScript, do isolamento de blocos de risco à modelagem de classes de erro de domínio e tratamento assíncrono. Ao final do tópico, o leitor deve ser capaz de:
 
----
+- Interceptar exceções de forma graciosa com `try...catch`, garantindo a execução de rotinas de limpeza com `finally`.
+- Lançar erros estruturados com a instrução `throw`, inspecionando propriedades nativas como `.message`, `.name`, `.stack` e a causa raiz em `.cause`.
+- Identificar e diferenciar as principais classes de erro nativas (`TypeError`, `ReferenceError`, `SyntaxError`, `RangeError`, `URIError` e `AggregateError`).
+- Criar e estender classes de erros personalizadas (*custom errors*), filtrando o tratamento de falhas com o operador `instanceof`.
+- Tratar falhas em fluxos assíncronos tanto em cadeias de Promises (`.catch()`) quanto em funções `async/await` com `try...catch`.
 
 ## O Bloco `try...catch...finally`
 
@@ -39,6 +44,23 @@ try {
 - **`try`**: Contém o bloco de código sujeito a falhas (ex: operações de I/O, parsing de JSON, requisições de rede).
 - **`catch`**: Intercepta o objeto de erro lançado e permite tomar medidas corretivas (ex: registrar logs, exibir mensagens amigáveis ao usuário).
 - **`finally`**: Executado **incondicionalmente** ao término da operação. É ideal para tarefas de limpeza (*cleanup*), como fechar conexões de banco de dados, fechar arquivos ou desativar indicadores de carregamento (*spinners*).
+
+O diagrama a seguir ilustra a bifurcação de execução entre o caminho feliz (sem erros) e o tratamento de falhas, convergindo incondicionalmente no bloco de finalização:
+
+<Mermaid title="Ciclo de Vida de Execução: try...catch...finally">
+{`
+flowchart LR
+  Start(["Início da operação"]) --> Try["Executa bloco try"]
+  Try --> Check{"Ocorreu exceção?"}
+  Check -->|Não| NormalPath["Conclui código do try"]
+  Check -->|Sim| Catch["Executa bloco catch(error)<br>(Captura e trata a falha)"]
+  NormalPath --> Finally["Executa bloco finally<br>(Limpeza obrigatória de recursos)"]
+  Catch --> Finally
+  Finally --> EndNode(["Continua execução do programa"])
+`}
+</Mermaid>
+
+O exemplo prático a seguir demonstra esse ciclo de vida ao realizar o *parsing* de dados no formato JSON:
 
 ```js title="Exemplo: try...catch...finally"
 function parseUserData(jsonString) {
@@ -115,6 +137,17 @@ try {
 }
 ```
 
+Quando uma exceção é lançada com `throw` e a função corrente não possui um bloco `try...catch`, o erro é propagado para a função chamadora na pilha de execução (*call stack unwinding*):
+
+<Mermaid title="Propagação de Exceções na Pilha de Chamadas (Call Stack Unwinding)">
+{`
+flowchart BT
+  C["funcaoC()<br>throw new RangeError(...)"] -->|Propaga erro| B["funcaoB()<br>(Sem bloco try/catch)"]
+  B -->|Propaga erro| A["funcaoA()<br>try { funcaoB() } catch(err)"]
+  A --> Handled(["Exceção tratada com sucesso!"])
+`}
+</Mermaid>
+
 ### Encadeamento de Erro com `cause` (ES2022)
 
 Introduzida no ES2022, a opção **`cause`** permite encapsular um erro de baixo nível em um erro de alto nível com mais contexto, preservando o diagnóstico original:
@@ -176,6 +209,24 @@ try {
 ## Erros Personalizados (*Custom Errors*)
 
 Em aplicações de grande porte, é recomendável criar **classes de erros customizadas** herdando de `Error`. Isso permite categorizar falhas de negócio (como erros de validação de formulário, autenticação ou banco de dados) e capturá-las especificamente usando o operador **`instanceof`**.
+
+O diagrama a seguir exibe a hierarquia de herança a partir da classe base `Error`, englobando tanto as subclasses nativas da especificação quanto as classes customizadas da aplicação:
+
+<Mermaid title="Hierarquia de Classes: Error Nativo e Subclasses Customizadas">
+{`
+flowchart TD
+  Base["Error (Classe base)"] --> Native["Erros Nativos da Engine"]
+  Base --> Custom["Erros de Domínio (Custom)"]
+  Native --> T1["TypeError"]
+  Native --> T2["RangeError"]
+  Native --> T3["SyntaxError"]
+  Native --> T4["ReferenceError"]
+  Custom --> C1["ValidationError"]
+  Custom --> C2["NotFoundError"]
+`}
+</Mermaid>
+
+O exemplo a seguir demonstra a criação e a identificação seletiva dessas classes com o operador `instanceof`:
 
 ```js title="Criando e identificando Erros Personalizados"
 class ValidationError extends Error {
@@ -263,7 +314,79 @@ async function loadData() {
 loadData();
 ```
 
----
+O diagrama a seguir demonstra como o operador `await` intercepta a rejeição de uma Promise e a converte internamente em uma exceção síncrona dentro do bloco `try...catch`:
+
+<Mermaid title="Fluxo de Tratamento de Exceções com async/await">
+{`
+flowchart LR
+  Call["await operacaoAssincrona()"] --> State{"Promise resolvida<br>ou rejeitada?"}
+  State -->|Resolved (sucesso)| Ret["Recebe o valor resolvido<br>(continua no try)"]
+  State -->|Rejected (erro)| ThrowErr["Lança exceção em runtime<br>(desvia para o catch)"]
+  Ret --> Finally["Executa bloco finally"]
+  ThrowErr --> Catch["Executa bloco catch(error)"]
+  Catch --> Finally
+  Finally --> EndNode(["Continua execução"])
+`}
+</Mermaid>
+
+## Boas práticas
+
+A tabela a seguir consolida as diretrizes essenciais para estruturar o tratamento de exceções de forma limpa, robusta e diagnóstica:
+
+| Prática | Motivo |
+| ------- | ------ |
+| Sempre lance instâncias de `Error` | Preserva a pilha de chamadas (*stack trace*) e padroniza o formato do objeto |
+| Utilize `finally` para liberar recursos | Executa incondicionalmente, mesmo após `return` antecipado ou exceções no `catch` |
+| Filtre tipos de erro com `instanceof` | Permite aplicar ações corretivas distintas conforme a natureza da falha |
+| Encapsule diagnósticos com `error.cause` | Preserva a causa raiz de baixo nível ao emitir mensagens contextuais amigáveis |
+| Nunca crie blocos `catch` vazios | Engolir erros sem log ou tratamento mascara falhas críticas em produção |
+| Capture rejeições assíncronas com `try...catch` | Evita interrupções por promessas rejeitadas não tratadas (*unhandled rejections*) |
+
+O exemplo a seguir demonstra a combinação dessas práticas em uma rotina de serviço completa:
+
+```js title="Resumo prático"
+class DatabaseError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "DatabaseError";
+  }
+}
+
+async function safeFetchUserData(userId) {
+  let connection = null;
+
+  try {
+    connection = { open: true };
+
+    if (!userId || userId <= 0) {
+      throw new TypeError("ID de usuário inválido.");
+    }
+
+    try {
+      throw new Error("Timeout ao conectar ao cluster.");
+    } catch (dbErr) {
+      throw new DatabaseError("Falha ao consultar registro do usuário.", { cause: dbErr });
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      console.warn(`[Aviso de Tipo]: ${error.message}`);
+    } else if (error instanceof DatabaseError) {
+      console.error(`[Erro de Banco]: ${error.message} (Causa: ${error.cause.message})`);
+    } else {
+      console.error("[Erro Crítico]:", error);
+    }
+    return null;
+  } finally {
+    if (connection?.open) {
+      connection.open = false;
+      console.log("Conexão fechada com sucesso no finally.");
+    }
+  }
+}
+
+await safeFetchUserData(0);
+await safeFetchUserData(10);
+```
 
 ## Executando
 
@@ -309,10 +432,18 @@ Os conceitos de `try...catch`, `throw` e erros customizados podem ser executados
    node error-demo.js
    ```
 
-   ```txt title="Output"
+3. Observe a saída:
+
+   ```bash title="Terminal"
    Pedido de R$ 150.00 processado com sucesso!
    [INVALID_AMOUNT]: O valor do pedido deve ser maior que zero.
    Processamento de pedidos concluído.
+   ```
+
+4. Para observar a interrupção sem tratamento (*unhandled exception*), execute a chamada fora do bloco `try`:
+
+   ```js title="error-demo.js"
+   processOrder(-10); // Lança AppError e interrompe a execução com stack trace
    ```
 
 </Steps>
@@ -325,6 +456,8 @@ Crie uma função `parseJSONSafe(jsonString, fallback = {})` para leitura segura
 2. Em caso de falha (`catch`), capture a mensagem do erro e retorne o objeto `fallback`;
 3. Adicione uma cláusula `finally` registrando no console `"Tentativa de parsing concluída."`;
 4. Teste a função passando uma string válida (`'{"status":"ok"}'`) e uma string com erro (`'{ bad }'`).
+
+A solução a seguir encapsula a operação em um bloco protegido com valor de fallback e finalização garantida:
 
 <details>
   <summary>Possível resposta</summary>
@@ -353,6 +486,8 @@ Crie um sistema de saque bancário com erros customizados e tratamento granular:
 1. Crie a classe `InsufficientFundsError` herdando de `Error`, armazenando as propriedades `balance` e `amount`;
 2. Crie uma classe `BankAccount` com método `withdraw(amount)`. Se `amount <= 0`, lance um `TypeError` com a mensagem `"Valor de saque inválido"`. Se `amount > this.balance`, lance `InsufficientFundsError`;
 3. Instancie uma conta com R$ 200,00 e envolva chamadas de saque em um bloco `try/catch/finally`, usando `instanceof` para exibir mensagens específicas para cada tipo de falha.
+
+A solução a seguir modela o erro customizado e implementa o controle de saldo com validação granular via `instanceof`:
 
 <details>
   <summary>Possível resposta</summary>
@@ -460,5 +595,7 @@ Crie um sistema de saque bancário com erros customizados e tratamento granular:
 - [throw | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/throw)
 
 ## Próximo tópico
+
+No próximo tópico, o foco passa para a organização e modularização de código com os padrões de exportação e importação da linguagem.
 
 [Módulos ES (ESM)](../modules/): Sistemas de módulos, ES Modules (import/export), CommonJS e dynamic imports.
