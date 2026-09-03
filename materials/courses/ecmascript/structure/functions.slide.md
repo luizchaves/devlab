@@ -18,12 +18,16 @@ style: |
   }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    position: absolute;
+    bottom: 24px;
+    right: 32px;
+    padding: 0;
     font-size: 0.6em;
     color: #71717a;
   }
 lang: pt-BR
-title: 'JavaScript: Funções e Closures'
-description: 'Declaração de funções, expressões, arrow functions, parâmetros padrão, rest parameters, callbacks, hoisting, closures, IIFE, métodos call/apply/bind e funções geradoras em JavaScript.'
+title: "JavaScript: Funções e Closures"
+description: "Declaração de funções, expressões, arrow functions, parâmetros padrão, rest parameters, callbacks, hoisting, closures, IIFE, métodos call/apply/bind e funções geradoras em JavaScript."
 ---
 
 <!-- _class: lead -->
@@ -47,7 +51,7 @@ Dominar a criação, invocação, parâmetros e recursos avançados de funções
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
 - Formas de Declaração (Declaration, Expression, Arrow)
 - Retorno, `this` Léxico e Cláusulas de Guarda
@@ -78,10 +82,12 @@ const subtract = function(a, b) {
 // 3. Arrow Function (sintaxe concisa com =>)
 const multiply = (a, b) => a * b;
 
-console.log(sum(2, 3), subtract(5, 2), multiply(3, 4)); // 5 3 12
+console.log(sum(2, 3));     // 5
+console.log(subtract(5, 2)); // 3
+console.log(multiply(3, 4)); // 12
 ```
 
-- Argumentos omitidos recebem `undefined`; argumentos extras são ignorados pela assinatura.
+*Nota: Argumentos omitidos assumem `undefined`; argumentos extras são ignorados pela assinatura.*
 
 ---
 
@@ -99,249 +105,305 @@ console.log(double(5)); // 10
 const createUser = (name) => ({ name });
 console.log(createUser("Ana")); // { name: 'Ana' }
 
-// Sem parênteses, as chaves são lidas como bloco vazio -> undefined!
+// Sem parênteses, as chaves viram o corpo da função:
 const wrongUser = (name) => { name };
 console.log(wrongUser("Ana")); // undefined
 ```
 
 ---
 
-## O Operador `this` em Arrow Functions
+## `this` Léxico em Arrow Functions
 
-- Funções tradicionais têm **`this` dinâmico** (definido no momento em que são chamadas).
-- Arrow functions têm **`this` léxico** (herdam o contexto do escopo em que foram criadas).
+*Arrow Functions* herdam o `this` do escopo onde foram criadas (não possuem `this` dinâmico):
 
 ```js
 const calculator = {
   factor: 2,
   regularDouble(n) {
-    return n * this.factor; // this aponta para calculator
+    return n * this.factor; // 'this' aponta para calculator
   },
-  arrowDouble: (n) => n * this.factor, // this aponta para o escopo externo (global)
+  arrowDouble: (n) => n * this.factor, // 'this' aponta para o escopo global (undefined)
+  createArrow() {
+    return (n) => n * this.factor; // Herda o 'this' do método tradicional
+  }
 };
 
 console.log(calculator.regularDouble(5)); // 10
 console.log(calculator.arrowDouble(5));   // NaN (undefined * 5)
+console.log(calculator.createArrow()(5)); // 10
 ```
 
-- **Regra**: Evite declarar métodos de objetos como arrow functions diretas.
+---
+
+## Comparação entre Formas de Declaração
+
+| Característica | Function Declaration | Function Expression | Arrow Function |
+| :--- | :--- | :--- | :--- |
+| **Sintaxe básica** | `function f() {}` | `const f = function() {}` | `const f = () => {}` |
+| **Hoisting** | Completo (corpo + nome) | TDZ (`const`/`let`) | TDZ (`const`/`let`) |
+| **Contexto `this`** | Dinâmico (na chamada) | Dinâmico (na chamada) | Léxico (escopo pai) |
+| **Objeto `arguments`** | Presente | Presente | Ausente (léxico) |
+| **Construtor (`new`)** | Sim | Sim (tradicional) | Não (`TypeError`) |
 
 ---
 
 ## Retorno Padrão e Cláusulas de Guarda
 
-- Funções sem instrução `return` explícita retornam **`undefined`** por padrão.
-- **Guard Clauses**: retornos antecipados para simplificar o fluxo e eliminar blocos `if/else` aninhados.
+Toda função sem `return` explícito devolve `undefined`. Interrompa fluxos com retornos antecipados:
 
 ```js
-function checkAccess(age) {
-  if (age < 18) {
-    return "minor"; // encerra imediatamente
-  }
+// 1. Retorno padrão é undefined
+function greet(name) {
+  console.log(`Olá, ${name}`);
+}
+console.log(greet("DevLab")); // undefined
 
-  return "adult";
+// 2. Guard Clause: evita aninhamentos desnecessários de if/else
+function checkAge(age) {
+  if (age < 18) return "menor de idade";
+  return "maior de idade";
 }
 
-console.log(checkAccess(16)); // "minor"
-console.log(checkAccess(20)); // "adult"
+console.log(checkAge(16)); // "menor de idade"
+console.log(checkAge(21)); // "maior de idade"
 ```
 
 ---
 
-## Hoisting em Funções
+## Hoisting de Funções
 
-- **Function Declarations**: são elevadas por completo, podendo ser chamadas antes da declaração.
-- **Function Expressions (`const`/`let`)**: permanecem na TDZ (*Temporal Dead Zone*).
+*Function Declarations* são elevadas completamente; *Expressions* obedecem às regras da variável:
 
 ```js
-// Funciona perfeitamente devido ao hoisting:
+// 1. Function Declaration: pode ser invocada antes da sua linha
 console.log(add(2, 3)); // 5
-function add(a, b) { return a + b; }
 
-// Gera ReferenceError (não inicializada):
-// console.log(sub(5, 2));
+function add(a, b) {
+  return a + b;
+}
+
+// 2. Function Expression com const: erro de referência (TDZ)
+// sub(5, 2); // ReferenceError: Cannot access 'sub' before initialization
 const sub = (a, b) => a - b;
 
-// Com var: a variável é elevada com undefined -> TypeError: sub is not a function!
+// 3. Function Expression com var: elevada como undefined
+// mult(2, 3); // TypeError: mult is not a function
+var mult = function(a, b) { return a * b; };
 ```
 
 ---
 
 ## Redefinição e Case Sensitivity
 
-- JavaScript **não possui sobrecarga de métodos** (*overloading*) por número de argumentos.
-- Declarar duas `function` com o mesmo nome no mesmo escopo **sobrescreve** a primeira.
+- **Sem Sobrecarga (*Overloading*)**: Se duas *Function Declarations* tiverem o mesmo nome no mesmo escopo, a última **sobrescreve** a primeira.
+- **Case Sensitive**: Letras maiúsculas e minúsculas diferenciam identificadores independentes.
 
 ```js
-function calculate(x) { return x * 10; }
-function calculate(x, y) { return x + y; }
+function calc(n) { return n + 1; }
+function calc(n, m) { return n + m; } // Sobrescreve calc(n)!
+console.log(calc(5)); // NaN (5 + undefined)
 
-console.log(calculate(5)); // NaN (5 + undefined) -> a segunda venceu!
+function sum(a, b) { return a + b; }
+function Sum(a, b) { return a * b; }
+console.log(sum(2, 3)); // 5
+console.log(Sum(2, 3)); // 6
 ```
-
-- Nomes são **case-sensitive**: `sum` e `Sum` são identificadores distintos.
 
 ---
 
-## Parâmetros Padrão (Default Parameters)
+## Parâmetros Padrão (*Default Parameters*)
 
-Atribuem valores de *fallback* quando o argumento for omitido ou receber **`undefined`**:
+Valores de contingência caso o argumento seja omitido ou receba `undefined`:
 
 ```js
-function power(base, exponent = 2) {
+function power(base, exponent = 1) {
   return base ** exponent;
 }
 
-console.log(power(3));          // 9 (usa exponent = 2)
-console.log(power(3, 3));       // 27
-console.log(power(3, undefined)); // 9 (ativa padrão)
-console.log(power(3, null));    // 1 (null NÃO ativa padrão; vira 0 numericamente!)
-```
+console.log(power(2));          // 2 (exponent = 1)
+console.log(power(2, 3));       // 8
+console.log(power(2, undefined));// 2 (ativa o fallback padrão)
+console.log(power(2, null));     // 1 (null é valor válido -> 2 ** 0 = 1)
 
-- Valores padrão podem ser dinâmicos: `function log(msg, date = new Date())`.
+// Parâmetros padrão com expressões dinâmicas:
+function logEvent(msg, date = new Date().toISOString()) {
+  return `[${date}] ${msg}`;
+}
+console.log(logEvent("Login")); // "[2026-09-02T...] Login"
+```
 
 ---
 
 ## Rest Parameters (`...rest`)
 
-Capturam múltiplos argumentos e os agrupam em uma instância real de **`Array`**:
+Capturam os argumentos restantes e os agrupam em uma instância legítima de `Array`:
 
 ```js
-function sumAll(label, ...numbers) {
-  const total = numbers.reduce((acc, n) => acc + n, 0);
-  return `${label}: ${total}`;
+function sumAll(multiplier, ...numbers) {
+  // 'numbers' é um Array real com suporte a reduce, map, filter
+  const sum = numbers.reduce((total, n) => total + n, 0);
+  return multiplier * sum;
 }
 
-console.log(sumAll("Total", 10, 20, 30)); // "Total: 60"
-console.log(sumAll("Vazio"));             // "Vazio: 0"
-```
+console.log(sumAll(2));             // 0
+console.log(sumAll(2, 1, 2, 3));    // 12 (2 * 6)
+console.log(sumAll(10, 5, 5, 5, 5));// 200 (10 * 20)
 
-- Permite uso direto de métodos como `.map()`, `.filter()`, `.reduce()` e laços `for...of`.
-- **Obrigatório**: o parâmetro rest deve ser o **último** da assinatura.
+// Rest deve ser obrigatoriamente o último parâmetro:
+// function invalid(...nums, last) {} // SyntaxError!
+```
 
 ---
 
 ## Objeto `arguments` vs Rest Parameters
 
-- `arguments`: objeto especial *array-like* presente apenas em funções tradicionais.
-- Possui `.length` e índices numéricos, mas **não é um Array real**.
+`arguments` é um objeto legado *array-like* disponível apenas em funções tradicionais:
 
 ```js
-function showArgs() {
-  console.log(arguments.length);       // 3
-  console.log(Array.isArray(arguments)); // false
-  
-  // Para usar métodos de array com arguments:
+function inspectArgs() {
+  console.log(arguments.length);          // 3
+  console.log(arguments[0]);              // 10
+  console.log(Array.isArray(arguments));  // false (array-like!)
+
+  // Conversão necessária para usar métodos de array:
   const argsArray = Array.from(arguments);
-  return argsArray.join("-");
+  return argsArray.reduce((acc, n) => acc + n, 0);
 }
 
-console.log(showArgs("a", "b", "c")); // "a-b-c"
-```
+console.log(inspectArgs(10, 20, 30)); // 60
 
-- **Prefira `...rest`**: mais moderno, legível e compatível com arrow functions.
+// Em Arrow Functions, arguments não existe (resolve no escopo externo):
+const arrow = () => typeof arguments; // "undefined" (no navegador)
+```
 
 ---
 
-## Parâmetros Desestruturados
+## Desestruturação em Parâmetros
 
-Extrai propriedades de objetos diretamente na assinatura da função:
+Extraia propriedades de objetos ou arrays na própria assinatura com valor padrão `= {}`:
 
 ```js
-function registerUser({ name = "Anônimo", role = "user" } = {}) {
-  return `[${role.toUpperCase()}] ${name}`;
+// Sempre inclua o fallback '= {}' para evitar TypeError se nada for passado
+function createUser({ name = "Anônimo", role = "user", active = true } = {}) {
+  return `${name} (${role}) - Ativo: ${active}`;
 }
 
-console.log(registerUser({ name: "Ana", role: "admin" })); // "[ADMIN] Ana"
-console.log(registerUser({ name: "Carlos" }));             // "[USER] Carlos"
-console.log(registerUser());                               // "[USER] Anônimo"
-```
+console.log(createUser({ name: "Alice", role: "admin" }));
+// "Alice (admin) - Ativo: true"
 
-- **Boas Práticas**: inclua sempre o *fallback* `= {}` para evitar `TypeError` caso a função seja chamada sem argumentos.
+console.log(createUser({ name: "Bob", active: false }));
+// "Bob (user) - Ativo: false"
+
+console.log(createUser());
+// "Anônimo (user) - Ativo: true"
+```
 
 ---
 
 ## Funções de Primeira Classe e Callbacks
 
-Funções em JavaScript podem ser passadas como argumentos e retornadas por outras funções:
+Funções podem ser armazenadas em variáveis, passadas como parâmetros e retornadas por outras funções:
 
 ```js
-function execute(a, b, operation) {
+function calculate(a, b, operation) {
   return operation(a, b);
 }
 
 const add = (x, y) => x + y;
-const multiply = (x, y) => x * y;
+const sub = (x, y) => x - y;
 
-console.log(execute(10, 5, add));            // 15
-console.log(execute(10, 5, multiply));       // 50
-console.log(execute(10, 2, (x, y) => x / y)); // 5
+console.log(calculate(10, 5, add)); // 15
+console.log(calculate(10, 5, sub)); // 5
+
+// Callbacks anônimos em linha:
+console.log(calculate(10, 5, (x, y) => x * y)); // 50
+console.log(calculate(10, 5, (x, y) => x / y)); // 2
 ```
 
-- **Atenção**: passe a **referência** `add`, não a invocação `add()`.
+*Atenção: Passe a referência `add`, nunca a invocação `add()`.*
 
 ---
 
-## Closures (Fechamentos Léxicos)
+## Mecanismo de Closures
 
-Uma **closure** ocorre quando uma função interna retém o acesso ao escopo léxico onde foi criada, mesmo após o término da função externa:
+Uma **Closure** ocorre quando uma função interna retém o acesso às variáveis do seu escopo léxico externo:
+
+```txt
+┌──────────────────────────────────────────────────────────┐
+│ Escopo Externo: createCounter()                          │
+│   let count = 0;  ──┐ (variável privada preservada)      │
+│   function increment() { count += 1; return count; }     │
+│   return increment;                                      │
+└──────────────────────────────────────────────────────────┘
+       │ (execução de createCounter() finaliza)
+       ▼
+┌──────────────────────────────────────────────────────────┐
+│ Escopo Global: const counter = createCounter();          │
+│   counter(); // Executa increment() com acesso a 'count' │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Prática: Criando Estado Privado com Closures
 
 ```js
 function createCounter(initialValue = 0) {
-  let count = initialValue; // Variável privada encapsulada
+  let count = initialValue; // Variável privada na Heap
 
-  return function increment() {
-    count += 1;
-    return count;
+  return {
+    increment: () => ++count,
+    decrement: () => --count,
+    getValue: () => count
   };
 }
 
-const counter1 = createCounter(10);
-console.log(counter1()); // 11
-console.log(counter1()); // 12
+const counterA = createCounter(10);
+const counterB = createCounter(0);
 
-const counter2 = createCounter(0);
-console.log(counter2()); // 1 (instâncias com estados independentes)
+console.log(counterA.increment()); // 11
+console.log(counterA.increment()); // 12
+console.log(counterB.increment()); // 1 (estados independentes!)
+console.log(counterA.getValue());  // 12
 ```
 
 ---
 
 ## IIFE (Immediately Invoked Function Expression)
 
-Funções executadas imediatamente no ponto de definição para isolar escopo:
+Funções autoexecutáveis para isolar escopo e evitar poluição de variáveis globais:
 
 ```js
-// IIFE Tradicional
+// 1. IIFE Tradicional
 (function() {
-  const secretKey = "12345";
-  console.log("Módulo inicializado em escopo protegido!");
+  const secretKey = "app_secret_123";
+  console.log("IIFE inicializada!");
 })();
 
-// IIFE com Arrow Function e argumentos
+// 2. IIFE com Arrow Function e passagem de parâmetros
 ((appName, version) => {
-  console.log(`${appName} v${version} carregado.`);
+  console.log(`Módulo ${appName} v${version} carregado.`);
 })("DevLab", "2.0");
 
-// secretKey é inacessível aqui fora -> ReferenceError
+// secretKey permanece inacessível fora da IIFE:
+// console.log(secretKey); // ReferenceError!
 ```
 
-- Muito utilizada para evitar poluição do escopo global e criar módulos encapsulados.
-
 ---
 
-## Manipulação de Contexto: `call`, `apply` e `bind`
+## Manipulação de Contexto (`call`, `apply`, `bind`)
 
-Permitem vincular e alterar o valor de `this` em funções tradicionais:
+Configuram explicitamente o valor de `this` de funções tradicionais:
 
-| Método | Invocação | Argumentos | Retorno |
+| Método | Execução | Passagem de Argumentos | Retorno |
 | :--- | :--- | :--- | :--- |
-| **`call()`** | Imediata | Lista individual (`arg1, arg2`) | Retorno da função |
-| **`apply()`** | Imediata | Array de argumentos (`[arg1, arg2]`) | Retorno da função |
-| **`bind()`** | Diferida | Lista individual (currying parcial) | **Nova função** com `this` fixado |
+| **`call()`** | Imediata | Argumentos individuais (`arg1, arg2`) | Resultado da função |
+| **`apply()`** | Imediata | Array de argumentos (`[arg1, arg2]`) | Resultado da função |
+| **`bind()`** | Diferida | Argumentos parciais ou completos | **Nova função** com `this` fixado |
 
 ---
 
-## Exemplo: `call`, `apply` e `bind`
+## Prática: `call`, `apply` e `bind`
 
 ```js
 const user1 = { name: "Ana", role: "Dev" };
@@ -359,7 +421,7 @@ console.log(introduce.call(user1, "Olá", "!"));
 console.log(introduce.apply(user2, ["Oi", "."])); 
 // "Oi, sou Carlos (Designer)."
 
-// 3. bind(): cria nova função com this permanentemente amarrado
+// 3. bind(): cria nova função com this permanentemente vinculado
 const introduceAna = introduce.bind(user1, "Bem-vinda");
 console.log(introduceAna("!!!")); 
 // "Bem-vinda, sou Ana (Dev)!!!"
@@ -369,7 +431,7 @@ console.log(introduceAna("!!!"));
 
 ## Funções Geradoras (*Generators*: `function*`)
 
-Funções que podem ter sua execução **pausada** e **retomada** sob demanda (*lazy evaluation*) via **`yield`**:
+Funções que pausam e retomam a execução sob demanda (*lazy evaluation*) via **`yield`**:
 
 ```js
 function* idGenerator() {
@@ -385,7 +447,7 @@ console.log(gen.next()); // { value: 2, done: false }
 console.log(gen.next()); // { value: 3, done: false }
 ```
 
-- Implementam o protocolo de iteração, podendo ser consumidas diretamente em laços `for...of`.
+*Nota: Implementam o protocolo iterável e podem ser consumidas em loops `for...of`.*
 
 ---
 
@@ -394,9 +456,10 @@ console.log(gen.next()); // { value: 3, done: false }
 Crie `calculator.js` com funções de alta ordem, rest e valores padrão:
 
 1. `formatResult(label, value = 0)` retorna `` `${label}: ${value}` ``.
-2. `calculate(operation, ...numbers)` executa a operação sobre a lista.
+2. `calculate(operation, ...numbers)` executa a operação sobre os números.
 3. Crie as operações `sum` e `multiply` com arrow functions e `.reduce()`.
 4. Teste `calculate` com soma, multiplicação e callback anônimo de divisão.
+5. Exiba os resultados formatados com `formatResult`.
 
 ---
 
@@ -422,14 +485,23 @@ console.log(formatResult("Vazio")); // "Vazio: 0"
 
 ## Desafio: Rastreador com Closure e Desestruturação
 
-1. Crie `createScoreTracker(initialScore = 0)` retornando uma função que acumula pontos no estado privado (closure).
+Crie um módulo de rastreamento com estado privado:
+
+1. Crie `createScoreTracker(initialScore = 0)` retornando uma função interna que acumula pontos na variável privada (closure).
 2. Crie `registerUser({ name = "Convidado", role = "user" } = {})` retornando `"[ROLE] Name"`.
-3. Instancie o rastreador e acumule pontuações.
+3. Instancie o rastreador e execute invocações acumulando a pontuação.
+
+---
+
+## Solução do Desafio
 
 ```js
 function createScoreTracker(initialScore = 0) {
   let score = initialScore;
-  return (points) => (score += points);
+  return function addPoints(points) {
+    score += points;
+    return score;
+  };
 }
 
 function registerUser({ name = "Convidado", role = "user" } = {}) {
@@ -438,8 +510,9 @@ function registerUser({ name = "Convidado", role = "user" } = {}) {
 
 const tracker = createScoreTracker(100);
 console.log(registerUser({ name: "Ana", role: "admin" })); // "[ADMIN] Ana"
-console.log(tracker(50)); // 150
-console.log(tracker(30)); // 180
+console.log(registerUser());                              // "[USER] Convidado"
+console.log(tracker(50));                                 // 150
+console.log(tracker(30));                                 // 180
 ```
 
 ---
@@ -457,11 +530,11 @@ console.log(tracker(30)); // 180
 
 ---
 
-## Resumo da Aula
+## Resumo do Tópico
 
 - **Declaração**: `function` (hoisting completo), expressão (TDZ) e arrow (`=>`).
 - **Arrow Functions**: sintaxe concisa, retorno implícito e `this` léxico.
 - **Parâmetros Modernos**: valores padrão, `...rest` (Array real) e desestruturação `= {}`.
 - **Funções de 1ª Classe**: funções como valores, callbacks e guard clauses.
 - **Closures & IIFE**: isolamento de escopo e retenção de estado privado.
-- **Contexto & Generators**: `call`/`apply`/`bind` controlam `this`; `yield` pausa fluxos.
+- **Contexto & Generators**: `call`/`apply`/`bind` controlam `this`; `yield` pausa fluxos sob demanda.
