@@ -16,14 +16,24 @@ markmap:
 
 - **Literal de Array**: sintaxe recomendada `[1, 2, 3]`.
 - **Validação de Tipo**: `Array.isArray(val)` (evita o falso positivo `typeof [] === 'object'`).
-- **Geração de Intervalos**: `Array.from({ length: 5 }, (_, i) => i + 1)` para sequências.
+- **Estrutura Dinâmica**: tamanho mutável, heterogeneidade e indexação numérica.
 
-## Acesso e Desestruturação
+## Imutabilidade, Comparação e Desestruturação
 
-- **Indexação**: leitura com colchetes `arr[0]` e tamanho dinâmico `.length`.
-- **Acesso Moderno com `.at()`**: suporte nativo a índices negativos (`.at(-1)`).
+- **Comparação por Referência**: `===` compara endereços na Heap (`[1, 2] === [1, 2]` é `false`).
+- **Operador Spread (`...`)**: clonagem rasa (*shallow copy*) e fusão criando nova referência.
+- **`structuredClone(arr)`**: clonagem profunda (*deep copy*) isolada para matrizes e aninhamentos.
 - **Desestruturação Posicional**: `const [first, ...rest] = arr` e troca de variáveis (*swap*).
-- **Operador Spread (`...`)**: clonagem rasa (*shallow copy*) e fusão sem mutação.
+
+## Iteração e Sequências Numéricas
+
+- **Percurso de Valores**: `for...of` para iterar sobre itens do array.
+- **Índice + Valor**: `for...of` com `.entries()` para evitar contador manual.
+- **Evite `for...in`**: ele percorre chaves/propriedades, não valores da coleção.
+- **`Array.from()`**: forma legível para gerar valores a partir de `{ length }`.
+- **`keys()` com Spread**: gera índices numéricos (`[...Array(5).keys()]`).
+- **`fill()` + `map()`**: alternativa útil quando é preciso preencher antes de transformar.
+- **Generator Function**: produz valores sob demanda sem criar o array inteiro na memória.
 
 ## Métodos Mutadores Clássicos
 
@@ -51,8 +61,12 @@ markmap:
 - **Redução e Agregação**: `reduce()` para acumular totais e agrupar objetos.
 - **Busca e Predicados**: `find()`, `findIndex()`, `includes()`, `some()`, `every()`.
 
-## Boas Práticas
+## Resumo e Boas Práticas
 
-- **Priorize Imutabilidade**: prefira `spread`, `map`, `filter` e métodos do ES2023.
-- **Iteração Limpa**: use `for...of` em vez de `for...in` para arrays.
-- **Sempre forneça função comparadora ao ordenar**: previna armadilhas de ordenação lexicográfica.
+- **Criação e Verificação**: use `[]`, `Array.from()` e `Array.isArray(valor)`.
+- **Evite Arrays Esparsos**: não use `delete`; prefira remoção por método adequado.
+- **Mutação Consciente**: escolha métodos mutadores quando alterar o original for parte da regra.
+- **Priorize Imutabilidade**: prefira `spread`, `map`, `filter`, `slice` e métodos do ES2023.
+- **Iteração Limpa**: use `for...of` ou métodos funcionais em vez de `for...in`.
+- **Comparação Explícita**: não use `===` para comparar conteúdo de arrays distintos.
+- **Ordenação Cuidadosa**: forneça comparador numérico ou `localeCompare("pt-BR")`.
