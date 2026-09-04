@@ -157,17 +157,24 @@ markmap:
   - Recebe o corpo da expressão.
   - Não usa barras externas nem flags.
 
-## Boas práticas
+## Decisões e Boas práticas
 
-- Use âncoras em validações de campo.
-- Teste casos válidos e inválidos.
-- Prefira literal para padrões estáticos.
-- Use o construtor apenas para padrões dinâmicos.
-- Evite `/g` com `test()` em validação.
-- Use `(?:...)` quando não precisar capturar valor.
-- Evite padrões ambíguos em entradas externas.
-- Desconfie de RegExp longas demais.
-- Separe formato de regra de negócio.
+- Separação de responsabilidades.
+  - RegExp para formato e extração.
+  - Código JavaScript para domínio e regras.
+- Prevenção a ReDoS.
+  - Evitar quantificadores aninhados `(a+)+`.
+  - Definir limites de payload.
+  - Classes de caracteres específicas.
+- Dependências na era da IA.
+  - Utilitários próprios (*zero-dependency*) para regras locais (CPF, datas, CEP).
+  - Bibliotecas consolidadas (`Zod`, `date-fns`) para esquemas complexos e tipos.
+- Boas práticas gerais.
+  - Use âncoras em validações de campo.
+  - Teste casos válidos e inválidos.
+  - Prefira literal para padrões estáticos.
+  - Evite `/g` com `test()` em validação.
+  - Use `(?:...)` quando não precisar capturar valor.
 
 ## Prática
 

@@ -519,6 +519,16 @@ console.log(isValidDate("31/04/2026")); // false (abril tem 30 dias)
 
 ---
 
+## Bibliotecas vs. Zero-Dependency (Era da IA)
+
+Com auxílio de IA, é viável gerar utilitários puros sem dependências externas:
+
+- **Zero-Dependency**: funções locais para CPF (Módulo 11), CEP e datas.
+- **Bibliotecas** (`Zod`, `date-fns`): para esquemas de API e inferência TypeScript.
+- **Vantagens**: *bundle* reduzido e proteção contra falhas em pacotes de terceiros.
+
+---
+
 ## HTML `pattern`
 
 No HTML, `pattern` recebe o corpo da expressão, sem barras externas e sem flags:

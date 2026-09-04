@@ -589,9 +589,9 @@ console.log(emailPattern.test("aluno@ifpb.c"));            // false (TLD com men
 
 ### Validação de data (DD/MM/AAAA)
 
-A validação de datas é o clássico divisor de águas no uso de Expressões Regulares: validar a **estrutura textual** (`DD/MM/AAAA`) é uma tarefa simples e ideal para RegExp, mas validar as **regras de calendário** (dias de cada mês, viradas de mês e anos bissextos) pode transformar a expressão em um labirinto de difícil manutenção.
+A validação de datas em campos de formulários começa pela verificação da máscara textual no formato dia/mês/ano (`DD/MM/AAAA`).
 
-Para conferir apenas a máscara de entrada e extrair dia, mês e ano para processamento posterior, o padrão linear `/^(\d{2})\/(\d{2})\/(\d{4})$/` resolve o formato com precisão:
+O padrão linear `/^(\d{2})\/(\d{2})\/(\d{4})$/` valida essa estrutura e permite capturar cada segmento em grupos:
 
 <Mermaid title="Railroad diagram para validação estrutural de data (DD/MM/AAAA)">
 {`
@@ -605,69 +605,45 @@ flowchart LR
 `}
 </Mermaid>
 
-As barras literais são escapadas como `\/` para não conflitarem com os delimitadores da RegExp. Esse trilho assegura que a entrada contenha exatamente dois dígitos para o dia, dois dígitos para o mês e quatro dígitos para o ano.
+As barras literais são escapadas como `\/` para não conflitarem com os delimitadores da RegExp. Esse trilho garante que a entrada contenha exatamente dois dígitos numéricos para o dia, dois dígitos para o mês e quatro dígitos para o ano.
 
-Por outro lado, quando se tenta forçar toda a lógica de calendário gregoriano dentro de uma única RegExp, o padrão cresce exponencialmente. O exemplo a seguir valida datas no intervalo de 1900 a 2099, tratando meses de 30 e 31 dias e o caso especial de 29/02 em anos bissextos:
+```js title="Exemplo de validação estrutural de data"
+const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
-<Aside type="caution" title="Regex longa também exige cuidado">
-  Uma RegExp que tenta resolver muitas regras de uma vez pode esconder erro de leitura.
-  Datas são um bom exemplo: validar dia, mês, ano e ano bissexto em uma única expressão
-  produz um padrão correto para alguns limites, mas pouco confortável para manutenção.
-
-  Quando a regra começa a ficar extensa, prefira combinar uma RegExp simples de formato
-  com validação em código, testes automatizados ou uma função/parser específico. A RegExp
-  deve ajudar a leitura da regra, não substituir todo o raciocínio de domínio.
-</Aside>
-
-```js title="Validação de data com ano bissexto em uma RegExp longa"
-const dateWithLeapYearPattern =
-  /^(?:(?:31\/(?:0[13578]|1[02])|(?:29|30)\/(?:0[13-9]|1[0-2]))\/(?:19|20)\d{2}|29\/02\/(?:(?:19|20)(?:0[48]|[2468][048]|[13579][26])|2000)|(?:0[1-9]|1\d|2[0-8])\/(?:0[1-9]|1[0-2])\/(?:19|20)\d{2})$/;
-
-console.log(dateWithLeapYearPattern.test("29/02/2024")); // true
-console.log(dateWithLeapYearPattern.test("29/02/2023")); // false
-console.log(dateWithLeapYearPattern.test("31/04/2026")); // false
-console.log(dateWithLeapYearPattern.test("31/12/2026")); // true
+console.log(datePattern.test("25/12/2026")); // true
+console.log(datePattern.test("01/01/2026")); // true
+console.log(datePattern.test("2026/12/25")); // false (ordem ano/mês/dia)
+console.log(datePattern.test("5/12/2026"));  // false (dia com apenas 1 dígito)
+console.log(datePattern.test("25-12-2026")); // false (hífen em vez de barra)
 ```
 
-Observe que o padrão precisa separar três grupos de casos: meses com 31 dias, meses
-com 29 ou 30 dias e fevereiro no dia 29. Essa separação deixa claro por que a solução
-cresce rápido.
+No entanto, validar apenas a máscara permite entradas como `31/04/2026` (abril só possui 30 dias) ou `29/02/2023` (fevereiro em ano não bissexto). Tentar codificar todas as regras do calendário gregoriano exclusivamente em uma única expressão regular gera padrões quilométricos e de manutenção inviável, como demonstrado no contraexemplo a seguir:
 
-#### O limite da complexidade: expandindo para qualquer ano
-
-O padrão anterior funciona apenas para a faixa restrita de `1900 a 2099` porque nela só existe um único ano secular (virada de século): o ano `2000`. Como `2000` é divisível por 400, ele é bissexto, o que permitiu incluir `|2000` como caso especial simplificado.
-
-Porém, se a aplicação precisar aceitar qualquer ano de 4 dígitos (como em registros históricos ou projeções futuras), a regra completa do calendário gregoriano precisa ser codificada em sintaxe de RegExp:
-
-1. O ano deve ser divisível por 4;
-2. Exceto se terminar em `00` (divisível por 100);
-3. A menos que seja também divisível por 400 (como `1600`, `2000`, `2400`, `2800`...).
-
-Anos seculares como `2100`, `2200`, `2300` e `2500` **não** são bissextos, enquanto `2400` e `2800` **são** bissextos. Para validar essa lógica apenas com RegExp, a captura do dia `29/02` precisa calcular a divisibilidade por 4 dos dois primeiros dígitos quando os dois últimos forem `00`:
-
-```js title="Validação de data para qualquer ano com regra completa de bissexto"
+```js title="Contraexemplo: RegExp extrema para validar regras de calendário e anos bissextos"
+// Padrão que tenta cobrir meses de 30/31 dias e bissextos no calendário gregoriano
 const anyYearDatePattern =
   /^(?:(?:31\/(?:0[13578]|1[02])|(?:29|30)\/(?:0[13-9]|1[0-2]))\/\d{4}|29\/02\/(?:(?:\d{2}(?:0[48]|[2468][048]|[13579][26]))|(?:[02468][048]|[13579][26])00)|(?:0[1-9]|1\d|2[0-8])\/(?:0[1-9]|1[0-2])\/\d{4})$/;
 
-console.log(anyYearDatePattern.test("29/02/2000")); // true (divisível por 400)
-console.log(anyYearDatePattern.test("29/02/2100")); // false (divisível por 100, mas não por 400)
-console.log(anyYearDatePattern.test("29/02/2400")); // true (divisível por 400)
 console.log(anyYearDatePattern.test("29/02/2024")); // true (bissexto comum)
 console.log(anyYearDatePattern.test("29/02/2023")); // false (ano comum)
+console.log(anyYearDatePattern.test("29/02/2100")); // false (secular não divisível por 400)
 console.log(anyYearDatePattern.test("31/04/2026")); // false (abril só tem 30 dias)
-console.log(anyYearDatePattern.test("31/12/2026")); // true
 ```
 
-Essa expressão comprova o poder expressivo das Expressões Regulares, mas também evidencia o ponto em que tentar resolver regras complexas de domínio em um único padrão textual se torna contraproducente. A expressão é praticamente impossível de ler, depurar ou evoluir em equipe.
+Essa expressão comprova o poder de síntese de RegExp, mas também evidencia o ponto em que tentar resolver regras de domínio em um único padrão textual se torna contraproducente na engenharia de software.
 
-#### A abordagem recomendada: RegExp para formato e código para domínio
+## Decisões de Arquitetura, Segurança e Dependências
 
-Em aplicações profissionais de software, a melhor prática consiste em **dividir responsabilidades**:
+Validar entradas de dados no front-end e no back-end exige mais do que apenas criar padrões que funcionem: requer escolhas conscientes sobre separação de responsabilidades, proteção da infraestrutura computacional e gerenciamento do ciclo de dependências do projeto.
 
-1. Utilize a RegExp apenas para validar a máscara textual (formato `DD/MM/AAAA`) e extrair os blocos numéricos com grupos de captura;
-2. Utilize o próprio objeto nativo `Date` do JavaScript (ou bibliotecas dedicadas) para validar regras de calendário, limites mensais e anos bissextos.
+### Separação de responsabilidades: formato com RegExp vs. domínio em código
 
-O código a seguir demonstra essa divisão de responsabilidades de forma simples e legível:
+A regra de ouro da validação com Expressões Regulares é **dividir para conquistar**:
+
+1. Utilize a RegExp para validar a **máscara textual** (o formato superficial) e extrair os blocos da informação com grupos de captura;
+2. Utilize **código JavaScript e APIs nativas** para validar as regras semânticas, limites de negócio e cálculos matemáticos.
+
+No caso de datas, a abordagem profissional combina a RegExp linear com o construtor nativo `Date`, que já conhece nativamente todos os meses e bissextos:
 
 ```js title="Abordagem recomendada: RegExp de formato combinada com Date"
 function isValidDate(dateString) {
@@ -697,7 +673,7 @@ console.log(isValidDate("29/02/2400")); // true (ano secular bissexto)
 console.log(isValidDate("31/04/2026")); // false (abril transborda para 01/05)
 ```
 
-Essa separação é muito mais legível, tem manutenção simples, executa de forma previsível e não corre risco de comportamentos inesperados ou custos catastróficos de backtracking.
+Essa separação é legível, fácil de testar, tem custo computacional mínimo e elimina o risco de expressões incompreensíveis para a equipe.
 
 ### Segurança em validações: ReDoS e backtracking excessivo
 
@@ -775,6 +751,59 @@ Para proteger sistemas em produção contra ReDoS, adote as seguintes práticas 
 2. **Elimine quantificadores aninhados**: evite padrões com repetições compostas da mesma classe como `(a+)+`, `(a*)*` ou `(a|b+)+`;
 3. **Seja específico nas classes de caracteres**: substitua curingas genéricos como `.*` por classes que excluam explicitamente delimitadores, como `[^@\s]+` em e-mails;
 4. **Divida validações complexas**: utilize RegExp para validar máscaras estruturais e utilize funções ou parsers dedicados em JavaScript para regras semânticas de negócio.
+
+### Bibliotecas de validação vs. utilitários próprios na era da IA
+
+O ecossistema JavaScript possui uma vasta gama de bibliotecas consagradas para validação de dados em projetos de médio e grande porte:
+
+- **Validação de esquemas e contratos**: bibliotecas como `Zod`, `Yup` e `Validator.js` permitem declarar esquemas completos de formulários ou payloads de API, integrando validação de tipos em tempo de execução com tipagem estática do TypeScript.
+- **Formatos específicos do Brasil**: pacotes como `@brazilian-utils/validators` e `cpf-cnpj-validator` fornecem validações prontas para documentos nacionais, calculando os dois dígitos verificadores do CPF e do CNPJ através do algoritmo Módulo 11.
+- **Manipulação de datas e fusos**: utilitários como `date-fns`, `dayjs` e `luxon` resolvem operações complexas de calendários, intervalos e fusos horários enquanto a especificação nativa `Temporal` do ECMAScript conclui seu processo de padronização.
+
+No entanto, a relação com bibliotecas de terceiros passou por uma transformação profunda na **era da inteligência artificial**.
+
+Historicamente, o ecossistema Web desenvolveu o hábito de instalar dependências externas para qualquer necessidade pontual, o que resultava no inchaço massivo da pasta `node_modules`, dependências transitivas obscuras e riscos graves à segurança da cadeia de suprimentos (*supply chain attacks*).
+
+Com assistentes de IA integrados ao fluxo de desenvolvimento, é viável gerar, inspecionar e testar **funções utilitárias puras sem nenhuma dependência externa** (*zero-dependency*), reduzindo o tamanho final da aplicação (*bundle size*) e mantendo controle total sobre o código.
+
+O exemplo a seguir demonstra como validar um CPF por completo (formato com RegExp e autenticidade com o algoritmo de Módulo 11) em uma função nativa e autocontida:
+
+```js title="Validador completo de CPF sem dependências externas"
+function isValidCPF(cpf) {
+  // 1. Remove qualquer caractere não numérico com RegExp
+  const cleanCPF = String(cpf).replace(/\D/g, "");
+
+  // 2. Rejeita tamanho incorreto ou sequências de dígitos idênticos conhecidas (ex: "111.111.111-11")
+  if (cleanCPF.length !== 11 || /^(\d)\1{10}$/.test(cleanCPF)) {
+    return false;
+  }
+
+  // 3. Validação dos dois dígitos verificadores via Módulo 11
+  for (let t = 9; t < 11; t++) {
+    let sum = 0;
+    for (let i = 0; i < t; i++) {
+      sum += Number(cleanCPF[i]) * (t + 1 - i);
+    }
+    const remainder = (sum * 10) % 11;
+    const digit = remainder === 10 ? 0 : remainder;
+    if (digit !== Number(cleanCPF[t])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+console.log(isValidCPF("529.982.247-25")); // true (CPF válido com dígitos verificadores corretos)
+console.log(isValidCPF("111.111.111-11")); // false (dígitos idênticos rejeitados pela RegExp)
+console.log(isValidCPF("111.222.333-44")); // false (formato visual correto, mas dígitos inválidos)
+console.log(isValidCPF("12345"));          // false (comprimento insuficiente)
+```
+
+Em resumo, a decisão de engenharia moderna segue um equilíbrio consciente:
+
+1. **Prefira utilitários próprios com auxílio de IA (*zero-dependency*)** para validações pontuais de regras locais, máscaras e cálculos matemáticos bem definidos (como CPF, CNPJ, datas simples e CEP), mantendo a base de código enxuta e auditável;
+2. **Adote bibliotecas consolidadas** quando houver ganho estrutural indispensável, como a inferência estrita de tipos em APIs completas com `Zod`, ou a gestão de dezenas de fusos horários internacionais em sistemas multinacionais.
 
 ## Validação Nativa em Formulários HTML
 
