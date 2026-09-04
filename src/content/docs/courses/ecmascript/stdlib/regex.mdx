@@ -1,6 +1,6 @@
 ---
 title: "JavaScript: Expressões Regulares (RegExp)"
-description: "Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, match, replace e aplicações práticas de RegExp em JavaScript."
+description: "Sintaxe, quantificadores, classes de caracteres, âncoras, métodos test, exec, match, replace, segurança contra ReDoS e desenvolvimento assistido por IA com RegExp em JavaScript."
 course: ecmascript
 sidebar:
   label: "Expressões Regulares (RegExp)"
@@ -26,6 +26,8 @@ substituição e divisão de texto. Ao final do tópico, o leitor deve ser capaz
 - Construir validações de formato com âncoras, testes positivos e testes negativos.
 - Identificar armadilhas comuns, como barras invertidas no construtor e estado interno
   da flag `g`.
+- Avaliar o risco de ReDoS de um padrão e distribuir a validação entre cliente e servidor.
+- Especificar, testar e revisar padrões escritos com auxílio de inteligência artificial.
 
 Antes de entrar na sintaxe, visualize a RegExp como um padrão aplicado sobre uma string.
 O resultado depende de três decisões: o texto de entrada, o padrão usado e o método
@@ -833,7 +835,7 @@ A regra fundamental de segurança e arquitetura Web estabelece a estratégia de 
 
 Portanto, **nunca confie exclusivamente no que foi validado pelo cliente**. Todo dado recebido pelo servidor deve ser novamente inspecionado por Expressões Regulares seguras, normalizado e sanitizado antes de ser processado por regras de negócio ou persistido em banco de dados.
 
-## Validação Nativa em Formulários HTML
+### Validação Nativa em Formulários HTML
 
 No HTML5, você pode utilizar a propriedade `pattern` em elementos `<input>` passando uma expressão regular (sem as barras externas).
 
@@ -903,6 +905,256 @@ fd -e mdx "^regex.*" src/content/docs/
 
 Dominar essa sintaxe permite automatizar limpezas em lote, migrações de arquitetura e análises de arquivos de log em segundos, tornando a RegExp uma habilidade indispensável dentro e fora do código da aplicação.
 
+## Expressões Regulares na Era da Inteligência Artificial
+
+Assistentes de código deslocaram o custo de escrever uma Expressão Regular de **lembrar a sintaxe** para **especificar o que deve casar e verificar o que foi gerado**.
+
+A escolha entre biblioteca e utilitário próprio já foi tratada na seção de arquitetura; aqui o foco é o processo de pedir, testar, auditar e revisar o padrão antes do repositório.
+
+### Do "decorar a sintaxe" ao "especificar e verificar"
+
+O fluxo assistido é um ciclo curto e fechado no qual a geração ocupa a menor parte do tempo.
+
+<Mermaid title="Ciclo de desenvolvimento assistido de uma Expressão Regular">
+{`
+flowchart TD
+  A["1. Especificar<br/>formato, limites e exemplos válidos e inválidos"] --> B["2. Gerar com IA<br/>padrão acompanhado da explicação"]
+  B --> C["3. Verificar<br/>tabela de casos executada em testes"]
+  C --> D{"Todos os casos passam?"}
+  D -->|"Não"| E["Refinar a especificação<br/>com o contraexemplo que falhou"]
+  E --> B
+  D -->|"Sim"| F["4. Revisar segurança<br/>âncoras, quantificadores e limite de tamanho"]
+  F --> G["5. Documentar<br/>comentário com a intenção do padrão"]
+`}
+</Mermaid>
+
+A tabela separa o que a inteligência artificial absorveu do que permanece com quem assina o *commit*:
+
+| O que mudou com a IA | O que permanece com a pessoa desenvolvedora |
+| :--- | :--- |
+| Lembrar a grafia de classes, âncoras e asserções de inspeção. | Definir quais entradas são válidas e quais devem ser rejeitadas. |
+| Traduzir uma expressão longa em explicação legível, trecho a trecho. | Julgar se a explicação corresponde ao comportamento real do motor. |
+| Sugerir contraexemplos e casos de borda que passariam despercebidos. | Executar os testes e decidir o que fazer quando um caso falha. |
+| Propor refatorações e alternativas nativas ao padrão. | Avaliar risco de ReDoS, custo de manutenção e legibilidade para a equipe. |
+
+### Especificação por exemplos: o prompt que produz padrões confiáveis
+
+Um modelo acerta na proporção da clareza do pedido: "uma regex de matrícula" devolve um palpite, enquanto formato, dialeto, limites e listas de entradas devolvem um padrão verificável.
+
+| Elemento do prompt | Por que importa |
+| :--- | :--- |
+| **Dialeto explícito** (`JavaScript`/ECMAScript) | Evita sintaxe de Python, Perl ou PCRE que não existe no motor do JavaScript. |
+| **Escopo do casamento** (campo inteiro ou trecho) | Determina se o padrão precisa das âncoras `^` e `$`. |
+| **Limites numéricos** (tamanho mínimo e máximo) | Substitui quantificadores abertos como `+` por faixas controladas como `{1,64}`. |
+| **Exemplos que devem casar** | Documenta a regra de negócio em dados concretos, não em prosa ambígua. |
+| **Exemplos que não devem casar** | É a parte mais esquecida e a que mais revela padrões frouxos. |
+| **Pedido de explicação e de riscos** | Transforma a resposta em material auditável, em vez de uma linha mágica. |
+
+O prompt abaixo aplica esses elementos à validação de uma matrícula acadêmica:
+
+```txt title="Prompt de especificação para gerar uma RegExp"
+Escreva uma expressão regular em JavaScript (sintaxe ECMAScript, sem bibliotecas)
+para validar matrícula acadêmica no formato AAAANNNNNNN, onde:
+
+- os 4 primeiros dígitos são o ano de ingresso, iniciando em 19 ou 20;
+- os 7 dígitos seguintes são o número sequencial do estudante;
+- a validação é do campo inteiro, sem texto ao redor;
+- nenhuma letra, espaço ou separador é aceito.
+
+Devem casar: "20261234567", "19993456789"
+Não devem casar: "2026123456", "202612345678", " 20261234567", "2026-123456"
+
+Responda com o padrão, a explicação de cada trecho e os riscos de backtracking.
+```
+
+Na constante `enrollmentPattern`, o grupo de não captura `(?:19|20)` restringe o século, `\d{2}` completa o ano e `\d{7}` cobre o sequencial, cada trecho preso a um pedaço da regra de negócio:
+
+```js title="Padrão gerado, documentado e conferido no código"
+// Matrícula: ano de ingresso (19xx ou 20xx) seguido de 7 dígitos sequenciais
+const enrollmentPattern = /^(?:19|20)\d{2}\d{7}$/;
+
+console.log(enrollmentPattern.test("20261234567"));  // true
+console.log(enrollmentPattern.test("19993456789"));  // true
+console.log(enrollmentPattern.test("2026123456"));   // false (um dígito a menos)
+console.log(enrollmentPattern.test("202612345678")); // false (um dígito a mais)
+console.log(enrollmentPattern.test(" 20261234567")); // false (espaço à esquerda)
+```
+
+### Verificação obrigatória: a tabela de casos vira teste automatizado
+
+Conferir uma RegExp gerada com dois `console.log()` é amostragem, não verificação.
+
+No arquivo abaixo, o executor de testes nativo do Node.js percorre o array `cases` comparando `cepPattern.test(input)` com o campo `expected`:
+
+```js title="cep.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+const cepPattern = /\d{5}-\d{3}/; // padrão sugerido pela IA, ainda sem âncoras
+
+const cases = [
+  { input: "58015-430", expected: true, reason: "CEP no formato oficial" },
+  { input: "58015430", expected: false, reason: "hífen ausente" },
+  { input: "5801-430", expected: false, reason: "dígitos a menos" },
+  { input: " 58015-430", expected: false, reason: "espaço à esquerda" },
+  { input: "58015-430 ", expected: false, reason: "espaço à direita" },
+  { input: "CEP 58015-430", expected: false, reason: "texto ao redor do padrão" },
+  { input: "58015-43a", expected: false, reason: "letra no lugar de dígito" },
+];
+
+test("cepPattern aceita e rejeita conforme a especificação", () => {
+  for (const { input, expected, reason } of cases) {
+    assert.equal(cepPattern.test(input), expected, `${JSON.stringify(input)} — ${reason}`);
+  }
+});
+```
+
+A execução revela o problema clássico de padrões gerados sem contexto de formulário: sem âncoras, a expressão encontra o CEP em qualquer posição da string.
+
+```bash title="Terminal"
+node --test cep.test.js
+```
+
+```txt title="Output"
+✖ cepPattern aceita e rejeita conforme a especificação (1.1165ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+
+✖ failing tests:
+
+test at cep.test.js:16:1
+✖ cepPattern aceita e rejeita conforme a especificação (1.1165ms)
+  AssertionError [ERR_ASSERTION]: " 58015-430" — espaço à esquerda
+
+  true !== false
+```
+
+Ancorado em `/^\d{5}-\d{3}$/`, o padrão passa em todos os casos, e a tabela fica versionada como proteção contra regressões:
+
+```bash title="Terminal"
+node --test cep.test.js
+```
+
+```txt title="Output"
+✔ cepPattern aceita e rejeita conforme a especificação (0.34275ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+```
+
+<Aside type="tip" title="Peça os contraexemplos ao próprio assistente">
+  Um segundo pedido costuma render mais do que o primeiro: *"liste dez entradas que passam nessa expressão mas deveriam ser rejeitadas"*. Cada resposta vira uma linha nova na tabela de casos.
+</Aside>
+
+### Auditoria de padrões herdados: peça a explicação, não só o padrão
+
+O ganho mais imediato da IA não é gerar, é **explicar**: antes de alterar uma expressão herdada que funciona mas ninguém da equipe consegue ler, como a política de senha abaixo, peça a decomposição trecho a trecho:
+
+```js title="Padrão herdado, correto porém ilegível"
+const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$/;
+
+console.log(strongPassword.test("Ifpb@2026")); // true
+console.log(strongPassword.test("ifpb2026"));  // false
+```
+
+A decomposição traduz cada asserção em uma regra de negócio nomeada:
+
+| Trecho | Significado | Regra de negócio |
+| :--- | :--- | :--- |
+| `(?=.*[a-z])` | *Lookahead* que exige uma minúscula em qualquer posição. | Pelo menos uma letra minúscula. |
+| `(?=.*[A-Z])` | *Lookahead* que exige uma maiúscula em qualquer posição. | Pelo menos uma letra maiúscula. |
+| `(?=.*\d)` | *Lookahead* que exige um dígito em qualquer posição. | Pelo menos um número. |
+| `(?=.*[^A-Za-z0-9])` | *Lookahead* que exige um caractere fora de letras e dígitos. | Pelo menos um símbolo. |
+| `.{8,64}$` | Consome a string inteira dentro da faixa de tamanho. | Entre 8 e 64 caracteres. |
+
+No lugar da expressão única, o array `passwordRules` guarda uma regra por requisito, e a função `checkPassword` devolve **quais** requisitos falharam, em vez de um `false` mudo:
+
+```js title="password.js"
+const passwordRules = [
+  { id: "length", message: "use de 8 a 64 caracteres", test: (value) => /^.{8,64}$/.test(value) },
+  { id: "lowercase", message: "inclua uma letra minúscula", test: (value) => /[a-z]/.test(value) },
+  { id: "uppercase", message: "inclua uma letra maiúscula", test: (value) => /[A-Z]/.test(value) },
+  { id: "digit", message: "inclua um dígito", test: (value) => /\d/.test(value) },
+  { id: "symbol", message: "inclua um símbolo", test: (value) => /[^\p{L}\p{N}]/u.test(value) },
+];
+
+function checkPassword(password) {
+  const failed = passwordRules.filter((rule) => !rule.test(password));
+
+  return { valid: failed.length === 0, problems: failed.map((rule) => rule.message) };
+}
+
+console.log(checkPassword("Ifpb@2026"));
+console.log(checkPassword("ifpb2026"));
+```
+
+```bash title="Terminal"
+node password.js
+```
+
+```txt title="Output"
+{ valid: true, problems: [] }
+{
+  valid: false,
+  problems: [ 'inclua uma letra maiúscula', 'inclua um símbolo' ]
+}
+```
+
+A refatoração preserva o critério de aceitação, permite testar cada requisito isoladamente e melhora a mensagem exibida no formulário.
+
+### Armadilhas frequentes em padrões gerados por IA
+
+Modelos de linguagem aprendem com material de todos os dialetos, boa parte deles descrevendo Python, Perl ou PCRE, e repetem um conjunto reconhecível de falhas:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **Sintaxe de outro dialeto** | Escapes como `\A` e `\z`, flags embutidas `(?i)`, grupos atômicos `(?>...)` ou quantificadores possessivos `a++`. | Executar o padrão no Node.js ou no Regex101 com o modo ECMAScript selecionado. |
+| **Padrão vulnerável a ReDoS** | Quantificadores aninhados e alternâncias ambíguas em expressões "completas" e longas. | Revisar quantificadores, limitar o tamanho da entrada e medir com `console.time()`. |
+| **RegExp onde existe API nativa** | Expressão gigante para separar partes de URL, validar data ou formatar número. | Perguntar explicitamente se `URL`, `Date`, `Intl` ou `input type="email"` resolvem melhor. |
+| **Confiança em "a regex definitiva de e-mail"** | Padrão de centenas de caracteres apresentado como conforme à RFC 5322. | Validar formato de maneira simples e confirmar a existência do endereço por e-mail. |
+| **Falha com acentuação** | `\w`, `[a-zA-Z]` e `\b` ignoram `ç`, `á` e demais letras acentuadas. | Usar a flag `u` com propriedades Unicode, como `\p{L}` no lugar de `[a-zA-Z]`. |
+| **Padrão aceito sem casos negativos** | A expressão "funciona" nos exemplos felizes e aceita lixo ao redor. | Manter a tabela de casos com entradas inválidas versionada junto do código. |
+
+A primeira armadilha **falha em silêncio**: fora do modo Unicode, `\z` não é o fim da string, e sim um escape de identidade que resulta na letra `z` literal:
+
+```js title="Escape inexistente em JavaScript aceito silenciosamente"
+// Sugestão comum de modelos treinados em Python e Perl: \z como "fim absoluto da string"
+const wrongEnd = /^\d+\z$/;
+
+console.log(wrongEnd.test("123"));  // false — a string não termina com a letra "z"
+console.log(wrongEnd.test("123z")); // true  — \z virou o literal "z"
+
+// Em JavaScript, o fim da string é apenas $ (na ausência da flag m)
+const rightEnd = /^\d+$/;
+
+console.log(rightEnd.test("123"));  // true
+console.log(rightEnd.test("123z")); // false
+
+// A flag u converte o escape inválido em erro de sintaxe, revelando o problema cedo
+new RegExp("^\\d+\\z$", "u"); // SyntaxError: Invalid regular expression: /^\d+\z$/u: Invalid escape
+```
+
+<Aside type="caution" title="Trate RegExp gerada por IA como código de terceiro">
+  Uma expressão sugerida por um assistente entra no projeto com o mesmo status de um trecho copiado de um fórum. A responsabilidade pelo padrão que chega à produção é de quem abre o *pull request*, não do modelo que o escreveu.
+</Aside>
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer Expressão Regular gerada com auxílio de IA, percorra as verificações abaixo:
+
+1. **Consigo explicar cada trecho do padrão?** Se a resposta for não, peça a decomposição ou refatore em regras menores antes de aprovar;
+2. **O padrão está ancorado com `^` e `$`** quando valida um campo inteiro, e sem âncoras quando busca ocorrências em um texto;
+3. **Existem casos negativos versionados?** Espaços nas bordas, texto ao redor, tamanho excedido e caracteres fora da classe;
+4. **Há quantificadores aninhados ou alternâncias ambíguas?** Reescreva o padrão e limite o tamanho da entrada antes de repassá-la ao motor;
+5. **A sintaxe é válida em ECMAScript?** Execute o padrão no Node.js com a flag `u` para transformar escapes inválidos em erro explícito;
+6. **Uma API nativa resolveria melhor?** `Date`, `URL`, `Intl` e `Number` cobrem domínios inteiros que não pertencem a uma RegExp;
+7. **A validação é apenas de formato?** Regra de negócio, dígito verificador e unicidade continuam sendo trabalho do código JavaScript.
+
+A inteligência artificial reduziu o custo de escrever uma Expressão Regular, mas não alterou em nada o custo de errar em produção.
+
 ## Resumo e Boas Práticas
 
 As boas práticas abaixo resumem decisões recorrentes ao escrever RegExp em aplicações
@@ -918,6 +1170,7 @@ Web. Use a tabela como checklist antes de publicar um padrão em produção:
 | Limite entradas e evite padrões ambíguos. | Reduz risco de ReDoS por backtracking excessivo. |
 | Desconfie de RegExp longas demais. | Regras extensas ficam difíceis de revisar, testar e manter. |
 | Separe validação de formato de regra de negócio. | Regex não confirma existência, unicidade ou cálculos específicos. |
+| Trate RegExp gerada por IA como código de terceiro. | Exige explicação, casos negativos e revisão de segurança antes do merge. |
 
 O exemplo final reúne essas decisões em um pequeno validador de formulário:
 
@@ -1179,15 +1432,33 @@ apenas os campos que serão usados no objeto final.
   Para regras locais, formatos de documentos (como CPF/CNPJ com Módulo 11), máscaras simples e validações pontuais de data, assistentes de IA viabilizam funções nativas puras, enxutas e testadas, eliminando o inchaço de `node_modules` e riscos à cadeia de suprimentos (*supply chain attacks*). Já bibliotecas consolidadas (como `Zod` ou utilitários globais de fusos horários) devem ser adotadas quando entregam ganhos estruturais indispensáveis, como inferência de tipos estáticos no TypeScript em esquemas complexos de APIs.
 </details>
 
+**14. Quais etapas compõem o ciclo de desenvolvimento de uma RegExp com auxílio de inteligência artificial?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Especificar o formato com exemplos válidos e inválidos, gerar o padrão com o assistente pedindo também a explicação, verificar o resultado com uma tabela de casos executada em testes automatizados, revisar a segurança do padrão (âncoras, quantificadores e limite de tamanho) e documentar a intenção no código. Quando um caso falha, o contraexemplo realimenta a especificação e o ciclo recomeça.
+</details>
+
+**15. Por que uma sugestão de padrão gerada por IA pode falhar silenciosamente em JavaScript?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque grande parte do material de treinamento descreve outros dialetos (Python, Perl, PCRE) e alguns escapes inexistentes no ECMAScript não geram erro. O escape `\z`, por exemplo, é interpretado fora do modo Unicode como a letra `z` literal: `/^\d+\z$/` rejeita `"123"` e aceita `"123z"`, invertendo a intenção do padrão sem lançar exceção. Executar a expressão com a flag `u` transforma o escape inválido em `SyntaxError` e revela o problema cedo.
+</details>
+
 ## Referências
 
-As referências abaixo documentam a sintaxe da linguagem, os métodos nativos e ferramentas úteis para testar padrões com o modo ECMAScript selecionado e gerar diagramas visuais.
+As referências abaixo documentam a sintaxe da linguagem, os métodos nativos, o executor de testes usado para verificar padrões e as ferramentas para testar expressões com o modo ECMAScript selecionado e gerar diagramas visuais.
 
 - Guia de Expressões Regulares na MDN:
   - [Regular Expressions | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions)
   - [RegExp | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)
   - [RegExp.prototype.test() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/test)
   - [String.prototype.match() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match)
+- Verificação de padrões com testes automatizados:
+  - [Test runner | Node.js](https://nodejs.org/api/test.html)
 - Ferramentas Interativas de Teste e Visualização:
   - [Regex101 - Real-time Regex Tester](https://regex101.com/)
   - [Regexper - Railroad Diagram Generator](https://regexper.com/)
