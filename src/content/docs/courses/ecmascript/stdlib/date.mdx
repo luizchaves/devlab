@@ -5,26 +5,37 @@ course: ecmascript
 sidebar:
   label: "Date e Manipulação de Datas"
 ---
-import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
-
-Materiais: [slides do tópico](../../../../slides/courses/ecmascript/stdlib/date/)
+import { Aside, Steps } from '@astrojs/starlight/components';
 
 Este tópico apresenta a manipulação de **Datas e Horas** em JavaScript: desde o funcionamento do objeto tradicional `Date` e o conceito de *Unix Timestamp*, passando pelas armadilhas de fusos horários, cálculo de diferenças entre datas, formatação avançada com a API `Intl` até as novas técnicas com a proposta **Temporal**.
 
+Materiais: [slides do tópico](../../../../slides/courses/ecmascript/stdlib/date/) e [mapa mental](../../../../mindmaps/courses/ecmascript/stdlib/date/).
+
 ## Objetivo
 
-Compreender o armazenamento e a representação de datas em JavaScript, dominar a criação com `Date` e strings no formato **ISO 8601**, evitar armadilhas de fusos horários (*timezones*), realizar cálculos de diferença de tempo (*diffs*), formatar datas com `Intl.DateTimeFormat` e `Intl.RelativeTimeFormat`, e conhecer a nova API **Temporal**.
+Compreender o modelo de representação temporal em JavaScript, dominando desde o funcionamento interno do objeto `Date` e do *Unix Epoch* até as modernas técnicas de internacionalização e imutabilidade com a API *Temporal*. Ao final do tópico, o leitor deve ser capaz de:
+
+- Instanciar e inspecionar datas utilizando timestamps numéricos, strings no padrão ISO 8601 e componentes individuais de calendário.
+- Identificar e contornar armadilhas de fusos horários (*timezones*), *offsets* locais e indexação base zero dos meses.
+- Extrair e modificar componentes de calendário e horário tanto no fuso local quanto em UTC.
+- Realizar cálculos de intervalos temporais e diferenças (*diffs*) em milissegundos e dias com coerção numérica segura.
+- Formatar datas completas, intervalos e frases de tempo relativo com `Intl.DateTimeFormat` e `Intl.RelativeTimeFormat`.
+- Avaliar soluções do ecossistema (`date-fns`, `dayjs`) frente aos novos tipos imutáveis da API *Temporal*.
 
 ## O Objeto Date e o Conceito de Timestamp
 
-Em JavaScript, o objeto `Date` representa um único momento no tempo. Internamente, uma data é armazenada como um **Unix Timestamp**: o número de milissegundos decorridos desde **1º de janeiro de 1970, às 00:00:00 UTC** (*Unix Epoch*).
+Em JavaScript, o objeto `Date` representa um único momento no tempo. Internamente, qualquer data é mantida como um número inteiro de 64 bits em ponto flutuante que contabiliza os milissegundos decorridos desde **1º de janeiro de 1970, às 00:00:00 UTC** (*Unix Epoch*).
+
+O construtor `Date` disponibiliza quatro assinaturas principais para instanciar datas a partir do relógio do sistema, de contagens de milissegundos, de textos formatados ou de coordenadas de calendário:
 
 | Forma de Construtor | Descrição | Exemplo |
 | ------------------- | --------- | ------- |
-| `new Date()` | Instancia a data e a hora exatas do instante atual | `new Date()` |
+| `new Date()` | Instancia a data e a hora exatas do instante de execução | `new Date()` |
 | `new Date(timestamp)` | Instancia a data a partir de milissegundos Epoch | `new Date(1700000000000)` |
 | `new Date(isoString)` | Instancia a partir de uma string no padrão ISO 8601 | `new Date("2026-08-22T09:30:00Z")` |
 | `new Date(ano, mês, dia, ...)` | Instancia com componentes individuais (mês base zero) | `new Date(2026, 7, 22)` // 22 de Agosto! |
+
+O exemplo a seguir ilustra essas quatro formas de instanciação, contrastando a captura do instante presente com a criação a partir de milissegundos, textos padronizados e valores de calendário:
 
 ```js title="Formas de instanciação do objeto Date"
 // 1. Momento atual
@@ -37,30 +48,53 @@ console.log(timestamp); // Ex: 1787304600000
 
 // 3. Instanciação com String ISO 8601
 const specificDate = new Date("2026-08-22T14:30:00.000Z");
+console.log(specificDate.toISOString()); // "2026-08-22T14:30:00.000Z"
 
-// 4. Componentes individuais (CUIDADO: Mês começa em 0!)
+// 4. Componentes individuais (Cuidado: o mês começa em 0!)
 // Ano, Mês (0=Jan, 7=Ago), Dia, Hora, Minuto
 const manualDate = new Date(2026, 7, 22, 14, 30);
 console.log(manualDate.toLocaleDateString("pt-BR")); // "22/08/2026"
 ```
 
-<Aside type="caution" title="Atenção: Meses no objeto Date começam em ZERO">
+### A Diferença entre Date() e new Date()
+
+Uma armadilha comum em JavaScript reside em invocar a função `Date()` sem a palavra-chave `new`. Quando chamada como função convencional, ela ignora quaisquer argumentos fornecidos e sempre retorna uma *string primitiva* com a representação textual do momento atual:
+
+```js title="Invocação funcional versus instanciação com new"
+// Sem 'new': retorna uma string primitiva do momento atual (ignora argumentos)
+const dateString = Date(2026, 0, 1);
+console.log(typeof dateString); // "string"
+console.log(dateString); // Ex: "Fri Sep 04 2026 20:30:00 GMT-0300..."
+
+// Com 'new': instancia um objeto Date completo
+const dateObject = new Date(2026, 0, 1);
+console.log(typeof dateObject); // "object"
+console.log(dateObject instanceof Date); // true
+console.log(dateObject.getFullYear()); // 2026
+```
+
+<Aside type="caution" title="Atenção: Meses no objeto Date começam em zero">
   No construtor `new Date(ano, mês, dia)` do JavaScript tradicional, o número do mês é **indexado em zero**:
   - `0` = Janeiro, `1` = Fevereiro, `6` = Julho, `7` = Agosto, `11` = Dezembro.
   
-  Passar `new Date(2026, 8, 22)` criará uma data em **Setembro**, não em Agosto!
+  Passar `new Date(2026, 8, 22)` criará uma data em **Setembro**, e não em Agosto.
 </Aside>
-
-Referência: [Date | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date).
 
 ## Fusos Horários (Timezones) e o Padrão ISO 8601
 
-O padrão internacional **ISO 8601** é o formato recomendado para serializar datas em texto na Web e em APIs REST.
+O padrão internacional **ISO 8601** é o formato recomendado para serializar datas em texto na Web, bancos de dados e APIs REST.
 
-Uma string ISO 8601 típica tem o formato: `YYYY-MM-DDTHH:mm:ss.sssZ`
-- `T` separa a data da hora.
-- `Z` indica o fuso **UTC** (*Coordinated Universal Time* / Zulu Time).
-- `-03:00` indica um deslocamento (*offset*) de 3 horas atrás do UTC (ex: Horário de Brasília).
+A estrutura de uma string no formato estendido ISO 8601 decompõe as informações temporais em marcadores padronizados:
+
+`YYYY-MM-DDTHH:mm:ss.sssZ`
+
+- `YYYY-MM-DD`: representação de ano, mês e dia com dígitos fixos.
+- `T`: separador literal entre a parte de calendário e a parte de horário.
+- `HH:mm:ss.sss`: horas, minutos, segundos e frações de milissegundos.
+- `Z`: indicador de fuso **UTC** (*Coordinated Universal Time* ou Zulu Time).
+- `-03:00` ou `+02:00`: deslocamento explícito (*offset*) em relação ao meridiano UTC.
+
+Para entender como o motor do JavaScript interpreta os fusos, o trecho a seguir compara duas strings com notações de fuso distintas que representam rigorosamente o mesmo instante físico:
 
 ```js title="Entendendo fusos horários no parsing de datas"
 // Data em UTC (sufixo Z)
@@ -69,26 +103,43 @@ const utcDate = new Date("2026-08-22T03:00:00.000Z");
 // Data com deslocamento explícito de Brasília (UTC-3)
 const brtDate = new Date("2026-08-22T00:00:00.000-03:00");
 
-// Ambos os objetos representam exatamente o mesmo instante!
+// Ambos os objetos representam exatamente o mesmo instante no tempo:
 console.log(utcDate.getTime() === brtDate.getTime()); // true
+console.log(utcDate.toISOString()); // "2026-08-22T03:00:00.000Z"
+console.log(brtDate.toISOString()); // "2026-08-22T03:00:00.000Z"
 ```
 
 <Aside type="tip" title="A Armadilha do Dia Anterior com Strings Apenas de Data">
-  Ao instanciar uma data fornecendo apenas o texto `"YYYY-MM-DD"` (ex: `new Date("2026-08-22")`), a especificação do JavaScript exige que a string seja parseada como **00:00:00 UTC**.
+  Ao instanciar uma data fornecendo apenas o texto no formato `"YYYY-MM-DD"` (como `new Date("2026-08-22")`), a especificação ECMAScript determina que a string seja interpretada como **00:00:00 UTC**.
   
-  Ao exibir essa data no Brasil (UTC-3), o navegador subtrai 3 horas, resultando em `21:00:00 do dia 21/08/2026`!
+  Ao converter essa data para o fuso do Brasil (UTC-3), o navegador subtrai 3 horas, resultando em `21:00:00 do dia 21/08/2026`.
   
-  Para evitar essa pegadinha:
-  - Forneça a hora explícita: `new Date("2026-08-22T00:00:00")` (parseia no fuso local).
+  Para evitar essa inconsistência de dia:
+  - Forneça a hora local explícita: `new Date("2026-08-22T00:00:00")`.
   - Ou utilize componentes numéricos: `new Date(2026, 7, 22)`.
 </Aside>
 
+### Serialização em JSON com toJSON() e toISOString()
+
+Ao serializar estruturas de dados contendo instâncias de `Date` via `JSON.stringify()`, o JavaScript executa internamente o método `Date.prototype.toJSON()`. Esse método delega para `Date.prototype.toISOString()`, convertendo o instante em uma string ISO 8601 em UTC:
+
+```js title="Serialização de datas em JSON"
+const event = {
+  title: "Workshop de JavaScript",
+  startsAt: new Date(Date.UTC(2026, 7, 22, 14, 0, 0)),
+};
+
+const jsonString = JSON.stringify(event);
+console.log(jsonString);
+// {"title":"Workshop de JavaScript","startsAt":"2026-08-22T14:00:00.000Z"}
+```
+
 ## Métodos de Leitura e Alteração de Componentes
 
-O objeto `Date` oferece métodos para extrair e modificar componentes específicos da data, tanto no fuso horário local do usuário quanto em UTC.
+O objeto `Date` oferece métodos para inspecionar e alterar componentes individuais, disponibilizando versões baseadas no relógio local do usuário e versões universais em UTC:
 
-| Componente | Leitura Local | Leitura UTC | Escala |
-| ---------- | ------------- | ----------- | ------ |
+| Componente | Leitura Local | Leitura UTC | Escala de Retorno |
+| ---------- | ------------- | ----------- | ----------------- |
 | **Ano** | `.getFullYear()` | `.getUTCFullYear()` | Ex: `2026` |
 | **Mês** | `.getMonth()` | `.getUTCMonth()` | `0` a `11` |
 | **Dia do Mês** | `.getDate()` | `.getUTCDate()` | `1` a `31` |
@@ -96,33 +147,51 @@ O objeto `Date` oferece métodos para extrair e modificar componentes específic
 | **Hora** | `.getHours()` | `.getUTCHours()` | `0` a `23` |
 | **Minutos** | `.getMinutes()` | `.getUTCMinutes()` | `0` a `59` |
 | **Segundos** | `.getSeconds()` | `.getUTCSeconds()` | `0` a `59` |
-| **Timestamp** | `.getTime()` | `.getTime()` | Milissegundos |
+| **Milissegundos** | `.getMilliseconds()` | `.getUTCMilliseconds()` | `0` a `999` |
+| **Timestamp** | `.getTime()` / `.valueOf()` | `.getTime()` / `.valueOf()` | Milissegundos Unix |
+
+O trecho a seguir demonstra a leitura dos valores locais de calendário e horário a partir de uma instância:
 
 ```js title="Exemplo de extração de componentes"
 const now = new Date();
 
 const year = now.getFullYear();
-const month = now.getMonth() + 1; // Soma 1 para exibir 1..12
+const month = now.getMonth() + 1; // Adiciona 1 para exibição convencional (1..12)
 const day = now.getDate();
 const hours = now.getHours();
+const minutes = now.getMinutes();
 
-console.log(`Hoje é ${day}/${month}/${year} às ${hours}h`);
+console.log(`Registro: ${day}/${month}/${year} às ${hours}:${minutes}`);
 ```
 
-## Cálculo de Diferenças de Datas (Diffs)
+Os métodos modificadores (`setFullYear()`, `setMonth()`, `setDate()`, etc.) alteram a instância original diretamente no mesmo endereço de memória. O método `.setDate()` ajusta automaticamente transições de mês e ano quando recebe valores além do limite:
 
-Calcular a diferença entre duas datas ou adicionar/subtrair períodos são tarefas frequentes em aplicações Web.
+```js title="Modificação de componentes com setters"
+const deadline = new Date("2026-08-20T10:00:00");
 
-### 1. Cálculo de Diferença em Milissegundos (Diffs Matemáticos)
+// Altera o dia do mês para o dia 28
+deadline.setDate(28);
+console.log(deadline.toLocaleDateString("pt-BR")); // "28/08/2026"
 
-Subtrair dois objetos `Date` (`endDate - startDate`) converte-os automaticamente em timestamps por meio da invocação implícita de `Date.prototype.valueOf()`, que retorna o valor numérico em milissegundos idêntico a `.getTime()`. A partir dessa diferença, podemos converter o valor para segundos, minutos, horas ou dias.
+// Passar valores acima do limite do mês avança automaticamente o calendário:
+deadline.setDate(35); // Agosto tem 31 dias; 35 vira 4 de Setembro!
+console.log(deadline.toLocaleDateString("pt-BR")); // "04/09/2026"
+```
+
+## Cálculo de Diferenças de Datas (Diffs) e Aritmética Temporal
+
+Calcular a distância temporal entre dois eventos ou projetar vencimentos futuros são necessidades centrais em regras de negócio.
+
+### 1. Cálculo de Diferença em Milissegundos e Subtração
+
+A operação de subtração entre duas instâncias de data (`endDate - startDate`) força a coerção numérica através da invocação implícita de `Date.prototype.valueOf()`, que retorna o timestamp numérico idêntico a `.getTime()`. A partir do valor em milissegundos, converte-se a grandeza para segundos, minutos, horas ou dias:
 
 ```js title="Calculando a diferença de dias entre duas datas"
 const startDate = new Date("2026-08-01T00:00:00");
 const endDate = new Date("2026-08-22T00:00:00");
 
-// Diferença em milissegundos (o operador '-' aciona .valueOf() em cada data):
-const diffMs = endDate - startDate; // equivalente a endDate.getTime() - startDate.getTime()
+// Subtração direta aciona .valueOf() em cada objeto Date:
+const diffMs = endDate - startDate; // idêntico a endDate.getTime() - startDate.getTime()
 
 // Conversão: ms -> segundos -> minutos -> horas -> dias
 const msPerDay = 1000 * 60 * 60 * 24;
@@ -131,65 +200,112 @@ const diffDays = Math.floor(diffMs / msPerDay);
 console.log(`Diferença: ${diffDays} dias`); // "Diferença: 21 dias"
 ```
 
-### 2. Adicionando e Subtraindo Dias
+### 2. A Pegadinha da Adição e Coerção com Symbol.toPrimitive
 
-O método `.setDate()` ajusta automaticamente viradas de mês e ano quando passamos valores que ultrapassam o limite do mês atual.
+Uma das maiores armadilhas de JavaScript ocorre ao tentar somar períodos a uma data utilizando o operador `+`. Ao contrário de outros objetos cuja coerção com `+` busca preferencialmente um número, o protótipo `Date` define um algoritmo customizado em `Date.prototype[Symbol.toPrimitive]`, no qual o *hint* padrão (`"default"`) é resolvido como `"string"`:
 
-```js title="Adicionando 15 dias a uma data"
-const today = new Date("2026-08-20");
+```js title="Armadilha da adição direta versus coerção numérica explícita"
+const deadline = new Date("2026-08-22T10:00:00Z");
 
-// Adiciona 15 dias (JavaScript ajusta para Setembro automaticamente!)
-today.setDate(today.getDate() + 15);
+// ARMADILHA: o operador '+' converte a data para string e concatena!
+const bugResult = deadline + 1000;
+console.log(typeof bugResult); // "string"
+console.log(bugResult); // "Sat Aug 22 2026 07:00:00 GMT-0300...1000"
 
-console.log(today.toLocaleDateString("pt-BR")); // "04/09/2026"
+// FORMA CORRETA 1: coerção unária explícita com '+' antes da soma
+const correctTimestamp = +deadline + 1000;
+const newDateFromTimestamp = new Date(correctTimestamp);
+
+// FORMA CORRETA 2: leitura direta via .getTime()
+const newDateFromMethod = new Date(deadline.getTime() + 1000);
 ```
 
-### 3. A Nova API Temporal (O Futuro Nativo do JavaScript)
+### 3. Adicionando Períodos com setDate() e o Horário de Verão
 
-O objeto `Date` tradicional possui limitações históricas conhecidas (meses base zero, mutabilidade, falta de suporte nativo a fusos horários e cálculos complexos de diff).
+Somar uma quantidade fixa de milissegundos (`86_400_000 ms`) para representar um dia pode causar inconsistências em regiões com Horário de Verão (*Daylight Saving Time* - DST). Nessas datas de transição, um dia pode possuir 23 ou 25 horas. O método `setDate()` é a abordagem mais segura, pois delega a aritmética de calendário ao motor JavaScript:
 
-Para resolver definitivamente esses problemas, a TC39 desenvolveu a **API Temporal** (Stage 3/4), que traz tipos imutáveis específicos e métodos nativos para cálculo de diferenças (`.until()` e `.since()`).
+```js title="Adicionando dias de forma segura com setDate"
+const today = new Date("2026-08-20T12:00:00");
 
-| Recurso | Objeto `Date` Antigo | Nova API `Temporal` |
-| ------- | --------------------- | ------------------- |
-| **Mutabilidade** | Mutável (pode causar bugs) | **Totalmente Imutável** |
-| **Mês Inicial** | `0` (Janeiro) | `1` (Janeiro) |
-| **Cálculo de Diffs** | Manual em milissegundos | Nativo: `d1.until(d2, { unit: 'days' })` |
-| **Tipos Específicos** | Apenas um tipo genérico | `PlainDate`, `PlainTime`, `ZonedDateTime` |
+// Adiciona 15 dias de forma segura contra variações de fuso e meses
+const futureDate = new Date(today);
+futureDate.setDate(futureDate.getDate() + 15);
+
+console.log(futureDate.toLocaleDateString("pt-BR")); // "04/09/2026"
+```
+
+### 4. Validação de Datas Seguras (Invalid Date)
+
+Quando uma string ilegível ou incorreta é fornecida ao construtor `new Date()`, o JavaScript **não lança uma exceção**. Em vez disso, ele instancia um objeto `Date` cujo valor de timestamp interno é `NaN`, e cuja representação textual é `"Invalid Date"`.
+
+Para verificar programaticamente se uma data é válida, testa-se se o timestamp numérico retornado por `.getTime()` é um número válido:
+
+```js title="Validação de integridade de instâncias Date"
+function isValidDate(date) {
+  return date instanceof Date && !Number.isNaN(date.getTime());
+}
+
+const valid = new Date("2026-08-22");
+const invalid = new Date("data-inexistente-123");
+
+console.log(isValidDate(valid)); // true
+console.log(isValidDate(invalid)); // false
+console.log(invalid.toString()); // "Invalid Date"
+```
+
+## A Nova API Temporal (O Futuro Nativo do JavaScript)
+
+O objeto `Date` tradicional possui limitações históricas conhecidas: mutabilidade dos objetos, meses indexados em zero, ausência de suporte nativo a fusos horários IANA e complexidade para calcular intervalos de calendário.
+
+Para solucionar essas lacunas de forma definitiva, a TC39 desenvolveu a **API Temporal** (Stage 3/4), introduzindo estruturas de dados imutáveis e métodos nativos de cálculo de intervalos:
+
+| Característica | Objeto `Date` Tradicional | Nova API `Temporal` |
+| -------------- | ------------------------- | ------------------- |
+| **Mutabilidade** | Mutável (propaga efeitos colaterais) | **Totalmente Imutável** |
+| **Indexação de Mês** | `0` a `11` (Janeiro = 0) | `1` a `12` (Janeiro = 1) |
+| **Cálculo de Intervalos** | Manual via milissegundos | Nativo com métodos `.until()` e `.since()` |
+| **Tipos Específicos** | Apenas um tipo genérico `Date` | `PlainDate`, `PlainTime`, `ZonedDateTime` |
+| **Aritmética de Calendário** | Manipulação imperativa com `setDate` | Métodos semânticos `.add()` e `.subtract()` |
+
+A API Temporal organiza o tempo em tipos com responsabilidades bem definidas:
+- `Temporal.PlainDate`: representa apenas dia, mês e ano, sem horário ou fuso (ideal para aniversários e feriados).
+- `Temporal.PlainTime`: representa apenas horário de relógio (horas, minutos, segundos), sem data.
+- `Temporal.ZonedDateTime`: representa um instante exato no tempo associado a um fuso horário IANA (ex: voos e agendamentos globais).
+- `Temporal.Duration`: representa uma quantidade semântica de tempo (ex: 2 meses e 5 dias).
+
+O exemplo a seguir demonstra a manipulação com a API Temporal:
 
 ```js title="Exemplo da API Temporal (Proposta Oficial TC39)"
 // Exemplo conceitual da API Temporal (disponível via polyfill ou suporte nativo recente)
-// 1. Criando datas imutáveis sem confusão de mês
+// 1. Criação de data imutável com mês natural (8 = Agosto)
 const today = Temporal.PlainDate.from("2026-08-22");
-const eventDate = Temporal.PlainDate.from("2026-09-10");
+const deadline = Temporal.PlainDate.from("2026-09-10");
 
-// 2. Calculando a diferença (diff) de forma nativa e direta!
-const diff = today.until(eventDate, { unit: "days" });
-console.log(`Faltam ${diff.days} dias para o evento!`); // "Faltam 19 dias para o evento!"
+// 2. Diferença (diff) calculada de forma nativa e semântica
+const diff = today.until(deadline, { unit: "days" });
+console.log(`Faltam ${diff.days} dias para o evento.`); // "Faltam 19 dias para o evento."
 
-// 3. Adicionando períodos
-const futureDate = today.add({ months: 2, days: 5 });
-console.log(futureDate.toString()); // "2026-10-27"
+// 3. Adição imutável de períodos de calendário
+const futureMeeting = today.add({ months: 2, days: 5 });
+console.log(futureMeeting.toString()); // "2026-10-27"
 ```
 
-<Aside type="tip" title="Por que a API Temporal é uma revolução no JS?">
-  A API `Temporal` elimina a necessidade de carregar bibliotecas pesadas de terceiros para realizar tarefas simples como calcular dias entre datas, adicionar meses ou formatarfusos específicos.
+<Aside type="tip" title="Por que a API Temporal é uma revolução no ecossistema?">
+  A API `Temporal` elimina a necessidade de bibliotecas de terceiros para operações frequentes como calcular dias úteis, adicionar meses ou manipular fusos locais sem erros de Horário de Verão.
 </Aside>
-
-Referência: [Temporal Proposal | TC39](https://tc39.es/proposal-temporal/docs/).
 
 ## Formatação com a API Intl (Internacionalização)
 
-Em vez de concatenar manualmente dia, mês e ano com barras ou zeros à esquerda, o JavaScript oferece a API nativa `Intl` para formatação precisa de datas e tempo relativo de acordo com o idioma do usuário.
+Em aplicações modernas, a formatação de datas para a interface do usuário não deve ser feita por concatenação manual de strings. A especificação ECMAScript disponibiliza o namespace nativo `Intl` para formatação precisa conforme a localidade e o fuso do usuário.
 
 ### 1. Formatação de Datas com Intl.DateTimeFormat
 
-A API de internacionalização formata datas conforme o idioma e a região, sem montar a string manualmente:
+O construtor `Intl.DateTimeFormat` aceita identificadores de localidade (como `"pt-BR"` ou `"en-US"`) e opções detalhadas de estilo:
 
 ```js title="Formatação de datas e fusos com Intl.DateTimeFormat"
 const date = new Date("2026-08-22T14:30:00Z");
 
-// Formatação padrão para o Brasil (pt-BR)
+// Formatação completa para o Brasil (pt-BR)
 const formatterBR = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "full",
   timeStyle: "short",
@@ -199,7 +315,7 @@ const formatterBR = new Intl.DateTimeFormat("pt-BR", {
 console.log(formatterBR.format(date));
 // "sábado, 22 de agosto de 2026 às 11:30"
 
-// Formatação customizada (Apenas dia, mês por extenso e ano)
+// Formatação customizada com componentes individuais
 const customFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "long",
@@ -209,89 +325,139 @@ const customFormatter = new Intl.DateTimeFormat("pt-BR", {
 console.log(customFormatter.format(date)); // "22 de agosto de 2026"
 ```
 
-### 2. Tempo Relativo com Intl.RelativeTimeFormat
+### 2. Formatação de Intervalos com formatRange()
 
-A API `Intl.RelativeTimeFormat` gera automaticamente frases humanas como `"há 5 minutos"`, `"ontem"`, `"em 3 dias"`.
+Além de formatar datas individuais, o método `formatRange()` formata intervalos de tempo de forma contínua e semântica segundo as convenções culturais do idioma:
+
+```js title="Formatação nativa de intervalos de datas com formatRange"
+const startDate = new Date("2026-08-20T09:00:00Z");
+const endDate = new Date("2026-08-25T18:00:00Z");
+
+const rangeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+console.log(rangeFormatter.formatRange(startDate, endDate));
+// "20 de ago. – 25 de ago. de 2026"
+```
+
+### 3. Tempo Relativo com Intl.RelativeTimeFormat
+
+A classe `Intl.RelativeTimeFormat` traduz grandezas numéricas em frases de tempo relativo legíveis para seres humanos:
 
 ```js title="Gerando tempo relativo com Intl.RelativeTimeFormat"
 const rtf = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
 
-console.log(rtf.format(-1, "day"));   // "ontem"
-console.log(rtf.format(1, "day"));    // "amanhã"
-console.log(rtf.format(-5, "minute"));// "há 5 minutos"
-console.log(rtf.format(2, "month"));  // "em 2 meses"
+console.log(rtf.format(-1, "day")); // "ontem"
+console.log(rtf.format(1, "day")); // "amanhã"
+console.log(rtf.format(-5, "minute")); // "há 5 minutos"
+console.log(rtf.format(2, "month")); // "em 2 meses"
 ```
-
-Referência: [Intl.DateTimeFormat | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat).
 
 ## Bibliotecas do Ecossistema (date-fns, dayjs, luxon, moment)
 
-Embora o suporte nativo do JavaScript tenha evoluído com `Intl` e a API `Temporal`, projetos legados e aplicações complexas utilizam bibliotecas utilitárias de mercado.
+Embora as APIs nativas `Intl` e `Temporal` cubram a maioria das necessidades modernas, bibliotecas utilitárias continuam presentes em projetos legados e aplicações com regras avançadas de calendário:
 
-| Biblioteca | Tamanho | Estilo / Paradigma | Estado no Mercado |
-| ---------- | ------- | ------------------ | ----------------- |
-| **date-fns** | Modular (tree-shakeable) | Funcional (funções puras imutáveis) | **Mais popular e recomendada** |
-| **dayjs** | ~2 KB | Orientado a objetos (sintaxe estilo Moment) | Muito usada pela leveza |
-| **Luxon** | Médio | Orientado a objetos imutável e timezones | Mantido pelos criadores do Moment |
-| **Moment.js** | ~70 KB | Orientado a objetos mutável | **Legado** (em modo de manutenção) |
+| Biblioteca | Tamanho do Pacote | Paradigma Arquitetural | Cenário Atual no Mercado |
+| ---------- | ----------------- | ---------------------- | ------------------------ |
+| **date-fns** | Modular (*tree-shakeable*) | Funcional com funções puras e imutáveis | **Padrão mais recomendado para novos projetos** |
+| **dayjs** | Ultraleve (~2 KB) | Fluente e orientado a objetos (sintaxe estilo Moment) | Muito utilizada em aplicações com restrição de bundle |
+| **Luxon** | Médio | Orientado a objetos imutável com forte suporte a timezones | Criada pelos mantenedores do Moment para modernização |
+| **Moment.js** | Pesado (~70 KB) | Orientado a objetos mutável | **Legado** (em modo exclusivo de manutenção) |
+
+O exemplo a seguir contrasta o paradigma funcional de `date-fns` com a sintaxe encadeada de `dayjs`:
 
 ```js title="Exemplo comparativo com date-fns e dayjs"
-// Exemplo com date-fns (estilo funcional)
-import { format, addDays, differenceInDays } from "date-fns";
+// Abordagem com date-fns (estilo funcional e tree-shakeable)
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const today = new Date();
 const nextWeek = addDays(today, 7);
 console.log(format(nextWeek, "EEEE, dd 'de' MMMM", { locale: ptBR }));
 
-// Exemplo com dayjs (estilo fluente)
+// Abordagem com dayjs (estilo fluente e orientado a objetos)
 import dayjs from "dayjs";
 console.log(dayjs().add(7, "day").format("DD/MM/YYYY"));
 ```
 
 ## Resumo e Boas Práticas
 
-<CardGrid>
-  <Card title="ISO 8601 e Timezones" icon="pencil">
-    - Armazene e transite datas sempre no formato **ISO 8601 em UTC** (`YYYY-MM-DDTHH:mm:ss.sssZ`).
-    - Lembre-se de que os meses no construtor `new Date(ano, mes, dia)` começam em **0** (Janeiro).
-  </Card>
+A manipulação de datas exige rigor arquitetural quanto a fusos horários, imutabilidade e validação de entradas.
 
-  <Card title="Formatação e Futuro" icon="star">
-    - Utilize a API nativa `Intl.DateTimeFormat` e `Intl.RelativeTimeFormat` para formatar datas para o usuário final.
-    - Acompanhe a adoção da nova API nativa `Temporal` para manipulação imutável de datas sem bibliotecas de terceiros.
-  </Card>
-</CardGrid>
+| Prática Recomendada | Motivo Técnico |
+| ------------------- | -------------- |
+| **Persistir e trafegar em ISO 8601 UTC** | Garante um ponto de referência temporal absoluto e independente do local de execução do servidor ou cliente. |
+| **Formatar apenas na camada de apresentação** | Mantém regras de negócio desacopladas das peculiaridades linguísticas e culturais de exibição. |
+| **Validar entradas com `!isNaN(date.getTime())`** | `new Date()` com texto inválido não lança erro; ele produz silenciosamente um timestamp `NaN`. |
+| **Usar `setDate()` para aritmética de calendário** | Trata automaticamente anos bissextos, viradas de mês e transições de Horário de Verão (DST). |
+| **Evitar o operador `+` para somar períodos** | `date + ms` aciona o *hint* de string em `Symbol.toPrimitive`, resultando em concatenação textual em vez de soma aritmética. |
+| **Fornecer hora ao parsear strings de data** | Strings apenas no padrão `"YYYY-MM-DD"` são interpretadas em UTC, o que pode exibir o dia anterior no Brasil (UTC-3). |
+| **Substituir Moment.js por date-fns ou APIs nativas** | Reduz significativamente o volume final do pacote (*bundle*) e elimina bugs oriundos de mutações colaterais. |
 
-- Ao parsear strings de data sem hora (`"YYYY-MM-DD"`), lembre-se do risco do "dia anterior" devido à conversão de UTC para o fuso local.
-- Para calcular a diferença entre duas datas com o `Date` clássico, subtraia seus timestamps (`date2.getTime() - date1.getTime()`) e divida pelo número de milissegundos de um dia (`86.400.000 ms`).
-- Evite utilizar a biblioteca legada `Moment.js` em novos projetos; prefira `date-fns`, `dayjs` ou APIs nativas `Intl` / `Temporal`.
+O bloco a seguir reúne essas práticas em um padrão seguro de instanciação, validação, cálculo de calendário e formatação:
+
+```js title="Resumo prático de manipulação de datas"
+function scheduleAppointment(startDateInput, daysToAdd) {
+  const appointmentDate = new Date(startDateInput);
+
+  // 1. Validação defensiva contra entradas inválidas
+  if (Number.isNaN(appointmentDate.getTime())) {
+    throw new TypeError("Data inicial inválida fornecida.");
+  }
+
+  // 2. Aritmética segura de calendário com setDate (imune a DST)
+  appointmentDate.setDate(appointmentDate.getDate() + daysToAdd);
+
+  // 3. Formatação internacionalizada na camada de saída
+  const formatter = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  });
+
+  return {
+    rawUtc: appointmentDate.toISOString(),
+    display: formatter.format(appointmentDate),
+  };
+}
+
+const scheduled = scheduleAppointment("2026-08-22T09:00:00-03:00", 10);
+console.log(scheduled.display);
+// "terça-feira, 1 de setembro de 2026 às 09:00"
+```
 
 ## Executando
 
-Os conceitos de manipulação de Datas podem ser testados diretamente no terminal com o Node.js.
+Os conceitos de manipulação de datas podem ser testados e inspecionados diretamente com o Node.js no terminal.
 
 <Steps>
 
-1. Crie um arquivo chamado `date-demo.js`:
+1. Crie um arquivo chamado `date-demo.js` com o seguinte código:
 
    ```js title="date-demo.js"
    const now = new Date();
    const deadline = new Date("2026-12-31T23:59:59Z");
 
-   // Calculando diferença em dias
+   // Validação de segurança
+   const isValid = !Number.isNaN(now.getTime());
+   console.log(`Relógio inicializado com sucesso: ${isValid}`);
+
+   // Cálculo de diferença em dias
    const diffMs = deadline.getTime() - now.getTime();
    const remainingDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-   // Formatação com Intl
-   const formatter = new Intl.DateTimeFormat("pt-BR", {
-     dateStyle: "full",
+   // Formatação de intervalo com Intl.DateTimeFormat
+   const rangeFormatter = new Intl.DateTimeFormat("pt-BR", {
+     dateStyle: "long",
      timeZone: "America/Sao_Paulo",
    });
 
-   console.log("Data Atual:", formatter.format(now));
-   console.log("Prazo Final:", formatter.format(deadline));
-   console.log(`Dias restantes para o fim de 2026: ${remainingDays} dias`);
+   console.log("Período:", rangeFormatter.formatRange(now, deadline));
+   console.log(`Dias restantes para o fim do ano: ${remainingDays} dias`);
    ```
 
 2. Execute o arquivo com Node.js no terminal:
@@ -301,9 +467,9 @@ Os conceitos de manipulação de Datas podem ser testados diretamente no termina
    ```
 
    ```txt title="Output"
-   Data Atual: sábado, 22 de agosto de 2026
-   Prazo Final: quinta-feira, 31 de dezembro de 2026
-   Dias restantes para o fim de 2026: 131 dias
+   Relógio inicializado com sucesso: true
+   Período: 22 de agosto de 2026 – 31 de dezembro de 2026
+   Dias restantes para o fim do ano: 131 dias
    ```
 
 3. Modifique os valores e teste o formatador de tempo relativo `Intl.RelativeTimeFormat`.
@@ -312,13 +478,15 @@ Os conceitos de manipulação de Datas podem ser testados diretamente no termina
 
 ## Exercício
 
-Crie um arquivo chamado `date-exercise.js` para praticar o cálculo de idades, adição de prazos e formatação de datas:
+Crie um arquivo chamado `date-exercise.js` para consolidar o cálculo de idades, a adição de prazos de vencimento e a formatação no padrão brasileiro:
 
-1. Crie uma variável `birthDate` com a sua data de nascimento (ex: `"1998-05-15"`);
-2. Crie uma função `calculateAge(birthDate)` que receba a data de nascimento e retorne a idade exata em anos completos;
-3. Crie uma data de vencimento `dueDate` adicionando `30 dias` a partir da data atual;
-4. Formate a data de vencimento no padrão brasileiro `"DD/MM/AAAA"`;
-5. Imprima no console a idade calculada e a data de vencimento formatada.
+1. Defina uma variável `birthDateStr` com uma data de nascimento no formato ISO (ex: `"2000-08-22"`);
+2. Escreva uma função `calculateAge(birthDateStr)` que valide a entrada e calcule a idade exata em anos completos, considerando se o aniversário do ano atual já ocorreu;
+3. Crie uma data de vencimento `dueDate` adicionando 30 dias a partir da data atual utilizando `.setDate()`;
+4. Formate a data de vencimento com `Intl.DateTimeFormat` no padrão brasileiro `"DD/MM/AAAA"`;
+5. Imprima no console a idade apurada e a data de vencimento formatada.
+
+Tente implementar os passos acima no arquivo antes de inspecionar a resolução de referência a seguir.
 
 <details>
   <summary>Possível resposta</summary>
@@ -326,12 +494,16 @@ Crie um arquivo chamado `date-exercise.js` para praticar o cálculo de idades, a
   ```js title="date-exercise.js"
   function calculateAge(birthDateStr) {
     const birth = new Date(birthDateStr);
-    const today = new Date();
 
+    if (Number.isNaN(birth.getTime())) {
+      throw new Error("Data de nascimento inválida.");
+    }
+
+    const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
     const monthDiff = today.getMonth() - birth.getMonth();
 
-    // Se ainda não fez aniversário neste ano, subtrai 1
+    // Se o aniversário ainda não ocorreu neste ano, decrementa 1 ano
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
       age--;
     }
@@ -343,165 +515,189 @@ Crie um arquivo chamado `date-exercise.js` para praticar o cálculo de idades, a
   const myAge = calculateAge("2000-08-22");
   console.log(`Idade calculada: ${myAge} anos`);
 
-  // 3. Adicionando 30 dias a partir de hoje
+  // 3. Adicionando 30 dias de forma segura com setDate
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 30);
 
   // 4. Formatação no padrão pt-BR
-  const formattedDueDate = dueDate.toLocaleDateString("pt-BR");
+  const formatter = new Intl.DateTimeFormat("pt-BR");
+  const formattedDueDate = formatter.format(dueDate);
   console.log(`Vencimento da fatura (em 30 dias): ${formattedDueDate}`);
   ```
 </details>
 
 ## Desafio
 
-Crie um arquivo chamado `invoice-tracker.js` que gerencie o status de pagamento de faturas de clientes, identificando atrasos e gerando mensagens humanas de tempo relativo:
+Crie um arquivo chamado `invoice-tracker.js` que processe uma lista de faturas, identificando prazos vencidos e gerando descrições humanas de tempo relativo:
 
 1. Crie um array `invoices` contendo objetos com `id`, `customer`, `dueDate` (string ISO) e `amount`;
-2. Crie uma função `processInvoices(invoices)` que percorra o array e calcule:
-   - Se a fatura está vencida ou em dia em relação à data atual;
-   - A quantidade de dias em atraso (caso vencida);
-   - Uma mensagem humana de tempo relativo usando `Intl.RelativeTimeFormat` (ex: `"vencida há 5 dias"` ou `"vence em 3 dias"`);
-3. Exiba no console o relatório detalhado de cada fatura.
+2. Escreva uma função `processInvoices(invoiceList)` que:
+   - Zere as frações de hora da data de hoje (`today.setHours(0, 0, 0, 0)`) para comparar estritamente dias de calendário;
+   - Calcule a diferença em dias entre o vencimento e o momento atual;
+   - Identifique se o boleto está em atraso ou em dia;
+   - Gere uma mensagem humana internacionalizada com `Intl.RelativeTimeFormat` (ex: `"ontem"`, `"há 5 dias"`, `"em 3 dias"`);
+3. Exiba no console o relatório processado em formato tabular com `console.table()`.
+
+Implemente a sua solução no arquivo de desafio antes de conferir a resolução comentada abaixo.
 
 <details>
   <summary>Possível resposta</summary>
 
   ```js title="invoice-tracker.js"
   const invoices = [
-    { id: 101, customer: "Empresa A", dueDate: "2026-08-15", amount: 1500 },
-    { id: 102, customer: "Empresa B", dueDate: "2026-08-25", amount: 800 },
-    { id: 103, customer: "Empresa C", dueDate: "2026-09-01", amount: 2300 },
+    { id: 101, customer: "Empresa Alfa", dueDate: "2026-08-15T00:00:00", amount: 1500 },
+    { id: 102, customer: "Empresa Beta", dueDate: "2026-08-25T00:00:00", amount: 800 },
+    { id: 103, customer: "Empresa Gama", dueDate: "2026-09-01T00:00:00", amount: 2300 },
   ];
 
   function processInvoices(invoiceList) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Zera horas para comparar apenas datas
+    today.setHours(0, 0, 0, 0); // Normaliza para a meia-noite local
 
     const rtf = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
     const msPerDay = 1000 * 60 * 60 * 24;
 
     return invoiceList.map((invoice) => {
-      const due = new Date(invoice.dueDate + "T00:00:00");
+      const due = new Date(invoice.dueDate);
+      due.setHours(0, 0, 0, 0);
+
       const diffMs = due.getTime() - today.getTime();
       const diffDays = Math.round(diffMs / msPerDay);
-
       const isOverdue = diffDays < 0;
-      const relativeMessage = rtf.format(diffDays, "day");
 
       return {
         id: invoice.id,
-        customer: invoice.customer,
-        amount: `R$ ${invoice.amount.toFixed(2)}`,
+        cliente: invoice.customer,
+        valor: `R$ ${invoice.amount.toFixed(2)}`,
         status: isOverdue ? "EM ATRASO" : "EM DIA",
-        relativeMessage,
+        prazoRelativo: rtf.format(diffDays, "day"),
       };
     });
   }
 
   console.log("--- Relatório de Faturas ---");
-  console.log(processInvoices(invoices));
+  console.table(processInvoices(invoices));
   ```
 </details>
 
 ## Perguntas de revisão
 
-### Objeto Date e Timestamps
+### Objeto Date e Construtores
 
-**1. O que é o Unix Timestamp e como ele é utilizado no objeto `Date` do JavaScript?**
+**1. O que é o Unix Timestamp e como ele é representado internamente pelo objeto `Date`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Unix Timestamp é a contagem de milissegundos decorridos desde 1º de janeiro de 1970 às 00:00:00 UTC (*Unix Epoch*). É o valor numérico interno mantido pelo objeto `Date` para representar qualquer instante no tempo.
+  O Unix Timestamp é a contagem de milissegundos decorridos desde 1º de janeiro de 1970 às 00:00:00 UTC (*Unix Epoch*). Internamente, o objeto `Date` armazena esse valor como um número inteiro de 64 bits em ponto flutuante.
 </details>
 
-**2. Por que a expressão `new Date(2026, 5, 10)` cria uma data em Junho e não em Maio?**
+**2. Qual é a diferença fundamental entre chamar `Date()` sem a palavra-chave `new` e instanciar `new Date()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque no construtor com argumentos numéricos `new Date(ano, mês, dia)`, os meses são **indexados em zero**: `0` é Janeiro, `1` é Fevereiro, até `11` para Dezembro. Portanto, `5` representa Junho.
+  Chamar `Date()` como função regular ignora quaisquer argumentos e sempre retorna uma *string primitiva* com a data e hora atuais. Somente a sintaxe `new Date(...)` cria uma instância de objeto do tipo `Date` com métodos de manipulação.
 </details>
 
-**3. Qual é a diferença entre `Date.now()` e `new Date().getTime()`?**
+**3. Por que a expressão `new Date(2026, 5, 10)` cria uma data no mês de Junho e não em Maio?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Ambos retornam o timestamp atual em milissegundos. `Date.now()` é uma função estática mais rápida porque retorna o número diretamente sem precisar instanciar um novo objeto `Date` na memória.
+  Porque no construtor com componentes numéricos `new Date(ano, mês, dia)`, os meses são **indexados em zero**: `0` representa Janeiro, `1` representa Fevereiro e `5` corresponde a Junho.
 </details>
 
-### Fusos e Armadilhas
-
-**4. O que significa o sufixo `Z` em uma string de data no formato ISO 8601 como `"2026-08-22T14:00:00Z"`?**
+**4. Qual é a vantagem de utilizar `Date.now()` em vez de instanciar `new Date().getTime()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  O sufixo `Z` significa *Zulu Time*, que indica que a hora informada está no fuso horário **UTC** (*Coordinated Universal Time*), ou seja, sem deslocamento de fusos locais.
+  Ambos retornam o timestamp atual em milissegundos, mas `Date.now()` é uma função estática de alto desempenho que devolve o valor numérico primitivo diretamente, sem alocar um novo objeto `Date` na memória heap.
 </details>
 
-**5. Por que passar a string `"2026-08-22"` no construtor `new Date()` pode exibir a data `21/08/2026` no Brasil?**
+### Fusos, Coerção e Armadilhas
+
+**5. O que significa o sufixo `Z` em uma string de data no formato ISO 8601?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque strings apenas no formato `"YYYY-MM-DD"` são parseadas por padrão como `00:00:00 UTC`. Ao converter essa data para o fuso do Brasil (UTC-3), subtraem-se 3 horas, resultando nas `21:00` do dia anterior.
+  O sufixo `Z` representa *Zulu Time*, indicando que o horário está expresso no fuso horário universal **UTC** (*Coordinated Universal Time*), sem qualquer deslocamento ou fuso local aplicado.
 </details>
 
-### Diferenças, Intl e API Temporal
-
-**6. Como calcular a diferença exata em dias entre duas datas utilizando o objeto `Date` tradicional?**
+**6. Por que instanciar `new Date("2026-08-22")` pode exibir o dia 21 de agosto no Brasil?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Subtraindo o timestamp da data inicial da data final (`date2.getTime() - date1.getTime()`) e dividindo o resultado em milissegundos pelo total de milissegundos em um dia (`1000 * 60 * 60 * 24 = 86.400.000 ms`).
+  Strings fornecidas exclusivamente no padrão `"YYYY-MM-DD"` são interpretadas por especificação como meia-noite em UTC (`00:00:00 UTC`). Ao converter essa data para o fuso brasileiro de Brasília (UTC-3), são subtraídas 3 horas, resultando nas 21:00 do dia anterior.
 </details>
 
-**7. Quais são as vantagens de usar a API `Intl.DateTimeFormat` para formatar datas?**
+**7. Por que a operação `date + 1000` resulta em uma string concatenada em vez de somar milissegundos?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  A API `Intl` adapta a formatação de datas, nomes de meses, dias da semana e fusos horários automaticamente conforme o idioma do usuário (ex: `"pt-BR"` ou `"en-US"`), sem a necessidade de criar funções manuais de formatação.
+  Porque o método `Date.prototype[Symbol.toPrimitive]` possui como padrão o *hint* de string para o operador `+`. Para forçar a soma aritmética de milissegundos, deve-se extrair o timestamp numericamente com `+date + 1000` ou `date.getTime() + 1000`.
 </details>
 
-**8. Para que serve o objeto `Intl.RelativeTimeFormat`?**
+**8. Como validar com segurança se uma string gerou uma data válida após o parsing?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Ele gera descrições textuais de tempo relativo de forma internacionalizada, convertendo deltas numéricos em frases como `"há 5 minutos"`, `"ontem"`, `"em 3 dias"`.
+  Como o JavaScript não lança exceções ao receber strings inválidas, gerando um timestamp `NaN`, a validação recomendada é verificar `date instanceof Date && !Number.isNaN(date.getTime())`.
 </details>
 
-**9. Quais problemas históricos do objeto `Date` a nova API `Temporal` resolve?**
+### Aritmética, Intl e API Temporal
+
+**9. Por que é mais seguro somar dias com `setDate(date.getDate() + n)` do que adicionar múltiplos fixos de `86_400_000` milissegundos?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  A API `Temporal` torna todas as datas **imutáveis**, corrige a indexação de meses para base `1` (Janeiro = 1), adiciona suporte nativo e preciso a fusos horários e fornece métodos nativos para cálculo de diferenças (`.until()` e `.since()`) e adição de períodos (`.add()`).
+  Porque em datas com transição de Horário de Verão (*Daylight Saving Time*), um dia pode conter 23 ou 25 horas. O método `setDate()` realiza a aritmética de calendário delegando o recálculo ao motor JavaScript, mantendo o horário correto.
 </details>
 
-**10. Por que a biblioteca `Moment.js` é considerada legada em desenvolvimento Web moderno?**
+**10. Qual é a utilidade do método `Intl.DateTimeFormat.prototype.formatRange()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque o `Moment.js` possui um tamanho de pacote muito grande, objetos mutáveis (que causam bugs colaterais) e falta de suporte a *tree-shaking*. O próprio time de desenvolvimento recomenda o uso de `date-fns`, `dayjs` ou APIs nativas `Intl`/`Temporal`.
+  O método `formatRange(startDate, endDate)` formata intervalos contínuos de datas de forma nativa e semântica segundo as regras culturais da localidade (ex: `"20 de ago. – 25 de ago. de 2026"`).
+</details>
+
+**11. Para que serve a classe `Intl.RelativeTimeFormat` e quando ela deve ser empregada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Serve para converter grandezas numéricas temporais em descrições humanas relativas internacionalizadas (como `"ontem"`, `"há 5 minutos"` ou `"em 2 meses"`), adaptando a mensagem ao idioma do usuário.
+</details>
+
+**12. Quais são as principais vantagens da nova API `Temporal` frente ao objeto `Date` tradicional?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A API `Temporal` torna todas as instâncias completamente imutáveis, adota a indexação natural de meses de 1 a 12, oferece suporte nativo e rigoroso a fusos horários IANA e disponibiliza métodos nativos semânticos para cálculos de diferenças (`.until()`, `.since()`) e adições (`.add()`).
 </details>
 
 ## Referências
 
-- Guia do Objeto Date na MDN:
+Para aprofundar o domínio sobre manipulação temporal no ecossistema JavaScript, consulte a documentação oficial da MDN e as especificações técnicas da TC39:
+
+- Especificação e Guias do Objeto Date:
   - [Date | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date)
   - [Intl.DateTimeFormat | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat)
   - [Intl.RelativeTimeFormat | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/RelativeTimeFormat)
-- Proposta TC39 e Comparadores de Mercado:
+- Proposta TC39 e Ecossistema de Bibliotecas:
   - [Temporal API Proposal | TC39](https://tc39.es/proposal-temporal/docs/)
   - [Comparativo de Bibliotecas de Data | npmtrends](https://npmtrends.com/date-fns-vs-dayjs-vs-luxon-vs-moment)
 
 ## Próximo tópico
+
+Após compreender a representação de datas e horários em JavaScript, o próximo passo consiste em explorar coleções estruturadas com:
 
 [Map, Set e Coleções](../../data/collections/): Coleções chave-valor com Map, conjuntos de valores únicos com Set e versões de referência fraca com WeakMap e WeakSet.
