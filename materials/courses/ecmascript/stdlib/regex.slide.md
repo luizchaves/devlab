@@ -529,6 +529,16 @@ Com auxílio de IA, é viável gerar utilitários puros sem dependências extern
 
 ---
 
+## Defesa em Profundidade (Cliente vs. Servidor)
+
+Nunca confie exclusivamente na validação do front-end:
+
+- **Cliente (Navegador)**: foco em experiência do usuário (UX) e feedback imediato.
+- **Servidor (API)**: barreira inegociável de segurança e integridade dos dados.
+- **Atenção**: o cliente pode desabilitar JavaScript ou enviar requisições diretas via `curl`.
+
+---
+
 ## HTML `pattern`
 
 No HTML, `pattern` recebe o corpo da expressão, sem barras externas e sem flags:
@@ -546,6 +556,16 @@ No HTML, `pattern` recebe o corpo da expressão, sem barras externas e sem flags
   <button type="submit">Enviar</button>
 </form>
 ```
+
+---
+
+## RegExp em IDEs e Linha de Comando
+
+A sintaxe de RegExp acelera tarefas diárias fora do código da aplicação:
+
+- **VS Code** (`Alt+R`): busca de logs residuais (`console\.log\(.*?\);?`) e refatoração com `$1`.
+- **`ripgrep` (`rg`) / `grep`**: busca ágil de padrões em milhares de arquivos de código.
+- **`sed` / `fd`**: substituição em massa e localização de arquivos por padrão no terminal.
 
 ---
 

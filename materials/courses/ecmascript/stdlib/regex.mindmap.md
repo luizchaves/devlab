@@ -138,6 +138,7 @@ markmap:
 - Regex valida aparência textual.
 - Regex não confirma existência nem regra de negócio.
 - Railroad visual.
+  - Diagramas ferroviários (ex: Regexper).
   - **CEP**: início -> dígitos -> máscara opcional -> fim.
   - **CPF**: formato cru ou formato pontuado.
   - **Horário (HH:MM)**: horas (00-23) e minutos (00-59).
@@ -151,6 +152,7 @@ markmap:
   - `/^([01]\d|2[0-3]):[0-5]\d$/`.
 - E-mail básico.
   - `/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`.
+  - WHATWG `<input type="email">` e regras de domínio (RFC 1034/1123).
 - Data (formato estrutural).
   - `/^(\d{2})\/(\d{2})\/(\d{4})$/`.
 - HTML `pattern`.
@@ -159,6 +161,9 @@ markmap:
 
 ## Decisões e Boas práticas
 
+- Defesa em profundidade.
+  - Cliente: experiência do usuário (UX).
+  - Servidor: segurança e integridade inegociáveis.
 - Separação de responsabilidades.
   - RegExp para formato e extração.
   - Código JavaScript para domínio e regras.
@@ -169,6 +174,9 @@ markmap:
 - Dependências na era da IA.
   - Utilitários próprios (*zero-dependency*) para regras locais (CPF, datas, CEP).
   - Bibliotecas consolidadas (`Zod`, `date-fns`) para esquemas complexos e tipos.
+- Ferramentas no dia a dia.
+  - IDEs: busca e substituição com grupos (`$1`) no VS Code.
+  - Terminal (CLIs): ripgrep (`rg`), grep, sed e fd.
 - Boas práticas gerais.
   - Use âncoras em validações de campo.
   - Teste casos válidos e inválidos.
