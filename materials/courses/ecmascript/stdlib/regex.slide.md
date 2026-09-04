@@ -302,20 +302,23 @@ console.log(html.match(lazy)[0]); // "<div>Primeira</div>"
 
 ---
 
-## Segurança: ReDoS
+## Segurança: ReDoS e Backtracking
 
-O `X` final torna a entrada quase válida e força a RegExp ambígua a tentar muitos caminhos:
+Quantificadores aninhados (`^(\d+)+$`) geram ambiguidade exponencial ($2^{n-1}$ partições):
+
+- A engine tenta todas as combinações de particionamento (`["123"]`, `["12", "3"]`...).
+- O `'X'` final força o teste exaustivo de milhões de caminhos antes de retornar `false`.
 
 ```js
-const unsafeDigits = /^(\d+)+$/;
-const safeDigits = /^\d+$/;
+const unsafeDigits = /^(\d+)+$/; // Exponencial O(2^n)
+const safeDigits = /^\d+$/;       // Linear O(n)
 const attackInput = "111111111111111111X";
 
-console.log(unsafeDigits.test(attackInput)); // false, mas pode demorar
-console.log(safeDigits.test(attackInput)); // false
+console.log(unsafeDigits.test(attackInput)); // Trava a thread síncrona
+console.log(safeDigits.test(attackInput));   // false (resolvido em microssegundos)
 ```
 
-**Correção:** limite entrada, remova quantificadores aninhados e troque `.*` por classes específicas.
+- **Correção:** elimine quantificadores aninhados e use expressões lineares.
 
 ---
 

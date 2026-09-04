@@ -292,15 +292,50 @@ ataque de negação de serviço por Expressão Regular, conhecido como ReDoS.
   parser próprio.
 </Aside>
 
-O teste abaixo ilustra um padrão suspeito e uma reescrita mais direta. A RegExp
-`/^(\d+)+$/` parece dizer apenas "uma string formada só por dígitos", mas há dois
-quantificadores `+`: um dentro do grupo `(\d+)` e outro fora dele. Isso permite que o
-motor tente dividir a mesma sequência de dígitos de muitas formas antes de desistir.
+### Por que ocorrem múltiplas combinações?
 
-O texto de ataque é uma sequência longa de dígitos terminando com `X`. Quase toda a
-entrada parece válida, então o motor tenta várias combinações para fazer a RegExp casar,
-mas o `X` final obriga a falha. A versão `^\d+$` é equivalente para a regra desejada,
-porém não cria a ambiguidade do grupo repetido.
+A ambiguidade surge quando dois quantificadores aninhados competem pela mesma classe de caracteres. Na expressão `/^(\d+)+$/`, o quantificador interno `\d+` consome um ou mais dígitos, enquanto o quantificador externo `()+` repete todo o grupo uma ou mais vezes. Quando uma sequência de dígitos é apresentada, essa mesma sequência pode ser agrupada e particionada de inúmeras maneiras diferentes.
+
+Para compreender como o motor explora essas possibilidades, considere uma entrada curta como `"123X"`, onde quase todo o texto parece válido, mas o caractere `'X'` final força o casamento a falhar:
+
+1. **Tentativa 1 (gulosa)**: O `\d+` interno consome todos os dígitos de uma só vez, gerando a partição `["123"]`. O padrão exige o fim da string com `$`, mas encontra `'X'`. A tentativa falha.
+2. **Primeiro recuo (backtracking)**: O motor recua um dígito no grupo interno e tenta satisfazer o quantificador externo gerando dois grupos: `["12", "3"]`. O `$` encontra `'X'` e falha novamente.
+3. **Segundo recuo**: O motor testa outra divisão em dois grupos: `["1", "23"]`. O `$` encontra `'X'` e falha.
+4. **Terceiro recuo**: O motor testa uma divisão em três grupos unitários: `["1", "2", "3"]`. O `$` encontra `'X'` e falha.
+
+Somente após esgotar todas as 4 combinações possíveis para apenas 3 dígitos é que o motor conclui que a entrada não corresponde ao padrão e retorna `false`.
+
+O diagrama a seguir ilustra a árvore de tentativas e recuos percorrida pelo motor ao avaliar a entrada `"123X"`:
+
+<Mermaid title="Árvore de Backtracking Catastrófico com Quantificadores Aninhados">
+{`
+flowchart TD
+  Root["Entrada: '123X' | Padrão: /^(\\d+)+$/"] --> T1["Tentativa 1 (1 grupo):<br/>['123'] + espera $ (falha no 'X')"]
+  T1 --> B1["Backtracking: reparte em 2 grupos"]
+  B1 --> T2["Tentativa 2:<br/>['12', '3'] + espera $ (falha)"]
+  B1 --> T3["Tentativa 3:<br/>['1', '23'] + espera $ (falha)"]
+  T2 --> B2["Backtracking: reparte em 3 grupos"]
+  T3 --> B2
+  B2 --> T4["Tentativa 4:<br/>['1', '2', '3'] + espera $ (falha)"]
+  T4 --> Fail["Todas as 4 combinações esgotadas (2³⁻¹)<br/>Resultado: false"]
+`}
+</Mermaid>
+
+A gravidade do problema está na matemática das partições: para uma sequência com `n` dígitos, existem exatamente `2ⁿ⁻¹` maneiras distintas de fatiar a string entre os quantificadores. O espaço de busca cresce de forma puramente exponencial (`O(2ⁿ)`):
+
+| Dígitos na entrada | Padrão ambíguo `/^(\d+)+$/` | Padrão linear `/^\d+$/` | Custo computacional |
+| :--- | :--- | :--- | :--- |
+| `4` (ex: `"1234X"`) | `2³ = 8` combinações | 4 passos | Instantâneo |
+| `10` (ex: `"1111111111X"`) | `2⁹ = 512` combinações | 10 passos | Menos de 1 ms |
+| `20` (ex: `"11111111111111111111X"`) | `2¹⁹ = 524.288` combinações | 20 passos | Centenas de milissegundos |
+| `30` | `2²⁹ ≈ 536` milhões de combinações | 30 passos | Vários segundos (trava a CPU) |
+| `40` | `2³⁹ ≈ 549` bilhões de combinações | 40 passos | Horas ou dias (bloqueio total) |
+
+Quando uma entrada maliciosa é enviada a uma aplicação Node.js ou navegador, como o caractere `'X'` final inviabiliza o casamento, o motor é obrigado por especificação a testar **todas** as combinações antes de declarar `false`. Como o JavaScript executa em uma thread única, esse processamento síncrono bloqueia o *event loop*, impedindo a resposta a qualquer outra requisição (ReDoS).
+
+Na versão corrigida `/^\d+$/`, há apenas um quantificador. Ele consome todos os dígitos em uma única passagem. Ao encontrar `'X'`, ele verifica que o caractere não é `$` e recua linearmente sem redistribuir grupos, resolvendo a validação em tempo linear ($O(n)$) e em microssegundos.
+
+O teste abaixo ilustra na prática essa diferença de desempenho entre o padrão vulnerável e o padrão corrigido:
 
 ```js title="Detectando e corrigindo backtracking excessivo"
 const unsafeDigits = /^(\d+)+$/;
