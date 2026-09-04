@@ -140,11 +140,14 @@ markmap:
 - Railroad visual.
   - **CEP**: início -> dígitos -> máscara opcional -> fim.
   - **CPF**: formato cru ou formato pontuado.
+  - **Horário (HH:MM)**: horas (00-23) e minutos (00-59).
   - **E-mail básico**: local -> `@` -> domínio -> sufixo.
 - CPF.
   - `/^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/`.
 - CEP.
   - `/^(\d{8}|\d{5}-\d{3})$/`.
+- Horário (HH:MM).
+  - `/^([01]\d|2[0-3]):[0-5]\d$/`.
 - E-mail básico.
   - `/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`.
 - HTML `pattern`.

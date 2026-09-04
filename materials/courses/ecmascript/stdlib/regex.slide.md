@@ -452,16 +452,10 @@ console.log(text.split(/[,;]\s*/)); // [ "Ana", "Bruno", "Carla" ]
 Regex valida formato textual. Ela não confirma existência, unicidade ou regra de negócio.
 
 ```txt
-CEP
-(início) -> 8 dígitos -----------------------> (fim)
-         -> 5 dígitos -> "-" -> 3 dígitos ---> (fim)
-
-CPF
-(início) -> 11 dígitos ----------------------> (fim)
-         -> 3 "." 3 "." 3 "-" 2 dígitos ----> (fim)
-
-E-mail básico
-(início) -> local -> "@" -> domínio -> "." -> sufixo -> (fim)
+CEP: (início) -> 8 dígitos ou 5 dígitos + "-" + 3 dígitos -> (fim)
+CPF: (início) -> 11 dígitos ou 3 "." 3 "." 3 "-" 2 dígitos -> (fim)
+Hora: (início) -> (00-19 | 20-23) -> ":" -> (00-59) -> (fim)
+E-mail: (início) -> local -> "@" -> domínio -> "." -> sufixo -> (fim)
 ```
 
 ---
@@ -471,12 +465,12 @@ E-mail básico
 Os trilhos viram RegExp ancoradas, com alternativas e quantificadores explícitos:
 
 ```js
-const cpfPattern = /^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/;
 const cepPattern = /^(\d{8}|\d{5}-\d{3})$/;
+const cpfPattern = /^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/;
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-console.log(cpfPattern.test("111.222.333-44")); // true
-console.log(cepPattern.test("58000-000")); // true
+console.log(timePattern.test("14:30")); // true
 console.log(emailPattern.test("aluno@ifpb.edu.br")); // true
 ```
 
