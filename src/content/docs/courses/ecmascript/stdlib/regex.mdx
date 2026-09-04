@@ -272,91 +272,11 @@ console.log(html.match(lazyRegex)[0]);
   Utilize quantificadores não gulosos (`*?` ou `+?`) sempre que precisar capturar o conteúdo interno de delimitadores que se repetem no texto, como tags HTML (`<.*?>`), aspas (`".*?"`) ou chaves (`\{.*?\}`), evitando que a captura se estenda indesejadamente até o final do documento.
 </Aside>
 
-Além de afetar a captura, quantificadores e alternâncias também afetam custo de
-execução. Em entradas controladas pelo usuário, uma RegExp ambígua pode virar alvo de
-ataque de negação de serviço por Expressão Regular, conhecido como ReDoS.
+Além de afetar a abrangência da captura, a escolha de quantificadores influencia diretamente o custo de execução e a segurança da aplicação. Quando quantificadores gulosos são aninhados sobre a mesma classe de caracteres, o motor pode realizar milhares de tentativas inúteis de recuo (*backtracking*), abrindo brechas para ataques de Negação de Serviço por Expressão Regular (ReDoS).
 
-<Aside type="danger" title="Cuidado com ReDoS e backtracking excessivo">
-  Alguns padrões fazem o motor de RegExp testar muitas combinações antes de concluir que a
-  entrada não casa. Isso costuma acontecer com quantificadores aninhados, como `^(\d+)+$`,
-  alternâncias ambíguas, como `^(a|aa)+$`, ou uso amplo de `.*` antes de um trecho obrigatório.
-
-  Para detectar, procure crescimento desproporcional de tempo com entradas longas e quase
-  válidas, faça testes com casos inválidos grandes e revise padrões que combinam `*`, `+`,
-  `{n,m}` e `|` em grupos repetidos. Em Node.js, esse atraso prende o *event loop* enquanto a
-  expressão é avaliada.
-
-  Para corrigir, limite o tamanho da entrada antes da RegExp, remova quantificadores
-  aninhados, troque `.*` por classes específicas (`[^@\s]+`, `\d{5}`), use limites explícitos
-  (`{1,80}`) quando fizer sentido e divida validações complexas em etapas menores ou em um
-  parser próprio.
+<Aside type="caution" title="Atenção a quantificadores aninhados e ReDoS">
+  Quantificadores gulosos consom o máximo possível e recuam quando o restante da expressão falha. Em padrões ambíguos ou com repetições aninhadas, o número de partições testadas pode crescer exponencialmente, travando o *event loop* do Node.js ou a aba do navegador. Consulte a análise detalhada da árvore de tentativas, a tabela de complexidade e as correções na seção [Segurança em validações: ReDoS e backtracking excessivo](#segurança-em-validações-redos-e-backtracking-excessivo).
 </Aside>
-
-### Por que ocorrem múltiplas combinações?
-
-A ambiguidade surge quando dois quantificadores aninhados competem pela mesma classe de caracteres. Na expressão `/^(\d+)+$/`, o quantificador interno `\d+` consome um ou mais dígitos, enquanto o quantificador externo `()+` repete todo o grupo uma ou mais vezes. Quando uma sequência de dígitos é apresentada, essa mesma sequência pode ser agrupada e particionada de inúmeras maneiras diferentes.
-
-Para compreender como o motor explora essas possibilidades, considere uma entrada curta como `"123X"`, onde quase todo o texto parece válido, mas o caractere `'X'` final força o casamento a falhar:
-
-1. **Tentativa 1 (gulosa)**: O `\d+` interno consome todos os dígitos de uma só vez, gerando a partição `["123"]`. O padrão exige o fim da string com `$`, mas encontra `'X'`. A tentativa falha.
-2. **Primeiro recuo (backtracking)**: O motor recua um dígito no grupo interno e tenta satisfazer o quantificador externo gerando dois grupos: `["12", "3"]`. O `$` encontra `'X'` e falha novamente.
-3. **Segundo recuo**: O motor testa outra divisão em dois grupos: `["1", "23"]`. O `$` encontra `'X'` e falha.
-4. **Terceiro recuo**: O motor testa uma divisão em três grupos unitários: `["1", "2", "3"]`. O `$` encontra `'X'` e falha.
-
-Somente após esgotar todas as 4 combinações possíveis para apenas 3 dígitos é que o motor conclui que a entrada não corresponde ao padrão e retorna `false`.
-
-O diagrama a seguir ilustra a árvore de tentativas e recuos percorrida pelo motor ao avaliar a entrada `"123X"`:
-
-<Mermaid title="Árvore de Backtracking Catastrófico com Quantificadores Aninhados">
-{`
-flowchart TD
-  Root["Entrada: '123X' | Padrão: /^(\\d+)+$/"] --> T1["Tentativa 1 (1 grupo):<br/>['123'] + espera $ (falha no 'X')"]
-  T1 --> B1["Backtracking: reparte em 2 grupos"]
-  B1 --> T2["Tentativa 2:<br/>['12', '3'] + espera $ (falha)"]
-  B1 --> T3["Tentativa 3:<br/>['1', '23'] + espera $ (falha)"]
-  T2 --> B2["Backtracking: reparte em 3 grupos"]
-  T3 --> B2
-  B2 --> T4["Tentativa 4:<br/>['1', '2', '3'] + espera $ (falha)"]
-  T4 --> Fail["Todas as 4 combinações esgotadas (2³⁻¹)<br/>Resultado: false"]
-`}
-</Mermaid>
-
-A gravidade do problema está na matemática das partições: para uma sequência com `n` dígitos, existem exatamente `2ⁿ⁻¹` maneiras distintas de fatiar a string entre os quantificadores. O espaço de busca cresce de forma puramente exponencial (`O(2ⁿ)`):
-
-| Dígitos na entrada | Padrão ambíguo `/^(\d+)+$/` | Padrão linear `/^\d+$/` | Custo computacional |
-| :--- | :--- | :--- | :--- |
-| `4` (ex: `"1234X"`) | `2³ = 8` combinações | 4 passos | Instantâneo |
-| `10` (ex: `"1111111111X"`) | `2⁹ = 512` combinações | 10 passos | Menos de 1 ms |
-| `20` (ex: `"11111111111111111111X"`) | `2¹⁹ = 524.288` combinações | 20 passos | Centenas de milissegundos |
-| `30` | `2²⁹ ≈ 536` milhões de combinações | 30 passos | Vários segundos (trava a CPU) |
-| `40` | `2³⁹ ≈ 549` bilhões de combinações | 40 passos | Horas ou dias (bloqueio total) |
-
-Quando uma entrada maliciosa é enviada a uma aplicação Node.js ou navegador, como o caractere `'X'` final inviabiliza o casamento, o motor é obrigado por especificação a testar **todas** as combinações antes de declarar `false`. Como o JavaScript executa em uma thread única, esse processamento síncrono bloqueia o *event loop*, impedindo a resposta a qualquer outra requisição (ReDoS).
-
-Na versão corrigida `/^\d+$/`, há apenas um quantificador. Ele consome todos os dígitos em uma única passagem. Ao encontrar `'X'`, ele verifica que o caractere não é `$` e recua linearmente sem redistribuir grupos, resolvendo a validação em tempo linear ($O(n)$) e em microssegundos.
-
-O teste abaixo ilustra na prática essa diferença de desempenho entre o padrão vulnerável e o padrão corrigido:
-
-```js title="Detectando e corrigindo backtracking excessivo"
-const unsafeDigits = /^(\d+)+$/;
-const safeDigits = /^\d+$/;
-
-const attackInput = "111111111111111111X";
-
-console.log(attackInput); // "111111111111111111X"
-
-console.time("unsafe");
-console.log(unsafeDigits.test(attackInput)); // false, mas pode demorar
-console.timeEnd("unsafe");
-
-console.time("safe");
-console.log(safeDigits.test(attackInput)); // false
-console.timeEnd("safe");
-```
-
-Não aumente esse exemplo sem cuidado em um servidor, navegador ou ambiente compartilhado.
-Em um ataque real, a entrada pode ter centenas ou milhares de caracteres e bloquear a
-execução enquanto a RegExp tenta caminhos que nunca chegarão a uma correspondência.
 
 ### Grupos e alternância
 
@@ -696,6 +616,83 @@ console.log(isValidDate("31/04/2026")); // false (abril transborda para 01/05)
 ```
 
 Essa separação é muito mais legível, tem manutenção simples, executa de forma previsível e não corre risco de comportamentos inesperados ou custos catastróficos de backtracking.
+
+### Segurança em validações: ReDoS e backtracking excessivo
+
+Em ambientes de produção, entradas enviadas por usuários em formulários e APIs devem ser validadas com extremo cuidado. Uma Expressão Regular aparentemente inofensiva pode se tornar uma vulnerabilidade crítica de segurança conhecida como **ReDoS** (*Regular Expression Denial of Service*) quando sofre de **backtracking catastrófico**.
+
+<Aside type="danger" title="Cuidado com ReDoS e travamento de thread">
+  Alguns padrões fazem o motor de RegExp testar muitas combinações antes de concluir que a entrada não casa. Isso costuma acontecer com quantificadores aninhados, como `^(\d+)+$`, alternâncias ambíguas, como `^(a|aa)+$`, ou uso amplo de `.*` antes de um trecho obrigatório.
+
+  Como o JavaScript executa em uma thread única (*single-thread*), o processamento síncrono de uma expressão vulnerável bloqueia o *event loop* no Node.js ou congela a interface do navegador, impedindo a aplicação de atender a qualquer outra requisição enquanto a avaliação não terminar.
+</Aside>
+
+A ambiguidade surge quando dois quantificadores aninhados competem pela mesma classe de caracteres. Na expressão `/^(\d+)+$/`, o quantificador interno `\d+` consome um ou mais dígitos, enquanto o quantificador externo `()+` repete todo o grupo uma ou mais vezes. Quando uma sequência de dígitos é apresentada, essa mesma sequência pode ser agrupada e particionada de inúmeras maneiras diferentes.
+
+Para compreender como o motor explora essas possibilidades, considere uma entrada curta como `"123X"`, onde quase todo o texto parece válido, mas o caractere `'X'` final força o casamento a falhar:
+
+1. **Tentativa 1 (gulosa)**: O `\d+` interno consome todos os dígitos de uma só vez, gerando a partição `["123"]`. O padrão exige o fim da string com `$`, mas encontra `'X'`. A tentativa falha.
+2. **Primeiro recuo (*backtracking*)**: O motor recua um dígito no grupo interno e tenta satisfazer o quantificador externo gerando dois grupos: `["12", "3"]`. O `$` encontra `'X'` e falha novamente.
+3. **Segundo recuo**: O motor testa outra divisão em dois grupos: `["1", "23"]`. O `$` encontra `'X'` e falha.
+4. **Terceiro recuo**: O motor testa uma divisão em três grupos unitários: `["1", "2", "3"]`. O `$` encontra `'X'` e falha.
+
+Somente após esgotar todas as 4 combinações possíveis para apenas 3 dígitos é que o motor conclui que a entrada não corresponde ao padrão e retorna `false`.
+
+O diagrama a seguir ilustra a árvore de tentativas e recuos percorrida pelo motor ao avaliar a entrada `"123X"`:
+
+<Mermaid title="Árvore de Backtracking Catastrófico com Quantificadores Aninhados">
+{`
+flowchart TD
+  Root["Entrada: '123X' | Padrão: /^(\\d+)+$/"] --> T1["Tentativa 1 (1 grupo):<br/>['123'] + espera $ (falha no 'X')"]
+  T1 --> B1["Backtracking: reparte em 2 grupos"]
+  B1 --> T2["Tentativa 2:<br/>['12', '3'] + espera $ (falha)"]
+  B1 --> T3["Tentativa 3:<br/>['1', '23'] + espera $ (falha)"]
+  T2 --> B2["Backtracking: reparte em 3 grupos"]
+  T3 --> B2
+  B2 --> T4["Tentativa 4:<br/>['1', '2', '3'] + espera $ (falha)"]
+  T4 --> Fail["Todas as 4 combinações esgotadas (2³⁻¹)<br/>Resultado: false"]
+`}
+</Mermaid>
+
+A gravidade do problema está na matemática das partições: para uma sequência com `n` dígitos, existem exatamente `2ⁿ⁻¹` maneiras distintas de fatiar a string entre os quantificadores. O espaço de busca cresce de forma puramente exponencial (`O(2ⁿ)`):
+
+| Dígitos na entrada | Padrão ambíguo `/^(\d+)+$/` | Padrão linear `/^\d+$/` | Custo computacional |
+| :--- | :--- | :--- | :--- |
+| `4` (ex: `"1234X"`) | `2³ = 8` combinações | 4 passos | Instantâneo |
+| `10` (ex: `"1111111111X"`) | `2⁹ = 512` combinações | 10 passos | Menos de 1 ms |
+| `20` (ex: `"11111111111111111111X"`) | `2¹⁹ = 524.288` combinações | 20 passos | Centenas de milissegundos |
+| `30` | `2²⁹ ≈ 536` milhões de combinações | 30 passos | Vários segundos (trava a CPU) |
+| `40` | `2³⁹ ≈ 549` bilhões de combinações | 40 passos | Horas ou dias (bloqueio total) |
+
+Na versão corrigida `/^\d+$/`, há apenas um quantificador. Ele consome todos os dígitos em uma única passagem. Ao encontrar `'X'`, ele verifica que o caractere não é `$` e recua linearmente sem redistribuir grupos, resolvendo a validação em tempo linear (`O(n)`) e em microssegundos.
+
+O teste abaixo ilustra na prática essa diferença de desempenho entre o padrão vulnerável e o padrão corrigido:
+
+```js title="Detectando e corrigindo backtracking excessivo"
+const unsafeDigits = /^(\d+)+$/;
+const safeDigits = /^\d+$/;
+
+const attackInput = "111111111111111111X";
+
+console.log(attackInput); // "111111111111111111X"
+
+console.time("unsafe");
+console.log(unsafeDigits.test(attackInput)); // false, mas pode demorar
+console.timeEnd("unsafe");
+
+console.time("safe");
+console.log(safeDigits.test(attackInput)); // false
+console.timeEnd("safe");
+```
+
+Não execute testes com entradas ainda maiores sem cuidado em servidores ou navegadores compartilhados. Em um ataque real de negação de serviço, uma entrada com centenas de caracteres pode bloquear completamente o processo até o esgotamento de recursos.
+
+Para proteger sistemas em produção contra ReDoS, adote as seguintes práticas recomendadas:
+
+1. **Defina limites de tamanho (*payload limits*)**: rejeite entradas que excedam o tamanho razoável do campo antes de repassá-las para a RegExp;
+2. **Elimine quantificadores aninhados**: evite padrões com repetições compostas da mesma classe como `(a+)+`, `(a*)*` ou `(a|b+)+`;
+3. **Seja específico nas classes de caracteres**: substitua curingas genéricos como `.*` por classes que excluam explicitamente delimitadores, como `[^@\s]+` em e-mails;
+4. **Divida validações complexas**: utilize RegExp para validar máscaras estruturais e utilize funções ou parsers dedicados em JavaScript para regras semânticas de negócio.
 
 ## Validação Nativa em Formulários HTML
 
