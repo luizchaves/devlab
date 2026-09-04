@@ -629,9 +629,73 @@ console.log(dateWithLeapYearPattern.test("31/12/2026")); // true
 
 Observe que o padrão precisa separar três grupos de casos: meses com 31 dias, meses
 com 29 ou 30 dias e fevereiro no dia 29. Essa separação deixa claro por que a solução
-cresce rápido. Se o próximo requisito for aceitar outros intervalos de ano, calendários
-ou formatos internacionais, uma função explícita ficará mais legível que uma RegExp
-ainda maior.
+cresce rápido.
+
+### O limite da complexidade: expandindo para qualquer ano
+
+O padrão anterior funciona apenas para a faixa restrita de `1900 a 2099` porque nela só existe um único ano secular (virada de século): o ano `2000`. Como `2000` é divisível por 400, ele é bissexto, o que permitiu incluir `|2000` como caso especial simplificado.
+
+Porém, se a aplicação precisar aceitar qualquer ano de 4 dígitos (como em registros históricos ou projeções futuras), a regra completa do calendário gregoriano precisa ser codificada em sintaxe de RegExp:
+
+1. O ano deve ser divisível por 4;
+2. Exceto se terminar em `00` (divisível por 100);
+3. A menos que seja também divisível por 400 (como `1600`, `2000`, `2400`, `2800`...).
+
+Anos seculares como `2100`, `2200`, `2300` e `2500` **não** são bissextos, enquanto `2400` e `2800` **são** bissextos. Para validar essa lógica apenas com RegExp, a captura do dia `29/02` precisa calcular a divisibilidade por 4 dos dois primeiros dígitos quando os dois últimos forem `00`:
+
+```js title="Validação de data para qualquer ano com regra completa de bissexto"
+const anyYearDatePattern =
+  /^(?:(?:31\/(?:0[13578]|1[02])|(?:29|30)\/(?:0[13-9]|1[0-2]))\/\d{4}|29\/02\/(?:(?:\d{2}(?:0[48]|[2468][048]|[13579][26]))|(?:[02468][048]|[13579][26])00)|(?:0[1-9]|1\d|2[0-8])\/(?:0[1-9]|1[0-2])\/\d{4})$/;
+
+console.log(anyYearDatePattern.test("29/02/2000")); // true (divisível por 400)
+console.log(anyYearDatePattern.test("29/02/2100")); // false (divisível por 100, mas não por 400)
+console.log(anyYearDatePattern.test("29/02/2400")); // true (divisível por 400)
+console.log(anyYearDatePattern.test("29/02/2024")); // true (bissexto comum)
+console.log(anyYearDatePattern.test("29/02/2023")); // false (ano comum)
+console.log(anyYearDatePattern.test("31/04/2026")); // false (abril só tem 30 dias)
+console.log(anyYearDatePattern.test("31/12/2026")); // true
+```
+
+Essa expressão comprova o poder expressivo das Expressões Regulares, mas também evidencia o ponto em que tentar resolver regras complexas de domínio em um único padrão textual se torna contraproducente. A expressão é praticamente impossível de ler, depurar ou evoluir em equipe.
+
+### A abordagem recomendada: RegExp para formato e código para domínio
+
+Em aplicações profissionais de software, a melhor prática consiste em **dividir responsabilidades**:
+
+1. Utilize a RegExp apenas para validar a máscara textual (formato `DD/MM/AAAA`) e extrair os blocos numéricos com grupos de captura;
+2. Utilize o próprio objeto nativo `Date` do JavaScript (ou bibliotecas dedicadas) para validar regras de calendário, limites mensais e anos bissextos.
+
+O código a seguir demonstra essa divisão de responsabilidades de forma simples e legível:
+
+```js title="Abordagem recomendada: RegExp de formato combinada com Date"
+function isValidDate(dateString) {
+  // 1. A RegExp valida apenas a estrutura textual e extrai dia, mês e ano
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateString);
+  if (!match) return false;
+
+  const [, dayStr, monthStr, yearStr] = match;
+  const day = Number(dayStr);
+  const month = Number(monthStr);
+  const year = Number(yearStr);
+
+  // 2. O construtor Date lida com dias por mês, bissextos e viradas de século
+  const date = new Date(year, month - 1, day);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+console.log(isValidDate("29/02/2024")); // true
+console.log(isValidDate("29/02/2023")); // false
+console.log(isValidDate("29/02/2100")); // false (ano secular não bissexto)
+console.log(isValidDate("29/02/2400")); // true (ano secular bissexto)
+console.log(isValidDate("31/04/2026")); // false (abril transborda para 01/05)
+```
+
+Essa separação é muito mais legível, tem manutenção simples, executa de forma previsível e não corre risco de comportamentos inesperados ou custos catastróficos de backtracking.
 
 ## Validação Nativa em Formulários HTML
 

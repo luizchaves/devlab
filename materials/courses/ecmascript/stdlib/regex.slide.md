@@ -503,6 +503,28 @@ console.log(datePattern.test("29/02/2023")); // false
 
 ---
 
+## Alternativa: Formato com Regex + Validação com Date
+
+Dividir responsabilidades torna o código legível e imune a erros de borda:
+
+```js
+function isValidDate(str) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(str);
+  if (!match) return false;
+
+  const [d, m, y] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(y, m - 1, d);
+
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+
+console.log(isValidDate("29/02/2024")); // true (bissexto)
+console.log(isValidDate("29/02/2100")); // false (múltiplo de 100, não de 400)
+console.log(isValidDate("31/04/2026")); // false (abril tem 30 dias)
+```
+
+---
+
 ## HTML `pattern`
 
 No HTML, `pattern` recebe o corpo da expressão, sem barras externas e sem flags:
