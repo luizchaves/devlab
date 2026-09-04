@@ -142,6 +142,7 @@ markmap:
   - **CPF**: formato cru ou formato pontuado.
   - **Horário (HH:MM)**: horas (00-23) e minutos (00-59).
   - **E-mail básico**: local -> `@` -> domínio -> sufixo.
+  - **Data estrutural**: dia -> `/` -> mês -> `/` -> ano.
 - CPF.
   - `/^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/`.
 - CEP.
@@ -150,6 +151,8 @@ markmap:
   - `/^([01]\d|2[0-3]):[0-5]\d$/`.
 - E-mail básico.
   - `/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`.
+- Data (formato estrutural).
+  - `/^(\d{2})\/(\d{2})\/(\d{4})$/`.
 - HTML `pattern`.
   - Recebe o corpo da expressão.
   - Não usa barras externas nem flags.

@@ -456,6 +456,7 @@ CEP: (início) -> 8 dígitos ou 5 dígitos + "-" + 3 dígitos -> (fim)
 CPF: (início) -> 11 dígitos ou 3 "." 3 "." 3 "-" 2 dígitos -> (fim)
 Hora: (início) -> (00-19 | 20-23) -> ":" -> (00-59) -> (fim)
 E-mail: (início) -> local -> "@" -> domínio -> "." -> sufixo -> (fim)
+Data: (início) -> 2 dígitos -> "/" -> 2 dígitos -> "/" -> 4 dígitos -> (fim)
 ```
 
 ---
@@ -465,13 +466,12 @@ E-mail: (início) -> local -> "@" -> domínio -> "." -> sufixo -> (fim)
 Os trilhos viram RegExp ancoradas, com alternativas e quantificadores explícitos:
 
 ```js
-const cepPattern = /^(\d{8}|\d{5}-\d{3})$/;
-const cpfPattern = /^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const datePattern = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
+console.log(datePattern.test("29/02/2024")); // true (formato)
 console.log(timePattern.test("14:30")); // true
-console.log(emailPattern.test("aluno@ifpb.edu.br")); // true
 ```
 
 ---
