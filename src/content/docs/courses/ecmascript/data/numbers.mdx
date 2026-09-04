@@ -6,6 +6,7 @@ sidebar:
   label: "Numbers, BigInt e Math"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
 import Mermaid from '@components/Mermaid.astro';
 
 Este tópico apresenta os recursos para manipulação numérica em JavaScript: como criar e converter números, entender a precisão IEEE 754, utilizar o objeto **Number**, aplicar constantes e funções do objeto estático **Math** e realizar a formatação internacional de números, moedas e porcentagens com **`Intl.NumberFormat`**.
@@ -39,6 +40,8 @@ As numerações podem ser declaradas usando notação decimal comum, notação e
 | **Octal** | `0o` / `0O` | `0o52` | `42` |
 | **Binária** | `0b` / `0B` | `0b101010` | `42` |
 | **Separador Numérico** | `_` (ES2021) | `1_000_000` | `1000000` |
+
+O exemplo a seguir demonstra a declaração prática de valores numéricos utilizando cada uma dessas notações e separadores:
 
 ```js title="Formas de declaração de Numbers"
 // 1. Decimais e Ponto Flutuante, positivos e negativos
@@ -101,6 +104,8 @@ A tabela a seguir reúne as constantes usadas ao longo desta seção:
 | [`Number.MAX_VALUE`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_VALUE) | Maior valor numérico positivo representável |
 | [`Number.MIN_VALUE`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MIN_VALUE) | Menor valor positivo representável acima de zero |
 | [`Number.EPSILON`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/EPSILON) | Diferença mínima útil para comparar números próximos de `1` |
+
+A origem de cada um desses limites e grandezas torna-se evidente ao inspecionar como os 64 bits são divididos internamente pelo formato IEEE 754.
 
 ### Anatomia de um Número de 64 Bits
 
@@ -182,6 +187,26 @@ console.log(toBits(42).slice(12));   // "0101000..." (42 é 1.01010 × 2⁵)
 
 Na fração de `0.1` aparece o padrão `1001` repetido indefinidamente: é a dízima binária tratada na subseção sobre imprecisão, cortada no 52º bit e arredondada no fim (`...1010` em vez de `...1001`). Esse arredondamento é a origem exata do `0.30000000000000004`.
 
+Para experimentar a decomposição na prática, alternar bits individualmente e acompanhar a reconstrução da forma normalizada, utilize o emulador interativo a seguir, que também pode ser acessado diretamente em tela cheia pelo [emulador IEEE 754 de 64 bits](../../../../examples/courses/ecmascript/data/number-emulator.html):
+
+<HtmlPreview
+  path="examples/courses/ecmascript/data/number-emulator.html"
+  height="50rem"
+  label="Emulador Interativo IEEE 754 (64 bits)"
+  allowScripts
+  serveFromPublic
+/>
+
+O formato IEEE 754 reserva padrões especiais de bits para representar o zero e estados excepcionais de cálculo:
+
+<Aside type="note" title="Padrões Notáveis de Bits: Tudo 0 e Tudo 1">
+  A interpretação dos 64 bits em seus limites extremos revela como o padrão resolve o zero e valores indefinidos:
+
+  - **Todos os 64 bits em 0**: representa o zero positivo (`+0`). Caso apenas o bit 63 (sinal) seja `1` e todos os demais 63 bits permaneçam em `0`, obtém-se o zero negativo (`-0`).
+  - **Todos os 64 bits em 1**: resulta em `NaN` (*Not-a-Number*). No padrão IEEE 754, quando os 11 bits de expoente são todos `1` (`2047`) e os 52 bits de fração são diferentes de zero, o valor é categorizado como `NaN`. Preencher todos os 52 bits da fração com `1` produz um valor `NaN` com bit de sinal negativo.
+  - **Expoente todo em 1 e fração toda em 0**: representa o infinito (`+Infinity` se o bit de sinal for `0`, ou `-Infinity` se o bit de sinal for `1`).
+</Aside>
+
 ### Limites de Inteiros Seguros
 
 Devido ao formato IEEE 754 de 64 bits, apenas inteiros no intervalo entre `-(2⁵³ - 1)` e `2⁵³ - 1` são representados com exatidão. Esse limite importa sempre que o programa lida com identificadores, contadores ou valores inteiros muito grandes.
@@ -220,7 +245,7 @@ Com o expoente em `2⁵³`, o bit menos significativo da mantissa deixa de valer
 
 ### BigInt para Inteiros Grandes
 
-Ultrapassar o limite seguro não muda o tipo do valor: ele continua sendo `number`, apenas deixa de ser exato. Dois inteiros diferentes podem ficar indistinguíveis nessa faixa.
+Ultrapassar o limite seguro de `2^53 - 1` (`Number.MAX_SAFE_INTEGER`) não muda o tipo do valor: ele continua sendo `number`, apenas deixa de ser exato. A partir dessa fronteira, o `number` começa a "pular" números pares e ímpares (primeiro os ímpares com degraus de 2 em 2, depois de 4 em 4, 8 em 8 e assim por diante), pois a fração de 52 bits não possui resolução suficiente para mapear cada unidade. Dois inteiros consecutivos diferentes acabam ficando indistinguíveis nessa faixa.
 
 O exemplo a seguir compara o mesmo par de valores nos dois tipos, evidenciando a igualdade indevida em `number`:
 
@@ -233,9 +258,16 @@ console.log(9007199254740992 === 9007199254740993);   // true (indistinguíveis!
 console.log(9007199254740992n === 9007199254740993n); // false (BigInt preserva a diferença)
 ```
 
-Para inteiros acima desse limite, o JavaScript oferece o tipo **`bigint`**, escrito com o sufixo `n` ou criado pela função `BigInt()`. Ele não pode ser misturado com valores `number` na mesma operação aritmética.
+Para inteiros acima desse limite, o JavaScript oferece o tipo **`bigint`**, escrito com o sufixo `n` (como `42n`) ou criado pela função construtora `BigInt()`.
 
-O exemplo a seguir cria um `bigint`, opera sobre ele e mostra por que a comparação estrita com um `number` falha:
+Enquanto o `number` tem um teto de magnitude de aproximadamente $1.79 \times 10^{308}$ (`Number.MAX_VALUE`, próximo a $2^{1024}$), ultrapassado o qual transborda para `Infinity`, o `bigint` não tem esse teto. Ele aloca mais palavras de memória na RAM para armazenar cada dígito exato sob demanda, sendo limitado apenas pela memória física disponível no ambiente:
+
+```js title="Magnitude e preservação de dígitos exatos"
+console.log(2 ** 1024);   // Infinity (estourou o limite de 64 bits do double precision)
+console.log(2n ** 1024n); // 179769313486231590772930...n (inteiro exato de 309 dígitos)
+```
+
+O exemplo a seguir cria um `bigint`, realiza operações aritméticas e demonstra por que a comparação estrita com um `number` falha:
 
 ```js title="Operações com BigInt"
 const big = 9007199254740991n;
@@ -249,6 +281,18 @@ console.log(big === 9007199254740991); // false (tipos diferentes)
 // TypeError: Cannot mix BigInt and other types.
 // console.log(big + 1);
 ```
+
+A tabela a seguir resume o contraste entre a representação de ponto flutuante de 64 bits e a de precisão arbitrária:
+
+| Característica | `number` (Double Precision) | `bigint` (Precisão Arbitrária) |
+| :--- | :--- | :--- |
+| **Tamanho em bits** | Fixo em 64 bits (8 bytes na especificação IEEE 754) | Dinâmico (cresce sob demanda em blocos de memória na RAM) |
+| **Precisão inteira** | Exata até `2^53 - 1` (`Number.MAX_SAFE_INTEGER`); acima disso pula inteiros | Ilimitada (resolução exata de 1 em 1 para qualquer magnitude) |
+| **Magnitude máxima** | `1.79x10^308` (`Number.MAX_VALUE`, além vira `Infinity`) | Sem teto fixo (limitada apenas pela memória RAM disponível) |
+| **Casas decimais** | Suporta números fracionários de ponto flutuante (`0.1`, `3.14`) | Exclusivamente inteiros (divisões truncam o resto: `5n / 2n === 2n`) |
+| **Interoperabilidade** | Opera normalmente com funções de `Math` e operadores numéricos | Não pode ser misturado com `number` na mesma operação aritmética |
+
+Enquanto o `bigint` soluciona a exatidão para valores inteiros de qualquer magnitude, números fracionários continuam sujeitos às peculiaridades da base binária do IEEE 754, o que exige atenção redobrada em cálculos com casas decimais.
 
 ### Imprecisão de Ponto Flutuante
 
@@ -288,6 +332,8 @@ O site [0.30000000000000004.com](https://0.30000000000000004.com/) reúne exempl
   arredonde apenas nos pontos esperados da regra de negócio ou use uma estratégia de
   representação mais adequada ao problema.
 </Aside>
+
+O reflexo prático dessa imprecisão binária torna-se crítico ao lidar com sistemas comerciais e valores financeiros:
 
 <Aside type="caution" title="Valores monetários">
   Dinheiro parece decimal simples, mas `number` usa ponto flutuante binário. Isso
@@ -371,6 +417,25 @@ O objeto `Number` oferece métodos estáticos para testar a validade e o tipo de
 | **`Number.isInteger(val)`** | Testa se o valor é um número inteiro sem casas decimais. | `Number.isInteger(4.2)` // `false` |
 | **`Number.isSafeInteger(val)`**| Testa se é um inteiro dentro do limite de precisão segura. | `Number.isSafeInteger(10)` // `true` |
 
+O exemplo a seguir ilustra a utilização desses métodos para validações estritas em tempo de execução:
+
+```js title="Validações com métodos estáticos do Number"
+// 1. Diferença crucial entre Number.isNaN e o isNaN global
+console.log(Number.isNaN(NaN));      // true
+console.log(Number.isNaN("texto"));  // false (estrito, sem coerção!)
+console.log(isNaN("texto"));         // true (converte "texto" para NaN antes de testar!)
+
+// 2. Verificação de finitude com Number.isFinite
+console.log(Number.isFinite(42));        // true
+console.log(Number.isFinite(10 / 0));    // false (Infinity não é finito)
+console.log(Number.isFinite("42"));      // false (estrito, strings não são números)
+
+// 3. Verificação de inteiros e limites seguros
+console.log(Number.isInteger(42));       // true
+console.log(Number.isInteger(42.5));     // false
+console.log(Number.isSafeInteger(2 ** 53 - 1)); // true (Number.MAX_SAFE_INTEGER)
+console.log(Number.isSafeInteger(2 ** 53));     // false (fora do limite seguro)
+```
 
 ## Conversão Numérica e Métodos do Protótipo
 
@@ -409,7 +474,7 @@ console.log(parseInt("FF", 16));   // 255 (interpreta "FF" em hexadecimal)
 
 ### Métodos de Instância e Formatação do Protótipo Number
 
-Os métodos do protótipo `Number.prototype` permitem formatar números em strings com casas decimais fixas, precisão significativa ou notações específicas:
+Os métodos do protótipo `Number.prototype` permitem formatar números em strings com casas decimais fixas, precisão significativa ou notações específicas, além de extrair o valor primitivo do número:
 
 | Método | Assinatura | Retorno | Descrição |
 | :--- | :--- | :--- | :--- |
@@ -417,8 +482,11 @@ Os métodos do protótipo `Number.prototype` permitem formatar números em strin
 | **`toPrecision()`** | `num.toPrecision(precision?)` | `string` | Formata o número com a quantidade especificada de dígitos significativos totais. |
 | **`toExponential()`** | `num.toExponential(digits?)` | `string` | Retorna o número formatado em notação científica exponencial. |
 | **`toString()`** | `num.toString(radix?)` | `string` | Converte o número em string na base numérica fornecida (`2` a `36`). |
+| **`valueOf()`** | `num.valueOf()` | `number` | Retorna o valor numérico primitivo encapsulado pelo objeto ou primitivo. |
 
-O exemplo abaixo demonstra a utilização prática de cada um desses métodos de formatação:
+Enquanto `.toString()` transforma o número em texto, o método **`.valueOf()`** garante a recuperação do valor numérico primitivo. Quando um número é criado como objeto *wrapper* via `new Number(42)`, seu `typeof` resulta em `"object"`. O método `.valueOf()` desempacota o valor para o tipo primitivo `number`. Além disso, os motores JavaScript invocam `valueOf()` implicitamente em qualquer operação aritmética ou coerção numérica. Esse mesmo mecanismo é compartilhado por outros tipos nativos da linguagem: instâncias de `Date`, por exemplo, retornam seus milissegundos via `.valueOf()`, viabilizando subtrações diretas entre datas (`date2 - date1`).
+
+O exemplo abaixo demonstra a utilização prática de cada um desses métodos de formatação e a extração com `valueOf()`:
 
 ```js title="Exemplo de métodos do protótipo Number"
 const val = 1234.5678;
@@ -438,6 +506,20 @@ console.log((12345).toExponential(2)); // "1.23e+4"
 const n = 255;
 console.log(n.toString(16)); // "ff" (hexadecimal)
 console.log(n.toString(2));  // "11111111" (binário)
+
+// 5. valueOf() - Extração do valor primitivo
+const numWrapper = new Number(42);
+console.log(typeof numWrapper);           // "object" (objeto wrapper)
+console.log(typeof numWrapper.valueOf()); // "number" (primitivo extraído)
+console.log((42).valueOf());              // 42 (em primitivos é idempotente)
+
+// O JavaScript invoca valueOf() automaticamente em coerções aritméticas:
+console.log(numWrapper + 10);             // 52 (numWrapper.valueOf() + 10)
+
+// Outros tipos também usam valueOf() em operações aritméticas (ex: Date para timestamp):
+const date1 = new Date("2026-01-01T00:00:00Z");
+const date2 = new Date("2026-01-02T00:00:00Z");
+console.log(date2 - date1); // 86400000 (date2.valueOf() - date1.valueOf() em ms)
 ```
 
 ## O Objeto Estático Math
@@ -522,7 +604,7 @@ Embora o método `.toFixed()` permita formatar casas decimais, ele retorna uma s
 
 Para criar um formatador internacional, instanciamos `Intl.NumberFormat` passando a localidade desejada (ex: `'pt-BR'`) e o objeto com as opções de formatação:
 
-```js
+```js title="Assinatura do construtor Intl.NumberFormat"
 const formatter = new Intl.NumberFormat(locales?, options?);
 formatter.format(number);
 ```
@@ -624,6 +706,46 @@ Separe o cálculo, que trabalha com números, da exibição, que trabalha com te
 - Use `Math.trunc()` quando quiser descartar a parte decimal, e não `Math.floor()`, cujo comportamento difere em negativos.
 - Formate para o usuário apenas no final, com `Intl.NumberFormat`, que resolve separadores, símbolos e regras de cada localidade.
 
+A tabela a seguir sintetiza as principais regras práticas para lidar com números em JavaScript:
+
+| Prática Recomendada | Motivo Técnico |
+| :--- | :--- |
+| **Declarar primitivos, nunca `new Number()`** | Evita instanciar objetos no Heap com `typeof === 'object'`, que quebram comparações estritas (`===`). |
+| **Validar inteiros com `Number.isSafeInteger()`** | Previne erros de perda de unidade e arredondamento acima de $2^{53} - 1$ (`Number.MAX_SAFE_INTEGER`). |
+| **Recorrer ao `bigint` para grandezas extremas** | Garante precisão arbitrária exata sem teto fixo de magnitude, impedindo o transbordo para `Infinity`. |
+| **Comparar decimais por tolerância (`Number.EPSILON`)** | Compensa dízimas periódicas binárias decorrentes do IEEE 754 (como `0.1 + 0.2`). |
+| **Utilizar `Number.isNaN()` em vez do `isNaN()` global** | O método estático é estrito e não realiza coerção implícita indesejada de strings para número. |
+| **Especificar a base em `parseInt(str, radix)`** | Elimina ambiguidades históricas de interpretação de bases octal e decimal. |
+| **Modelar valores monetários em centavos inteiros** | Elimina erros de ponto flutuante em somas financeiras, delegando a formatação visual ao `Intl.NumberFormat`. |
+
+O bloco a seguir consolida o uso combinado dessas boas práticas em um fluxo de código executável:
+
+```js title="Resumo prático de manipulação numérica"
+// 1. Comparação segura de decimais por tolerância
+function areDecimalsEqual(a, b, tolerance = Number.EPSILON) {
+  return Math.abs(a - b) < tolerance;
+}
+console.log(areDecimalsEqual(0.1 + 0.2, 0.3)); // true
+
+// 2. Validação estrita de entradas numéricas
+function parseSafeAmount(input) {
+  const value = Number(input);
+  if (Number.isNaN(value) || !Number.isFinite(value)) {
+    throw new TypeError("Entrada numérica inválida");
+  }
+  return value;
+}
+console.log(parseSafeAmount("150.50")); // 150.5
+
+// 3. Formatação monetária final para exibição
+const priceInCents = 15050; // R$ 150,50 guardado como inteiro
+const formatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+console.log(formatter.format(priceInCents / 100)); // "R$ 150,50"
+```
+
 ## Executando
 
 Os conceitos de `Number`, `Math` e `Intl.NumberFormat` podem ser testados diretamente no terminal com Node.js ou no Console do seu navegador.
@@ -679,6 +801,8 @@ Crie um arquivo chamado `geometry.js` para praticar operações com o objeto `Ma
 4. Retorne um objeto com `area` formatada com 2 casas decimais (`toFixed(2)`) e `perimeter` arredondado para o inteiro mais próximo com `Math.round()`;
 5. Teste a função passando o raio `7` e exiba o resultado.
 
+Após implementar o código, confira uma solução possível no bloco recolhível a seguir:
+
 <details>
   <summary>Possível resposta</summary>
 
@@ -707,6 +831,8 @@ Crie um sistema de cálculo de fatura financeira com formatação internacional 
 3. Calcule o total final: `total = (subtotal + taxAmount) - discount`;
 4. Crie formatadores com `Intl.NumberFormat` para moeda em Real (`pt-BR` / `BRL`) e para a taxa em porcentagem (`style: 'percent'`);
 5. Exiba no console um relatório com subtotal, taxa formatada, imposto e total final formatado em moeda.
+
+Após estruturar os cálculos e formatadores, compare sua implementação com a solução sugerida a seguir:
 
 <details>
   <summary>Possível resposta</summary>
@@ -748,7 +874,7 @@ Crie um sistema de cálculo de fatura financeira com formatação internacional 
 
 ## Perguntas de revisão
 
-### Precisão e Verificação Numérica
+### Precisão Numérica e Verificações
 
 **1. Por que `0.1 + 0.2 === 0.3` resulta em `false` em JavaScript?**
 
@@ -774,41 +900,7 @@ Crie um sistema de cálculo de fatura financeira com formatação internacional 
   `parseInt("10px")` lê a string caractere a caractere a partir do início e interrompe a conversão ao encontrar o primeiro caractere não-numérico (`"p"`), retornando o inteiro `10`. `Number("10px")` tenta converter a string inteira de forma estrita e, como ela contém caracteres inválidos, retorna `NaN`.
 </details>
 
-### Objeto Math e Formatação Intl
-
-**4. Qual é a diferença entre `Math.floor()`, `Math.ceil()` e `Math.trunc()` para números negativos?**
-
-<details>
-  <summary>Possível resposta</summary>
-
-  Para o número `-3.7`: `Math.floor(-3.7)` arredonda para baixo (menor inteiro), resultando em `-4`. `Math.ceil(-3.7)` arredonda para cima (maior inteiro), resultando em `-3`. `Math.trunc(-3.7)` simplesmente remove a parte decimal, resultando em `-3`.
-</details>
-
-**5. Quais opções são obrigatórias em `Intl.NumberFormat` para formatar um valor como moeda em Reais (`R$`)?**
-
-<details>
-  <summary>Possível resposta</summary>
-
-  É necessário definir o parâmetro de localidade como `"pt-BR"` e passar um objeto de opções contendo `{ style: 'currency', currency: 'BRL' }`.
-</details>
-
-**6. Por que `9007199254740992 === 9007199254740993` resulta em `true`?**
-
-<details>
-  <summary>Possível resposta</summary>
-
-  Porque os dois valores estão acima de `Number.MAX_SAFE_INTEGER`. Nessa faixa, o formato IEEE 754 de 64 bits não consegue mais representar cada inteiro individualmente, e os dois acabam armazenados como o mesmo valor. Com `bigint` (`9007199254740992n === 9007199254740993n`) o resultado é `false`.
-</details>
-
-**7. Quando utilizar `bigint` em vez de `number` e qual é a principal restrição do tipo?**
-
-<details>
-  <summary>Possível resposta</summary>
-
-  Use `bigint` para inteiros que ultrapassam `2⁵³ - 1`, como identificadores e contadores muito grandes. A principal restrição é que ele não pode ser misturado com `number` na mesma operação aritmética, o que lança `TypeError: Cannot mix BigInt and other types`.
-</details>
-
-**8. Como comparar dois números decimais de forma segura em JavaScript?**
+**4. Como comparar dois números decimais de forma segura em JavaScript?**
 
 <details>
   <summary>Possível resposta</summary>
@@ -816,7 +908,25 @@ Crie um sistema de cálculo de fatura financeira com formatação internacional 
   Comparando a diferença absoluta entre eles com uma tolerância, em vez de usar `===`. O padrão é `Math.abs(a - b) < Number.EPSILON` para valores próximos de `1`, ajustando a tolerância conforme a escala e a regra de negócio do domínio.
 </details>
 
-**9. Por que valores monetários não devem ser somados diretamente como `number`?**
+### Limites de Precisão e BigInt
+
+**5. Por que `9007199254740992 === 9007199254740993` resulta em `true`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque os dois valores estão acima de `Number.MAX_SAFE_INTEGER`. Nessa faixa, o formato IEEE 754 de 64 bits não consegue mais representar cada inteiro individualmente, e os dois acabam armazenados como o mesmo valor. Com `bigint` (`9007199254740992n === 9007199254740993n`) o resultado é `false`.
+</details>
+
+**6. Quando utilizar `bigint` em vez de `number` e qual é a principal restrição do tipo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Use `bigint` para inteiros que ultrapassam `2⁵³ - 1`, como identificadores e contadores muito grandes. A principal restrição é que ele não pode ser misturado com `number` na mesma operação aritmética, o que lança `TypeError: Cannot mix BigInt and other types`.
+</details>
+
+**7. Por que valores monetários não devem ser somados diretamente como `number`?**
 
 <details>
   <summary>Possível resposta</summary>
@@ -824,12 +934,30 @@ Crie um sistema de cálculo de fatura financeira com formatação internacional 
   Porque `number` usa ponto flutuante binário, e frações decimais como `0.1` não têm representação exata. Somas, descontos e juros acumulam pequenos desvios. A recomendação é guardar o valor em centavos como inteiro, usar tipos decimais no banco de dados e formatar apenas na exibição.
 </details>
 
-**10. Qual é a diferença entre `Math.trunc()` e `Math.floor()`?**
+### Objeto Math e Formatação Intl
+
+**8. Qual é a diferença entre `Math.floor()`, `Math.ceil()` e `Math.trunc()` para números negativos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para o número `-3.7`: `Math.floor(-3.7)` arredonda para baixo (menor inteiro), resultando em `-4`. `Math.ceil(-3.7)` arredonda para cima (maior inteiro), resultando em `-3`. `Math.trunc(-3.7)` simplesmente remove a parte decimal, resultando em `-3`.
+</details>
+
+**9. Qual é a diferença entre `Math.trunc()` e `Math.floor()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
   Para números positivos os dois coincidem. Para negativos eles divergem: `Math.trunc(-3.7)` apenas descarta a parte decimal e devolve `-3`, enquanto `Math.floor(-3.7)` arredonda para o menor inteiro e devolve `-4`.
+</details>
+
+**10. Quais opções são obrigatórias em `Intl.NumberFormat` para formatar um valor como moeda em Reais (`R$`)?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É necessário definir o parâmetro de localidade como `"pt-BR"` e passar um objeto de opções contendo `{ style: 'currency', currency: 'BRL' }`.
 </details>
 
 

@@ -34,7 +34,7 @@ markmap:
 ## Conversão e Métodos do Protótipo
 
 - **Conversão**: `Number()` (estrita), `parseInt(str, radix)` e `parseFloat(str)`.
-- **Formatação de Instância**: `toFixed(casas)`, `toPrecision(dígitos)`, `toString(radix)`.
+- **Formatação de Instância**: `toFixed(casas)`, `toPrecision(dígitos)`, `toString(radix)`, `valueOf()` (desempacotamento primitivo).
 
 ## O Objeto Estático Math
 
