@@ -245,6 +245,29 @@ console.log(null === undefined); // false
 
 ---
 
+## O Enigma: `a == 1 && a == 2 && a == 3`
+
+O operador `==` aciona `valueOf()` a cada avaliação ao comparar um objeto com número:
+
+```js
+const a = {
+  current: 1,
+  valueOf() {
+    return this.current++;
+  },
+};
+
+// Cada comparação '==' chama a.valueOf() e incrementa current:
+console.log(a == 1 && a == 2 && a == 3); // true
+
+// Com igualdade estrita (===), não há coerção nem chamada a valueOf():
+console.log(a === 1 && a === 2 && a === 3); // false
+```
+
+*Prevenção: Use sempre `===` para comparar tipo e valor sem invocar coerção de objetos.*
+
+---
+
 ## Arrays Esparsos e `map(parseInt)`
 
 ```js
