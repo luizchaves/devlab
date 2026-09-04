@@ -34,12 +34,11 @@ markmap:
 - *`false 10`**: `0`; O booleano `false` é convertido para `0`.
 
 ## Coerção de Tipos (Implícita vs Explícita)
-- Coerção é o processo de conversão de um valor de um tipo de dado para outro.
-- Coerção Explícita (Casting)
-- Ocorre quando o desenvolvedor converte o tipo intencionalmente usando funções construtoras nativas como `String()`.
-- Ocorre automaticamente quando o motor JavaScript tenta realizar uma operação entre tipos incompatíveis.
-- Conversão explícita deixa claro no código que um valor está sendo transformado em outro tipo
-- JavaScript também faz conversões implícitas em algumas operações.
+- Conversão Explícita e Coerção Básica: `Number()`, `String()`, `Boolean()` vs operadores `+`, `-`, `*`.
+- Métodos de Conversão: `valueOf()` (primitivo/número) e `toString()` (texto).
+- Operação ToPrimitive: hints `number`, `string` e `default` (Date como exceção textual).
+- Padrões Práticos: Value Objects (`Money`) com aritmética e comparações relacionais (`<`, `>`).
+- Evolução ES6: `[Symbol.toPrimitive](hint)` para controle unificado.
 
 ## `undefined` vs `null`
 - `undefined`: Significa que a variável foi declarada, mas ainda não recebeu nenhum valor.
