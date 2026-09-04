@@ -672,17 +672,17 @@ export default defineConfig({
               items: [
                 { label: 'Strings e Template Literals', link: '/courses/ecmascript/data/strings/' },
                 { label: 'Numbers, BigInt e Math', link: '/courses/ecmascript/data/numbers/' },
+                { label: 'Arrays e Métodos Funcionais', link: '/courses/ecmascript/data/arrays/' },
                 {
                   label: 'Objetos, Classes e Protótipos',
                   link: '/courses/ecmascript/data/objects/',
                 },
-                { label: 'Arrays e Métodos Funcionais', link: '/courses/ecmascript/data/arrays/' },
+                { label: 'Date e Manipulação de Datas', link: '/courses/ecmascript/stdlib/date/' },
+                { label: 'Map, Set e Coleções', link: '/courses/ecmascript/data/collections/' },
                 {
                   label: 'Expressões Regulares (RegExp)',
                   link: '/courses/ecmascript/stdlib/regex/',
                 },
-                { label: 'Date e Manipulação de Datas', link: '/courses/ecmascript/stdlib/date/' },
-                { label: 'Map, Set e Coleções', link: '/courses/ecmascript/data/collections/' },
               ],
             },
             {

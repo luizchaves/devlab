@@ -111,10 +111,10 @@ Compare as responsabilidades do núcleo da linguagem e de seus ambientes hospede
 ## Trilha 3: Estruturas de Dados
 
 - **Texto e Números**: template literals, interpolação, formato IEEE 754, `BigInt` e biblioteca `Math`.
-- **Datas e Expressões Regulares**: objeto `Date` e padrões avançados com `RegExp`.
 - **Arrays e Métodos Funcionais**: operações imutáveis com `map()`, `filter()`, `reduce()` e `toSorted()`.
 - **Objetos e Classes**: objetos literais, métodos, classes ES6 e herança via protótipos.
-- **Coleções Modernas**: conjuntos de valores únicos (`Set`) e dicionários chave-valor (`Map`).
+- **Datas e Coleções Modernas**: objeto `Date`, conjuntos únicos (`Set`) e dicionários chave-valor (`Map`).
+- **Expressões Regulares**: padrões textuais para busca, validação, extração e substituição.
 
 ---
 

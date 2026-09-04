@@ -427,8 +427,8 @@ Dias restantes para o fim de 2026: 131 dias
 
 ## Próxima aula
 
-- Evolução e TC39
-- O comitê TC39, estágios de propostas (Stage 0 a 4) e a linha do tempo completa das edições do ECMAScript
+- Map, Set e Coleções
+- Coleções chave-valor com Map, conjuntos de valores únicos com Set e versões de referência fraca com WeakMap e WeakSet
 
 ---
 

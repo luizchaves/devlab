@@ -1,5 +1,7 @@
 ---
-title: 'JavaScript: Expressões Regulares (RegExp)'
+title: "JavaScript: Expressões Regulares (RegExp)"
+description: "Mapa mental sobre modelo mental, sintaxe, métodos e validações com RegExp em JavaScript."
+course: ecmascript
 markmap:
   colorFreezeLevel: 2
   initialExpandLevel: 2
@@ -7,82 +9,164 @@ markmap:
 
 # JavaScript: Expressões Regulares (RegExp)
 
+## Modelo mental
+
+- String de entrada.
+- Padrão RegExp.
+- Método escolhido.
+- Resultado.
+  - `boolean` em `test()`.
+  - Array ou `null` em `exec()` e `match()`.
+  - Nova string em `replace()`.
+  - Novo array em `split()`.
+- Validação de formato exige comparar a string inteira.
+
 ## Objetivo
-- Compreender o conceito e a sintaxe de Expressões Regulares em JavaScript.
 
-## Criação e Flags de Expressões Regulares
-- Forma de Criação: Sintaxe; Uso Recomendado
-- Notação Literal: `/padrão/flags`; Padrões estáticos conhecidos em tempo de desenvolvimento
-- Construtor: `new RegExp("padrão", "flags")`; Padrões dinâmicos construídos a partir de variáveis
-- Em JavaScript, uma Expressão Regular é representada por um objeto do tipo `RegExp`.
+- Criar RegExp literal e dinâmica.
+- Interpretar flags e metacaracteres.
+- Escolher métodos de `RegExp` e `String`.
+- Construir validações de formato.
+- Evitar armadilhas comuns.
 
-## Flags (Modificadores de Comportamento)
-- `i`: Ignore Case; Busca sem diferenciar letras maiúsculas de minúsculas
-- `g`: Global; Busca todas as correspondências no texto, não apenas a primeira
-- `m`: Multiline; Faz as âncoras `^` e `$` corresponderem ao início e fim de cada linha
-- `u`: Unicode; Ativa o suporte completo a caracteres Unicode de 32-bit
-- `s`: Dot All; Faz o caractere ponto (`.`) corresponder também a quebras de linha (`\n`)
-- `y`: Sticky; Busca apenas a partir da posição exata de `lastIndex`
+## Criação e flags
 
-## Sintaxe Fundamental de RegExp
-### 1. Classes de Caracteres
-- Metacaractere: Correspondência; Equivalente
-- `.`: Qualquer caractere (exceto quebra de linha); Qual caractere único
-- `\d`: Qualquer dígito numérico; `[0-9]`
-- `\D`: Qualquer caractere que NÃO seja dígito; `[^0-9]`
-- `\w`: Caractere alfanumérico ou sublinhado; `[a-zA-Z0-9_]`
-### 2. Conjuntos e Intervalos (`[...]`)
-- `[abc]`: Qualquer um dos caracteres: `a`, `b` ou `c`; `/[aeiou]/` (vogais)
-- `[^abc]`: Qualquer caractere EXCETO `a`, `b` ou `c` (negação); `/[^0-9]/` (não dígitos)
-- `[a-z]`: Intervalo de letras minúsculas de `a` a `z`; `/[a-z]/`
-- `[0-9]`: Intervalo de dígitos de `0` a `9`; `/[0-9]/`
-- `[a-zA-Z0-9]`: Combinação de intervalos alfanuméricos; `/[a-zA-Z0-9]/`
-### 3. Âncoras e Fronteiras
-- Metacaractere: Descrição; Exemplo
-- `^`: Início do texto (ou início da linha com flag `m`); `/^http/` (deve começar com http)
-- `$`: Fim do texto (ou fim da linha com flag `m`); `/\.pdf$/` (deve terminar em .pdf)
-- `\b`: Fronteira de palavra (limite entre `\w` e `\W`); `/\bweb\b/i`
-- As âncoras não correspondem a caracteres visíveis; elas especificam posições no texto.
-### 4. Quantificadores
-- Quantificador: Significado; Exemplo
-- `*`: 0 ou mais vezes (equivalente a `{0,}`); `/a*/`
-- `+`: 1 ou mais vezes (equivalente a `{1,}`); `/\d+/`
-- `?`: 0 ou 1 vez (opcional, equivalente a `{0,1}`); `/https?/` (aceita http ou https)
-- `{n}`: Exatamente `n` vezes; `/\d{4}/` (exatamente 4 dígitos)
-### Quantificadores Gulosos (*Greedy*) vs. Não Gulosos (*Lazy / Non-greedy*)
-- Guloso (Greedy): `*`, `+`, `?`, `{n,m}`; Captura o máximo de texto
-- Não Guloso (Lazy): `*?`, `+?`, `??`, `{n,m}?`; Captura o mínimo de texto
-### 5. Grupos e Alternância
-- Grupos Padrão: `(...)`; captura em índices numéricos (`result[1]`)
-- Grupos Nomeados: `(?<nome>...)`; acessíveis via `result.groups.nome`
-- Não-Captura: `(?:...)`; agrupa sem capturar no resultado
-- Alternância: `|`; operador OU
-### 6. Asserções (Lookaround)
-- Lookahead Positivo: `(?=padrão)`; exige padrão à frente sem consumi-lo
-- Lookahead Negativo: `(?!padrão)`; exige ausência de padrão à frente
-- Lookbehind Positivo: `(?<=padrão)`; exige padrão atrás sem consumi-lo
-- Lookbehind Negativo: `(?<!padrão)`; exige ausência de padrão atrás
+- Literal.
+  - `/padrão/flags`.
+  - Melhor para padrões estáticos.
+- Construtor.
+  - `new RegExp("padrão", "flags")`.
+  - Melhor para padrões dinâmicos.
+  - Exige escapar barras invertidas.
+- Flags.
+  - `i`: ignora maiúsculas e minúsculas.
+  - `g`: busca global.
+  - `m`: múltiplas linhas.
+  - `u`: Unicode.
+  - `s`: ponto também casa quebra de linha.
+  - `y`: busca fixa em `lastIndex`.
 
-## Métodos de RegExp e String
-### 1. Métodos do Objeto RegExp
-- `regexp.test(str)`: Testa se o padrão existe na string; `boolean` (`true` ou `false`)
-- `regexp.exec(str)`: Executa a busca e retorna informações de grupos; Array de correspondência ou `null`
-### 2. Métodos de String que Utilizam RegExp
-- `str.search(regexp)`: Retorna o índice da primeira ocorrência ou `-1`
-- `str.match(regexp)`: Retorna as correspondências encontradas; Array de correspondências ou `null`
-- `str.matchAll(regexp)`: Retorna um iterador com todas as correspondências e grupos (exige flag `g`)
-- `str.replace(regexp, newText)`: Substitui o padrão por novo texto, `$1`, `$<nome>` ou callback
-- `str.split(regexp)`: Divide a string utilizando a RegExp como separador; Novo `Array`
+## Sintaxe fundamental
 
-## Resumo e Boas Práticas
-- Teste seus padrões com casos positivos e negativos usando ferramentas como regex101.com.
-- Prefira notação literal `/padrão/` para regex estáticas.
-- Evite reutilizar regex com flag `g` em chamadas repetidas de `test()`.
-- Use metacaracteres como `\d` (dígitos), `\w` (alfanumérico) e `\s` (espaços) para manter a expressão concisa.
-- Para dividir textos por múltiplos delimitadores ou espaços irregulares, prefira `string.split(/\s+/)`.
+### Classes
 
-## Síntese de Estudo
-- **Página**: aprofunda conceitos, exemplos e exercícios
-- **Slides**: organizam a exposição em sala
-- **Mapa mental**: revisa relações entre tópicos
-- **Prática**: execute os exemplos antes de memorizar regras
+- `.`: qualquer caractere único, exceto quebra de linha.
+- `\d`: dígito.
+- `\D`: não dígito.
+- `\w`: alfanumérico ou `_`.
+- `\W`: não alfanumérico.
+- `\s`: espaço em branco.
+- `\S`: não espaço em branco.
+
+### Conjuntos
+
+- `[abc]`: aceita um dos caracteres.
+- `[^abc]`: rejeita os caracteres listados.
+- `[a-z]`: intervalo.
+- `[0-9]`: dígitos.
+- `^` dentro de `[]` nega o conjunto.
+
+### Âncoras
+
+- `^`: início.
+- `$`: fim.
+- `\b`: fronteira de palavra.
+- Validações usam `^` e `$` para impedir correspondência parcial.
+
+### Quantificadores
+
+- `*`: zero ou mais.
+- `+`: um ou mais.
+- `?`: zero ou um.
+- `{n}`: exatamente `n`.
+- `{n,}`: no mínimo `n`.
+- `{n,m}`: entre `n` e `m`.
+- O quantificador modifica o item imediatamente anterior.
+
+### Greedy e lazy
+
+- Greedy.
+  - Captura o maior trecho possível.
+  - Exemplo: `/<.*>/`.
+- Lazy.
+  - Captura o menor trecho possível.
+  - Exemplo: `/<.*?>/`.
+- ReDoS.
+  - **Causa**: backtracking excessivo.
+  - **Sinais**: quantificadores aninhados e alternâncias ambíguas.
+  - **Detecção**: entradas inválidas longas e quase válidas.
+  - **Ataque**: muitos dígitos seguidos de `X`.
+  - **Correção**: limitar entrada e simplificar o padrão.
+
+### Grupos
+
+- `(padrão)`: captura por índice.
+- `(?<nome>padrão)`: captura nomeada.
+- `(?:padrão)`: grupo sem captura.
+- `|`: alternância.
+
+### Lookaround
+
+- `(?=padrão)`: lookahead positivo.
+- `(?!padrão)`: lookahead negativo.
+- `(?<=padrão)`: lookbehind positivo.
+- `(?<!padrão)`: lookbehind negativo.
+- Verifica contexto sem consumir caracteres.
+
+## Métodos
+
+### RegExp
+
+- `test(str)`.
+  - Responde se o padrão existe.
+  - Retorna `boolean`.
+  - Evite `/g` em validação booleana.
+- `exec(str)`.
+  - Retorna correspondência detalhada.
+  - Expõe grupos capturados.
+
+### String
+
+- `search(regexp)`: índice da primeira ocorrência.
+- `match(regexp)`: correspondências.
+- `matchAll(regexp)`: iterador com correspondências e grupos.
+- `replace(regexp, novoTexto)`: substituição.
+- `split(regexp)`: divisão por padrão.
+
+## Validação
+
+- Regex valida aparência textual.
+- Regex não confirma existência nem regra de negócio.
+- Railroad visual.
+  - **CEP**: início -> dígitos -> máscara opcional -> fim.
+  - **CPF**: formato cru ou formato pontuado.
+  - **E-mail básico**: local -> `@` -> domínio -> sufixo.
+- CPF.
+  - `/^(\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/`.
+- CEP.
+  - `/^(\d{8}|\d{5}-\d{3})$/`.
+- E-mail básico.
+  - `/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`.
+- HTML `pattern`.
+  - Recebe o corpo da expressão.
+  - Não usa barras externas nem flags.
+
+## Boas práticas
+
+- Use âncoras em validações de campo.
+- Teste casos válidos e inválidos.
+- Prefira literal para padrões estáticos.
+- Use o construtor apenas para padrões dinâmicos.
+- Evite `/g` com `test()` em validação.
+- Use `(?:...)` quando não precisar capturar valor.
+- Evite padrões ambíguos em entradas externas.
+- Desconfie de RegExp longas demais.
+- Separe formato de regra de negócio.
+
+## Prática
+
+- Criar `regexp-demo.js`.
+- Encontrar telefones em um texto.
+- Validar CPF, CEP e data.
+- Extrair campos de linha de log com grupos.
+- Comparar resultado esperado com resultado real.

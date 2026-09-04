@@ -424,8 +424,8 @@ Encerrando execução.
 
 ## Próxima aula
 
-- Expressões Regulares (RegExp)
-- Padrões de busca, quantificadores, classes de caracteres e métodos RegExp
+- Evolução e TC39
+- Comitê TC39, estágios de propostas e linha do tempo das edições do ECMAScript
 
 ---
 

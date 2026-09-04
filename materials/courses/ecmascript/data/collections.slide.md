@@ -377,8 +377,8 @@ Dados em cache: [ { id: 1, name: 'Maria' } ]
 
 ## Próxima aula
 
-- Funções e Closures
-- Declarações, expressões, arrow functions, parâmetros, callbacks e closures
+- Expressões Regulares (RegExp)
+- Padrões de busca, quantificadores, classes de caracteres e métodos RegExp
 
 ---
 

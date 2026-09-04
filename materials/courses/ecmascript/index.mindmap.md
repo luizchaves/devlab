@@ -42,10 +42,11 @@ markmap:
 - **Estruturas de Dados**:
   - Manipulação de texto com Strings e template literals.
   - Operações numéricas com `Number`, `BigInt` e `Math`.
-  - Datas com `Date` e padrões com Expressões Regulares (`RegExp`).
   - Arrays e métodos funcionais imutáveis.
   - Objetos, classes e cadeia de protótipos.
+  - Datas com `Date`.
   - Coleções estruturadas com `Map`, `Set`, `WeakMap` e `WeakSet`.
+  - Padrões textuais com Expressões Regulares (`RegExp`).
 - **Assincronismo**:
   - Modelo de concorrência com Event Loop e microtasks.
   - Tratamento de promessas com `Promise` e métodos combinadores.

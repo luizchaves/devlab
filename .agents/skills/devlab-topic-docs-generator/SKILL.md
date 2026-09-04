@@ -337,6 +337,13 @@ e nomear explicitamente o que o leitor observará ("O exemplo a seguir demonstra
    - **Etapa 2 (Aprofundamento)**: Apresente as variações ou extensões sintáticas (ex: renomeação de variáveis, valores padrão, operador rest) em parágrafo próprio, sucedido pelo exemplo prático correspondente.
 3. **Coerência entre explicação e exemplo**: Não mencione recursos avançados em um parágrafo introdutório se o bloco de código logo abaixo demonstra apenas a forma básica. Mantenha cada explicação estritamente conectada ao trecho visual ou executável apresentado.
 
+**Tópicos de sintaxe simbólica exigem modelo mental antes de catálogo:**
+Em assuntos como RegExp, seletores CSS, operadores, expressões, SQL ou comandos de terminal,
+não comece por uma lista longa de símbolos. Primeiro apresente um modelo mental do fluxo
+(`entrada -> regra/padrão -> operação -> resultado`), depois uma anatomia mínima da sintaxe e
+só então as tabelas de referência. Cada exemplo deve deixar explícitos a entrada analisada, o
+padrão/comando aplicado e o resultado observado.
+
 ### 🎯 Consistência e fidelidade semântica nos exemplos de código
 
 **Todo código de exemplo, identificador, função ou variável deve possuir semântica real e coerente com seu propósito no domínio:**
@@ -549,6 +556,14 @@ Configuração em `ec.config.mjs`. Convenções em uso:
   `showLineNumbers`, `mark="…"`, `ins` / `del`, `collapse={2-8}`, `wrap`.
 - Comentários dentro do código explicam entrada → transformação → saída, e o
   `console.log` mostra o resultado esperado em comentário (`// [ 10, 20 ]`).
+- **Explique proporcionalmente à densidade do trecho**: quando um bloco usa sintaxe
+  compacta, múltiplas regras ao mesmo tempo, expressões longas, casos de segurança ou
+  comportamento contraintuitivo, não basta uma frase curta antes do código. Gaste mais
+  texto quando isso melhorar a aprendizagem: explique a intenção do trecho, nomeie a
+  entrada usada, destaque as linhas decisivas e acrescente um parágrafo posterior
+  conectando o resultado observado ao conceito. Exemplos típicos são RegExp longas,
+  detecção de ReDoS, closures, escopo, coerção, recursão, promessas e trechos com erro
+  proposital.
 
 **Prefira `<SourceCode>` a colar código de `examples/`**: ele lê o arquivo real e nunca
 sai de sincronia.
@@ -682,3 +697,6 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
 29. **Ordem didática divergente**: sidebar, índices, badges de trilha e `## Próximo tópico`
     apontando sequências diferentes. Reordene todos juntos para evitar que o estudante siga
     caminhos contraditórios.
+30. **Catálogo de símbolos sem modelo mental**: tópicos de sintaxe simbólica que começam por
+    tabelas de metacaracteres, flags, operadores ou comandos sem antes explicar o fluxo
+    entrada -> regra -> operação -> resultado.
