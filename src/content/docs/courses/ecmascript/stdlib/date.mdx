@@ -384,6 +384,161 @@ import dayjs from "dayjs";
 console.log(dayjs().add(7, "day").format("DD/MM/YYYY"));
 ```
 
+## Datas na Era da Inteligência Artificial
+
+Datas são o tema em que o código gerado por IA falha de forma mais desconfortável: ele funciona na máquina de quem programa e erra por um dia na máquina de quem usa. A causa é sempre a mesma, e nunca aparece no exemplo do modelo, porque o exemplo roda em um fuso onde a diferença não se manifesta.
+
+O agravante é que o próprio `Date`, projetado em 1995 e mantido por compatibilidade, tem comportamentos que contrariam a intuição: mês começa em zero, `new Date("2026-03-10")` e `new Date("2026/03/10")` são interpretados em fusos diferentes e qualquer método `set` altera o objeto original.
+
+### O dia que desaparece na conversão de fuso
+
+O pedido "formate a data de nascimento no padrão brasileiro" costuma render o trecho abaixo, com um valor vindo direto do banco de dados:
+
+```js title="Formatação sugerida para uma data vinda do banco"
+const birthDate = new Date("2006-03-10"); // formato ISO, sem hora
+
+console.log(birthDate.toLocaleDateString("pt-BR"));
+```
+
+Rodando em um servidor configurado em UTC, o resultado é `10/03/2006`, exatamente o esperado. Rodando no Brasil, com `America/Sao_Paulo`, o mesmo código imprime o dia anterior:
+
+```bash title="Terminal"
+TZ="America/Sao_Paulo" node birthdate.js
+```
+
+```txt title="Output"
+09/03/2006
+```
+
+A explicação está na especificação: uma *string* ISO **somente com data** é interpretada como meia-noite em UTC. Convertida para um fuso três horas atrás, essa meia-noite cai às 21h do dia anterior. A mesma *string* com hora local, ou com os componentes passados separadamente, não sofre o deslocamento:
+
+```js title="Três leituras da mesma data"
+// Interpretada como UTC e convertida para o fuso local na exibição
+console.log(new Date("2006-03-10").toLocaleDateString("pt-BR"));
+
+// Interpretada como horário local, sem conversão
+console.log(new Date("2006-03-10T00:00:00").toLocaleDateString("pt-BR"));
+
+// Componentes explícitos: atenção ao mês, que começa em zero
+console.log(new Date(2006, 2, 10).toLocaleDateString("pt-BR"));
+```
+
+```bash title="Terminal"
+TZ="America/Sao_Paulo" node readings.js
+```
+
+```txt title="Output"
+09/03/2006
+10/03/2006
+10/03/2006
+```
+
+<Aside type="caution" title="Dica de IA: Rode o teste em outro fuso antes de aprovar">
+  Um teste de data que só roda no fuso de quem escreveu não prova nada. Executar a suíte com `TZ=UTC` e com o fuso do público é a verificação mais barata deste tópico e a que mais encontra defeito.
+
+  **Prompt:** *"Escreva os testes desta função de data de modo que passem tanto com `TZ=UTC` quanto com `TZ=America/Sao_Paulo`. Aponte quais asserções dependem do fuso da máquina e reescreva-as."*
+</Aside>
+
+### Datas sem hora não são instantes
+
+Boa parte dos defeitos acima vem de uma confusão que o modelo não desfaz sozinho, porque o pedido raramente a explicita: **data de calendário** e **instante no tempo** são coisas diferentes, e só a segunda tem fuso.
+
+| O dado representa | Exemplo | Como tratar |
+| :--- | :--- | :--- |
+| Data de calendário, igual para todo mundo | Aniversário, vencimento de boleto, feriado | Guardar como texto `"2006-03-10"` e nunca convertê-la para instante. |
+| Instante no tempo, com fuso | Criação de um registro, envio de mensagem | Guardar em UTC (ISO completo) e converter apenas na exibição. |
+| Hora local sem data | Horário de funcionamento | Guardar como texto `"08:00"` e combinar com a data na exibição. |
+| Duração | Tempo de sessão, prazo em dias | Guardar como número, não como `Date`. |
+
+Quando o campo é uma data de calendário, formatar exige apenas fatiar o texto ou informar explicitamente o fuso à API de internacionalização:
+
+```js title="Formatando uma data de calendário sem deslocamento"
+const stored = "2006-03-10"; // texto vindo do banco, sem hora
+
+const formatter = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
+
+console.log(formatter.format(new Date(stored))); // 10/03/2006
+```
+
+### A biblioteca sugerida por inércia
+
+Pedir cálculo ou formatação de datas a um assistente costuma trazer uma dependência junto, mesmo quando a plataforma já resolve. O material de treino tem anos de exemplos com bibliotecas que hoje estão em manutenção ou aposentadas.
+
+| Sugestão frequente | Situação atual | Alternativa nativa |
+| :--- | :--- | :--- |
+| `moment.js` | Em modo de legado desde 2020, por decisão dos próprios mantenedores. | `Intl.DateTimeFormat` para exibição e `date-fns` quando houver cálculo pesado. |
+| Formatação manual com `padStart()` | Reinventa o que a plataforma faz melhor, e ignora idioma. | `toLocaleDateString()` com opções. |
+| Cálculo de diferença em milissegundos dividido à mão | Ignora horário de verão e dias com 23 ou 25 horas. | `date-fns` ou a futura API `Temporal`. |
+| Tabela de nomes de meses escrita no código | Fica em um idioma só e desatualiza. | `Intl.DateTimeFormat(locale, { month: "long" })`. |
+
+A formatação nativa cobre a maior parte dos pedidos sem instalar nada:
+
+```js title="O que Intl resolve sem dependência"
+const now = new Date("2026-09-04T14:30:00Z");
+
+console.log(new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(now));
+console.log(new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(now));
+
+const rtf = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+console.log(rtf.format(-1, "day"));
+```
+
+```bash title="Terminal"
+TZ="UTC" node intl-demo.js
+```
+
+```txt title="Output"
+4 de setembro de 2026
+setembro
+ontem
+```
+
+### Armadilhas frequentes em código de data gerado por IA
+
+O conjunto de falhas abaixo se repete com frequência suficiente para virar item de revisão:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **ISO sem hora tratada como local** | A data exibida fica um dia atrás em fusos negativos. | Guardar datas de calendário como texto e formatar com `timeZone: "UTC"`. |
+| **Mês baseado em zero** | `new Date(2026, 3, 1)` produz abril, não março. | Conferir todo construtor com componentes e testar o mês limite. |
+| **Mutação por métodos `set`** | `date.setDate(date.getDate() + 7)` altera o objeto compartilhado. | Criar uma cópia com `new Date(date)` antes de qualquer `set`. |
+| **Diferença calculada em milissegundos** | Erros de uma hora na virada do horário de verão. | Calcular em dias de calendário, não dividindo milissegundos. |
+| **Comparação com `==`** | Dois `Date` com o mesmo instante são objetos diferentes. | Comparar com `getTime()` ou com `Number(date)`. |
+| **Dependência sugerida por hábito** | `moment.js` instalado para formatar uma data. | Conferir se `Intl` resolve antes de aceitar a dependência. |
+
+A mutação **falha em silêncio** e costuma aparecer longe da causa, quando outra parte do código lê a data já alterada:
+
+```js title="Método set alterando o objeto original"
+const dueDate = new Date("2026-09-04T12:00:00Z");
+
+// Sugestão comum para "some sete dias"
+const extended = dueDate;
+extended.setDate(extended.getDate() + 7);
+
+console.log(dueDate.toISOString()); // 2026-09-11 (o original mudou junto)
+
+// Cópia antes da alteração
+const original = new Date("2026-09-04T12:00:00Z");
+const copy = new Date(original);
+copy.setDate(copy.getDate() + 7);
+
+console.log(original.toISOString()); // 2026-09-04 (preservado)
+```
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer código de datas gerado com auxílio de IA, percorra as verificações abaixo:
+
+1. **O valor é data de calendário ou instante?** A resposta define se pode existir conversão de fuso;
+2. **A suíte foi executada em outro fuso?** `TZ="UTC"` e o fuso do público, no mínimo;
+3. **Algum construtor recebe componentes?** Confira o mês, que começa em zero;
+4. **Existe método `set` sobre um objeto que veio de fora?** Copie antes de alterar;
+5. **A diferença entre datas foi calculada dividindo milissegundos?** Horário de verão quebra a conta;
+6. **A dependência sugerida é necessária?** `Intl` cobre exibição, nomes de meses e tempo relativo;
+7. **A data persistida está em UTC?** Gravar horário local sem o deslocamento inviabiliza a leitura futura.
+
+A inteligência artificial reduziu o custo de escrever formatação e cálculo de datas, mas não alterou em nada o custo de exibir o dia errado para quem mora em outro fuso.
+
 ## Resumo e Boas Práticas
 
 A manipulação de datas exige rigor arquitetural quanto a fusos horários, imutabilidade e validação de entradas.
