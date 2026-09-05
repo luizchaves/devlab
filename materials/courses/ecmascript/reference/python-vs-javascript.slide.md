@@ -271,6 +271,7 @@ console.log(items.join(" / "));
 | Tarefa | Python `list` | JavaScript `Array` |
 | :--- | :--- | :--- |
 | **Tamanho** | `len(items)` | `items.length` |
+| **Acesso relativo (do fim)** | `items[-1]`, `items[-2]` | `items.at(-1)`, `items.at(-2)` |
 | **Adicionar no fim** | `items.append(val)` | `items.push(val)` |
 | **Remover do fim** | `items.pop()` | `items.pop()` |
 | **Adicionar no início** | `items.insert(0, val)` | `items.unshift(val)` |
@@ -279,6 +280,28 @@ console.log(items.join(" / "));
 | **Transformar** | `[fn(x) for x in items]` | `items.map(fn)` |
 | **Reduzir / Acumular** | `functools.reduce(...)` | `items.reduce(...)` |
 | **Ordenar cópia** | `sorted(items)` | `items.toSorted((a, b) => a - b)` |
+
+---
+
+## Índices Negativos e Método `.at()`
+
+Python aceita inteiros negativos nativamente; JS padronizou `.at()` no ES2022:
+
+```py
+# Python: índices negativos nativos em sequências
+fruits = ["maçã", "banana", "laranja", "uva"]
+print(fruits[-1]) # uva (último elemento)
+print(fruits[-2]) # laranja (penúltimo elemento)
+```
+
+```js
+// JavaScript: .at() relativo vs undefined com colchetes
+const fruits = ["maçã", "banana", "laranja", "uva"];
+console.log(fruits.at(-1)); // "uva" (ES2022+)
+console.log(fruits[-1]);    // undefined (busca a chave literal "-1"!)
+```
+
+*Cuidado: `arr[-1]` em JS não lança erro, mas resulta silenciosamente em `undefined`.*
 
 ---
 
@@ -616,6 +639,7 @@ console.log(totals); // { food: 75, transport: 20 }
 - Por que dizemos que Python possui tipagem forte e JavaScript possui coerções implícitas?
 - Por que `if ([])` se comporta de forma oposta em Python e em JavaScript?
 - Qual a diferença entre `==` e `is` em Python vs `==` e `===` em JavaScript?
+- Como se compara o acesso relativo pelo final da sequência em Python e JavaScript?
 - Qual a diferença entre usar um objeto literal `{}` e um `Map` ao comparar com `dict`?
 - Por que o método `.sort()` em JavaScript requer uma função de comparação para números?
 - Como difere o uso de `self` em Python de `this` em JavaScript na definição de classes?
@@ -627,8 +651,8 @@ console.log(totals); // { food: 75, transport: 20 }
 
 - **Execução**: CPython para scripts/backend; V8 e motores web para navegador/Node.js.
 - **Tipagem**: Python recusa tipos incompatíveis; JavaScript exige `===` estrito.
-- **Armadilha Falsy**: Em JS, `[]` e `{}` são **truthy** — verifique `arr.length === 0`.
-- **Coleções**: *Comprehensions* em Python vs `filter`/`map`/`reduce` em JavaScript.
+- **Armadilha Falsy**: Em JS, `[]` e `{}` são **truthy**: verifique `arr.length === 0`.
+- **Coleções**: *Comprehensions* e `items[-1]` em Python vs métodos funcionais e `.at(-1)` no JS.
 - **Tuplas**: `tuple` nativa em Python vs arrays desestruturados/congelados em JS.
 - **Classes**: `self` explícito nos métodos Python vs `this` implícito no JS.
 - **Módulos & Pacotes**: `uv`/`pip` com `pyproject.toml` vs `pnpm`/`npm` com `package.json`.

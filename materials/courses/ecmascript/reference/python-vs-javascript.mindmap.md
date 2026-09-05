@@ -34,8 +34,8 @@ markmap:
   - Python: `len(s)`, `s.strip()`, `s.lower()`, `", ".join(arr)`.
   - JavaScript: `s.length`, `s.trim()`, `s.toLowerCase()`, `arr.join(", ")`.
 - **Listas e Sequências**:
-  - Python `list`: `append()`, `pop()`, *list comprehensions*.
-  - JavaScript `Array`: `push()`, `pop()`, `filter()`, `map()`, `reduce()`, `toSorted()`.
+  - Python `list`: `append()`, `pop()`, índices negativos (`items[-1]`), *list comprehensions*.
+  - JavaScript `Array`: `push()`, `pop()`, `.at(-1)` (ES2022), `filter()`, `map()`, `reduce()`, `toSorted()`.
 - **Dicionários e Mapas**:
   - Python `dict`: `{"k": v}`, `d.keys()`, `d.get()`.
   - JavaScript `Object`: registros com campos conhecidos `{ k: v }`.
