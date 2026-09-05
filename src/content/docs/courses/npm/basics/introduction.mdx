@@ -1,0 +1,330 @@
+---
+title: "npm: Introdução e package.json"
+description: "O que é o npm, o registro público de pacotes, criação de projeto com npm init, anatomia do package.json, papel do node_modules e por que ele fica fora do controle de versão."
+course: npm
+sidebar:
+  label: "Introdução e package.json"
+---
+import { Aside, FileTree, Steps } from '@astrojs/starlight/components';
+
+Este tópico apresenta o **npm**, o gerenciador de pacotes que acompanha o Node.js: o que ele resolve, como um projeto passa a ser descrito por um `package.json` e por que a pasta `node_modules` nunca entra no repositório.
+
+Antes de instalar qualquer biblioteca, vale entender o problema que o npm resolve. Sem ele, usar código de terceiros significaria baixar arquivos à mão, copiar para dentro do projeto, descobrir sozinho de quais outros arquivos aquele código depende e repetir tudo a cada atualização. O npm transforma esse trabalho em uma linha de comando e em um arquivo de texto versionado.
+
+## Objetivo
+
+Compreender o papel do npm na construção de um projeto JavaScript, do registro público de pacotes à descrição formal das dependências no `package.json`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o que é o npm, o que é o registro de pacotes e como os dois se relacionam com o Node.js.
+- Criar um projeto do zero com `npm init` e reconhecer cada campo do `package.json` gerado.
+- Distinguir o que é fonte do projeto do que é conteúdo baixado e reconstruível.
+- Justificar por que `node_modules` fica no `.gitignore` e o que garante que outra pessoa reconstrua a mesma pasta.
+
+## O que é o npm
+
+O nome designa três coisas diferentes que costumam ser confundidas, e separá-las evita boa parte da confusão inicial:
+
+| O termo se refere a | O que é | Onde vive |
+| :--- | :--- | :--- |
+| **A ferramenta de linha de comando** | O programa `npm`, que instala, remove e executa pacotes. | Na sua máquina, instalado junto com o Node.js. |
+| **O registro (*registry*)** | O repositório público em `registry.npmjs.org`, com mais de dois milhões de pacotes. | Na internet. |
+| **O pacote** | Um diretório com um `package.json` e código publicado no registro. | No registro, e depois em `node_modules`. |
+
+A ferramenta vem junto com o Node.js, e a primeira conferência é sempre a mesma:
+
+```bash title="Terminal"
+node -v && npm -v
+```
+
+```txt title="Output" frame="terminal"
+v24.16.0
+11.13.0
+```
+
+As duas versões são independentes: o npm é atualizado com mais frequência do que o Node.js e pode ser atualizado sozinho com `npm install -g npm`.
+
+<Aside type="note" title="npm, pnpm e yarn">
+  O npm é o gerenciador padrão, e não o único. O **pnpm** e o **yarn** leem o mesmo `package.json` e instalam do mesmo registro, mudando principalmente a forma de guardar os arquivos em disco e a velocidade da instalação. Este guia usa npm por ser o que já vem instalado; o que você aprender aqui vale para os três, trocando o comando.
+</Aside>
+
+## Criando um projeto com `npm init`
+
+Um projeto Node.js começa quando existe um `package.json`. É esse arquivo que transforma uma pasta qualquer em um projeto que o npm sabe instalar, executar e publicar.
+
+O comando `npm init` faz as perguntas de identificação do projeto uma a uma; a *flag* `-y` aceita todas as respostas padrão de uma vez:
+
+```bash title="Terminal"
+npm init -y
+```
+
+```txt title="Output" frame="terminal"
+Wrote to /home/dev/npmdemo/package.json:
+
+{
+  "name": "npmdemo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
+```
+
+Cada campo desse arquivo tem uma função, e alguns mudam o comportamento do Node.js na execução:
+
+| Campo | Para que serve |
+| :--- | :--- |
+| `name` | Identifica o pacote. Precisa ser único no registro se o projeto for publicado. |
+| `version` | Versão do próprio projeto, no formato SemVer (`MAJOR.MINOR.PATCH`). |
+| `description` e `keywords` | Texto de busca no registro. Irrelevantes em projeto privado. |
+| `main` | Arquivo carregado quando alguém importa o pacote pelo nome. |
+| `scripts` | Atalhos de linha de comando do projeto, tratados no próximo tópico. |
+| `license` | Licença de uso. `ISC` é o padrão do `npm init`; `MIT` é a mais comum no ecossistema. |
+| `type` | Decide o sistema de módulos: `commonjs` (`require`) ou `module` (`import`). |
+
+O campo `type` é o que mais gera erro em projeto novo. Com `"type": "module"`, todo arquivo `.js` do projeto passa a ser tratado como módulo ES, com `import` e `export` nativos:
+
+```bash title="Terminal"
+npm pkg set type=module
+```
+
+<Aside type="caution" title="Dica de IA: Cole o package.json antes de pedir código">
+  A primeira pergunta que um assistente não consegue responder sozinho é qual sistema de módulos o projeto usa. Sem o `package.json` no contexto, a resposta vem em CommonJS por padrão estatístico, e o `require` quebra em um projeto com `"type": "module"`.
+
+  **Prompt:** *"Este é o `package.json` do projeto (colado abaixo). Considerando o `type` e a versão do Node.js declarada em `engines`, escreva o módulo pedido usando o sistema de módulos correto e caminhos relativos com extensão."*
+</Aside>
+
+## Instalando o primeiro pacote
+
+Com o projeto iniciado, `npm install` seguido do nome do pacote baixa o código, registra a dependência e atualiza os arquivos de controle:
+
+```bash title="Terminal"
+npm install dayjs
+```
+
+```txt title="Output" frame="terminal"
+added 1 package, and audited 2 packages in 1s
+
+found 0 vulnerabilities
+```
+
+Três coisas mudaram na pasta depois desse comando único:
+
+<FileTree>
+- npmdemo
+  - **package.json** ganhou o campo `dependencies`
+  - **package-lock.json** arquivo novo, com a versão exata instalada
+  - **node_modules/** pasta nova, com o código baixado
+    - dayjs/
+  - index.js
+</FileTree>
+
+O `package.json` passa a declarar o que o projeto pede:
+
+```json title="package.json (trecho)"
+{
+  "dependencies": {
+    "dayjs": "^1.11.23"
+  }
+}
+```
+
+E o pacote já pode ser importado pelo nome, sem caminho relativo, porque o Node.js sabe procurar em `node_modules`:
+
+```js title="index.js"
+import dayjs from "dayjs";
+
+console.log(dayjs("2026-09-05").format("DD/MM/YYYY"));
+```
+
+```bash title="Terminal"
+node index.js
+```
+
+```txt title="Output" frame="terminal"
+05/09/2026
+```
+
+## `node_modules` e o `.gitignore`
+
+A pasta `node_modules` guarda o código de todas as dependências, e das dependências delas. Ela cresce depressa: o projeto de exemplo acima, com **dois** pacotes declarados, ocupa dezenas de megabytes em disco.
+
+Ela **não** entra no controle de versão, por três motivos:
+
+1. **É reconstruível.** `package.json` e `package-lock.json` contêm tudo o que é preciso para gerar a pasta idêntica em qualquer máquina.
+2. **É enorme e volátil.** Versionar milhares de arquivos que mudam a cada instalação polui o histórico e torna cada `git clone` lento.
+3. **É específica de plataforma.** Alguns pacotes trazem binários compilados para o sistema operacional de quem instalou.
+
+Por isso todo projeto Node.js começa com esta linha:
+
+```txt title=".gitignore"
+node_modules/
+```
+
+A regra prática que resume o tópico: **versione o que descreve o projeto, ignore o que o comando reconstrói**.
+
+```bash title="Terminal"
+git status --short
+```
+
+```txt title="Output" frame="terminal"
+?? index.js
+?? package-lock.json
+?? package.json
+```
+
+Repare que `node_modules/` não aparece na listagem: o Git a ignora, e é exatamente esse o comportamento esperado.
+
+<Aside type="tip" title="Quem clonar o projeto roda um comando só">
+  Ao receber um projeto sem a pasta `node_modules`, basta executar `npm install` sem argumentos. O npm lê o `package.json` e o `package-lock.json` e reconstrói a pasta inteira, com as mesmas versões.
+</Aside>
+
+## Resumo e Boas Práticas
+
+As decisões deste tópico cabem em uma tabela de consulta:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Comece todo projeto com `npm init -y`. | Sem `package.json` não há projeto npm, e nenhum comando funciona direito. |
+| Declare `"type": "module"` em projeto novo. | Módulos ES são o padrão da linguagem; CommonJS é legado mantido por compatibilidade. |
+| Nunca versione `node_modules`. | É reconstruível, enorme e específica da plataforma. |
+| Versione sempre `package.json` e `package-lock.json`. | São a descrição e a receita exata do que instalar. |
+| Instale pelo comando, não editando o `package.json` à mão. | O comando resolve dependências transitivas e atualiza o *lockfile*. |
+| Confira `npm -v` ao seguir um tutorial antigo. | O comportamento de comandos e o formato do *lockfile* mudam entre versões maiores. |
+
+## Executando
+
+O passo a passo abaixo cria um projeto do zero e observa cada arquivo aparecer.
+
+<Steps>
+
+1. Crie a pasta e entre nela:
+
+   ```bash title="Terminal"
+   mkdir agenda && cd agenda
+   ```
+
+2. Inicie o projeto aceitando os padrões:
+
+   ```bash title="Terminal"
+   npm init -y
+   ```
+
+3. Passe o projeto para módulos ES e instale uma dependência:
+
+   ```bash title="Terminal"
+   npm pkg set type=module && npm install dayjs
+   ```
+
+4. Crie o arquivo `index.js` usando o pacote instalado:
+
+   ```js title="index.js"
+   import dayjs from "dayjs";
+
+   console.log("Hoje é", dayjs().format("DD/MM/YYYY"));
+   ```
+
+5. Execute e confira a saída:
+
+   ```bash title="Terminal"
+   node index.js
+   ```
+
+   ```txt title="Output" frame="terminal"
+   Hoje é 05/09/2026
+   ```
+
+6. Apague `node_modules` e reconstrua a pasta a partir dos arquivos versionados:
+
+   ```bash title="Terminal"
+   rm -rf node_modules && npm install
+   ```
+
+</Steps>
+
+## Exercício
+
+Monte um projeto pequeno para fixar a diferença entre o que é fonte e o que é reconstruível:
+
+1. Crie a pasta `conversor` e inicie o projeto com `npm init -y`;
+2. Configure o projeto para módulos ES;
+3. Instale o pacote `dayjs` como dependência;
+4. Crie um `index.js` que imprima a data de hoje e a data daqui a 30 dias;
+5. Crie o `.gitignore` com a linha necessária;
+6. Rode `git init && git add . && git status --short` e confirme quais arquivos entraram;
+7. Explique, em uma frase, por que `node_modules/` ficou de fora.
+
+A solução abaixo mostra o arquivo principal e a lista de arquivos versionados:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="index.js"
+  import dayjs from "dayjs";
+
+  const hoje = dayjs();
+
+  console.log("Hoje:", hoje.format("DD/MM/YYYY"));
+  console.log("Em 30 dias:", hoje.add(30, "day").format("DD/MM/YYYY"));
+  ```
+
+  ```txt title=".gitignore"
+  node_modules/
+  ```
+
+  Os arquivos versionados são `index.js`, `package.json`, `package-lock.json` e `.gitignore`. A pasta `node_modules/` fica de fora porque é integralmente reconstruível a partir do `package.json` e do `package-lock.json`, que já estão no repositório.
+</details>
+
+## Perguntas de revisão
+
+### Ferramenta, registro e projeto
+
+**1. Qual a diferença entre o npm, o registro de pacotes e um pacote?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O npm é o programa de linha de comando instalado junto com o Node.js; o registro é o repositório público em `registry.npmjs.org` de onde os pacotes são baixados; e o pacote é um diretório com `package.json` publicado nesse registro.
+</details>
+
+**2. O que muda no projeto quando `type` passa a valer `"module"`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Todo arquivo `.js` do projeto passa a ser tratado como módulo ES: `import` e `export` funcionam nativamente, `require` e `module.exports` deixam de existir, e caminhos relativos passam a exigir a extensão do arquivo.
+</details>
+
+### node_modules e versionamento
+
+**3. Por que `node_modules` não deve ser versionada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque é reconstruível a partir de `package.json` e `package-lock.json`, ocupa muito espaço, muda a cada instalação e pode conter binários compilados para um sistema operacional específico.
+</details>
+
+**4. Alguém clonou o projeto e não consegue executá-lo, com erro de módulo não encontrado. O que faltou?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Faltou executar `npm install` sem argumentos, que lê os arquivos versionados e reconstrói a pasta `node_modules` com as dependências declaradas.
+</details>
+
+## Referências
+
+- [About npm | npm Docs](https://docs.npmjs.com/about-npm)
+- [package.json | npm Docs](https://docs.npmjs.com/cli/configuring-npm/package-json)
+- [npm init | npm Docs](https://docs.npmjs.com/cli/commands/npm-init)
+- [Modules: Packages | Node.js](https://nodejs.org/api/packages.html)
+
+## Próximo tópico
+
+Com o projeto criado, siga para [Dependências e versionamento](../dependencies/): a diferença entre dependência de produção e de desenvolvimento, as regras de SemVer e o papel do `package-lock.json`.

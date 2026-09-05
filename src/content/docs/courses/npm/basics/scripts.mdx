@@ -1,0 +1,368 @@
+---
+title: "npm: Scripts e npx"
+description: "Scripts do package.json, execução com npm run, ganchos pre e post, encadeamento de comandos, binários locais em node_modules/.bin e execução sob demanda com npx."
+course: npm
+sidebar:
+  label: "Scripts e npx"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Este tópico apresenta o campo `scripts` do `package.json` e o comando `npx`: os dois mecanismos que o npm oferece para executar código, um para os comandos recorrentes do próprio projeto e o outro para binários que você usa uma vez e não quer instalar.
+
+Todo projeto acumula comandos longos: subir o servidor com as variáveis certas, rodar os testes com as *flags* certas, aplicar migrações antes de iniciar. Quando esses comandos vivem apenas na memória de quem os escreveu, cada pessoa nova precisa perguntar. O campo `scripts` transforma essa memória em documentação executável.
+
+## Objetivo
+
+Automatizar as tarefas recorrentes de um projeto Node.js com os scripts do npm e executar ferramentas sob demanda sem poluir a instalação global. Ao final do tópico, o leitor deve ser capaz de:
+
+- Declarar scripts no `package.json` e executá-los com `npm run`.
+- Explicar por que um script enxerga binários que o terminal não enxerga.
+- Encadear comandos com `&&` e reaproveitar scripts dentro de outros scripts.
+- Reconhecer os ganchos `pre` e `post` e o que eles executam automaticamente.
+- Escolher entre instalar um pacote e executá-lo com `npx`.
+
+## Declarando e executando scripts
+
+Scripts são pares de nome e comando dentro do `package.json`:
+
+```json title="package.json (trecho)"
+{
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "lint": "biome check .",
+    "test": "node --test"
+  }
+}
+```
+
+A execução usa `npm run` seguido do nome:
+
+```bash title="Terminal"
+npm run lint
+```
+
+Quatro nomes dispensam o `run`, por serem reconhecidos pelo próprio npm: `start`, `test`, `stop` e `restart`. Os dois comandos abaixo são equivalentes:
+
+```bash title="Terminal"
+npm run start
+```
+
+```bash title="Terminal"
+npm start
+```
+
+Sem argumento nenhum, `npm run` lista o que o projeto oferece, o que é a forma mais rápida de entender um repositório desconhecido:
+
+```bash title="Terminal"
+npm run
+```
+
+```txt title="Output" frame="terminal"
+Lifecycle scripts included in npmdemo@1.0.0:
+  start
+    node index.js
+  prestart
+    echo 'preparando…'
+available via `npm run`:
+  lint
+    biome check .
+```
+
+<Aside type="tip" title="O primeiro comando ao clonar um projeto">
+  Antes de procurar instruções no README, rode `npm run`. A lista de scripts revela como o projeto é iniciado, testado e construído, e costuma estar mais atualizada do que a documentação.
+</Aside>
+
+## Por que o script enxerga o que o terminal não enxerga
+
+O script `"lint": "biome check ."` funciona mesmo que `biome` não exista no `PATH` do sistema. A razão é que, ao rodar um script, o npm acrescenta temporariamente a pasta `node_modules/.bin` do projeto ao `PATH`.
+
+Essa pasta reúne os executáveis das dependências instaladas:
+
+```bash title="Terminal"
+ls node_modules/.bin
+```
+
+```txt title="Output" frame="terminal"
+biome
+```
+
+A consequência prática aparece quando o mesmo comando é digitado diretamente:
+
+```bash title="Terminal"
+biome check .
+```
+
+```txt title="Output" frame="terminal"
+zsh: command not found: biome
+```
+
+É por isso que ferramentas de projeto devem ser instaladas como dependência de desenvolvimento e chamadas por script, e não instaladas globalmente: a versão fica registrada no `package.json`, igual para todo o time, em vez de depender do que cada máquina tem instalado.
+
+## Encadeamento e reaproveitamento
+
+Um script pode encadear comandos com os operadores do próprio shell, e pode chamar outros scripts do projeto:
+
+```json title="package.json (trecho)"
+{
+  "scripts": {
+    "lint": "biome check .",
+    "test": "node --test",
+    "build": "vite build",
+    "check": "npm run lint && npm run test",
+    "deploy": "npm run check && npm run build && node scripts/publish.js"
+  }
+}
+```
+
+O `&&` é o operador que importa: ele só executa o comando seguinte se o anterior terminar com sucesso. Um `npm run check` que falha no *lint* não chega a rodar os testes, e o `deploy` não chega a publicar nada.
+
+Para passar argumentos extras a um script, use `--` como separador:
+
+```bash title="Terminal"
+npm run test -- --watch
+```
+
+Tudo o que vem depois do `--` é repassado ao comando do script, e não interpretado pelo npm.
+
+## Ganchos `pre` e `post`
+
+O npm executa automaticamente os scripts cujo nome é o de outro script prefixado por `pre` ou `post`. Não é preciso declarar nada além do nome:
+
+```json title="package.json (trecho)"
+{
+  "scripts": {
+    "prestart": "echo 'preparando…'",
+    "start": "node index.js"
+  }
+}
+```
+
+Um único `npm start` dispara os dois, na ordem:
+
+```bash title="Terminal"
+npm run start
+```
+
+```txt title="Output" frame="terminal"
+> npmdemo@1.0.0 prestart
+> echo 'preparando…'
+
+preparando…
+
+> npmdemo@1.0.0 start
+> node index.js
+
+app rodando
+```
+
+O uso mais comum em projeto real é preparar o ambiente antes de subir a aplicação, como aplicar migrações de banco ou gerar o cliente do ORM:
+
+```json title="package.json (trecho de projeto com Prisma)"
+{
+  "scripts": {
+    "predev": "prisma migrate dev",
+    "dev": "node --watch src/server.js"
+  }
+}
+```
+
+<Aside type="caution" title="O gancho invisível">
+  O gancho é conveniente e é fácil de esquecer que existe: quem lê o `package.json` procurando o que `npm start` faz precisa reparar que há um `prestart` acima. Em projeto com muitos ganchos, um script `check` explícito, que chama os outros com `&&`, costuma ser mais legível.
+</Aside>
+
+## `npx`: executar sem instalar
+
+Nem todo binário merece virar dependência. Geradores de projeto, ferramentas de uso único e verificações pontuais podem ser executados diretamente com `npx`, que baixa o pacote, executa e descarta:
+
+```bash title="Terminal"
+npx cowsay@1.6.0 "Olá, DevLab"
+```
+
+```txt title="Output" frame="terminal"
+ _____________
+< Olá, DevLab >
+ -------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+```
+
+A ordem de busca do `npx` explica seu comportamento:
+
+1. procura o binário em `node_modules/.bin` do projeto e usa o que já está instalado;
+2. procura nos binários globais;
+3. não encontrando, baixa o pacote para um cache temporário e executa.
+
+O caso mais frequente é a criação de projetos, em que instalar o gerador globalmente só criaria uma versão desatualizada para envelhecer na máquina:
+
+```bash title="Terminal"
+npx create-next-app@latest minha-app
+```
+
+A tabela resume a decisão entre as três formas de executar uma ferramenta:
+
+| Forma | Quando usar | Risco de não usar |
+| :--- | :--- | :--- |
+| Dependência + script | A ferramenta é usada sempre pelo projeto (`lint`, `test`, `build`). | Cada máquina roda uma versão diferente. |
+| `npx pacote@versão` | Uso pontual ou geração de projeto. | Instalação global desatualizada acumulada. |
+| Instalação global (`-g`) | Ferramenta de uso pessoal, fora de qualquer projeto. | Projeto que depende do que está instalado na máquina. |
+
+<Aside type="caution" title="Dica de IA: Confirme o nome antes de deixar o npx baixar">
+  `npx` executa **código baixado na hora**, e assistentes ocasionalmente inventam nomes de pacote plausíveis. Um nome errado pode existir no registro, publicado justamente para explorar esse engano. Confirme antes com `npm view <pacote>` e, ao usar `npx`, fixe a versão.
+
+  **Prompt:** *"Antes de sugerir qualquer `npx`, confirme que o pacote existe no registro do npm, informe a data da última publicação e o número de mantenedores, e escreva o comando com a versão fixada."*
+</Aside>
+
+## Resumo e Boas Práticas
+
+| Prática | Motivo |
+| :--- | :--- |
+| Transforme todo comando recorrente em script. | O `package.json` vira a documentação executável do projeto. |
+| Use nomes convencionais (`dev`, `build`, `test`, `lint`). | Quem chega ao projeto reconhece sem ler o README. |
+| Instale ferramentas como `devDependencies`, não globalmente. | A versão fica travada e igual para todo o time. |
+| Encadeie com `&&`, não com `;`. | O `&&` interrompe a sequência quando um passo falha. |
+| Prefira um script `check` explícito a muitos ganchos. | Ganchos são invisíveis para quem lê o arquivo. |
+| Fixe a versão nos comandos `npx`. | Evita executar código diferente a cada dia. |
+| Rode `npm run` ao clonar um projeto. | É a forma mais rápida de descobrir como ele funciona. |
+
+## Executando
+
+<Steps>
+
+1. Declare três scripts no projeto:
+
+   ```bash title="Terminal"
+   npm pkg set scripts.start="node index.js" scripts.prestart="echo preparando" scripts.check="npm run lint"
+   ```
+
+2. Liste o que o projeto passou a oferecer:
+
+   ```bash title="Terminal"
+   npm run
+   ```
+
+3. Execute o script principal e observe o gancho disparar antes:
+
+   ```bash title="Terminal"
+   npm start
+   ```
+
+   ```txt title="Output" frame="terminal"
+   > npmdemo@1.0.0 prestart
+   > echo preparando
+
+   preparando
+
+   > npmdemo@1.0.0 start
+   > node index.js
+
+   app rodando
+   ```
+
+4. Confira que o binário da dependência só existe dentro do projeto:
+
+   ```bash title="Terminal"
+   ls node_modules/.bin && biome --version
+   ```
+
+   ```txt title="Output" frame="terminal"
+   biome
+   zsh: command not found: biome
+   ```
+
+5. Execute uma ferramenta sem instalar nada:
+
+   ```bash title="Terminal"
+   npx cowsay@1.6.0 "npx executa e descarta"
+   ```
+
+</Steps>
+
+## Exercício
+
+Monte a automação de um projeto pequeno:
+
+1. Crie um projeto com `npm init -y` e instale o Biome como dependência de desenvolvimento;
+2. Declare os scripts `lint`, `test` e `check`, com `check` executando os dois anteriores em sequência e parando no primeiro erro;
+3. Crie um `prestart` que imprima o ambiente antes de iniciar a aplicação;
+4. Execute `npm run` e confirme que os quatro aparecem na listagem;
+5. Introduza um erro de formatação em um arquivo e rode `npm run check`, observando o `test` **não** ser executado;
+6. Explique por que `npm run check` falhou sem chegar aos testes.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="package.json (trecho)"
+  {
+    "scripts": {
+      "lint": "biome check .",
+      "test": "node --test",
+      "check": "npm run lint && npm run test",
+      "prestart": "echo \"ambiente: ${NODE_ENV:-development}\"",
+      "start": "node index.js"
+    }
+  }
+  ```
+
+  O `npm run check` para no `lint` porque o `&&` só executa o comando seguinte quando o anterior termina com código de saída zero. Como o Biome encerra com código diferente de zero ao encontrar problema de formatação, a sequência é interrompida e o `test` nunca começa. É exatamente esse encadeamento que se quer em um comando de verificação: falhar cedo, no primeiro problema.
+</details>
+
+## Perguntas de revisão
+
+### Scripts
+
+**1. Por que `biome check .` funciona dentro de um script e falha quando digitado no terminal?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ao executar um script o npm acrescenta `node_modules/.bin` ao `PATH`, e é nessa pasta que ficam os executáveis das dependências instaladas no projeto. Fora do script, o terminal só procura nos diretórios do `PATH` do sistema.
+</details>
+
+**2. Qual a diferença entre encadear scripts com `&&` e com `;`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `&&` só executa o comando seguinte se o anterior terminar com sucesso, enquanto o `;` executa em sequência independentemente de falha. Em verificação e *deploy*, o `&&` é o correto, porque interrompe a cadeia no primeiro erro.
+</details>
+
+**3. O que acontece ao rodar `npm start` em um projeto que declara `prestart` e `poststart`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O npm executa os três na ordem `prestart`, `start` e `poststart`, automaticamente, sem que nenhum deles precise chamar o outro.
+</details>
+
+### npx
+
+**4. Quando usar `npx` em vez de instalar o pacote?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o uso é pontual ou de geração de projeto, como `npx create-next-app`. Ferramentas usadas com frequência pelo projeto devem ser dependências de desenvolvimento chamadas por script, para que a versão fique travada e igual para todo o time.
+</details>
+
+**5. Por que fixar a versão no comando `npx`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque sem versão o `npx` baixa a mais recente a cada execução, o que torna o comando não reprodutível, e porque executar código baixado na hora a partir de um nome não conferido é um risco de segurança.
+</details>
+
+## Referências
+
+- [scripts | npm Docs](https://docs.npmjs.com/cli/using-npm/scripts)
+- [npm run-script | npm Docs](https://docs.npmjs.com/cli/commands/npm-run-script)
+- [npx | npm Docs](https://docs.npmjs.com/cli/commands/npx)
+- [npm pkg | npm Docs](https://docs.npmjs.com/cli/commands/npm-pkg)
+
+## Próximo tópico
+
+Com o projeto configurado e automatizado, siga para [Vite](../../build/vite/): o servidor de desenvolvimento e empacotador que reúne tudo isso em uma aplicação real.

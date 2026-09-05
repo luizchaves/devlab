@@ -1,0 +1,305 @@
+---
+title: "npm: Dependências e Versionamento"
+description: "Dependências de produção e de desenvolvimento, versionamento semântico (SemVer), os prefixos ^ e ~, o papel do package-lock.json, npm ci em ambientes automatizados e auditoria de vulnerabilidades."
+course: npm
+sidebar:
+  label: "Dependências e SemVer"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Este tópico trata do que acontece **depois** do `npm install`: onde cada dependência é registrada, o que significam os símbolos que aparecem ao lado das versões e por que dois arquivos, e não um, descrevem o que será instalado.
+
+A pergunta que organiza o assunto é simples de enunciar e difícil de responder sem os conceitos certos: se o `package.json` diz `"dayjs": "^1.11.23"`, qual versão será instalada daqui a seis meses, e ela será a mesma para todo mundo do time?
+
+## Objetivo
+
+Dominar a declaração e o travamento de dependências em um projeto Node.js, do significado de cada símbolo de versão ao comportamento das instalações em ambiente automatizado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir `dependencies` de `devDependencies` e decidir corretamente onde cada pacote entra.
+- Ler uma versão no formato SemVer e prever o que os prefixos `^` e `~` permitem atualizar.
+- Explicar o papel do `package-lock.json` e por que ele é versionado junto do código.
+- Escolher entre `npm install` e `npm ci` conforme o ambiente de execução.
+- Diagnosticar e tratar avisos de vulnerabilidade em dependências.
+
+## Produção e desenvolvimento
+
+Nem toda dependência precisa acompanhar a aplicação em produção. O npm separa as duas categorias com uma *flag* na instalação:
+
+```bash title="Terminal"
+npm install dayjs
+```
+
+```bash title="Terminal"
+npm install --save-dev @biomejs/biome
+```
+
+O resultado aparece em campos distintos do `package.json`:
+
+```json title="package.json (trecho)"
+{
+  "dependencies": {
+    "dayjs": "^1.11.23"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.12"
+  }
+}
+```
+
+A tabela dá o critério de decisão, que é sempre o mesmo: o código roda em produção ou só na máquina de quem desenvolve?
+
+| Categoria | Entra quando | Exemplos |
+| :--- | :--- | :--- |
+| `dependencies` | O pacote é importado por código que roda em produção. | `express`, `dayjs`, `zod`, `@prisma/client` |
+| `devDependencies` | O pacote só participa do desenvolvimento, do teste ou do *build*. | `biome`, `vite`, `typescript`, `supertest` |
+
+A separação tem efeito prático em duas situações. Em servidor, `npm install --omit=dev` instala apenas as dependências de produção, o que reduz o tamanho da imagem e a superfície de segurança. Em pacote publicado, quem instalar o seu pacote recebe as `dependencies` dele, e nunca as `devDependencies`.
+
+<Aside type="caution" title="O erro clássico: ferramenta de build em dependencies">
+  Colocar `vite` ou `typescript` em `dependencies` não quebra nada em desenvolvimento, e por isso o erro passa despercebido. Ele aparece no *deploy*, na forma de uma imagem várias vezes maior do que precisava ser, com compilador e ferramenta de teste instalados no servidor de produção.
+</Aside>
+
+## Versionamento semântico (SemVer)
+
+Toda versão publicada no registro segue o formato `MAJOR.MINOR.PATCH`, e cada número tem significado contratual:
+
+| Parte | Quando muda | O que isso promete a quem usa |
+| :--- | :--- | :--- |
+| **MAJOR** (`2`.0.0) | Houve mudança incompatível. | Seu código pode quebrar. Leia o guia de migração. |
+| **MINOR** (1.`12`.0) | Houve recurso novo, compatível. | Nada quebra; há coisas novas disponíveis. |
+| **PATCH** (1.11.`24`) | Houve correção compatível. | Nada quebra; algo passou a funcionar melhor. |
+
+O símbolo antes do número é o que define **quanta** atualização automática o projeto aceita:
+
+| Notação | Aceita atualizar para | Leitura |
+| :--- | :--- | :--- |
+| `^1.11.23` | `1.11.24`, `1.12.0`, mas **não** `2.0.0` | Correções e recursos novos, sem mudança incompatível. Padrão do npm. |
+| `~1.11.23` | `1.11.24`, mas **não** `1.12.0` | Só correções. |
+| `1.11.23` | Nada. Exatamente essa versão. | Trava total, útil em dependência problemática. |
+| `>=1.11.0 <2` | Faixa explícita. | Equivalente ao `^`, escrito por extenso. |
+| `*` ou `latest` | Qualquer versão. | Evite: transforma cada instalação em uma aposta. |
+
+O prefixo `^` é gerado por padrão porque equilibra correção de bugs e estabilidade. Ele só é confiável, porém, na medida em que quem publica respeita o SemVer, e nem todo pacote respeita.
+
+## `package-lock.json`: da faixa à versão exata
+
+O `package.json` declara uma **faixa aceitável**; o `package-lock.json` registra a **versão exata** que foi instalada, junto com o endereço de download e a soma de verificação de cada pacote, incluindo as dependências das dependências:
+
+```json title="package-lock.json (trecho)"
+{
+  "lockfileVersion": 3,
+  "packages": {
+    "node_modules/dayjs": {
+      "version": "1.11.23",
+      "resolved": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.23.tgz",
+      "integrity": "sha512-…"
+    }
+  }
+}
+```
+
+Sem o *lockfile*, `^1.11.23` instalaria `1.11.23` hoje e `1.14.2` daqui a três meses, e dois integrantes do time teriam árvores de dependência diferentes com o mesmo `package.json`. É a origem clássica do "na minha máquina funciona".
+
+Por isso o `package-lock.json` é **versionado junto com o código**, e conflitos nele são resolvidos regenerando o arquivo, nunca editando à mão:
+
+```bash title="Terminal"
+rm package-lock.json && npm install
+```
+
+## `npm install` e `npm ci`
+
+Os dois comandos instalam dependências, e a diferença está em quem manda no resultado:
+
+| Aspecto | `npm install` | `npm ci` |
+| :--- | :--- | :--- |
+| Fonte da verdade | `package.json`, atualizando o *lockfile* se necessário. | Somente o `package-lock.json`. |
+| `node_modules` existente | É aproveitada e ajustada. | É apagada antes de instalar. |
+| *Lockfile* ausente ou divergente | É criado ou atualizado. | O comando falha. |
+| Uso natural | Desenvolvimento, ao adicionar ou atualizar pacotes. | Integração contínua, *build* de imagem, *deploy*. |
+
+Em pipeline de CI, `npm ci` é a escolha correta justamente porque **falha** quando o `package-lock.json` não corresponde ao `package.json`. Essa falha é informação: significa que alguém alterou dependências sem versionar o *lockfile*.
+
+```bash title="Terminal"
+npm ci
+```
+
+```txt title="Output" frame="terminal"
+1 package is looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+```
+
+## Atualização e auditoria
+
+Duas rotinas de manutenção evitam que um projeto envelheça em silêncio. A primeira mostra o que está para trás:
+
+```bash title="Terminal"
+npm outdated
+```
+
+```txt title="Output" frame="terminal"
+Package  Current  Wanted   Latest  Location            Depended by
+dayjs    1.11.20  1.11.23  1.11.23  node_modules/dayjs  npmdemo
+```
+
+As três colunas respondem a perguntas diferentes: `Current` é o que está instalado, `Wanted` é o máximo que a faixa do `package.json` permite sem alterar o arquivo, e `Latest` é a última versão publicada, que pode exigir uma mudança de MAJOR.
+
+A segunda rotina verifica vulnerabilidades conhecidas nas versões instaladas:
+
+```bash title="Terminal"
+npm audit
+```
+
+```txt title="Output" frame="terminal"
+found 0 vulnerabilities
+```
+
+<Aside type="caution" title="`npm audit fix --force` não é um comando de rotina">
+  O `--force` autoriza o npm a subir versões MAJOR para resolver o aviso, o que muda o contrato das bibliotecas e pode quebrar a aplicação sem avisar. Rode `npm audit fix` sem a *flag*, leia o relatório do que sobrou e trate cada caso restante conscientemente.
+</Aside>
+
+<Aside type="tip" title="Dica de IA: Peça o impacto da atualização, não só o comando">
+  Um assistente responde `npm update` para qualquer pergunta sobre atualizar dependências, sem olhar o que muda. O pedido útil descreve o risco, e não a ação.
+
+  **Prompt:** *"Este é o `package.json` e a saída do `npm outdated`. Para cada pacote listado, diga se a atualização é PATCH, MINOR ou MAJOR, o que pode quebrar em cada MAJOR e em que ordem você faria as atualizações."*
+</Aside>
+
+## Resumo e Boas Práticas
+
+| Prática | Motivo |
+| :--- | :--- |
+| Instale ferramenta de desenvolvimento com `--save-dev`. | Mantém a instalação de produção enxuta e sem compilador. |
+| Versione o `package-lock.json`. | É o que garante a mesma árvore de dependências para todo o time. |
+| Use `npm ci` em CI e em imagem de contêiner. | Instala exatamente o *lockfile*, e falha quando ele está desatualizado. |
+| Resolva conflito de *lockfile* regenerando o arquivo. | Edição manual produz um arquivo inconsistente com a árvore real. |
+| Trate atualização MAJOR como tarefa própria. | É a única faixa que pode quebrar o código sem aviso. |
+| Rode `npm outdated` e `npm audit` com regularidade. | Dependência desatualizada é dívida que só cresce. |
+
+## Executando
+
+<Steps>
+
+1. Em um projeto novo, instale uma dependência de produção e uma de desenvolvimento:
+
+   ```bash title="Terminal"
+   npm install dayjs && npm install --save-dev @biomejs/biome
+   ```
+
+2. Confira em que campo cada uma foi registrada:
+
+   ```bash title="Terminal"
+   npm pkg get dependencies devDependencies
+   ```
+
+   ```txt title="Output" frame="terminal"
+   {
+     "dependencies": {
+       "dayjs": "^1.11.23"
+     },
+     "devDependencies": {
+       "@biomejs/biome": "^2.5.12"
+     }
+   }
+   ```
+
+3. Veja a árvore instalada, com as versões exatas:
+
+   ```bash title="Terminal"
+   npm ls
+   ```
+
+   ```txt title="Output" frame="terminal"
+   npmdemo@1.0.0 /home/dev/npmdemo
+   +-- @biomejs/biome@2.5.12
+   `-- dayjs@1.11.23
+   ```
+
+4. Simule o ambiente de CI, apagando a pasta e instalando pelo *lockfile*:
+
+   ```bash title="Terminal"
+   rm -rf node_modules && npm ci
+   ```
+
+5. Instale apenas o necessário para produção e compare a árvore:
+
+   ```bash title="Terminal"
+   npm install --omit=dev && npm ls
+   ```
+
+   ```txt title="Output" frame="terminal"
+   npmdemo@1.0.0 /home/dev/npmdemo
+   `-- dayjs@1.11.23
+   ```
+
+</Steps>
+
+## Exercício
+
+Investigue as dependências de um projeto real, seu ou de exemplo:
+
+1. Abra o `package.json` e liste o que está em `dependencies` e em `devDependencies`;
+2. Aponte pelo menos um pacote que esteja na categoria errada, justificando pela pergunta "isso roda em produção?";
+3. Para três dependências, escreva o que a faixa de versão declarada permite instalar;
+4. Rode `npm outdated` e classifique cada linha em PATCH, MINOR ou MAJOR;
+5. Rode `npm ci` e explique o que aconteceria se o `package-lock.json` estivesse desatualizado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O erro de categoria mais comum é `typescript` ou `vite` em `dependencies`: os dois só participam do *build*, então pertencem a `devDependencies`. Já `@prisma/client` é o inverso, e frequentemente aparece errado em `devDependencies`, apesar de ser importado por código que roda no servidor.
+
+  Sobre as faixas, `^4.18.2` aceita até `4.99.99` e recusa `5.0.0`; `~4.18.2` aceita até `4.18.99`; e `4.18.2` sem prefixo trava exatamente naquela versão.
+
+  Com o *lockfile* desatualizado, `npm ci` falha com `npm error … can only install packages when your package.json and package-lock.json are in sync`. É o comportamento desejado: em CI, a instalação para em vez de gerar uma árvore diferente da testada.
+</details>
+
+## Perguntas de revisão
+
+### Categorias e versões
+
+**1. Qual pergunta decide entre `dependencies` e `devDependencies`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  "Esse pacote é usado por código que roda em produção?" Se a resposta for sim, é `dependencies`; se ele só serve para desenvolver, testar ou construir o projeto, é `devDependencies`.
+</details>
+
+**2. O que `^1.11.23` autoriza o npm a instalar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Qualquer versão a partir de `1.11.23` e abaixo de `2.0.0`, ou seja, correções e recursos novos compatíveis, mas nenhuma mudança de MAJOR.
+</details>
+
+### Lockfile e ambientes
+
+**3. Se o `package.json` já declara as dependências, por que existe o `package-lock.json`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o `package.json` declara uma faixa aceitável, e não uma versão. O *lockfile* registra a versão exata, o endereço e a soma de verificação de cada pacote da árvore, incluindo as dependências transitivas, garantindo instalações idênticas ao longo do tempo e entre máquinas.
+</details>
+
+**4. Por que `npm ci` é preferível a `npm install` em integração contínua?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque instala exatamente o que está no *lockfile*, apagando `node_modules` antes, e falha quando `package.json` e `package-lock.json` estão fora de sincronia. Essa falha revela que alguém mudou dependências sem versionar o *lockfile*.
+</details>
+
+## Referências
+
+- [About semantic versioning | npm Docs](https://docs.npmjs.com/about-semantic-versioning)
+- [package-lock.json | npm Docs](https://docs.npmjs.com/cli/configuring-npm/package-lock-json)
+- [npm ci | npm Docs](https://docs.npmjs.com/cli/commands/npm-ci)
+- [npm audit | npm Docs](https://docs.npmjs.com/cli/commands/npm-audit)
+- [Semantic Versioning 2.0.0](https://semver.org/lang/pt-BR/)
+
+## Próximo tópico
+
+Com as dependências sob controle, siga para [Scripts e npx](../scripts/): como transformar comandos longos em atalhos do projeto e executar binários sem instalação global.
