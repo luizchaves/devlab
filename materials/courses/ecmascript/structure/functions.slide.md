@@ -14,7 +14,6 @@ style: |
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding-bottom: 0;
   }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);

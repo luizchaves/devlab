@@ -8,6 +8,7 @@ style: |
     flex-direction: column;
     justify-content: flex-start;
     padding-bottom: 70px;
+    font-size: 1.5rem;
   }
   section.lead {
     justify-content: center;

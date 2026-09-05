@@ -14,10 +14,13 @@ style: |
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding-bottom: 0;
   }
   section::after {
     content: attr(data-marpit-pagination) ' / ' attr(data-marpit-pagination-total);
+    position: absolute;
+    bottom: 24px;
+    right: 32px;
+    padding: 0;
     font-size: 0.6em;
     color: #71717a;
   }
