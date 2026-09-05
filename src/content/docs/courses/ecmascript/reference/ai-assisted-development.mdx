@@ -1,0 +1,655 @@
+---
+title: "JavaScript: Desenvolvimento Assistido por IA"
+description: "Guia prático de uso de assistentes de código em projetos JavaScript: contexto do projeto, anatomia do prompt, catálogo de pedidos por tarefa, verificação executável, armadilhas por tópico da linguagem, segurança e revisão antes do merge."
+course: ecmascript
+sidebar:
+  label: "Desenvolvimento com IA"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico reúne, em uma única página, as práticas de uso de assistentes de código em projetos JavaScript. Cada tópico do guia já discute o que a inteligência artificial erra no seu próprio assunto; aqui a discussão sobe um nível e passa a tratar do projeto inteiro: como dar contexto ao assistente, como formular o pedido, como provar que o código gerado faz o que promete e o que conferir antes do *merge*.
+
+O ponto de partida é uma constatação simples. Escrever JavaScript ficou barato, e revisar JavaScript continua custando o mesmo de sempre. Quando a geração acelera e a revisão não acompanha, a diferença não desaparece: ela é paga depois, em produção.
+
+## Objetivo
+
+Compreender o uso de assistentes de código em projetos JavaScript como uma disciplina de engenharia, na qual a geração é a etapa mais barata e a especificação e a verificação concentram o trabalho real. Ao final do tópico, o leitor deve ser capaz de:
+
+- Preparar o contexto do projeto (ambiente, versão, convenções e arquivo de exemplo) antes de qualquer pedido a um assistente.
+- Formular *prompts* que produzam código verificável, com dialeto, limites, casos válidos e casos inválidos explícitos.
+- Escolher o pedido adequado a cada tarefa, da geração inicial à explicação de código herdado, à refatoração e à investigação de defeito.
+- Provar o comportamento do código gerado com o executor de testes nativo do Node.js e com as demais checagens do projeto.
+- Reconhecer as armadilhas recorrentes do JavaScript gerado por IA e localizar, em cada tópico do guia, o tratamento detalhado de cada uma.
+- Identificar os limites do próprio modelo, como falta de contexto, delírio e concordância excessiva, pelo sintoma que cada um produz.
+- Transformar convenções escritas em verificações mecânicas e organizar revisão automatizada como camada adicional, nunca substituta.
+- Avaliar riscos de segurança, de dependências inexistentes e de vazamento de informação antes de aceitar uma sugestão.
+
+## O que muda no fluxo de trabalho
+
+A entrada de um assistente no projeto não acrescenta uma etapa ao fluxo: ela redistribui o peso das etapas que já existiam. Escrever deixa de ser o gargalo, e o gargalo passa a ser decidir o que deve ser escrito e conferir o que foi entregue.
+
+O diagrama mostra esse deslocamento no percurso de uma tarefa, da abertura da demanda até o *merge*:
+
+<Mermaid title="Percurso de uma tarefa em projeto JavaScript com assistente de código">
+{`
+flowchart TD
+  A["Demanda aberta<br/>requisito em texto livre"] --> B["Especificar<br/>contrato, limites e casos inválidos"]
+  B --> C["Preparar contexto<br/>versão, package.json e arquivo vizinho"]
+  C --> D["Gerar com IA<br/>código e explicação"]
+  D --> E["Verificar<br/>node --test, lint e execução real"]
+  E --> F{"O contrato foi cumprido?"}
+  F -->|"Não"| G["Refinar o pedido<br/>com o caso que falhou"]
+  G --> D
+  F -->|"Sim"| H["Revisar como código de terceiro<br/>segurança, dependências e legibilidade"]
+  H --> I["Merge com testes versionados"]
+`}
+</Mermaid>
+
+As duas caixas antes da geração são as que a pressa costuma pular, e são justamente as que determinam a qualidade da resposta. As duas caixas depois da geração são as que ninguém pode delegar.
+
+A tabela separa o que os assistentes absorveram do que permanece com quem assina o *commit*:
+
+| O que mudou com a IA | O que permanece com a pessoa desenvolvedora |
+| :--- | :--- |
+| Lembrar assinaturas, sintaxe e o nome exato de cada método da biblioteca padrão. | Definir o que é entrada válida, o que deve ser rejeitado e o que a função devolve. |
+| Escrever a primeira versão de uma função, de um teste ou de uma refatoração. | Julgar se a solução cabe na arquitetura e nas convenções do projeto. |
+| Explicar código herdado trecho a trecho, em linguagem natural. | Confirmar a explicação executando o código, e não confiando no texto. |
+| Sugerir alternativas, contraexemplos e casos de borda quando solicitado. | Decidir o que fazer quando um caso falha e o que entra na suíte de testes. |
+| Traduzir entre linguagens, versões e sistemas de módulos. | Responder pela segurança, pelo desempenho e pela manutenção do resultado. |
+
+## Contexto do projeto: o que o assistente não adivinha
+
+Boa parte do código gerado que não roda tem uma causa única: o modelo respondeu para o projeto médio da internet, e não para este projeto. Um assistente não sabe qual versão do Node.js está instalada, se o repositório usa módulos ES ou CommonJS, se o *lint* proíbe `console.log` nem se a equipe prefere exportações nomeadas.
+
+A tabela reúne o contexto que muda a resposta, com o custo de informá-lo, quase sempre uma linha:
+
+| Contexto | Como informar | O que evita |
+| :--- | :--- | :--- |
+| **Ambiente e versão** | *"Node.js 22, módulos ES"* ou *"navegador moderno, sem bibliotecas"* | Respostas com `require`, `__dirname` ou `document` fora de lugar. |
+| **`package.json`** | Colar o trecho com `type`, `engines` e `scripts` | Sintaxe incompatível e sugestão de dependências já presentes. |
+| **Dependências permitidas** | *"sem bibliotecas externas"* ou a lista real | O `npm install` desnecessário para o que a plataforma resolve. |
+| **Arquivo vizinho do projeto** | Colar um arquivo já revisado como exemplo de estilo | Código correto porém estranho ao padrão do repositório. |
+| **Ferramentas de qualidade** | *"o projeto usa Biome com regra X"* | Sugestões que o *lint* rejeita no primeiro `pnpm lint`. |
+| **Formato do dado real** | Colar um objeto ou uma resposta de API de verdade | Suposições sobre nomes de campos e níveis de aninhamento. |
+
+Colar um arquivo real do projeto vale mais do que qualquer descrição escrita sobre estilo: o modelo copia a convenção que enxerga, e o exemplo mais próximo no contexto passa a ser o seu código, não o material de treino.
+
+Em repositórios que usam assistentes com frequência, esse contexto deixa de ser digitado a cada pedido e passa a morar em um arquivo versionado na raiz, lido automaticamente pela ferramenta:
+
+```md title="AGENTS.md (trecho de exemplo)"
+# Convenções deste projeto
+
+- Node.js 22 com módulos ES (`"type": "module"`). Todo caminho relativo termina em `.js`.
+- Módulos internos sempre com prefixo `node:` (`import fs from "node:fs"`).
+- Exportações nomeadas; `export default` apenas em componentes de página.
+- Testes com `node --test` e `node:assert/strict`. Nada de Jest ou Mocha.
+- Sem dependências novas sem justificativa no README do projeto.
+```
+
+<Aside type="tip" title="Dica de IA: Trate o arquivo de contexto como parte do código">
+  Um `AGENTS.md` desatualizado é pior do que a ausência dele, porque o assistente segue com confiança uma convenção que a equipe já abandonou. Revise-o no mesmo *pull request* em que a convenção muda, do mesmo modo que se atualiza o `README.md`.
+
+  **Prompt:** *"Leia o AGENTS.md deste repositório e liste os pontos em que o código que acabei de escrever contraria as convenções declaradas nele."*
+</Aside>
+
+## Instrução escrita não é garantia de execução
+
+Um `AGENTS.md` bem escrito melhora muito a qualidade das respostas, e não transforma o assistente em uma ferramenta determinística. Modelos de linguagem produzem a continuação mais provável do texto que enxergam, e nada nesse mecanismo garante que uma regra escrita na linha 40 de um arquivo de convenções seja aplicada na função gerada dez minutos depois.
+
+Esse desvio tem causas conhecidas, e todas se agravam em sessões longas:
+
+| Causa | Como se manifesta | O que reduz o efeito |
+| :--- | :--- | :--- |
+| **Instrução distante do pedido** | A convenção foi lida no início da sessão e ignorada na décima resposta. | Repetir a regra crítica no próprio *prompt*, não só no arquivo de contexto. |
+| **Excesso de regras** | Um arquivo com sessenta itens dilui todos eles. | Manter poucas regras invioláveis e mover o resto para *lint* e testes. |
+| **Regras que se contradizem** | Duas seções pedem coisas incompatíveis, e o modelo escolhe uma. | Revisar o arquivo procurando conflito, do mesmo modo que se revisa código. |
+| **Contexto longo** | A conversa acumulou arquivos, saídas de terminal e diffs, e o começo perdeu peso. | Recomeçar a sessão quando a tarefa mudar, colando de novo o essencial. |
+| **Ambiguidade da regra** | "Prefira exportações nomeadas" deixa margem; "não use `export default`" não. | Escrever a convenção como restrição verificável, não como preferência. |
+| **Natureza probabilística** | O mesmo pedido, repetido, produz respostas diferentes. | Não confiar em ter conferido "aquela vez"; conferir a cada entrega. |
+
+A conclusão prática é desconfortável e simples: **toda regra que só existe como texto é uma regra que às vezes será violada**. Um arquivo de contexto reduz a frequência do erro; ele não cria uma barreira.
+
+### Onde a regra deve morar
+
+A pergunta útil ao definir uma convenção não é "onde eu escrevo isso?", e sim "o que acontece se alguém, humano ou não, ignorar?". A tabela ordena os mecanismos do mais frágil ao mais confiável:
+
+| Mecanismo | O que acontece se a regra for ignorada | Confiabilidade |
+| :--- | :--- | :--- |
+| Frase no `AGENTS.md` ou no PRD | Nada. A violação segue para a revisão humana. | Baixa: orienta, não impede. |
+| Regra de *lint* ou formatador | O comando falha localmente e no CI. | Alta, para o que é sintático. |
+| Teste automatizado | A suíte quebra e aponta o comportamento errado. | Alta, para o que é comportamento. |
+| *Hook* de pré-commit | O *commit* é recusado antes de sair da máquina. | Alta, quando a equipe não o desativa. |
+| Verificação no CI | O *pull request* fica bloqueado até passar. | A mais alta: independe de quem escreveu. |
+
+O caminho de amadurecimento de uma convenção segue essa ordem. Ela nasce como frase no arquivo de contexto, e quando passa a ser violada com frequência, é sinal de que precisa virar regra de *lint*, teste ou verificação de CI. Nesse ponto ela deixa de depender de qualquer leitura, humana ou automática.
+
+<Aside type="caution" title="Dica de IA: A regra repetida no prompt vale mais que a regra distante">
+  Quando uma convenção é crítica para a tarefa em andamento, repita-a no pedido, mesmo que ela já esteja escrita no `AGENTS.md`. A instrução mais próxima do pedido é a que mais pesa na resposta, e custa uma linha.
+
+  **Prompt:** *"Antes de gerar, repita quais convenções deste projeto se aplicam a esta tarefa e como você vai cumpri-las. Depois escreva o código seguindo exatamente o que você listou."*
+</Aside>
+
+### Agentes revisores: a segunda leitura que não é a sua
+
+Se a primeira leitura do código gerado é feita por quem pediu, ela herda o mesmo ponto cego: quem especificou a tarefa tende a ler o resultado procurando o que esperava encontrar. Uma segunda passagem, feita por um agente com instruções **de revisão** e não de geração, encontra outra classe de problemas.
+
+O ponto essencial é que o revisor não pode ser o mesmo pedido. Ele precisa de contexto próprio, de critérios explícitos e, de preferência, de uma sessão separada, sem o histórico que produziu o código:
+
+| Característica do revisor | Por que importa |
+| :--- | :--- |
+| **Sessão separada** | Sem o histórico da geração, o agente não defende as escolhas que ele mesmo fez. |
+| **Critérios explícitos** | "Revise" devolve elogio; uma lista de verificações devolve achados. |
+| **Escopo no diff** | Revisar o repositório inteiro dilui a atenção; revisar o diff concentra. |
+| **Saída acionável** | Peça arquivo, linha e o defeito concreto, não uma avaliação geral. |
+| **Direito de dizer que está bom** | Um revisor obrigado a achar problemas inventa problemas. |
+
+O pedido abaixo transforma essas características em um *prompt* de revisão reaproveitável:
+
+```txt title="Prompt de revisão para um agente revisor"
+Você é revisor deste pull request. Não escreva código novo.
+
+Analise apenas o diff e verifique, item a item:
+1. as convenções do AGENTS.md deste repositório foram seguidas?
+2. algum trecho altera dado recebido por parâmetro sem que isso esteja no contrato?
+3. existe erro capturado e engolido, sem tradução, contexto ou repropagação?
+4. há caminho novo sem teste, principalmente entrada inválida e lista vazia?
+5. alguma dependência foi adicionada? ela existe e é necessária?
+
+Para cada achado, responda no formato: arquivo:linha, o problema em uma frase e a
+correção sugerida. Se um item estiver correto, diga que está correto e siga.
+```
+
+Vale lembrar que o revisor é um modelo de linguagem com as mesmas limitações do gerador: ele erra por excesso, apontando problemas inexistentes, e por omissão, deixando passar defeitos reais. A revisão automatizada **adiciona** uma camada, e não substitui a leitura de quem assina o *commit*, nem a suíte de testes, nem o CI.
+
+## Anatomia de um prompt que produz código verificável
+
+Um modelo acerta na proporção da clareza do pedido. "Uma função que valida o formulário" devolve um palpite sobre o que é o formulário; formato, limites, exemplos válidos e exemplos inválidos devolvem algo que pode ser testado antes de ser lido.
+
+Os seis elementos abaixo aparecem nos *prompts* de todos os tópicos deste guia, e a ausência de qualquer um deles tem um sintoma característico:
+
+| Elemento | Sintoma quando falta |
+| :--- | :--- |
+| **Dialeto e ambiente** (ECMAScript, versão, Node.js ou navegador) | Sintaxe de outra linguagem ou de outro sistema de módulos. |
+| **Contrato** (assinatura, retorno, erros e efeitos colaterais) | Função que devolve `undefined` no caso inválido e engole o problema. |
+| **Limites** (tamanho, faixa numérica, quantidade de itens) | Quantificadores abertos, `Promise.all` sem lote e laços sem proteção. |
+| **Exemplos que devem funcionar** | Regra de negócio interpretada por adivinhação. |
+| **Exemplos que devem falhar** | O elemento mais esquecido, e o que mais revela solução frouxa. |
+| **Pedido de explicação e de riscos** | Uma linha mágica que ninguém da equipe consegue revisar. |
+
+O *prompt* a seguir aplica os seis elementos a uma tarefa comum de projeto Web:
+
+```txt title="Prompt de especificação para uma função de projeto"
+Ambiente: Node.js 22, módulos ES, sem bibliotecas externas.
+
+Escreva a função normalizeEnrollment(input) que prepara o dado de matrícula
+antes de gravar no banco.
+
+Contrato:
+- input é o corpo de uma requisição HTTP, portanto não confiável;
+- devolve { enrollment, registeredAt } ou lança ValidationError;
+- enrollment: string de 11 dígitos, sem espaços nem separadores;
+- registeredAt: instante em UTC, no formato ISO completo;
+- a função NÃO pode alterar o objeto input.
+
+Devem passar: { enrollment: " 20261234567 " }, { enrollment: "19993456789" }
+Devem falhar: { enrollment: "2026123456" }, { enrollment: "2026-123456" }, {}
+
+Responda com a função, a explicação de cada decisão, os casos de borda que
+a implementação não cobre e os riscos de segurança que você enxerga.
+```
+
+Repare que o pedido não descreve **como** implementar. Ele descreve o comportamento observável, que é exatamente o que os testes vão verificar depois.
+
+## Catálogo de pedidos por tarefa
+
+Nem toda interação com um assistente é geração de código. As tarefas abaixo cobrem a maior parte do dia a dia em um projeto JavaScript, e cada uma tem uma formulação que funciona melhor do que "me ajuda com isso".
+
+### Gerar, explicar e testar
+
+Estas três tarefas formam o ciclo mais frequente, e a ordem entre elas importa: gerar sem testar produz dívida, e explicar antes de alterar evita reescrever o que já funcionava.
+
+| Tarefa | Prompt sugerido |
+| :--- | :--- |
+| **Gerar com contrato** | *"Ambiente Node.js 22, módulos ES. Escreva `<função>` com esta assinatura, este retorno e este comportamento de erro; devem passar `<exemplos>` e devem falhar `<exemplos>`."* |
+| **Explicar trecho denso** | *"Explique esta função trecho a trecho, dizendo o que cada linha faz com argumentos ausentes, `null` e objetos recebidos por referência."* |
+| **Escrever testes** | *"Escreva testes com `node:test` e `node:assert/strict` para esta função, cobrindo caso feliz, lista vazia, tipos trocados e a garantia de que a entrada não é alterada."* |
+| **Buscar contraexemplos** | *"Liste dez entradas que fazem esta função devolver resultado incorreto ou lançar erro, e explique a causa de cada uma."* |
+| **Revisar como terceiro** | *"Revise este diff como se fosse código de um desconhecido: aponte mutação inesperada, erro engolido, dependência desnecessária e falta de caso negativo."* |
+
+### Refatorar, migrar e investigar
+
+O segundo grupo trata de código que já existe, e é onde o assistente costuma render mais, porque o comportamento esperado já está definido pelo próprio sistema em funcionamento.
+
+| Tarefa | Prompt sugerido |
+| :--- | :--- |
+| **Refatorar sem mudar comportamento** | *"Reescreva este trecho mantendo exatamente o mesmo comportamento observável. Liste o que mudou e o que garante a equivalência."* |
+| **Reduzir aninhamento** | *"Reescreva com cláusulas de guarda: trate os casos inválidos primeiro, com `return` antecipado e sem `else`."* |
+| **Migrar CommonJS para ESM** | *"Converta este módulo de CommonJS para módulos ES: `import`/`export`, extensão `.js` nos caminhos relativos, prefixo `node:` e substituição de `__dirname`."* |
+| **Remover dependência** | *"Reescreva este trecho sem a biblioteca, usando apenas recursos nativos do Node.js 22. Se algo não tiver equivalente nativo, diga o quê."* |
+| **Investigar um defeito** | *"Este é o erro, esta é a pilha e este é o trecho. Liste três hipóteses para a causa, ordenadas por probabilidade, e diga o que eu executo para descartar cada uma."* |
+| **Nomear** | *"Sugira três nomes para esta função e para estas variáveis, considerando que o domínio é `<domínio>`. Explique o que cada nome comunica."* |
+
+<Aside type="caution" title="Dica de IA: Peça hipóteses, não a correção imediata">
+  Diante de um erro, a resposta padrão de um assistente é aplicar uma correção plausível ao trecho mostrado, e a correção plausível costuma tratar o sintoma. Uma sessão de depuração assistida rende mais quando o pedido inverte a ordem: primeiro as hipóteses, depois o experimento que distingue uma da outra, e só então o código.
+
+  **Prompt:** *"Não corrija ainda. A partir desta mensagem de erro e desta pilha, liste três causas possíveis em ordem de probabilidade e, para cada uma, o comando ou o `console.log` que confirma ou descarta a hipótese."*
+</Aside>
+
+## Verificação: o que executar antes de acreditar
+
+Nenhuma leitura de código substitui a execução, e o Node.js atual traz o suficiente para verificar uma sugestão sem instalar nada. As quatro checagens abaixo cobrem, em segundos, a maior parte dos defeitos discutidos neste guia.
+
+O executor de testes nativo transforma a tabela de casos do *prompt* em prova versionada:
+
+```bash title="Terminal"
+node --test
+```
+
+A verificação de sintaxe detecta o arquivo que sequer chega a rodar, o que é comum em respostas que misturam sistemas de módulos:
+
+```bash title="Terminal"
+node --check src/services/enrollment.js
+```
+
+O modo de observação repete a suíte a cada alteração, o que encurta o ciclo entre refinar o *prompt* e conferir o resultado:
+
+```bash title="Terminal"
+node --test --watch
+```
+
+Em código de data, a mesma suíte precisa rodar em mais de um fuso, porque o defeito mais comum do tópico só aparece fora do fuso de quem escreveu:
+
+```bash title="Terminal"
+TZ=UTC node --test && TZ=America/Sao_Paulo node --test
+```
+
+A tabela relaciona cada checagem ao tipo de defeito que ela encontra:
+
+| Checagem | Comando | Defeito que revela |
+| :--- | :--- | :--- |
+| Testes | `node --test` | Contrato não cumprido, mutação da entrada, caso de borda esquecido. |
+| Sintaxe | `node --check arquivo.js` | Mistura de `import` e `module.exports`, sintaxe de outro dialeto. |
+| Fuso | `TZ=UTC node --test` | Data deslocada em um dia, cálculo dependente do relógio local. |
+| Lint e formatação | O comando do projeto | Convenção violada, variável não usada, `console.log` esquecido. |
+| Existência do pacote | `npm view <pacote>` | Dependência inventada pelo modelo, que não existe no registro. |
+
+<Aside type="tip" title="Dica de IA: Exija o teste junto do código, no mesmo pedido">
+  Pedir a função e depois os testes gera duas respostas independentes, e a segunda tende a testar apenas o que a primeira já faz. Quando o pedido é único, o modelo precisa conciliar as duas partes, e as inconsistências aparecem na própria resposta.
+
+  **Prompt:** *"Entregue a função e a suíte de testes em `node:test` na mesma resposta. Os testes precisam incluir pelo menos três casos que a função deve rejeitar e um que garanta que o argumento recebido não foi alterado."*
+</Aside>
+
+## Armadilhas do JavaScript gerado, por tópico
+
+As falhas de código JavaScript gerado por IA não são aleatórias: elas se concentram nos mesmos pontos da linguagem, e cada tópico deste guia trata do seu em profundidade. A tabela funciona como índice de revisão, com o sintoma de cada armadilha e o link para o tratamento completo.
+
+| Assunto | Armadilha característica | Onde aprofundar |
+| :--- | :--- | :--- |
+| **Variáveis** | `var` herdado de material anterior ao ES6, com escopo de função. | [Variáveis e Escopo](../../basics/variables/) |
+| **Tipos** | Checagem que para em `typeof value === "object"`, verdadeira para `null` e arrays. | [Tipos de Dados e Coerção](../../basics/types/) |
+| **Operadores** | `==` no lugar de `===` e `||` onde o correto seria `??`. | [Expressões e Operadores](../../basics/operators/) |
+| **Funções** | Contrato implícito: mutação do argumento, `this` perdido em *arrow function*. | [Funções e Closures](../../structure/functions/) |
+| **Arrays** | `sort()` e `reverse()` alterando a lista de outra parte do código. | [Arrays e Métodos Funcionais](../../data/arrays/) |
+| **Objetos** | Cópia rasa apresentada como cópia, e clone por `JSON.parse(JSON.stringify(...))`. | [Objetos, Classes e Protótipos](../../data/objects/) |
+| **Strings** | `length` tratado como número de caracteres, e busca que ignora acentuação. | [Strings e Template Literals](../../data/strings/) |
+| **Números** | Cálculo financeiro em ponto flutuante, corrigido na aparência com `toFixed()`. | [Numbers, BigInt e Math](../../data/numbers/) |
+| **Datas** | Data ISO sem hora deslocada em um dia pela conversão de fuso. | [Date e Manipulação de Datas](../../stdlib/date/) |
+| **Assíncrono** | `await` em fila para chamadas independentes, e `await` dentro de `forEach()`. | [Async/Await](../../async/async-await/) |
+| **Promises** | `new Promise()` embrulhando o que já era promessa, e `.catch()` no meio da cadeia. | [Promises](../../async/promises/) |
+| **Erros** | `catch` que registra no console, devolve valor padrão e segue em frente. | [Tratamento de Erros](../../structure/errors/) |
+| **Módulos** | Mistura de `require` e `import`, extensão omitida e `__dirname` em ESM. | [Módulos ES (ESM)](../../structure/modules/) |
+| **RegExp** | Sintaxe de Python ou PCRE aceita em silêncio, e padrão sem âncoras. | [Expressões Regulares](../../stdlib/regex/) |
+| **Dependências** | Pacote sugerido para o que `Intl`, `fetch` ou `crypto` já resolvem. | [Objetos Globais e Nativos](../../stdlib/built-ins/) |
+| **Versões** | Sintaxe de proposta não padronizada, ou desconhecimento de recurso recente. | [Evolução e TC39](../../evolution/tc39/) |
+
+Uma característica une a maior parte das linhas: **o código roda**. Nenhuma dessas armadilhas produz erro imediato no caminho feliz, e é por isso que a revisão de código gerado precisa ser guiada por uma lista, e não pela impressão de que está tudo certo.
+
+## Os limites do modelo: contexto, delírio e concordância
+
+As armadilhas da seção anterior são de JavaScript. Estas são do próprio assistente, e aparecem em qualquer linguagem. Reconhecê-las pelo sintoma é o que separa quem usa a ferramenta de quem é usado por ela.
+
+A tabela reúne os cinco comportamentos que mais custam tempo em projeto real:
+
+| Comportamento | Sintoma no dia a dia | Como se proteger |
+| :--- | :--- | :--- |
+| **Falta de contexto** | Código correto para um projeto genérico e errado para o seu, com convenções e arquitetura ignoradas. | Colar `package.json`, arquivo vizinho e o dado real antes de pedir. |
+| **Delírio (alucinação)** | Método, opção de configuração, pacote ou trecho de documentação que **não existe**, descrito com total segurança. | Conferir na MDN ou no `node --eval` antes de usar; nomes de pacote, no registro. |
+| **Concordância excessiva** | Você questiona uma resposta correta e o modelo recua, reescreve e piora o código. | Perguntar de forma neutra: *"esta função está certa? justifique"*, sem sugerir a resposta. |
+| **Perda de contexto na sessão longa** | A partir de certo ponto, instruções do início são ignoradas e o modelo repete código já descartado. | Recomeçar a sessão a cada tarefa nova, recolando o essencial. |
+| **Confiança uniforme** | A resposta certa e a resposta inventada chegam com o mesmo tom seguro. | Tratar a segurança do texto como estilo, nunca como evidência. |
+
+O delírio é o mais perigoso dos cinco, porque nada no texto o denuncia. O trecho abaixo mostra a forma típica em JavaScript, um método plausível que a linguagem não tem:
+
+```js title="Método que não existe, sugerido com segurança"
+const scores = [7, 9, 6];
+
+// Sugestão plausível: parece existir, combina com o padrão dos outros métodos
+// console.log(scores.sum());        // TypeError: scores.sum is not a function
+// console.log(scores.last());       // TypeError: scores.last is not a function
+
+// O que a linguagem realmente oferece
+console.log(scores.reduce((total, value) => total + value, 0)); // 22
+console.log(scores.at(-1));                                     // 6
+```
+
+A verificação custa um comando. Antes de aceitar qualquer método desconhecido, pergunte ao próprio Node.js, que não tem opinião:
+
+```bash title="Terminal"
+node --eval "console.log(typeof [].sum, typeof [].at, typeof Object.groupBy)"
+```
+
+```txt title="Output"
+undefined function function
+```
+
+A concordância excessiva é mais sutil e igualmente cara. Quando a pergunta carrega a dúvida ("não seria melhor usar `forEach` aqui?"), o modelo tende a acompanhar a sugestão de quem pergunta, mesmo quando a versão original estava correta. Perguntar sem embutir a resposta desejada muda o resultado.
+
+<Aside type="caution" title="Dica de IA: O código é seu no momento em que você abre o pull request">
+  Nenhuma parte da responsabilidade é transferida junto com o código gerado. Não existe, na revisão, na produção nem no incidente, a categoria "erro do assistente": existe código que alguém aprovou. Por isso o uso responsável não é uma questão de confiança na ferramenta, e sim de ter meios próprios de descobrir o erro antes do usuário: **testes que provam o comportamento**, **execução real do que foi gerado**, **explicação que você consegue reproduzir** e **verificações mecânicas** que não dependem de ninguém ter lembrado da regra. Quando faltar qualquer um desses meios, o certo é reduzir o tamanho da entrega, não aumentar a confiança.
+
+  **Prompt:** *"Assuma que este código vai para produção hoje e que eu respondo por ele. Liste o que ainda não está provado por teste, o que depende de suposição sua sobre o projeto e o que você não tem como garantir a partir do contexto que recebeu."*
+</Aside>
+
+## Segurança, dependências e informação sensível
+
+Os riscos desta seção não aparecem em teste de comportamento, e por isso merecem verificação própria antes do *merge*.
+
+### Dependências que não existem
+
+Modelos de linguagem geram nomes de pacote com a mesma fluência com que geram código, e alguns desses nomes simplesmente não existem no registro. O risco não é o `npm install` falhar, e sim o oposto: nomes inventados recorrentes viram alvo de registro malicioso por terceiros, que publicam um pacote real com aquele nome exato.
+
+A conferência custa um comando antes de qualquer instalação:
+
+```bash title="Terminal"
+npm view express-validator-pro
+```
+
+```txt title="Output"
+npm error code E404
+npm error 404 Not Found - GET https://registry.npmjs.org/express-validator-pro
+npm error 404 'express-validator-pro@*' is not in this registry.
+```
+
+Além da existência, vale conferir a data da última publicação, o número de mantenedores e se o pacote realmente é usado pela comunidade, em vez de confiar na descrição convincente que acompanhou a sugestão.
+
+### Informação que não deve entrar no prompt
+
+Tudo que é colado em um assistente sai da máquina e, dependendo do serviço e do plano contratado, pode ser retido. A regra prática é tratar o campo de *prompt* como um canal externo, com o mesmo critério aplicado a um repositório público.
+
+| Nunca cole | Alternativa |
+| :--- | :--- |
+| Conteúdo do `.env`, chaves de API e senhas | Substitua por valores fictícios (`API_KEY=xxx`) antes de colar. |
+| Dados pessoais reais de usuários | Troque por dados de exemplo com o mesmo formato. |
+| Trechos de código sob contrato de confidencialidade | Reduza ao mínimo reproduzível, sem identificadores do cliente. |
+| Credenciais de banco de dados e cadeias de conexão | Descreva o esquema, não a conexão. |
+
+<Aside type="caution" title="Dica de IA: Reduza ao mínimo reproduzível antes de colar">
+  Colar o arquivo inteiro por comodidade é o que leva chave de API e dado de cliente para dentro do *prompt*. Isolar o trecho relevante melhora a resposta, porque remove ruído do contexto, e elimina o risco no mesmo movimento.
+
+  **Prompt:** *"Este é o menor trecho que reproduz o problema, com valores fictícios no lugar dos dados reais. Explique a causa considerando apenas o que está aqui e diga qual informação adicional você precisaria."*
+</Aside>
+
+### Código gerado é código de terceiro
+
+Uma sugestão de assistente entra no projeto com o mesmo status de um trecho copiado de um fórum: ninguém da equipe a escreveu, ninguém a revisou e ela pode reproduzir, palavra por palavra, código de origem desconhecida. A responsabilidade pelo que chega à produção é de quem abre o *pull request*.
+
+Na prática, isso significa três compromissos: não aprovar o que não se consegue explicar, não versionar sem teste o que decide regra de negócio e não descrever no *pull request* como "pequeno ajuste" um trecho que ninguém leu.
+
+## Resumo e Boas Práticas
+
+As práticas abaixo consolidam as decisões desta página. Use a tabela como lista de conferência ao trabalhar com um assistente em qualquer projeto JavaScript:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Informe ambiente, versão e sistema de módulos em todo pedido. | Elimina de saída respostas com `require`, `__dirname` ou APIs de navegador fora de contexto. |
+| Escreva o contrato antes do pedido, não depois. | O que não estiver no *prompt* será decidido por adivinhação estatística. |
+| Inclua sempre exemplos que devem falhar. | É o elemento mais esquecido e o que mais revela solução frouxa. |
+| Peça o código e os testes na mesma resposta. | Obriga o modelo a conciliar as duas partes e expõe inconsistências. |
+| Execute antes de ler com atenção. | `node --test` e `node --check` encontram em segundos o que a leitura demora a perceber. |
+| Peça a explicação de todo trecho que você não escreveria. | Código que ninguém consegue explicar não deveria ser aprovado. |
+| Confira a existência real de qualquer pacote sugerido. | Nomes inventados são alvo conhecido de registro malicioso. |
+| Nunca cole segredos, credenciais ou dado pessoal real. | O campo de *prompt* é um canal externo, como um repositório público. |
+| Trate código gerado como código de terceiro. | A responsabilidade pela produção é de quem abre o *pull request*. |
+| Versione a tabela de casos junto com o código. | Protege contra a próxima sugestão que reintroduza o mesmo defeito. |
+| Repita no pedido a convenção crítica que já está no `AGENTS.md`. | Instrução distante do *prompt* é seguida com menos frequência. |
+| Promova a regra recorrentemente violada a *lint*, teste ou CI. | Frase em arquivo de contexto orienta; verificação mecânica impede. |
+| Rode a revisão em uma sessão separada, com critérios explícitos. | Sem o histórico da geração, o agente não defende as próprias escolhas. |
+| Confirme a existência de todo método e opção desconhecidos. | O delírio chega com o mesmo tom seguro de uma resposta correta. |
+| Pergunte sem embutir a resposta que você espera. | A concordância excessiva faz o modelo abandonar uma solução correta. |
+
+O exemplo final reúne essas decisões em um fluxo executável, do pedido à prova:
+
+```js title="enrollment.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { normalizeEnrollment } from "./enrollment.js";
+
+test("aceita matrícula válida e normaliza espaços", () => {
+  const input = { enrollment: " 20261234567 " };
+
+  assert.equal(normalizeEnrollment(input).enrollment, "20261234567");
+  assert.deepEqual(input, { enrollment: " 20261234567 " }); // entrada intacta
+});
+
+test("rejeita matrícula com tamanho ou formato inválido", () => {
+  for (const value of ["2026123456", "2026-123456", "", undefined]) {
+    assert.throws(() => normalizeEnrollment({ enrollment: value }));
+  }
+});
+```
+
+## Exercício
+
+Este exercício percorre o ciclo completo desta página em uma tarefa pequena. Use o assistente de sua preferência e registre as respostas, pois a comparação entre a primeira e a última versão é o objetivo do exercício.
+
+1. Peça a um assistente, sem nenhum contexto, "uma função JavaScript que valide um CEP" e guarde a resposta;
+2. Escreva o contrato completo dessa função: assinatura, retorno, comportamento com entrada inválida, permissão ou não de mutação e ambiente de execução;
+3. Refaça o pedido incluindo o contrato, três exemplos que devem passar e cinco que devem falhar, entre eles espaços nas bordas e texto ao redor;
+4. Peça, em um segundo pedido, dez entradas que a função aceita e não deveria aceitar;
+5. Escreva a suíte em `node:test` com todos os casos reunidos e execute com `node --test`;
+6. Corrija a implementação até a suíte passar e anote quantas cláusulas do contrato a primeira resposta havia ignorado;
+7. Peça a explicação da versão final trecho a trecho e confirme cada afirmação executando o código.
+
+A comparação entre o passo 1 e o passo 6 costuma ser o argumento mais convincente a favor de especificar antes de gerar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A primeira resposta quase sempre devolve algo como `/\d{5}-\d{3}/`, sem âncoras, sem tratar espaços e aceitando texto ao redor do padrão. O contrato do passo 2 costuma revelar pelo menos quatro decisões não declaradas: se o hífen é obrigatório, se espaços nas bordas são aceitos, se a função devolve booleano ou lança erro e se o CEP normalizado é devolvido.
+
+  ```js title="cep.js"
+  const CEP_PATTERN = /^\d{5}-\d{3}$/;
+
+  export function normalizeCep(value) {
+    if (typeof value !== "string") {
+      throw new TypeError("CEP deve ser uma string");
+    }
+
+    const trimmed = value.trim();
+
+    if (!CEP_PATTERN.test(trimmed)) {
+      throw new RangeError(`CEP inválido: ${JSON.stringify(value)}`);
+    }
+
+    return trimmed;
+  }
+  ```
+
+  ```js title="cep.test.js"
+  import { test } from "node:test";
+  import assert from "node:assert/strict";
+  import { normalizeCep } from "./cep.js";
+
+  test("aceita CEP no formato oficial, com espaços nas bordas", () => {
+    assert.equal(normalizeCep(" 58015-430 "), "58015-430");
+  });
+
+  test("rejeita formatos inválidos", () => {
+    for (const value of ["58015430", "5801-430", "CEP 58015-430", "58015-43a", ""]) {
+      assert.throws(() => normalizeCep(value), RangeError);
+    }
+  });
+
+  test("rejeita valores que não são string", () => {
+    for (const value of [null, undefined, 58015430, {}]) {
+      assert.throws(() => normalizeCep(value), TypeError);
+    }
+  });
+  ```
+
+  O ponto do exercício não é a expressão regular, que a primeira resposta já continha em essência, e sim tudo o que só apareceu porque foi especificado: o recorte de espaços, a distinção entre `TypeError` e `RangeError`, a mensagem que inclui o valor recebido e a decisão de devolver o valor normalizado em vez de um booleano.
+</details>
+
+## Desafio
+
+Escolha um arquivo real de um projeto seu, com pelo menos cinquenta linhas e escrito há tempo suficiente para você não lembrar dos detalhes. Sem alterar o comportamento, conduza uma auditoria assistida completa e produza um relatório curto.
+
+1. Peça a explicação do arquivo trecho a trecho e confira cada afirmação executando o código;
+2. Peça a lista de entradas que quebram cada função exportada e transforme as confirmadas em testes;
+3. Percorra a tabela de armadilhas por tópico desta página e verifique quais se aplicam ao arquivo;
+4. Peça uma refatoração que preserve o comportamento observável e mantenha a suíte passando;
+5. Registre no relatório: quantos defeitos reais foram encontrados, quantos foram falsos positivos do assistente e quantas afirmações da explicação não se confirmaram na execução.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O resultado esperado não é um número específico, e sim o padrão que aparece com consistência: a explicação acerta a estrutura e erra detalhes de comportamento em casos de borda; a lista de entradas problemáticas contém acertos valiosos misturados com hipóteses que a execução descarta; e a refatoração proposta costuma ser correta em legibilidade e arriscada em um ou dois pontos, quase sempre onde havia mutação intencional ou tratamento de erro específico do domínio.
+
+  O relatório fica mais útil quando separa três colunas: defeito confirmado por teste, sugestão descartada por execução e dúvida que permaneceu. A terceira coluna costuma apontar exatamente os trechos que precisam de comentário ou de refatoração no projeto.
+</details>
+
+## Perguntas de revisão
+
+### Contexto e especificação
+
+**1. Por que informar a versão do Node.js e o sistema de módulos muda a qualidade da resposta?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o padrão estatístico do material de treino é CommonJS e versões antigas da linguagem. Sem a informação, o assistente responde para esse projeto médio, e a sugestão vem com `require`, `__dirname` ou sem recursos recentes como `toSorted()` e `import.meta.dirname`.
+</details>
+
+**2. Qual elemento do prompt é o mais esquecido e por que ele importa tanto?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Os exemplos que **devem falhar**. Sem eles, o modelo otimiza para o caminho feliz, e a solução aceita espaços nas bordas, texto ao redor, tipos trocados e valores fora da faixa sem lançar erro.
+</details>
+
+**3. Que vantagem existe em colar um arquivo do próprio projeto no pedido?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O modelo copia a convenção que enxerga no contexto. Um arquivo real já revisado alinha estilo de exportação, nomenclatura, tratamento de erro e organização melhor do que qualquer descrição escrita das convenções.
+</details>
+
+**4. Por que o pedido deve descrever o comportamento observável em vez da implementação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o comportamento observável é o que os testes conseguem verificar depois. Descrever a implementação restringe a solução sem garantir nada, enquanto descrever entrada, saída e erros produz um contrato que pode ser transformado em asserção.
+</details>
+
+### Verificação e revisão
+
+**5. Por que dois `console.log()` não constituem verificação de uma sugestão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque são amostragem do caminho feliz. As falhas típicas de código gerado, como mutação da entrada, cópia rasa, deslocamento de fuso e laço que não espera, não alteram a saída do caso demonstrado e só aparecem em asserções sobre estado, tipos e casos de borda.
+</details>
+
+**6. O que a checagem `node --check` revela que a leitura do código costuma deixar passar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Erros que impedem o arquivo de ser avaliado, principalmente a mistura de `import` com `module.exports` e sintaxe de outro dialeto, que passam despercebidos na leitura porque cada linha isolada parece correta.
+</details>
+
+**7. Por que uma suíte de testes de datas precisa rodar em mais de um fuso?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o defeito mais comum do tópico, uma data ISO sem hora interpretada como UTC e exibida no fuso local, não se manifesta em servidores configurados em UTC. Rodar com `TZ=UTC` e com o fuso do público expõe a diferença de um dia.
+</details>
+
+**8. Por que um pacote sugerido por um assistente precisa ser conferido antes da instalação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque modelos geram nomes de pacote plausíveis que podem não existir. Nomes inventados recorrentes viram alvo de registro malicioso, e o `npm install` de um nome sugerido pode instalar um pacote publicado justamente para explorar esse erro.
+</details>
+
+### Responsabilidade e limites
+
+**9. Em que sentido código gerado por IA equivale a código copiado de um fórum?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em origem e em responsabilidade: ninguém da equipe o escreveu, ele pode reproduzir código de procedência desconhecida e quem responde por ele em produção é quem abre o *pull request*, não a ferramenta que o sugeriu.
+</details>
+
+**10. Que informação nunca deve ser colada no campo de prompt e o que fazer no lugar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Conteúdo de `.env`, chaves de API, credenciais e dados pessoais reais. A alternativa é reduzir ao menor trecho reproduzível e substituir os valores por dados fictícios com o mesmo formato.
+</details>
+
+**11. Por que uma convenção escrita no `AGENTS.md` ainda assim é violada de vez em quando?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o modelo produz a continuação mais provável do contexto, e a instrução perde peso conforme a sessão cresce, conforme o número de regras aumenta e conforme surgem conflitos entre elas. O arquivo reduz a frequência do erro, mas não cria uma barreira: só *lint*, teste, *hook* e CI impedem de fato.
+</details>
+
+**12. O que caracteriza um agente revisor útil, e por que ele não substitui a revisão humana?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele roda em sessão separada, recebe critérios explícitos, olha apenas o diff, devolve arquivo, linha e defeito, e pode dizer que está correto. Não substitui a revisão humana porque é um modelo com as mesmas limitações do gerador: aponta problemas inexistentes e deixa passar defeitos reais.
+</details>
+
+**13. Como o delírio se distingue de um erro comum de código gerado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O erro comum é uma escolha ruim entre opções que existem; o delírio inventa o que não existe, como um método `Array.prototype.sum()` ou uma opção de configuração inexistente, apresentado com o mesmo tom seguro do restante da resposta. A checagem é externa ao modelo: documentação, `node --eval` ou o registro de pacotes.
+</details>
+
+**14. Por que a maior parte das armadilhas de JavaScript gerado exige lista de revisão em vez de leitura atenta?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o código roda e produz a saída esperada no caso demonstrado. Sem uma lista que force a verificação de mutação, cópia, fuso, concorrência e tratamento de erro, a impressão de que está tudo certo é justamente o que a sugestão produz.
+</details>
+
+## Referências
+
+Documentação oficial e material de apoio para as práticas desta página:
+
+- [Test runner | Node.js](https://nodejs.org/api/test.html) (executor de testes nativo e a *flag* `--test`)
+- [Assert | Node.js](https://nodejs.org/api/assert.html) (asserções de `node:assert/strict`)
+- [Command-line API | Node.js](https://nodejs.org/api/cli.html) (as *flags* `--check`, `--watch` e `--env-file`)
+- [npm view | npm Docs](https://docs.npmjs.com/cli/commands/npm-view) (consulta de metadados de um pacote no registro)
+- [JavaScript | MDN](https://developer.mozilla.org/pt-BR/docs/Web/JavaScript) (referência para confirmar assinaturas e comportamento)
+- [ECMAScript Language Specification (ECMA-262)](https://tc39.es/ecma262/) (texto normativo, para dirimir dúvidas de comportamento)
+
+## Próximo tópico
+
+Com o método de trabalho definido, use o [Guia de Referência](../cheat-sheet/) para conferir rapidamente as assinaturas, os parâmetros e os valores de retorno de qualquer método sugerido por um assistente.

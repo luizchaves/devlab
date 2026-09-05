@@ -715,6 +715,10 @@ export default defineConfig({
                   label: 'Casos "Bizarros"',
                   link: '/courses/ecmascript/reference/weird-cases/',
                 },
+                {
+                  label: 'Desenvolvimento com IA',
+                  link: '/courses/ecmascript/reference/ai-assisted-development/',
+                },
               ],
             },
           ],

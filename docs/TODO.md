@@ -10,7 +10,7 @@
   - [ ] `[TASK-001.3]` Tópicos avançados: Autenticação (JWT, OAuth2, OpenID Connect, 2FA, Passkeys, Refresh Token), GraphQL, WebSockets
   - [ ] `[TASK-001.4]` Segurança Web, OWASP Top 10 e prevenção de vulnerabilidades (CSRF, XSS, SQL Injection, SameSite cookies, CORS, etc.)
   - [ ] `[TASK-001.5]` Opções de deploy (Vercel, Railway, Render, Fly.io, Heroku, AWS, GCP, Azure — Free Tier vs Pago)
-  - [ ] `[TASK-001.6]` Guia de Uso de IA para desenvolvimento e especificação
+  - [x] `[TASK-001.6]` Guia de Uso de IA para desenvolvimento e especificação
 - [ ] **[TASK-002] Guia de Banco de Dados:**
   - [ ] `[TASK-002.1]` Adicionar seção sobre modelagem de dados (normalização, relacionamentos, chaves primárias e estrangeiras, índices)
   - [ ] `[TASK-002.2]` Exemplos práticos de modelagem para diferentes tipos de aplicações (e-commerce, redes sociais, sistemas financeiros, etc.)
