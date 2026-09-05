@@ -55,6 +55,28 @@ markmap:
 - Múltiplas Linhas (`/* ... */`): blocos de texto ou desativação temporária de código
 - Documentação JSDoc (`/** ... */`): padrão oficial com tags @param e @returns para autocompletar e inteligência no editor
 
+## Por Que Adotar, e Quando Não?
+- No navegador não há alternativa: toda interatividade passa por JavaScript
+### Vantagens
+- Onipresença: o ambiente de execução já está em cada computador e celular
+- Uma linguagem no cliente e no servidor, com validação compartilhada
+- Ecossistema npm: o maior registro de bibliotecas entre as linguagens
+- Padrão aberto ECMA-262, com uma edição por ano pelo TC39
+- Compatibilidade retroativa: nada é removido da linguagem
+- Concorrência de I/O barata pelo laço de eventos
+### Gargalos
+- Tipagem dinâmica e fraca: o erro aparece só em tempo de execução
+- Coerção implícita herdada das primeiras versões da web
+- Peso do legado: `var`, dois sistemas de módulos, três formas de função
+- Aritmética IEEE 754, sem inteiro nativo, delicada em cálculo financeiro
+- Uma única thread: processamento pesado bloqueia toda a aplicação
+- Árvore de dependências grande, com superfície de auditoria e segurança
+### Decisão por cenário
+- Página interativa: obrigatório
+- API de I/O e ferramenta de linha de comando: escolha natural
+- Regra de negócio extensa: sim, com TypeScript
+- Cálculo numérico, ciência de dados e tempo real: prefira outra linguagem
+
 ## Como Executar JavaScript?
 - Motor: interpreta, otimiza e executa o código.
 - Ambiente: define quais APIs estão disponíveis.

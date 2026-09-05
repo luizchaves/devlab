@@ -298,6 +298,61 @@ function applyDiscount(price, discount) {
 
 ---
 
+## Por Que Adotar?
+
+- **Navegador**: não há alternativa nativa; toda página interativa passa por aqui
+- **Uma linguagem nas duas pontas**: cliente e servidor no mesmo idioma
+- **Ecossistema npm**: o maior registro de bibliotecas entre as linguagens
+- **Padrão aberto**: ECMA-262 evolui no TC39, com uma edição por ano
+- **Compatibilidade retroativa**: nada é removido, código antigo continua rodando
+- **I/O concorrente barato**: milhares de conexões sem uma thread por conexão
+
+---
+
+## Gargalos da Adoção
+
+- **Tipagem dinâmica e fraca**: erro só aparece em tempo de execução
+- **Coerção implícita**: comparações e somas com resultado contraintuitivo
+- **Peso do legado**: `var`, dois sistemas de módulos e três formas de função
+- **Ponto flutuante**: todo número é IEEE 754, sem inteiro nativo
+- **Uma thread**: cálculo pesado bloqueia todo o resto
+- **Árvore de dependências**: superfície grande de auditoria e segurança
+
+---
+
+## I/O Não Bloqueia, Cálculo Bloqueia
+
+```js
+console.time("io");
+await new Promise((r) => setTimeout(r, 300)); // livre para outras tarefas
+console.timeEnd("io");
+
+console.time("cpu");
+let soma = 0;
+for (let i = 0; i < 2_000_000_000; i++) soma += i; // ocupa a única thread
+console.timeEnd("cpu");
+```
+
+```txt
+io: 301.405ms
+cpu: 1.357s
+```
+
+---
+
+## Quando Escolher Outra Linguagem?
+
+| Cenário | Escolha |
+| :--- | :--- |
+| Página web interativa | Obrigatório |
+| API orientada a I/O | Sim |
+| Regras de negócio extensas | Sim, com TypeScript |
+| Cálculo numérico intenso | Rust, C++, Go ou WebAssembly |
+| Ciência de dados | Python |
+| Tempo real rígido | Outra: o coletor de lixo torna a latência imprevisível |
+
+---
+
 ## Como Executar JavaScript?
 
 - O mesmo núcleo da linguagem pode ser executado em múltiplos ambientes

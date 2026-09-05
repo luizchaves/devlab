@@ -300,6 +300,88 @@ nomes de variáveis e funções.
   **Prompt:** *"Não escreva o código ainda. Explique quais passos eu preciso seguir para resolver este exercício, quais conceitos de JavaScript estão envolvidos e onde as pessoas costumam errar. Depois que eu tentar, revise o meu código apontando o erro sem corrigi-lo."*
 </Aside>
 
+## Por que adotar, e quando não adotar?
+
+Nenhuma linguagem é a escolha certa para tudo, e JavaScript é um caso extremo desse princípio: ela é obrigatória em um lugar, boa em vários e claramente inadequada em alguns. Esta seção reúne os argumentos dos dois lados para que a escolha seja consciente, e não por inércia.
+
+Vale começar pelo ponto que não é opinião: **no navegador não existe alternativa**. Todo código que roda dentro de uma página, com acesso ao DOM e aos eventos do usuário, é JavaScript ou algo que compila para JavaScript (TypeScript, Dart, Kotlin/JS) ou para WebAssembly. Fora do navegador, aí sim, a decisão é aberta.
+
+### O que pesa a favor?
+
+As vantagens abaixo explicam por que a linguagem saiu de uma tarefa específica no navegador e chegou a servidores, ferramentas de linha de comando e aplicações de celular:
+
+| Vantagem | O que significa na prática |
+| :--- | :--- |
+| **Onipresença no navegador** | Não é preciso instalar nada para executar: o ambiente já está em cada computador e celular. |
+| **Uma linguagem nas duas pontas** | O mesmo time escreve cliente e servidor, e regras de validação podem ser compartilhadas literalmente. |
+| **Ecossistema de pacotes** | O registro npm é o maior repositório de bibliotecas de qualquer linguagem, tratado no [Guia de Pacotes npm](../../../npm/). |
+| **Ciclo de feedback curto** | Sem etapa de compilação obrigatória: salvar e recarregar já mostra o resultado. |
+| **Padrão aberto e estável** | A especificação ECMA-262 evolui por [processo público no TC39](../../evolution/tc39/), com uma edição por ano. |
+| **Compatibilidade retroativa** | Código escrito há vinte anos continua executando nos motores atuais. |
+| **Concorrência de I/O barata** | O modelo de laço de eventos atende milhares de conexões simultâneas sem uma *thread* por conexão. |
+| **Mercado e comunidade** | Volume de vagas, material de estudo e respostas disponíveis para praticamente qualquer problema. |
+
+A compatibilidade retroativa merece destaque porque é uma decisão deliberada do comitê: **nada é removido da linguagem**. Isso dá uma garantia rara, a de que atualizar o motor não quebra o que já funciona, e é também a origem de boa parte das esquisitices tratadas adiante.
+
+### O que pesa contra?
+
+Os gargalos abaixo não são defeitos escondidos, são consequências conhecidas das mesmas decisões que dão as vantagens:
+
+| Gargalo | Origem | Como o ecossistema responde |
+| :--- | :--- | :--- |
+| **Tipagem dinâmica e fraca** | Projeto original voltado a scripts curtos e tolerantes a erro. | [TypeScript](../../../typescript/) para checagem em tempo de escrita, e testes automatizados. |
+| **Coerção implícita imprevisível** | Compatibilidade com as primeiras versões da web. | Comparar com `===`, converter explicitamente e conhecer os [casos estranhos](../../reference/weird-cases/). |
+| **Peso do legado na sintaxe** | Nada é removido: `var`, `with`, dois sistemas de módulos e três formas de declarar função convivem. | Convenções de equipe e *linters* que proíbem o legado. |
+| **Aritmética em ponto flutuante** | Todo número é IEEE 754 de dupla precisão, sem inteiro nativo. | Trabalhar em centavos, usar `BigInt` ou bibliotecas decimais em cálculo financeiro. |
+| **Desempenho em processamento pesado** | Uma única *thread* de execução e coletor de lixo automático. | *Workers*, WebAssembly ou outra linguagem para a parte crítica. |
+| **Fadiga de ferramentas** | Ecossistema descentralizado, com muitas soluções concorrentes. | Ferramentas nativas do Node.js atual reduzem a necessidade de dependências. |
+| **Superfície de dependências** | Facilidade de publicar e instalar leva a árvores enormes. | Auditar o que entra, preferir a biblioteca padrão e revisar o *lockfile*. |
+| **Fragmentação de ambientes** | Navegador, Node.js, Deno, Bun e *edge* expõem APIs diferentes. | Escrever a lógica de negócio em ECMAScript puro, isolando o que é específico do ambiente. |
+
+O gargalo de desempenho é o mais mal compreendido dos oito. JavaScript é rápido para a esmagadora maioria das aplicações web, porque o trabalho delas é **esperar por I/O**, e não calcular. O problema aparece quando a tarefa é o oposto, com uso intenso de CPU: nesse caso a única *thread* fica ocupada, e todo o resto para.
+
+O exemplo abaixo torna o efeito visível, comparando uma espera de I/O simulada com um laço que ocupa o processador:
+
+```js title="bloqueio.mjs"
+console.time("io");
+await new Promise((resolve) => setTimeout(resolve, 300)); // aguarda sem ocupar a CPU
+console.timeEnd("io");
+
+console.time("cpu");
+let soma = 0;
+for (let i = 0; i < 2_000_000_000; i++) soma += i; // ocupa a única thread
+console.timeEnd("cpu");
+```
+
+```bash title="Terminal"
+node bloqueio.mjs
+```
+
+```txt title="Output" frame="terminal"
+io: 301.405ms
+cpu: 1.357s
+```
+
+Durante os 300 ms da primeira medição, o processo ficaria livre para atender outras requisições. Durante o segundo trecho, nenhuma outra requisição seria atendida: é essa diferença, e não a velocidade bruta, que decide se a linguagem serve ao problema.
+
+### A decisão, caso a caso
+
+A tabela resume onde a escolha é natural, onde é defensável e onde outra linguagem tende a servir melhor:
+
+| Cenário | Escolha JavaScript? | Por quê |
+| :--- | :--- | :--- |
+| Interatividade em página web | **Obrigatório** | Não há alternativa nativa no navegador. |
+| API HTTP, orientada a I/O | **Sim** | Concorrência barata, ecossistema maduro e mesma linguagem do front-end. |
+| Ferramenta de linha de comando | **Sim** | Distribuição simples pelo npm e execução imediata com `npx`. |
+| Aplicação com regras de negócio extensas | **Sim, com TypeScript** | A tipagem estática compensa a ausência de checagem na linguagem base. |
+| Cálculo numérico intenso, simulação, processamento de imagem | **Provavelmente não** | Uma *thread*, ponto flutuante e coletor de lixo trabalham contra. Considere Rust, C++, Go ou WebAssembly. |
+| Ciência de dados e aprendizado de máquina | **Não** | O ferramental maduro está em Python e R, como mostra o [comparativo com Python](../../reference/python-vs-javascript/). |
+| Sistema com requisito de tempo real rígido | **Não** | Pausas do coletor de lixo tornam a latência imprevisível. |
+
+<Aside type="note" title="Escolher a linguagem não é escolher um time">
+  A pergunta útil não é "qual linguagem é melhor", e sim "qual problema eu tenho". Um mesmo produto costuma usar JavaScript na interface, Python no treinamento de um modelo e Rust em um serviço sensível a latência, sem contradição nenhuma. Este guia ensina uma delas com profundidade, justamente para que você saiba quando ela é a resposta certa e quando não é.
+</Aside>
+
 ## Como Executar JavaScript?
 
 Para executar JavaScript, é preciso separar três ideias: o motor que interpreta e
