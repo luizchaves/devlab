@@ -120,18 +120,20 @@ mas **`Objetivo`, `Exercício` e `Próximo tópico` são**, e a ordem relativa d
 4. **Seções de conteúdo** (`## …`, subdivididas com `### …`) — conceito a conceito,
    cada uma com: explicação → tabela comparativa quando houver taxonomia → bloco de
    código comentado → `<Aside>` de armadilha ou dica.
-5. **`## Resumo e Boas Práticas`** / **`## Boas práticas`** — recomendado em tópicos longos ou guias com muitos
+5. **`## <Tema> na Era da Inteligência Artificial`** — recomendada em tópicos cujo trabalho real
+   mudou com assistentes de código (ver a seção "🤖 Seção e asides sobre código gerado por IA").
+6. **`## Resumo e Boas Práticas`** / **`## Boas práticas`** — recomendado em tópicos longos ou guias com muitos
    conceitos práticos; estruturado preferencialmente em tabela de duas colunas (`| Prática | Motivo |`) acompanhada de um bloco executável ````js title="Resumo prático"```` consolidando o uso combinado das regras.
-6. **`## Executando`** — passo a passo em `<Steps>` para rodar o exemplo
+7. **`## Executando`** — passo a passo em `<Steps>` para rodar o exemplo
    (arquivo `.js` → `node arquivo.js` → bloco `txt title="Output"` ou `bash title="Terminal"` → teste alternativo de precedência ou erro).
-7. **`## Exercício`** — enunciado numerado (5–10 itens), com parágrafo introdutório antes da lista e parágrafo de transição antes do
+8. **`## Exercício`** — enunciado numerado (5–10 itens), com parágrafo introdutório antes da lista e parágrafo de transição antes do
    `<details><summary>Possível resposta</summary>` com a solução comentada.
-8. **`## Desafio`** — variação mais complexa, mesmo formato de `<details>` e com parágrafo de transição prévio.
-9. **`## Perguntas de revisão`** — 8–12 perguntas em negrito e numeradas, agrupadas por
+9. **`## Desafio`** — variação mais complexa, mesmo formato de `<details>` e com parágrafo de transição prévio.
+10. **`## Perguntas de revisão`** — 8–12 perguntas em negrito e numeradas, agrupadas por
    `### <Subtema>`, cada pergunta terminando obrigatoriamente com ponto de interrogação (`?`), com `<details><summary>Possível resposta</summary>`.
-10. **`## Referências`** — links MDN/spec agrupados por assunto, formato
+11. **`## Referências`** — links MDN/spec agrupados por assunto, formato
     `[Array | MDN](https://developer.mozilla.org/…)`.
-11. **`## Próximo tópico`** — 1 frase de ligação + link relativo para o próximo tópico:
+12. **`## Próximo tópico`** — 1 frase de ligação + link relativo para o próximo tópico:
     `[Strings](../strings/): Criação, template literals e métodos do objeto String.`
 
 Padrão do bloco de resposta:
@@ -172,6 +174,136 @@ O teste a seguir valida a rota de cadastro. Ele garante que um payload válido r
   ```
 </details>
 ```
+
+---
+
+## 🤖 Seção e asides sobre código gerado por IA
+
+Assistentes de código mudaram o custo de escrever JavaScript: o esforço saiu de **lembrar a
+sintaxe** e foi para **especificar o comportamento e verificar o que foi gerado**. Sempre que
+um tópico tratar de algo que a IA gera com facilidade e erra com frequência, o tópico deve
+dizer isso ao leitor, em vez de fingir que o código nasce sempre digitado à mão.
+
+A página de referência é `src/content/docs/courses/ecmascript/stdlib/regex.mdx`
+(`## Expressões Regulares na Era da Inteligência Artificial`). Use-a como **exemplo do nível de
+profundidade esperado**, não como formulário a ser copiado: cada tópico adapta as subseções ao
+que a IA erra naquele assunto.
+
+### Quando incluir a seção completa
+
+A seção `## <Tema> na Era da Inteligência Artificial` só se justifica quando houver conteúdo
+específico do tópico, não conselho genérico sobre IA. Use a tabela para decidir:
+
+| Sinal do tópico | Exemplo | Decisão |
+| :--- | :--- | :--- |
+| A IA gera o artefato inteiro em uma linha e o leitor não consegue auditar | Expressões Regulares, `Intl`, datas | Seção completa. |
+| O erro gerado passa nos testes felizes e falha em produção | assíncrono, tratamento de erros, imutabilidade | Seção completa. |
+| O modelo mistura dialetos ou versões da linguagem | ECMAScript × Python, CommonJS × ESM | Seção completa. |
+| O tópico é fundamento sintático curto, sem armadilha própria de IA | tipos primitivos, operadores básicos | Apenas `<Aside>` pontual. |
+| A página é referência, tabela ou linha do tempo | *cheat sheet*, evolução do TC39 | Apenas `<Aside>` pontual. |
+
+Posicione a seção **depois das seções de conteúdo e antes de `## Resumo e Boas Práticas`**,
+para que o resumo já possa citar a revisão de código gerado como boa prática.
+
+### Estrutura interna da seção
+
+**A seção não tem forma fixa.** As subseções abaixo são um repertório, não um gabarito: escolha
+as que o tópico realmente pede, na ordem que fizer sentido para ele, e **crie subseções que só
+existam naquela página** quando o tema tiver uma armadilha própria (fuso horário em datas,
+`__dirname` em módulos, normalização Unicode em strings, concorrência em assíncrono). Duas
+páginas com as mesmas seis subseções e os mesmos títulos são sinal de conteúdo genérico.
+
+O mínimo que qualquer versão da seção precisa entregar: **um exemplo plausível gerado por IA que
+falha**, **uma verificação executável dessa falha** e **um fechamento com o que revisar antes do
+*merge***. O resto varia.
+
+O repertório de subseções, com a pergunta que cada uma responde:
+
+| Subseção | Pergunta que responde | Elemento obrigatório |
+| :--- | :--- | :--- |
+| Abertura sem `###` | O que mudou no trabalho com este tema? | Parágrafo + `<Mermaid>` do ciclo ou tabela "o que mudou × o que permanece". |
+| Especificar o pedido | Como pedir de um jeito que produza código confiável? | Tabela de elementos do *prompt* + bloco ` ```txt title="Prompt…" `. |
+| Verificar o resultado | Como provar que o código gerado faz o que promete? | Teste executável com `node:test` + `bash title="Terminal"` + `txt title="Output"`. |
+| Entender o herdado | Como ler um trecho que ninguém da equipe explica? | Tabela de decomposição trecho a trecho + refatoração legível. |
+| Armadilhas frequentes | O que este modelo costuma errar neste tema? | Tabela `\| Armadilha \| Como se manifesta \| Como mitigar \|` + exemplo que falha em silêncio. |
+| Checklist de revisão | O que conferir antes do *merge*? | Lista numerada de 5 a 8 verificações. |
+| Subseção própria do tópico | Qual armadilha só existe aqui? | Livre: comparação de dialetos, medição de tempo, diagrama de concorrência, tabela de fusos. |
+
+Regras de conteúdo dessa seção:
+
+1. **Nada de conselho genérico sobre IA.** Cada linha de tabela e cada exemplo precisa citar
+   um identificador, uma *flag* ou um comportamento do tópico. "Revise o que a IA gera" não é
+   conteúdo; "`\z` não existe em ECMAScript e vira o literal `z`" é.
+2. **O exemplo errado vem antes do certo.** Mostre o código plausível que o assistente produz,
+   execute, deixe o teste falhar no `Output` e só então apresente a correção.
+3. **A verificação é executável.** Prefira o executor nativo (`node --test`) e uma tabela de
+   casos versionada a dois `console.log()` de amostragem.
+4. **Prompts são código didático.** Escreva-os em ` ```txt title="Prompt de …" `, com dialeto,
+   limites, exemplos que devem passar e exemplos que devem falhar. Os `<Aside>` da seção seguem
+   a mesma exigência em escala menor, com a linha `**Prompt:**` descrita adiante.
+5. **A responsabilidade fica com quem assina o *commit*.** Feche a seção com essa ideia, sem
+   moralismo e sem previsão sobre o futuro da profissão.
+6. **Varie a forma entre páginas.** Use `<Mermaid>` do ciclo apenas onde o processo é o ponto;
+   em tópicos com armadilha pontual, comece direto pelo código que falha. Alterne o formato do
+   fechamento (tabela de práticas em uma página, lista numerada em outra) e evite repetir
+   títulos de subseção idênticos em tópicos vizinhos.
+
+### Asides isolados nas demais páginas
+
+Páginas que não recebem a seção completa ganham de um a dois `<Aside>` pontuais, colocados
+exatamente onde a armadilha aparece no texto, nunca agrupados no fim.
+
+**Prefixo obrigatório no título: `Dica de IA:`.** Todo aside que trate de código gerado por
+assistente, dentro ou fora da seção completa, começa por esse prefixo
+(`title="Dica de IA: Corrija o \`var\` que o assistente ainda sugere"`). O prefixo dá ao leitor uma
+marca visual única em todo o curso, permite localizar o assunto com a busca do site e evita que
+o callout se confunda com as armadilhas comuns da linguagem. Nenhum outro `<Aside>` do portal
+usa esse prefixo.
+
+Cada aside cumpre um dos cinco papéis abaixo:
+
+| Papel | `type` | O que o aside entrega |
+| :--- | :--- | :--- |
+| **Sugerir** | `tip` | O *prompt* que produz a versão boa do trecho recém-explicado. |
+| **Entender** | `note` | O pedido de decomposição de um trecho denso ou herdado. |
+| **Orientar** | `tip` | A regra de decisão que o modelo não conhece (convenção do projeto, API nativa preferida). |
+| **Validar** | `caution` | O caso negativo ou teste que precisa existir antes de aceitar a sugestão. |
+| **Corrigir** | `caution` | O erro recorrente do modelo naquele tema e a forma correta. |
+
+**Todo aside termina com um prompt pronto para usar**, sempre que o assunto comportar um
+(e quase sempre comporta). A última linha do aside é `**Prompt:** *"..."*`, separada do texto
+por uma linha em branco. O corpo explica **por que** aquilo falha; o prompt entrega **o que
+digitar** no assistente, sem o leitor precisar traduzir o conselho em pedido.
+
+Regras do prompt sugerido:
+
+1. **Escrito na voz de quem pede**, no imperativo e endereçado ao assistente
+   (*"Reescreva…"*, *"Liste dez…"*, *"Explique passo a passo…"*), nunca em terceira pessoa.
+2. **Ancorado no exemplo da página**, citando identificadores, valores ou APIs que acabaram de
+   aparecer no texto. Um prompt que serviria para qualquer tópico não serve para nenhum.
+3. **Executável como está**: quem copiar a linha e colar no assistente, junto do próprio código,
+   deve receber algo aproveitável, sem preencher lacunas.
+4. **Pede verificação, não só código**: prefira formulações que exijam contraexemplos, testes,
+   explicação trecho a trecho ou comparação entre alternativas.
+5. **Uma linha só**, entre aspas e em itálico. Quando o pedido precisar de várias cláusulas, use
+   ponto e vírgula em vez de quebrar em lista.
+
+O modelo de escrita de um aside de validação é o abaixo, com título afirmativo, corpo curto e
+prompt fechando o bloco:
+
+```mdx
+<Aside type="caution" title="Dica de IA: Confira o caso negativo antes de aceitar a sugestão">
+  Assistentes costumam devolver `arr.sort((a, b) => a - b)` mesmo quando o array tem strings, e
+  a ordenação errada não lança erro: ela apenas devolve outra ordem.
+
+  **Prompt:** *"Mostre cinco entradas que quebram esta ordenação, incluindo strings numéricas e
+  valores `undefined`, e transforme cada uma em um caso de teste."*
+</Aside>
+```
+
+Evite mais de dois asides de IA por página, evite repetir o mesmo texto entre páginas e nunca
+use o aside para vender ou criticar uma ferramenta específica: o assunto é o código, não o
+assistente.
 
 ---
 
@@ -469,8 +601,61 @@ eles deve explicar que o visual sintetiza a execução recém-observada. Reserve
 código apenas para modelos conceituais amplos, arquiteturas ou mapas que preparam uma seção inteira,
 não para figuras que dependem de uma atribuição, chamada, mutação ou fluxo demonstrado logo em seguida.
 
-**Orientação Vertical de Diagramas (Responsividade)**: **Se um diagrama ou figura for muito extenso na horizontal, ele deve ser obrigatoriamente reestruturado na vertical**.
-- Em diagramas `<Mermaid>`, prefira `flowchart TD` (Top-Down) ou organize os nós em subgrafos empilhados para evitar vazamentos laterais e barra de rolagem em dispositivos móveis.
+**Largura máxima de diagrama (regra dura)**: a coluna de conteúdo do Starlight tem cerca de
+**720 px**. O `<Mermaid>` aplica `max-width: 100%` no SVG, então um diagrama mais largo **não**
+ganha barra de rolagem: ele é **reduzido proporcionalmente**, e o texto das caixas encolhe junto.
+Um diagrama de 1400 px chega ao leitor em 50% do tamanho, com fonte de ~8 px.
+
+Como medir, com a página aberta no `pnpm dev`:
+
+```js
+// no console do navegador, na página do tópico
+[...document.querySelectorAll('.mermaid-figure')].map((f) => ({
+  legenda: f.querySelector('figcaption')?.textContent,
+  largura: Math.round(f.querySelector('svg').viewBox.baseVal.width),
+}));
+```
+
+Interprete o resultado assim:
+
+| Largura intrínseca | Situação | Ação |
+| :--- | :--- | :--- |
+| até ~720 px | Renderiza em tamanho real. | Nada a fazer. |
+| 720 a 850 px | Redução de até 15%, ainda legível. | Aceitável; encurte rótulos se for fácil. |
+| acima de ~850 px | Texto visivelmente pequeno. | **Refazer o diagrama.** |
+
+O sintoma clássico é **muitos elementos em sequência horizontal com rótulos longos**: cinco ou seis
+caixas de duas linhas em `flowchart LR` passam facilmente de 1300 px. Aplique as correções nesta
+ordem, medindo de novo a cada passo:
+
+1. **Trocar a direção para `TD`.** Resolve a maioria dos casos, porque troca largura por altura, e
+   altura não é reduzida. Uma cadeia linear ou uma decisão com dois ramos fica melhor na vertical.
+2. **Encurtar e quebrar rótulos.** Use `<br/>` para dividir em duas linhas curtas e remova
+   parênteses explicativos que podem ir para o parágrafo anterior ou para a legenda.
+3. **Empilhar subgrafos.** Subgrafos sem ligação entre si são posicionados lado a lado. Ligações
+   invisíveis (`A ~~~ B`) forçam o empilhamento vertical em `flowchart TB`.
+4. **Inverter a direção em árvores.** Uma árvore com muitas folhas fica larga em `TD` e estreita em
+   `LR`, porque as folhas passam a crescer para baixo, e não para os lados.
+5. **Escrever um SVG próprio** quando nenhum dos anteriores resolver.
+
+**Meça sempre depois de mudar a direção.** A troca nem sempre melhora: em diagramas compostos por
+subgrafos lado a lado, `TD` pode aumentar a largura em vez de reduzir. Se o número piorar, volte
+atrás e vá para o passo seguinte.
+
+**Quando escrever SVG em vez de Mermaid**: o Mermaid decide o posicionamento sozinho, e há arranjos
+que ele não produz. Crie um componente em `src/components/diagrams/<Nome>Diagram.astro` quando:
+
+- o diagrama exigir **grade** (painéis lado a lado com a mesma altura), que o Mermaid empilha ou
+  espalha conforme o número de nós;
+- a versão vertical ficar **desproporcionalmente alta** (por exemplo, 320 × 1050 px para três
+  fluxos triviais, como aconteceu com o curto-circuito de `&&`, `||` e `??`);
+- a figura precisar de **posicionamento fino** de rótulos, notas ou legendas que o Mermaid não expõe.
+
+Siga o padrão dos componentes existentes (`DataTypesDiagram.astro`, `ShortCircuitDiagram.astro`):
+`viewBox` com no máximo 690 de largura, `width: 100%` com `max-width` em pixels, cores por
+`var(--sl-color-…)` com valor de reserva, `role="img"` e `aria-label` descritivo. Componentes de
+SVG dispensam o `title` do `<Mermaid>`: a apresentação fica no parágrafo anterior, como em
+`<DataTypesDiagram />`.
 
 1. **Diagramas Mermaid (`<Mermaid>`)**:
    Diagramas de fluxo, sequência, hierarquia, estado e entidade-relacionamento são escritos como texto usando o componente `<Mermaid>` (`@components/Mermaid.astro`), que se ajusta automaticamente ao tema claro/escuro da página:
@@ -535,7 +720,7 @@ Configuração em `ec.config.mjs`. Convenções em uso:
 - Saída de execução de terminal ou navegador: ` ```txt title="Output" ` ou ` ```txt title="Resultado na tela" `.
 - **Nunca mostre a saída sem o comando que a produziu**: todo ` ```txt title="Output" ` deve vir
   imediatamente depois do ` ```bash title="Terminal" ` que o gerou, mesmo quando o comando já foi
-  citado na prosa. O leitor precisa ver o par completo (comando e resultado) para reproduzir o
+  citado no texto. O leitor precisa ver o par completo (comando e resultado) para reproduzir o
   exemplo:
 
   ````mdx
@@ -667,7 +852,7 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
     que quebra a narrativa do tópico. Redistribua o conteúdo ou reescreva as transições
     para manter linearidade e coesão entre os blocos.
 14. **Resumo apertado em `<CardGrid>`**: usar cartões longos em uma página comum de tópico,
-    deixando o texto estreito e difícil de ler. Para resumos extensos, prefira `###` com prosa
+    deixando o texto estreito e difícil de ler. Para resumos extensos, prefira `###` com texto corrido
     curta e listas objetivas.
 15. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
 16. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
