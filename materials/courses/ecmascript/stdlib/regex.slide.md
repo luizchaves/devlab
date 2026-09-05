@@ -600,7 +600,7 @@ console.log(isValidDate("31/04/2026")); // false (abril possui 30 dias)
 
 Padrões com quantificadores aninhados ambíguos provocam explosão combinatória:
 
-- Em `^(\d+)+$`, a string `"123"` pode ser particionada em $2^{n-1}$ combinações.
+- Em `^(\d+)+$`, a string `"123"` pode ser particionada em 2ⁿ⁻¹ combinações.
 - Quando uma entrada longa falha no último caractere, a engine testa todos os caminhos.
 - O loop de backtracking bloqueia a thread síncrona do Node.js, gerando negação de serviço.
 

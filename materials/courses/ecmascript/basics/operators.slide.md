@@ -153,8 +153,8 @@ console.log(celsius); // 10
 
 Define a direção de agrupamento para operadores de **mesma precedência**:
 
-- **Esquerda para a Direita ($\rightarrow$)**: maioria dos operadores aritméticos e lógicos.
-- **Direita para a Esquerda ($\leftarrow$)**: exponenciação (`**`) e atribuição (`=`).
+- **Esquerda para a Direita (→)**: maioria dos operadores aritméticos e lógicos.
+- **Direita para a Esquerda (←)**: exponenciação (`**`) e atribuição (`=`).
 
 ```js
 console.log(20 - 10 - 5); // 5  -> (20 - 10) - 5
@@ -536,7 +536,7 @@ Classifique a situação acadêmica de um estudante:
 1. Declare `grade1`, `grade2`, `absences` e o objeto `student = { name: "Ana", address: null }`.
 2. Calcule a média com parênteses: `(grade1 + grade2) / 2`.
 3. Obtenha a cidade com `student.address?.city ?? "Cidade não informada"`.
-4. Avalie a aprovação com `&&` e ternário: média $\ge 7$ e faltas $\le 5$.
+4. Avalie a aprovação com `&&` e ternário: média ≥ 7 e faltas ≤ 5.
 5. Teste o status final com igualdade estrita (`===`).
 
 ---

@@ -39,11 +39,11 @@ markmap:
 ## Execução Sequencial vs Paralela
 
 ### Sequencial (Gargalo)
-- `await op1; await op2;`: soma o tempo das operações ($\sum t$)
+- `await op1; await op2;`: soma o tempo das operações (Σ t)
 - **Indicação**: apenas quando a segunda chamada depende do dado da primeira
 
 ### Paralela (Otimizada)
-- `Promise.all([op1, op2])`: tempo limitado pela mais demorada ($\max t$)
+- `Promise.all([op1, op2])`: tempo limitado pela mais demorada (max(t))
 - **Laços em arrays**: use `array.map()` com `Promise.all()`, nunca `forEach`
 
 ## Recursos Avançados

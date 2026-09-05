@@ -44,7 +44,7 @@ Dominar as coleções estruturadas `Map`, `Set`, `WeakMap` e `WeakSet` em JavaSc
 - Escolher entre `Map` e objetos literais considerando tipos de chave e mutabilidade
 - Compreender a igualdade de chaves e o algoritmo *SameValueZero*
 - Converter dados entre `Map` e objetos literais via `Object.entries` e `Object.fromEntries`
-- Utilizar `Set` para buscas $O(1)$ e deduplicação de listas
+- Utilizar `Set` para buscas O(1) e deduplicação de listas
 - Aplicar as operações de conjuntos nativas do ES2024
 - Gerenciar metadados sem vazamentos de memória usando `WeakMap` e `WeakSet`
 
@@ -55,7 +55,7 @@ Dominar as coleções estruturadas `Map`, `Set`, `WeakMap` e `WeakSet` em JavaSc
 - O Objeto Map e Comparativo com Objetos Literais
 - Chaves por Referência e Algoritmo SameValueZero
 - Conversão Bidirecional entre Map e Objeto
-- O Objeto Set e Complexidade Algorítmica $O(1)$
+- O Objeto Set e Complexidade Algorítmica O(1)
 - Operações Matemáticas de Conjuntos (ES2024)
 - Iteração e Desestruturação sobre Coleções
 - Coleções Fracas (WeakMap e WeakSet)
@@ -195,9 +195,9 @@ console.log(tags.size); // 2
 
 ## Complexidade Algorítmica: Set versus Array
 
-- **`Array.prototype.includes()`**: complexidade linear **$O(n)$**
+- **`Array.prototype.includes()`**: complexidade linear **O(n)**
   - Percorre item por item até encontrar ou esgotar a lista
-- **`Set.prototype.has()`**: complexidade constante amortizada **$O(1)$**
+- **`Set.prototype.has()`**: complexidade constante amortizada **O(1)**
   - Localiza o elemento instantaneamente via tabela hash interna
 
 ```js
@@ -236,10 +236,10 @@ A especificação ES2024 introduziu métodos matemáticos nativos e imutáveis:
 
 | Método | Operação | Resultado |
 | :--- | :--- | :--- |
-| `a.union(b)` | $A \cup B$ | Elementos presentes em $A$ ou em $B$ |
-| `a.intersection(b)` | $A \cap B$ | Elementos presentes simultaneamente em ambos |
-| `a.difference(b)` | $A \setminus B$ | Elementos em $A$ que não estão em $B$ |
-| `a.symmetricDifference(b)`| $A \Delta B$ | Presentes em $A$ ou $B$, mas não em ambos |
+| `a.union(b)` | A ∪ B | Elementos presentes em A ou em B |
+| `a.intersection(b)` | A ∩ B | Elementos presentes simultaneamente em ambos |
+| `a.difference(b)` | A \ B | Elementos em A que não estão em B |
+| `a.symmetricDifference(b)`| A Δ B | Presentes em A ou B, mas não em ambos |
 
 *Todos os métodos retornam um novo `Set` sem alterar os conjuntos originais.*
 
@@ -382,7 +382,7 @@ console.log(w.render()); // "Widget: Card"
 | Prática Recomendada | Motivo Técnico |
 | :--- | :--- |
 | **Usar `Map` para chaves complexas** | Evita coerção para `[object Object]` de objetos comuns |
-| **Usar `Set.has()` para consultas** | Complexidade $O(1)$ amortizada contra $O(n)$ de arrays |
+| **Usar `Set.has()` para consultas** | Complexidade O(1) amortizada contra O(n) de arrays |
 | **Converter antes de gerar JSON** | `JSON.stringify()` não serializa `Map` diretamente |
 | **Utilizar operações ES2024** | Métodos nativos imutáveis e otimizados pelo motor |
 | **Empregar `WeakMap` para metadados** | Libera memória automaticamente ao destruir a chave |
@@ -484,6 +484,6 @@ Crie o arquivo `event-comparator.js`:
 ## Síntese do Tópico
 
 - **Map**: dicionário versátil para chaves heterogêneas e mutações frequentes
-- **Set**: coleção de unicidade garantida com busca $O(1)$ e álgebra de conjuntos
+- **Set**: coleção de unicidade garantida com busca O(1) e álgebra de conjuntos
 - **ES2024**: suporte nativo a operações de teoria dos conjuntos imutáveis
 - **WeakMap / WeakSet**: referências fracas para metadados imunes a *memory leaks*

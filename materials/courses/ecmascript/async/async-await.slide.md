@@ -268,8 +268,8 @@ Comparação do tempo total decorrido entre os dois modelos de execução:
 
 | Abordagem | Funcionamento | Tempo Total | Indicação |
 | --------- | ------------- | ----------- | --------- |
-| **Sequencial** | `await` após `await` | Soma de todos ($\sum t$) | 2ª chamada depende da 1ª |
-| **Paralela** | Dispara tudo + `Promise.all` | Máximo dos tempos ($\max t$) | Tarefas independentes |
+| **Sequencial** | `await` após `await` | Soma de todos (Σ t) | 2ª chamada depende da 1ª |
+| **Paralela** | Dispara tudo + `Promise.all` | Máximo dos tempos (max(t)) | Tarefas independentes |
 
 ---
 

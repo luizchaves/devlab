@@ -19,8 +19,8 @@ markmap:
 - **Precedência**: define qual operador executa primeiro em expressões compostas.
 - **Agrupamento `()`**: força a ordem explícita de cálculo (`(f - 32) / 1.8`).
 - **Associatividade**:
-  - Esquerda para direita ($\rightarrow$): soma, subtração, multiplicação, divisão.
-  - Direita para esquerda ($\leftarrow$): exponenciação (`**`) e atribuições (`=`).
+  - Esquerda para direita (→): soma, subtração, multiplicação, divisão.
+  - Direita para esquerda (←): exponenciação (`**`) e atribuições (`=`).
 - **Coerção na Ordem**: `2 + 3 + "4"` resulta em `"54"`, mas `"2" + 3 + 4` resulta em `"234"`.
 
 ## Operadores de Cálculo e Unários

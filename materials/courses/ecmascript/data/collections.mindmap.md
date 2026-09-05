@@ -44,9 +44,9 @@ markmap:
 ## Operações de Conjuntos (ES2024)
 
 ### Operações Matemáticas
-- `union(outro)`: combinação de todos os elementos ($A \cup B$)
-- `intersection(outro)`: apenas elementos compartilhados ($A \cap B$)
-- `difference(outro)`: exclusivos do primeiro conjunto ($A \setminus B$)
+- `union(outro)`: combinação de todos os elementos (A ∪ B)
+- `intersection(outro)`: apenas elementos compartilhados (A ∩ B)
+- `difference(outro)`: exclusivos do primeiro conjunto (A \ B)
 - `symmetricDifference(outro)`: presentes em um ou outro, mas não em ambos
 
 ### Comparações Booleanas

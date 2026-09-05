@@ -28,7 +28,7 @@ markmap:
 ## Múltiplas Opções (switch)
 
 - **Sintaxe**: `switch (expressão) { case valor: ... break; default: ... }`.
-- **Igualdade Estrita**: comparações utilizam `===` (`case 1:` $\neq$ `case "1":`).
+- **Igualdade Estrita**: comparações utilizam `===` (`case 1:` ≠ `case "1":`).
 - **Fall-Through**:
   - Ocorre quando a cláusula `case` não possui `break`.
   - Útil quando intencional para agrupar múltiplos casos com a mesma ação.

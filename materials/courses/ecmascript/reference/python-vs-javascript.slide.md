@@ -170,8 +170,8 @@ A interpretação booleana de coleções vazias é uma diferença crucial:
 | :--- | :--- | :--- |
 | **Zero numérico** (`0`, `0.0`) | `False` | `false` |
 | **String vazia** (`""`) | `False` | `false` |
-| **Ausência de valor** | `None` $\rightarrow$ `False` | `null` / `undefined` $\rightarrow$ `false` |
-| **Não-número** (`NaN`) | `float('nan')` $\rightarrow$ `True` | `NaN` $\rightarrow$ `false` |
+| **Ausência de valor** | `None` → `False` | `null` / `undefined` → `false` |
+| **Não-número** (`NaN`) | `float('nan')` → `True` | `NaN` → `false` |
 | **Array vazio** (`[]`) | **`False`** | **`true`** (Truthy!) |
 | **Objeto vazio** (`{}`) | **`False`** | **`true`** (Truthy!) |
 
@@ -536,7 +536,7 @@ main();
 Traduza o pipeline de cursos entre as duas linguagens:
 
 1. Lista de cursos com `title` e `workload` (horas).
-2. Filtrar cursos com carga horária $\ge 60$ horas.
+2. Filtrar cursos com carga horária ≥ 60 horas.
 3. Obter lista com os títulos dos cursos aprovados em maiúsculas.
 4. Versão Python com *list comprehension*.
 5. Versão JavaScript com `filter()` e `map()`.

@@ -23,7 +23,7 @@ markmap:
 
 ## Ciclo e Anatomia da Requisição
 
-- **Fluxo Linear**: Cliente $\rightarrow$ `node:http` $\rightarrow$ Middlewares $\rightarrow$ Rota $\rightarrow$ `res.json()`.
+- **Fluxo Linear**: Cliente → `node:http` → Middlewares → Rota → `res.json()`.
 - **Ordem de Avaliação**: rotas avaliadas na ordem de declaração (específicas antes de dinâmicas).
 - **Término do Ciclo**: obrigatório invocar um método finalizador (`res.json()`, `res.send()`).
 

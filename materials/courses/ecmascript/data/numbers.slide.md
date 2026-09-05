@@ -43,7 +43,7 @@ Compreender o tipo de dado Number, limites de precisão e utilitários matemáti
 
 - Declarar números em diversas bases (**binária**, **octal**, **hexadecimal**, **exponencial**) e separadores `_`.
 - Identificar limites de precisão com **`Number.MAX_SAFE_INTEGER`** e **`Number.EPSILON`**.
-- Utilizar **`BigInt` (`123n`)** para inteiros arbitrariamente grandes além de $2^{53} - 1$.
+- Utilizar **`BigInt` (`123n`)** para inteiros arbitrariamente grandes além de 2⁵³ - 1.
 - Dominar valores especiais (**`Infinity`**, **`NaN`**) e a armadilha **`NaN !== NaN`**.
 - Realizar conversões estritas e parciais com **`Number()`**, **`parseInt()`** e **`parseFloat()`**.
 - Aplicar constantes, arredondamentos e funções utilitárias do objeto **`Math`**.
@@ -97,7 +97,7 @@ Os 64 bits são repartidos em três campos, e é essa divisão que fixa todos os
     ±        escala 2ⁿ         dígitos significativos
 ```
 
-- **Fração (52 bits) + 1 bit implícito**: 53 dígitos significativos, ou seja, `MAX_SAFE_INTEGER` = $2^{53} - 1$ e `EPSILON` = $2^{-52}$.
+- **Fração (52 bits) + 1 bit implícito**: 53 dígitos significativos, ou seja, `MAX_SAFE_INTEGER` = 2⁵³ - 1 e `EPSILON` = 2⁻⁵².
 - **Expoente (11 bits)**: define o alcance da escala, de `MIN_VALUE` (`5e-324`) até `MAX_VALUE` (`1.79e+308`).
 
 ---
@@ -125,8 +125,8 @@ console.log(1_000_000_000);   // 1000000000
 
 | Constante | Valor / Descrição |
 | :--- | :--- |
-| **`Number.MAX_SAFE_INTEGER`** | `9007199254740991` ($2^{53} - 1$), maior inteiro seguro |
-| **`Number.MIN_SAFE_INTEGER`** | `-9007199254740991` ($-(2^{53} - 1)$), menor inteiro seguro |
+| **`Number.MAX_SAFE_INTEGER`** | `9007199254740991` (2⁵³ - 1), maior inteiro seguro |
+| **`Number.MIN_SAFE_INTEGER`** | `-9007199254740991` (-(2⁵³ - 1)), menor inteiro seguro |
 | **`Number.MAX_VALUE`** | `1.7976931348623157e+308`, maior número positivo |
 | **`Number.MIN_VALUE`** | `5e-324`, menor positivo acima de zero |
 | **`Number.EPSILON`** | `2.220446049250313e-16`, menor diferença entre 1 e o próximo float |
@@ -140,7 +140,7 @@ console.log(Number.isSafeInteger(9007199254740991 + 1)); // false
 
 ## O Tipo Primitivo `BigInt`
 
-Para inteiros além do limite de segurança ($2^{53} - 1$), utilize **`BigInt`** com o sufixo **`n`** ou a função `BigInt()`:
+Para inteiros além do limite de segurança (2⁵³ - 1), utilize **`BigInt`** com o sufixo **`n`** ou a função `BigInt()`:
 
 ```js
 const big1 = 9007199254740991n;
@@ -450,7 +450,7 @@ console.log(generateInvoice(1500, 8.5, 100));
 ## Resumo do Tópico
 
 - **IEEE 754 (64-bit)**: tipo `number` unifica inteiros e ponto flutuante.
-- **Limites e BigInt**: inteiros seguros até $2^{53} - 1$; use `BigInt` (`123n`) acima disso.
+- **Limites e BigInt**: inteiros seguros até 2⁵³ - 1; use `BigInt` (`123n`) acima disso.
 - **Valores Especiais**: `Infinity` (estouro/divisão por zero) e `NaN` (operações indefinidas).
 - **Verificação Estrita**: `Number.isNaN()`, `Number.isFinite()` e `Number.isSafeInteger()`.
 - **Conversão e Formatação**: `parseInt()`, `parseFloat()`, `toFixed()` e `toString(radix)`.

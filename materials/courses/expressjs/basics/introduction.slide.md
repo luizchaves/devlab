@@ -44,7 +44,7 @@ Compreender a arquitetura básica de servidores HTTP com Express 5 em Node.js.
 - Explicar as vantagens e conveniências do Express sobre o módulo nativo **`node:http`**.
 - Subir uma aplicação que responde JSON em múltiplas rotas.
 - Entender o papel do middleware **`express.json()`** na leitura do payload.
-- Dominar o ciclo de vida completo: **requisição $\rightarrow$ middlewares $\rightarrow$ rotas $\rightarrow$ resposta**.
+- Dominar o ciclo de vida completo: **requisição → middlewares → rotas → resposta**.
 - Compreender a anatomia de rotas, parâmetros de caminho (**`req.params`**) e query string (**`req.query`**).
 - Conhecer o endpoint de diagnóstico padrão (**`GET /health`**).
 
@@ -126,8 +126,8 @@ app.listen(3000);
 | Tarefa | `node:http` nativo | Express 5 |
 | :--- | :--- | :--- |
 | **Roteamento** | `if (req.method === 'GET' && req.url === '/users')` | `app.get('/users', handler)` |
-| **Parâmetro de URL** | Recortar string ou Regex manual | `/users/:id` $\rightarrow$ `req.params.id` |
-| **Corpo JSON** | Acumular chunks de buffer `data` | `express.json()` $\rightarrow$ `req.body` |
+| **Parâmetro de URL** | Recortar string ou Regex manual | `/users/:id` → `req.params.id` |
+| **Corpo JSON** | Acumular chunks de buffer `data` | `express.json()` → `req.body` |
 | **Resposta JSON** | `res.writeHead()` + `res.end(JSON.stringify)` | `res.status(200).json(data)` |
 | **Comportamentos Comuns** | Repetir lógica em cada branch `if` | Middlewares com `app.use()` |
 | **Arquivos Estáticos** | `node:fs` + tabela MIME manual | `express.static('public')` |
@@ -231,8 +231,8 @@ app.get('/tasks/count', (req, res) => {
 
 | Propriedade / Método | Papel no Ciclo | Exemplo de Uso |
 | :--- | :--- | :--- |
-| **`req.params`** | Parâmetros nomeados da rota | `/tasks/:id` $\rightarrow$ `req.params.id` |
-| **`req.query`** | Parâmetros de busca na URL | `?done=true` $\rightarrow$ `req.query.done` |
+| **`req.params`** | Parâmetros nomeados da rota | `/tasks/:id` → `req.params.id` |
+| **`req.query`** | Parâmetros de busca na URL | `?done=true` → `req.query.done` |
 | **`req.body`** | Payload JSON enviado no corpo | `req.body.title` |
 | **`res.status(code)`** | Define o código de status HTTP | `res.status(201)` (encadeável) |
 | **`res.json(data)`** | Serializa JSON e encerra o ciclo | `res.status(200).json({ ok: true })` |

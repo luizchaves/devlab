@@ -20,7 +20,7 @@ markmap:
 
 ## Limites de Precisão e BigInt
 
-- **Constantes de Limite**: `Number.MAX_SAFE_INTEGER` ($2^{53} - 1$) e `Number.MIN_SAFE_INTEGER`.
+- **Constantes de Limite**: `Number.MAX_SAFE_INTEGER` (2⁵³ - 1) e `Number.MIN_SAFE_INTEGER`.
 - **Imprecisão Decimal**: `0.1 + 0.2 !== 0.3` (use `Number.EPSILON` para tolerância).
 - **Tipo Primitivo BigInt**: sufixo `n` (`123n`) para inteiros de precisão arbitrária.
 

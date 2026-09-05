@@ -294,10 +294,10 @@ console.log(words[0]); // 255 (a escrita é imediatamente visível)
 
 | Construtor | Bytes | Faixa de valores |
 | :--- | :--- | :--- |
-| `Int8Array` | 1 | $-128$ a $127$ |
-| `Uint8Array` | 1 | $0$ a $255$ |
-| `Uint8ClampedArray` | 1 | $0$ a $255$, com saturação |
-| `Int16Array` / `Uint16Array` | 2 | $-32768$ a $32767$ / $0$ a $65535$ |
+| `Int8Array` | 1 | -128 a 127 |
+| `Uint8Array` | 1 | 0 a 255 |
+| `Uint8ClampedArray` | 1 | 0 a 255, com saturação |
+| `Int16Array` / `Uint16Array` | 2 | -32768 a 32767 / 0 a 65535 |
 | `Int32Array` / `Uint32Array` | 4 | Inteiros de 32 bits |
 | `Float32Array` | 4 | Ponto flutuante simples |
 | `Float64Array` | 8 | Precisão dupla, igual a `Number` |
