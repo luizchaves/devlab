@@ -54,8 +54,9 @@
   - [ ] `[TASK-026.2]` Criar `evolution/releases.mdx` com a linha do tempo das versões do TypeScript, espelhando `evolution/tc39.mdx`
   - [ ] `[TASK-026.3]` Criar `reference/cheat-sheet.mdx` e `reference/weird-cases.mdx`
   - [ ] `[TASK-026.4]` Criar `reference/ai-assisted-development.mdx`
-  - [ ] `[TASK-026.5]` Acrescentar a seção "na Era da Inteligência Artificial" às páginas existentes do guia e sincronizar os materiais
-  - [ ] `[TASK-026.6]` Alinhar o `index.mdx` ao formato do ECMAScript e criar `index.slide.md` / `index.mindmap.md` do guia
+  - [ ] `[TASK-026.5]` Criar `practice/react.mdx` (componentes, props, hooks, eventos e contexto tipados) e cruzar os links com o Guia de React
+  - [ ] `[TASK-026.6]` Acrescentar a seção "na Era da Inteligência Artificial" às páginas existentes do guia e sincronizar os materiais
+  - [ ] `[TASK-026.7]` Alinhar o `index.mdx` ao formato do ECMAScript e criar `index.slide.md` / `index.mindmap.md` do guia
 
 ### Concluídos (Conteúdo)
 

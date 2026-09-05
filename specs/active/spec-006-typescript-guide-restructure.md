@@ -25,6 +25,7 @@ Measured on the current tree:
 | Pages with an "na Era da Inteligência Artificial" section | 10 of 23 | 0 of 16 |
 | Guide-level materials (`index.slide.md` / `index.mindmap.md`) | both present | both absent |
 | `index.mdx` sections | 5 (`Trilhas de Aprendizado`, `Como o guia está organizado?`, `ECMAScript e Ambientes de Execução`, `Ferramentas de Prática`, `Referências`) | 4 (`O que você vai aprender?`, `Como o guia está organizado?`, `Ferramentas`, `Referências`) |
+| Front-end coverage in the `practice/` track | not applicable (language guide) | absent — `practice/` has back-end only (`migration`, `nodejs`) |
 
 Three consequences follow from the table:
 
@@ -38,6 +39,9 @@ Three consequences follow from the table:
    didactic baseline, present in 10 ECMAScript pages — has zero coverage in a guide whose whole
    selling point (static contracts checked before execution) is what makes generated code
    auditable.
+4. The `practice/` track is back-end only. TypeScript's largest real-world use is front-end
+   components, and the `react` guide next door (5 pages) mentions TypeScript exactly once, in a
+   CLI prompt line — so typed components, props, hooks and events are covered by neither guide.
 
 ## Objectives
 
@@ -51,14 +55,16 @@ When this spec is done, the following are observably true:
    documents the ECMAScript one.
 4. Every page created or moved has its `materials/courses/typescript/**` slide and mind map, and
    the guide itself has `index.slide.md` and `index.mindmap.md`.
-5. The pre-existing content pages that carry a code-generation risk have an
+5. `practice/react.mdx` covers TypeScript applied to React — typed components, props, hooks,
+   events and context — and cross-links with the `react` guide in both directions.
+6. The pre-existing content pages that carry a code-generation risk have an
    "… na Era da Inteligência Artificial" section, matching the anatomy used in ECMAScript
    (contract specification → mandatory verification → frequent pitfalls → review checklist).
-6. `index.mdx` follows the ECMAScript section order, including a
+7. `index.mdx` follows the ECMAScript section order, including a
    "TypeScript e Ambientes de Execução" comparison table.
-7. The old URL `/courses/typescript/basics/typescript-vs-javascript/` redirects to the new one;
+8. The old URL `/courses/typescript/basics/typescript-vs-javascript/` redirects to the new one;
    no internal link is broken.
-8. `pnpm validate` passes.
+9. `pnpm validate` passes.
 
 ## Non-goals
 
@@ -70,7 +76,10 @@ This spec explicitly does **not**:
 - Rewrite the technical content of the 16 existing pages beyond appending the AI section and
   fixing links affected by the move.
 - Touch any other guide (`python`, `html`, `css`, `nodejs`, `expressjs`, …), even where the same
-  divergence exists.
+  divergence exists. The single exception is the two cross-links the `react` guide needs to point
+  at `practice/react.mdx`; its own pages are not rewritten, and React fundamentals (JSX, rendering,
+  reconciliation, routing, state libraries) stay that guide's responsibility — `practice/react.mdx`
+  teaches only what changes when the components are typed.
 - Add `exercises/*.exercise.md` or `*.braincheck.md` files (owned by `[TASK-024]`).
 - Migrate the guide to `.md`; every page stays `.mdx`.
 - Change the five existing category slugs (`basics`, `types`, `advanced`, `tooling`, `practice`) —
@@ -126,7 +135,20 @@ Each phase ends with the repository building and `pnpm check:links` clean.
   types that lie about runtime data), model limits, and the pre-merge review checklist.
 - Slide deck and mind map; sidebar entry; `index.mdx` badge.
 
-### Phase 5 — AI sections in the existing pages
+### Phase 5 — `practice/react.mdx`
+
+- New page in the `practice/` track, after `nodejs`, covering only what typing adds to React:
+  typed function components and the `props` contract, `children` and `ReactNode`, `useState` with
+  explicit and inferred generics, `useReducer` with a discriminated action union, `useRef` for DOM
+  and mutable values, typed event handlers (`ChangeEvent`, `FormEvent`, `MouseEvent`), typed
+  context with the `undefined` default guard, generic components, `satisfies` on props objects, and
+  the boundary where an API response is validated before it becomes a typed prop.
+- The page opens by stating what it assumes (React fundamentals) and links to the `react` guide for
+  them; `basics/introduction/` of the `react` guide and its `index.mdx` gain a link back.
+- Slide deck and mind map; sidebar entry under "Na Prática"; `index.mdx` badge; the
+  `## Próximo tópico` chain of `practice/nodejs.mdx` is rerouted through it.
+
+### Phase 6 — AI sections in the existing pages
 
 - Append "… na Era da Inteligência Artificial" to the existing content pages, before
   `## Executando`, using the ECMAScript anatomy: contract specification, mandatory verification,
@@ -135,16 +157,17 @@ Each phase ends with the repository building and `pnpm check:links` clean.
 - Update the corresponding `.slide.md` and `.mindmap.md` of every page touched, per AGENTS.md
   rule 5.
 
-### Phase 6 — Guide index and guide-level materials
+### Phase 7 — Guide index and guide-level materials
 
 - Rewrite `index.mdx` to the ECMAScript section order, renaming "O que você vai aprender?" to
   "Trilhas de Aprendizado", extending the card grid with the new `evolution/` and `reference/`
-  entries, extending the `<Steps>` progression accordingly, and adding a "TypeScript e Ambientes
+  entries and the new `practice/react` badge, extending the `<Steps>` progression accordingly, and
+  adding a "TypeScript e Ambientes
   de Execução" table (what the compiler standardises versus what `tsc`, `tsx`, Node.js type
   stripping, Deno, Bun and bundlers each provide).
 - Create `materials/courses/typescript/index.slide.md` and `index.mindmap.md`.
 
-### Phase 7 — Validation and review
+### Phase 8 — Validation and review
 
 - `pnpm validate`.
 - Apply the `devlab-content-reviewer` skill to every page created or modified and report the
@@ -163,6 +186,8 @@ Manual inspection required:
 - Each new page's `Materiais:` links resolve to a rendered deck and mind map under
   `/slides/courses/typescript/…` and `/mindmaps/courses/typescript/…`.
 - The `## Próximo tópico` chain walks the whole guide without a dead end.
+- `/courses/typescript/practice/react/` and the `react` guide link to each other, and neither
+  repeats the other's material.
 
 ## Result
 
