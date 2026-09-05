@@ -79,16 +79,21 @@ Comparar JavaScript e Python em modelo de execução, sintaxe, tipagem, coleçõ
 
 ---
 
-## Execução: CPython vs Motores JS
+## Execução: CPython versus Motores JS
+
+Comparativo das esteiras de compilação, tradução intermediária e destinos de execução:
 
 ```txt
-[Python]     script.py ──> CPython ──> Bytecode (.pyc) ──> Terminal / Servidor
-
-[JavaScript] script.js ──> Motor V8 ──> Compilação JIT ──> Navegador / Node.js
+┌──────────────┐
+│  Python (.py)│ ──> CPython (Parser + AST) ──> Bytecode (.pyc) ──> PVM ──> Terminal / Servidor
+└──────────────┘
+┌──────────────┐
+│   JS (.js)   │ ──> Motor JS (Ignition) ──> JIT (TurboFan) ──┬──> Navegador (DOM / Web APIs)
+└──────────────┘                                              └──> Node.js / Bun (I/O / SO)
 ```
 
-- **Python**: Execução tradicional via interpretador no terminal e servidores.
-- **JavaScript**: Compilação JIT de alta performance com APIs de DOM (navegador) ou I/O (Node.js).
+- **Python**: Foco em interpretação de bytecode em máquina virtual sequencial (PVM)
+- **JavaScript**: Foco em compilação JIT dinâmica para código de máquina nativo e despacho
 
 ---
 
