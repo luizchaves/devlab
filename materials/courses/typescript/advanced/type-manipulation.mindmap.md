@@ -68,6 +68,14 @@ markmap:
 - Mensagens de erro ilegíveis anulam o benefício
 - Nomear tipos intermediários melhora tudo
 
+
+## Era da Inteligência Artificial
+
+- Assistentes escrevem condicional aninhado com facilidade: revisão mais dura do guia
+- Compila, resolve o caso pedido e fica ilegível na próxima mudança
+- Pedir um **teto de complexidade**: comece pela solução mais simples
+- Conferir o resultado **expandido**, chave a chave, não o nome do tipo
+
 ## Boas Práticas
 
 - **Comece pelo utilitário pronto**, escreva o seu só se faltar

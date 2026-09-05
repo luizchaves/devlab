@@ -454,6 +454,61 @@ describe("CourseService", () => {
 });
 ```
 
+## API Tipada na Era da Inteligência Artificial
+
+Em uma API, o ponto onde código gerado falha é sempre o mesmo: a fronteira. O `body` de uma requisição, o `params` da rota e a `query` chegam como dados arbitrários, e a sugestão mais provável é declará-los como o tipo esperado por asserção, sem verificar nada.
+
+### O pedido que separa tipo de validação
+
+O pedido precisa nomear as duas coisas separadamente, porque o modelo tende a tratá-las como uma só:
+
+```txt title="Pedido com a fronteira explícita"
+Escreva a rota POST /orders.
+
+Entrada:     body com `items` (lista não vazia) e `coupon` (opcional)
+Validação:   esquema em runtime; o tipo do handler deve ser derivado
+             do esquema, e não declarado em paralelo
+Erros:       400 com a lista de campos inválidos; 500 não deve vazar
+             mensagem interna nem stack
+Restrições:  nenhum `as` sobre `req.body`, `req.params` ou `req.query`
+Testes:      um caso de sucesso e um por campo inválido
+```
+
+### Verificação obrigatória: envie o corpo errado
+
+A verificação não é o compilador, e sim uma requisição malformada:
+
+```bash title="Terminal"
+curl -X POST localhost:3000/orders -H 'Content-Type: application/json' -d '{"itens":[]}'
+```
+
+```txt title="Output" frame="terminal"
+400 {"erros":[{"campo":"items","mensagem":"obrigatório"}]}
+```
+
+Se a resposta for `500`, ou pior, `201`, a validação não existe: o tipo estava apenas afirmado. Vale repetir o teste com um campo a mais no corpo, para saber se o excesso é rejeitado ou ignorado.
+
+### Armadilhas frequentes em APIs geradas
+
+Cinco padrões cobrem a maior parte:
+
+| Sintoma no código gerado | O que fazer |
+| :--- | :--- |
+| `req.body as CreateOrder` | Validar com esquema e derivar o tipo dele |
+| Tipo e esquema declarados em paralelo | Derivar o tipo do esquema, com uma fonte só |
+| `catch (e)` devolvendo `e.message` ao cliente | Registrar interno, responder genérico |
+| Variável de ambiente lida como `string` garantida | Validar na inicialização e falhar cedo |
+| Teste que só cobre o caminho feliz | Acrescentar um caso por campo inválido |
+
+### Checklist antes do merge
+
+Quatro perguntas antes de aceitar a rota:
+
+- Existe algum `as` entre a requisição e o domínio?
+- O tipo do handler vem do esquema, ou foi escrito à mão em paralelo?
+- Uma requisição malformada devolve 400 com detalhe útil, e não 500?
+- Alguma mensagem de erro interna pode chegar ao cliente?
+
 ## Executando
 
 <Steps>

@@ -281,6 +281,24 @@ pnpm exec tsc --project tsconfig.test.json --showConfig
 ```
 
 
+
+
+---
+
+
+## Configuração na Era da IA
+
+| Sintoma no código gerado | O que fazer |
+| :--- | :--- |
+| `strict` ausente ou `false` | Ligar e tratar os erros |
+| `noUncheckedIndexedAccess` esquecido | Ligar: fica fora do `strict` |
+| Verificação desligada para passar | Reverter e corrigir a causa |
+| `paths` sem equivalente no runtime | Alinhar bundler e compilador |
+
+```bash
+npx tsc --showConfig   # o arquivo escrito não é a config aplicada
+```
+
 ---
 
 

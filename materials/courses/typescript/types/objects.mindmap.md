@@ -62,6 +62,14 @@ markmap:
 - `Partial`, `Omit` e `Pick` derivam projeções sem duplicar
 - Uma fonte da verdade evita tipos fora de sincronia
 
+
+## Era da Inteligência Artificial
+
+- A falha característica é **duplicação**: campos repetidos em vez de compostos
+- `Omit` com chave inexistente passa em silêncio: conferir o nome à mão
+- Opcional (`?`) confundido com "pode ser nulo" (`| null`)
+- Teste: acrescente um campo à origem; se o derivado não soube, foi copiado
+
 ## Boas Práticas
 
 - **Nomeie os tipos do domínio**: evite objetos inline repetidos

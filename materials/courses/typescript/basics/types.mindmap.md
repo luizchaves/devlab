@@ -69,6 +69,15 @@ markmap:
 - `satisfies`: verifica compatibilidade preservando a inferência
 - `!` non-null: remove a verificação de nulo, também arriscado
 
+
+## Era da Inteligência Artificial
+
+- Assistentes acertam a sintaxe e erram a **escolha** do tipo
+- `any` de `JSON.parse` ou de biblioteca sem tipos: trocar por `unknown`
+- `enum` gerado onde união literal bastaria
+- Anotação que apenas repete a inferência: remover
+- Verificar com `tsc --noEmit --noImplicitAny` e procurar `as` no diff
+
 ## Boas Práticas
 
 - **Não anote o que já é inferido**

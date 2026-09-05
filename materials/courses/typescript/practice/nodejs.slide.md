@@ -306,6 +306,25 @@ export class LessonService {
 ```
 
 
+
+
+---
+
+
+## API Tipada na Era da IA
+
+```bash
+curl -X POST localhost:3000/orders -d '{"itens":[]}'
+```
+
+```txt
+400 {"erros":[{"campo":"items","mensagem":"obrigatório"}]}
+```
+
+- O ponto de falha é sempre a **fronteira**: `body`, `params`, `query`.
+- Se a resposta for 500, ou pior, 201, a validação não existe.
+- Derive o tipo do esquema; nunca declare os dois em paralelo.
+
 ---
 
 

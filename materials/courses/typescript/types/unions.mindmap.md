@@ -64,6 +64,14 @@ markmap:
 - `{ status: "loading" }` e `{ status: "failure"; error }` não se misturam
 - Cada leitura dispensa reconferir a coerência
 
+
+## Era da Inteligência Artificial
+
+- O padrão gerado é união **sem discriminante**, que obriga `as` em cada uso
+- Campos opcionais simulando estados, em vez de membros separados
+- Pedir a propriedade literal comum e o `default` com `never`
+- Verificação: acrescentar um membro e confirmar que a compilação quebra
+
 ## Boas Práticas
 
 - **Dê um discriminante** a toda união de objetos

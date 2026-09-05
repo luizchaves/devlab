@@ -63,6 +63,15 @@ markmap:
 - Serviço testável sem subir o servidor HTTP
 - `vitest` com os mesmos tipos do projeto
 
+
+## Era da Inteligência Artificial
+
+- O ponto de falha é sempre a **fronteira**: `body`, `params`, `query`
+- `req.body as CreateOrder` é a sugestão mais provável, e não valida nada
+- Derivar o tipo do esquema; nunca declarar tipo e esquema em paralelo
+- Verificação: enviar corpo malformado e exigir 400 com detalhe, não 500
+- Mensagem de erro interna não pode chegar ao cliente
+
 ## Boas Práticas
 
 - **Valide toda entrada externa** em runtime

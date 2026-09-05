@@ -258,6 +258,22 @@ export interface Item { sku: string; quantity: number }
 export function add(item: Item): Item[] { … }
 ```
 
+
+
+---
+
+
+## Migração na Era da IA
+
+```bash
+npx tsc --noEmit --noImplicitAny
+git diff | grep -c ': any'
+```
+
+- Converter `.js` em `.ts` é trivial **quando se aceita `any`**.
+- Migração que acrescenta `any` só mudou o nome do arquivo.
+- Peça `unknown` com `// TODO: tipar` onde houver dúvida, nunca `any`.
+
 ---
 
 

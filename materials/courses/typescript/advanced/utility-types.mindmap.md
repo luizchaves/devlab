@@ -61,6 +61,15 @@ markmap:
 - `Omit<T, K> & Partial<Pick<T, K>>` torna algumas chaves opcionais
 - Acima de dois ou três níveis, nomeie o tipo intermediário
 
+
+## Era da Inteligência Artificial
+
+- Maior risco específico de IA no guia: nomes de utilitários são **plausíveis**
+- `DeepPartial`, `Mutable`, `ValueOf`, `Nullable` e `DeepReadonly` não são nativos
+- O risco não é o erro de compilação: é o assistente gerar a definição junto
+- Pedir a origem de cada utilitário: "nativo" ou "definido aqui"
+- Lembrar que `Partial` é raso e `Parameters` devolve tupla
+
 ## Boas Práticas
 
 - **Derive em vez de declarar** cada variação do mesmo dado

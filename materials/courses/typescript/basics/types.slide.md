@@ -277,6 +277,26 @@ function summarize(list: Item[]): Summary {
 }
 ```
 
+
+
+---
+
+
+## Tipos na Era da IA
+
+| Sintoma no código gerado | O que fazer |
+| :--- | :--- |
+| `any` de `JSON.parse` ou lib sem tipos | Trocar por `unknown` e estreitar |
+| `enum` onde união literal bastaria | União literal ou `as const` |
+| Anotação repetindo a inferência | Remover |
+| `string` onde o domínio é fechado | União literal |
+| `as` logo depois de valor externo | Validar antes de tipar |
+
+```bash
+npx tsc --noEmit --noImplicitAny
+git diff | grep -nE ': any\b|as [A-Z]|@ts-ignore'
+```
+
 ---
 
 ## Resumo da Aula (Parte 1)

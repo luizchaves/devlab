@@ -206,6 +206,21 @@ function create(input: CreateArticle): ApiResult<Article> {
 ```
 
 
+
+
+---
+
+
+## Utility Types na Era da IA
+
+```ts
+DeepPartial   Mutable   ValueOf   Nullable   DeepReadonly
+```
+
+- **Nenhum é nativo.** Todos parecem, e aparecem em milhares de projetos.
+- O risco não é o erro de compilação: é o assistente **também** gerar a definição.
+- Peça a origem de cada utilitário: "nativo" ou "definido aqui".
+
 ---
 
 ## Resumo da Aula (Parte 1)

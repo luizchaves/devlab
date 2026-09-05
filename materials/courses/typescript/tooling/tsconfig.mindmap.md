@@ -70,6 +70,15 @@ markmap:
 - `isolatedModules`: compatibilidade com transpiladores
 - `incremental`: cache entre builds
 
+
+## Era da Inteligência Artificial
+
+- É o arquivo mais copiado de outro contexto por assistentes
+- Opções incompatíveis convivem e o rigor cai sem aviso
+- Declarar o ambiente no pedido: runtime, versão, forma de execução
+- `npx tsc --showConfig` mostra a configuração **aplicada**, não a escrita
+- Nunca desligar verificação para fazer o código passar
+
 ## Boas Práticas
 
 - **`strict` sempre ligado** em projeto novo

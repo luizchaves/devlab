@@ -254,6 +254,24 @@ function isTextField(field: Field): field is Field & { value: string } {
 const texts = fields.filter(isTextField);
 ```
 
+
+
+---
+
+
+## Narrowing na Era da IA
+
+```ts
+function isUser(valor: unknown): valor is User {
+  return typeof valor === "object" && valor !== null;
+  // promete User, verifica apenas "é objeto"
+}
+```
+
+- O atalho mais provável para o erro do compilador é `as` ou `!`.
+- Todo *predicate* gerado precisa checar **todos** os campos do tipo.
+- Peça no prompt: sem `as`, sem `!`, `switch` exaustivo com `never`.
+
 ---
 
 ## Resumo da Aula (Parte 1)

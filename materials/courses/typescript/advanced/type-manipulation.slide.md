@@ -214,6 +214,22 @@ type Handlers<T> = {
 ```
 
 
+
+
+---
+
+
+## Manipulação de Tipos na Era da IA
+
+```ts
+type Expandir<T> = { [K in keyof T]: T[K] } & {};
+type Resultado = Expandir<EnvVars<Config>>;
+```
+
+- Assistentes escrevem condicional aninhado com facilidade: por isso a revisão é dura.
+- **Conferir o nome não prova nada**; conferir as chaves expandidas, sim.
+- Peça um teto de complexidade: comece pela solução mais simples.
+
 ---
 
 ## Resumo da Aula (Parte 1)

@@ -253,6 +253,23 @@ function apply(text: string, command: Command): string {
 }
 ```
 
+
+
+---
+
+
+## Uniões na Era da IA
+
+- O padrão gerado é união **sem discriminante**: compila e obriga `as` em cada uso.
+- Peça a propriedade literal comum e o `default` com `never`.
+
+```ts
+// Verificação: acrescente um membro e rode `tsc --noEmit`
+| { status: "estornado"; data: string }
+```
+
+*Se o compilador não acusou nada, o `switch` não é exaustivo.*
+
 ---
 
 ## Resumo da Aula (Parte 1)

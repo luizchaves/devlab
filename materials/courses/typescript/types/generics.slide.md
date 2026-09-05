@@ -242,6 +242,22 @@ export class Cache<K extends string | number, V> {
 }
 ```
 
+
+
+---
+
+
+## Generics na Era da IA
+
+| Sintoma no código gerado | O que fazer |
+| :--- | :--- |
+| `<T>` em uma única posição | Remover: tipo concreto basta |
+| `<T extends any>`, `<T = any>` | Restringir de verdade |
+| Restrição que não reflete o uso | Ajustar ao que a função acessa |
+| Vários parâmetros onde um resolve | Simplificar |
+
+*A verificação não é compilar: é o tipo inferido no local de uso.*
+
 ---
 
 ## Resumo da Aula (Parte 1)

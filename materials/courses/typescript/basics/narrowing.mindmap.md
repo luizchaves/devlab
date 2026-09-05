@@ -66,6 +66,14 @@ markmap:
 - `?.` interrompe a cadeia em vez de lançar
 - `??` só substitui `null` e `undefined` — diferente de `||`
 
+
+## Era da Inteligência Artificial
+
+- O atalho mais provável para o erro do compilador é `as` ou `!`
+- *Type predicate* gerado costuma verificar menos do que promete
+- Pedir explicitamente: sem `as`, sem `!`, `switch` exaustivo com `never`
+- Conferir cada predicado campo a campo, e rodar com objeto incompleto
+
 ## Boas Práticas
 
 - **Estreite em vez de asserir**: `if` no lugar de `as`

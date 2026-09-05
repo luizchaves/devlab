@@ -62,6 +62,14 @@ markmap:
 - Nesse caso, `unknown` expressa melhor a intenção
 - Complexidade genérica cobra manutenção e piora mensagens de erro
 
+
+## Era da Inteligência Artificial
+
+- Generics são aplicados onde não são necessários, por parecerem reutilizáveis
+- `<T>` que aparece em uma única posição não faz nada: remover
+- `<T extends any>` e `<T = any>` desligam a restrição
+- A verificação não é compilar: é o tipo inferido **no local de uso**
+
 ## Boas Práticas
 
 - **Deixe inferir**: chamadas idiomáticas não mencionam tipo

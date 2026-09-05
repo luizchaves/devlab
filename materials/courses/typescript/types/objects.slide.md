@@ -224,6 +224,22 @@ function summary(course: Course): string {
 // error TS2353: 'horas' does not exist in type 'Course'.
 ```
 
+
+
+---
+
+
+## Objetos na Era da IA
+
+| Sintoma no código gerado | O que fazer |
+| :--- | :--- |
+| Campos repetidos entre tipos parecidos | Compor com `Pick`, `Omit`, `extends` |
+| `Omit` com nome errado, sem erro | Conferir: `Omit` não valida a chave |
+| Opcional usado para "pode ser nulo" | Separar `?` de `\| null` |
+| `readonly` como imutabilidade real | É apagável em runtime |
+
+*Teste: acrescente um campo à origem. Se o derivado não soube, foi copiado.*
+
 ---
 
 ## Resumo da Aula (Parte 1)

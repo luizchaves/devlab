@@ -62,6 +62,14 @@ markmap:
 - Não existindo, declarar o mínimo usado em um `.d.ts`
 - `declare module "nome"` sem corpo é dívida documentada
 
+
+## Era da Inteligência Artificial
+
+- Converter `.js` em `.ts` é trivial **quando se aceita `any`**
+- Migração que acrescenta `any` só mudou o nome do arquivo
+- Pedir `unknown` com `// TODO: tipar` onde houver dúvida
+- Métrica: contar `any` antes e depois; testes antigos precisam passar iguais
+
 ## Boas Práticas
 
 - **Comece permissivo**: rigor no dia 1 mata a migração
