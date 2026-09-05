@@ -549,6 +549,10 @@ export default defineConfig({
                   link: '/courses/typescript/reference/weird-cases/',
                 },
                 {
+                  label: 'Desenvolvimento com IA',
+                  link: '/courses/typescript/reference/ai-assisted-development/',
+                },
+                {
                   label: 'Guia de Referência',
                   link: '/courses/typescript/reference/cheat-sheet/',
                 },

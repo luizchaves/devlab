@@ -1,0 +1,255 @@
+---
+title: "TypeScript: Desenvolvimento com IA"
+description: "Como especificar, gerar, verificar e revisar TypeScript escrito com assistentes de código: contexto do projeto, catálogo de pedidos, verificação com tsc e as armadilhas por tópico."
+course: typescript
+sidebar:
+  label: "Desenvolvimento com IA"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Materiais: [slides do tópico](../../../../slides/courses/typescript/reference/ai-assisted-development/) e [mapa mental](../../../../mindmaps/courses/typescript/reference/ai-assisted-development/)
+
+Assistentes de código escrevem TypeScript com facilidade, e é justamente aí que mora o risco. O compilador dá uma sensação de segurança que o código gerado nem sempre merece: um `as` bem colocado, um `any` implícito ou um tipo que descreve algo diferente do que a API devolve fazem o `tsc` passar sem reclamar de um programa errado.
+
+Esta página trata do método, não da ferramenta. O que muda no fluxo de trabalho, que contexto o assistente não tem como adivinhar, o que executar antes de acreditar na sugestão e quais armadilhas são específicas de cada tópico deste guia.
+
+## Objetivo
+
+Estabelecer um ciclo de trabalho verificável com assistentes de código em TypeScript: especificar o contrato antes de gerar, fornecer o contexto de projeto que o modelo não enxerga, verificar com o compilador e os testes, e revisar procurando as falhas que o `tsc` não pega.
+
+## O Que Muda no Fluxo de Trabalho?
+
+Sem assistente, escrever e entender custam mais ou menos o mesmo, porque quem escreve já entendeu. Com assistente, escrever fica quase de graça e entender continua custando igual. O gargalo se desloca da produção para a **revisão**.
+
+Em TypeScript, esse deslocamento tem uma característica própria. O compilador é um revisor automático parcial, e é fácil confundir "compila" com "está correto":
+
+| O `tsc` pega | O `tsc` não pega |
+| :--- | :--- |
+| Argumento de tipo incompatível | Tipo que descreve mal o dado real |
+| Propriedade inexistente em tipo conhecido | `as` que silencia a verificação |
+| Retorno fora do contrato declarado | Lógica de negócio invertida |
+| Caso faltante em união discriminada exaustiva | `any` implícito vindo de biblioteca sem tipos |
+| Nulo usado sem checagem | Efeito colateral não pedido |
+
+A coluna da direita é o que a revisão humana precisa cobrir. Ela é pequena em quantidade e cara em atenção, e é por isso que o método importa mais do que o modelo.
+
+## Contexto do Projeto: o Que o Assistente Não Adivinha
+
+Um modelo responde a partir do que está na conversa. Ele não abre o seu `tsconfig.json`, não sabe qual versão você usa e não conhece as convenções do repositório, a não ser que alguém conte.
+
+Os cinco itens abaixo mudam o código gerado e quase nunca são informados:
+
+- **O rigor ativo**: com `strict` ligado, a sugestão precisa tratar `null` e `undefined`; sem ele, o mesmo pedido produz código que não compila do outro lado. `noUncheckedIndexedAccess` muda todo acesso a array.
+- **A versão do TypeScript**: `satisfies`, `using`, parâmetros `const` e predicados inferidos têm versão mínima, listada em [Evolução e Versões](../../evolution/releases/).
+- **A resolução de módulos**: `nodenext`, `bundler` e os apelidos de `paths` determinam se o `import` sugerido resolve ou não.
+- **A forma de execução**: `tsc`, `tsx`, remoção de tipos do Node.js ou empacotador. Sob `erasableSyntaxOnly`, um `enum` sugerido simplesmente não compila.
+- **A convenção do projeto**: união literal em vez de `enum`, `interface` ou `type`, biblioteca de validação adotada, se a base usa `import type`.
+
+Colar o `tsconfig.json` no início da conversa resolve a maior parte disso com uma única mensagem. Em repositórios com arquivo de instruções para agentes, como o `AGENTS.md` deste, as convenções já estão escritas e basta apontá-lo.
+
+<Aside type="tip" title="Uma mensagem que economiza dez correções">
+  *"Este projeto usa TypeScript 5.8 com `strict` e `noUncheckedIndexedAccess` ligados, `moduleResolution: bundler`, ESM puro e Zod para validação. Prefira união literal a `enum` e nunca use `as` para converter dado externo. Confirme que entendeu antes de gerar."*
+</Aside>
+
+## Instrução Escrita Não é Garantia de Execução
+
+Escrever a regra na conversa aumenta a chance de ela ser seguida, mas não a garante. Modelos perdem instruções antigas conforme o diálogo cresce, e a proibição dada na terceira mensagem costuma ser esquecida na trigésima.
+
+Duas defesas funcionam melhor do que repetir o pedido:
+
+- **Transformar a regra em configuração.** `noImplicitAny`, `noUncheckedIndexedAccess` e uma regra de lint que proíbe `as` em dado externo cobram a regra a cada verificação, sem depender de memória. Uma regra que o `tsc` cobra vale mais do que dez frases no *prompt*.
+- **Verificar em vez de confiar.** Rodar `tsc --noEmit` e os testes depois de cada geração custa segundos e responde de forma objetiva.
+
+<Aside type="caution" title="O `any` que ninguém digitou">
+  Código gerado raramente escreve `any` de forma explícita, porque o modelo sabe que isso é malvisto. Ele chega por outros caminhos: `JSON.parse`, uma biblioteca sem tipos, um `catch` sem `useUnknownInCatchVariables` ou um genérico que o compilador não consegue resolver. O comando `tsc --noEmit` não reclama de nenhum deles se `noImplicitAny` estiver desligado.
+</Aside>
+
+## Anatomia de um Pedido que Produz Código Verificável
+
+Um pedido vago produz código plausível. Um pedido que descreve o **contrato** produz código que dá para verificar. A diferença está em declarar entradas, saídas, erros e o que não deve mudar.
+
+O contraste abaixo usa a mesma tarefa:
+
+```txt title="Pedido vago"
+Faz uma função pra buscar usuário na API.
+```
+
+```txt title="Pedido com contrato"
+Escreva `fetchUser(id: number): Promise<User>` em src/services/user.ts.
+
+Tipos:      User = { id: number; name: string; email: string }
+Sucesso:    resolve com User validado, não apenas asserido
+Falha 404:  lança NotFoundError com a mensagem "usuário 42 não encontrado"
+Falha rede: propaga o erro original, sem envolver
+Restrições: sem `as`, sem `any`, valide a resposta com Zod
+Não mude:   a assinatura de nenhuma outra função do arquivo
+```
+
+O segundo pedido não descreve **como** implementar. Ele descreve o comportamento observável, que é exatamente o que os testes e o compilador vão cobrar depois.
+
+## Escrever a Spec Antes de Gerar
+
+Um pedido dá conta de uma tarefa. Ele não dá conta de uma mudança que atravessa vários arquivos e várias sessões, porque o contexto se perde entre uma conversa e outra.
+
+Para esse tamanho de trabalho, o artefato certo é uma **spec**: um documento curto, versionado junto do código, que registra o que muda, por quê, o que fica de fora e como saber que terminou. O método, os sinais que justificam escrever uma e a anatomia de cada seção estão detalhados na página [Desenvolvimento com IA](../../../ecmascript/reference/ai-assisted-development/) do Guia de ECMAScript, e valem igual aqui.
+
+Vale destacar a seção que mais importa ao trabalhar com assistentes: **o que fica de fora**. Modelos ampliam pedidos por padrão, e em TypeScript a ampliação tem uma forma característica. Pedir a correção de um tipo costuma trazer junto a troca de `interface` por `type` no arquivo inteiro, a introdução de um genérico desnecessário e a reescrita de utilitários que já funcionavam.
+
+## Catálogo de Pedidos por Tarefa
+
+Os pedidos abaixo cobrem as tarefas mais frequentes deste guia. Todos declaram o contrato e a restrição, em vez de descrever a implementação:
+
+| Tarefa | Pedido |
+| :--- | :--- |
+| Tipar dado externo | *"Escreva o esquema de validação e derive o tipo dele com `z.infer`, em vez de declarar o tipo à mão. Não use `as` em nenhum ponto."* |
+| Estreitar união | *"Refatore para estreitar por união discriminada com `switch`, incluindo o caso `default` com prova de exaustividade por `never`."* |
+| Substituir asserção | *"Troque cada `as` por estreitamento verificado ou por um *type predicate*. Se algum `as` for inevitável, explique por quê em comentário."* |
+| Derivar tipo | *"Derive este tipo do existente com utility types nativos, sem redeclarar campos. Liste quais utilitários usou e confirme que todos são nativos."* |
+| Tipar função genérica | *"Escreva a versão genérica preservando o tipo de entrada no retorno. Mostre três chamadas e o tipo inferido em cada uma."* |
+| Migrar arquivo `.js` | *"Converta para `.ts` sem alterar comportamento. Onde o tipo não for óbvio, use `unknown` e um comentário, nunca `any`."* |
+| Endurecer `tsconfig` | *"Ligue esta opção e liste os erros que aparecem, agrupados por causa. Não corrija nada ainda."* |
+| Escrever teste | *"Escreva testes que cubram o caminho de erro e o campo opcional ausente. Os testes devem falhar se a validação for removida."* |
+
+## Verificação: o Que Executar Antes de Acreditar
+
+Leitura não substitui execução. O roteiro abaixo é curto o suficiente para rodar depois de cada geração:
+
+<Steps>
+
+1. Verifique os tipos sem gerar arquivos:
+
+   ```bash title="Terminal"
+   npx tsc --noEmit
+   ```
+
+2. Procure o que o compilador aceita mas a revisão não deveria. Um `as` ou um `@ts-ignore` novos são sinal de que a sugestão contornou o erro em vez de resolvê-lo:
+
+   ```bash title="Terminal"
+   git diff | grep -nE '\bas [A-Z]|@ts-ignore|: any\b'
+   ```
+
+3. Confirme que nenhum `any` implícito entrou pela porta dos fundos:
+
+   ```bash title="Terminal"
+   npx tsc --noEmit --noImplicitAny
+   ```
+
+4. Rode o lint e os testes:
+
+   ```bash title="Terminal"
+   npm run lint && npm test
+   ```
+
+5. Execute o programa com um dado **fora** do formato esperado. É o único passo que revela um tipo que mente sobre a realidade.
+
+</Steps>
+
+O passo 5 é o que mais falta em código gerado. O compilador confirma que o programa é coerente com os tipos declarados; só a execução confirma que os tipos declarados são coerentes com o mundo.
+
+## Armadilhas do TypeScript Gerado, por Tópico
+
+Cada tópico deste guia tem um modo característico de falha em código gerado. A tabela liga o sintoma à página que trata do assunto:
+
+| Tópico | Armadilha frequente |
+| :--- | :--- |
+| [Tipos Básicos](../../basics/types/) | `any` como escape em vez de `unknown`; `enum` onde união literal bastaria |
+| [Funções](../../basics/functions/) | Sobrecarga desnecessária onde uma união resolveria |
+| [Narrowing](../../basics/narrowing/) | `as` no lugar do estreitamento; *type predicate* que não verifica o que promete |
+| [Objetos e Interfaces](../../types/objects/) | Campos redeclarados em vez de compostos; opcional usado como "pode faltar" e como "pode ser nulo" ao mesmo tempo |
+| [Uniões](../../types/unions/) | União sem discriminante, forçando `as` em cada uso |
+| [Generics](../../types/generics/) | Genérico introduzido onde ele nunca varia, só para parecer flexível |
+| [Utility Types](../../advanced/utility-types/) | Utilitário inventado (`DeepPartial`, `Mutable`) apresentado como nativo |
+| [Manipulação de Tipos](../../advanced/type-manipulation/) | Tipo condicional ilegível para um problema que uma união resolveria |
+| [Classes](../../advanced/classes/) | `private` tratado como privacidade real de runtime |
+| [tsconfig.json](../../tooling/tsconfig/) | Opções copiadas de outro projeto, com `strict` desligado sem aviso |
+| [Módulos](../../tooling/modules/) | `import` sem `type`, arrastando módulo para o runtime |
+| [Migração](../../practice/migration/) | Arquivo convertido com `any` em todo lugar, declarado como "migrado" |
+| [Node.js](../../practice/nodejs/) | Corpo de requisição asserido como tipo, sem validação |
+
+A lista completa dos comportamentos por trás dessas falhas está em [Casos "Bizarros"](../weird-cases/).
+
+## Quando a Revisão Vira o Gargalo?
+
+Aceitar código que você não entende é dívida com juros. Em TypeScript, a tentação é maior, porque o programa compila e os tipos dão aparência de rigor.
+
+Três perguntas ajudam a decidir se a sugestão está pronta para o merge:
+
+- **Você consegue explicar por que cada tipo é aquele?** Se um genérico ou um condicional só está ali porque "funcionou", ele vai custar caro na próxima mudança.
+- **Existe algum `as` que você não pediu?** Cada asserção é um ponto onde o compilador foi instruído a parar de verificar.
+- **Os testes falham se a lógica for removida?** Teste que passa com a implementação vazia não prova nada.
+
+Quando a resposta a qualquer uma delas for desconfortável, peça a explicação antes de pedir a correção. Um pedido útil aqui é: *"Explique linha a linha por que este tipo é necessário, e o que quebraria se ele fosse removido."*
+
+## Os Limites do Modelo
+
+Três limites explicam a maior parte dos erros, e nenhum deles é resolvido escrevendo um *prompt* melhor:
+
+- **Data de corte.** O modelo não conhece o que saiu depois do treinamento. Em TypeScript isso aparece como sugestão de sintaxe antiga, ou como insistência em anotar um predicado que a versão 5.5 já infere.
+- **Contexto limitado.** Ele enxerga o que está na conversa, e não o repositório. Um tipo definido em outro arquivo é reinventado em vez de importado, gerando duplicação silenciosa.
+- **Concordância.** Contestado, o modelo tende a concordar, mesmo quando estava certo. Se você afirmar que `Omit` valida a chave, é provável que ele concorde e reescreva o código com base na afirmação errada.
+
+A defesa contra os três é a mesma: verificar com o compilador, e não com a conversa.
+
+## Segurança, Dependências e Informação Sensível
+
+Três cuidados fecham a lista, e valem para qualquer linguagem:
+
+- **Não cole segredo na conversa.** Chave de API, token, string de conexão e trecho de `.env` não devem entrar no *prompt*. Substitua por um valor de exemplo.
+- **Confira toda dependência sugerida.** Pacotes inexistentes ou abandonados aparecem com naturalidade em sugestões, e no ecossistema TypeScript isso inclui pacotes `@types/*` que não existem mais porque a biblioteca passou a publicar tipos próprios.
+- **Trate validação como código de segurança.** Um esquema gerado que aceita campo a mais, ou que valida o formato mas não o tamanho, é uma porta aberta. Revise esquemas com a mesma atenção que daria a uma consulta ao banco.
+
+## Resumo e Boas Práticas
+
+O método cabe em cinco práticas:
+
+- **Informe o contexto de projeto** logo no início: versão, rigor do `tsconfig.json`, resolução de módulos e convenções.
+- **Peça o contrato, não a implementação**: entradas, saídas, erros e o que não deve mudar.
+- **Transforme regra em configuração** sempre que possível: o que o compilador cobra não depende da memória do modelo.
+- **Verifique com `tsc --noEmit`, lint e testes**, e execute com dado fora do formato esperado.
+- **Procure o que o compilador não pega**: `as`, `@ts-ignore`, `any` implícito e tipos que descrevem mal o dado real.
+
+## Exercício
+
+Pegue uma função existente de um projeto seu, ou escreva uma pequena que receba dados de uma API pública, e conduza o ciclo completo:
+
+1. Escreva o pedido com contrato declarado, no formato da seção "Anatomia de um pedido", incluindo a restrição de não usar `as` nem `any`.
+2. Gere o código com um assistente de sua escolha.
+3. Rode o roteiro de verificação inteiro, incluindo o passo 5 com um dado propositalmente fora do formato.
+4. Registre em um arquivo `revisao.md` o que o compilador pegou, o que só a execução pegou e o que só a leitura pegou.
+5. Compare esse registro com a tabela "O que o `tsc` pega" e diga em qual coluna cada defeito caiu.
+
+## Desafio
+
+Monte um pequeno **portão de qualidade** para código gerado, no seu projeto:
+
+- Um script `check` que encadeie `tsc --noEmit`, lint e testes em um comando.
+- Uma regra de lint que rejeite `as` aplicado ao retorno de `JSON.parse` ou de `response.json()`.
+- Uma verificação que falhe quando um `@ts-ignore` novo entrar no diff, aceitando apenas `@ts-expect-error`.
+- Um teste que valide o esquema da API contra uma resposta real gravada em arquivo, de modo que uma mudança do servidor quebre a suíte.
+
+Depois, gere de propósito um código com cada uma das quatro falhas e confirme que o portão barra todas.
+
+## Perguntas de revisão
+
+1. Por que "compila" e "está correto" não são a mesma coisa em código gerado?
+2. Quais informações do `tsconfig.json` mudam o código que um assistente deve produzir?
+3. Por que uma regra transformada em configuração vale mais do que a mesma regra escrita no *prompt*?
+4. O que diferencia um pedido vago de um pedido com contrato declarado?
+5. Por quais caminhos um `any` entra no código sem que ninguém digite a palavra?
+6. Qual passo do roteiro de verificação revela um tipo que mente sobre o dado real, e por que os outros não revelam?
+7. Que sinal no diff indica que a sugestão contornou o erro em vez de resolvê-lo?
+8. Por que a seção "o que fica de fora" é a mais importante de uma spec ao trabalhar com assistentes?
+
+## Referências
+
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) (a fonte para conferir qualquer sintaxe sugerida)
+- [Utility Types](https://www.typescriptlang.org/docs/handbook/utility-types.html) (o catálogo que decide se um utilitário é nativo)
+- [Referência do `tsconfig.json`](https://www.typescriptlang.org/tsconfig) (o contexto que o assistente não enxerga)
+- [Zod](https://zod.dev/) (validação em runtime com derivação do tipo)
+- [Desenvolvimento com IA no Guia de ECMAScript](../../../ecmascript/reference/ai-assisted-development/) (o método de spec, em detalhe)
+
+## Próximo tópico
+
+Com o método de trabalho definido, use o guia de consulta para conferir rapidamente qualquer assinatura ou utility type sugerido por um assistente.
+
+[Guia de Referência](../cheat-sheet/): anotações, tipos especiais, operadores de tipo, o catálogo completo de utility types e as opções do compilador.
