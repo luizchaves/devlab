@@ -78,6 +78,7 @@ usuário em vez de mexer nos artefatos de `public/`.
 | `docs/PRD.md`               | Especificação de Requisitos do Produto (visão geral DevLab)   |
 | `docs/TODO.md`              | Lista de tarefas e roadmap com IDs (`TASK-XXX`)               |
 | `specs/`                    | Especificações e planos de engenharia (`active/` e `executed/`) |
+| `CLAUDE.md`                 | Ponteiro para este arquivo; o Claude Code o carrega automaticamente |
 | `.agents/skills/`           | Skills do repositório (ver abaixo)                             |
 | `scripts/`                  | Builds de materiais e validadores (`check-links`, `check-doc-lines`) |
 | `astro.config.mjs`          | Sidebar explícita de todos os cursos (~1.200 linhas)           |
@@ -92,6 +93,37 @@ Ao planejar refatorações de grande porte, migrações ou novas funcionalidades
 1. **Criar a spec em inglês em `specs/active/spec-XXX-<name-in-kebab-case>.md`**: documente em inglês o diagnóstico, os objetivos, o planejamento por etapas e a validação esperada. Use um ID sequencial de 3 dígitos com o prefixo `spec-` (ex: `spec-001-guides-migration.md`) e nome em minúsculas kebab-case.
 2. **Executar as tarefas**: realize as alterações de forma incremental com commits atômicos em inglês (referenciando as tarefas em `docs/TODO.md`).
 3. **Mover ao concluir**: ao finalizar todas as etapas, atualize o status da spec para concluído e mova o arquivo para `specs/executed/spec-XXX-<name-in-kebab-case>.md` (`git mv specs/active/... specs/executed/...`).
+
+### Quando escrever uma spec
+
+Escreva quando **pelo menos um** destes sinais aparecer. Fora deles, a tarefa entra direto em `docs/TODO.md`:
+
+- a mudança atravessa várias pastas ou vários cursos;
+- o trabalho não termina em uma sessão e será retomado depois;
+- existe ambiguidade real sobre o alvo, e decidir antes evita gerar na direção errada;
+- a mudança é difícil de reverter (renomear slug, migrar conteúdo, trocar dependência).
+
+### Anatomia de uma spec
+
+Use as specs de `specs/executed/` como referência, principalmente a `spec-005-taskapi-model-project.md`. A estrutura mínima, com a pergunta que cada seção responde:
+
+| Seção | Pergunta que responde | Regra |
+| ----- | --------------------- | ----- |
+| Cabeçalho | Em que pé está? | `Status`, `Date` e `Related` apontando a tarefa em `docs/TODO.md`. |
+| `Context & Rationale` | Por que mexer nisso agora? | **Com números**: quantos arquivos, quantas ocorrências, qual regra deste arquivo está sendo violada. |
+| `Objectives` | Como fica quando terminar? | Resultados observáveis, verificáveis por comando ou inspeção. |
+| `Non-goals` | O que esta spec **não** vai fazer? | Obrigatória. É o que impede o escopo de crescer a cada sessão. |
+| `Plan` | Em que ordem, com qual entrega por fase? | Fases numeradas; cada fase termina em um estado consistente e validável. |
+| `Expected Validation` | O que prova que funcionou? | Comandos (`pnpm build`, `pnpm check:links`, `pnpm validate`) e o que inspecionar à mão. |
+| `Result` | O que de fato foi entregue? | Preenchido no fim, com os números depois da mudança. |
+
+Três regras que fazem a diferença na prática:
+
+1. **Diagnóstico com medida, não com impressão.** "Muitas páginas duplicam código" não sustenta uma spec; "172 blocos escritos à mão em 33 páginas, contra 38 com `<SourceCode>`" sustenta.
+2. **`Non-goals` é obrigatória.** Sem ela o trabalho cresce indefinidamente, e agentes de IA ampliam o pedido por padrão.
+3. **Cada fase precisa deixar o repositório funcionando.** Se uma fase só faz sentido junto da seguinte, são a mesma fase.
+
+Ao executar com um agente, aponte o arquivo e a fase (*"execute a fase 2 de `specs/active/spec-00N-...`, sem tocar no que está em Non-goals"*) em vez de redescrever o problema. Peça antes que ele aponte ambiguidades e contradições na spec: corrigir uma frase é mais barato do que corrigir o código gerado a partir dela.
 
 ## Fluxo para criar ou alterar um tópico
 
@@ -266,13 +298,20 @@ alterou `<SourceCode>` ou o arquivo apontado por ele, `check:doc-lines` é o que
 citação de linha desatualizada. Relate falhas com a saída real; não declare validado
 o que não rodou.
 
+**Toda entrega de conteúdo passa pela revisão.** Depois de criar ou alterar uma página,
+um deck de slides, um mapa mental ou um diagrama, aplique a skill `devlab-content-reviewer`
+ao que foi produzido e relate o resultado junto da entrega. A geração termina no relatório de
+revisão, não no arquivo salvo: o gerador escreve, o revisor confere, e os dois papéis não são
+exercidos com a mesma atenção quando ficam na mesma passagem.
+
 ## Skills do repositório
 
 Em `.agents/skills/`, use quando a tarefa for a delas:
 
 | Skill                        | Quando                                            |
 | ---------------------------- | ------------------------------------------------- |
-| `devlab-topic-docs-generator`| Criar, expandir ou revisar uma página de aula     |
+| `devlab-topic-docs-generator`| Criar, expandir ou ampliar uma página de aula     |
+| `devlab-content-reviewer`    | Revisar/auditar página, diff ou curso já escrito  |
 | `devlab-release-generator`   | Gerar versão (SemVer), CHANGELOG.md e tag Git     |
 | `marp-slides-generator`      | Deck `.slide.md` de um tópico                     |
 | `markmap-mindmap-generator`  | Mapa mental `.mindmap.md`                         |
