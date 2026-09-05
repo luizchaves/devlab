@@ -586,6 +586,156 @@ Comparada com a árvore mostrada antes da instalação, a mesma pasta ganha duas
   Para regenerar a pasta `node_modules/` em um repositório clonado ou em um servidor de produção, basta executar o comando de instalação (`npm install`, `pnpm install` ou `yarn install`) no terminal. O gerenciador utilizará o `package.json` e o arquivo de trava para baixar novamente todas as dependências do projeto.
 </Aside>
 
+## Módulos na Era da Inteligência Artificial
+
+Módulos são o assunto em que assistentes de código mais misturam épocas. O JavaScript conviveu com `require()` durante quinze anos antes do `import` nativo, e o material de treino reflete essa proporção: pedir "um módulo de utilitários" a um modelo devolve, com frequência, um arquivo que combina as duas sintaxes e não roda em nenhum dos dois sistemas.
+
+O erro é imediato e barulhento, o que já é uma vantagem em relação a outros tópicos. O que consome tempo é a categoria seguinte de falha: o código gerado roda, mas depende de variáveis que só existem em CommonJS, ou omite a extensão do arquivo, ou assume um `package.json` diferente do que o projeto tem.
+
+### A resposta que mistura os dois sistemas
+
+O trecho abaixo é a mistura típica, com exportação em CommonJS e importação em ESM no mesmo arquivo:
+
+```js title="utils.js (primeira versão gerada)"
+import fs from "fs";
+
+function readConfig(path) {
+  return JSON.parse(fs.readFileSync(path, "utf8"));
+}
+
+module.exports = { readConfig };
+```
+
+Em um projeto com `"type": "module"` no `package.json`, o arquivo quebra na primeira execução, porque `module` não existe em um módulo ES:
+
+```bash title="Terminal"
+node utils.js
+```
+
+```txt title="Output"
+ReferenceError: module is not defined in ES module scope
+This file is being treated as an ES module because it has a '.js' file extension
+and '/home/dev/app/package.json' contains "type": "module".
+```
+
+A correção é escolher um sistema e manter a coerência no arquivo inteiro, além de usar o prefixo `node:` nos módulos internos, que deixa a origem explícita:
+
+```js title="utils.js (versão corrigida)"
+import fs from "node:fs";
+
+export function readConfig(path) {
+  return JSON.parse(fs.readFileSync(path, "utf8"));
+}
+```
+
+### O contexto que falta no prompt
+
+A mistura acima não é ignorância do modelo, é falta de contexto no pedido. Um assistente não tem como saber qual sistema o projeto usa se o *prompt* não disser, e o padrão estatístico do material de treino é CommonJS.
+
+Os elementos abaixo eliminam a maior parte das respostas incompatíveis:
+
+| Elemento do prompt | Efeito na resposta |
+| :--- | :--- |
+| **O `package.json` colado** (ao menos `type` e `engines`) | Define de saída entre `import` e `require`. |
+| **A versão do Node.js** | Libera ou proíbe *top-level await*, `node:test` e importação de JSON. |
+| **A extensão dos arquivos** (`.js`, `.mjs`, `.cjs`) | Evita sugestões que dependem de renomear os arquivos do projeto. |
+| **Um arquivo existente do projeto como exemplo** | Alinha estilo de exportação, nomeado ou padrão, ao que já existe. |
+| **O destino do código** (Node.js, navegador, ambos) | Determina se caminhos relativos com extensão são obrigatórios. |
+
+Colar um arquivo real do projeto vale mais do que qualquer instrução escrita: o modelo copia a convenção que enxerga, e a convenção do projeto passa a ser o exemplo mais próximo no contexto.
+
+### Variáveis que só existem em CommonJS
+
+A segunda falha recorrente é mais silenciosa no pedido e mais barulhenta na execução. `__dirname`, `__filename` e `require` são variáveis do escopo de módulo do CommonJS, e não existem em módulos ES.
+
+O contraste abaixo mostra a sugestão típica e o equivalente nativo em ESM:
+
+```js title="Caminho de arquivo em CommonJS e em ESM"
+// Sugestão comum, herdada de exemplos em CommonJS
+const templatePath = path.join(__dirname, "templates", "email.html");
+
+// Equivalente em módulos ES, a partir da URL do próprio módulo
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const templatePathEsm = path.join(currentDir, "templates", "email.html");
+
+// Node.js 20.11+ oferece o atalho direto
+const shorter = path.join(import.meta.dirname, "templates", "email.html");
+```
+
+A tabela reúne as trocas equivalentes que resolvem a maior parte dos casos:
+
+| CommonJS | Módulos ES | Observação |
+| :--- | :--- | :--- |
+| `__dirname` | `import.meta.dirname` | Disponível a partir do Node.js 20.11; antes disso, via `fileURLToPath`. |
+| `__filename` | `import.meta.filename` | Mesma faixa de versões. |
+| `require("./x")` | `import x from "./x.js"` | A extensão é obrigatória em ESM no Node.js. |
+| `require(caminhoVariavel)` | `await import(caminhoVariavel)` | O `import()` dinâmico devolve uma promessa. |
+| `module.exports = fn` | `export default fn` | Exportação padrão, não nomeada. |
+| `require("./data.json")` | `import data from "./data.json" with { type: "json" }` | Atributo de importação obrigatório. |
+
+<Aside type="caution" title="Dica de IA: A extensão omitida é o erro mais frequente">
+  Assistentes escrevem `import { readConfig } from "./utils"` por hábito, porque o *bundler* de um projeto de front-end resolve a extensão sozinho. No Node.js, o mesmo `import` quebra com `ERR_MODULE_NOT_FOUND`.
+
+  **Prompt:** *"Este projeto usa módulos ES no Node.js 22, com `"type": "module"` no package.json. Revise os imports: todo caminho relativo precisa terminar em `.js` e os módulos internos devem usar o prefixo `node:`."*
+</Aside>
+
+### Dependência sugerida para o que a plataforma já faz
+
+O terceiro padrão aparece quando o pedido envolve alguma tarefa de infraestrutura. O modelo sugere instalar um pacote consagrado, sem verificar se a versão de Node.js do projeto já resolve o problema nativamente:
+
+| Sugestão frequente | Recurso nativo equivalente | Desde |
+| :--- | :--- | :--- |
+| `dotenv` para ler o `.env` | `node --env-file=.env` e `process.loadEnvFile()` | Node.js 20.6 |
+| `jest` ou `mocha` para testar | `node --test` com `node:test` e `node:assert` | Node.js 18 |
+| `node-fetch` para requisições | `fetch()` global | Node.js 18 |
+| `rimraf` para apagar diretórios | `fs.rm(path, { recursive: true })` | Node.js 14 |
+| `uuid` para identificadores | `crypto.randomUUID()` | Node.js 14.17 |
+| `nodemon` para recarregar | `node --watch` | Node.js 18 |
+
+A pergunta que resolve essa categoria inteira cabe em uma linha: *"a versão do Node.js deste projeto já resolve isso sem dependência?"*. Cada pacote a menos é uma superfície de manutenção, de auditoria de segurança e de atualização a menos.
+
+### Armadilhas frequentes em módulos gerados por IA
+
+O conjunto de falhas abaixo se repete com frequência suficiente para virar item de revisão:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **Mistura de `require` e `import`** | `ReferenceError` ou `SyntaxError` na primeira execução. | Colar o `package.json` no *prompt* e manter um sistema por arquivo. |
+| **Extensão omitida no caminho relativo** | `ERR_MODULE_NOT_FOUND` apontando para um arquivo que existe. | Exigir `.js` em todo caminho relativo no Node.js. |
+| **`__dirname` em módulo ES** | `ReferenceError: __dirname is not defined`. | Trocar por `import.meta.dirname` ou `fileURLToPath`. |
+| **Exportação padrão desnecessária** | Cada importação renomeia a função ao gosto de quem importa. | Preferir exportações nomeadas, que o editor completa e o *linter* confere. |
+| **Importação circular** | Um dos módulos recebe `undefined` no lugar do valor esperado. | Extrair o trecho compartilhado para um terceiro módulo. |
+| **Efeito colateral no topo do módulo** | Conexão ou leitura de arquivo executada só por ter sido importada. | Mover para uma função exportada e chamada explicitamente. |
+
+A importação circular **falha em silêncio**, porque o valor chega como `undefined` em vez de lançar erro no momento da importação:
+
+```js title="Ciclo entre dois módulos"
+// user.js
+import { formatOrder } from "./order.js";
+export const formatUser = (user) => `${user.name}: ${formatOrder(user.lastOrder)}`;
+
+// order.js
+import { formatUser } from "./user.js"; // volta para o módulo que ainda está sendo avaliado
+export const formatOrder = (order) => `pedido ${order.id}`;
+```
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer módulo gerado com auxílio de IA, percorra as verificações abaixo:
+
+1. **O arquivo usa um único sistema de módulos?** `import` e `module.exports` no mesmo arquivo não rodam;
+2. **Todo caminho relativo tem extensão?** No Node.js, `./utils` e `./utils.js` não são equivalentes;
+3. **Alguma variável de CommonJS sobrou?** `__dirname`, `__filename` e `require` não existem em ESM;
+4. **Os módulos internos usam o prefixo `node:`?** Deixa explícito que a origem é a plataforma, não o `node_modules`;
+5. **A dependência sugerida é necessária?** Boa parte do que os pacotes clássicos fazem já é nativo;
+6. **Existe efeito colateral no topo do arquivo?** Importar um módulo não deveria abrir conexão nem ler disco;
+7. **A exportação segue a convenção do projeto?** Nomeada ou padrão, mas a mesma dos arquivos vizinhos.
+
+A inteligência artificial reduziu o custo de escrever um módulo, mas não alterou em nada o custo de descobrir na hora do *deploy* que ele foi escrito para outro sistema de módulos.
+
 ## Resumo e Boas Práticas
 
 Esta seção consolida as decisões práticas do tópico. Use-a como referência rápida para escolher o sistema de módulos, a forma de exportação e a configuração do projeto.

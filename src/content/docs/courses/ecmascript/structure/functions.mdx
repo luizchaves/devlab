@@ -684,6 +684,264 @@ for (const color of colorsGenerator()) {
 }
 ```
 
+## Funções na Era da Inteligência Artificial
+
+Assistentes de código escrevem uma função inteira a partir de uma frase, e por isso o trabalho de quem programa deslocou-se de **digitar o corpo da função** para **definir o contrato e conferir o que foi devolvido**.
+
+Uma função gerada carrega decisões que não aparecem no enunciado do pedido: qual sintaxe de declaração usar, como `this` será resolvido, o que acontece quando um argumento chega `undefined` e se o parâmetro recebido será mutado. Nenhuma dessas decisões é visível em um código que "funciona" no exemplo feliz.
+
+A tabela separa o que os assistentes absorveram do que continua sendo decisão de quem assina o *commit*:
+
+| O que mudou com a IA | O que permanece com a pessoa desenvolvedora |
+| :--- | :--- |
+| Lembrar a sintaxe de *rest parameters*, desestruturação e geradores. | Definir a assinatura: quantos parâmetros, em que ordem e com quais padrões. |
+| Escrever o corpo de uma *closure* ou de uma fábrica de funções. | Decidir se o estado deve mesmo ficar preso no escopo ou vir de fora. |
+| Explicar `call()`, `apply()` e `bind()` linha a linha. | Julgar se `this` dinâmico é necessário ou se uma *arrow function* resolve. |
+| Sugerir refatorações para reduzir aninhamento. | Avaliar legibilidade, nome e responsabilidade única para a equipe. |
+
+### Especificação do contrato: o prompt que produz funções revisáveis
+
+Pedir "uma função que calcule desconto" devolve um palpite sobre o que é desconto. Um contrato explícito, com tipos, limites e comportamento de erro, devolve algo que pode ser testado.
+
+Os elementos abaixo transformam o pedido em especificação:
+
+| Elemento do prompt | Por que importa |
+| :--- | :--- |
+| **Assinatura desejada** (nomes e ordem dos parâmetros) | Evita funções com cinco argumentos posicionais impossíveis de ler na chamada. |
+| **Valor de retorno** (tipo e formato) | Define se a função devolve número, objeto de resultado ou lança exceção. |
+| **Comportamento com argumento ausente** | Determina se o caso vira parâmetro padrão, erro explícito ou `undefined`. |
+| **Restrição de mutação** | Impede que a função altere o objeto recebido em vez de devolver uma cópia. |
+| **Sintaxe permitida** (*arrow*, declaração, método) | Alinha a sugestão à convenção do arquivo em que a função vai morar. |
+| **Pedido de casos de borda** | Faz o modelo listar as entradas que ele mesmo não tratou. |
+
+O prompt a seguir aplica esses elementos ao cálculo de desconto de um item de pedido:
+
+```txt title="Prompt de especificação para gerar uma função"
+Escreva uma função JavaScript (ES2022, sem bibliotecas) chamada applyDiscount.
+
+Contrato:
+- assinatura: applyDiscount(item, percentage), onde item é { name, price };
+- devolve um NOVO objeto { name, price, finalPrice }, sem alterar item;
+- percentage é um número entre 0 e 100; fora dessa faixa, lance RangeError;
+- se percentage não for informado, use 0;
+- finalPrice arredondado para duas casas decimais.
+
+Use function declaration, não arrow function, pois o arquivo exporta funções nomeadas.
+
+Responda com a função, a explicação de cada decisão e a lista de casos de borda
+que a implementação não cobre.
+```
+
+Na primeira resposta, o modelo entregou a função `applyDiscount` com o parâmetro padrão `percentage = 0` e o `throw` da faixa numérica, mas gravou o resultado direto em `item.finalPrice`:
+
+```js title="discount.js (primeira versão gerada)"
+export function applyDiscount(item, percentage = 0) {
+  if (percentage < 0 || percentage > 100) {
+    throw new RangeError("percentage deve estar entre 0 e 100");
+  }
+
+  item.finalPrice = Number((item.price * (1 - percentage / 100)).toFixed(2));
+
+  return item; // devolve o próprio objeto recebido, já alterado
+}
+```
+
+O código roda, imprime o valor certo e passa em qualquer conferência feita com um `console.log()` do caso feliz. A cláusula violada do contrato ("sem alterar item") só aparece quando o objeto original é inspecionado depois da chamada.
+
+### Verificação obrigatória: o contrato vira teste automatizado
+
+Conferir uma função gerada com um `console.log()` do caso feliz é amostragem, não verificação. Cada cláusula citada no prompt precisa virar asserção executável.
+
+No arquivo abaixo, o executor de testes nativo do Node.js cobre os quatro pontos do contrato: cálculo correto, parâmetro padrão, faixa inválida e ausência de mutação.
+
+```js title="discount.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { applyDiscount } from "./discount.js";
+
+test("calcula o preço final com duas casas decimais", () => {
+  assert.equal(applyDiscount({ name: "Mouse", price: 99.9 }, 15).finalPrice, 84.92);
+});
+
+test("usa 0 quando o percentual não é informado", () => {
+  assert.equal(applyDiscount({ name: "Mouse", price: 99.9 }).finalPrice, 99.9);
+});
+
+test("rejeita percentual fora da faixa", () => {
+  assert.throws(() => applyDiscount({ name: "Mouse", price: 99.9 }, 120), RangeError);
+});
+
+test("não altera o item recebido", () => {
+  const item = { name: "Mouse", price: 99.9 };
+  applyDiscount(item, 50);
+  assert.deepEqual(item, { name: "Mouse", price: 99.9 });
+});
+```
+
+A execução aponta exatamente qual cláusula do contrato a implementação quebrou:
+
+```bash title="Terminal"
+node --test discount.test.js
+```
+
+```txt title="Output"
+✔ calcula o preço final com duas casas decimais (0.9021ms)
+✔ usa 0 quando o percentual não é informado (0.1204ms)
+✔ rejeita percentual fora da faixa (0.2617ms)
+✖ não altera o item recebido (0.4432ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+
+✖ failing tests:
+
+test at discount.test.js:19:1
+✖ não altera o item recebido (0.4432ms)
+  AssertionError [ERR_ASSERTION]: Expected inputs to be loosely deep-equal:
+  {
+    finalPrice: 49.95,
+    name: 'Mouse',
+    price: 99.9
+  }
+  should loosely deep-equal
+  {
+    name: 'Mouse',
+    price: 99.9
+  }
+```
+
+Com o *spread* `...item` no lugar da atribuição, a função devolve um objeto novo e o original permanece intacto:
+
+```js title="discount.js (versão corrigida)"
+// Aplica desconto percentual e devolve uma cópia do item, nunca o objeto original
+export function applyDiscount(item, percentage = 0) {
+  if (percentage < 0 || percentage > 100) {
+    throw new RangeError("percentage deve estar entre 0 e 100");
+  }
+
+  const finalPrice = Number((item.price * (1 - percentage / 100)).toFixed(2));
+
+  return { ...item, finalPrice };
+}
+```
+
+Os quatro testes passam, e a suíte fica versionada como proteção contra a regressão que a próxima sugestão pode reintroduzir:
+
+```bash title="Terminal"
+node --test discount.test.js
+```
+
+```txt title="Output"
+✔ calcula o preço final com duas casas decimais (0.8817ms)
+✔ usa 0 quando o percentual não é informado (0.1188ms)
+✔ rejeita percentual fora da faixa (0.2503ms)
+✔ não altera o item recebido (0.1094ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+```
+
+<Aside type="tip" title="Dica de IA: Peça os casos de borda ao próprio assistente">
+  Um segundo pedido costuma render mais do que o primeiro, e cada resposta vira um `test()` novo antes do *merge*.
+
+  **Prompt:** *"Liste dez chamadas desta função que produzem resultado incorreto ou inesperado, incluindo argumentos ausentes, `null`, tipos trocados e objetos que a função possa alterar sem querer."*
+</Aside>
+
+### Auditoria de funções herdadas: peça a explicação, não só o código
+
+O ganho mais imediato da IA em funções não é gerar, é **explicar**. Antes de alterar uma *closure* herdada que funciona mas ninguém da equipe consegue ler, peça a decomposição trecho a trecho:
+
+```js title="Função herdada, correta porém ilegível"
+const makeCounter = (start = 0) => ((count = start) => () => ++count)();
+
+const next = makeCounter(10);
+
+console.log(next()); // 11
+console.log(next()); // 12
+```
+
+A decomposição traduz cada trecho em uma responsabilidade nomeada:
+
+| Trecho | Significado | Responsabilidade |
+| :--- | :--- | :--- |
+| `(start = 0)` | Parâmetro padrão da fábrica externa. | Define o valor inicial do contador. |
+| `(count = start) => …` | *Arrow function* invocada imediatamente (IIFE). | Cria o escopo onde `count` vive. |
+| `() => ++count` | Função devolvida que captura `count` por *closure*. | Incrementa e devolve o próximo valor. |
+| `(…)()` final | Execução imediata da IIFE. | Garante um estado por chamada de `makeCounter`. |
+
+A versão reescrita preserva o comportamento, elimina a IIFE desnecessária e ganha nome para cada parte:
+
+```js title="counter.js"
+function createCounter(start = 0) {
+  let count = start;
+
+  return function next() {
+    count += 1;
+    return count;
+  };
+}
+
+const nextId = createCounter(10);
+
+console.log(nextId()); // 11
+console.log(nextId()); // 12
+console.log(createCounter(10)()); // 11 (estado independente por fábrica)
+```
+
+A refatoração mantém o critério de aceitação, permite testar `createCounter` isoladamente e deixa explícito que cada chamada da fábrica cria um estado novo.
+
+### Armadilhas frequentes em funções geradas por IA
+
+Modelos de linguagem aprendem com código de todas as eras do JavaScript, boa parte dele anterior ao ES6 ou escrito para outros ecossistemas, e repetem um conjunto reconhecível de falhas:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **`this` perdido em *arrow function*** | Método de objeto escrito como `metodo: () => this.valor`, devolvendo `undefined`. | Exigir método tradicional em objetos e classes; testar o método pelo objeto, nunca isolado. |
+| **`arguments` dentro de *arrow*** | Sugestão de `Array.from(arguments)` em uma *arrow function*, que não possui o objeto. | Trocar por *rest parameters* (`...args`), que funcionam nas duas sintaxes. |
+| **Parâmetro padrão que não dispara** | `function f(x = 10)` chamado com `null`, que é valor intencional e não aciona o padrão. | Testar explicitamente `null` além de `undefined` e usar `??` quando os dois devem cair no padrão. |
+| **Mutação silenciosa do argumento** | A função altera o objeto ou o array recebido em vez de devolver uma cópia. | Pedir imutabilidade no prompt e travar com um teste `deepEqual` sobre a entrada. |
+| **Aridade excessiva** | Funções com cinco ou seis parâmetros posicionais, ilegíveis na chamada. | Pedir um único parâmetro objeto com desestruturação e valores padrão. |
+| **Aninhamento de *callbacks*** | Estruturas em pirâmide onde `return` antecipado resolveria. | Solicitar *guard clauses* e conferir o nível de indentação do corpo. |
+
+A primeira armadilha **falha em silêncio**, porque `undefined` não lança erro ao ser impresso:
+
+```js title="Arrow function como método de objeto"
+const cart = {
+  items: ["mouse", "teclado"],
+  // Sugestão comum: arrow function como método, herdando o this do escopo externo
+  countArrow: () => this.items?.length,
+  // Método tradicional: this é o próprio objeto na chamada cart.countMethod()
+  countMethod() {
+    return this.items.length;
+  },
+};
+
+console.log(cart.countArrow());  // undefined (this não é cart)
+console.log(cart.countMethod()); // 2
+```
+
+<Aside type="caution" title="Dica de IA: Trate função gerada por IA como código de terceiro">
+  Uma função sugerida por um assistente entra no projeto com o mesmo status de um trecho copiado de um fórum. A responsabilidade pelo código que chega à produção é de quem abre o *pull request*, não do modelo que o escreveu.
+
+  **Prompt:** *"Explique esta função linha a linha e diga exatamente o que ela faz com argumentos ausentes, com `null` e com objetos recebidos por referência."*
+</Aside>
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer função gerada com auxílio de IA, percorra as verificações abaixo:
+
+1. **Consigo explicar cada linha do corpo?** Se a resposta for não, peça a decomposição ou divida a função em partes menores antes de aprovar;
+2. **A assinatura é legível na chamada?** Mais de três parâmetros posicionais viram um objeto com desestruturação;
+3. **O comportamento sem argumento está definido?** Teste `undefined` e `null` separadamente, pois só o primeiro dispara o parâmetro padrão;
+4. **A função altera o que recebeu?** Uma asserção sobre a entrada depois da chamada revela mutação não pedida;
+5. **A sintaxe combina com o uso de `this`?** *Arrow function* em método de objeto ou de classe é erro silencioso;
+6. **Os erros são lançados ou engolidos?** Uma função que devolve `undefined` em caso inválido esconde o problema de quem a chama;
+7. **O nome descreve o efeito real?** Um `getUser` que também grava no banco de dados foi mal nomeado pelo modelo e vai enganar a próxima pessoa.
+
+A inteligência artificial reduziu o custo de escrever uma função, mas não alterou em nada o custo de errar o contrato dela em produção.
+
 ## Resumo e Boas Práticas
 
 Esta seção consolida as decisões práticas do tópico. Use-a como referência rápida para escolher formas de declaração, gerenciar argumentos e aplicar recursos avançados de escopo.

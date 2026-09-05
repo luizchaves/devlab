@@ -49,14 +49,14 @@ O diagrama a seguir ilustra a bifurcação de execução entre o caminho feliz (
 
 <Mermaid title="Ciclo de Vida de Execução: try...catch...finally">
 {`
-flowchart LR
+flowchart TD
   Start(["Início da operação"]) --> Try["Executa bloco try"]
   Try --> Check{"Ocorreu exceção?"}
-  Check -->|Não| NormalPath["Conclui código do try"]
-  Check -->|Sim| Catch["Executa bloco catch(error)<br>(Captura e trata a falha)"]
-  NormalPath --> Finally["Executa bloco finally<br>(Limpeza obrigatória de recursos)"]
+  Check -->|Não| NormalPath["Conclui o código<br>do try"]
+  Check -->|Sim| Catch["Executa catch(error)<br>captura e trata a falha"]
+  NormalPath --> Finally["Executa finally<br>limpeza obrigatória"]
   Catch --> Finally
-  Finally --> EndNode(["Continua execução do programa"])
+  Finally --> EndNode(["Continua a execução<br>do programa"])
 `}
 </Mermaid>
 
@@ -141,10 +141,10 @@ Quando uma exceção é lançada com `throw` e a função corrente não possui u
 
 <Mermaid title="Propagação de Exceções na Pilha de Chamadas (Call Stack Unwinding)">
 {`
-flowchart LR
-  C["funcaoC()<br>throw new RangeError(...)"] -->|Propaga erro| B["funcaoB()<br>(Sem bloco try/catch)"]
-  B -->|Propaga erro| A["funcaoA()<br>try { funcaoB() } catch(err)"]
-  A --> Handled(["Exceção tratada com sucesso!"])
+flowchart TD
+  C["funcaoC()<br>throw new RangeError(...)"] -->|Propaga| B["funcaoB()<br>sem try/catch"]
+  B -->|Propaga| A["funcaoA()<br>try { funcaoB() } catch(err)"]
+  A --> Handled(["Exceção tratada"])
 `}
 </Mermaid>
 
@@ -214,9 +214,9 @@ O diagrama a seguir exibe a hierarquia de herança a partir da classe base `Erro
 
 <Mermaid title="Hierarquia de Classes: Error Nativo e Subclasses Customizadas">
 {`
-flowchart TD
-  Base["Error (Classe base)"] --> Native["Erros Nativos da Engine"]
-  Base --> Custom["Erros de Domínio (Custom)"]
+flowchart LR
+  Base["Error<br>classe base"] --> Native["Erros nativos<br>da engine"]
+  Base --> Custom["Erros de domínio<br>(custom)"]
   Native --> T1["TypeError"]
   Native --> T2["RangeError"]
   Native --> T3["SyntaxError"]
@@ -318,16 +318,203 @@ O diagrama a seguir demonstra como o operador `await` intercepta a rejeição de
 
 <Mermaid title="Fluxo de Tratamento de Exceções com async/await">
 {`
-flowchart LR
+flowchart TD
   Call["await operacaoAssincrona()"] --> State{"Promise resolvida<br>ou rejeitada?"}
-  State -->|"Resolvida (sucesso)"| Ret["Recebe o valor resolvido<br>(continua no try)"]
-  State -->|"Rejeitada (erro)"| ThrowErr["Lança exceção em runtime<br>(desvia para o catch)"]
-  Ret --> Finally["Executa bloco finally"]
-  ThrowErr --> Catch["Executa bloco catch(error)"]
+  State -->|"Resolvida"| Ret["Recebe o valor<br>e segue no try"]
+  State -->|"Rejeitada"| ThrowErr["Lança exceção<br>e desvia para o catch"]
+  ThrowErr --> Catch["Executa catch(error)"]
+  Ret --> Finally["Executa finally"]
   Catch --> Finally
   Finally --> EndNode(["Continua execução"])
 `}
 </Mermaid>
+
+## Tratamento de Erros na Era da Inteligência Artificial
+
+Pedir "adicione tratamento de erros" a um assistente de código quase sempre devolve a mesma coisa: um `try...catch` envolvendo o bloco inteiro, um `console.error()` dentro do `catch` e a execução seguindo em frente. O código passa a parecer robusto, e o efeito prático é o oposto, porque a falha deixa de interromper o fluxo e passa a se manifestar mais tarde, longe da causa.
+
+Esta é a área do JavaScript em que a sugestão plausível é mais perigosa: um erro tratado errado não aparece em teste feliz, não aparece em revisão apressada e só aparece no relato de quem usou o sistema.
+
+### O catch que engole a exceção
+
+O trecho abaixo é a resposta mais comum ao pedido de "tornar a função segura". Ela captura tudo, registra no console e devolve um valor de aparência inofensiva:
+
+```js title="account.js (primeira versão gerada)"
+export function parseBalance(payload) {
+  try {
+    return JSON.parse(payload).balance;
+  } catch (error) {
+    console.error("Erro ao processar saldo:", error);
+    return 0; // valor padrão para não quebrar a aplicação
+  }
+}
+```
+
+O comentário do próprio modelo entrega o problema: "para não quebrar a aplicação". Um saldo ausente virou o número `0`, que é um saldo válido, e a diferença entre "não sei" e "zero" desapareceu antes de chegar a quem chamou a função.
+
+O teste abaixo formaliza a distinção que o `catch` apagou:
+
+```js title="account.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { parseBalance } from "./account.js";
+
+test("lê o saldo de um payload válido", () => {
+  assert.equal(parseBalance('{"balance":1500.5}'), 1500.5);
+});
+
+test("sinaliza payload inválido em vez de devolver saldo zero", () => {
+  assert.throws(() => parseBalance("{quebrado"), SyntaxError);
+});
+```
+
+A execução mostra que a função nunca falha, nem quando deveria:
+
+```bash title="Terminal"
+node --test account.test.js
+```
+
+```txt title="Output"
+✔ lê o saldo de um payload válido (0.8834ms)
+✖ sinaliza payload inválido em vez de devolver saldo zero (1.3221ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+
+✖ failing tests:
+
+test at account.test.js:9:1
+✖ sinaliza payload inválido em vez de devolver saldo zero (1.3221ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+```
+
+A correção não é remover o `try...catch`, é decidir o que o `catch` acrescenta. Aqui ele acrescenta contexto e propaga a falha com a causa original preservada em `cause`:
+
+```js title="account.js (versão corrigida)"
+export function parseBalance(payload) {
+  try {
+    return JSON.parse(payload).balance;
+  } catch (error) {
+    // Acrescenta contexto e mantém o rastro original em error.cause
+    throw new SyntaxError("Payload de saldo inválido", { cause: error });
+  }
+}
+```
+
+<Aside type="caution" title="Dica de IA: Todo catch precisa justificar sua existência">
+  Ao revisar um `try...catch` sugerido por IA, exija uma resposta para uma pergunta: o que este bloco faz além de esconder a falha? Se a resposta for "registra no console e segue", o bloco está piorando o sistema. `catch` válido é o que **traduz**, **acrescenta contexto**, **tenta novamente** ou **decide um caminho alternativo consciente**.
+
+  **Prompt:** *"Para cada `try...catch` deste arquivo, responda: o bloco traduz o erro, acrescenta contexto, tenta novamente ou decide um caminho alternativo? Remova ou reescreva os que apenas registram no console e seguem em frente."*
+</Aside>
+
+### Do catch genérico ao erro tipado
+
+O segundo padrão recorrente é o `catch` único que trata todas as falhas como iguais. O trecho herdado abaixo mistura três causas diferentes em uma resposta só:
+
+```js title="Tratamento herdado, genérico demais"
+try {
+  const user = await findUser(id);
+  return user.profile.name;
+} catch (error) {
+  return "Usuário desconhecido";
+}
+```
+
+A decomposição separa o que aquele único `catch` está capturando de fato:
+
+| Falha capturada | Origem real | Resposta adequada |
+| :--- | :--- | :--- |
+| `TypeError` em `user.profile` | O usuário existe, mas não tem perfil. | Devolver o nome padrão é aceitável. |
+| Erro de rede ou de banco | A consulta não chegou ao destino. | Propagar e responder com falha temporária. |
+| `ReferenceError` de digitação | Defeito no próprio código. | Nunca capturar: precisa quebrar em desenvolvimento. |
+
+Com erros tipados, cada causa recebe o tratamento que merece, e o defeito de programação continua subindo:
+
+```js title="user-service.js"
+export class UserNotFoundError extends Error {
+  constructor(id) {
+    super(`Usuário ${id} não encontrado`);
+    this.name = "UserNotFoundError";
+    this.status = 404;
+  }
+}
+
+export async function getUserName(id) {
+  try {
+    const user = await findUser(id);
+    return user.profile?.name ?? "Sem nome cadastrado";
+  } catch (error) {
+    if (error instanceof UserNotFoundError) return "Usuário desconhecido";
+
+    throw error; // rede, banco e defeitos de código continuam subindo
+  }
+}
+```
+
+### A mensagem de erro que vaza detalhes
+
+Assistentes otimizam para depuração, e a sugestão padrão de resposta de erro em uma API devolve ao cliente exatamente o que ajuda quem está desenvolvendo, incluindo o que não deveria sair do servidor:
+
+```js title="Resposta de erro sugerida e resposta segura"
+// Sugestão comum: repassar a mensagem e a pilha para o cliente
+app.use((error, req, res, next) => {
+  res.status(500).json({ error: error.message, stack: error.stack });
+});
+
+// Versão que registra tudo no servidor e devolve o essencial ao cliente
+app.use((error, req, res, next) => {
+  console.error(error); // mensagem, pilha e causa ficam no log
+
+  const status = error.status ?? 500;
+  const message = status < 500 ? error.message : "Erro interno do servidor";
+
+  res.status(status).json({ error: message });
+});
+```
+
+A diferença entre os dois blocos não é de estilo. A pilha de chamadas expõe caminhos de arquivos, versões de dependências e, com frequência, trechos de consulta ao banco de dados com nomes reais de tabelas e colunas.
+
+### Perguntas que revelam um tratamento mal posicionado
+
+Antes de aprovar um bloco de tratamento de erros gerado por IA, três perguntas costumam resolver a revisão sem discussão de estilo:
+
+1. **Quem consome esta função consegue distinguir sucesso de falha?** Um retorno `0`, `null` ou `[]` no `catch` apaga essa distinção;
+2. **Este `catch` está no nível certo?** Tratamento em toda função transforma qualquer chamada em um ponto de decisão; o lugar natural é a borda do sistema, como o *middleware* de erro ou o `main`;
+3. **O erro original sobreviveu?** Um `throw new Error("falhou")` sem `cause` descarta a pilha da falha real e deixa o próximo incidente sem rastro.
+
+### Armadilhas frequentes em tratamento de erros gerado por IA
+
+O conjunto de falhas abaixo se repete com frequência suficiente para virar item de revisão:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **`catch` vazio ou só com log** | A falha vira uma linha no console e o fluxo continua com dado inválido. | Exigir tradução, contexto, nova tentativa ou repropagação em todo `catch`. |
+| **Valor padrão no lugar do erro** | `return 0`, `return null` ou `return []` escondendo a causa. | Testar o caminho de falha com `assert.throws()`. |
+| **Perda da causa original** | `throw new Error("erro ao salvar")` sem `{ cause: error }`. | Sempre repassar a causa, disponível desde o ES2022. |
+| **`try...catch` em torno de `Promise` sem `await`** | O bloco não captura nada, pois a rejeição acontece depois. | Conferir se há `await` dentro do `try` ou usar `.catch()`. |
+| **Captura de defeitos de programação** | `TypeError` e `ReferenceError` engolidos junto com falhas esperadas. | Filtrar por tipo com `instanceof` e repropagar o restante. |
+| **Detalhe interno na resposta HTTP** | `error.stack` e mensagens de banco devolvidas ao cliente. | Registrar no servidor e responder com mensagem genérica em erros 5xx. |
+
+A quarta armadilha **falha em silêncio**, porque o código tem a forma correta e não protege nada:
+
+```js title="try...catch que não captura a rejeição"
+// Sugestão comum: try...catch em volta de uma chamada assíncrona sem await
+try {
+  fetchData(); // devolve uma Promise rejeitada, fora do fluxo síncrono
+} catch (error) {
+  console.error("nunca chega aqui:", error);
+}
+
+// Com await, a rejeição vira exceção dentro do bloco
+try {
+  await fetchData();
+} catch (error) {
+  console.error("agora sim:", error.message);
+}
+```
+
+A inteligência artificial reduziu o custo de escrever um `try...catch`, mas não alterou em nada o custo de descobrir tarde demais que a aplicação vinha ignorando falhas em produção.
 
 ## Boas práticas
 
