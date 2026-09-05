@@ -33,11 +33,10 @@ O diagrama a seguir ilustra a representação de um objeto literal na memória H
 
 <Mermaid title="Estrutura de Objetos na Memória e Cadeia de Protótipos">
 {`
-flowchart LR
+flowchart TD
   subgraph Stack["Pilha (Stack)"]
     A["const student"]
   end
-
 
   subgraph Heap["Memória Heap"]
     direction TB
@@ -1184,6 +1183,289 @@ console.log(json);
 const parsed = JSON.parse(json);
 console.log(typeof parsed.createdAt); // "string" (requer new Date(parsed.createdAt))
 ```
+
+## Objetos na Era da Inteligência Artificial
+
+Assistentes de código produzem estruturas de objeto, cópias e mesclagens com uma frase de pedido, e o trabalho passou de **escrever a manipulação** para **definir a profundidade da cópia e verificar o que sobreviveu a ela**.
+
+Objetos são o ponto do JavaScript em que uma sugestão plausível erra sem avisar: o *spread* copia apenas o primeiro nível, `Object.freeze()` congela apenas o primeiro nível e `JSON.parse(JSON.stringify(obj))` descarta silenciosamente tudo o que não tem representação em JSON. Nenhum desses três problemas aparece no `console.log()` do exemplo feliz.
+
+O diagrama mostra o que uma cópia rasa realmente produz: dois objetos independentes no primeiro nível, apontando para o **mesmo** objeto aninhado.
+
+<Mermaid title="Cópia rasa: o nível interno continua compartilhado">
+{`
+flowchart LR
+  A["original<br/>{ user, settings }"] --> N["settings<br/>{ theme: 'dark' }"]
+  B["cópia com spread<br/>{ user, settings }"] --> N
+  C["cópia com structuredClone<br/>{ user, settings }"] --> M["settings<br/>{ theme: 'dark' }"]
+`}
+</Mermaid>
+
+As duas primeiras caixas compartilham o objeto `settings`, e por isso alterar `copia.settings.theme` muda também o original. Só a terceira, produzida por `structuredClone()`, tem um objeto aninhado próprio.
+
+A tabela separa o que a inteligência artificial absorveu do que continua sendo decisão de projeto:
+
+| O que mudou com a IA | O que permanece com a pessoa desenvolvedora |
+| :--- | :--- |
+| Lembrar a sintaxe de desestruturação com alias, padrão e aninhamento. | Definir o formato do objeto e quais campos são obrigatórios. |
+| Escrever a transformação com `Object.entries()`, `map()` e `fromEntries()`. | Decidir se a operação precisa de cópia rasa, cópia profunda ou referência. |
+| Explicar protótipo, `this` e a diferença entre método e função solta. | Julgar se o dado merece uma classe, um objeto literal ou um `Map`. |
+| Sugerir validações de presença de propriedade. | Avaliar o risco de mesclar chaves vindas do corpo de uma requisição. |
+
+### Descreva a estrutura, não a operação
+
+Pedir "mescle as configurações" descreve uma ação e devolve um `Object.assign()` sobre o primeiro nível. O que muda a resposta é descrever **o objeto**: quantos níveis ele tem, que tipos moram em cada campo e de onde vêm as chaves.
+
+Os elementos abaixo são os que o modelo não consegue adivinhar a partir do verbo:
+
+| Elemento do prompt | Por que importa |
+| :--- | :--- |
+| **O objeto de exemplo colado por inteiro** | O aninhamento visível é o que decide entre cópia rasa e cópia profunda. |
+| **Tipos não triviais presentes** (`Date`, `Map`, `undefined`) | Elimina a sugestão de `JSON.parse(JSON.stringify(...))`, que descarta os três. |
+| **Quem é dono do objeto** (constante do módulo ou dado da requisição) | Define se alterar a entrada é aceitável ou é defeito. |
+| **Origem das chaves** (escritas no código ou digitadas por alguém) | Determina se é preciso bloquear `__proto__` e `constructor`. |
+| **O que fazer com chave ausente** | Decide entre manter o padrão, omitir a chave ou lançar erro. |
+
+O prompt a seguir descreve a estrutura de preferências de usuário antes de pedir qualquer código:
+
+```txt title="Prompt que descreve o objeto antes da operação"
+Tenho este objeto de preferências padrão, definido como constante no módulo:
+
+{
+  theme: "light",
+  notifications: { email: true, push: false },
+  updatedAt: new Date("2026-01-10T12:00:00Z")
+}
+
+Preciso combiná-lo com um objeto parcial que chega no corpo de uma requisição HTTP,
+por exemplo { notifications: { push: true } }.
+
+Requisitos:
+- o objeto padrão e o objeto recebido não podem ser alterados;
+- chaves aninhadas devem ser combinadas, não substituídas por inteiro;
+- updatedAt precisa continuar sendo um Date no resultado;
+- chaves como __proto__ e constructor, vindas de fora, devem ser ignoradas.
+
+Escreva o código em JavaScript (ES2022, sem bibliotecas), explique cada decisão
+e liste o que a sua solução não cobre.
+```
+
+Na primeira resposta, o modelo entregou a combinação com *spread* em um único nível, que resolve o caso mais visível e destrói o objeto aninhado:
+
+```js title="preferences.js (primeira versão gerada)"
+export function mergePreferences(defaults, overrides) {
+  return { ...defaults, ...overrides };
+}
+
+const defaults = { theme: "light", notifications: { email: true, push: false } };
+
+console.log(mergePreferences(defaults, { theme: "dark" }));
+// { theme: 'dark', notifications: { email: true, push: false } } (parece correto)
+```
+
+O resultado impresso convence, porque o caso testado alterou apenas uma chave do primeiro nível. A falha aparece quando o objeto recebido traz um campo aninhado parcial.
+
+### Verificação: mexa na cópia e olhe para o original
+
+Toda revisão de código que copia objeto tem o mesmo movimento: altere um campo **aninhado** do resultado e vá conferir o objeto de origem. É esse passo que separa uma cópia de verdade de uma cópia aparente, e é exatamente o passo que um `console.log()` do caso feliz não faz.
+
+No arquivo abaixo, o executor de testes nativo do Node.js cobre a combinação aninhada, a preservação dos objetos de entrada, a sobrevivência do campo `Date` e o bloqueio de chaves de protótipo:
+
+```js title="preferences.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mergePreferences } from "./preferences.js";
+
+const defaults = { theme: "light", notifications: { email: true, push: false } };
+
+test("mescla chaves aninhadas sem descartar as ausentes", () => {
+  const result = mergePreferences(defaults, { notifications: { push: true } });
+  assert.deepEqual(result.notifications, { email: true, push: true });
+});
+
+test("não altera os objetos recebidos", () => {
+  mergePreferences(defaults, { theme: "dark" });
+  assert.equal(defaults.theme, "light");
+});
+
+test("preserva o campo Date em vez de convertê-lo em texto", () => {
+  const withDate = { ...defaults, updatedAt: new Date("2026-01-10T12:00:00Z") };
+  assert.ok(mergePreferences(withDate, { theme: "dark" }).updatedAt instanceof Date);
+});
+
+test("ignora chaves de protótipo vindas de entrada externa", () => {
+  const hostile = JSON.parse('{ "__proto__": { "isAdmin": true } }');
+  mergePreferences(defaults, hostile);
+  assert.equal({}.isAdmin, undefined);
+});
+```
+
+A execução mostra que o *spread* de um nível descarta `email` ao sobrescrever o objeto `notifications` inteiro:
+
+```bash title="Terminal"
+node --test preferences.test.js
+```
+
+```txt title="Output"
+✖ mescla chaves aninhadas sem descartar as ausentes (1.0428ms)
+✔ não altera os objetos recebidos (0.1381ms)
+✔ preserva o campo Date em vez de convertê-lo em texto (0.1770ms)
+✔ ignora chaves de protótipo vindas de entrada externa (0.2094ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+
+✖ failing tests:
+
+test at preferences.test.js:8:1
+✖ mescla chaves aninhadas sem descartar as ausentes (1.0428ms)
+  AssertionError [ERR_ASSERTION]: Expected inputs to be loosely deep-equal:
+  {
+    push: true
+  }
+  should loosely deep-equal
+  {
+    email: true,
+    push: true
+  }
+```
+
+A versão corrigida percorre as chaves de `overrides`, mescla recursivamente quando os dois lados são objetos simples e descarta os nomes reservados do protótipo:
+
+```js title="preferences.js (versão corrigida)"
+const BLOCKED_KEYS = ["__proto__", "constructor", "prototype"];
+
+const isPlainObject = (value) =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+export function mergePreferences(defaults, overrides) {
+  const result = { ...defaults };
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (BLOCKED_KEYS.includes(key)) continue;
+
+    result[key] = isPlainObject(value) && isPlainObject(defaults[key])
+      ? mergePreferences(defaults[key], value)
+      : value;
+  }
+
+  return result;
+}
+```
+
+Os quatro testes passam, e a suíte fica versionada como proteção contra a próxima sugestão que voltar ao *spread* de um nível:
+
+```bash title="Terminal"
+node --test preferences.test.js
+```
+
+```txt title="Output"
+✔ mescla chaves aninhadas sem descartar as ausentes (0.9012ms)
+✔ não altera os objetos recebidos (0.1275ms)
+✔ preserva o campo Date em vez de convertê-lo em texto (0.1642ms)
+✔ ignora chaves de protótipo vindas de entrada externa (0.1903ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+```
+
+<Aside type="caution" title="Dica de IA: Cópia profunda por JSON descarta tipos em silêncio">
+  A sugestão mais frequente para clonar objetos é `JSON.parse(JSON.stringify(obj))`. Ela transforma `Date` em *string*, remove chaves com `undefined` e funções, converte `NaN` e `Infinity` em `null` e quebra em referências circulares. Quando a cópia profunda é mesmo necessária, use `structuredClone(obj)`, nativo no Node.js 17+ e nos navegadores atuais.
+
+  **Prompt:** *"Este objeto tem campos `Date`, `undefined` e um `Map`. Faça uma cópia profunda que preserve os três tipos, mostre um teste que comprove a preservação e explique por que `JSON.parse(JSON.stringify(...))` não serve aqui."*
+</Aside>
+
+### Auditoria de objetos herdados: peça a explicação, não só o código
+
+O ganho mais imediato da IA em objetos não é gerar, é **explicar**. Antes de alterar uma transformação herdada que funciona mas ninguém da equipe consegue ler, peça a decomposição trecho a trecho:
+
+```js title="Transformação herdada, correta porém ilegível"
+const normalize = (o) =>
+  Object.fromEntries(
+    Object.entries(o).filter(([, v]) => v != null).map(([k, v]) => [k.toLowerCase(), v]),
+  );
+
+console.log(normalize({ Name: "Ana", Email: null, CITY: "João Pessoa" }));
+// { name: 'Ana', city: 'João Pessoa' }
+```
+
+A decomposição traduz cada trecho em uma regra de negócio nomeada:
+
+| Trecho | Significado | Regra de negócio |
+| :--- | :--- | :--- |
+| `Object.entries(o)` | Converte o objeto em um array de pares `[chave, valor]`. | Permite tratar propriedades como uma lista. |
+| `.filter(([, v]) => v != null)` | Descarta pares cujo valor é `null` ou `undefined`. | Campos não preenchidos não entram no registro. |
+| `.map(([k, v]) => [k.toLowerCase(), v])` | Reescreve cada chave em minúsculas. | Padroniza nomes vindos de fontes diferentes. |
+| `Object.fromEntries(...)` | Reconstrói o objeto a partir dos pares. | Devolve o mesmo formato de entrada, já normalizado. |
+
+A versão reescrita preserva o comportamento e nomeia cada etapa, o que permite testar as regras isoladamente:
+
+```js title="normalize.js"
+const isFilled = ([, value]) => value !== null && value !== undefined;
+const toLowerKey = ([key, value]) => [key.toLowerCase(), value];
+
+export function normalizeRecord(record) {
+  const filled = Object.entries(record).filter(isFilled);
+
+  return Object.fromEntries(filled.map(toLowerKey));
+}
+
+console.log(normalizeRecord({ Name: "Ana", Email: null, CITY: "João Pessoa" }));
+// { name: 'Ana', city: 'João Pessoa' }
+```
+
+### Armadilhas frequentes em código de objetos gerado por IA
+
+Modelos de linguagem aprendem com código de todas as eras do JavaScript, boa parte dele anterior a `structuredClone()` e a `Object.hasOwn()`, e repetem um conjunto reconhecível de falhas:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **Cópia rasa apresentada como cópia** | `{ ...obj }` ou `Object.assign({}, obj)` com objetos aninhados que continuam compartilhados. | Testar alterando o objeto interno da cópia e conferindo o original. |
+| **Clone por JSON** | `JSON.parse(JSON.stringify(obj))` perdendo `Date`, `undefined`, `Map` e funções. | Trocar por `structuredClone()` e testar com um campo `Date`. |
+| **`Object.freeze()` tratado como imutabilidade** | O objeto raiz congela, mas os objetos aninhados continuam graváveis. | Congelar recursivamente ou trabalhar com cópias em vez de congelamento. |
+| **Mesclagem recursiva de entrada externa** | Mesclagem por atribuição (`alvo[chave] = valor`) sobre `req.body`, capaz de gravar em `__proto__` e afetar todos os objetos. | Filtrar chaves reservadas e validar o corpo antes da mesclagem. |
+| **`hasOwnProperty` chamado direto no objeto** | `obj.hasOwnProperty(k)` quebra em objetos criados com `Object.create(null)`. | Usar `Object.hasOwn(obj, k)`, disponível desde o ES2022. |
+| **Método extraído do objeto** | `const fn = obj.metodo` seguido de `fn()`, com `this` perdido. | Chamar pelo objeto ou fixar o contexto com `bind()`. |
+
+A primeira armadilha **falha em silêncio**, porque a cópia parece independente até alguém alterar um campo aninhado:
+
+```js title="Cópia rasa apresentada como cópia independente"
+const original = { user: "ana", settings: { theme: "dark" } };
+
+// Sugestão comum quando o pedido é "faça uma cópia do objeto"
+const shallow = { ...original };
+shallow.settings.theme = "light";
+
+console.log(original.settings.theme); // "light" (o original mudou junto)
+
+// Cópia profunda nativa, sem perda de tipos
+const deep = structuredClone(original);
+deep.settings.theme = "solarized";
+
+console.log(original.settings.theme); // "light" (o original permanece)
+```
+
+<Aside type="caution" title="Dica de IA: Trate código de objeto gerado por IA como código de terceiro">
+  Uma manipulação sugerida por um assistente entra no projeto com o mesmo status de um trecho copiado de um fórum. A responsabilidade pelo estado compartilhado que chega à produção é de quem abre o *pull request*, não do modelo que o escreveu.
+
+  **Prompt:** *"Explique, propriedade por propriedade, o que esta cópia compartilha com o objeto original e o que é realmente independente. Mostre um exemplo de alteração que afeta os dois."*
+</Aside>
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer manipulação de objetos gerada com auxílio de IA, percorra as verificações abaixo:
+
+1. **A cópia é rasa ou profunda?** Altere um campo aninhado do resultado e confira o original antes de aprovar;
+2. **Há `JSON.parse(JSON.stringify(...))` no diff?** Troque por `structuredClone()` ou justifique a perda de tipos por escrito;
+3. **As chaves vêm de entrada externa?** Filtre `__proto__`, `constructor` e `prototype` antes de qualquer mesclagem;
+4. **A verificação de propriedade usa `Object.hasOwn()`?** O `in` também enxerga o protótipo e o `hasOwnProperty` direto quebra em objetos sem protótipo;
+5. **Algum método foi extraído do objeto?** Guardar `obj.metodo` em uma variável perde o `this`;
+6. **O objeto devolvido tem formato estável?** Chaves que aparecem apenas em alguns caminhos quebram quem consome o retorno;
+7. **A estrutura merece mesmo ser um objeto?** Chaves dinâmicas vindas de dados costumam pedir `Map`, que preserva ordem e aceita qualquer tipo de chave.
+
+A inteligência artificial reduziu o custo de escrever a manipulação de um objeto, mas não alterou em nada o custo de compartilhar estado sem perceber em produção.
 
 ## Resumo e Boas Práticas
 

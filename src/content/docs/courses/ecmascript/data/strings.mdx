@@ -681,6 +681,197 @@ const logger = new CustomLogger();
 console.log(Object.prototype.toString.call(logger)); // "[object CustomLogger]"
 ```
 
+## Strings na Era da Inteligência Artificial
+
+Assistentes de código escrevem qualquer manipulação de texto em uma linha, e é justamente em texto que a sugestão plausível erra mais longe do exemplo testado: o material de treino é majoritariamente inglês, sem acento, sem emoji e sem regra de ordenação alfabética que precise diferenciar `a` de `á`.
+
+O resultado é um tipo específico de falha. O código gerado funciona com `"hello"`, funciona com `"world"` e quebra com `"São João"`, com `"👨‍👩‍👧"` e com o nome que o usuário digitou com um acento a mais.
+
+### O comprimento que o modelo calcula errado
+
+O pedido mais comum de todos, truncar um texto em `n` caracteres, produz quase sempre a mesma sugestão baseada em `length` e `slice()`:
+
+```js title="truncate.js (primeira versão gerada)"
+export function truncate(text, limit) {
+  return text.length <= limit ? text : `${text.slice(0, limit)}…`;
+}
+```
+
+A função parece correta e é correta para texto ASCII. Ela ignora que `length` conta **unidades de código UTF-16**, não caracteres percebidos por quem lê: um emoji ocupa duas posições e uma família de emojis unida por *zero-width joiner* ocupa muito mais.
+
+O teste abaixo transforma essa diferença em asserção, cobrindo texto acentuado, emoji simples e emoji composto:
+
+```js title="truncate.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { truncate } from "./truncate.js";
+
+test("mantém o texto curto intacto", () => {
+  assert.equal(truncate("São João", 20), "São João");
+});
+
+test("não parte um emoji ao meio", () => {
+  assert.equal(truncate("Bom dia 👋 pessoal", 9), "Bom dia 👋…");
+});
+```
+
+A execução mostra o caractere de substituição no lugar do emoji, porque o corte caiu entre os dois pares substitutos que o compõem:
+
+```bash title="Terminal"
+node --test truncate.test.js
+```
+
+```txt title="Output"
+✔ mantém o texto curto intacto (0.8123ms)
+✖ não parte um emoji ao meio (1.1907ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+
+✖ failing tests:
+
+test at truncate.test.js:9:1
+✖ não parte um emoji ao meio (1.1907ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'Bom dia \ud83d…'
+  - 'Bom dia 👋…'
+```
+
+A correção troca a contagem por unidades de código pela segmentação em *grafemas*, que é a unidade que a pessoa enxerga na tela. O `Intl.Segmenter` faz esse trabalho de forma nativa desde o Node.js 16:
+
+```js title="truncate.js (versão corrigida)"
+const segmenter = new Intl.Segmenter("pt-BR", { granularity: "grapheme" });
+
+export function truncate(text, limit) {
+  const graphemes = [...segmenter.segment(text)].map((entry) => entry.segment);
+
+  return graphemes.length <= limit ? text : `${graphemes.slice(0, limit).join("")}…`;
+}
+
+console.log(truncate("Bom dia 👋 pessoal", 9)); // "Bom dia 👋…"
+console.log([..."👨‍👩‍👧"].length);                 // 5 (pontos de código)
+console.log("👨‍👩‍👧".length);                      // 8 (unidades UTF-16)
+```
+
+<Aside type="caution" title="Dica de IA: Peça o teste com texto real do seu domínio">
+  Ao pedir manipulação de texto, informe no *prompt* exemplos com acento, cedilha, emoji e nomes compostos. Sem isso, o modelo verifica a própria sugestão apenas com palavras em inglês, onde nenhum dos problemas deste tópico aparece.
+
+  **Prompt:** *"Escreva os testes desta função incluindo 'São João', 'Ângela D'Ávila', 'coração 👋' e uma string vazia. Depois diga qual desses casos falha na implementação atual e por quê."*
+</Aside>
+
+### Busca e ordenação em português: o que o modelo desconhece
+
+Pedir "uma busca que ignore acentos" costuma devolver um mapa de substituição escrito à mão, com uma linha por letra acentuada. A tabela abaixo compara essa saída típica com o recurso nativo equivalente:
+
+| Sugestão frequente do modelo | Recurso nativo equivalente | Por que o nativo vence |
+| :--- | :--- | :--- |
+| `text.replace(/á/g, "a").replace(/ã/g, "a")…` | `text.normalize("NFD").replace(/\p{M}/gu, "")` | Cobre todo o Unicode, não só as letras lembradas na hora. |
+| `a.toLowerCase() < b.toLowerCase()` para ordenar | `a.localeCompare(b, "pt-BR")` | Coloca `Á` junto de `A` e respeita a ordem alfabética do idioma. |
+| `text.toUpperCase() === other.toUpperCase()` | `a.localeCompare(b, "pt-BR", { sensitivity: "base" }) === 0` | Compara ignorando acento e caixa sem inventar regras. |
+| Concatenação com `+` em laço para montar texto | `array.join("")` ou *template literal* | Evita o custo e o ruído de reatribuir a string a cada volta. |
+
+A diferença aparece na ordenação de uma lista simples de nomes, em que a comparação por código de caractere joga todos os acentuados para o fim:
+
+```js title="Ordenação de nomes com e sem localeCompare"
+const names = ["Ângela", "Ana", "Zeca", "Érica"];
+
+// Comparação por unidade de código: acentuados vão para o fim
+console.log(names.toSorted());
+// [ 'Ana', 'Zeca', 'Ângela', 'Érica' ]
+
+// Comparação sensível ao idioma
+console.log(names.toSorted((a, b) => a.localeCompare(b, "pt-BR")));
+// [ 'Ana', 'Ângela', 'Érica', 'Zeca' ]
+```
+
+Uma busca tolerante a acentos combina normalização e comparação de base, sem tabela de substituição escrita à mão:
+
+```js title="search.js"
+const fold = (text) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+export function searchByName(people, term) {
+  const needle = fold(term);
+
+  return people.filter((person) => fold(person.name).includes(needle));
+}
+
+const people = [{ name: "Ângela" }, { name: "Ana" }, { name: "Érica" }];
+
+console.log(searchByName(people, "angela")); // [ { name: 'Ângela' } ]
+console.log(searchByName(people, "ERICA"));  // [ { name: 'Érica' } ]
+```
+
+### Interpolação gerada sem escape
+
+*Template literals* são o recurso que os assistentes mais usam, e também o caminho mais curto para uma vulnerabilidade quando o texto interpolado vem do usuário. A sugestão típica monta HTML ou SQL concatenando o valor recebido diretamente.
+
+O trecho abaixo contrasta a versão gerada com a versão que trata o texto como dado, e não como código:
+
+```js title="Interpolação com valor vindo do usuário"
+const comment = '<img src=x onerror="alert(1)">';
+
+// Sugestão comum: interpolação direta no HTML
+const unsafeHtml = `<p>${comment}</p>`;
+
+// Interpolação como texto, deixando o escape para a plataforma
+const safeNode = document.createElement("p");
+safeNode.textContent = comment;
+
+console.log(unsafeHtml);          // <p><img src=x onerror="alert(1)"></p>
+console.log(safeNode.outerHTML);  // <p>&lt;img src=x onerror="alert(1)"&gt;</p>
+```
+
+A mesma lógica vale no servidor: uma consulta montada com *template literal* concatena o valor na instrução, enquanto a consulta parametrizada mantém o dado separado do comando.
+
+<Aside type="tip" title="Dica de IA: Pergunte de onde vem cada valor interpolado">
+  Antes de aceitar um *template literal* sugerido, responda a uma pergunta por interpolação: esse valor foi escrito no código ou digitado por alguém? Quando a resposta for a segunda, o trecho precisa ser reescrito.
+
+  **Prompt:** *"O valor interpolado neste trecho vem do usuário. Reescreva tratando-o como dado, com `textContent` no navegador ou consulta parametrizada no servidor, em vez de montar a string por interpolação."*
+</Aside>
+
+### Especificando o texto real no prompt
+
+Os três problemas anteriores têm a mesma origem: o pedido descreveu a operação e não descreveu o texto. Os elementos abaixo mudam a qualidade da resposta:
+
+| Elemento do prompt | Efeito na sugestão |
+| :--- | :--- |
+| **Idioma e amostras reais** (com acento e emoji) | Elimina soluções que só valem para ASCII. |
+| **Unidade de contagem** (caractere percebido, ponto de código ou byte) | Define entre `Intl.Segmenter`, *spread* e `Buffer.byteLength`. |
+| **Origem do texto** (constante do código ou entrada do usuário) | Determina a necessidade de escape e validação. |
+| **Uso final** (exibição, comparação, chave de busca, persistência) | Decide entre `localeCompare`, `normalize` e armazenamento cru. |
+| **Restrição de dependências** | Evita a sugestão automática de bibliotecas para o que `Intl` já resolve. |
+
+### Armadilhas frequentes em manipulação de texto gerada por IA
+
+O conjunto de falhas abaixo se repete com frequência suficiente para virar item de revisão:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **`length` como número de caracteres** | Contadores de campo e truncamentos que quebram com emoji ou acento composto. | Segmentar com `Intl.Segmenter` e testar com emoji composto. |
+| **`\w`, `[a-z]` e `\b` em texto português** | Buscas que ignoram `ç`, `á` e `õ` sem lançar erro. | Usar a *flag* `u` com `\p{L}` nas expressões regulares. |
+| **Ordenação por código de caractere** | Nomes acentuados jogados para o fim da lista. | Ordenar com `localeCompare(a, b, "pt-BR")`. |
+| **Comparação de texto com `toLowerCase()`** | Falsos negativos em `"MAÇÃ"` contra `"maca"`. | Comparar com `sensitivity: "base"` ou normalizar antes. |
+| **Interpolação de entrada do usuário** | *Template literal* montando HTML ou SQL com valor externo. | Usar `textContent` e consultas parametrizadas. |
+| **`substr()` e outros métodos obsoletos** | Métodos depreciados aprendidos em material antigo. | Trocar por `slice()` e conferir a nota de compatibilidade na MDN. |
+
+### O que conferir antes do merge
+
+O quadro abaixo resume a revisão de qualquer trecho de manipulação de texto sugerido por um assistente:
+
+| Verificação | Como fazer na prática |
+| :--- | :--- |
+| O código foi testado com português real? | Rode com `"São João"`, `"Ângela D'Ávila"` e um emoji antes de aprovar. |
+| A contagem usa a unidade certa? | Compare `text.length` com o total de grafemas no caso mais extremo do domínio. |
+| A comparação respeita o idioma? | Toda ordenação ou igualdade de texto exibido passa por `localeCompare`. |
+| A entrada do usuário é interpolada? | Cada `${}` com dado externo precisa de escape ou de API que escape por padrão. |
+| O método sugerido ainda é recomendado? | `substr()`, `escape()` e `unescape()` são legado, mesmo que o modelo os use. |
+| A biblioteca proposta é necessária? | `Intl.Segmenter`, `Intl.Collator` e `normalize()` cobrem a maior parte dos pedidos. |
+
+A inteligência artificial reduziu o custo de escrever manipulação de texto, mas não alterou em nada o custo de tratar o nome de uma pessoa como se fosse ASCII em produção.
+
 ## Resumo e Boas Práticas
 
 Esta seção consolida as decisões práticas do tópico. Use-a como referência rápida para escolher delimitadores, tratar imutabilidade, manipular índices e realizar comparações linguísticas.

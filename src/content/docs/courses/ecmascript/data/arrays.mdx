@@ -652,6 +652,250 @@ const allAdults = users.every((user) => user.age >= 18);
 console.log(allAdults); // false
 ```
 
+## Arrays na Era da Inteligência Artificial
+
+Assistentes de código escrevem uma cadeia de `filter().map().reduce()` a partir de uma frase, e o trabalho passou de **lembrar qual método faz o quê** para **decidir se o array original pode ser alterado e conferir o resultado nos limites**.
+
+Arrays concentram a maior coleção de métodos com nomes parecidos e comportamentos opostos da biblioteca padrão: `slice()` copia e `splice()` altera, `sort()` altera e `toSorted()` copia, `map()` devolve e `forEach()` descarta. Uma sugestão que troca um pelo outro continua rodando, continua imprimindo algo e só quebra quando outra parte do código lê o array que foi alterado no caminho.
+
+A tabela separa o que a inteligência artificial absorveu do que continua sendo decisão de quem assina o *commit*:
+
+| O que mudou com a IA | O que permanece com a pessoa desenvolvedora |
+| :--- | :--- |
+| Lembrar a assinatura de `reduce()`, `flatMap()` e `Array.from()`. | Definir se a operação pode alterar o array recebido. |
+| Encadear filtros, mapeamentos e agregações em uma linha. | Julgar se a cadeia continua legível para a próxima pessoa. |
+| Explicar a diferença entre métodos mutadores e acessores. | Escolher entre `sort()` e `toSorted()` conforme o dono do array. |
+| Sugerir alternativas mais curtas para um laço. | Avaliar o custo de percorrer a mesma lista quatro vezes. |
+
+### Especificação da transformação: o prompt que produz cadeias confiáveis
+
+Pedir "ordene os alunos por nota" devolve um `sort()` que altera o array recebido. Descrever a origem do array, a ordem desejada, o comportamento com empate e a exigência de imutabilidade devolve algo revisável.
+
+Os elementos abaixo transformam o pedido em especificação:
+
+| Elemento do prompt | Por que importa |
+| :--- | :--- |
+| **Exemplo do array real** (com tipos por campo) | Evita comparadores escritos para número aplicados a texto. |
+| **Ordem esperada** (crescente, decrescente, critério de desempate) | `sort()` sem comparador ordena pela representação em texto. |
+| **Permissão de mutação** (pode ou não alterar a entrada) | Decide entre `sort()`/`reverse()` e `toSorted()`/`toReversed()`. |
+| **Comportamento com array vazio** | `reduce()` sem valor inicial lança `TypeError` em array vazio. |
+| **Tamanho esperado da entrada** | Justifica trocar três passagens encadeadas por um único `reduce()`. |
+| **Pedido de casos de borda** | Faz o modelo listar vazio, elemento único, empates e valores ausentes. |
+
+O prompt a seguir aplica esses elementos a um ranking de estudantes:
+
+```txt title="Prompt de especificação para gerar uma transformação de array"
+Escreva uma função JavaScript (ES2023, sem bibliotecas) chamada rankByScore.
+
+Contrato:
+- assinatura: rankByScore(students, limit), onde students é
+  [{ name: "Ana", score: 9.5 }, ...] e limit é um inteiro positivo;
+- devolve os `limit` primeiros em ordem decrescente de score;
+- em caso de empate no score, ordena por name em ordem alfabética;
+- NÃO pode alterar o array students nem os objetos dentro dele;
+- com students vazio, devolve array vazio, sem lançar erro.
+
+Responda com a função, a explicação de cada método usado e os casos de borda
+que a implementação não cobre.
+```
+
+Na primeira resposta, o modelo entregou a cadeia mais comum da internet, que ordena corretamente e altera o array recebido:
+
+```js title="ranking.js (primeira versão gerada)"
+export function rankByScore(students, limit) {
+  return students.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+const students = [
+  { name: "Bruno", score: 8 },
+  { name: "Ana", score: 9.5 },
+  { name: "Carla", score: 9.5 },
+];
+
+console.log(rankByScore(students, 2));
+// [ { name: 'Ana', score: 9.5 }, { name: 'Carla', score: 9.5 } ] (parece correto)
+```
+
+O resultado impresso convence, porque a ordem devolvida está certa. As duas cláusulas violadas do contrato, a imutabilidade e o desempate por nome, só aparecem quando o array original é inspecionado depois da chamada.
+
+### Verificação: array vazio, empate e original intacto
+
+Toda cadeia de métodos gerada por IA merece a mesma tríade de testes: a lista vazia, o caso de empate e uma asserção sobre o array de entrada depois da chamada. São os três lugares onde a sugestão bonita costuma se desfazer.
+
+No arquivo abaixo, o executor de testes nativo do Node.js cobre a ordem, o desempate, a preservação do array recebido e o array vazio:
+
+```js title="ranking.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { rankByScore } from "./ranking.js";
+
+const students = [
+  { name: "Bruno", score: 8 },
+  { name: "Carla", score: 9.5 },
+  { name: "Ana", score: 9.5 },
+];
+
+test("ordena por score decrescente e desempata pelo nome", () => {
+  const names = rankByScore(students, 3).map((student) => student.name);
+  assert.deepEqual(names, ["Ana", "Carla", "Bruno"]);
+});
+
+test("não altera o array recebido", () => {
+  rankByScore(students, 2);
+  assert.equal(students[0].name, "Bruno");
+});
+
+test("devolve array vazio quando não há estudantes", () => {
+  assert.deepEqual(rankByScore([], 3), []);
+});
+```
+
+A execução expõe as duas falhas de uma vez, porque `sort()` reorganizou o array original antes da primeira asserção:
+
+```bash title="Terminal"
+node --test ranking.test.js
+```
+
+```txt title="Output"
+✖ ordena por score decrescente e desempata pelo nome (1.2074ms)
+✖ não altera o array recebido (0.3186ms)
+✔ devolve array vazio quando não há estudantes (0.1042ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+
+✖ failing tests:
+
+test at ranking.test.js:11:1
+✖ ordena por score decrescente e desempata pelo nome (1.2074ms)
+  AssertionError [ERR_ASSERTION]: Expected inputs to be loosely deep-equal:
+  [
+    'Carla',
+    'Ana',
+    'Bruno'
+  ]
+  should loosely deep-equal
+  [
+    'Ana',
+    'Carla',
+    'Bruno'
+  ]
+```
+
+A versão corrigida usa `toSorted()`, que devolve um array novo, e trata o empate com `localeCompare()` antes de cortar a lista:
+
+```js title="ranking.js (versão corrigida)"
+export function rankByScore(students, limit) {
+  const byScoreThenName = (a, b) =>
+    b.score - a.score || a.name.localeCompare(b.name, "pt-BR");
+
+  return students.toSorted(byScoreThenName).slice(0, limit);
+}
+```
+
+Os três testes passam, e a suíte fica versionada como proteção contra a próxima sugestão que voltar ao `sort()` mutador:
+
+```bash title="Terminal"
+node --test ranking.test.js
+```
+
+```txt title="Output"
+✔ ordena por score decrescente e desempata pelo nome (0.9433ms)
+✔ não altera o array recebido (0.1327ms)
+✔ devolve array vazio quando não há estudantes (0.0981ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+```
+
+<Aside type="tip" title="Dica de IA: Peça os arrays que quebram a sua cadeia">
+  Um segundo pedido costuma render mais do que o primeiro. Array vazio, elemento único, empates, `NaN` no campo numérico e objetos sem a propriedade esperada aparecem na resposta e viram testes.
+
+  **Prompt:** *"Liste dez arrays de entrada em que esta função devolve resultado errado ou lança erro, incluindo lista vazia, elemento único, empates e objetos sem a propriedade usada na ordenação."*
+</Aside>
+
+### Auditoria de cadeias herdadas: peça a explicação, não só o código
+
+O ganho mais imediato da IA em arrays não é gerar, é **explicar**. Antes de alterar uma cadeia herdada que funciona mas ninguém da equipe consegue ler, peça a decomposição trecho a trecho:
+
+```js title="Cadeia herdada, correta porém ilegível"
+const total = orders
+  .filter((o) => o.status === "paid")
+  .flatMap((o) => o.items)
+  .reduce((acc, i) => acc + i.price * i.qty, 0);
+```
+
+A decomposição traduz cada elo em uma regra de negócio nomeada:
+
+| Trecho | Significado | Regra de negócio |
+| :--- | :--- | :--- |
+| `.filter((o) => o.status === "paid")` | Mantém apenas os elementos aprovados no teste. | Só pedidos pagos entram no faturamento. |
+| `.flatMap((o) => o.items)` | Mapeia e achata um nível, produzindo a lista de itens. | Cada pedido contribui com todos os seus itens. |
+| `.reduce((acc, i) => acc + i.price * i.qty, 0)` | Acumula a soma a partir do valor inicial `0`. | O total é a soma de preço vezes quantidade. |
+| Valor inicial `0` | Define o acumulador da primeira iteração. | Sem pedidos pagos, o total é zero, não um erro. |
+
+A versão reescrita preserva o comportamento, nomeia cada etapa e passa a ser testável em partes:
+
+```js title="revenue.js"
+const isPaid = (order) => order.status === "paid";
+const lineTotal = (item) => item.price * item.qty;
+
+export function calculateRevenue(orders) {
+  const paidItems = orders.filter(isPaid).flatMap((order) => order.items);
+
+  return paidItems.reduce((total, item) => total + lineTotal(item), 0);
+}
+```
+
+A refatoração mantém o resultado, permite testar `isPaid` e `lineTotal` isoladamente e deixa o valor inicial `0` explícito como decisão de negócio.
+
+### Armadilhas frequentes em código de array gerado por IA
+
+Modelos de linguagem aprendem com código de todas as eras do JavaScript, boa parte dele anterior aos métodos imutáveis do ES2023, e repetem um conjunto reconhecível de falhas:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **`sort()` sem comparador em números** | `[10, 9, 100].sort()` devolve `[10, 100, 9]`, pela comparação textual. | Sempre passar comparador numérico e testar com valores de dígitos diferentes. |
+| **Mutação silenciosa** | `sort()`, `reverse()` e `splice()` alterando um array que pertence a outra parte do código. | Preferir `toSorted()`, `toReversed()` e `toSpliced()` e travar com teste sobre a entrada. |
+| **`forEach()` com `await`** | O laço dispara todas as chamadas e segue adiante sem esperar nenhuma. | Trocar por `for...of` com `await` ou por `Promise.all(map(...))`. |
+| **`reduce()` sem valor inicial** | Funciona nos exemplos e lança `TypeError` quando o array chega vazio. | Sempre informar o acumulador inicial e testar a lista vazia. |
+| **`map()` usado por efeito colateral** | O retorno é descartado e o método vira um `forEach()` mais caro. | Usar `forEach()` quando não há valor devolvido, ou aproveitar o resultado. |
+| **Buracos em arrays** | `new Array(5).map(...)` não executa o *callback*, pois as posições estão vazias. | Usar `Array.from({ length: 5 }, ...)` ou preencher com `fill()` antes. |
+
+A primeira armadilha **falha em silêncio**, porque a ordenação devolvida parece plausível em listas de um dígito:
+
+```js title="Ordenação padrão comparando texto, não número"
+const scores = [10, 9, 100, 25];
+
+// Sugestão comum quando o pedido é apenas "ordene as notas"
+console.log(scores.toSorted()); // [ 10, 100, 25, 9 ] (comparação textual)
+
+// Comparador numérico explícito
+console.log(scores.toSorted((a, b) => a - b)); // [ 9, 10, 25, 100 ]
+```
+
+<Aside type="caution" title="Dica de IA: Trate código de array gerado por IA como código de terceiro">
+  Uma cadeia sugerida por um assistente entra no projeto com o mesmo status de um trecho copiado de um fórum. A responsabilidade pela lista alterada sem aviso em produção é de quem abre o *pull request*, não do modelo que a escreveu.
+
+  **Prompt:** *"Explique esta cadeia de métodos elo a elo, diga quais deles alteram o array original e proponha a versão imutável equivalente."*
+</Aside>
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer manipulação de arrays gerada com auxílio de IA, percorra as verificações abaixo:
+
+1. **Algum método mutador entrou no diff?** `sort()`, `reverse()`, `splice()`, `push()` e `fill()` alteram a lista recebida;
+2. **O comparador de `sort()` está explícito?** Sem ele a ordenação é textual, mesmo em arrays de números;
+3. **O array vazio foi testado?** É o caso que quebra `reduce()` sem valor inicial e que produz `undefined` em `[0]`;
+4. **Há `await` dentro de `forEach()`?** O laço não espera, e o erro só aparece quando o dado chega tarde;
+5. **A cadeia percorre a lista mais vezes do que precisa?** Em listas grandes, três encadeamentos viram um `reduce()`;
+6. **O retorno de `map()` é usado?** Se não for, o método correto é `forEach()`;
+7. **A cadeia continua legível?** Extraia predicados nomeados quando a linha passar de um encadeamento simples.
+
+A inteligência artificial reduziu o custo de escrever uma transformação de array, mas não alterou em nada o custo de alterar sem perceber a lista de outra pessoa em produção.
+
 ## Resumo e Boas Práticas
 
 Esta seção consolida as decisões práticas do tópico. Use-a como referência rápida antes de escolher entre alteração direta, cópia imutável, iteração simples ou pipeline funcional.
