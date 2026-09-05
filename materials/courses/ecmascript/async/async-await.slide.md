@@ -8,275 +8,284 @@ style: |
   }
 lang: pt-BR
 title: "JavaScript: Async/Await"
-description: "Slides completos da aula JavaScript: Async/Await."
+description: "Slides completos do tópico JavaScript: Async/Await."
 ---
 
 <!-- _class: lead -->
 
 # JavaScript: Async/Await
 
-Sintaxe async/await como camada sobre Promises, tratamento de erros com try...catch...finally, execução sequencial vs. paralela e top-level await no Node.js.
+Sintaxe async/await como camada sobre Promises, tratamento de erros com try...catch...finally, concorrência sequencial vs. paralela, Top-Level Await e integração no Express 5.
 
 ---
 
 ## Objetivo
 
-- Compreender o papel de `async` e `await` como camada de sintaxe (*syntactic sugar*) sobre Promises, declarar e consumir...
+Dominar o fluxo assíncrono moderno com `async` e `await`:
+
+- Compreender o papel de `async/await` como camada sintática sobre Promises
+- Tratar erros defensivamente e evitar a armadilha do `return await` em `try/catch`
+- Eliminar gargalos sequenciais com chamadas paralelas via `Promise.all()`
+- Utilizar *Top-Level Await* em módulos ES e iteração com `for await...of`
+- Integrar controllers assíncronos no Express 5 com tratamento automático de erros
 
 ---
 
-## Mapa da Aula
+## Mapa do Tópico
 
-- O que é Async/Await? (Açúcar Sintático sobre Promises)
-- Declaração e Comportamento de Funções Async
-- Coerção de Retorno e Exceções
-- Tratamento de Erros com `try...catch...finally`
-- Execução Sequencial vs. Execução Paralela
+- O que é Async/Await? (Açúcar Sintático)
+- Declaração e Coerção de Funções Async
+- Tratamento de Erros e a Armadilha do `return await`
+- Execução Sequencial vs. Paralela
+- Iteração Assíncrona e Top-Level Await
+- Controllers Assíncronos no Express 5
 - Resumo e Boas Práticas
-- Executando
-- Exercício
 
 ---
 
-## Introdução
+## O que é Async/Await?
 
-- Esta aula apresenta as palavras-chave `async` e `await` em JavaScript
-- como escrever código assíncrono com a mesma legibilidade e estrutura do código síncrono, como tratar erros com blocos...
-
----
-
-## O que é Async/Await? (Açúcar Sintático sobre Promises)
-
-- Introduzidas no ES2017 (ES8), as palavras-chave `async` e `await` não substituem as Promises — elas trabalham juntas com...
-- O diagrama a seguir demonstra como o motor do JavaScript pausa temporariamente a função `async` no ponto do `await` e...
-- Diagrama da página
-- Fluxo de Execução com Async/Await e Liberação da Thread Principal
-- Por baixo dos panos, a instrução `await` só funciona quando colocada antes de um valor ou função que retorne uma Promise
+- Introduzidas no ES2017 (ES8) para simplificar o consumo de Promises
+- Não substituem as Promises: operam **sobre as Promises**
+- Oferecem estrutura sequencial e leitura idêntica à do código síncrono
+- O `await` suspende a função localmente sem bloquear o Event Loop
 
 ---
 
-## O que é Async/Await? (Açúcar Sintático sobre Promises): Comparação
+## Papel das Palavras-Chave
 
-| Recurso | Descrição | Comportamento |
-| ------- | --------- | ------------- |
-| **`async`** | Modificador colocado antes da declaração de uma função | Faz a função **retornar obrigatoriamente uma Promise** |
-| **`await`** | Operador utilizado dentro de uma função `async` | **Pausa a execução** da função até que a Promise seja liquidada |
+| Palavra-Chave | Onde é Aplicada? | Efeito / Comportamento |
+| ------------- | ---------------- | ---------------------- |
+| **`async`** | Antes da declaração de funções | Força a função a **retornar uma Promise** |
+| **`await`** | Antes de chamadas assíncronas | **Pausa a execução local** até a Promise liquidar |
+
+*Nota: O operador `await` só pode ser usado dentro de funções `async` ou em Top-Level Await.*
 
 ---
 
-## Comparação de Sintaxe: Promises .then() vs Async/Await
+## Comparação de Sintaxe: Promises versus Async/Await
 
 ```js
-// 1. Consumo com Promises e encadeamento .then()
+// 1. Consumo com .then() encadeado
 function fetchUserThen(id) {
-return fetch(`https://api.devlab.org/users/${id}`)
- .then((response) => response.json())
- .then((user) => console.log(user))
- .catch((error) => console.error(error));
+  return fetch(`https://api.devlab.org/users/${id}`)
+    .then((res) => res.json())
+    .then((user) => console.log(user))
+    .catch((err) => console.error(err.message));
 }
 
-// 2. Consumo idêntico usando Async/Await
+// 2. Consumo idêntico com async/await
 async function fetchUserAsync(id) {
-try {
- const response = await fetch(`https://api.devlab.org/users/${id}`);
- const user = await response.json();
- console.log(user);
-} catch (error) {
- console.error(error);
-}
+  try {
+    const res = await fetch(`https://api.devlab.org/users/${id}`);
+    const user = await res.json();
+    console.log(user);
+  } catch (err) {
+    console.error(err.message);
+  }
 }
 ```
 
 ---
 
-## Declaração e Comportamento de Funções Async
+## Formas de Declaração de Funções Async
 
-- Você pode utilizar a palavra-chave `async` em qualquer tipo de declaração de função em JavaScript
-
----
-
-## Formas de declaração de funções async
+Válido em todas as declarações de funções em JavaScript:
 
 ```js
-// 1. Declaração de Função Tradicional
+// 1. Função tradicional
 async function getData() {
-return "Dados carregados";
+  return "Dados carregados";
 }
 
-// 2. Arrow Function Assíncrona
-const getCategories = async () => {
-return ["Tecnologia", "Redes", "Web"];
-};
+// 2. Arrow function assíncrona
+const getCategories = async () => ["Web", "Node", "React"];
 
-// 3. Método Assíncrono em Objeto ou Classe
+// 3. Método em objeto ou classe
 const apiService = {
-async fetchStatus() {
- return { status: "OK", uptime: 99.9 };
-},
+  async fetchStatus() {
+    return { status: "OK", uptime: 99.9 };
+  },
 };
 ```
 
 ---
 
-## Coerção de Retorno e Exceções
+## Coerção Automática de Retornos e Erros
 
-- Retornar um valor comum (ex: `return "sucesso"`) equivale a retornar `Promise.resolve("sucesso")`.
-- Lançar um erro com `throw` (ex: `throw new Error("falha")`) equivale a retornar `Promise.reject(erro)`.
-
----
-
-## Coerção de retornos em funções async
+- `return valor` é automaticamente convertido em `Promise.resolve(valor)`
+- `throw erro` é automaticamente convertido em `Promise.reject(erro)`
 
 ```js
 async function checkNumber(num) {
-if (num < 0) {
- throw new Error("Número negativo não permitido"); // Vira Promise.reject
-}
-return num * 2; // Vira Promise.resolve
+  if (num < 0) throw new Error("Número negativo"); // Vira Promise.reject
+  return num * 2; // Vira Promise.resolve
 }
 
-// Consumindo o retorno da função async como uma Promise normal
-checkNumber(5)
-.then((res) => console.log("Resultado:", res)) // "Resultado: 10"
-.catch((err) => console.error(err.message));
-
-checkNumber(-1)
-.catch((err) => console.error("Erro capturado:", err.message)); // "Erro capturado: Número..."
+checkNumber(5).then(console.log); // 10
+checkNumber(-1).catch((e) => console.error(e.message)); // "Número negativo"
 ```
 
 ---
 
-## Tratamento de Erros com `try...catch...finally`
+## Tratamento de Erros com try...catch...finally
 
-- Em código assíncrono baseado em `.then()`, os erros são capturados com `.catch()`
-- Com `async/await`, o tratamento de erros utiliza a estrutura tradicional `try...catch...finally` do JavaScript
-- A função nativa `fetch()` só rejeita a Promise em caso de falha de conexão de rede
-- Para códigos de erro HTTP (como 404 Not Found ou 500 Server Error), a Promise resolve normalmente com `response.ok = false`
-- Sempre verifique `if (!response.ok)` para lançar um erro intencional
-
----
-
-## Estrutura completa de tratamento de erros
+Reúne o tratamento de falhas assíncronas e exceções síncronas na mesma estrutura:
 
 ```js
 async function loadUserProfile(userId) {
-try {
- console.log("Buscando usuário...");
- const response = await fetch(`https://jsonplaceholder.typicode.com/users/${userId}`);
+  try {
+    const response = await fetch(`https://api.devlab.org/users/${userId}`);
 
- // Verificação de erros de status HTTP (ex: 404 Not Found ou 500 Server Error)
- if (!response.ok) {
-   throw new Error(`Erro na requisição: Status ${response.status}`);
- }
+    // Validação indispensável de status HTTP
+    if (!response.ok) {
+      throw new Error(`Status ${response.status}: ${response.statusText}`);
+    }
 
- const user = await response.json();
- return user;
-  // ...
+    return await response.json();
 
-} finally {
- console.log("Operação de busca encerrada.");
-}
+  } catch (error) {
+    console.error("Falha ao carregar perfil:", error.message);
+    return null; // Fallback seguro
+  } finally {
+    console.log("Busca encerrada.");
+  }
 }
 ```
 
 ---
 
-## Execução Sequencial vs. Execução Paralela
+## Armadilha: return versus return await em try/catch
 
-- Uma das armadilhas mais comuns ao utilizar `async/await` é criar gargalos de desempenho executando operações...
+- `return promise` sem `await` sai do bloco `try` antes da resolução!
+- Se a Promise for rejeitada depois, **ela escapa do catch local**:
+
+```js
+// ARMADILHA: a rejeição NÃO é capturada pelo catch local!
+async function riskyHandler() {
+  try {
+    return fetchData(); // Sai do try imediatamente com a Promise pendente
+  } catch (err) {
+    console.error("Catch local:", err); // NUNCA É EXECUTADO!
+  }
+}
+
+// FORMA CORRETA: aguarda dentro do escopo protegido
+async function safeHandler() {
+  try {
+    return await fetchData(); // Aguarda: se falhar, pula para o catch local!
+  } catch (err) {
+    console.error("Catch local capturou:", err.message); // Executa com sucesso!
+  }
+}
+```
 
 ---
 
 ## O Gargalo da Execução Sequencial
 
-- Quando colocamos `await` na frente de cada chamada de forma isolada, a segunda requisição só começará a ser executada...
-
----
-
-## Execução Sequencial (Lenta: 2s + 2s = 4s total)
+Atenção: Encadeamento cego de `await` para tarefas independentes soma latências:
 
 ```js
-function delay(ms, value) {
-return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+function delay(ms, val) {
+  return new Promise((res) => setTimeout(() => res(val), ms));
 }
 
-async function loadDataSequentially() {
-console.time("Tempo Sequencial");
+async function loadSequentially() {
+  console.time("Sequencial");
 
-// A segunda busca aguarda a primeira terminar!
-const users = await delay(2000, ["Ana", "Bruno"]);
-const posts = await delay(2000, ["Post A", "Post B"]);
+  // A busca dos posts só começa depois de 2 segundos!
+  const users = await delay(2000, ["Ana", "Bruno"]);
+  const posts = await delay(2000, ["Post 1", "Post 2"]);
 
-console.timeEnd("Tempo Sequencial"); // ~4000ms
-return { users, posts };
+  console.timeEnd("Sequencial"); // ~4000ms (2s + 2s)
+  return { users, posts };
 }
 ```
 
 ---
 
-## A Solução em Paralelo com `Promise.all()` e `await`
+## A Solução Concorrente com Promise.all()
 
-- Se as operações forem independentes, devemos disparar ambas as Promises simultaneamente e aguardar o resultado combinado...
-- O método `.forEach()` de arrays não aguarda Promises
-- Colocar `await` dentro do callback de um `.forEach()` fará o laço continuar executando sem esperar pelas requisições
-- Para executar requisições em paralelo a partir de um array de itens, utilize `.map()` com `Promise.all()`:
-
----
-
-## A Solução em Paralelo com `Promise.all()` e `await`: Comparação
-
-| Abordagem | Funcionamento | Tempo de Execução Total | Quando Utilizar? |
-| --------- | ------------- | ----------------------- | ---------------- |
-| **Sequencial** | Um `await` após o outro | Soma de todos os tempos ($\sum t$) | Quando a 2ª chamada depende dos dados da 1ª |
-| **Paralela** | Dispara todas e faz `await Promise.all()` | Tempo da operação mais longa ($\max t$) | Quando as chamadas são independentes |
-
----
-
-## Execução Paralela com Promise.all (Rápida: Max(2s, 2s) = 2s total)
+Dispare chamadas independentes simultaneamente e aguarde o conjunto:
 
 ```js
-async function loadDataInParallel() {
-console.time("Tempo Paralelo");
+async function loadInParallel() {
+  console.time("Paralelo");
 
-// Dispara ambas as requisições em paralelo (sem await inicial)
-const usersPromise = delay(2000, ["Ana", "Bruno"]);
-const postsPromise = delay(2000, ["Post A", "Post B"]);
+  // Disparo simultâneo (sem await no início)
+  const usersPromise = delay(2000, ["Ana", "Bruno"]);
+  const postsPromise = delay(2000, ["Post 1", "Post 2"]);
 
-// Aguarda a resolução simultânea das duas Promises
-const [users, posts] = await Promise.all([usersPromise, postsPromise]);
+  // Aguarda a resolução conjunta
+  const [users, posts] = await Promise.all([usersPromise, postsPromise]);
 
-console.timeEnd("Tempo Paralelo"); // ~2000ms
-return { users, posts };
+  console.timeEnd("Paralelo"); // ~2000ms (tempo da mais demorada)
+  return { users, posts };
 }
 ```
 
 ---
 
-## A Solução em Paralelo com `Promise.all()` e `await`
+## Comparativo: Sequencial versus Paralelo
+
+| Abordagem | Funcionamento | Tempo Total | Indicação |
+| --------- | ------------- | ----------- | --------- |
+| **Sequencial** | `await` após `await` | Soma de todos ($\sum t$) | 2ª chamada depende da 1ª |
+| **Paralela** | Dispara tudo + `Promise.all` | Máximo dos tempos ($\max t$) | Tarefas independentes |
+
+---
+
+## Armadilha: await dentro de laços forEach
+
+- O callback do método `.forEach()` **não aguarda o retorno de Promises**
+- O laço finaliza antes que as operações assíncronas sejam concluídas
+- **Solução canônica**: Utilize `array.map()` com `Promise.all()`:
 
 ```js
-const users = await Promise.all(userIds.map((id) => fetchUser(id)));
+// INCORRETO: forEach não espera as Promises terminarem
+ids.forEach(async (id) => { await fetchUser(id); });
+
+// CORRETO: mapeia para Promises e aguarda todas em paralelo
+const users = await Promise.all(ids.map((id) => fetchUser(id)));
 ```
 
 ---
 
-## Top-Level Await
+## Iteração Assíncrona com for await...of
 
-- Em Módulos ES (ESM com `"type"
-- "module"` no `package.json`), você pode utilizar a palavra-chave `await` no nível superior do arquivo, fora de qualquer...
+Permite iterar sobre fluxos contínuos de dados assíncronos (*AsyncIterables*):
+
+```js
+async function* generateData() {
+  yield await delay(200, "Chunk 1");
+  yield await delay(200, "Chunk 2");
+  yield await delay(200, "Chunk 3");
+}
+
+async function processStream() {
+  // O laço aguarda a chegada sequencial de cada pedaço
+  for await (const chunk of generateData()) {
+    console.log("Processado:", chunk);
+  }
+}
+```
 
 ---
 
-## Exemplo de Top-Level Await em arquivo ES Module
+## Top-Level Await em Módulos ES
+
+Permite utilizar `await` na raiz do arquivo sem função envoltória em Módulos ES:
 
 ```js
-// database.js (Módulo ES)
+// database.js (Módulo ES com "type": "module")
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// Top-Level Await: aguarda a conexão com o banco antes de exportar
+// Aguarda a conexão antes de exportar
 await prisma.$connect();
-console.log("Conexão com o banco de dados estabelecida com sucesso!");
+console.log("Banco de dados pronto para tráfego.");
 
 export default prisma;
 ```
@@ -285,31 +294,22 @@ export default prisma;
 
 ## Controllers Assíncronos no Express 5
 
-- No ecossistema Node.js (especialmente com Express e ORMs como Prisma ou Sequelize), as funções de controller que acessam...
-- A partir do Express 5, qualquer rejeição de Promise ou erro lançado em um controller `async` é repassado automaticamente...
-
----
-
-## src/controllers/user-controller.js
+A partir do **Express 5**, rejeições em rotas `async` são capturadas automaticamente pelo middleware global de erros:
 
 ```js
+// src/controllers/user-controller.js
+import prisma from "../database.js";
 
-// Controller de listagem de usuários
 export async function index(req, res) {
-// O await aguarda a consulta ao banco de dados sem travar o servidor Node.js
-const users = await prisma.user.findMany();
-res.json(users);
+  // Se findMany() rejeitar, o Express 5 encaminha direto para o error middleware
+  const users = await prisma.user.findMany();
+  res.json(users);
 }
 
-// Controller de busca por ID
 export async function show(req, res) {
-const { id } = req.params;
-const user = await prisma.user.findUnique({ where: { id: Number(id) } });
-  // ...
- return res.status(404).json({ error: "Usuário não encontrado" });
-}
-
-res.json(user);
+  const user = await prisma.user.findUnique({ where: { id: Number(req.params.id) } });
+  if (!user) return res.status(404).json({ error: "Não encontrado" });
+  res.json(user);
 }
 ```
 
@@ -317,124 +317,108 @@ res.json(user);
 
 ## Resumo e Boas Práticas
 
-- Toda função declarada com `async` retorna uma Promise.
-- Utilize blocos `try...catch...finally` em volta dos comandos `await` para gerenciar exceções.
-- Lembre-se de verificar `response.ok` ao usar a Fetch API nativa.
-- Não encadeie `await` sequenciais para chamadas independentes; utilize `await Promise.all()` para disparar requisições em...
-- Substitua laços `.forEach()` com `await` por `array.map()` combinado a `Promise.all()`.
+| Prática Recomendada | Motivo Técnico |
+| ------------------- | -------------- |
+| **Usar `await Promise.all()`** | Evita gargalos sequenciais em tarefas independentes |
+| **Usar `return await` em `try/catch`** | Garante que o erro seja capturado pelo `catch` local |
+| **Validar `response.ok` no fetch** | Respostas 404 e 500 não lançam erro sozinhas |
+| **Evitar `await` em `.forEach()`** | O laço encerra sem aguardar a conclusão dos callbacks |
+| **Aproveitar o Express 5** | Elimina blocos `try/catch` manuais repetitivos em rotas |
 
 ---
 
-## Executando
-
-- Crie um arquivo chamado `async-demo.js`:
-- Execute o arquivo com Node.js no terminal:
-- Altere os IDs da busca para observar os fluxos de sucesso e exceção.
-
----
-
-## async-demo.js
+## Resumo Prático Consolidado
 
 ```js
-function fetchUserData(id) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (id === 1) {
-        resolve({ id: 1, name: "Ana Silva", role: "Engenheira de Redes" });
-      } else {
-        reject(new Error("Usuário não localizado no sistema"));
-      }
-    }, 500);
-  });
-}
+async function loadDashboard(userId) {
+  try {
+    const userP = fetch(`/api/users/${userId}`).then((r) => r.json());
+    const configP = fetch("/api/config").then((r) => r.json());
 
-  // ...
-    console.log("Encerrando execução.");
+    // Disparo concorrente das buscas
+    const [user, config] = await Promise.all([userP, configP]);
+    return { user, config };
+
+  } catch (err) {
+    console.error("Falha ao carregar dashboard:", err.message);
+    throw err;
   }
 }
-
-main();
 ```
 
 ---
 
-## Terminal
+## Executando: Demonstração no Terminal
 
+1. Crie o arquivo `async-demo.js`:
+```js
+async function getUser() {
+  return "Ana Silva";
+}
+console.log(await getUser());
+```
+2. Execute no terminal:
 ```bash
-node async-demo.js
+$ node async-demo.js
+Ana Silva
 ```
 
 ---
 
-## Output
+## Exercício Prático: Busca Concorrente
 
-```txt
-Iniciando busca assíncrona...
-Usuário encontrado: Ana Silva
-Tentando buscar usuário inexistente...
-Capturado no bloco catch: Usuário não localizado no sistema
-Encerrando execução.
-```
+Crie o arquivo `async-exercise.js`:
 
----
-
-## Exercício
-
-- Escreva uma função assíncrona `fetchUserNames()` que faça uma requisição HTTP para a API pública...
-- Utilize `try/catch` para tratar possíveis erros de conexão ou requisição;
-- Verifique a propriedade `response.ok` antes de converter a resposta para JSON;
-- Mapeie o array de usuários retornado e imprima apenas uma lista com o `name` e o `email` de cada usuário no console.
+1. Escreva uma função `fetchUserProfiles(userIds)` recebendo array de IDs
+2. Dispare requisições para `https://jsonplaceholder.typicode.com/users/${id}`
+3. Execute todas as buscas em paralelo utilizando `.map()` com `Promise.all()`
+4. Valide `response.ok` em cada chamada
+5. Capture erros com `try/catch` e imprima nomes e cidades dos usuários
 
 ---
 
-## Desafio
+## Desafio: Auditoria de Microsserviços
 
-- Crie 3 funções que retornem Promises simulando APIs de serviço:
-- `fetchServerHealth()` (resolve em 300ms com ` `);
-- `fetchStorageMetrics()` (resolve em 400ms com ` `);
-- `fetchBackupLogs()` (simula falha em 200ms rejeitando com `"Falha ao conectar ao serviço de backup"`);
-- Crie uma função assíncrona `loadDashboardData()` que dispare as 3 chamadas simultaneamente em paralelo utilizando...
+Crie o arquivo `api-aggregator.js`:
 
----
-
-## Declaração e Funcionamento
-
-- O que são as palavras-chave `async` e `await` e qual é a sua relação com Promises
-- O que acontece com o valor retornado por uma função declarada como `async`
-- É possível utilizar o operador `await` fora de uma função marcada como `async`
+1. Crie 3 funções assíncronas: `checkDatabase()`, `checkCache()`, `checkAuthService()`
+2. Simule uma rejeição de timeout em `checkAuthService()`
+3. Dispare as 3 checagens simultaneamente com `Promise.allSettled()`
+4. Imprima os serviços online e alerte sobre os serviços em falha
+5. Utilize `finally` para registrar o carimbo de data/hora final da auditoria
 
 ---
 
-## Tratamento de Erros e Fetch API
+## Perguntas de Revisão: Declaração e Funcionamento
 
-- Como é feito o tratamento de erros ao utilizar a sintaxe `async/await`
-- Por que a função nativa `fetch()` não entra no bloco `catch` em respostas com status HTTP 404 ou 500
-- Para que serve o bloco `finally` em uma estrutura `try...catch...finally` assíncrona
-
----
-
-## Desempenho e Aplicações
-
-- O que é o gargalo da execução sequencial com `await` e como evitá-lo em chamadas independentes
-- Por que não devemos usar `await` dentro de um laço `.forEach()` ao iterar sobre arrays
-- Por que os controllers que acessam banco de dados no Node.js/Express são declarados como funções `async`
-- Qual é a vantagem de utilizar `Promise.allSettled()` junto com `await` em vez de `Promise.all()`
+1. O que são as palavras-chave `async` e `await` e qual a sua relação com Promises?
+2. O que acontece com o retorno de uma função `async` que dispara um `throw`?
+3. O que é *Top-Level Await* e onde ele pode ser utilizado legitimamente?
+4. O operador `await` pode ser utilizado antes de valores que não são Promises?
 
 ---
 
-## Próxima aula
+## Perguntas de Revisão: Tratamento de Erros e Armadilhas
 
-- Evolução e TC39
-- Comitê TC39, estágios de propostas e linha do tempo das edições do ECMAScript
+5. Por que a instrução `return promise` em `try/catch` pode gerar bugs graves?
+6. Por que `fetch()` não entra no bloco `catch` em status HTTP 404 ou 500?
+7. Para que serve o bloco `finally` em uma estrutura assíncrona?
+8. Por que nunca devemos colocar `await` dentro do callback de um `.forEach()`?
 
 ---
 
-## Resumo da Aula
+## Perguntas de Revisão: Desempenho e Aplicações
 
-- Revise o que é Async/Await? (Açúcar Sintático sobre Promises)
-- Revise declaração e Comportamento de Funções Async
-- Revise coerção de Retorno e Exceções
-- Revise tratamento de Erros com `try...catch...finally`
-- Revise execução Sequencial vs. Execução Paralela
-- Revise resumo e Boas Práticas
-- Revise executando
+9. O que é o gargalo da execução sequencial e como evitá-lo com `Promise.all()`?
+10. Como disparar requisições em paralelo a partir de um array dinâmico?
+11. Qual é a vantagem de utilizar controllers `async` no Express 5?
+12. O que é o laço `for await...of` e quando ele deve ser empregado?
+
+---
+
+## Síntese do Tópico
+
+- **Sintaxe Linear**: código assíncrono com a clareza e estrutura do síncrono
+- **Segurança com try/catch**: use `return await` para capturar falhas locais
+- **Concorrência Eficiente**: `Promise.all()` para tarefas independentes
+- **Modernização**: compatibilidade nativa com Express 5 e módulos ES
