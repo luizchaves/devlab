@@ -1,0 +1,403 @@
+---
+title: "TypeScript no React"
+description: "TypeScript aplicado ao React: componentes e props tipados, children, useState, useReducer, useRef, eventos, contexto, componentes genéricos e validação na fronteira."
+course: typescript
+sidebar:
+  label: "TypeScript no React"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Materiais: [slides do tópico](../../../../slides/courses/typescript/practice/react/) e [mapa mental](../../../../mindmaps/courses/typescript/practice/react/)
+
+React é o lugar onde o TypeScript mais se paga no front-end. Um componente é uma função com um contrato de entrada, as `props`, e um contrato de saída, o que ele renderiza. Tipar esse contrato transforma erro de integração entre componentes, que hoje aparece como tela em branco, em erro de compilação.
+
+Este tópico cobre **apenas o que a tipagem acrescenta**. Componentes, JSX, renderização, listas e o ciclo de vida dos hooks são assunto do [Guia de React](../../../react/basics/introduction/); aqui a pergunta é sempre a mesma: como escrever o tipo que descreve o que este componente aceita e o que este hook devolve.
+
+## Objetivo
+
+Tipar uma aplicação React com precisão: descrever `props` como contrato, escolher entre inferência e anotação em `useState`, modelar estado complexo com `useReducer` e união discriminada, tipar `useRef`, eventos e contexto, escrever componentes genéricos e validar o dado externo antes que ele vire prop.
+
+## O Componente é uma Função com Contrato
+
+Um componente React é uma função que recebe um objeto e devolve JSX. Tipar o parâmetro é tudo o que precisa ser feito para o compilador cobrar o uso correto em cada chamada.
+
+A forma direta declara as `props` como um tipo e anota o parâmetro:
+
+```tsx title="A forma recomendada"
+type SaudacaoProps = {
+  nome: string;
+  destaque?: boolean;
+};
+
+function Saudacao({ nome, destaque = false }: SaudacaoProps) {
+  return <h1 className={destaque ? "destaque" : ""}>Olá, {nome}</h1>;
+}
+
+// <Saudacao />              // erro: falta 'nome'
+// <Saudacao nome={42} />    // erro: number onde string é esperado
+```
+
+O retorno não precisa de anotação: o compilador infere o tipo do JSX. A prop opcional com valor padrão é declarada com `?` no tipo e com o padrão na desestruturação, e não com um dos dois apenas.
+
+<Aside type="note" title="`React.FC` não é mais necessário">
+  Durante anos, a convenção foi anotar o componente com `React.FC<Props>`. Ela caiu em desuso porque acrescentava um `children` implícito que nem todo componente aceita e atrapalhava componentes genéricos. Anotar o parâmetro é mais simples e mais preciso.
+</Aside>
+
+## `children` e o Tipo do Conteúdo
+
+Componentes que envolvem outros recebem `children`. O tipo correto para "qualquer coisa que o React sabe renderizar" é `ReactNode`, que inclui elementos, texto, número, array, `null` e `undefined`.
+
+O exemplo mostra a declaração e o que ela aceita:
+
+```tsx title="children como ReactNode"
+import type { ReactNode } from "react";
+
+type CartaoProps = {
+  titulo: string;
+  children: ReactNode;
+};
+
+function Cartao({ titulo, children }: CartaoProps) {
+  return (
+    <section>
+      <h2>{titulo}</h2>
+      {children}
+    </section>
+  );
+}
+```
+
+Quando o componente deve funcionar mesmo sem conteúdo, `children?: ReactNode` torna a prop opcional. Já `ReactElement` é mais restrito e recusa texto puro: use-o apenas quando o componente realmente depender de um único elemento.
+
+A tabela reúne os tipos que aparecem nessa posição:
+
+| Tipo | Aceita | Quando usar |
+| :--- | :--- | :--- |
+| `ReactNode` | Elementos, texto, número, array, `null` | Padrão para `children` |
+| `ReactElement` | Apenas um elemento JSX | Quando o componente inspeciona o filho |
+| `JSX.Element` | Um elemento JSX | Retorno de função que constrói JSX |
+| `ComponentType<P>` | O componente em si, não o resultado | Prop que recebe um componente |
+
+## `useState`: Inferir ou Anotar?
+
+`useState` é genérico e infere o tipo do valor inicial. Na maior parte dos casos, anotar é ruído.
+
+Os três casos abaixo cobrem quase todas as situações:
+
+```tsx title="Quando o genérico é necessário"
+const [nome, setNome] = useState("");            // string, inferido
+const [itens, setItens] = useState<string[]>([]); // sem o genérico, seria never[]
+const [user, setUser] = useState<User | null>(null); // o inicial não revela o tipo final
+```
+
+A regra que decorre desses três: **anote quando o valor inicial não representa o tipo completo**. Um array vazio não diz o que vai conter, e `null` não diz o que virá depois.
+
+O par devolvido é uma tupla, e é isso que permite renomear as duas posições livremente. O `setNome` aceita tanto o valor novo quanto uma função que recebe o anterior, e as duas formas são tipadas.
+
+## `useReducer` com União Discriminada
+
+Quando o estado tem várias transições, `useReducer` com uma união discriminada de ações faz o compilador cobrar a exaustividade e estreitar o `payload` de cada ação.
+
+O redutor abaixo mostra o padrão completo:
+
+```tsx title="Estado e ações como contratos"
+type Estado = { itens: string[]; carregando: boolean };
+
+type Acao =
+  | { type: "carregar" }
+  | { type: "sucesso"; itens: string[] }
+  | { type: "erro"; mensagem: string };
+
+function redutor(estado: Estado, acao: Acao): Estado {
+  switch (acao.type) {
+    case "carregar":
+      return { ...estado, carregando: true };
+    case "sucesso":
+      return { itens: acao.itens, carregando: false };
+    case "erro":
+      console.error(acao.mensagem);
+      return { ...estado, carregando: false };
+    default: {
+      const exaustivo: never = acao;
+      return exaustivo;
+    }
+  }
+}
+```
+
+Dentro de cada `case`, o compilador sabe exatamente quais campos existem: `acao.itens` só é acessível no ramo `"sucesso"`, e `acao.mensagem` só no ramo `"erro"`. O `default` com `never` faz a compilação falhar assim que uma ação nova for adicionada à união sem tratamento correspondente, comportamento explicado em [Uniões e Interseções](../../types/unions/).
+
+## Modelar Estado como União, Não como Flags
+
+O mesmo raciocínio se aplica ao estado. Um objeto com vários booleanos permite combinações impossíveis; uma união discriminada não permite.
+
+A comparação deixa a diferença explícita:
+
+```tsx title="Antes: combinações impossíveis são representáveis"
+type Estado = {
+  carregando: boolean;
+  erro: string | null;
+  dados: User | null;
+};
+// { carregando: true, erro: "falhou", dados: {...} } compila
+```
+
+```tsx title="Depois: só os estados reais existem"
+type Estado =
+  | { status: "ocioso" }
+  | { status: "carregando" }
+  | { status: "erro"; mensagem: string }
+  | { status: "pronto"; dados: User };
+
+// Na renderização, cada ramo dá acesso apenas ao que faz sentido nele
+if (estado.status === "pronto") {
+  console.log(estado.dados.name);
+}
+```
+
+Na primeira versão, a renderização precisa de checagens defensivas em cascata e ainda assim pode errar. Na segunda, o compilador só libera `estado.dados` no ramo em que ele existe.
+
+## `useRef`: Duas Assinaturas Diferentes
+
+`useRef` tem dois usos distintos, e cada um pede uma forma diferente de tipagem. Confundi-los gera erro de atribuição em `current`.
+
+O primeiro uso aponta para um elemento do DOM:
+
+```tsx title="Referência a elemento do DOM"
+const inputRef = useRef<HTMLInputElement>(null);
+
+// inputRef.current é HTMLInputElement | null
+inputRef.current?.focus();
+```
+
+O segundo guarda um valor mutável que não dispara renderização:
+
+```tsx title="Valor mutável entre renderizações"
+const contador = useRef<number>(0);
+
+contador.current += 1; // current é number, e é gravável
+```
+
+A diferença está no valor inicial. Com `null`, o React entende que a referência será preenchida por ele, e `current` fica somente leitura no tipo. Com qualquer outro valor inicial, `current` é gravável.
+
+<Aside type="tip" title="O `?.` não é opcional aqui">
+  `inputRef.current` é `null` na primeira renderização, antes de o React associar o elemento. O `strictNullChecks` obriga a checagem, e é ela que evita o erro mais comum ao manipular foco e rolagem.
+</Aside>
+
+## Eventos Tipados
+
+Os manipuladores de evento têm tipos próprios, parametrizados pelo elemento que os emite. Anotar o parâmetro dá acesso a `target` com o tipo certo.
+
+Os três eventos mais frequentes aparecem abaixo:
+
+```tsx title="Eventos de formulário e de mouse"
+import type { ChangeEvent, FormEvent, MouseEvent } from "react";
+
+function aoDigitar(evento: ChangeEvent<HTMLInputElement>) {
+  console.log(evento.target.value); // string, sem asserção
+}
+
+function aoEnviar(evento: FormEvent<HTMLFormElement>) {
+  evento.preventDefault();
+}
+
+function aoClicar(evento: MouseEvent<HTMLButtonElement>) {
+  console.log(evento.currentTarget.disabled);
+}
+```
+
+Quando o manipulador é escrito diretamente no JSX, a anotação é desnecessária: a **tipagem contextual** deduz o tipo do evento a partir do atributo. Anotar ali só acrescenta ruído.
+
+<Aside type="caution" title="`target` e `currentTarget` não são a mesma coisa">
+  `currentTarget` é o elemento que registrou o manipulador, e o React o tipa com precisão. `target` é onde o evento nasceu, e pode ser um filho qualquer, por isso seu tipo é mais largo. Em `ChangeEvent<HTMLInputElement>` os dois coincidem; em um clique que sobe de um `<span>` dentro do botão, não.
+</Aside>
+
+## Contexto Tipado e a Guarda do Padrão
+
+`createContext` exige um valor padrão, e é aí que quase todo código recorre a `as`. O padrão correto usa `undefined` como valor inicial e um hook que rejeita o uso fora do provedor.
+
+O trecho reúne as três partes do padrão:
+
+```tsx title="Contexto sem asserção"
+import { createContext, useContext } from "react";
+
+type Sessao = { usuario: string; sair: () => void };
+
+const SessaoContext = createContext<Sessao | undefined>(undefined);
+
+function useSessao(): Sessao {
+  const valor = useContext(SessaoContext);
+
+  if (valor === undefined) {
+    throw new Error("useSessao precisa estar dentro de <SessaoProvider>");
+  }
+
+  return valor; // Sessao, já estreitado
+}
+```
+
+O `throw` faz duas coisas ao mesmo tempo. Para o compilador, ele remove `undefined` do tipo de retorno, o que dispensa checagem em cada componente consumidor. Para quem desenvolve, ele troca um `undefined` silencioso por uma mensagem que diz exatamente o que está faltando.
+
+## Componentes Genéricos
+
+Um componente que trabalha com uma lista de qualquer coisa precisa preservar o tipo do item entre a prop e o callback. Um genérico resolve isso sem `any`.
+
+O exemplo mostra a informação atravessando o componente:
+
+```tsx title="O tipo do item sobrevive à travessia"
+type ListaProps<T> = {
+  itens: T[];
+  chave: (item: T) => string;
+  render: (item: T) => ReactNode;
+};
+
+function Lista<T>({ itens, chave, render }: ListaProps<T>) {
+  return <ul>{itens.map((item) => <li key={chave(item)}>{render(item)}</li>)}</ul>;
+}
+
+// Ao usar, T é inferido de 'itens', e 'item' é User nos dois callbacks
+<Lista
+  itens={usuarios}
+  chave={(item) => String(item.id)}
+  render={(item) => item.name}
+/>;
+```
+
+Sem o genérico, `itens` seria `unknown[]` ou `any[]`, e o `item` de cada callback chegaria sem tipo. O motivo pelo qual isso funciona está em [Generics](../../types/generics/).
+
+<Aside type="note" title="Em arquivo `.tsx`, `<T>` é ambíguo">
+  O compilador não sabe se `<T>` abre um genérico ou um elemento JSX. Em uma arrow function, a solução é escrever `<T,>` com a vírgula, ou usar `function` em vez de arrow. Declarações com `function`, como a do exemplo, não têm esse problema.
+</Aside>
+
+## A Fronteira Entre o Tipo e o Dado Real
+
+O último passo é o mais importante e o mais esquecido. Nada do que foi tipado até aqui protege contra uma API que devolve um formato diferente do declarado.
+
+O trecho abaixo compila e quebra na renderização:
+
+```tsx title="A asserção que não garante nada"
+const [user, setUser] = useState<User | null>(null);
+
+useEffect(() => {
+  fetch("/api/user")
+    .then((r) => r.json())
+    .then((dado) => setUser(dado as User)); // any virando User por decreto
+}, []);
+```
+
+Validar na fronteira faz o tipo e o dado concordarem:
+
+```tsx title="Validação antes de entrar no estado"
+import { z } from "zod";
+
+const UserSchema = z.object({ id: z.number(), name: z.string() });
+type User = z.infer<typeof UserSchema>;
+
+fetch("/api/user")
+  .then((r) => r.json())
+  .then((dado) => setUser(UserSchema.parse(dado)))
+  .catch((erro) => setErro(String(erro)));
+```
+
+Derivar o tipo do esquema com `z.infer` elimina a duplicação: existe uma única definição de `User`, e ela é a que roda. O mesmo raciocínio aplicado ao back-end está em [TypeScript no Node.js](../nodejs/).
+
+## Executando
+
+O roteiro cria um projeto React com TypeScript e reproduz os dois erros mais úteis desta página: a prop faltante e o contexto usado fora do provedor.
+
+<Steps>
+
+1. Crie o projeto com o template TypeScript do Vite:
+
+   ```bash title="Terminal"
+   npm create vite@latest app-tipado -- --template react-ts
+   ```
+
+2. Instale as dependências e entre no diretório:
+
+   ```bash title="Terminal"
+   cd app-tipado && npm install
+   ```
+
+3. Substitua o conteúdo de `src/App.tsx` por um componente com prop obrigatória:
+
+   ```tsx title="src/App.tsx"
+   type SaudacaoProps = { nome: string };
+
+   function Saudacao({ nome }: SaudacaoProps) {
+     return <h1>Olá, {nome}</h1>;
+   }
+
+   export default function App() {
+     return <Saudacao />;
+   }
+   ```
+
+4. Verifique os tipos sem executar a aplicação:
+
+   ```bash title="Terminal"
+   npx tsc --noEmit
+   ```
+
+   ```txt title="Output" frame="terminal"
+   src/App.tsx:8:11 - error TS2741: Property 'nome' is missing in type '{}'
+   but required in type 'SaudacaoProps'.
+   ```
+
+5. Corrija a chamada para `<Saudacao nome="DevLab" />` e rode a verificação novamente. Em seguida suba o servidor e confirme na tela:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+</Steps>
+
+## Exercício
+
+Construa um componente `<TabelaUsuarios>` que exercite o que foi visto:
+
+1. Declare `User` derivando de um esquema de validação, com `id`, `name`, `email` e `ativo`.
+2. Modele o estado da tela como união discriminada com os quatro status: ocioso, carregando, erro e pronto.
+3. Use `useReducer` com uma união de ações, incluindo o `default` com prova de exaustividade.
+4. Busque os dados em `useEffect` e valide a resposta antes de colocá-la no estado, sem usar `as` em nenhum ponto.
+5. Renderize cada status em um ramo próprio, e confirme que o compilador só permite acessar `dados` no ramo `"pronto"`.
+
+Ao terminar, rode `npx tsc --noEmit` e confirme que não há nenhum erro nem nenhuma asserção no arquivo.
+
+## Desafio
+
+Transforme a tabela do exercício em um componente genérico `<Tabela<T>>` reutilizável:
+
+- A prop `itens` recebe `T[]`, e o componente não sabe nada sobre a forma de `T`.
+- A prop `colunas` recebe uma lista de definições, e cada definição declara uma chave de `T` e um rótulo. Use `keyof T` para que o compilador rejeite uma chave que não existe.
+- A prop `render` é opcional por coluna e recebe o valor já tipado daquela chave, e não `unknown`.
+- A prop `aoSelecionar` recebe o item inteiro, com o tipo preservado.
+
+O critério de aprovação é o autocompletar: ao usar `<Tabela itens={usuarios} …>`, o editor deve sugerir apenas as chaves reais de `User` em `colunas`, e o parâmetro de `aoSelecionar` deve aparecer como `User` sem nenhuma anotação no local de uso.
+
+## Perguntas de revisão
+
+1. Por que anotar o parâmetro do componente é preferível a usar `React.FC<Props>`?
+2. Qual é a diferença entre `ReactNode` e `ReactElement`, e quando cada um é apropriado?
+3. Em quais situações o genérico de `useState` é necessário, e por quê?
+4. O que o `default` com `never` garante em um redutor?
+5. Que problema uma união discriminada de estado resolve que um objeto de booleanos não resolve?
+6. Por que `useRef<HTMLInputElement>(null)` produz um `current` somente leitura e `useRef(0)` não?
+7. Qual é a diferença entre `target` e `currentTarget` em um evento?
+8. Por que o hook de contexto lança um erro em vez de devolver `undefined`?
+9. O que quebra em um arquivo `.tsx` ao declarar `<T>` em uma arrow function, e como contornar?
+10. Por que `dado as User` depois de `response.json()` não oferece nenhuma garantia?
+
+## Referências
+
+- [React: TypeScript](https://react.dev/learn/typescript) (documentação oficial de TypeScript no React)
+- [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/) (padrões da comunidade, incluindo componentes genéricos)
+- [Tipos do `@types/react`](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react) (a fonte de `ReactNode`, `ChangeEvent` e companhia)
+- [Zod](https://zod.dev/) (validação em runtime com derivação de tipo por `z.infer`)
+- [Guia de React](../../../react/basics/introduction/) (componentes, JSX, props e hooks, sem a camada de tipos)
+
+## Próximo tópico
+
+Com o front-end e o back-end tipados, resta entender de onde vieram os recursos usados até aqui e para onde a linguagem caminha.
+
+[Evolução e Versões](../../evolution/releases/): o ciclo de lançamentos, o histórico de recursos da 1.0 à 5.x, a transição do 6.0 e o compilador nativo do 7.0.

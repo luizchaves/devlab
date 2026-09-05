@@ -526,6 +526,10 @@ export default defineConfig({
                   label: 'TypeScript no Node.js',
                   link: '/courses/typescript/practice/nodejs/',
                 },
+                {
+                  label: 'TypeScript no React',
+                  link: '/courses/typescript/practice/react/',
+                },
               ],
             },
             {
