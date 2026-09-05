@@ -41,6 +41,10 @@ fonte principal:
 - todo `##` conceitual relevante deve aparecer no deck como um ou mais slides;
 - subseções densas (`###`) devem virar slide próprio, tabela, diagrama, imagem útil ou
   exemplo curto;
+- **analise proativamente a viabilidade de usar diagramas ou imagens na medida do possível**:
+  se a página aborda fluxos temporais, etapas sequenciais, arquiteturas ou modelos mentais
+  (seja por fences `mermaid`, componentes de diagrama ou texto explicativo), planeje a inclusão
+  de representações visuais em diagramas ASCII bem estruturados ou SVGs adaptados para projeção;
 - páginas de projeto, guias, referências e tópicos conceituais têm estruturas diferentes:
   não force sempre o mesmo roteiro; comece com a estrutura sugerida em `Arco do deck`,
   mas adapte para que a sequência preserve a intenção didática da página;
@@ -227,18 +231,37 @@ um ponto de aprendizagem:
 - se a explicação precisa de muitos bullets, divida em dois slides com títulos mais
   específicos.
 
+### Análise de Viabilidade Visual (Diagramas, SVGs e Imagens)
+
+Slides de projeção são prioritariamente visuais. O excesso de bullets textuais e a ausência de diagramas tornam a aula monótona e dificultam a fixação de arquiteturas e fluxos de execução. Ao planejar ou revisar cada deck, **analise ativamente a viabilidade de usar diagramas ou imagens na medida do possível**:
+
+- **Gatilhos para inclusão de diagramas**:
+  - *Ciclos de vida e fluxos de estado*: Transições de estado (ex: `pending` → `fulfilled`/`rejected`), etapas do Event Loop, pipelines de build, rotas de requisição e resposta.
+  - *Arquitetura e coordenação de componentes*: Relação entre camadas (ex: Call Stack, Web APIs, Macrotasks e Microtasks; Cliente vs Servidor; Model-View-Controller; Service-Repository).
+  - *Modelagem e estruturas de dados*: Árvores de tipos, grafos de dependências, encadeamento de protótipos, árvores de nós DOM.
+  - *Transições e comparações*: Fluxos síncronos vs assíncronos, concorrência vs paralelismo, chamadas em série vs chamadas em paralelo.
+
+- **Formatos visuais recomendados no Marp**:
+  1. **Diagramas ASCII de Arquitetura e Fluxo em bloco `txt`**:
+     - Principal formato nativo, leve, perfeitamente portável e sem dependência externa.
+     - Utilize caracteres de caixa UTF-8 (`┌─┐│└─┘├─┤`), setas direcionais (`──>`, `▲`, `▼`) e identificação clara de etapas numeradas.
+     - Construa caixas e conexões espaciais bem alinhadas, evitando apenas listas com recuo.
+  2. **Diagramas Vetoriais (SVG) e Imagens**:
+     - O Marp CLI opera com suporte a HTML (`--html`), permitindo tanto tags `<svg>` inline quanto imagens Markdown (`![w:700](caminho.svg)` ou `<img src="..." width="..." />`).
+     - Quando a página correspondente no portal possuir um componente de diagrama dedicado (ex: componentes Astro que geram SVGs semânticos) ou assets visuais em `public/`, avalie incorporar ou adaptar o SVG para projeção no slide.
+  3. **Transposição de diagramas conceituais da página**:
+     - Se a página `.mdx` possui diagramas conceituais (seja fence `mermaid`, `<Mermaid>` ou componente de diagrama), **não ignore o recurso visual**. Como o Marp não processa Mermaid diretamente, converta a lógica visual para um **diagrama ASCII estruturado** ou **SVG limpo**, preservando o modelo mental no slide.
+
 Prioridade visual sugerida:
 
-1. **Código real** quando o tópico ensina sintaxe, API, fluxo de projeto ou comportamento.
-2. **Imagem/SVG versionado** quando existe uma tela, arquitetura, fluxo ou diagrama pronto.
-3. **Tabela curta** quando o tópico compara opções.
-4. **Diagrama ASCII** quando não há asset pronto e o fluxo precisa ser visual.
-5. **Bullets** para contexto, regra, cuidado e síntese.
+1. **Código real** quando o foco for sintaxe, APIs, exemplos executáveis e implementação.
+2. **Diagramas espaciais (ASCII estruturado ou SVG/imagem)** para arquiteturas, fluxos de execução, etapas de controle e ciclos de vida.
+3. **Tabelas comparativas** para diferenças conceituais, opções de API, comparativos antes/depois e matrizes de estado.
+4. **Bullets compactos** como apoio à fala, contextualização e síntese (nunca como substituto de um fluxo que deveria ser desenhado espacialmente).
 
 Para comparações de estado, antes/depois, permissões, responsabilidades ou efeitos de uma
 operação, prefira uma tabela curta quando ela ficar mais clara que setas em ASCII. Use
-diagrama ASCII apenas quando a forma espacial ajudar de verdade; se o desenho parecer
-improvisado, troque por tabela ou divida a explicação em slides menores.
+diagrama ASCII ou vetorial sempre que a representação espacial e direcional enriquecer a explicação.
 
 - título curto e focado;
 - **1 frase descritiva contextualizando a regra ou o que observar** antes do primeiro
@@ -370,11 +393,10 @@ perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
 - Evite emojis nos slides. Eles raramente ajudam na leitura técnica e criam ruído visual.
 - Não escreva "abaixo" no texto do slide; prefira "a seguir", "no próximo exemplo",
   "neste trecho" ou uma referência concreta como "na linha 12".
-- Use imagens quando houver asset útil e versionado, especialmente SVGs de arquitetura,
-  fluxos, telas, diagramas ou ilustrações técnicas. A imagem deve ensinar algo que texto,
-  tabela ou código explicariam pior.
-- Não use imagem decorativa, genérica ou sem relação direta com a explicação. Se não houver
-  asset pronto, prefira diagrama ASCII antes de criar uma imagem só para enfeitar.
+- **Uso ativo de imagens e diagramas**: Sempre analise a viabilidade de usar diagramas ou imagens na medida do possível:
+  - Se houver asset SVG/imagem versionado ou componente gráfico no tópico correspondente, priorize sua inclusão;
+  - Se não houver asset gráfico pronto, construa ativamente diagramas em ASCII (` ```txt `) estruturados com caixas UTF-8 e setas para representar fluxos, ciclos de vida e arquiteturas, evitando ancorar a aula exclusivamente em listas de texto;
+  - Imagens meramente decorativas ou genéricas sem relação direta com o conteúdo continuam vetadas; o foco é o ensino técnico de fluxos, modelos mentais e estruturas.
 - **Cuidado com Mermaid**: páginas `.mdx` podem usar `<Mermaid>` ou fences
   `mermaid`, mas o build atual do Marp não renderiza Mermaid automaticamente. Não copie
   `flowchart`, `graph`, `sequenceDiagram` ou `classDiagram` para o deck. Converta para
@@ -437,8 +459,11 @@ Ao atualizar regras ou templates nesta skill:
 9. **Código de menos em página prática**: se o tópico é baseado em projeto e quase não há
    trechos de código, o deck vira palestra abstrata. Volte aos `<SourceCode>` e escolha
    recortes melhores.
-10. **Visual sem propósito**: imagens e SVGs são bem-vindos quando explicam fluxo,
-    arquitetura ou tela; se só ocupam espaço, remova.
+10. **Slides puramente textuais e ausência de diagramas**: produzir decks compostos
+    quase que exclusivamente por texto e bullets, sem nenhuma representação espacial de
+    fluxos, arquiteturas ou estados. Sempre avalie a viabilidade de desenhar diagramas
+    estruturados em ASCII ou assets visuais (SVG/imagem) quando a aula tratar de processos
+    em etapas ou modelos conceituais. Em contrapartida, evite imagens decorativas sem valor didático.
 11. **Falta de output em código e exercícios**: nunca deixe chamadas de `console.log()`
     ou resoluções de exercícios/desafios sem a respectiva saída esperada documentada
     em comentário `// output` ou bloco `txt`.
