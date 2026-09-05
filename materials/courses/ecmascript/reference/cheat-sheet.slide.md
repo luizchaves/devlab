@@ -28,8 +28,12 @@ Guia completo de referência rápida de todas as assinaturas de métodos, funç�
 ## Mapa da Aula
 
 - Legenda e Convenções
+- Operadores, precedência e palavras-chave da linguagem
 - Funções Globais e Utilitários de Tipo
 - Objeto Estático `JSON`
+- Expressões Regulares: flags, classes, quantificadores e grupos
+- Iterator Helpers (ES2025), Proxy e Reflect
+- Dados Binários, Atomics, Intl e Referências Fracas
 
 ---
 
@@ -49,16 +53,87 @@ Guia completo de referência rápida de todas as assinaturas de métodos, funç�
 
 ---
 
-## Operadores Especiais e Atribuição Lógica: Comparação
+## Operadores Aritméticos e de Atribuição: Comparação
+
+| Operador | Exemplo | Descrição |
+| :--- | :--- | :--- |
+| `+` `-` `*` `/` `%` | `a + b` | Soma (ou concatenação), subtração, multiplicação, divisão e resto. |
+| `**` | `base ** exponent` | Exponenciação (ES2016), **associativa à direita**. |
+| `++` `--` | `++x` / `x++` | Prefixado devolve o valor alterado; pós-fixado, o anterior. |
+| `+=` `-=` `*=` `/=` `%=` `**=` | `x += v` | Atribuições compostas: aplicam a operação e reatribuem. |
+| `+x` `-x` | `+"42"` | Unários: coagem para número (e invertem o sinal). |
+
+---
+
+## Operadores de Comparação e Lógicos: Comparação
+
+| Operador | Exemplo | Descrição |
+| :--- | :--- | :--- |
+| `===` `!==` | `a === b` | Igualdade estrita: compara valor **e** tipo. Padrão recomendado. |
+| `==` `!=` | `a == b` | Igualdade frouxa, com coerção. Evite: `0 == "0"` é `true`. |
+| `>` `>=` `<` `<=` | `a > b` | Relacionais; em strings, comparam pontos de código Unicode. |
+| `&&` `\|\|` `!` | `a && b` | Lógicos com curto-circuito; devolvem operandos, não booleanos. |
+| `? :` | `cond ? x : y` | Ternário: único operador com três operandos. |
+| `??` | `left ?? right` | Coalescência nula: só reage a `null` e `undefined`. |
+
+---
+
+## Operadores Bit a Bit e Deslocamento: Comparação
+
+| Operador | Exemplo | Descrição |
+| :--- | :--- | :--- |
+| `&` `\|` `^` `~` | `a & b` | E, OU, OU exclusivo e negação sobre inteiros de 32 bits com sinal. |
+| `<<` | `a << b` | Deslocamento à esquerda. |
+| `>>` | `a >> b` | Deslocamento à direita preservando o sinal. |
+| `>>>` | `a >>> b` | Deslocamento à direita sem sinal, preenchendo com zeros. |
+
+---
+
+## Operadores de Tipo, Objeto e Estrutura: Comparação
 
 | Operador / Sintaxe | Assinatura / Exemplo | Retorno | Descrição |
 | :--- | :--- | :--- | :--- |
-| `typeof` | `typeof operand` | `string` | Retorna o nome do tipo primitivo ou `"object"` / `"function"`. |
-| `instanceof` | `obj instanceof Constructor` | `boolean` | Testa se `Constructor.prototype` está na cadeia de protótipos de `obj`. |
-| `in` | `'prop' in obj` | `boolean` | Verifica se a propriedade existe no objeto ou em sua cadeia de protótipos. |
+| `typeof` | `typeof operand` | `string` | Nome do tipo primitivo ou `"object"` / `"function"`. |
+| `instanceof` | `obj instanceof Constructor` | `boolean` | Testa a cadeia de protótipos de `obj`. |
+| `in` | `'prop' in obj` | `boolean` | Propriedade existe no objeto ou em sua cadeia. |
 | `delete` | `delete obj.prop` | `boolean` | Remove uma propriedade de um objeto. |
-| `void` | `void expression` | `undefined` | Avalia a expressão e retorna `undefined`. |
-| ... | ... | ... | ... |
+| `void` | `void expression` | `undefined` | Avalia a expressão e devolve `undefined`. |
+| `?.` | `obj?.prop`, `arr?.[0]`, `fn?.()` | `any` | Acesso seguro sem erro em `null` / `undefined`. |
+| `...` | `...iterable` / `...args` | — | Espalha um iterável ou agrupa argumentos restantes. |
+| `new` | `new Constructor(...args)` | `object` | Cria a instância e devolve o novo objeto. |
+| `new.target` | `new.target` | `Function` | Construtor invocado com `new`; `undefined` em chamada comum. |
+| `,` | `a, b` | `any` | Avalia da esquerda para a direita e devolve o último. |
+
+---
+
+## Atribuições Lógicas e Sintaxes de Módulo: Comparação
+
+| Sintaxe | Exemplo | Descrição |
+| :--- | :--- | :--- |
+| `??=` | `target ??= value` | Atribui apenas se `target` for `null` ou `undefined` (ES2021). |
+| `\|\|=` | `target \|\|= value` | Atribui se `target` for *falsy*. |
+| `&&=` | `target &&= value` | Atribui se `target` for *truthy*. |
+| `await` | `await promise` | Suspende até resolver; válido no topo de módulos ES (ES2022). |
+| `yield` / `yield*` | `yield value` | Produz um valor da geradora; `yield*` delega a outro iterável. |
+| `import()` | `import(specifier)` | Importação dinâmica; devolve uma promessa do namespace. |
+| `import.meta` | `import.meta.url` | Metadados do módulo em execução. |
+
+---
+
+## Precedência de Operadores (do mais forte ao mais fraco)
+
+| Nível | Operadores | Associatividade |
+| :--- | :--- | :--- |
+| Acesso e chamada | `obj.prop`, `obj[expr]`, `fn()`, `new C(...)`, `?.` | Esquerda |
+| Unários | `!`, `~`, `+`, `-`, `++`, `--`, `typeof`, `void`, `delete`, `await` | Direita |
+| Exponenciação | `**` | Direita |
+| Multiplicativos / Aditivos | `*`, `/`, `%` e depois `+`, `-` | Esquerda |
+| Deslocamento / Relacionais | `<<`, `>>`, `>>>`, `<`, `>`, `in`, `instanceof` | Esquerda |
+| Igualdade | `==`, `!=`, `===`, `!==` | Esquerda |
+| Bit a bit / Lógicos | `&`, `^`, `\|`, depois `&&`, `\|\|`, `??` | Esquerda |
+| Condicional / Atribuição | `? :`, `=`, `+=`, `??=` e compostas | Direita |
+
+Na dúvida, prefira parênteses explícitos a memorizar a tabela.
 
 ---
 
@@ -70,7 +145,62 @@ const name = user?.profile?.name ?? "Visitante"; // "Visitante"
 
 let config = {};
 config.theme ||= "dark"; // config.theme vira "dark"
+
+// ?? preserva valores falsy que || descartaria
+const timeout = 0;
+console.log(timeout || 30); // 30 (|| descarta o zero)
+console.log(timeout ?? 30); // 0  (?? só reage a null/undefined)
+
+console.log(2 ** 3 ** 2); // 512, e não 64 (associativo à direita)
 ```
+
+---
+
+## Declaração de Valores e Funções: Comparação
+
+| Palavra-chave | Sintaxe | Descrição |
+| :--- | :--- | :--- |
+| `const` / `let` | `const name = value` | Escopo de bloco; `const` impede reatribuição, não mutação. |
+| `var` | `var name` | Escopo de função, com *hoisting* iniciado em `undefined`. |
+| `function` | `function name(params) { }` | Declaração com *hoisting* completo; expressões não têm. |
+| `function*` / `async` | `async function*` | Geradora, assíncrona e geradora assíncrona. |
+| Arrow | `(params) => expression` | Sem `this`, `arguments`, `super` ou `new.target` próprios. |
+| `class` | `class Name extends Base { }` | Classe, herança (`extends`), `super`, `static`, `get` / `set`. |
+| `#private` | `#campo`, `#metodo()` | Membros privados de classe (ES2022). |
+| `"use strict"` | Diretiva | Modo estrito; implícito em módulos ES e classes. |
+
+---
+
+## Controle de Fluxo: Comparação
+
+| Palavra-chave | Sintaxe | Descrição |
+| :--- | :--- | :--- |
+| `if` / `else` | `if (cond) { } else { }` | Condição avaliada por *truthiness*, não por `=== true`. |
+| `switch` | `switch (e) { case v: ... }` | Comparação **estrita**; sem `break` ocorre *fall-through*. |
+| `for` / `while` / `do` | `do { } while (cond)` | Contador, teste prévio e teste posterior. |
+| `for...in` | `for (const key in obj)` | Percorre **chaves** enumeráveis, inclusive herdadas. |
+| `for...of` | `for (const item of iterable)` | Percorre **valores** de qualquer iterável. |
+| `break` / `continue` | `break outer` | Interrompe ou salta; aceita rótulo para laços externos. |
+| `try` / `catch` / `finally` | `try { } catch { }` | Parâmetro de `catch` opcional (ES2019); `finally` sempre roda. |
+| `return` / `throw` | `throw new Error(msg)` | Encerra a função ou lança uma exceção. |
+
+---
+
+## Palavras Reservadas
+
+| Categoria | Palavras |
+| :--- | :--- |
+| Declaração | `var`, `let`, `const`, `function`, `class`, `import`, `export` |
+| Fluxo | `if`, `else`, `switch`, `case`, `default`, `for`, `while`, `do`, `break`, `continue`, `return` |
+| Exceções | `try`, `catch`, `finally`, `throw` |
+| Operadores | `typeof`, `instanceof`, `in`, `of`, `new`, `delete`, `void` |
+| Classes e contexto | `this`, `super`, `extends`, `static`, `get`, `set` |
+| Assincronismo | `async`, `await`, `yield` |
+| Literais | `true`, `false`, `null` |
+| Modo estrito | `implements`, `interface`, `package`, `private`, `protected`, `public`, `arguments`, `eval` |
+| Futuro / Descontinuada | `enum` / `with` |
+
+`undefined`, `NaN` e `globalThis` **não** são reservadas: são propriedades globais somente leitura.
 
 ---
 
@@ -362,21 +492,134 @@ const result = await promise;
 ## Criando Expressões Regulares
 
 ```js
-// Literal com flags (g: global, i: case-insensitive, m: multiline, s: dotAll, u: unicode, v: unicodeSets)
+// Literal: compilado uma vez, na análise do código
 const regex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/gi;
 
-// Construtor dinâmico
-const dynamicRegex = new RegExp("padrao", "gi");
+// Construtor dinâmico: exige duplicar as contrabarras
+const dynamicRegex = new RegExp("\\d{3}-\\d{4}", "g");
 ```
 
 ---
 
-## Métodos de Instância de RegExp: Comparação
+## Flags de RegExp: Comparação
 
-| Método | Assinatura | Retorno | Descrição |
-| :--- | :--- | :--- | :--- |
-| `test()` | `regexp.test(string)` | `boolean` | Testa se a expressão regular encontra correspondência na string. |
-| `exec()` | `regexp.exec(string)` | `Array \| null` | Executa uma busca na string e retorna um array de resultados (com índices e grupos de captura) ou `null`. |
+| Flag | Propriedade | Efeito |
+| :--- | :--- | :--- |
+| `g` | `global` | Busca todas as ocorrências, não apenas a primeira. |
+| `i` | `ignoreCase` | Ignora a diferença entre maiúsculas e minúsculas. |
+| `m` | `multiline` | `^` e `$` casam em cada linha, não só no início e fim. |
+| `s` | `dotAll` | O `.` passa a casar também com quebras de linha. |
+| `u` | `unicode` | Trata o padrão em pontos de código; habilita `\p{...}`. |
+| `v` | `unicodeSets` | Sucessor de `u` (ES2024): conjuntos dentro de classes. |
+| `y` | `sticky` | Casa apenas exatamente em `lastIndex`, sem avançar. |
+| `d` | `hasIndices` | Acrescenta `.indices` com o intervalo de cada grupo. |
+
+---
+
+## Metacaracteres e Classes: Comparação
+
+| Sintaxe | Significado |
+| :--- | :--- |
+| `.` | Qualquer caractere, exceto quebra de linha (salvo com `s`). |
+| `\d` / `\D` | Dígito / não dígito. |
+| `\w` / `\W` | Caractere de palavra (`[A-Za-z0-9_]`) / o complemento. |
+| `\s` / `\S` | Espaço em branco / não espaço. |
+| `[abc]` / `[^abc]` | Conjunto de caracteres / negação do conjunto. |
+| `[a-z0-9]` | Intervalos dentro de um conjunto. |
+| `\p{L}`, `\p{Script=Greek}` | Propriedade Unicode (exige a flag `u` ou `v`). |
+| `\b` / `\B` | Fronteira de palavra / posição que não é fronteira. |
+| `^` / `$` | Início / fim da string (ou da linha, com a flag `m`). |
+
+---
+
+## Quantificadores: Comparação
+
+| Sintaxe | Repetições | Versão preguiçosa |
+| :--- | :--- | :--- |
+| `*` | Zero ou mais | `*?` |
+| `+` | Uma ou mais | `+?` |
+| `?` | Zero ou uma | `??` |
+| `{n}` | Exatamente `n` | (não se aplica) |
+| `{n,}` | Ao menos `n` | `{n,}?` |
+| `{n,m}` | Entre `n` e `m` | `{n,m}?` |
+
+Por padrão os quantificadores são **gulosos**: consomem o máximo possível e recuam apenas se o restante do padrão falhar.
+
+---
+
+## Grupos, Alternância e Verificações: Comparação
+
+| Sintaxe | Significado |
+| :--- | :--- |
+| `(...)` | Grupo de captura, acessível por índice no resultado. |
+| `(?:...)` | Grupo sem captura, apenas para agrupar. |
+| `(?<nome>...)` | Grupo de captura nomeado, lido em `.groups.nome`. |
+| `\1`, `\k<nome>` | Retrovisor: repete o texto casado pelo grupo indicado. |
+| `a\|b` | Alternância: casa `a` ou `b`. |
+| `(?=...)` / `(?!...)` | Verificação à frente positiva / negativa. |
+| `(?<=...)` / `(?<!...)` | Verificação atrás positiva / negativa (ES2018). |
+
+Verificações testam o entorno **sem consumir** caracteres da string.
+
+---
+
+## Métodos e Propriedades de RegExp: Comparação
+
+| Membro | Assinatura | Descrição |
+| :--- | :--- | :--- |
+| `test()` | `regexp.test(string)` | Indica se há correspondência; com `g` avança `lastIndex`. |
+| `exec()` | `regexp.exec(string)` | Array com `index`, `groups` e `indices`, ou `null`. |
+| `lastIndex` | `regexp.lastIndex` | Posição da próxima busca nas flags `g` e `y`. |
+| `source` / `flags` | `regexp.source` | Texto do padrão sem barras e flags ativas. |
+| `RegExp.escape()` | `RegExp.escape(string)` | Escapa metacaracteres de texto externo (ES2025). |
+
+---
+
+## Métodos de String que Recebem RegExp: Comparação
+
+| Método | Assinatura | Descrição |
+| :--- | :--- | :--- |
+| `match()` | `str.match(regexp)` | Sem `g`, primeira correspondência detalhada; com `g`, só os textos. |
+| `matchAll()` | `str.matchAll(regexp)` | Exige `g`; devolve iterador com todos os detalhes. |
+| `replace()` | `str.replace(pat, repl)` | `repl` aceita `$1`, `$&`, `$<nome>` ou uma função. |
+| `replaceAll()` | `str.replaceAll(pat, repl)` | Com RegExp, exige a flag `g`. |
+| `search()` | `str.search(regexp)` | Índice da primeira correspondência, ou `-1`. |
+| `split()` | `str.split(sep, limit?)` | Grupos de captura no padrão entram no resultado. |
+
+---
+
+## Exemplo: Grupos Nomeados, Verificação e Escape
+
+```js
+// Grupos nomeados
+const { groups } = /(?<year>\d{4})-(?<month>\d{2})/.exec("2026-09");
+console.log(groups); // { year: '2026', month: '09' }
+
+// Verificação atrás: substitui o número sem tocar no prefixo
+console.log("R$ 100".replace(/(?<=R\$ )\d+/, "200")); // "R$ 200"
+
+// Padrão dinâmico seguro a partir de entrada do usuário
+const term = "preço (R$)";
+const safe = new RegExp(RegExp.escape(term), "gi");
+console.log(safe.test("Qual o preço (R$) final?")); // true
+```
+
+---
+
+## Exemplo: Armadilha do lastIndex com a Flag g
+
+```js
+const hasDigit = /\d/g;
+
+console.log(hasDigit.test("a1")); // true  (lastIndex vai para 2)
+console.log(hasDigit.test("a1")); // false (retoma da posição 2)
+
+hasDigit.lastIndex = 0; // reinicia o percurso
+console.log(hasDigit.test("a1")); // true
+
+// Em testes booleanos, o mais seguro é não usar a flag g
+console.log(/\d/.test("a1")); // true, sempre
+```
 
 ---
 
@@ -498,13 +741,198 @@ console.log(counter.next()); // { value: undefined, done: true }
 
 ---
 
+## Iterator Helpers (ES2025): Comparação
+
+| Método | Categoria | Descrição |
+| :--- | :--- | :--- |
+| `Iterator.from(src)` | Construção | Adapta qualquer iterável ou iterador aos métodos auxiliares. |
+| `.map(fn)` / `.filter(fn)` / `.flatMap(fn)` | Encadeável | Devolve novo iterador preguiçoso, sem materializar a origem. |
+| `.take(limit)` / `.drop(count)` | Encadeável | Recorta a sequência; `take` torna fontes infinitas utilizáveis. |
+| `.toArray()` / `.reduce(fn, init?)` | Terminal | Consome a sequência e devolve um valor concreto. |
+| `.some(fn)` / `.every(fn)` / `.find(fn)` | Terminal | Teste e busca com curto-circuito. |
+
+---
+
+## Exemplo: Iterator Helpers sobre Sequência Infinita
+
+```js
+function* naturals() {
+let n = 1;
+while (true) yield n++;
+}
+
+const oddSquares = naturals()
+.map((n) => n * n)
+.filter((square) => square % 2 === 1)
+.take(4)
+.toArray();
+
+console.log(oddSquares); // [ 1, 9, 25, 49 ]
+```
+
+---
+
+## Armadilhas do Proxy (Traps): Comparação
+
+| Armadilha | Operação interceptada | Uso típico |
+| :--- | :--- | :--- |
+| `get(target, prop, receiver)` | `proxy.prop` | Valores padrão, propriedades computadas, auditoria. |
+| `set(target, prop, value, receiver)` | `proxy.prop = value` | Validação de tipo, reatividade, campos protegidos. |
+| `has(target, prop)` | `prop in proxy` | Ocultar propriedades privadas. |
+| `deleteProperty(target, prop)` | `delete proxy.prop` | Proteger chaves obrigatórias. |
+| `apply(target, thisArg, args)` | `proxy(...args)` | Medir tempo de execução, memoização. |
+| `construct(target, args)` | `new proxy(...args)` | Controlar a criação de instâncias. |
+| `Proxy.revocable(t, h)` | Criação | Devolve `{ proxy, revoke }` para desativar o acesso. |
+
+---
+
+## Objeto Estático `Reflect`: Comparação
+
+| Método | Assinatura | Descrição |
+| :--- | :--- | :--- |
+| `Reflect.get` | `(target, prop, receiver?)` | Leitura padrão; o `receiver` preserva `this` de getters herdados. |
+| `Reflect.set` | `(target, prop, value, receiver?)` | Escrita padrão; devolve `false` em vez de lançar exceção. |
+| `Reflect.has` | `(target, prop)` | Equivalente funcional ao operador `in`. |
+| `Reflect.ownKeys` | `(target)` | Todas as chaves próprias, inclusive símbolos e não enumeráveis. |
+| `Reflect.apply` | `(fn, thisArg, argsList)` | Invocação com `this` e argumentos explícitos. |
+| `Reflect.construct` | `(target, argsList, newTarget?)` | Instanciação dinâmica com argumentos em array. |
+| `Reflect.defineProperty` | `(target, prop, descriptor)` | Versão de `Object.defineProperty` com retorno booleano. |
+
+---
+
+## Exemplo: Validação com Proxy e Reflect
+
+```js
+const product = new Proxy({ name: "Mouse", price: 120 }, {
+set(target, prop, value, receiver) {
+ if (prop === "price" && (typeof value !== "number" || value < 0)) {
+  throw new TypeError("O preço deve ser um número não negativo.");
+ }
+ return Reflect.set(target, prop, value, receiver);
+},
+});
+
+product.price = 150; // aceito
+product.price = -10; // TypeError
+```
+
+---
+
+## Dados Binários: Três Camadas de Acesso
+
+| Objeto | Papel | Assinatura principal |
+| :--- | :--- | :--- |
+| `ArrayBuffer` | Bloco de memória bruta, sem tipo | `new ArrayBuffer(byteLength, options?)` |
+| `TypedArray` | Visão homogênea de números fixos | `new Uint8Array(lenOrBuffer, byteOffset?, length?)` |
+| `DataView` | Visão heterogênea por deslocamento | `new DataView(buffer, byteOffset?, byteLength?)` |
+| Leitura | Campo a campo, com *endianness* | `view.getInt32(byteOffset, littleEndian?)` |
+| Escrita | Campo a campo, com *endianness* | `view.setInt32(byteOffset, value, littleEndian?)` |
+| Sem cópia | Nova visão sobre o mesmo buffer | `typedArray.subarray(begin?, end?)` |
+
+Construtores: `Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`.
+
+---
+
+## Exemplo: Buffer Compartilhado e Endianness
+
+```js
+const buffer = new ArrayBuffer(8);
+const bytes = new Uint8Array(buffer); // 8 posições de 1 byte
+const words = new Uint16Array(buffer); // 4 posições de 2 bytes
+
+bytes[0] = 255;
+console.log(words[0]); // 255 (mesma memória, sem cópia)
+
+bytes[1] = 256; // fora da faixa: estouro silencioso
+console.log(bytes[1]); // 0
+
+const view = new DataView(buffer);
+view.setInt32(0, 1234567, false); // big-endian
+console.log(view.getInt32(0, true)); // -2016013824 (ordem invertida)
+```
+
+---
+
+## `Atomics` e `SharedArrayBuffer`: Comparação
+
+| Método | Assinatura | Descrição |
+| :--- | :--- | :--- |
+| Construtor | `new SharedArrayBuffer(byteLength, options?)` | Memória acessível por várias threads, sem cópia. |
+| `Atomics.load` | `(typedArray, index)` | Leitura atômica da posição. |
+| `Atomics.store` | `(typedArray, index, value)` | Escrita atômica; devolve o valor gravado. |
+| `Atomics.add` e afins | `(ta, index, value)` | `add`, `sub`, `and`, `or`, `xor`, `exchange`; devolvem o valor anterior. |
+| `Atomics.compareExchange` | `(ta, index, expected, replacement)` | Troca condicional em um único passo. |
+| `Atomics.wait` / `notify` | `(ta, index, value, timeout?)` | Bloqueia e acorda threads; `waitAsync` é a variante não bloqueante. |
+
+---
+
+## Família `Intl`: Comparação
+
+| Construtor | Método principal | Finalidade |
+| :--- | :--- | :--- |
+| `Intl.NumberFormat` | `.format(n)` | Números, moedas, porcentagens e unidades. |
+| `Intl.DateTimeFormat` | `.format(date)` | Datas e horas por idioma e fuso. |
+| `Intl.RelativeTimeFormat` | `.format(value, unit)` | Expressões relativas como "há 3 dias". |
+| `Intl.Collator` | `.compare(a, b)` | Ordenação linguística correta, com acentos. |
+| `Intl.PluralRules` | `.select(n)` | Categoria gramatical: `one`, `few`, `many`, `other`. |
+| `Intl.ListFormat` | `.format(array)` | Enumeração com "e" (`conjunction`) ou "ou" (`disjunction`). |
+| `Intl.DisplayNames` | `.of(code)` | Traduz códigos de região, idioma e moeda. |
+| `Intl.Segmenter` | `.segment(text)` | Divide por grafema, palavra ou frase. |
+
+---
+
+## Exemplo: Ordenação, Plural e Enumeração
+
+```js
+const names = ["Ana", "álvaro", "Zoe", "Ácaro"];
+console.log([...names].sort()); // [ 'Ana', 'Zoe', 'Ácaro', 'álvaro' ] (Unicode)
+
+const collator = new Intl.Collator("pt-BR", { sensitivity: "base" });
+console.log([...names].sort(collator.compare)); // [ 'Ácaro', 'álvaro', 'Ana', 'Zoe' ]
+
+const rules = new Intl.PluralRules("pt-BR");
+console.log(rules.select(1), rules.select(2)); // "one" "other"
+
+const list = new Intl.ListFormat("pt-BR", { type: "conjunction" });
+console.log(list.format(["HTML", "CSS", "JavaScript"])); // "HTML, CSS e JavaScript"
+```
+
+---
+
+## `WeakRef` e `FinalizationRegistry`: Comparação
+
+| Recurso | Assinatura | Descrição |
+| :--- | :--- | :--- |
+| `WeakRef` | `new WeakRef(target)` | Referência que não impede a coleta do objeto. |
+| `deref()` | `weakRef.deref()` | Devolve o objeto ou `undefined` após a coleta. |
+| `FinalizationRegistry` | `new FinalizationRegistry(callback)` | Registra limpeza pós-coleta; execução **não** garantida. |
+| `register()` | `(target, heldValue, unregisterToken?)` | O `heldValue` é um rótulo, nunca o próprio objeto. |
+| `unregister()` | `(unregisterToken)` | Cancela o registro feito com aquele token. |
+
+---
+
 ## Operadores e Sintaxe Base
 
-- `typeof operand`
-- `obj instanceof Constructor`
-- `'prop' in obj`
-- `delete obj.prop`
-- `void expression`
+- Aritméticos: `+` `-` `*` `/` `%` | `**` | `++` `--` | `+=` `-=` `*=` `/=` `%=` `**=`
+- Comparação: `===` `!==` | `==` `!=` | `>` `>=` `<` `<=`
+- Lógicos: `&&` `||` `!` | `cond ? x : y` | `??` | `??=` `||=` `&&=`
+- Bit a bit: `&` `|` `^` `~` | `<<` `>>` `>>>`
+- Tipo e objeto: `typeof` | `instanceof` | `'prop' in obj` | `delete obj.prop` | `void expr`
+- Estrutura: `obj?.prop` | `...spread` | `new C(...)` | `new.target` | `a, b`
+- Assíncrono e módulos: `await` | `yield` / `yield*` | `import()` | `import.meta`
+
+---
+
+## Palavras-chave e Declarações
+
+- Valores: `const` | `let` | `var`
+- Funções: `function` | `function*` | `async function` | `async function*` | `(p) => expr`
+- Classes: `class` | `extends` | `super` | `static` | `get` / `set` | `#private` | `this`
+- Fluxo: `if` / `else` | `switch` / `case` / `default` | `for` | `while` | `do` | `for...in` | `for...of`
+- Saltos: `break` | `continue` | `label:` | `return` | `throw` | `debugger`
+- Exceções: `try` / `catch` / `finally`
+- Módulos: `import` | `export` | `export default` | `export * from`
+- Diretiva: `"use strict"` (implícita em módulos ES e classes)
 
 ---
 
@@ -580,9 +1008,13 @@ console.log(counter.next()); // { value: undefined, done: true }
 
 ## RegExp
 
-- `/pattern/flags` | `new RegExp(pattern, flags?)`
-- `regexp.test(string)`
-- `regexp.exec(string)`
+- `/pattern/flags` | `new RegExp(pattern, flags?)` | `RegExp.escape(string)`
+- Flags: `g` | `i` | `m` | `s` | `u` | `v` | `y` | `d`
+- Classes: `.` | `\d` `\D` | `\w` `\W` | `\s` `\S` | `[abc]` | `[^abc]` | `\p{L}` | `\b`
+- Quantificadores: `*` | `+` | `?` | `{n}` | `{n,}` | `{n,m}` (com `?` viram preguiçosos)
+- Grupos: `(...)` | `(?:...)` | `(?<nome>...)` | `(?=...)` | `(?!...)` | `(?<=...)` | `(?<!...)`
+- `regexp.test(str)` | `regexp.exec(str)` | `regexp.lastIndex` | `regexp.source` | `regexp.flags`
+- Em String: `match()` | `matchAll()` | `replace()` | `replaceAll()` | `search()` | `split()`
 
 ---
 
@@ -605,9 +1037,10 @@ console.log(counter.next()); // { value: undefined, done: true }
 
 ## Utilitários Globais e URI
 
+- `globalThis` | `eval(code)` (desaconselhado) | `isNaN(value)` | `isFinite(value)`
 - `encodeURI(uri)` | `decodeURI(encodedURI)`
 - `encodeURIComponent(str)` | `decodeURIComponent(encodedStr)`
-- `structuredClone(value, options?)`
+- `structuredClone(value, options?)` (fornecido pelo ambiente, não pela ECMA-262)
 
 ---
 
@@ -621,15 +1054,59 @@ console.log(counter.next()); // { value: undefined, done: true }
 
 ## Iteradores e Geradores
 
-- `for (const item of iterable) `
-- `for await (const item of asyncIterable) `
-- `function* gen() `
-- `gen.next(value?)` | `gen.return(value)` | `gen.throw(exception)`
+- `for (const item of iterable) ` | `for await (const item of asyncIterable) `
+- `obj[Symbol.iterator]()` | `obj[Symbol.asyncIterator]()` | `iterator.next()`
+- `function* gen() ` | `gen.next(value?)` | `gen.return(value)` | `gen.throw(exception)`
+- `Iterator.from(src)` | `.map(fn)` | `.filter(fn)` | `.flatMap(fn)` | `.take(n)` | `.drop(n)`
+- `.toArray()` | `.reduce(fn, init?)` | `.forEach(fn)` | `.some(fn)` | `.every(fn)` | `.find(fn)`
+
+---
+
+## Proxy e Reflect
+
+- `new Proxy(target, handler)` | `Proxy.revocable(target, handler)`
+- Armadilhas: `get` | `set` | `has` | `deleteProperty` | `apply` | `construct` | `ownKeys`
+- `Reflect.get(t, p, r?)` | `Reflect.set(t, p, v, r?)` | `Reflect.has(t, p)` | `Reflect.ownKeys(t)`
+- `Reflect.apply(fn, thisArg, args)` | `Reflect.construct(t, args, newTarget?)`
+- `Reflect.defineProperty(t, p, d)` | `Reflect.getPrototypeOf(t)` | `Reflect.setPrototypeOf(t, proto)`
+
+---
+
+## Dados Binários e Atomics
+
+- `new ArrayBuffer(byteLength, options?)` | `buffer.slice(begin, end?)` | `buffer.transfer(len?)`
+- `ArrayBuffer.isView(value)` | `TypedArray.BYTES_PER_ELEMENT`
+- `new Uint8Array(src, byteOffset?, length?)` | `ta.set(src, offset?)` | `ta.subarray(begin?, end?)`
+- `new DataView(buffer, byteOffset?, byteLength?)` | `view.getInt32(off, le?)` | `view.setInt32(off, v, le?)`
+- `new SharedArrayBuffer(byteLength)` | `Atomics.load` | `Atomics.store` | `Atomics.compareExchange`
+
+---
+
+## Intl
+
+- `new Intl.NumberFormat(locales?, options?)` | `new Intl.DateTimeFormat(locales?, options?)`
+- `new Intl.RelativeTimeFormat(locales?, options?)` | `new Intl.Collator(locales?, options?)`
+- `new Intl.PluralRules(locales?, options?)` | `new Intl.ListFormat(locales?, options?)`
+- `new Intl.DisplayNames(locales, options)` | `new Intl.Segmenter(locales?, options?)`
+- `Intl.getCanonicalLocales(locales)` | `Intl.supportedValuesOf(key)`
+
+---
+
+## WeakRef e FinalizationRegistry
+
+- `new WeakRef(target)` | `weakRef.deref()`
+- `new FinalizationRegistry(callback)`
+- `registry.register(target, heldValue, unregisterToken?)` | `registry.unregister(token)`
+- A coleta é não determinística: nunca sustente lógica essencial nesses objetos
 
 ---
 
 ## Resumo da Aula
 
 - Revise legenda e Convenções
+- Revise operadores, precedência e palavras reservadas
 - Revise funções Globais e Utilitários de Tipo
 - Revise objeto Estático `JSON`
+- Revise flags, classes, quantificadores e grupos de RegExp
+- Revise os Iterator Helpers, `Proxy` e `Reflect`
+- Revise dados binários, `Atomics`, `Intl`, `WeakRef` e `FinalizationRegistry`
