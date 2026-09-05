@@ -133,7 +133,7 @@ Cenário: CA08.3 - Confirmação de senha
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - A etapa acrescenta uma nova entidade `User` ao schema do Prisma, o model correspondente `User.js`, a rota `POST /api/users` e duas telas de front-end:...
 

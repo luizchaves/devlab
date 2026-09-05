@@ -94,7 +94,7 @@ Os três sinais da observabilidade em uma API Express (logs, métricas e rastros
 
 ---
 
-## O que é o OpenTelemetry
+## O que é o OpenTelemetry?
 
 - O OpenTelemetry (OTel) é um padrão aberto: sob a CNCF: que define como produzir e transportar os três sinais.
 - Ele não é um servidor de monitoramento: é a camada neutra entre a sua aplicação e a ferramenta que exibe os dados.
@@ -102,7 +102,7 @@ Os três sinais da observabilidade em uma API Express (logs, métricas e rastros
 
 ---
 
-## O que é o OpenTelemetry: Tabela
+## O que é o OpenTelemetry?: Tabela
 
 - Trace: o percurso completo de uma requisição pelo sistema
 - Span: uma etapa do percurso, com início, fim e atributos

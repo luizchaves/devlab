@@ -12,7 +12,7 @@ markmap:
 - Ambiente virtual é um **diretório** com interpretador e `site-packages/` próprios
 - É o mecanismo da biblioteca padrão que o **uv** automatiza
 
-## O Que Existe no .venv
+## O Que Existe no .venv?
 
 - **`bin/`** (`Scripts/` no Windows): `python`, `pip` e scripts de ativação
 - **`lib/pythonX.Y/site-packages/`**: onde os pacotes são instalados
@@ -35,7 +35,7 @@ markmap:
 - cmd: `.venv\Scripts\activate.bat`
 - `deactivate` encerra
 
-### O que ela faz
+### O que ela faz?
 - Coloca `.venv/bin` na frente do `PATH`
 - Define `VIRTUAL_ENV` e altera o prompt
 - Vale apenas na sessão atual do terminal

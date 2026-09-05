@@ -131,7 +131,7 @@ Cenário: CA06.3 - Nenhum valor entra concatenado no SQL
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Esta é a primeira das duas remoções do trilho. A pasta `src/data/` sai inteira, porque o array que ela exportava foi substituído pelo banco.
 - Controllers, rotas, schemas e o documento OpenAPI não mudaram.
@@ -139,7 +139,7 @@ Cenário: CA06.3 - Nenhum valor entra concatenado no SQL
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - dados voltam ao estado inicial a cada reinício: dados vivem em `src/database/db.sqlite`
 - —: scripts `db:load`, `db:drop` e `db:reload`

@@ -62,7 +62,7 @@ Parâmetros de consulta em coleções que crescem: paginação por offset e por 
 
 ---
 
-## Por que não devolver tudo
+## Por que não devolver tudo?
 
 - Uma listagem sem limite tem três custos simultâneos, e todos crescem junto com a tabela:
 - Uma rota de listagem sem limite padrão é uma negação de serviço esperando acontecer: basta a tabela crescer.
@@ -70,7 +70,7 @@ Parâmetros de consulta em coleções que crescem: paginação por offset e por 
 
 ---
 
-## Por que não devolver tudo: Tabela
+## Por que não devolver tudo?: Tabela
 
 - Banco: varredura completa da tabela a cada chamada
 - Memória: o processo carrega o resultado inteiro antes de serializar

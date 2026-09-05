@@ -159,7 +159,7 @@ Cenário: CA10.3 - Escrita cruzada não é permitida
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - A etapa acrescenta a camada de autenticação stateless por JWT (`src/utils/jwt.ts`), o middleware de proteção `isAuthenticated.ts`, o controller...
 - As consultas a investimentos passam a ser escopadas estritamente pelo `userId` do investidor logado.

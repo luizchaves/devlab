@@ -55,7 +55,7 @@ Entender o mecanismo que o uv automatiza:
 ---
 
 
-## Por Que Esta Aula
+## Por Que Esta Aula?
 
 - O `venv` está na **biblioteca padrão** desde o Python 3.3.
 - Praticamente toda documentação de biblioteca mostra `pip install`.
@@ -68,7 +68,7 @@ Entender o mecanismo que o uv automatiza:
 ---
 
 
-## O Que É um Ambiente Virtual
+## O Que É um Ambiente Virtual?
 
 ```txt
 .venv/
@@ -145,7 +145,7 @@ deactivate
 ---
 
 
-## O Que a Ativação Faz
+## O Que a Ativação Faz?
 
 ```txt
 Sem ativação:   python  ──▶  PATH: /usr/local/bin  ──▶  Python do sistema

@@ -735,7 +735,7 @@ Assistentes de IA transformaram a criação de expressões regulares em um ciclo
 
 ---
 
-## O Que a IA Mudou e o Que Permanece
+## O Que a IA Mudou e o Que Permanece?
 
 A inteligência artificial automatizou a sintaxe, mas a responsabilidade do código é humana:
 

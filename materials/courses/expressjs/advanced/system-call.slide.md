@@ -186,7 +186,7 @@ processo.on('close', (codigo) => {
 
 ---
 
-## Quando usar uma biblioteca
+## Quando usar uma biblioteca?
 
 - Chamar um binário externo traz três dependências invisíveis: o programa precisa existir, a versão precisa ser compatível e a saída precisa ter o...
 - A maioria desses pacotes faz exatamente o que esta aula descreve: e mantém as expressões regulares de cada sistema operacional.
@@ -194,7 +194,7 @@ processo.on('close', (codigo) => {
 
 ---
 
-## Quando usar uma biblioteca: Tabela
+## Quando usar uma biblioteca?: Tabela
 
 - Comando + regex: funciona com qualquer ferramenta | frágil entre sistemas; exige o binário
 - Biblioteca (ex.: `ping`): saída já estruturada | uma dependência; menos controle
@@ -202,7 +202,7 @@ processo.on('close', (codigo) => {
 
 ---
 
-## Quando usar uma biblioteca: Exemplo
+## Quando usar uma biblioteca?: Exemplo
 
 ```ts
 const { alive, time } = await ping.promise.probe(host, { timeout: 10 });

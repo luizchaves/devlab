@@ -71,7 +71,7 @@ Como guardar senhas com segurança: função de hash, sal, funções de derivaç
 
 ---
 
-## O que nunca fazer
+## O que nunca fazer?
 
 - Três abordagens erradas aparecem em ordem crescente de sofisticação, e todas falham:
 - Criptografia existe para ser desfeita com a chave certa; hash é de mão única.
@@ -79,7 +79,7 @@ Como guardar senhas com segurança: função de hash, sal, funções de derivaç
 
 ---
 
-## O que nunca fazer: Tabela
+## O que nunca fazer?: Tabela
 
 - Guardar a senha em texto: um vazamento do banco entrega todas as contas de imediato
 - Criptografar a senha: criptografia é reversível: quem tem a chave lê tudo
@@ -95,7 +95,7 @@ Como guardar senhas com segurança: função de hash, sal, funções de derivaç
 
 ---
 
-## Por que `SHA-256` não basta
+## Por que `SHA-256` não basta?
 
 - O hash resolve a irreversibilidade, mas cria dois problemas novos.
 - Primeiro: senhas iguais geram hashes iguais.

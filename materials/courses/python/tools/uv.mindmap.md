@@ -12,7 +12,7 @@ markmap:
 - Cada projeto precisa do **próprio ambiente isolado**
 - `uv` instala interpretador, cria ambiente, resolve dependências e executa scripts
 
-## Por Que Isolar
+## Por Que Isolar?
 
 - Projetos diferentes pedem versões diferentes das mesmas bibliotecas
 - O Python do sistema é usado por ferramentas do sistema operacional

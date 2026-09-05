@@ -131,14 +131,14 @@ Cenário: CA05.4 - Mudar o schema muda a documentação
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Nada em `schemas/`, `models/`, `controllers/` ou `routes/hosts.routes.ts` foi tocado.
 - É o indicador de que a documentação foi derivada, e não duplicada.
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - o contrato existe só no código: o contrato é publicado em `/api/docs`
 - o `requests.http` como única referência externa: o `requests.http` e o documento OpenAPI

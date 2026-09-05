@@ -133,7 +133,7 @@ Cenário: CA12.3 - A tela muda sozinha
 
 ---
 
-## Por que Server-Sent Events
+## Por que Server-Sent Events?
 
 - O MonitorApp não tem nada para o cliente enviar por um canal aberto: o cadastro de host e a medição sob demanda continuam sendo requisições HTTP normais.
 - SSE entrega exatamente o que falta, sobre HTTP puro, com reconexão automática do lado do navegador.
@@ -141,7 +141,7 @@ Cenário: CA12.3 - A tela muda sozinha
 
 ---
 
-## Por que Server-Sent Events: Tabela
+## Por que Server-Sent Events?: Tabela
 
 - *Polling* (`setInterval` + `fetch`): cliente pergunta | uma requisição por intervalo, quase sempre sem novidade | funciona, mas desperdiça e atrasa
 - Server-Sent Events: servidor → cliente | uma conexão HTTP aberta | é a forma do problema: só o servidor tem o que dizer
@@ -149,7 +149,7 @@ Cenário: CA12.3 - A tela muda sozinha
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Décima primeira etapa do MonitorApp: painel que se atualiza sozinho com Server-Sent Events, barramento de eventos no servidor e consumo do fluxo com...
@@ -158,7 +158,7 @@ Cenário: CA12.3 - A tela muda sozinha
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - toda resposta HTTP termina: `GET /api/events` fica aberta
 - a tela é uma fotografia do carregamento: o cartão muda a cada medição

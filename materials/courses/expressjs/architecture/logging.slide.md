@@ -63,7 +63,7 @@ Log de requisições em uma API Express: middleware nativo, morgan e pino, níve
 
 ---
 
-## O que registrar
+## O que registrar?
 
 - Um log de requisição só é útil se responder três perguntas: o que foi pedido, o que foi respondido e quanto tempo levou.
 - E há o que nunca deve ser registrado:
@@ -72,7 +72,7 @@ Log de requisições em uma API Express: middleware nativo, morgan e pino, níve
 
 ---
 
-## O que registrar: Tabela
+## O que registrar?: Tabela
 
 - Senha, mesmo errada: vaza credencial em texto puro no arquivo de log
 - Token, cookie de sessão: permite personificar o usuário

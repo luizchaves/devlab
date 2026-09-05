@@ -134,14 +134,14 @@ Cenário: CA02.3 - Cadastrar um host
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - A etapa 1 desenhou as telas com dados escritos à mão no HTML.
 - Esta etapa mantém a mesma interface: cabeçalho, cartões de host e formulário: e troca esses dados fixos por respostas da API.
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - três cartões escritos no HTML: `` vazia, preenchida por `GET /api/hosts`
 - métricas com números fixos: métricas calculadas a partir da resposta

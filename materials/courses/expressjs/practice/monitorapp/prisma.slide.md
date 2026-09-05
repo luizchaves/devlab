@@ -134,13 +134,13 @@ Cenário: CA07.3 - Tag nova é criada na hora
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Esta é a segunda e última remoção do trilho: os scripts de migration manual da etapa 6 saem, porque o Prisma assume o versionamento do esquema.
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - uma entidade: três entidades e uma tabela de junção
 - um recurso na API: três: `hosts`, `tags` e `pings`

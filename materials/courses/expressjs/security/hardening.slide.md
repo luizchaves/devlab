@@ -63,7 +63,7 @@ Defesas de uma API Express em produção: cabeçalhos de segurança, limite de r
 
 ---
 
-## O que é preciso defender
+## O que é preciso defender?
 
 - Nem toda defesa é sobre invasores sofisticados. As três categorias abaixo cobrem quase tudo que atinge uma API pequena:
 - Nenhum item desta aula sozinho torna a API segura.
@@ -71,7 +71,7 @@ Defesas de uma API Express em produção: cabeçalhos de segurança, limite de r
 
 ---
 
-## O que é preciso defender: Tabela
+## O que é preciso defender?: Tabela
 
 - Abuso de recurso: força bruta no login, upload de 2 GB | limites de taxa e de tamanho
 - Injeção: SQL, comando de sistema, prototype pollution | parametrizar e nunca interpolar

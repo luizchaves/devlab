@@ -63,7 +63,7 @@ Recebimento de arquivos em uma API Express: multipart/form-data, multer, estrat�
 
 ---
 
-## Por que `req.body` chega vazio
+## Por que `req.body` chega vazio?
 
 - Um formulário com arquivo usa um `Content-Type` diferente, que nenhum dos parsers embutidos do Express interpreta:
 - O corpo `multipart` é um fluxo com fronteiras separando cada parte:
@@ -72,7 +72,7 @@ Recebimento de arquivos em uma API Express: multipart/form-data, multer, estrat�
 
 ---
 
-## Por que `req.body` chega vazio: Exemplo
+## Por que `req.body` chega vazio?: Exemplo
 
 ```txt
 POST /users/me/avatar HTTP/1.1
@@ -129,7 +129,7 @@ router.patch(
 
 ---
 
-## Onde os bytes ficam
+## Onde os bytes ficam?
 
 - Três estratégias, com trocas diferentes:
 - Simples e barato. Não sobrevive a um contêiner efêmero nem funciona com várias instâncias sem volume compartilhado.
@@ -138,7 +138,7 @@ router.patch(
 
 ---
 
-## Onde os bytes ficam: Tabela
+## Onde os bytes ficam?: Tabela
 
 - Complexidade: baixa | baixa | média
 - Sobrevive ao redeploy: com volume | não | sim
@@ -148,7 +148,7 @@ router.patch(
 
 ---
 
-## Onde os bytes ficam: Exemplo 1
+## Onde os bytes ficam?: Exemplo 1
 
 ```ts
     multer({ storage: multer.diskStorage({ destination: resolve('uploads') }) });
@@ -156,7 +156,7 @@ router.patch(
 
 ---
 
-## Onde os bytes ficam: Exemplo 2
+## Onde os bytes ficam?: Exemplo 2
 
 ```ts
     multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
@@ -164,14 +164,14 @@ router.patch(
 
 ---
 
-## O que guardar no banco
+## O que guardar no banco?
 
 - O arquivo fica no armazenamento; o banco guarda os metadados e a referência:
 - A URL muda quando o domínio, o bucket ou o CDN mudam. Guarde a chave e monte a URL na aplicação a partir de uma variável de ambiente.
 
 ---
 
-## O que guardar no banco: Exemplo
+## O que guardar no banco?: Exemplo
 
 ```txt
 model Image {

@@ -14,7 +14,7 @@ markmap:
 
 ## Principais Pontos
 
-### Por que migrar cedo
+### Por que migrar cedo?
 - Estruturas e convenções de **Por que migrar cedo**
 ### O Node executa `.ts` direto
 - Estruturas e convenções de **O Node executa `.ts` direto**

@@ -248,7 +248,7 @@ await prisma.user.create({
 
 ---
 
-## O que acontece na exclusão
+## O que acontece na exclusão?
 
 - Apagar uma categoria que tem investimentos não é uma decisão do banco: é uma decisão de produto, declarada no schema:
 - Um `DELETE /users/1` com cascata pode remover milhares de linhas sem nenhum aviso.
@@ -256,7 +256,7 @@ await prisma.user.create({
 
 ---
 
-## O que acontece na exclusão: Exemplo
+## O que acontece na exclusão?: Exemplo
 
 ```txt
 model Investment {

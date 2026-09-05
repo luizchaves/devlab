@@ -24,7 +24,7 @@ markmap:
 - Estruturas e convenções de **Extraindo dados da saída**
 ### Saída longa: `spawn`
 - Estruturas e convenções de **Saída longa: `spawn`**
-### Quando usar uma biblioteca
+### Quando usar uma biblioteca?
 - Subtópico: Execução
 - Subtópico: Segurança e robustez
 - [Node.js — childprocess](https://nodejs.org/api/childprocess.html)

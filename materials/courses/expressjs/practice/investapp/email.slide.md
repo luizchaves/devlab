@@ -131,7 +131,7 @@ Cenário: CA11.3 - Prévia em desenvolvimento
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Comparando com a etapa de autenticação, entram dois arquivos novos: `src/config/mail.ts` e `src/services/SendMail.ts`: e um bloco no controller de...
 

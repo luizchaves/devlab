@@ -80,7 +80,7 @@ task-api-hello/
 
 ---
 
-## O Que o Express Resolve
+## O Que o Express Resolve?
 
 O módulo nativo `node:http` entrega conexões de rede em baixo nível, exigindo código manual para tarefas repetitivas:
 
@@ -227,7 +227,7 @@ app.get('/tasks/count', (req, res) => {
 
 ---
 
-## Onde os Dados Chegam e Por Onde Saem
+## Onde os Dados Chegam e Por Onde Saem?
 
 | Propriedade / Método | Papel no Ciclo | Exemplo de Uso |
 | :--- | :--- | :--- |

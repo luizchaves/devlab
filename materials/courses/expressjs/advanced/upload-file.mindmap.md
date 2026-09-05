@@ -14,13 +14,13 @@ markmap:
 
 ## Principais Pontos
 
-### Por que `req.body` chega vazio
+### Por que `req.body` chega vazio?
 - Estruturas e convenções de **Por que `req.body` chega vazio**
 ### Recebendo com `multer`
 - Estruturas e convenções de **Recebendo com `multer`**
-### Onde os bytes ficam
+### Onde os bytes ficam?
 - Estruturas e convenções de **Onde os bytes ficam**
-### O que guardar no banco
+### O que guardar no banco?
 - Estruturas e convenções de **O que guardar no banco**
 ### O fluxo completo
 - Estruturas e convenções de **O fluxo completo**

@@ -14,7 +14,7 @@ markmap:
 
 ## Principais Pontos
 
-### Por que não no código
+### Por que não no código?
 - Estruturas e convenções de **Por que não no código**
 ### `process.env` e `--env-file`
 - Estruturas e convenções de **`process.env` e `--env-file`**
@@ -22,7 +22,7 @@ markmap:
 - Estruturas e convenções de **`.env` e `.env.example`**
 ### Um módulo de configuração
 - Estruturas e convenções de **Um módulo de configuração**
-### O que muda entre ambientes
+### O que muda entre ambientes?
 - Subtópico: Ambiente
 - Subtópico: Configuração
 - [Node.js — --env-file](https://nodejs.org/api/cli.html#--env-fileconfig)

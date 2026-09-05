@@ -16,7 +16,7 @@ markmap:
 
 ### A política de mesma origem
 - Estruturas e convenções de **A política de mesma origem**
-### O que o CORS realmente faz
+### O que o CORS realmente faz?
 - Estruturas e convenções de **O que o CORS realmente faz**
 ### Requisição simples e preflight
 - Estruturas e convenções de **Requisição simples e preflight**

@@ -18,7 +18,7 @@ markmap:
 - Estruturas e convenções de **Monitoramento e observabilidade**
 ### Os três sinais
 - Estruturas e convenções de **Os três sinais**
-### O que é o OpenTelemetry
+### O que é o OpenTelemetry?
 - Estruturas e convenções de **O que é o OpenTelemetry**
 ### Instrumentação automática
 - Estruturas e convenções de **Instrumentação automática**

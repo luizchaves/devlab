@@ -130,7 +130,7 @@ export function show(req, res) {
 
 ---
 
-## Quem faz o quê
+## Quem faz o quê?
 
 - A separação só funciona se cada camada respeitar o próprio limite. O controller é a fronteira entre o mundo HTTP e o resto da aplicação:
 - O controller deve:

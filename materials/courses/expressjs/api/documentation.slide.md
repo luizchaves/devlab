@@ -195,7 +195,7 @@ paths:
 
 ---
 
-## O que documentar além dos endpoints
+## O que documentar além dos endpoints?
 
 - A lista de rotas é a parte fácil. O que costuma faltar: e é o que gera perguntas: é o contexto:
 - Ele não deve repetir a lista de endpoints: isso é trabalho do OpenAPI.
@@ -203,7 +203,7 @@ paths:
 
 ---
 
-## O que documentar além dos endpoints: Tabela
+## O que documentar além dos endpoints?: Tabela
 
 - Autenticação: como obtenho um token e por quanto tempo ele vale?
 - Formato de erro: o que vem no corpo quando falha?

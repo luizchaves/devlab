@@ -174,14 +174,14 @@ router.get('/investments/:id', authenticate, async (req, res) => {
 
 ---
 
-## Onde a verificação deve ficar
+## Onde a verificação deve ficar?
 
 - A mesma checagem pode morar em três lugares, com garantias diferentes:
 - A combinação que funciona: filtro por dono no model para listagens, middleware para operações sobre um `:id`, e `router.use(authenticate)` no topo para...
 
 ---
 
-## Onde a verificação deve ficar: Tabela
+## Onde a verificação deve ficar?: Tabela
 
 - Middleware: declarativo, visível na definição da rota | esquecer de aplicar em uma rota nova
 - Controller: acesso ao contexto completo | repetição em cada função
@@ -189,7 +189,7 @@ router.get('/investments/:id', authenticate, async (req, res) => {
 
 ---
 
-## Onde a verificação deve ficar: Exemplo
+## Onde a verificação deve ficar?: Exemplo
 
 ```ts
 // Autenticação para o router inteiro: rota nova já nasce protegida.

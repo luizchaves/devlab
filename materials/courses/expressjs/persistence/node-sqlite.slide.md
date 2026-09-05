@@ -63,7 +63,7 @@ Persistência sem ORM usando o módulo nativo node:sqlite: conexão, statements 
 
 ---
 
-## Por que começar sem ORM
+## Por que começar sem ORM?
 
 - Um ORM esconde o SQL: e esconder algo que não se conhece é como se aprende a depender de mágica.
 - Escrever as consultas primeiro dá três coisas:
@@ -72,7 +72,7 @@ Persistência sem ORM usando o módulo nativo node:sqlite: conexão, statements 
 
 ---
 
-## Por que começar sem ORM: Tabela
+## Por que começar sem ORM?: Tabela
 
 - Entender o que o ORM gera: `include` deixa de ser mágica quando você já escreveu o `JOIN`
 - Diagnosticar desempenho: consulta lenta se lê no SQL, não na chamada do ORM

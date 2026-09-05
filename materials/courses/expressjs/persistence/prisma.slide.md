@@ -70,7 +70,7 @@ Modelagem declarativa e acesso a dados com o Prisma ORM em uma API Express: sche
 
 ---
 
-## O que um ORM troca
+## O que um ORM troca?
 
 - Nenhuma ferramenta é grátis. O que se ganha e o que se perde ao sair do SQL puro:
 - O Prisma não dispensa entender `JOIN`, índice e plano de execução: ele apenas evita escrever a mesma consulta cinquenta vezes.
@@ -78,7 +78,7 @@ Modelagem declarativa e acesso a dados com o Prisma ORM em uma API Express: sche
 
 ---
 
-## O que um ORM troca: Tabela
+## O que um ORM troca?: Tabela
 
 - Modelagem: `CREATE TABLE` à mão | schema declarativo
 - Evolução do banco: scripts próprios | migrations versionadas e geradas

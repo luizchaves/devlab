@@ -135,7 +135,7 @@ Cenário: CA03.4 - O model não conhece HTTP
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Terceira etapa do MonitorApp: migração da API para TypeScript com separação em rotas, controllers e models, tipos do domínio e tratamento de erros...
@@ -144,7 +144,7 @@ Cenário: CA03.4 - O model não conhece HTTP
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - manipulador de erro registrado no `router`: `notFoundHandler` e `errorHandler` registrados no app
 - nenhuma verificação estática: `npm run typecheck`

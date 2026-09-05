@@ -81,7 +81,7 @@ pnpm exec tsc --listFiles     # arquivos do programa
 
 
 
-## O Que `strict` Liga
+## O Que `strict` Liga?
 
 | Opção | Passa a ser erro |
 | --- | --- |

@@ -26,7 +26,7 @@ markmap:
 - Estruturas e convenções de **Publicando com Swagger UI**
 ### Gerando a partir dos schemas
 - Estruturas e convenções de **Gerando a partir dos schemas**
-### O que documentar além dos endpoints
+### O que documentar além dos endpoints?
 - Subtópico: Formas de documentar
 - Subtópico: Conteúdo
 - [OpenAPI Specification](https://swagger.io/specification/)

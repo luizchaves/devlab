@@ -181,7 +181,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…
 
 ---
 
-## Onde o cliente guarda o token
+## Onde o cliente guarda o token?
 
 - Não existe opção sem risco: existe a escolha do risco que se prefere:
 - Simples e funciona com API em outro domínio. Vulnerável a XSS: qualquer script injetado na página lê o token.
@@ -191,7 +191,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…
 
 ---
 
-## Onde o cliente guarda o token: Tabela
+## Onde o cliente guarda o token?: Tabela
 
 - XSS lê o token: sim | não
 - CSRF: não | sim: mitigado por `SameSite`
@@ -200,7 +200,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…
 
 ---
 
-## Onde o cliente guarda o token: Exemplo 1
+## Onde o cliente guarda o token?: Exemplo 1
 
 ```js
     export function setToken(token) {
@@ -214,7 +214,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…
 
 ---
 
-## Onde o cliente guarda o token: Exemplo 2
+## Onde o cliente guarda o token?: Exemplo 2
 
 ```ts
     res.cookie('token', token, {

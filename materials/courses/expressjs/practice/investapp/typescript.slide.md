@@ -133,7 +133,7 @@ Cenário: CA03.4 - As camadas não vazam
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Na etapa anterior, um único `routes.js` continha caminhos, validação, acesso aos dados e tratamento de erro.
 - Nesta etapa, o projeto é convertido para TypeScript e separado no padrão MVC: cada responsabilidade ganha o seu módulo dedicado:

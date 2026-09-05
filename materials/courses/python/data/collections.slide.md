@@ -161,7 +161,7 @@ first, *rest = (1, 2, 3, 4)
 ---
 
 
-## Quando Usar Tupla
+## Quando Usar Tupla?
 
 ```python
 def min_max(values):

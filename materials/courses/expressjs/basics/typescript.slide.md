@@ -71,7 +71,7 @@ Migração de uma API Express de JavaScript para TypeScript: execução nativa d
 
 ---
 
-## Por que migrar cedo
+## Por que migrar cedo?
 
 - Em uma API, quase todo erro de execução vem de dado com o formato inesperado: um `id` que chegou como string, um `req.body` sem o campo obrigatório, um...
 - O TypeScript transforma essa classe de erro em erro de compilação.
@@ -79,7 +79,7 @@ Migração de uma API Express de JavaScript para TypeScript: execução nativa d
 
 ---
 
-## Por que migrar cedo: Tabela
+## Por que migrar cedo?: Tabela
 
 - Assinatura do model muda e um controller fica para trás: acusa em todos os pontos de chamada
 

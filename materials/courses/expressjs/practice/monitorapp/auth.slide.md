@@ -164,7 +164,7 @@ Cenário: CA11.3 - Histórico de outra conta
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Décima etapa do MonitorApp: login com credenciais, JWT HS256 assinado com node:crypto, middleware de autorização e o inventário de hosts isolado por dono.
@@ -173,7 +173,7 @@ Cenário: CA11.3 - Histórico de outra conta
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - todas as rotas públicas: só `POST /api/users` e `POST /api/signin` continuam públicas
 - front sem sessão: token no `localStorage`, `Bearer` em toda chamada

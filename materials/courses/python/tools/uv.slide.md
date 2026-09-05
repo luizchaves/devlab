@@ -61,7 +61,7 @@ Preparar o projeto para crescer com dependências externas:
 
 
 
-## Por Que Isolar
+## Por Que Isolar?
 
 ```txt
 Sem isolamento:                Com isolamento:

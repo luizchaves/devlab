@@ -137,7 +137,7 @@ Cenário: CA08.3 - Host fora do ar
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Oitava etapa do MonitorApp: execução do comando ping do sistema com node:child_process, parser da latência, agendador periódico e medição sob demanda...
@@ -146,7 +146,7 @@ Cenário: CA08.3 - Host fora do ar
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - medições vêm do seeder: medições vêm do comando `ping`
 - uma rota de histórico: duas: `GET` lê, `POST` mede

@@ -131,7 +131,7 @@ Cenário: CA06.3 - Nenhum valor entra na string SQL
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O array em memória vira uma tabela SQLite. Do lado de fora a API é idêntica: mesmas rotas, mesmos status, mesma validação da etapa 4.
 - O que muda é a camada de dados:

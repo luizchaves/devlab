@@ -112,13 +112,13 @@ Arquitetura em camadas de uma aplicação Express: model, controller, router e m
 
 ---
 
-## O que mudou desde a aula de Rotas
+## O que mudou desde a aula de Rotas?
 
 - A rota deixou de responder e passou a apenas apontar:
 
 ---
 
-## O que mudou desde a aula de Rotas: Exemplo
+## O que mudou desde a aula de Rotas?: Exemplo
 
 ```ts
 // antes: o router respondia
@@ -130,7 +130,7 @@ router.get('/', userController.index);
 
 ---
 
-## Quando acrescentar uma camada
+## Quando acrescentar uma camada?
 
 - MVC não é o fim da linha. Duas camadas aparecem quando o projeto cresce:
 - Em um CRUD sem regra própria, um `service` que apenas repassa a chamada ao model acrescenta um arquivo e nenhum significado.

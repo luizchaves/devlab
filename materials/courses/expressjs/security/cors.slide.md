@@ -72,7 +72,7 @@ Compartilhamento de recursos entre origens em uma API Express: política de mesm
 
 ---
 
-## O que o CORS realmente faz
+## O que o CORS realmente faz?
 
 - CORS não é uma restrição imposta pelo servidor: é um mecanismo pelo qual o servidor afrouxa a política do navegador, autorizando origens específicas.
 - Duas consequências que costumam surpreender:

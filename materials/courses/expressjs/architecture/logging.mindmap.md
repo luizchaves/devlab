@@ -14,7 +14,7 @@ markmap:
 
 ## Principais Pontos
 
-### O que registrar
+### O que registrar?
 - Estruturas e convenções de **O que registrar**
 ### Um middleware de log
 - Estruturas e convenções de **Um middleware de log**

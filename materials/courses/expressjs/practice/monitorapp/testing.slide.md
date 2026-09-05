@@ -136,7 +136,7 @@ Cenário: CA13.3 - A suíte é repetível
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Décima segunda etapa do MonitorApp: testes de unidade com node:test, testes de rotas com supertest, testes de front com Vitest e jsdom, e o fluxo...
@@ -145,7 +145,7 @@ Cenário: CA13.3 - A suíte é repetível
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - nenhum arquivo de teste: seis arquivos, em quatro níveis
 - —: `supertest`, `vitest`, `jsdom` e `@playwright/test`

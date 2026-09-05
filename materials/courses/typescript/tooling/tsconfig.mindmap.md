@@ -21,7 +21,7 @@ markmap:
 
 ## strict
 
-### O que liga
+### O que liga?
 - `noImplicitAny` e `noImplicitThis`
 - `strictNullChecks` — a mais impactante
 - `strictFunctionTypes` e `strictBindCallApply`

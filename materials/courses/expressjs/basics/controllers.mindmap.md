@@ -20,7 +20,7 @@ markmap:
 - Estruturas e convenções de **A separação**
 ### Nomes convencionais
 - Estruturas e convenções de **Nomes convencionais**
-### Quem faz o quê
+### Quem faz o quê?
 - ler req.params, req.query e req.body;
 - validar e converter a entrada (Number(req.params.id));
 - chamar o model;

@@ -132,7 +132,7 @@ Cenário: CA12.3 - A imagem é servida
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Até a etapa de e-mail, todas as rotas recebiam JSON.
 - O upload cria uma exceção explícita: o corpo é `FormData`, o campo do arquivo se chama `image`, e o middleware do `multer` roda antes do handler na...

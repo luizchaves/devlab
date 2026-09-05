@@ -63,7 +63,7 @@ Ligando o Prisma aos controllers e obtendo um CRUD completo e persistente.
 
 ---
 
-## O que muda
+## O que muda?
 
 - O model em memória desaparece; o controller passa a falar com o Prisma e a ser `async`:
 - No Express 5, o erro lançado dentro de uma função `async` chega sozinho ao `errorHandler`.
@@ -71,7 +71,7 @@ Ligando o Prisma aos controllers e obtendo um CRUD completo e persistente.
 
 ---
 
-## O que muda: Exemplo
+## O que muda?: Exemplo
 
 ```js
 export function index(req, res) {

@@ -14,11 +14,11 @@ markmap:
 
 ## Principais Pontos
 
-### O que nunca fazer
+### O que nunca fazer?
 - Estruturas e convenções de **O que nunca fazer**
 ### Hash de mão única
 - Estruturas e convenções de **Hash de mão única**
-### Por que `SHA-256` não basta
+### Por que `SHA-256` não basta?
 - Estruturas e convenções de **Por que `SHA-256` não basta**
 ### O sal
 - Estruturas e convenções de **O sal**

@@ -132,7 +132,7 @@ Cenário: CA07.4 - Categoria precisa existir
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Comparando com a etapa anterior, o SQL manual é substituído pelo Prisma ORM.
 - A pasta `prisma/` assume a responsabilidade do esquema declarativo e migrations versionadas.

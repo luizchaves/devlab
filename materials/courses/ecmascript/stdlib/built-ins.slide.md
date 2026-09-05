@@ -73,7 +73,7 @@ Completar o mapa da biblioteca padrão do JavaScript:
 
 ---
 
-## Onde Cada Objeto é Estudado no Guia
+## Onde Cada Objeto é Estudado no Guia?
 
 | Objeto global | Tópico |
 | :--- | :--- |

@@ -21,12 +21,12 @@ markmap:
 
 ## Inferência
 
-### Como funciona
+### Como funciona?
 - O tipo vem do valor atribuído na declaração
 - `const` guarda o tipo **literal**; `let` alarga para o tipo base
 - Objetos e arrays têm a forma inferida item a item
 
-### Quando anotar
+### Quando anotar?
 - **Sempre** em parâmetros de função
 - Em retorno de função exportada, para fixar o contrato
 - Em variável declarada sem valor inicial

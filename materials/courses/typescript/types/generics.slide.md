@@ -173,7 +173,7 @@ class Stack<T> {
 ---
 
 
-## Quando Não Usar
+## Quando Não Usar?
 
 ```ts
 // Desnecessário: T aparece só uma vez

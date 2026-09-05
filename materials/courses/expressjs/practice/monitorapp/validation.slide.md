@@ -133,7 +133,7 @@ Cenário: CA04.3 - O endereço aceita IP e domínio
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Quarta etapa do MonitorApp: validação estrita de body, query e params com schemas Zod, incluindo a regra que define o que é um endereço de host válido.
@@ -142,7 +142,7 @@ Cenário: CA04.3 - O endereço aceita IP e domínio
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - erro genérico `"Unable to create host"`: `"Validation error"` com a lista `issues`
 - id inexistente e id inválido, ambos `404`: id malformado responde `400`; id válido e ausente, `404`

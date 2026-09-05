@@ -133,7 +133,7 @@ Cenário: CA09.3 - Confirmação de senha
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Nona etapa do MonitorApp: entidade User, hash de senha com Argon2id usando apenas node:crypto, rota de cadastro e o formulário de signup ligado à API.
@@ -142,7 +142,7 @@ Cenário: CA09.3 - Confirmação de senha
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - três entidades: quatro: `User` entra
 - nenhuma senha no sistema: hash Argon2id em `utils/password.ts`

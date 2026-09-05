@@ -132,7 +132,7 @@ Cenário: CA14.3 - Segredo não entra na imagem
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Comparando com a etapa de testes, a aplicação não ganha uma linha de regra de negócio. Entram três arquivos de empacotamento, e nada mais:
 - Essa é a marca de um empacotamento bem-feito: o `src/`, o `public/` e o `prisma/` chegam intactos da etapa 12.
@@ -281,7 +281,7 @@ git diff --no-index -- \
 
 ---
 
-## Onde continuar
+## Onde continuar?
 
 - Com a imagem pronta, o próximo passo é publicar em um registry e executar a mesma imagem em produção com `JWT_SECRET`, SMTP e volumes definidos pela...
 

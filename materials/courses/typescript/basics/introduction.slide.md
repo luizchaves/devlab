@@ -55,7 +55,7 @@ Estabelecer o modelo mental antes da sintaxe:
 ---
 
 
-## O Que É TypeScript
+## O Que É TypeScript?
 
 | Afirmação | Consequência |
 | --- | --- |
@@ -112,7 +112,7 @@ app.ts ──▶ tsc ──┬──▶ verificação (erros no editor e na CI)
 ---
 
 
-## O Que Ele Detecta
+## O Que Ele Detecta?
 
 | Detecta | **Não** detecta |
 | --- | --- |
@@ -197,7 +197,7 @@ pnpm add -D @types/express @types/node
 ---
 
 
-## O Que Sobrevive à Compilação
+## O Que Sobrevive à Compilação?
 
 ```ts
 interface Point { x: number }   // apagado

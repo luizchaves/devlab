@@ -133,7 +133,7 @@ Cenário: CA02.3 - Criar um investimento
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - A etapa 1 desenhou as telas com dados escritos à mão no HTML.
 - Esta etapa mantém a mesma interface: cabeçalho, cartões de ativo e formulário: e troca esses dados fixos por respostas da API.
@@ -141,7 +141,7 @@ Cenário: CA02.3 - Criar um investimento
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - páginas HTML abertas direto do disco: as mesmas páginas em `public/`, servidas por `express.static`
 - três cartões escritos no HTML: cartões gerados em JavaScript a partir de `GET /api/investments`

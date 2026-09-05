@@ -129,7 +129,7 @@ Cenário: CA05.3 - As regras vêm dos schemas
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Comparando com a etapa anterior, entram dois módulos novos: `src/docs/openapi.ts` (conversão declarativa de schemas Zod para OpenAPI 3) e...
 - Nenhuma regra ou schema pré-existente é alterado.
@@ -171,7 +171,7 @@ npm install -D @types/swagger-ui-express
 
 ---
 
-## O que a documentação herda dos schemas
+## O que a documentação herda dos schemas?
 
 - Vale abrir o `/api/openapi.json` e comparar com o `investment.schema.ts`. As regras chegaram sozinhas:
 - Nenhuma dessas linhas foi digitada duas vezes.
@@ -181,7 +181,7 @@ npm install -D @types/swagger-ui-express
 
 ---
 
-## O que a documentação herda dos schemas: Tabela
+## O que a documentação herda dos schemas?: Tabela
 
 - campo sem `.optional()`: entra em `required`
 

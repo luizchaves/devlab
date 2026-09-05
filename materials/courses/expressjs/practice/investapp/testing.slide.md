@@ -134,7 +134,7 @@ Cenário: CA13.3 - A suíte pode repetir
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Comparando com a etapa anterior, o código da aplicação praticamente não muda: entram quatro arquivos de teste, a configuração do Playwright e cinco...
 

@@ -63,7 +63,7 @@ Variáveis de ambiente em uma API Express: --env-file nativo, .env versus .env.e
 
 ---
 
-## Por que não no código
+## Por que não no código?
 
 - Um valor escrito direto no arquivo cria três problemas de uma vez:
 - Segredo versionado. Uma vez enviado ao Git, o valor está no histórico para sempre —
@@ -73,7 +73,7 @@ Variáveis de ambiente em uma API Express: --env-file nativo, .env versus .env.e
 
 ---
 
-## Por que não no código: Exemplo
+## Por que não no código?: Exemplo
 
 ```js
 const app = express();
@@ -193,14 +193,14 @@ app.listen(config.port, () => {
 
 ---
 
-## O que muda entre ambientes
+## O que muda entre ambientes?
 
 - Bibliotecas mudam de comportamento com base nela.
 - Rodar produção sem definir `NODE_ENV` mantém verificações caras de desenvolvimento ligadas e pode expor stack traces.
 
 ---
 
-## O que muda entre ambientes: Tabela
+## O que muda entre ambientes?: Tabela
 
 - Origem das variáveis: arquivo `.env` | ambiente do orquestrador/PaaS
 - Banco: SQLite local | Postgres gerenciado

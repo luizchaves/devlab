@@ -139,14 +139,14 @@ Cenário: CA01.3 - Os campos já declaram o contrato futuro
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - Esta é a primeira etapa, então não existe um diff contra a etapa anterior: tudo é novo.
 - O que vale registrar é a fronteira que a etapa impõe: quatro páginas e uma folha de estilo entram, e todo o comportamento fica para a etapa 2.
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - o Play CDN do Tailwind e o `css/components.css`: `fetch`, manipuladores de evento e estado de tela
 - dados de exemplo escritos à mão no HTML: a pasta `back/`, o servidor Express e o banco

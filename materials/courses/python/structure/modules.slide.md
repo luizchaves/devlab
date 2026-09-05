@@ -61,7 +61,7 @@ Dividir o programa em arquivos com responsabilidades claras:
 
 
 
-## O Que É um Módulo
+## O Que É um Módulo?
 
 ```python
 import math
@@ -101,7 +101,7 @@ from datetime import datetime as dt
 
 
 
-## Por Que Evitar `import *`
+## Por Que Evitar `import *`?
 
 - Despeja todos os nomes públicos no escopo atual.
 - Esconde a origem de cada nome para quem lê o código.

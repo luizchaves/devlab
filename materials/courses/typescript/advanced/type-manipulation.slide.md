@@ -172,7 +172,7 @@ type ResourceOf<T> = T extends `${string} /${infer R}` ? R : never;
 ---
 
 
-## Quando Parar
+## Quando Parar?
 
 | Pergunta | Se "não"… |
 | --- | --- |

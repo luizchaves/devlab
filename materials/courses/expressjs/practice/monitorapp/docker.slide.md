@@ -136,7 +136,7 @@ Cenário: CA14.3 - A configuração vem do ambiente
 
 ---
 
-## O que muda nesta etapa
+## O que muda nesta etapa?
 
 - O que muda nesta etapa aparece como ponto central da aula, não apenas como item de índice.
 - Décima terceira etapa do MonitorApp: duas imagens Docker: a API em Node e o front compilado servido por Nginx —, orquestração com Compose e volume...
@@ -145,7 +145,7 @@ Cenário: CA14.3 - A configuração vem do ambiente
 
 ---
 
-## O que muda nesta etapa: Tabela
+## O que muda nesta etapa?: Tabela
 
 - dois `npm run dev` em terminais separados: um `docker compose up --build`
 - o proxy do Vite entrega `/api`: o Nginx entrega `/api`

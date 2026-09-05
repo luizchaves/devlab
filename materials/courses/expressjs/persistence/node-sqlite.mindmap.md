@@ -14,7 +14,7 @@ markmap:
 
 ## Principais Pontos
 
-### Por que começar sem ORM
+### Por que começar sem ORM?
 - Estruturas e convenções de **Por que começar sem ORM**
 ### O módulo `node:sqlite`
 - Estruturas e convenções de **O módulo `node:sqlite`**

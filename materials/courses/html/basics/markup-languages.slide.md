@@ -144,7 +144,7 @@ A marcação não é usada apenas para documentos de texto corrido:
 ---
 
 
-## Como Pensar em Marcação
+## Como Pensar em Marcação?
 
 1. **Identifique a função**: Determine se o trecho é um título, parágrafo, lista, citação ou imagem.
 2. **Escolha o marcador correto**: Selecione a tag ou símbolo semântico correspondente.

@@ -12,7 +12,7 @@ markmap:
 - Superset tipado do JavaScript, compilado para JavaScript comum
 - Os tipos existem só em desenvolvimento: são **apagados** na emissão
 
-## O Que É
+## O Que É?
 
 - **Superset**: todo `.js` válido é `.ts` válido
 - **Tipado**: o compilador verifica o uso antes de executar
@@ -63,7 +63,7 @@ markmap:
 - **DefinitelyTyped**: pacotes `@types/*` mantidos pela comunidade
 - Sem tipos nenhum: declare em um `.d.ts` do projeto
 
-## O Que Sobrevive à Compilação
+## O Que Sobrevive à Compilação?
 
 - **Sobrevivem**: `class` (vira classe JS) e `enum` (vira objeto)
 - **Desaparecem**: `interface`, `type` e todas as anotações

@@ -63,13 +63,13 @@ Colocar uma API Express em produção: build e execução, variáveis de ambient
 
 ---
 
-## O que muda em produção
+## O que muda em produção?
 
 - O host precisa ser `0.0.0.0`: que é o padrão quando você omite o segundo argumento.
 
 ---
 
-## O que muda em produção: Tabela
+## O que muda em produção?: Tabela
 
 - Origem da configuração: arquivo `.env` | ambiente do orquestrador
 - Porta: fixa (`3000`) | definida por `process.env.PORT`
@@ -232,14 +232,14 @@ router.get('/ready', async (_req, res) => {
 
 ---
 
-## Onde publicar
+## Onde publicar?
 
 - A maioria das plataformas usa disco efêmero: o arquivo do banco desaparece a cada deploy.
 - Ou se usa um volume persistente, ou se troca por um Postgres gerenciado: mudança de uma linha no `provider` do schema, se as consultas forem do Prisma.
 
 ---
 
-## Onde publicar: Tabela
+## Onde publicar?: Tabela
 
 - PaaS (Render, Railway, Fly.io): baixo | projeto de disciplina, protótipo, MVP
 - Contêiner gerenciado (Cloud Run, ECS): médio | tráfego variável, escala automática
