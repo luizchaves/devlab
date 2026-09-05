@@ -190,8 +190,14 @@ O texto é didático e escrito para estudantes brasileiros. Verifique:
 
 1. **Travessão (`—`) para oração intercalada ou aposto**: proibido. Substitua por vírgula,
    parênteses ou dois-pontos. É o vício mais comum em texto gerado por IA.
-2. **Pergunta sem `?`**: todo título, item ou frase iniciada por "O que", "Por que", "Como",
-   "Quando", "Qual" e similares termina em interrogação, ou vira título declarativo.
+2. **Pergunta sem `?`**: toda frase com forma interrogativa termina em `?`, inclusive títulos
+   que apenas nomeiam a seção (`## O que muda nesta etapa?`). Em título de slide com sufixo
+   gerado, o `?` vem antes dos dois-pontos (`## O que muda nesta etapa?: Tabela`). Para levantar
+   as ocorrências:
+
+   ```bash
+   grep -rnE '^#{2,4} +(O que|Por que|Como|Quando|Qual|Quais|Quem|Onde|Para que)\b[^?]*$' src/content/docs materials
+   ```
 3. **Bullet solitário**: lista de um item só vira parágrafo.
 4. **Termos técnicos em inglês** em itálico (`*callback*`, `*hoisting*`), identificadores em
    código (`const`, `Array.prototype.map()`).

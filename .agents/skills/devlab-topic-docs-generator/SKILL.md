@@ -403,13 +403,25 @@ parágrafos curtos em vez de criar blocos de texto longos e monolíticos. O uso 
 parágrafos espaçados torna a leitura mais fluida, melhora a escaneabilidade do conteúdo e
 ajuda o estudante a absorver cada conceito passo a passo.
 
-**Pontuação em perguntas e títulos interrogativos:** Toda pergunta didática deve terminar
-com ponto de interrogação (`?`), independentemente de aparecer como título (`##`/`###`),
-item de revisão, bullet, callout ou enunciado. Trate como pergunta qualquer frase iniciada
-por formas interrogativas como "O que", "Por que", "Como", "Quando", "Qual", "Quais",
-"Quem", "Onde" e "Para que". Se a intenção for apenas nomear uma seção, reescreva como
-título declarativo (`Observações sobre alias`) em vez de deixar uma pergunta sem `?`
-(`O que observar no alias`).
+**Pontuação em perguntas e títulos interrogativos:** Toda frase com **forma interrogativa**
+termina com ponto de interrogação (`?`), sem exceção, seja ela título (`##`/`###`), item de
+revisão, bullet, callout ou enunciado. Conta como forma interrogativa qualquer frase iniciada
+por "O que", "Por que", "Como", "Quando", "Qual", "Quais", "Quem", "Onde" e "Para que",
+**mesmo quando a intenção é apenas nomear a seção**:
+
+| Errado | Certo |
+| ------ | ----- |
+| `## O que muda nesta etapa` | `## O que muda nesta etapa?` |
+| `## Onde os bytes ficam` | `## Onde os bytes ficam?` |
+| `## Quem faz o quê` | `## Quem faz o quê?` |
+| `## Por que adotar, e quando não adotar` | `## Por que adotar, e quando não adotar?` |
+
+Em títulos de slide com sufixo gerado (`: Tabela`, `: Exemplo`, `: Comparação`), o ponto de
+interrogação fica **antes** dos dois-pontos: `## O que muda nesta etapa?: Tabela`.
+
+A alternativa de reescrever como título declarativo continua válida como **escolha de redação**
+(`## Mudanças desta etapa` em vez de `## O que muda nesta etapa?`), e é uma decisão a ser tomada
+ao escrever. O que não existe é a terceira opção: forma interrogativa sem o `?`.
 
 **Linearidade e coesão entre seções:** Antes de finalizar um tópico, revise a sequência de
 `##`, `###` e parágrafos (`<p>`) como uma narrativa contínua. Cada seção deve preparar a
