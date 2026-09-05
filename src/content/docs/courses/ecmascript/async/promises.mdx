@@ -5,29 +5,40 @@ course: ecmascript
 sidebar:
   label: "Promises"
 ---
-import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
+import EventLoopDiagram from '@components/diagrams/EventLoopDiagram.astro';
 import Mermaid from '@components/Mermaid.astro';
 
-Este tópico apresenta as **Promises** em JavaScript: o padrão fundamental para gerenciar operações assíncronas (como requisições HTTP, leitura de arquivos e consultas a bancos de dados), seus três estados, encadeamento com `.then()`, tratamento de erros com `.catch()` e combinadores como `Promise.all()`.
+Este tópico apresenta as **Promises** em JavaScript: o padrão fundamental para gerenciar operações assíncronas (como requisições HTTP, leitura de arquivos e consultas a bancos de dados), seus três estados, encadeamento com `.then()`, tratamento de erros com `.catch()`, combinadores e os recursos do ES2024.
 
-Materiais: [slides do tópico](../../../../slides/courses/ecmascript/async/promises/) e
-[mapa mental](../../../../mindmaps/courses/ecmascript/async/promises/)
+Materiais: [slides do tópico](../../../../slides/courses/ecmascript/async/promises/) e [mapa mental](../../../../mindmaps/courses/ecmascript/async/promises/).
 
 ## Objetivo
 
-Compreender o modelo assíncrono e monotthread do JavaScript, dominar o conceito e o ciclo de vida de uma **Promise**, utilizar a sintaxe de encadeamento com `.then()`, `.catch()` e `.finally()`, aplicar combinadores estáticos (`Promise.all`, `Promise.allSettled`, `Promise.race`, `Promise.any`) e entender a relação direta entre Promises e a sintaxe `async/await`.
+Compreender o modelo assíncrono e *single-threaded* do JavaScript, dominando o ciclo de vida e a manipulação de Promises desde a criação básica até combinadores concorrentes e os novos recursos da especificação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o papel do Event Loop, Call Stack e Microtask Queue na resolução de código assíncrono.
+- Instanciar Promises tanto com a função executora tradicional quanto pelo método moderno `Promise.withResolvers()`.
+- Diferenciar os estados `Pending`, `Fulfilled` e `Rejected`, compreendendo a imutabilidade do valor liquidado.
+- Construir fluxos de transformação lineares com `.then()`, `.catch()` e `.finally()`, eliminando o aninhamento de *callbacks*.
+- Empregar os combinadores estáticos (`Promise.all`, `Promise.allSettled`, `Promise.race`, `Promise.any`) segundo os requisitos de tolerância a falhas.
+- Tratar exceções de rede com segurança, validando `response.ok` na Fetch API e gerenciando rejeições não tratadas (*unhandled rejections*).
 
 ## O que é Assincronismo em JavaScript?
 
 O JavaScript executa código em um ambiente de linha de execução única (*single-threaded*) guiado por um **Event Loop**. Operações de entrada e saída (I/O) (como buscar dados em uma API, ler um arquivo do disco ou aguardar um temporizador) demoram um tempo imprevisível para responder.
 
-Se o JavaScript congelasse a execução até essas operações terminarem, a interface do usuário travaria. Para evitar isso, as operações de I/O são executadas de forma **assíncrona**.
+Se o JavaScript congelasse a execução até essas operações terminarem, toda a aplicação ou interface do usuário travaria. Para evitar esse bloqueio, as operações de I/O são delegadas ao ambiente hospedeiro e processadas de forma **assíncrona**.
+
+A evolução dos padrões assíncronos no JavaScript reflete a busca por legibilidade e controle de fluxo:
 
 | Modelo | Funcionamento | Problema / Desafio |
 | ------ | ------------- | ------------------ |
 | **Síncrono** | Cada instrução é executada em sequência, bloqueando a próxima até terminar | Bloqueia a aplicação durante operações lentas |
 | **Callbacks** | Funções passadas como argumento para serem executadas após a conclusão | Gera aninhamento excessivo e difícil manutenção (*Callback Hell*) |
 | **Promises** | Objetos que representam o resultado futuro de uma operação assíncrona | Permite código assíncrono estruturado, encadeável e legível |
+
+O exemplo a seguir ilustra a transição entre o aninhamento piramidal de callbacks e o fluxo plano e legível oferecido pelo encadeamento de Promises:
 
 ```js title="Do Callback Hell às Promises"
 // 1. Abordagem antiga com Callbacks (Callback Hell / Pyramids of Doom)
@@ -49,7 +60,7 @@ buscarUsuario(1)
 
 ## O Conceito e Estados de uma Promise
 
-Uma **Promise** é um objeto JavaScript que atua como um "contrato" para um valor que pode estar disponível agora, no futuro ou nunca.
+Uma **Promise** é um objeto JavaScript que atua como um contrato para um valor que pode estar disponível no presente, no futuro ou nunca.
 
 O diagrama a seguir ilustra as transições possíveis entre os três estados de uma Promise e os manipuladores acionados ao final do ciclo:
 
@@ -66,49 +77,41 @@ flowchart TD
 `}
 </Mermaid>
 
-Uma Promise possui **três estados mutuamente exclusivos**:
+Uma Promise opera sob **três estados mutuamente exclusivos**:
 
 | Estado | Nome | Descrição |
 | ------ | ---- | --------- |
-| **Pending** | Pendente | Estado inicial. A operação assíncrona ainda está em execução |
-| **Fulfilled** | Realizada / Resolvida | A operação foi concluída com sucesso e retornou um **valor** |
+| **Pending** | Pendente | Estado inicial. A operação assíncrona ainda está em processamento |
+| **Fulfilled** | Realizada / Resolvida | A operação foi concluída com êxito e retornou um **valor** |
 | **Rejected** | Rejeitada | A operação falhou e retornou uma **razão de erro** (*reason*) |
 
 <Aside type="caution" title="Imutabilidade do Estado de uma Promise">
-  Uma Promise transita do estado `Pending` para `Fulfilled` (sucesso) ou `Rejected` (erro) uma **única vez**. Após ser resolvida ou rejeitada, seu estado e seu valor tornam-se **imutáveis**.
+  Uma Promise transita do estado `Pending` para `Fulfilled` (sucesso) ou `Rejected` (erro) uma **única vez**. Após ser liquidada (*settled*), seu estado e seu valor tornam-se completamente **imutáveis**.
 </Aside>
 
-### Transições e inspeção no console
-
-Além da descrição de cada estado, vale observar para onde ele pode transitar e como
-cada caso aparece ao inspecionar a Promise:
-
-| Estado | Descrição | Transição de Estado |
-| :--- | :--- | :--- |
-| **`pending`** (Pendente) | Estado inicial da Promise. A operação assíncrona ainda está em andamento. | Pode mudar para `fulfilled` ou `rejected`. |
-| **`fulfilled`** (Realizada / Resolvida) | A operação assíncrona foi concluída com sucesso. Retorna um **valor**. | Estado final (imutável). |
-| **`rejected`** (Rejeitada) | A operação assíncrona falhou ou gerou um erro. Retorna um **motivo/erro**. | Estado final (imutável). |
+Ao imprimir uma Promise no console, o ambiente revela seu estado interno e o valor retido caso a liquidação já tenha ocorrido:
 
 ```js title="Estados de uma Promise"
 // Promise em estado PENDING (Pendente)
 const pendingPromise = new Promise(() => {});
-console.log(pendingPromise); //=> Promise { <pending> }
+console.log(pendingPromise); // Promise { <pending> }
 
 // Promise resolvida (FULFILLED)
 const fulfilledPromise = Promise.resolve("Sucesso!");
-console.log(fulfilledPromise); //=> Promise { 'Sucesso!' }
+console.log(fulfilledPromise); // Promise { 'Sucesso!' }
 
 // Promise rejeitada (REJECTED)
 const rejectedPromise = Promise.reject(new Error("Falha ao carregar dados"));
-console.log(rejectedPromise); //=> Promise { <rejected> Error: Falha ao carregar dados }
+console.log(rejectedPromise); // Promise { <rejected> Error: Falha ao carregar dados }
 ```
-
 
 ## Criando e Consumindo Promises
 
-### Criando uma Promise com `new Promise()`
+O trabalho com Promises divide-se em duas etapas essenciais: a **produção** (a criação e controle da promessa por quem realiza a tarefa assíncrona) e o **consumo** (o registro de callbacks e tratamento dos resultados por quem dispara a operação). A linguagem disponibiliza tanto o construtor clássico quanto métodos estáticos e utilitários modernos para gerenciar esses fluxos.
 
-Uma Promise é criada passando uma função executora (*executor*) que recebe duas funções de retorno: `resolve` e `reject`.
+### Criando uma Promise com o Construtor Tradicional
+
+Para criar uma Promise, invoca-se o construtor `new Promise` fornecendo uma função executora (*executor*). Essa função recebe dois parâmetros callback fornecidos pelo motor JavaScript: `resolve` e `reject`:
 
 ```js title="Criando uma Promise personalizada"
 function checkServerStatus(isOnline) {
@@ -125,66 +128,75 @@ function checkServerStatus(isOnline) {
 }
 ```
 
-### Outro exemplo: validação com resolve e reject
+O método estático `Promise.resolve(valor)` cria diretamente uma Promise já resolvida, enquanto `Promise.reject(motivo)` cria uma já rejeitada:
 
-```js title="Exemplo de função que retorna Promise"
-function checkAge(age) {
-  return new Promise((resolve, reject) => {
-    if (typeof age !== "number" || age < 0) {
-      reject(new Error("Idade inválida fornecida"));
-    } else if (age >= 18) {
-      resolve("Acesso permitido: Usuário é maior de idade");
-    } else {
-      reject("Acesso negado: Usuário é menor de idade");
-    }
-  });
-}
+```js title="Criação direta com métodos estáticos"
+const immediateSuccess = Promise.resolve({ userId: 1, role: "admin" });
+const immediateError = Promise.reject(new TypeError("Parâmetro inválido"));
 ```
 
-Além do construtor `new Promise`, a linguagem oferece métodos estáticos para criar Promises já resolvidas ou rejeitadas:
+### O Recurso Moderno: Promise.withResolvers() (ES2024)
 
-- **`Promise.resolve(valor)`:** Retorna uma Promise já resolvida com o valor especificado.
-- **`Promise.reject(motivo)`:** Retorna uma Promise já rejeitada com o motivo/erro especificado.
+Historicamente, quando precisávamos resolver uma Promise a partir de um evento externo (como um clique, resposta de socket ou stream), éramos obrigados a extrair as funções `resolve` e `reject` para variáveis externas ao executor.
+
+A especificação ECMAScript 2024 padronizou o método **`Promise.withResolvers()`**, que retorna diretamente o objeto da Promise juntamente com suas funções de resolução e rejeição desestruturadas:
+
+```js title="Uso do Promise.withResolvers() (ES2024)"
+// Cria a Promise e seus controladores diretamente
+const { promise, resolve, reject } = Promise.withResolvers();
+
+// A Promise pode ser retornada ou consumida em qualquer lugar:
+promise
+  .then((data) => console.log("Recebido:", data))
+  .catch((err) => console.error("Erro:", err.message));
+
+// E pode ser resolvida externamente sem aninhar código:
+setTimeout(() => {
+  resolve("Operação externa concluída com sucesso!");
+}, 500);
+```
 
 ### Execução Síncrona do Executor
 
-A função passada para o construtor `new Promise((resolve, reject) => { ... })` é chamada de **executor**. Um ponto fundamental do funcionamento de Promises é que a função executora é chamada **imediatamente e de forma síncrona** no momento da criação da Promise.
+Um aspecto arquitetural essencial é que a função executora passada para `new Promise((resolve, reject) => { ... })` é executada **imediatamente e de forma síncrona** no momento da instanciação:
 
 ```js title="Execução síncrona do executor"
 console.log("1. Antes de criar a Promise");
 
 const promise = new Promise((resolve, reject) => {
-  console.log("2. Dentro do executor da Promise (execução SÍNCRONA)");
+  console.log("2. Dentro do executor (execução síncrona imediata)");
   resolve("Dados prontos");
 });
 
 console.log("3. Depois de criar a Promise");
 
 promise.then((data) => {
-  console.log("4. Dentro do .then() (execução ASSÍNCRONA)");
+  console.log("4. Dentro do .then() (execução assíncrona via microtask)");
 });
 
 console.log("5. Fim do script principal");
 
-//=>
+// Ordem observada:
 // 1. Antes de criar a Promise
-// 2. Dentro do executor da Promise (execução SÍNCRONA)
+// 2. Dentro do executor (execução síncrona imediata)
 // 3. Depois de criar a Promise
 // 5. Fim do script principal
-// 4. Dentro do .then() (execução ASSÍNCRONA)
+// 4. Dentro do .then() (execução assíncrona via microtask)
 ```
 
 ### Consumindo com `.then()`, `.catch()` e `.finally()`
 
-Três métodos encadeáveis cobrem os caminhos possíveis de uma promessa — sucesso, falha e finalização:
+A API de consumo das Promises é composta por três métodos encadeáveis:
 
-| Método | Quando é Executado? | Função |
-| ------ | ------------------- | ------ |
-| `.then(onFulfilled)` | Quando a Promise transita para `Fulfilled` | Recebe o valor resolvido |
-| `.catch(onRejected)` | Quando a Promise transita para `Rejected` ou lança um erro | Recebe o erro ocorrido |
-| `.finally(onFinally)` | Quando a Promise é liquidada (independente de sucesso ou erro) | Executa código de limpeza |
+| Método | Quando é Executado? | Função Principal |
+| ------ | ------------------- | ---------------- |
+| `.then(onFulfilled)` | Quando a Promise transita para `Fulfilled` | Recebe o valor resolvido e projeta o próximo passo |
+| `.catch(onRejected)` | Quando a Promise transita para `Rejected` ou lança um erro | Intercepta falhas ocorridas na cadeia |
+| `.finally(onFinally)` | Quando a Promise é liquidada (independente do desfecho) | Executa rotinas de limpeza ou finalização |
 
-```js title="Consumindo a Promise"
+O código a seguir exemplifica o consumo completo de uma Promise simulando o ciclo de vida de uma operação:
+
+```js title="Consumindo a Promise com then, catch e finally"
 console.log("Iniciando verificação...");
 
 checkServerStatus(true)
@@ -199,36 +211,31 @@ checkServerStatus(true)
   });
 ```
 
-Referência: [Promise | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
-
-<Aside type="note" title="O que `.finally()` recebe e devolve">
-  O callback passado para `.finally()` não recebe argumentos (não sabe se a Promise resolveu ou rejeitou). O valor retornado por `.finally()` é ignorado, repassando o resultado ou erro original da Promise para o restante da cadeia, a menos que `.finally()` lance uma exceção explicitamente.
+<Aside type="note" title="Comportamento do método .finally()">
+  O callback fornecido a `.finally()` não recebe argumentos, pois sua finalidade é executar rotinas agnósticas ao resultado (como fechar conexões ou ocultar *spinners*). O valor de retorno de `.finally()` é ignorado, repassando o resultado ou erro original para o restante do fluxo.
 </Aside>
 
 ## Encadeamento de Promises (Promise Chaining)
 
-Uma das maiores vantagens das Promises é a capacidade de encadear chamadas `.then()`.
-
-Quando uma função dentro de um `.then()` retorna um valor simples, o JavaScript o envolve automaticamente em uma nova Promise resolvida. Se ela retornar outra Promise, o próximo `.then()` aguardará a resolução dessa nova Promise antes de prosseguir.
+O encadeamento linear (*chaining*) evita o *Callback Hell*. Quando a função dentro de um `.then()` retorna um valor primitivo ou objeto comum, o JavaScript o encapsula automaticamente em uma nova Promise resolvida. Se ela retornar outra Promise, a cadeia aguardará a resolução dessa nova Promise antes de passar para o próximo `.then()`:
 
 ```js title="Encadeamento de Promises com transformações sucessivas"
 function fetchUser(userId) {
   return new Promise((resolve) => {
-    setTimeout(() => resolve({ id: userId, name: "Alice", points: 100 }), 500);
+    setTimeout(() => resolve({ id: userId, name: "Alice", points: 100 }), 300);
   });
 }
 
 function calculateBonus(user) {
   return new Promise((resolve) => {
-    setTimeout(() => resolve(user.points * 1.5), 500);
+    setTimeout(() => resolve(user.points * 1.5), 300);
   });
 }
 
-// Cadeia de Promises
 fetchUser(42)
   .then((user) => {
     console.log(`Usuário encontrado: ${user.name}`);
-    return calculateBonus(user); // Retorna uma nova Promise
+    return calculateBonus(user); // Retorna nova Promise
   })
   .then((bonusPoints) => {
     console.log(`Pontuação com bônus: ${bonusPoints}`); // 150
@@ -238,159 +245,207 @@ fetchUser(42)
     console.log(`Elegível para prêmio? ${isEligible}`); // true
   })
   .catch((error) => {
-    console.error("Erro em alguma etapa do processo:", error);
+    console.error("Erro em alguma etapa do processo:", error.message);
   });
 ```
 
-<Aside type="caution" title="Tratamento Único de Erro na Cadeia">
-  Um único bloco `.catch()` ao final da cadeia é capaz de capturar erros ocorridos em **qualquer uma das etapas anteriores** do encadeamento.
+<Aside type="caution" title="Tratamento Centralizado de Erros">
+  Um único bloco `.catch()` posicionado ao final da cadeia intercepta qualquer erro ou rejeição lançada em **qualquer uma das etapas anteriores**.
 </Aside>
 
 ## Combinadores de Promises
 
-Quando precisamos gerenciar múltiplas Promises simultaneamente, a classe `Promise` oferece quatro métodos estáticos combinadores.
+Para coordenar múltiplas operações assíncronas concorrentes, o JavaScript disponibiliza quatro métodos estáticos combinadores:
 
-| Método Estático | Comportamento de Sucesso | Comportamento de Falha |
-| --------------- | ----------------------- | ---------------------- |
-| `Promise.all([p1, p2])` | Resolve quando **todas** forem resolvidas (retorna array de resultados) | Rejeita imediatamente no **primeiro erro** (*All-or-Nothing*) |
-| `Promise.allSettled([p1, p2])` | Resolve quando **todas forem liquidadas** (sucesso ou falha) | Nunca rejeita globalmente; retorna status individual de cada uma |
-| `Promise.race([p1, p2])` | Resolve/rejeita assim que a **primeira** Promise da lista for liquidada | Acompanha a primeira a responder (vencedora da corrida) |
-| `Promise.any([p1, p2])` | Resolve assim que a **primeira com sucesso** for resolvida | Rejeita apenas se **todas falharem** (`AggregateError`) |
+| Método Estático | Condição de Sucesso | Condição de Falha | Cenário Típico |
+| --------------- | ------------------- | ----------------- | -------------- |
+| `Promise.all([p1, p2])` | Todas resolvem (retorna array de valores) | Rejeita no **primeiro erro** (*Fail-Fast*) | Carregamento essencial dependente |
+| `Promise.allSettled([p1, p2])` | Todas terminam (sucesso ou erro) | **Nunca rejeita**; retorna status de cada uma | Painéis e relatórios parciais |
+| `Promise.race([p1, p2])` | A primeira a liquidar (seja sucesso ou erro) | Acompanha a primeira a responder | *Timeouts* e corridas de rede |
+| `Promise.any([p1, p2])` | A **primeira com sucesso** | Rejeita só se **todas falharem** (`AggregateError`) | Réplicas e servidores espelho |
 
-```js title="Exemplo de Promise.all e Promise.allSettled"
+O exemplo a seguir ilustra a diferença prática entre o rigor do `Promise.all` e a resiliência do `Promise.allSettled`:
+
+```js title="Comparativo entre Promise.all e Promise.allSettled"
 const fetchPosts = new Promise((res) => setTimeout(() => res(["Post 1", "Post 2"]), 300));
 const fetchComments = new Promise((res) => setTimeout(() => res(["Comentário 1"]), 500));
-const fetchFail = new Promise((_, rej) => setTimeout(() => rej("Falha no servidor D"), 200));
+const fetchFail = new Promise((_, rej) => setTimeout(() => rej(new Error("Falha no servidor D")), 200));
 
-// 1. Promise.all() - Falha rápido se qualquer uma falhar
+// 1. Promise.all() falha imediatamente se qualquer chamada rejeitar
 Promise.all([fetchPosts, fetchComments])
   .then(([posts, comments]) => {
-    console.log("Resultados:", posts, comments);
+    console.log("Resultados combinados:", posts, comments);
   })
-  .catch((err) => console.error("Erro no Promise.all:", err));
+  .catch((err) => console.error("Erro no Promise.all:", err.message));
 
-// 2. Promise.allSettled() - Aguarda todas independente de falha
+// 2. Promise.allSettled() aguarda todas as chamadas independentemente de falhas
 Promise.allSettled([fetchPosts, fetchFail])
   .then((results) => {
-    console.log("Status de cada operação:", results);
-    /*
-    [
-      { status: 'fulfilled', value: ['Post 1', 'Post 2'] },
-      { status: 'rejected', reason: 'Falha no servidor D' }
-    ]
-    */
+    console.log("Status individual de cada operação:", results);
   });
 ```
 
-Referência: [Promise.all() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all).
-
 ## Ordem de Execução: Event Loop e Microtask Queue
 
-Para compreender o comportamento assíncrono das Promises, é essencial entender a diferença de prioridades no **Event Loop** do JavaScript:
+Para dominar o comportamento assíncrono, é fundamental compreender a arquitetura e a hierarquia de prioridades do **Event Loop** no motor JavaScript.
 
-1. **Código Síncrono (Call Stack):** Executado imediatamente, de cima para baixo.
-2. **Fila de Microtasks (*Microtask Queue*):** Armazena callbacks de Promises (`.then`, `.catch`, `.finally` e a continuação após um `await`). Possui **prioridade alta** e é esvaziada por completo logo após o encerramento do código síncrono atual.
-3. **Fila de Macrotasks (*Macrotask / Task Queue*):** Armazena temporizadores (`setTimeout`, `setInterval`) e eventos de I/O. Executa apenas após o esvaziamento total da Fila de Microtasks.
+O diagrama a seguir ilustra a coordenação entre a Call Stack, as APIs do ambiente e a precedência estrita entre a fila de microtarefas e a fila de macrotarefas:
 
-```js title="Demonstração do Event Loop e Prioridade de Microtasks"
+<EventLoopDiagram />
+
+Para compreender o ciclo de execução representado no diagrama, acompanhe a sequência dos fluxos numerados:
+
+1. **Disparo de Operação Assíncrona (Passo 1: Call Stack → APIs do Ambiente):** O motor JavaScript executa o código síncrono frame a frame na Call Stack de forma linear (*single-threaded*). Ao encontrar funções assíncronas (como `fetch()`, `setTimeout()` ou leitura de arquivos), o JavaScript não interrompe o fluxo principal: ele delega o processamento concorrente para as APIs do ambiente (Web APIs no navegador ou threads C++ da biblioteca `libuv` no Node.js) e segue imediatamente para a próxima instrução síncrona da pilha.
+2. **Encaminhamento para as Filas Específicas (Passos 2a e 2b: APIs do Ambiente → Filas):** Quando a operação externa conclui seu processamento em segundo plano, o callback associado é direcionado para uma das duas filas assíncronas:
+   - **Passo 2a (Microtask Queue):** Se o callback pertencer a uma Promise resolvida ou rejeitada (`.then`, `.catch`, `.finally`), a uma continuação de função após um `await` ou a uma tarefa criada com `queueMicrotask()`, ele entra na **Microtask Queue**, que possui prioridade máxima de execução.
+   - **Passo 2b (Macrotask Queue):** Se a tarefa for disparada pelo término de um temporizador (`setTimeout`, `setInterval`), por um evento de interface de usuário ou por I/O de disco/rede, ela entra na **Macrotask Queue** (também chamada de *Task Queue*).
+3. **Monitoramento Contínuo do Event Loop (Passo 3: Event Loop → Call Stack):** O Event Loop opera em um laço ininterrupto checando a Call Stack. Enquanto houver qualquer função síncrona em execução na pilha principal, o motor permanece dedicado a ela; nenhuma tarefa assíncrona é transferida até que a Call Stack fique completamente vazia.
+4. **Drenagem Completa da Microtask Queue (Passo 4: Microtask Queue → Call Stack):** Assim que a Call Stack esvazia, o Event Loop concede prioridade imediata à Microtask Queue. Ele drena e executa **todas as microtarefas enfileiradas até zerar a fila**, incluindo novas microtasks que venham a ser geradas durante a execução desse mesmo lote.
+5. **Processamento Unitário de Macrotasks (Passo 5: Macrotask Queue → Call Stack):** Somente após a Microtask Queue estar 100% vazia (e após renderizações visuais de tela, no caso do navegador), o Event Loop extrai **apenas uma única macrotarefa** da Macrotask Queue e a envia para a Call Stack. Concluída essa única tarefa, o Event Loop retorna obrigatoriamente ao Passo 3 e confere qualquer nova microtarefa antes de autorizar a próxima macrotarefa.
+
+O trecho a seguir comprova experimentalmente essa ordem de execução, demonstrando como as microtarefas de Promises ultrapassam temporizadores mesmo configurados com zero milissegundos:
+
+```js title="Prioridade de Microtasks no Event Loop"
 console.log("1. Síncrono - Início");
 
 setTimeout(() => {
-  console.log("2. Macrotask (setTimeout)");
+  console.log("2. Macrotask (setTimeout 0ms)");
 }, 0);
 
-Promise.resolve().then(() => {
-  console.log("3. Microtask 1 (Promise)");
-}).then(() => {
-  console.log("4. Microtask 2 (Promise encadeada)");
-});
+Promise.resolve()
+  .then(() => {
+    console.log("3. Microtask 1 (Promise)");
+  })
+  .then(() => {
+    console.log("4. Microtask 2 (Promise encadeada)");
+  });
 
 console.log("5. Síncrono - Fim");
 
-//=> Ordem exata de saída no console:
+// Ordem impressa no terminal:
 // 1. Síncrono - Início
 // 5. Síncrono - Fim
 // 3. Microtask 1 (Promise)
 // 4. Microtask 2 (Promise encadeada)
-// 2. Macrotask (setTimeout)
+// 2. Macrotask (setTimeout 0ms)
 ```
 
-## Consumo Prático da Fetch API e Validação de `response.ok`
+## Boas Práticas no Tratamento de Falhas e Rejeições
 
-No consumo de recursos de rede no navegador com a `Fetch API`, a função `fetch(url)` retorna uma Promise que é resolvida com um objeto `Response`.
+O tratamento de falhas em Promises exige atenção tanto no nível de chamadas individuais de rede quanto na prevenção de exceções assíncronas que possam derrubar a aplicação.
 
-<Aside type="caution" title="Pegadinha importante da Fetch API">
-  A Promise retornada pelo `fetch()` **NÃO é rejeitada em respostas HTTP de erro (como 404 Not Found ou 500 Internal Server Error)**. A Promise só rejeita caso ocorra uma falha grave de rede ou o destino seja inalcançável. Por isso, é **obrigatório verificar a propriedade `response.ok`** antes de processar o corpo da resposta.
+### Consumo da Fetch API e Validação de `response.ok`
+
+Na comunicação com serviços HTTP via `fetch()`, a função retorna uma Promise resolvida com o objeto `Response`.
+
+<Aside type="caution" title="Armadilha crítica da Fetch API">
+  A Promise gerada por `fetch()` **não é rejeitada em respostas com status de erro HTTP (como 404 Not Found ou 500 Internal Server Error)**. Ela só é rejeitada se houver uma falha estrutural de rede. Portanto, é indispensável validar `response.ok` antes de invocar `.json()`:
 </Aside>
 
-```js title="Consumo correto de API com fetch"
-fetch("https://api.github.com/users/luizchaves")
+O código a seguir apresenta a verificação recomendada para evitar processamento indevido de respostas de erro:
+
+```js title="Consumo correto da Fetch API com validação"
+fetch("https://api.github.com/users/octocat")
   .then((response) => {
     if (!response.ok) {
-      throw new Error(`Erro na requisição HTTP: Status ${response.status}`);
+      throw new Error(`Falha HTTP: Status ${response.status} (${response.statusText})`);
     }
     return response.json();
   })
-  .then((data) => {
-    console.log("Usuário encontrado:", data.name);
+  .then((user) => {
+    console.log("Nome do usuário:", user.name);
   })
   .catch((error) => {
-    console.error("Falha ao buscar usuário:", error.message);
+    console.error("Erro capturado:", error.message);
   });
+```
+
+### Rejeições Não Tratadas (Unhandled Rejections)
+
+Quando uma Promise é rejeitada e nenhum manipulador `.catch()` é encadeado, o motor emite um evento global de **Unhandled Rejection**. No Node.js moderno, rejeições não tratadas encerram o processo com código de erro diferente de zero por padrão:
+
+```js title="Captura global de rejeições no Node.js e no Navegador"
+// No ambiente Node.js:
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Aviso: Rejeição não tratada detectada:", reason);
+});
+
+// No ambiente do Navegador:
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("Erro assíncrono não tratado:", event.reason);
+});
 ```
 
 ## Conexão com Async/Await
 
-Embora a sintaxe com `.then()` e `.catch()` seja poderosa, encadear dezenas de Promises ainda pode tornar o código verboso.
+A sintaxe `async/await` introduzida no ES2017 é uma camada de conveniência (*syntactic sugar*) construída sobre Promises, permitindo escrever lógica assíncrona com estrutura sequencial:
 
-No ES2017, o JavaScript introduziu as palavras-chave `async` e `await`, que oferecem uma **camada de sintaxe mais limpa (*syntactic sugar*) construída diretamente sobre Promises**.
-
-```js title="Comparação: Promises .then() vs Async/Await"
-// Abordagem 1: Usando .then() tradicional
-function loadDataThen() {
-  fetchUser(42)
+```js title="Comparativo: Promises com then versus Async/Await"
+// Abordagem 1: Encadeamento com .then()
+function loadUserThen(id) {
+  return fetchUser(id)
     .then((user) => calculateBonus(user))
     .then((bonus) => console.log("Bônus:", bonus))
-    .catch((err) => console.error(err));
+    .catch((err) => console.error(err.message));
 }
 
-// Abordagem 2: Usando Async/Await (mesmo comportamento por baixo dos panos!)
-async function loadDataAsync() {
+// Abordagem 2: Sintaxe com Async/Await (mesmo comportamento subjacente)
+async function loadUserAsync(id) {
   try {
-    const user = await fetchUser(42);
+    const user = await fetchUser(id);
     const bonus = await calculateBonus(user);
     console.log("Bônus:", bonus);
   } catch (err) {
-    console.error(err);
+    console.error(err.message);
   }
 }
 ```
 
-<Aside type="tip" title="Promises continuam existindo!">
-  O uso de `async/await` não substitui as Promises. Por baixo dos panos, o operador `await` está aguardando a resolução de uma **Promise**, e toda função `async` retorna uma **Promise**.
-</Aside>
-
 ## Resumo e Boas Práticas
 
-<CardGrid>
-  <Card title="Estados e Imutabilidade" icon="pencil">
-    - Lembre-se dos 3 estados de uma Promise: `Pending`, `Fulfilled` e `Rejected`.
-    - O estado de uma Promise transita uma única vez e torna-se imutável após ser liquidado.
-  </Card>
+A gestão profissional de Promises previne congelamento de threads e falhas silenciosas de rede.
 
-  <Card title="Combinadores e Erros" icon="star">
-    - Use `Promise.all()` quando precisar de todas as respostas em paralelo e uma falha deva cancelar o processo.
-    - Use `Promise.allSettled()` quando quiser obter os resultados de todas as requisições mesmo que algumas falhem.
-    - Sempre inclua um tratamento de erro com `.catch()` ou `try...catch` ao consumir Promises.
-  </Card>
-</CardGrid>
+| Prática Recomendada | Motivo Técnico |
+| ------------------- | -------------- |
+| **Sempre anexar um `.catch()` final** | Evita rejeições não tratadas (*unhandled rejections*) que derrubam processos Node.js. |
+| **Retornar Promises em funções** | Garante que quem consome a função consiga utilizar `.then()` ou `await` para compor o fluxo. |
+| **Validar `response.ok` em requisições fetch** | O método nativo `fetch()` resolve com sucesso mesmo diante de erros HTTP 404 ou 500. |
+| **Evitar o aninhamento de `.then()`** | Retorne a Promise interna para manter a cadeia plana (*flat chain*), melhorando a legibilidade. |
+| **Usar `Promise.allSettled()` para tolerância a falhas** | Impede que a falha de um serviço secundário cancele todas as respostas de operações bem-sucedidas. |
+| **Preferir `Promise.withResolvers()` no ES2024** | Evita a extração imperativa das funções de resolução para variáveis de escopo externo ao executor. |
 
-- Retorne Promises dentro das funções para permitir que quem as chama consiga utilizar encadeamento `.then()` ou `await`.
-- Evite aninhar blocos `.then()` uns dentro dos outros; prefira retornar a Promise interna para manter a cadeia plana (*flat chaining*).
+O bloco a seguir reúne essas práticas em uma rotina de sincronização de dados com controle de falha e finalização:
+
+```js title="Resumo prático de Promises"
+function syncDeviceData(deviceId) {
+  return checkServerStatus(true)
+    .then((status) => {
+      console.log("Status:", status);
+      return Promise.allSettled([
+        fetchUser(deviceId),
+        Promise.resolve({ syncTime: Date.now() }),
+      ]);
+    })
+    .then((results) => {
+      const [userResult, syncResult] = results;
+      return {
+        user: userResult.status === "fulfilled" ? userResult.value : null,
+        sync: syncResult.status === "fulfilled" ? syncResult.value : null,
+      };
+    })
+    .catch((error) => {
+      console.error("Falha irrecuperável na sincronização:", error.message);
+      throw error;
+    })
+    .finally(() => {
+      console.log("Ciclo de sincronização finalizado.");
+    });
+}
+```
 
 ## Executando
 
-Os conceitos de Promises podem ser testados diretamente no terminal com o Node.js.
+Os conceitos de Promises e concorrência podem ser testados diretamente no terminal com o Node.js.
 
 <Steps>
 
@@ -409,9 +464,8 @@ Os conceitos de Promises podem ser testados diretamente no terminal com o Node.j
      });
    }
 
-   console.log("Iniciando execução de tarefas...");
+   console.log("Iniciando execução paralela de tarefas...");
 
-   // Execução paralela com Promise.all
    Promise.all([
      simulateTask("A", 300),
      simulateTask("B", 500),
@@ -433,25 +487,27 @@ Os conceitos de Promises podem ser testados diretamente no terminal com o Node.j
    ```
 
    ```txt title="Output"
-   Iniciando execução de tarefas...
+   Iniciando execução paralela de tarefas...
    Todas as tarefas concluídas com sucesso:
     - [OK] Tarefa A concluída em 300ms
     - [OK] Tarefa B concluída em 500ms
     - [OK] Tarefa C concluída em 200ms
    ```
 
-3. Modifique o último argumento de uma das tarefas para `false` e observe o comportamento do `Promise.all`.
+3. Modifique o último argumento da tarefa "B" para `false` e execute novamente para observar o cancelamento rápido (*fail-fast*) do `Promise.all`.
 
 </Steps>
 
 ## Exercício
 
-Crie um arquivo chamado `promise-exercise.js` para exercitar a criação e o encadeamento de Promises:
+Crie um arquivo chamado `promise-exercise.js` para construir um sistema de confirmação e faturamento de pedidos:
 
-1. Crie uma função `checkStock(item, quantity)` que retorne uma Promise. Se a quantidade for menor ou igual a `10`, resolva com a mensagem `"Estoque confirmado para [quantity] unidades de [item]"`. Se for maior que `10`, rejeite com a mensagem `"Estoque insuficiente para [item]"`;
-2. Crie uma função `processPayment(amount)` que retorne uma Promise simulando o pagamento (sucesso em 500ms);
-3. Encadeie a verificação de estoque e o processamento do pagamento usando `.then()`, adicionando tratamento de erro com `.catch()`;
-4. Teste a cadeia com um pedido de `5` unidades e depois com um pedido de `15` unidades.
+1. Escreva uma função `checkStock(item, quantity)` que retorne uma Promise. Se a quantidade for menor ou igual a 10, resolva com `{ item, quantity, total: quantity * 50 }`. Caso contrário, rejeite com um erro informando estoque insuficiente;
+2. Escreva uma função `processPayment(order)` que retorne uma Promise simulando a aprovação do pagamento em 400ms;
+3. Encadeie a checagem de estoque com o pagamento usando `.then()`, adicionando tratamento de erro centralizado com `.catch()`;
+4. Teste a cadeia com uma compra válida de 5 unidades e em seguida com uma compra inválida de 15 unidades.
+
+Tente implementar as instruções acima antes de verificar a solução de referência a seguir.
 
 <details>
   <summary>Possível resposta</summary>
@@ -473,7 +529,7 @@ Crie um arquivo chamado `promise-exercise.js` para exercitar a criação e o enc
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve(`Pagamento de R$ ${order.total} aprovado para o item ${order.item}!`);
-      }, 500);
+      }, 400);
     });
   }
 
@@ -493,14 +549,16 @@ Crie um arquivo chamado `promise-exercise.js` para exercitar a criação e o enc
 
 ## Desafio
 
-Crie um arquivo chamado `dashboard-loader.js` para simular o carregamento paralelo de dados de um painel administrativo:
+Crie um arquivo chamado `dashboard-loader.js` que implemente um carregador resiliente de múltiplos serviços para um painel gerencial:
 
-1. Crie 3 funções assíncronas baseadas em Promise:
-   - `fetchUserData()` (resolve em 300ms com `{ name: "Carlos", role: "Admin" }`);
-   - `fetchMetrics()` (resolve em 500ms com `{ visits: 1250, sales: 42 }`);
-   - `fetchNotifications()` (simula uma falha em 200ms rejeitando com `"Falha ao carregar notificações"`);
-2. Utilize `Promise.allSettled()` para carregar todas as informações sem permitir que a falha das notificações interrompa a exibição do usuário e das métricas;
-3. Filtre os resultados com sucesso para exibir o painel parcial e informe quais módulos apresentaram falha.
+1. Crie 3 funções simulando serviços assíncronos baseados em Promise:
+   - `fetchUserData()` (resolve em 300ms com dados cadastrais);
+   - `fetchMetrics()` (resolve em 500ms com estatísticas de acessos);
+   - `fetchNotifications()` (rejeita em 200ms simulando instabilidade de serviço);
+2. Empregue `Promise.allSettled()` para carregar todas as informações simultaneamente, garantindo que o painel exiba os dados disponíveis mesmo diante da falha de notificações;
+3. Filtre e imprima os dados dos serviços resolvidos e gere alertas informando quais serviços falharam.
+
+Implemente a solução no seu arquivo antes de conferir a resolução comentada abaixo.
 
 <details>
   <summary>Possível resposta</summary>
@@ -513,30 +571,30 @@ Crie um arquivo chamado `dashboard-loader.js` para simular o carregamento parale
     new Promise((res) => setTimeout(() => res({ visits: 1250, sales: 42 }), 500));
 
   const fetchNotifications = () =>
-    new Promise((_, rej) => setTimeout(() => rej("Falha ao carregar notificações"), 200));
+    new Promise((_, rej) => setTimeout(() => rej(new Error("Serviço de notificações indisponível")), 200));
 
-  async function loadDashboard() {
-    console.log("Carregando painel administrativo...");
+  function loadDashboard() {
+    console.log("Carregando módulos do painel...");
 
-    const results = await Promise.allSettled([
+    Promise.allSettled([
       fetchUserData(),
       fetchMetrics(),
       fetchNotifications(),
-    ]);
+    ]).then((results) => {
+      const [userRes, metricsRes, notifRes] = results;
 
-    const [userRes, metricsRes, notifRes] = results;
+      if (userRes.status === "fulfilled") {
+        console.log("Usuário:", userRes.value);
+      }
 
-    if (userRes.status === "fulfilled") {
-      console.log("Usuário:", userRes.value);
-    }
+      if (metricsRes.status === "fulfilled") {
+        console.log("Métricas:", metricsRes.value);
+      }
 
-    if (metricsRes.status === "fulfilled") {
-      console.log("Métricas:", metricsRes.value);
-    }
-
-    if (notifRes.status === "rejected") {
-      console.warn("Aviso:", notifRes.reason);
-    }
+      if (notifRes.status === "rejected") {
+        console.warn("Aviso:", notifRes.reason.message);
+      }
+    });
   }
 
   loadDashboard();
@@ -545,101 +603,123 @@ Crie um arquivo chamado `dashboard-loader.js` para simular o carregamento parale
 
 ## Perguntas de revisão
 
+Pratique e consolide os conceitos fundamentais sobre assincronismo, ciclo de vida de Promises e combinadores respondendo às questões a seguir:
+
 ### Conceitos e Estados
 
-**1. O que é o modelo assíncrono em JavaScript e por que ele é necessário?**
+**1. O que é o modelo assíncrono em JavaScript e por que ele é indispensável?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Como o JavaScript executa em uma única linha de execução (*single-thread*), o modelo assíncrono permite disparar operações lentas de entrada e saída (como chamadas de rede e banco de dados) sem congelar a execução do restante da aplicação.
+  Como o JavaScript executa em uma única thread principal, o modelo assíncrono permite disparar operações demoradas de entrada e saída (como rede e disco) em segundo plano, mantendo a aplicação responsiva sem travar o Event Loop.
 </details>
 
-**2. Quais são os 3 estados possíveis de uma Promise e como ela transita entre eles?**
+**2. Quais são os 3 estados possíveis de uma Promise e como ocorrem as transições?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Os estados são `Pending` (pendente/inicial), `Fulfilled` (realizada/sucesso) e `Rejected` (rejeitada/erro). A Promise inicia em `Pending` e transita uma única vez para `Fulfilled` (via `resolve()`) ou para `Rejected` (via `reject()`).
+  Os estados são `Pending` (pendente/inicial), `Fulfilled` (resolvida/sucesso) e `Rejected` (rejeitada/falha). A Promise transita de `Pending` para um dos estados finais uma única vez, tornando-se imutável em seguida.
 </details>
 
-**3. O que significa dizer que o estado final de uma Promise é imutável?**
+**3. O que é o executor de uma Promise e qual é a sua característica temporal de execução?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Significa que uma vez resolvida ou rejeitada, o resultado e o valor da Promise não podem mais ser alterados ou disparados novamente por chamadas posteriores a `resolve()` ou `reject()`.
+  O executor é a função `(resolve, reject) => { ... }` passada para o construtor `new Promise`. Ele é executado de forma síncrona e imediata no momento da criação da instância da Promise.
 </details>
 
-### Encadeamento e Métodos
-
-**4. Como funciona o encadeamento de Promises com o método `.then()`?**
+**4. Para que serve o método moderno `Promise.withResolvers()` introduzido no ES2024?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Cada chamada a `.then()` retorna uma nova Promise. Se a função executada dentro do `.then()` retornar um valor comum ou outra Promise, o próximo `.then()` da cadeia receberá o resultado dessa resolução.
+  Serve para criar uma Promise retornando diretamente a promessa e as funções `resolve` e `reject` desestruturadas em um objeto, evitando a necessidade de extrair variáveis manualmente de dentro do executor.
 </details>
 
-**5. Qual é o papel do método `.catch()` em uma cadeia de Promises?**
+### Encadeamento e Ciclo de Vida
+
+**5. Como funciona o encadeamento (*chaining*) com o método `.then()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  O método `.catch()` funciona como um manipulador global de erros para a cadeia, capturando rejeições ou exceções lançadas em **qualquer** `.then()` anterior da cadeia.
+  Cada chamada a `.then()` retorna uma nova Promise. Se a função executada retornar um valor simples ou outra Promise, o próximo `.then()` da cadeia aguardará e receberá o resultado dessa resolução.
 </details>
 
-**6. Quando o método `.finally()` é executado?**
+**6. Qual é a principal vantagem de usar um único `.catch()` ao final da cadeia de Promises?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  O método `.finally()` é executado sempre ao final do ciclo de vida da Promise, independente de ela ter sido resolvida com sucesso ou rejeitada com erro, sendo ideal para limpeza de recursos.
+  O `.catch()` final centraliza o tratamento de falhas, interceptando erros ou rejeições lançadas em qualquer um dos elos anteriores da cadeia de processamento.
 </details>
 
-### Combinadores e Async/Await
-
-**7. Qual é a principal diferença de comportamento entre `Promise.all()` e `Promise.allSettled()`?**
+**7. O que acontece com o retorno do método `.finally()` em uma cadeia de Promises?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  `Promise.all()` falha imediatamente ao primeiro erro encontrado na lista de Promises (*all-or-nothing*). `Promise.allSettled()` aguarda a conclusão de todas as Promises (sejam resolvidas ou rejeitadas) e retorna o status individual de cada uma.
+  O método `.finally()` não recebe argumentos e seu valor retornado é ignorado, repassando o resultado ou erro original da Promise adiante na cadeia, sendo utilizado estritamente para rotinas de limpeza.
 </details>
 
-**8. O que acontece quando passamos um array de Promises para `Promise.race()`?**
+**8. O que é uma rejeição não tratada (*Unhandled Rejection*) e qual o seu risco em Node.js?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  `Promise.race()` retorna uma nova Promise que se resolve ou rejeita com o resultado da **primeira** Promise da lista que for liquidada (a mais rápida).
+  Ocorre quando uma Promise é rejeitada sem nenhum manipulador `.catch()` associado. No Node.js moderno, isso dispara o evento `unhandledRejection` e encerra a aplicação com código de erro fatal por padrão.
 </details>
 
-**9. Qual é a relação entre Promises e a sintaxe `async/await`?**
+### Combinadores e Event Loop
+
+**9. Qual é a diferença de comportamento entre `Promise.all()` e `Promise.allSettled()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  `async/await` é uma sintaxe simplificada (*syntactic sugar*) construída diretamente sobre Promises. Toda função `async` retorna uma Promise, e a palavra-chave `await` pausa a execução até que uma Promise seja resolvida.
+  `Promise.all()` falha imediatamente ao encontrar a primeira rejeição na lista (*fail-fast*). Já `Promise.allSettled()` aguarda todas as Promises serem liquidadas, retornando um array de objetos com o status e o valor/razão de cada uma.
 </details>
 
-**10. O que é o problema do Callback Hell e como as Promises ajudaram a resolvê-lo?**
+**10. Em que cenários é recomendado utilizar o combinador `Promise.any()`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Callback Hell é o aninhamento excessivo de funções de retorno de chamada (*callbacks*) em formato de pirâmide, dificultando a leitura e o tratamento de erros. As Promises resolveram esse problema permitindo o encadeamento plano e linear de operações com `.then()` e tratamento unificado de erros com `.catch()`.
+  Quando temos múltiplas fontes alternativas para o mesmo dado (como servidores espelho ou réplicas de cache) e desejamos prosseguir assim que a primeira fonte responder com sucesso, falhando apenas se todas rejeitarem.
+</details>
+
+**11. Qual é a prioridade da Fila de Microtarefas (*Microtask Queue*) em relação aos temporizadores de Macrotarefas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A fila de microtarefas (onde rodam os callbacks de Promises) tem prioridade absoluta sobre a fila de macrotarefas (`setTimeout`), sendo esvaziada por completo antes que qualquer temporizador seja executado.
+</details>
+
+**12. Por que requisições HTTP feitas com `fetch()` não caem no bloco `.catch()` em status 404 ou 500?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o método `fetch()` só rejeita a Promise em caso de falha física de rede. Respostas HTTP válidas recebidas do servidor resolvem com sucesso, exigindo que a aplicação verifique `response.ok`.
 </details>
 
 ## Referências
 
-- Guia de Promises na MDN:
+Para aprofundar o domínio sobre assincronismo e Promises no ecossistema JavaScript, consulte a documentação oficial da MDN:
+
+- Guias de Promises na MDN:
   - [Promise | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
   - [Using Promises | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises)
+  - [Promise.withResolvers() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers)
   - [Promise.all() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all)
   - [Promise.allSettled() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled)
 
 ## Próximo tópico
 
-[Promises e Async/Await](../async-await/): a sintaxe `async`/`await` como camada sobre
-Promises, tratamento de erros com `try...catch` e execução sequencial vs. paralela.
+Após dominar o funcionamento estrutural das Promises e seus combinadores, o próximo passo consiste em explorar a sintaxe moderna construída sobre elas com:
+
+[Promises e Async/Await](../async-await/): a sintaxe `async`/`await` como camada sobre Promises, tratamento de erros com `try...catch` e execução sequencial vs. paralela.
