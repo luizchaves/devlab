@@ -64,10 +64,10 @@ const courses = {
     shortTitle: 'React',
     href: '/courses/react/',
   },
-  packages: {
-    title: 'Guia de Pacotes',
-    shortTitle: 'Pacotes',
-    href: '/courses/packages/',
+  npm: {
+    title: 'Guia de Pacotes npm',
+    shortTitle: 'npm',
+    href: '/courses/npm/',
   },
 } as const;
 

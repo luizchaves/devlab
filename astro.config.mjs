@@ -32,6 +32,20 @@ export default defineConfig({
    * preservam links de slides, mapas mentais, exercícios e material externo.
    */
   redirects: {
+    // O guia de pacotes passou a se chamar "Guia de Pacotes npm" e mudou de rota,
+    // para abrir espaco a guias de pacotes de outras linguagens.
+    '/courses/packages': withBase('/courses/npm/'),
+    '/courses/packages/build/vite': withBase('/courses/npm/build/vite/'),
+    '/courses/packages/mock/json-server': withBase('/courses/npm/mock/json-server/'),
+    '/courses/packages/http/axios': withBase('/courses/npm/http/axios/'),
+    '/courses/packages/ui/chartjs': withBase('/courses/npm/ui/chartjs/'),
+    '/courses/packages/baas/supabase': withBase('/courses/npm/baas/supabase/'),
+    '/courses/packages/baas/supabase-api': withBase('/courses/npm/baas/supabase-api/'),
+    '/courses/packages/baas/supabase-client': withBase('/courses/npm/baas/supabase-client/'),
+    '/courses/packages/baas/supabase-auth': withBase('/courses/npm/baas/supabase-auth/'),
+    '/courses/packages/baas/firebase': withBase('/courses/npm/baas/firebase/'),
+    '/courses/packages/baas/firebase-firestore': withBase('/courses/npm/baas/firebase-firestore/'),
+    '/courses/packages/baas/firebase-auth': withBase('/courses/npm/baas/firebase-auth/'),
     // Redirecionamento legado do Guia de Express para expressjs.
     '/courses/express': withBase('/courses/expressjs/'),
     // Persistencia migrou do Guia de Banco de Dados para o Guia de Express.js.
@@ -147,11 +161,11 @@ export default defineConfig({
     '/courses/dw-cstrc-jp/database/prisma-relations': withBase(
       '/courses/expressjs/persistence/relations/'
     ),
-    '/courses/dw-cstrc-jp/packages': withBase('/courses/packages/'),
-    '/courses/dw-cstrc-jp/packages/vite': withBase('/courses/packages/build/vite/'),
-    '/courses/dw-cstrc-jp/packages/json-server': withBase('/courses/packages/mock/json-server/'),
-    '/courses/dw-cstrc-jp/packages/chartjs': withBase('/courses/packages/ui/chartjs/'),
-    '/courses/dw-cstrc-jp/packages/axios': withBase('/courses/packages/http/axios/'),
+    '/courses/dw-cstrc-jp/packages': withBase('/courses/npm/'),
+    '/courses/dw-cstrc-jp/packages/vite': withBase('/courses/npm/build/vite/'),
+    '/courses/dw-cstrc-jp/packages/json-server': withBase('/courses/npm/mock/json-server/'),
+    '/courses/dw-cstrc-jp/packages/chartjs': withBase('/courses/npm/ui/chartjs/'),
+    '/courses/dw-cstrc-jp/packages/axios': withBase('/courses/npm/http/axios/'),
     '/courses/dw-cstrc-jp/packages/bootstrap': withBase('/courses/css/frameworks/bootstrap/'),
     '/courses/dw-cstrc-jp/packages/tailwind-css': withBase('/courses/css/frameworks/tailwind/'),
     '/courses/dw-cstrc-jp/projects/hello-express': withBase(
@@ -200,23 +214,17 @@ export default defineConfig({
     '/courses/pw2-csbes-jp/w3c/fetch-api': withBase('/courses/web-api/http/fetch/'),
     '/courses/pw2-csbes-jp/api/rest': withBase('/courses/web-api/http/rest/'),
     '/courses/pw2-csbes-jp/api/graphql': withBase('/courses/web-api/http/graphql/'),
-    '/courses/pw2-csbes-jp/package/axios': withBase('/courses/packages/http/axios/'),
+    '/courses/pw2-csbes-jp/package/axios': withBase('/courses/npm/http/axios/'),
     '/courses/pw2-csbes-jp/package/http-client': withBase('/courses/web-api/http/clients/'),
-    '/courses/pw2-csbes-jp/package/vite': withBase('/courses/packages/build/vite/'),
-    '/courses/pw2-csbes-jp/package/json-server': withBase('/courses/packages/mock/json-server/'),
-    '/courses/pw2-csbes-jp/package/supabase-api': withBase('/courses/packages/baas/supabase-api/'),
-    '/courses/pw2-csbes-jp/package/supabase-client': withBase(
-      '/courses/packages/baas/supabase-client/'
-    ),
-    '/courses/pw2-csbes-jp/package/supabase-auth': withBase(
-      '/courses/packages/baas/supabase-auth/'
-    ),
+    '/courses/pw2-csbes-jp/package/vite': withBase('/courses/npm/build/vite/'),
+    '/courses/pw2-csbes-jp/package/json-server': withBase('/courses/npm/mock/json-server/'),
+    '/courses/pw2-csbes-jp/package/supabase-api': withBase('/courses/npm/baas/supabase-api/'),
+    '/courses/pw2-csbes-jp/package/supabase-client': withBase('/courses/npm/baas/supabase-client/'),
+    '/courses/pw2-csbes-jp/package/supabase-auth': withBase('/courses/npm/baas/supabase-auth/'),
     '/courses/pw2-csbes-jp/package/firebase-firestore': withBase(
-      '/courses/packages/baas/firebase-firestore/'
+      '/courses/npm/baas/firebase-firestore/'
     ),
-    '/courses/pw2-csbes-jp/package/firebase-auth': withBase(
-      '/courses/packages/baas/firebase-auth/'
-    ),
+    '/courses/pw2-csbes-jp/package/firebase-auth': withBase('/courses/npm/baas/firebase-auth/'),
     '/courses/pw2-csbes-jp/react/introduction': withBase('/courses/react/basics/introduction/'),
     '/courses/pw2-csbes-jp/react/style': withBase('/courses/react/basics/style/'),
     '/courses/pw2-csbes-jp/react/hooks': withBase('/courses/react/state/hooks/'),
@@ -1276,24 +1284,38 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Guia de Pacotes',
+          label: 'Guia de Pacotes npm',
           items: [
-            { label: 'Visão geral', link: '/courses/packages/' },
+            { label: 'Visão geral', link: '/courses/npm/' },
+            {
+              label: 'Fundamentos do npm',
+              items: [
+                {
+                  label: 'Introdução e package.json',
+                  link: '/courses/npm/basics/introduction/',
+                },
+                {
+                  label: 'Dependências e SemVer',
+                  link: '/courses/npm/basics/dependencies/',
+                },
+                { label: 'Scripts e npx', link: '/courses/npm/basics/scripts/' },
+              ],
+            },
             {
               label: 'Build e Desenvolvimento',
-              items: [{ label: 'Vite', link: '/courses/packages/build/vite/' }],
+              items: [{ label: 'Vite', link: '/courses/npm/build/vite/' }],
             },
             {
               label: 'APIs de Prototipagem',
-              items: [{ label: 'JSON Server', link: '/courses/packages/mock/json-server/' }],
+              items: [{ label: 'JSON Server', link: '/courses/npm/mock/json-server/' }],
             },
             {
               label: 'HTTP e Clientes',
-              items: [{ label: 'Axios', link: '/courses/packages/http/axios/' }],
+              items: [{ label: 'Axios', link: '/courses/npm/http/axios/' }],
             },
             {
               label: 'Interface',
-              items: [{ label: 'Chart.js', link: '/courses/packages/ui/chartjs/' }],
+              items: [{ label: 'Chart.js', link: '/courses/npm/ui/chartjs/' }],
             },
             {
               label: 'Backend as a Service (BaaS)',
@@ -1301,21 +1323,21 @@ export default defineConfig({
                 {
                   label: 'Firebase',
                   items: [
-                    { label: 'Visão geral do Firebase', link: '/courses/packages/baas/firebase/' },
+                    { label: 'Visão geral do Firebase', link: '/courses/npm/baas/firebase/' },
                     {
                       label: 'Cloud Firestore',
-                      link: '/courses/packages/baas/firebase-firestore/',
+                      link: '/courses/npm/baas/firebase-firestore/',
                     },
-                    { label: 'Firebase Auth', link: '/courses/packages/baas/firebase-auth/' },
+                    { label: 'Firebase Auth', link: '/courses/npm/baas/firebase-auth/' },
                   ],
                 },
                 {
                   label: 'Supabase',
                   items: [
-                    { label: 'Visão geral do Supabase', link: '/courses/packages/baas/supabase/' },
-                    { label: 'Supabase API', link: '/courses/packages/baas/supabase-api/' },
-                    { label: 'Supabase Client', link: '/courses/packages/baas/supabase-client/' },
-                    { label: 'Supabase Auth', link: '/courses/packages/baas/supabase-auth/' },
+                    { label: 'Visão geral do Supabase', link: '/courses/npm/baas/supabase/' },
+                    { label: 'Supabase API', link: '/courses/npm/baas/supabase-api/' },
+                    { label: 'Supabase Client', link: '/courses/npm/baas/supabase-client/' },
+                    { label: 'Supabase Auth', link: '/courses/npm/baas/supabase-auth/' },
                   ],
                 },
               ],
