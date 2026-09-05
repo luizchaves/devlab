@@ -375,6 +375,10 @@ $ node main.js
 Olá, Node.js
 ```
 
+Se o comando falhar, leia a mensagem completa: ela costuma indicar tipo do erro,
+arquivo e linha. Se rodar estranho ou lento, use `console.log()`, `console.table()` ou
+`console.time()` para tornar a execução visível.
+
 ---
 
 ## Node.js: Modo Interativo (REPL)

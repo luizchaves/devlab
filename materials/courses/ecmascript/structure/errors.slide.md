@@ -63,6 +63,17 @@ Compreender o ciclo de vida de exceções e implementar tolerância a falhas em 
 
 ---
 
+## Antes de Corrigir, Leia o Erro
+
+A mensagem de erro é uma pista de execução, não só um texto para esconder.
+
+- **Tipo**: `SyntaxError`, `ReferenceError`, `TypeError` indicam a categoria da falha.
+- **Local**: arquivo, linha e coluna apontam onde começar a investigar.
+- **Pilha**: o *stack trace* mostra o caminho de chamadas até a origem.
+- **Console**: `log`, `table` e `time` ajudam quando a execução fica estranha ou lenta.
+
+---
+
 ## O Bloco `try...catch...finally`
 
 Controla a execução e impede a interrupção abrupta da aplicação:

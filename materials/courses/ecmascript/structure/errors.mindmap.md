@@ -11,6 +11,8 @@ markmap:
 
 - **Tolerância a Falhas**: gestão estruturada de exceções para evitar paradas inesperadas.
 - **Ciclo de Exceção**: disparo intencional, captura de falhas, tratamento e limpeza.
+- **Diagnóstico primeiro**: mensagem, arquivo, linha, coluna e *stack trace* indicam onde investigar.
+- **Console como instrumento**: `log`, `table` e `time` ajudam quando a execução fica inesperada ou lenta.
 
 ## Estrutura try...catch...finally
 

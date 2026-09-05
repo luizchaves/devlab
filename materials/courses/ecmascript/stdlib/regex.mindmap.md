@@ -102,6 +102,8 @@ markmap:
 
 ### Ambientes e Linha de Comando
 - **IDEs (VS Code)**: busca com regex e substituição com grupos retrovisores `$1`
+- **Mensagens de erro**: arquivo, linha e coluna orientam a investigação
+- **Console**: `log`, `table` e `time` tornam execução lenta ou inesperada visível
 - **Ripgrep (`rg`)**: pesquisa ultrarrápida de padrões em repositórios inteiros
 - **Utilitários CLI (`grep`, `sed`, `fd`)**: filtros em pipelines, substituições em lote e busca de arquivos
 

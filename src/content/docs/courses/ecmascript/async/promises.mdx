@@ -299,9 +299,14 @@ Para compreender o ciclo de execução representado no diagrama, acompanhe a seq
 2. **Encaminhamento para as Filas Específicas (Passos 2a e 2b: APIs do Ambiente → Filas):** Quando a operação externa conclui seu processamento em segundo plano, o callback associado é direcionado para uma das duas filas assíncronas:
    - **Passo 2a (Microtask Queue):** Se o callback pertencer a uma Promise resolvida ou rejeitada (`.then`, `.catch`, `.finally`), a uma continuação de função após um `await` ou a uma tarefa criada com `queueMicrotask()`, ele entra na **Microtask Queue**, que possui prioridade máxima de execução.
    - **Passo 2b (Macrotask Queue):** Se a tarefa for disparada pelo término de um temporizador (`setTimeout`, `setInterval`), por um evento de interface de usuário ou por I/O de disco/rede, ela entra na **Macrotask Queue** (também chamada de *Task Queue*).
-3. **Monitoramento Contínuo do Event Loop (Passo 3: Event Loop → Call Stack):** O Event Loop opera em um laço ininterrupto checando a Call Stack. Enquanto houver qualquer função síncrona em execução na pilha principal, o motor permanece dedicado a ela; nenhuma tarefa assíncrona é transferida até que a Call Stack fique completamente vazia.
-4. **Drenagem Completa da Microtask Queue (Passo 4: Microtask Queue → Call Stack):** Assim que a Call Stack esvazia, o Event Loop concede prioridade imediata à Microtask Queue. Ele drena e executa **todas as microtarefas enfileiradas até zerar a fila**, incluindo novas microtasks que venham a ser geradas durante a execução desse mesmo lote.
-5. **Processamento Unitário de Macrotasks (Passo 5: Macrotask Queue → Call Stack):** Somente após a Microtask Queue estar 100% vazia (e após renderizações visuais de tela, no caso do navegador), o Event Loop extrai **apenas uma única macrotarefa** da Macrotask Queue e a envia para a Call Stack. Concluída essa única tarefa, o Event Loop retorna obrigatoriamente ao Passo 3 e confere qualquer nova microtarefa antes de autorizar a próxima macrotarefa.
+3. **Monitoramento Contínuo da Pilha (Passo 3: Call Stack → Event Loop):** O Event Loop opera em um laço ininterrupto observando a Call Stack. Enquanto houver qualquer função síncrona em execução na pilha principal, o motor permanece dedicado a ela; nenhuma tarefa assíncrona é transferida até que a Call Stack fique completamente vazia. Repare que o Event Loop nunca executa código: ele apenas decide **o que entra na pilha e em que ordem**.
+4. **Drenagem Completa da Microtask Queue (Passo 4: Microtask Queue → Event Loop):** Assim que a pilha esvazia, o Event Loop concede prioridade imediata à Microtask Queue e retira dela **todas as microtarefas enfileiradas até zerar a fila**, incluindo as novas microtasks geradas durante a execução desse mesmo lote.
+5. **Processamento Unitário de Macrotasks (Passo 5: Macrotask Queue → Event Loop):** Somente após a Microtask Queue estar 100% vazia (e após renderizações visuais de tela, no caso do navegador), o Event Loop retira **uma única macrotarefa** da Macrotask Queue.
+6. **Entrega para Execução (Passo 6: Event Loop → Call Stack):** Cada callback retirado nos passos 4 e 5 é empurrado pelo Event Loop para a Call Stack, que o executa como qualquer código síncrono. Concluída a tarefa, o ciclo retorna obrigatoriamente ao Passo 3, e novas microtarefas são conferidas antes de qualquer outra macrotarefa.
+
+7. **Renderização (Passo 7: Event Loop → Renderização):** No navegador, e apenas nele, o mesmo laço ainda dispara a etapa de pintura da tela, no máximo uma vez por quadro (cerca de 16 ms a 60 quadros por segundo). Ela roda **depois** da drenagem das microtarefas e é composta, nesta ordem, pelos *callbacks* de `requestAnimationFrame`, pelo cálculo de estilo, pelo layout (*reflow*), pelo *paint* e pela composição das camadas. No Node.js essa etapa simplesmente não existe, porque não há tela.
+
+É por passar sempre pelo Event Loop que as duas filas nunca competem entre si: as setas 4 e 5 chegam ao mesmo orquestrador, e é ele quem impõe a ordem, drenando a fila de microtarefas por inteiro antes de aceitar a próxima macrotarefa. A renderização segue a mesma regra, e daí vem uma consequência prática: uma microtarefa que nunca termina, ou um lote muito grande delas, **adia a pintura da tela** e trava a interface, mesmo sem nenhum código síncrono pesado em execução.
 
 O trecho a seguir comprova experimentalmente essa ordem de execução, demonstrando como as microtarefas de Promises ultrapassam temporizadores mesmo configurados com zero milissegundos:
 
@@ -858,7 +863,7 @@ Pratique e consolide os conceitos fundamentais sobre assincronismo, ciclo de vid
 
 ## Referências
 
-Para aprofundar o domínio sobre assincronismo e Promises no ecossistema JavaScript, consulte a documentação oficial da MDN:
+Para aprofundar o domínio sobre assincronismo e Promises no ecossistema JavaScript, consulte a documentação oficial e o material de apoio a seguir:
 
 - Guias de Promises na MDN:
   - [Promise | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
@@ -866,6 +871,8 @@ Para aprofundar o domínio sobre assincronismo e Promises no ecossistema JavaScr
   - [Promise.withResolvers() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers)
   - [Promise.all() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all)
   - [Promise.allSettled() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled)
+- Event Loop e ordem de execução:
+  - [The Node.js Event Loop Explained | dev.to](https://dev.to/pratham69/the-nodejs-event-loop-explained-141c) (panorama didático da coordenação entre call stack, fila de tarefas e a precedência de microtasks no Node.js)
 
 ## Próximo tópico
 

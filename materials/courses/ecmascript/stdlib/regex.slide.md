@@ -939,6 +939,9 @@ $ node phone-extractor.js
 Telefones encontrados: [ '83-98888-1111', '83999992222', '83 97777 3333' ]
 ```
 
+3. Varie para outros DDDs, estados ou países.
+4. Se falhar ou ficar lento, leia o erro e use `console.log()`, `console.table()` ou `console.time()`.
+
 ---
 
 ## Exercício Prático: Validador de Formulários

@@ -81,6 +81,8 @@ markmap:
 - Verifique a versão instalada
 - Crie um arquivo JavaScript
 - Execute o arquivo pelo terminal
+- Leia mensagens de erro completas: tipo, arquivo e linha orientam a investigação
+- Use `console.log`, `console.table` e `console.time` quando a execução parecer inesperada ou lenta
 - Modo Interativo (Node.js REPL)
 - Teste TypeScript quando fizer sentido
 ### Console do navegador

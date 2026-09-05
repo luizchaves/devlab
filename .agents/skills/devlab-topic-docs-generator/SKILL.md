@@ -624,23 +624,49 @@ Interprete o resultado assim:
 | 720 a 850 px | Redução de até 15%, ainda legível. | Aceitável; encurte rótulos se for fácil. |
 | acima de ~850 px | Texto visivelmente pequeno. | **Refazer o diagrama.** |
 
+Há uma exceção: diagramas em que a horizontalidade **é o conteúdo**, como *railroad diagrams* e
+linhas do tempo. Neles, rótulos muito curtos sobrevivem bem à redução, e virar a direção
+destruiria a leitura. Fora desses casos, o limite vale.
+
 O sintoma clássico é **muitos elementos em sequência horizontal com rótulos longos**: cinco ou seis
-caixas de duas linhas em `flowchart LR` passam facilmente de 1300 px. Aplique as correções nesta
-ordem, medindo de novo a cada passo:
+caixas de duas linhas em `flowchart LR` passam facilmente de 1300 px. O segundo sintoma, menos
+óbvio, é **subgrafos irmãos**: o Mermaid posiciona lado a lado todo subgrafo que não tem ligação
+com os demais, e dois deles já estouram a coluna. Aplique as correções nesta ordem, medindo de
+novo a cada passo:
 
 1. **Trocar a direção para `TD`.** Resolve a maioria dos casos, porque troca largura por altura, e
    altura não é reduzida. Uma cadeia linear ou uma decisão com dois ramos fica melhor na vertical.
 2. **Encurtar e quebrar rótulos.** Use `<br/>` para dividir em duas linhas curtas e remova
    parênteses explicativos que podem ir para o parágrafo anterior ou para a legenda.
 3. **Empilhar subgrafos.** Subgrafos sem ligação entre si são posicionados lado a lado. Ligações
-   invisíveis (`A ~~~ B`) forçam o empilhamento vertical em `flowchart TB`.
-4. **Inverter a direção em árvores.** Uma árvore com muitas folhas fica larga em `TD` e estreita em
+   invisíveis (`A ~~~ B ~~~ C`) forçam o empilhamento vertical em `flowchart TD`.
+
+   **Ao ligar subgrafos, declare `direction TB` dentro de cada um.** Quando o cluster participa de
+   uma ligação, o dagre passa a dispor o conteúdo interno na horizontal, e o diagrama fica largo
+   mesmo com os subgrafos empilhados. Foi o que aconteceu na comparação entre sessão e token da
+   página de autenticação: 2168 px empilhando sem `direction`, contra 302 px com ele.
+
+4. **Encurtar o rótulo do subgrafo.** O título do cluster faz o cluster inteiro crescer: um
+   `subgraph X["Modelo Cliente-Servidor (MySQL / Postgres)"]` é mais largo do que o conteúdo que
+   ele agrupa.
+5. **Inverter a direção em árvores.** Uma árvore com muitas folhas fica larga em `TD` e estreita em
    `LR`, porque as folhas passam a crescer para baixo, e não para os lados.
-5. **Escrever um SVG próprio** quando nenhum dos anteriores resolver.
+6. **Escrever um SVG próprio** quando nenhum dos anteriores resolver.
+
+O espaço entre o título do subgrafo e o primeiro nó de dentro **já está resolvido no componente**,
+pelo `subGraphTitleMargin` do `Mermaid.astro`: o rótulo fica 8 px abaixo da borda do cluster e com
+pelo menos 11 px de folga até o conteúdo. Não acrescente `transform` nem margem em CSS para isso;
+se algum diagrama parecer apertado, ajuste o valor no componente, e não na página.
 
 **Meça sempre depois de mudar a direção.** A troca nem sempre melhora: em diagramas compostos por
 subgrafos lado a lado, `TD` pode aumentar a largura em vez de reduzir. Se o número piorar, volte
 atrás e vá para o passo seguinte.
+
+**Subgraphs precisam de respiro no título.** Quando um diagrama Mermaid usa `subgraph`,
+verifique se o título do agrupamento não colide visualmente com os nós internos. Prefira títulos
+curtos, evite rótulos multilinha no cabeçalho do `subgraph` e inspecione o SVG renderizado em
+tema claro, tema escuro e mobile. Se houver colisão, aumente o espaçamento do diagrama, reduza
+os rótulos internos ou reorganize o `subgraph` antes de publicar.
 
 **Quando escrever SVG em vez de Mermaid**: o Mermaid decide o posicionamento sozinho, e há arranjos
 que ele não produz. Crie um componente em `src/components/diagrams/<Nome>Diagram.astro` quando:
@@ -749,6 +775,20 @@ Configuração em `ec.config.mjs`. Convenções em uso:
   conectando o resultado observado ao conceito. Exemplos típicos são RegExp longas,
   detecção de ReDoS, closures, escopo, coerção, recursão, promessas e trechos com erro
   proposital.
+- **Inclua orientação de depuração quando o exemplo puder falhar de forma instrutiva**:
+  se o tópico mostra código executável, erros esperados, loops, operações assíncronas ou
+  comportamento que pode ficar lento, acrescente um `<Aside>` perto do exemplo explicando
+  como investigar. A orientação deve reforçar que mensagens de erro costumam indicar arquivo,
+  linha, coluna, identificador ou tipo envolvido, e que o console pode ajudar a entender
+  programas que não concluem, executam devagar ou produzem resultado inesperado. Prefira
+  citar ferramentas concretas do contexto, como `console.log()`, `console.table()`,
+  `console.time()`, `console.timeEnd()`, *stack trace*, aba Console do DevTools ou saída do
+  terminal.
+- **Antecipe a leitura de mensagens de erro**: quando uma trilha apresenta pela primeira
+  vez execução por terminal, saída de `console.log()` ou classes de erro, inclua a orientação
+  antes ou junto do primeiro exemplo prático. O aluno deve aprender desde o primeiro `run`
+  que erro, saída e console fazem parte do processo de investigação, não apenas do tópico
+  formal de tratamento de erros.
 
 **Prefira `<SourceCode>` a colar código de `examples/`**: ele lê o arquivo real e nunca
 sai de sincronia.
@@ -864,8 +904,8 @@ o que quis dizer, e não o que ficou escrito.
     que quebra a narrativa do tópico. Redistribua o conteúdo ou reescreva as transições
     para manter linearidade e coesão entre os blocos.
 14. **Resumo apertado em `<CardGrid>`**: usar cartões longos em uma página comum de tópico,
-    deixando o texto estreito e difícil de ler. Para resumos extensos, prefira `###` com texto corrido
-    curta e listas objetivas.
+    deixando o texto estreito e difícil de ler. Para resumos extensos, prefira `###` com texto
+    corrido curto e listas objetivas.
 15. **Ausência de recurso visual em conceito abstrato**: publicar tópicos sobre eixos, layouts, arquiteturas, escopos ou ciclo de vida sem incluir diagramas `<Mermaid>`, previews ou figuras ilustrativas.
 16. **Tópico de Classes sem Diagrama de Classes**: abordar Classes ou Programação Orientada a Objetos (POO) sem incluir um diagrama de classe Mermaid (`classDiagram`) demonstrando a estrutura de atributos, métodos e herança (`extends`).
 17. **Diagrama ou figura sem legenda (caption)**: omitir o atributo `title="..."` em `<Mermaid>` ou a legenda/caption explicativa em imagens, figuras e blocos de código.
