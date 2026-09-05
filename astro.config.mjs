@@ -529,6 +529,15 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Evolução',
+              items: [
+                {
+                  label: 'Evolução e Versões',
+                  link: '/courses/typescript/evolution/releases/',
+                },
+              ],
+            },
+            {
               label: 'Referência Rápida',
               items: [
                 {
