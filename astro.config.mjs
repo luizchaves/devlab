@@ -259,6 +259,9 @@ export default defineConfig({
       '/courses/expressjs/advanced/upload-file/'
     ),
     '/courses/lp2-ctii-jp/expressjs/test': withBase('/courses/expressjs/advanced/testing/'),
+    '/courses/typescript/basics/typescript-vs-javascript': withBase(
+      '/courses/typescript/reference/typescript-vs-javascript/'
+    ),
   },
   integrations: [
     starlight({
@@ -468,10 +471,6 @@ export default defineConfig({
               label: 'Fundamentos',
               items: [
                 { label: 'Introdução', link: '/courses/typescript/basics/introduction/' },
-                {
-                  label: 'Comparativo com JavaScript',
-                  link: '/courses/typescript/basics/typescript-vs-javascript/',
-                },
                 { label: 'Tipos Básicos', link: '/courses/typescript/basics/types/' },
                 { label: 'Funções', link: '/courses/typescript/basics/functions/' },
                 { label: 'Narrowing', link: '/courses/typescript/basics/narrowing/' },
@@ -526,6 +525,15 @@ export default defineConfig({
                 {
                   label: 'TypeScript no Node.js',
                   link: '/courses/typescript/practice/nodejs/',
+                },
+              ],
+            },
+            {
+              label: 'Referência Rápida',
+              items: [
+                {
+                  label: 'Comparativo com JavaScript',
+                  link: '/courses/typescript/reference/typescript-vs-javascript/',
                 },
               ],
             },
