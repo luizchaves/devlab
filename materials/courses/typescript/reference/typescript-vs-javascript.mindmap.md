@@ -37,7 +37,7 @@ markmap:
 - O erro aparece no editor, antes do commit
 - O tipo é documentação que o compilador cobra
 
-## O Que o Compilador Detecta
+## O Que o Compilador Detecta?
 
 - Propriedade com nome errado em objeto de tipo conhecido
 - Argumento de tipo incompatível
@@ -45,7 +45,7 @@ markmap:
 - Campo opcional usado sem checagem
 - **Não** detecta: JSON de API com formato diferente do declarado
 
-## O Que Continua Igual
+## O Que Continua Igual?
 
 - Coerção, protótipos, closures e `this`
 - Event loop, Promises e módulos
@@ -58,7 +58,7 @@ markmap:
 - Dado de rede, formulário e arquivo são externos
 - Combine tipos com validação em runtime nas fronteiras
 
-## Quando Usar Cada Um
+## Quando Usar Cada Um?
 
 ### JavaScript basta
 - Script curto de automação

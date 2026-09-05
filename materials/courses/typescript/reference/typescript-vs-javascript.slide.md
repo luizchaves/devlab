@@ -77,7 +77,7 @@ JavaScript comum   -->   como TypeScript
 ---
 
 
-## Onde Cada Uma Vive
+## Onde Cada Uma Vive?
 
 | Aspecto | JavaScript | TypeScript |
 | :--- | :--- | :--- |
@@ -117,7 +117,7 @@ function total(price: number, quantity: number): number {
 ---
 
 
-## O Que TypeScript Detecta
+## O Que TypeScript Detecta?
 
 | Situação | JavaScript | TypeScript |
 | :--- | :--- | :--- |
@@ -172,7 +172,7 @@ user.name;  // undefined em runtime, sem nenhum erro de compilação
 ---
 
 
-## O Que Continua Igual
+## O Que Continua Igual?
 
 ```ts
 const result = 0.1 + 0.2;
@@ -190,7 +190,7 @@ console.log(value === value); // false
 ---
 
 
-## Quando Usar Cada Um
+## Quando Usar Cada Um?
 
 | Cenário | Escolha comum | Motivo |
 | :--- | :--- | :--- |
