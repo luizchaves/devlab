@@ -312,6 +312,7 @@ Em `.agents/skills/`, use quando a tarefa for a delas:
 | ---------------------------- | ------------------------------------------------- |
 | `devlab-topic-docs-generator`| Criar, expandir ou ampliar uma página de aula     |
 | `devlab-content-reviewer`    | Revisar/auditar página, diff ou curso já escrito  |
+| `devlab-quiz-coverage`       | Varrer as questões do BrainCheck e achar assunto cobrado sem conteúdo |
 | `devlab-release-generator`   | Gerar versão (SemVer), CHANGELOG.md e tag Git     |
 | `marp-slides-generator`      | Deck `.slide.md` de um tópico                     |
 | `markmap-mindmap-generator`  | Mapa mental `.mindmap.md`                         |
