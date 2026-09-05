@@ -49,14 +49,16 @@
 - [x] **[TASK-025] Padronização de Terminologia (Tópico / Página em vez de Aula):**
   - [x] `[TASK-025.1]` Atualizar convenções de escrita em `AGENTS.md` e nas skills de geração de conteúdo (`.agents/skills/`)
   - [x] `[TASK-025.2]` Substituir cabeçalhos `## Próxima aula` por `## Próximo tópico` e harmonizar linguagem nos arquivos `.mdx` em `src/content/docs/`
-- [ ] **[TASK-026] Reestruturação do Guia de TypeScript (paridade com o Guia de ECMAScript):** (ver [spec](../specs/active/spec-006-typescript-guide-restructure.md))
-  - [ ] `[TASK-026.1]` Criar a trilha `reference/` e mover `basics/typescript-vs-javascript` para ela, com redirect da URL antiga
-  - [ ] `[TASK-026.2]` Criar `evolution/releases.mdx` com a linha do tempo das versões do TypeScript, espelhando `evolution/tc39.mdx`
-  - [ ] `[TASK-026.3]` Criar `reference/cheat-sheet.mdx` e `reference/weird-cases.mdx`
-  - [ ] `[TASK-026.4]` Criar `reference/ai-assisted-development.mdx`
-  - [ ] `[TASK-026.5]` Criar `practice/react.mdx` (componentes, props, hooks, eventos e contexto tipados) e cruzar os links com o Guia de React
-  - [ ] `[TASK-026.6]` Acrescentar a seção "na Era da Inteligência Artificial" às páginas existentes do guia e sincronizar os materiais
-  - [ ] `[TASK-026.7]` Alinhar o `index.mdx` ao formato do ECMAScript e criar `index.slide.md` / `index.mindmap.md` do guia
+- [x] **[TASK-026] Reestruturação do Guia de TypeScript (paridade com o Guia de ECMAScript):** (ver [spec](../specs/executed/spec-006-typescript-guide-restructure.md))
+  - [x] `[TASK-026.1]` Criar a trilha `reference/` e mover `basics/typescript-vs-javascript` para ela, com redirect da URL antiga
+  - [x] `[TASK-026.2]` Criar `evolution/releases.mdx` com a linha do tempo das versões do TypeScript, espelhando `evolution/tc39.mdx` — as notas oficiais revelaram o **6.0** de transição e o **7.0** nativo em Go, que a linha do tempo escrita de memória não teria
+  - [x] `[TASK-026.3]` Criar `reference/cheat-sheet.mdx` e `reference/weird-cases.mdx` — como no ECMAScript, páginas de referência pura levam slides e não mapa mental
+  - [x] `[TASK-026.4]` Criar `reference/ai-assisted-development.mdx`
+  - [x] `[TASK-026.5]` Criar `practice/react.mdx` (componentes, props, hooks, eventos e contexto tipados) e cruzar os links com o Guia de React
+  - [x] `[TASK-026.6]` Acrescentar a seção "na Era da Inteligência Artificial" às páginas existentes do guia e sincronizar os materiais — **10 das 16**, mesmo critério do ECMAScript (10 de 23): as páginas em que se escreve código real
+  - [x] `[TASK-026.7]` Alinhar o `index.mdx` ao formato do ECMAScript e criar `index.slide.md` / `index.mindmap.md` do guia
+- [ ] **[TASK-027]** Levar o código do Guia de TypeScript para `examples/courses/typescript/` e converter os blocos escritos à mão em `<SourceCode>` — hoje são **0 usos contra 20** no ECMAScript, e nenhum projeto executável (desdobramento previsto nos Non-goals da [spec-006](../specs/executed/spec-006-typescript-guide-restructure.md))
+- [ ] **[TASK-028]** Ensinar `check-code-blocks.mjs` a validar TypeScript: hoje ele roda `node --check` em blocos `ts` e reporta 187 falsos positivos no Guia de TypeScript
 
 ### Concluídos (Conteúdo)
 

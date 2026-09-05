@@ -1,6 +1,6 @@
 # spec-006 — TypeScript Guide Restructure
 
-**Status:** Draft — not started
+**Status:** Done
 **Date:** 2026-09-05
 **Related:** `[TASK-026]` in [`docs/TODO.md`](../../docs/TODO.md)
 
@@ -191,4 +191,57 @@ Manual inspection required:
 
 ## Result
 
-*(to be filled at the end, with the post-change numbers.)*
+Delivered in eight commits, one per phase plus the review pass. `pnpm validate`
+passes (lint, `astro check`, build, `check:links` over 28 476 internal links, and
+`check:doc-lines`).
+
+| Axis | Before | After |
+| --- | --- | --- |
+| Content pages (`.mdx`, excluding `index`) | 16 | 21 |
+| Total content lines | 10 280 | 13 299 |
+| Categories | 5 | 7 |
+| `evolution/` track | absent | `releases.mdx` |
+| `reference/` track | absent | 4 pages |
+| `practice/` track | 2 pages, back end only | 3 pages, back and front end |
+| Pages with an AI-era section | 0 | 10 |
+| Material files under `materials/courses/typescript/` | 30 | 42 |
+| Guide-level materials | absent | `index.slide.md`, `index.mindmap.md` |
+| Index reading progression | 8 steps | 11 steps |
+
+Two decisions worth recording, both deviating from the letter of the plan:
+
+1. **The cheat sheet and weird cases pages carry a slide deck but no mind map**,
+   following the ECMAScript precedent for pure-reference pages, rather than the
+   "slides and mind maps for both" written in Phase 3. A mind map of a signature
+   catalogue adds nothing, and its ECMAScript counterpart does not have one.
+2. **The AI-era section went on 10 of the 16 pre-existing pages**, not all of
+   them, applying the same criterion the ECMAScript guide uses (10 of 23): the
+   pages where real code is written. Left out are the foundational syntax pages
+   (`introduction`, `functions`), the tooling pages with little generation risk
+   (`modules`, `runtime`), `classes`, and the reference comparison.
+
+One fact changed the plan mid-execution. Phase 2 was written assuming the 5.x
+line was current; the official release notes show **TypeScript 6.0** exists as a
+transition release that flips the `strict`, `module` and `target` defaults and
+deprecates the ES5 target, `downlevelIteration`, `moduleResolution: node` and the
+AMD/UMD/SystemJS module values, ahead of **7.0**, the compiler ported to Go. The
+page documents both, and an `<Aside>` warns that the guide's examples still
+assume 5.x defaults.
+
+The `devlab-content-reviewer` pass found three real divergences on the new pages,
+all fixed before delivery: missing `<details>` answer blocks in `Exercício`,
+`Desafio` and `Perguntas de revisão`; review questions as a flat list instead of
+`###` groups with bold numbered questions; and em dashes used as appositives.
+
+The reviewer's `check-code-blocks.mjs` reports 187 syntax errors across the guide,
+including on pages this spec never touched. They are false positives: the script
+validates fenced blocks with `node --check`, and TypeScript type syntax is not
+valid JavaScript. The script was built for the ECMAScript guide and needs a
+TypeScript-aware mode before its output means anything here.
+
+### Follow-up
+
+The largest remaining divergence from the ECMAScript guide is untouched by design
+(see Non-goals): the TypeScript guide has **0 `<SourceCode>` uses against 20**, and
+no project under `examples/courses/typescript/`. Every code block in the guide is
+hand-written. Closing that gap is the natural next spec.
