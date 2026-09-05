@@ -218,6 +218,33 @@ Pegue uma função existente de um projeto seu, ou escreva uma pequena que receb
 4. Registre em um arquivo `revisao.md` o que o compilador pegou, o que só a execução pegou e o que só a leitura pegou.
 5. Compare esse registro com a tabela "O que o `tsc` pega" e diga em qual coluna cada defeito caiu.
 
+<details>
+  <summary>Possível resposta</summary>
+
+  O registro tende a se distribuir de forma parecida em qualquer projeto, e é essa distribuição que interessa mais do que os defeitos em si:
+
+  | Camada | O que ela costuma pegar |
+  | :--- | :--- |
+  | `tsc --noEmit` | Campo com nome errado, argumento trocado, retorno fora do contrato |
+  | Execução com dado fora do formato | Tipo asserido que não corresponde à resposta real |
+  | Leitura do diff | `as`, `@ts-ignore` e efeito colateral que ninguém pediu |
+
+  Um registro típico do passo 4 fica assim:
+
+  ```md title="revisao.md"
+  ## Pegou o compilador
+  - `precoTotal` declarado como `number`, e a API devolve string.
+
+  ## Pegou a execução
+  - `parse()` aceitou `{ "itens": [] }` porque o esquema não exigia lista não vazia.
+
+  ## Pegou a leitura
+  - `as ApiResponse` na linha 24, acrescentado para silenciar o erro do item anterior.
+  ```
+
+  O padrão que quase sempre aparece é este: um defeito da terceira camada foi introduzido para calar um defeito da primeira. É exatamente o que a busca por `as` no diff existe para revelar.
+</details>
+
 ## Desafio
 
 Monte um pequeno **portão de qualidade** para código gerado, no seu projeto:
@@ -229,16 +256,115 @@ Monte um pequeno **portão de qualidade** para código gerado, no seu projeto:
 
 Depois, gere de propósito um código com cada uma das quatro falhas e confirme que o portão barra todas.
 
+<details>
+  <summary>Possível resposta</summary>
+
+  O primeiro item é o mais simples e o que mais rende, porque transforma três comandos em um:
+
+  ```json title="package.json"
+  {
+    "scripts": {
+      "check": "tsc --noEmit && eslint . && node --test"
+    }
+  }
+  ```
+
+  A terceira verificação não precisa de ferramenta nova: basta olhar o diff antes do commit e falhar quando encontrar a diretiva silenciosa.
+
+  ```bash title="scripts/no-ts-ignore.sh"
+  if git diff --cached | grep -qE '^\+.*@ts-ignore'; then
+    echo "Use @ts-expect-error: ele avisa quando deixa de ser necessário."
+    exit 1
+  fi
+  ```
+
+  O teste do esquema é o que protege contra a mudança que nenhuma das outras camadas enxerga, porque o defeito está do outro lado da rede:
+
+  ```ts title="Teste do contrato contra uma resposta real"
+  import { test } from "node:test";
+  import assert from "node:assert/strict";
+
+  test("o esquema aceita a resposta gravada da API", async () => {
+    const gravado = await import("./fixtures/user.json", { with: { type: "json" } });
+
+    assert.doesNotThrow(() => UserSchema.parse(gravado.default));
+  });
+  ```
+
+  Ao gerar as quatro falhas de propósito, a ordem em que o portão as barra também informa: o `tsc` responde em segundos, o lint em seguida, e o teste do esquema é o único que continua útil quando o servidor muda sem aviso.
+</details>
+
 ## Perguntas de revisão
 
-1. Por que "compila" e "está correto" não são a mesma coisa em código gerado?
-2. Quais informações do `tsconfig.json` mudam o código que um assistente deve produzir?
-3. Por que uma regra transformada em configuração vale mais do que a mesma regra escrita no *prompt*?
-4. O que diferencia um pedido vago de um pedido com contrato declarado?
-5. Por quais caminhos um `any` entra no código sem que ninguém digite a palavra?
-6. Qual passo do roteiro de verificação revela um tipo que mente sobre o dado real, e por que os outros não revelam?
-7. Que sinal no diff indica que a sugestão contornou o erro em vez de resolvê-lo?
-8. Por que a seção "o que fica de fora" é a mais importante de uma spec ao trabalhar com assistentes?
+### O ciclo de trabalho
+
+**1. Por que "compila" e "está correto" não são a mesma coisa em código gerado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o compilador verifica a coerência do programa com os tipos declarados, e não a coerência dos tipos com a realidade. Um `as` bem colocado, um `any` implícito ou um tipo que descreve mal a resposta de uma API produzem um programa que compila e falha em execução.
+</details>
+
+**2. O que diferencia um pedido vago de um pedido com contrato declarado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O pedido com contrato descreve o comportamento observável: assinatura, comportamento de sucesso, comportamento de cada falha, restrições explícitas e o que não deve mudar. Ele não descreve a implementação, e é justamente por isso que os testes e o compilador conseguem cobrá-lo depois.
+</details>
+
+**3. Por que a seção "o que fica de fora" é a mais importante de uma spec ao trabalhar com assistentes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque modelos ampliam pedidos por padrão. Pedir a correção de um tipo costuma trazer junto a troca de `interface` por `type` no arquivo inteiro, um genérico desnecessário e a reescrita de utilitários que já funcionavam. Uma lista explícita do que não deve ser tocado é a forma mais barata de conter isso.
+</details>
+
+### Contexto e configuração
+
+**4. Quais informações do `tsconfig.json` mudam o código que um assistente deve produzir?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O rigor ativo, porque com `strict` a sugestão precisa tratar `null` e `undefined`, e `noUncheckedIndexedAccess` muda todo acesso a array; a resolução de módulos, que determina se o `import` sugerido resolve; e as opções de emissão, já que sob `erasableSyntaxOnly` um `enum` sugerido nem compila.
+</details>
+
+**5. Por que uma regra transformada em configuração vale mais do que a mesma regra escrita no pedido?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a configuração cobra a regra a cada verificação, sem depender da memória do modelo. Instruções antigas se perdem conforme o diálogo cresce, e a proibição dada na terceira mensagem costuma ser esquecida na trigésima. `noImplicitAny` e uma regra de lint não esquecem.
+</details>
+
+### Verificação e revisão
+
+**6. Por quais caminhos um `any` entra no código sem que ninguém digite a palavra?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Pelo retorno de `JSON.parse` e de `response.json()`, por uma biblioteca sem tipos, pela variável de um `catch` sem `useUnknownInCatchVariables` e por um genérico que o compilador não consegue resolver. Sem `noImplicitAny`, nenhum deles produz aviso.
+</details>
+
+**7. Qual passo do roteiro de verificação revela um tipo que mente sobre o dado real, e por que os outros não revelam?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O último, executar com um dado fora do formato esperado. Os passos anteriores confirmam que o programa é coerente com os tipos declarados, o que nada diz sobre os tipos estarem certos. Só a execução com dado real, ou propositalmente errado, confronta a declaração com o mundo.
+</details>
+
+**8. Que sinal no diff indica que a sugestão contornou o erro em vez de resolvê-lo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um `as`, um `!` ou um `@ts-ignore` que não estavam ali antes. Cada um marca um ponto em que o compilador foi instruído a parar de verificar, quase sempre logo depois de ter apontado um problema legítimo.
+</details>
 
 ## Referências
 

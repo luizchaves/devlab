@@ -157,7 +157,7 @@ const p: Ponto = { x: 1 };
 const solto = p as { x: number };
 solto.x = 2;
 
-console.log(p.x); // 2 — o mesmo objeto foi alterado
+console.log(p.x); // 2 (o mesmo objeto foi alterado)
 ```
 
 Para imutabilidade real em runtime, `Object.freeze()` continua sendo necessário. O `readonly` documenta a intenção e protege o código que respeita o tipo.
@@ -333,15 +333,25 @@ Vários desses casos ficam mais claros quando o erro aparece no seu editor. O ro
 
 ## Exercício
 
-Reúna os casos desta página em um arquivo de investigação chamado `armadilhas.ts`:
+Avalie mentalmente cada afirmação e classifique-a em uma das três origens (tipagem estrutural, apagamento ou compatibilidade com o JavaScript) antes de conferir a resposta:
 
-1. Escreva dois tipos estruturalmente idênticos com significados diferentes e mostre a colisão; depois corrija com *branded types*.
-2. Mostre a diferença entre método e propriedade de função na verificação de parâmetros, ativando `strictFunctionTypes`.
-3. Prove que `readonly` não impede a mutação em runtime, imprimindo o valor depois da alteração.
-4. Escreva um tipo condicional distributivo e a versão com tupla, e imprima os dois resultados como comentário.
-5. Demonstre o erro de digitação que `Omit` deixa passar e `Pick` não.
+1. Duas `interface` com os mesmos campos e nomes diferentes são intercambiáveis.
+2. `const a: Config = { host: "x", porta: 3000 }` é erro, mas atribuir a mesma variável não é.
+3. `readonly` impede a alteração do objeto durante a execução.
+4. `Omit<User, "emial">` acusa o erro de digitação.
+5. `Object.keys()` de um `enum` numérico de dois membros devolve dois itens.
+6. `EhString<string | number>` avalia a união como um todo.
 
-Em cada item, escreva um comentário curto explicando **por que** o compilador se comporta daquele jeito, usando uma das três origens da tabela inicial.
+<details>
+  <summary>Possível resposta</summary>
+
+  1. **Verdadeiro.** Tipagem estrutural: o compilador compara a forma, não o nome. Corrija com *branded types*.
+  2. **Verdadeiro.** Compatibilidade: o *excess property check* só alcança o literal atribuído direto, porque ali a propriedade extra quase sempre é engano.
+  3. **Falso.** Apagamento: `readonly` some na compilação. Só `Object.freeze()` protege em runtime.
+  4. **Falso.** `Omit` não valida a chave, por decisão de projeto. `Pick` valida.
+  5. **Falso.** Devolve quatro: o `enum` numérico gera mapeamento reverso, com valores apontando de volta para as chaves.
+  6. **Falso.** Um parâmetro de tipo nu distribui membro a membro, resultando em `"sim" | "nao"`. Envolver em tupla desliga a distribuição.
+</details>
 
 ## Desafio
 
@@ -352,18 +362,121 @@ Construa uma função `parseUser(entrada: unknown): User` que não use `as` em n
 - Ela lança um erro descritivo quando o formato não bate, informando qual campo falhou.
 - Ela devolve um `User` que o compilador reconhece sem nenhuma asserção.
 
-Depois, escreva a mesma função usando um validador de esquema e compare as duas versões: quantas linhas cada uma tem, e qual delas continua correta quando um campo novo entra em `User`?
+Depois, escreva a mesma função usando um validador de esquema e compare as duas versões.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A versão manual precisa checar cada campo antes de estreitar:
+
+  ```ts title="parseUser sem nenhuma asserção"
+  interface User {
+    id: number;
+    name: string;
+  }
+
+  export function parseUser(entrada: unknown): User {
+    if (typeof entrada !== "object" || entrada === null) {
+      throw new TypeError("esperava um objeto");
+    }
+
+    if (!("id" in entrada) || typeof entrada.id !== "number") {
+      throw new TypeError("campo 'id' ausente ou não numérico");
+    }
+
+    if (!("name" in entrada) || typeof entrada.name !== "string") {
+      throw new TypeError("campo 'name' ausente ou não textual");
+    }
+
+    return { id: entrada.id, name: entrada.name };
+  }
+  ```
+
+  A versão com esquema faz o mesmo em três linhas:
+
+  ```ts title="A mesma garantia, com validador de esquema"
+  import { z } from "zod";
+
+  const UserSchema = z.object({ id: z.number(), name: z.string() });
+  type User = z.infer<typeof UserSchema>;
+
+  export const parseUser = (entrada: unknown): User => UserSchema.parse(entrada);
+  ```
+
+  A diferença aparece quando `User` ganha um campo: a versão manual continua compilando e passa a devolver um objeto incompleto, enquanto a versão com esquema exige a atualização em um único lugar, porque o tipo é derivado dele.
+</details>
 
 ## Perguntas de revisão
 
-1. Por que dois tipos com nomes diferentes e a mesma forma são intercambiáveis?
-2. Por que a propriedade extra é rejeitada no literal e aceita na variável?
-3. Qual é a diferença de verificação entre declarar um membro como método e como propriedade de função?
-4. O que acontece com `readonly` no JavaScript gerado?
-5. Como desligar a distributividade de um tipo condicional, e por que isso é necessário?
-6. Por que `Pick` acusa um erro de digitação na chave e `Omit` não?
-7. Quantas chaves `Object.keys()` devolve para um `enum` numérico de dois membros, e por quê?
-8. Por que uma asserção `as User` sobre uma resposta de API não oferece nenhuma garantia?
+### Tipagem estrutural
+
+**1. Por que dois tipos com nomes diferentes e a mesma forma são intercambiáveis?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o TypeScript compara tipos pela estrutura, e não pelo nome. É o que permite tipar bibliotecas JavaScript existentes sem alterá-las e faz um objeto literal satisfazer uma `interface` sem declarar `implements`. O custo são as colisões acidentais de forma, contornadas com *branded types*.
+</details>
+
+**2. Por que a propriedade extra é rejeitada no literal e aceita na variável?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O *excess property check* vale apenas para objeto literal atribuído diretamente, situação em que a propriedade a mais quase sempre é erro de digitação. Fora do literal, o excesso é considerado legítimo, porque o objeto pode ter sido criado para vários usos. Para barrar também na origem, use `satisfies` na declaração.
+</details>
+
+**3. Qual é a diferença de verificação entre declarar um membro como método e como propriedade de função?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A sintaxe abreviada de método (`ao(e: Event): void`) fica fora do `strictFunctionTypes` e é verificada de forma bivariante, por compatibilidade com padrões antigos. A propriedade de função (`ao: (e: Event) => void`) é verificada de forma contravariante, que é a forma segura.
+</details>
+
+### Apagamento
+
+**4. O que acontece com `readonly` no JavaScript gerado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele desaparece por completo. O modificador impede a atribuição durante a verificação, e qualquer código que atravesse a fronteira do tipo, como uma asserção, muta o objeto normalmente. Para imutabilidade em runtime, `Object.freeze()` continua necessário.
+</details>
+
+**5. Quantas chaves `Object.keys()` devolve para um `enum` numérico de dois membros, e por quê?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quatro. O `enum` numérico gera um objeto com mapeamento reverso: as chaves apontam para os valores e os valores apontam de volta para as chaves. O `enum` de string não tem esse comportamento, e a união literal com `as const` evita o problema sem emitir código.
+</details>
+
+### Regras do sistema de tipos
+
+**6. Como desligar a distributividade de um tipo condicional, e por que isso é necessário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Envolvendo os dois lados em tupla: `[T] extends [U] ? X : Y`. Sem isso, um parâmetro de tipo nu percorre a união membro a membro e reúne os resultados, o que produz `"sim" | "nao"` onde se esperava uma resposta única. A distributividade é intencional em utilitários como `Exclude`, que removem membros um a um.
+</details>
+
+**7. Por que `Pick` acusa um erro de digitação na chave e `Omit` não?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `Pick` restringe o parâmetro de chaves a `keyof T`, então um nome inexistente é erro. `Omit` aceita chaves arbitrárias por decisão de projeto, porque precisa funcionar com chaves que podem não existir. O resultado é que `Omit<User, "emial">` compila e devolve o tipo inteiro, sem sinal do engano.
+</details>
+
+**8. Por que uma asserção `as User` sobre uma resposta de API não oferece nenhuma garantia?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `response.json()` devolve `any`, e a asserção apenas troca o rótulo do valor sem inspecionar nada. Se o servidor devolver um formato diferente, o compilador continua satisfeito e o erro só aparece em runtime. A garantia vem de validar o dado na fronteira, antes de tipá-lo.
+</details>
 
 ## Referências
 

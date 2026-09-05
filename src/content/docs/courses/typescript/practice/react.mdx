@@ -364,6 +364,86 @@ Construa um componente `<TabelaUsuarios>` que exercite o que foi visto:
 
 Ao terminar, rode `npx tsc --noEmit` e confirme que não há nenhum erro nem nenhuma asserção no arquivo.
 
+<details>
+  <summary>Possível resposta</summary>
+
+  O tipo do domínio nasce do esquema, e o estado da tela é uma união dos quatro status reais:
+
+  ```tsx title="Domínio, estado e ações"
+  import { z } from "zod";
+
+  const UserSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    email: z.string(),
+    ativo: z.boolean(),
+  });
+
+  type User = z.infer<typeof UserSchema>;
+
+  type Estado =
+    | { status: "ocioso" }
+    | { status: "carregando" }
+    | { status: "erro"; mensagem: string }
+    | { status: "pronto"; dados: User[] };
+
+  type Acao =
+    | { type: "buscar" }
+    | { type: "sucesso"; dados: User[] }
+    | { type: "falha"; mensagem: string };
+  ```
+
+  O redutor trata cada ação em seu ramo, e o `default` impede que uma ação nova passe despercebida:
+
+  ```tsx title="Redutor com prova de exaustividade"
+  function redutor(estado: Estado, acao: Acao): Estado {
+    switch (acao.type) {
+      case "buscar":
+        return { status: "carregando" };
+      case "sucesso":
+        return { status: "pronto", dados: acao.dados };
+      case "falha":
+        return { status: "erro", mensagem: acao.mensagem };
+      default: {
+        const exaustivo: never = acao;
+        return exaustivo;
+      }
+    }
+  }
+  ```
+
+  Na busca, a validação acontece antes de o dado entrar no estado, o que dispensa qualquer asserção:
+
+  ```tsx title="Busca validada e renderização por ramo"
+  function TabelaUsuarios() {
+    const [estado, despachar] = useReducer(redutor, { status: "ocioso" });
+
+    useEffect(() => {
+      despachar({ type: "buscar" });
+
+      fetch("/api/users")
+        .then((r) => r.json())
+        .then((dado) => despachar({ type: "sucesso", dados: UserSchema.array().parse(dado) }))
+        .catch((erro) => despachar({ type: "falha", mensagem: String(erro) }));
+    }, []);
+
+    if (estado.status === "carregando") return <p>Carregando…</p>;
+    if (estado.status === "erro") return <p role="alert">{estado.mensagem}</p>;
+    if (estado.status === "ocioso") return null;
+
+    return (
+      <ul>
+        {estado.dados.map((u) => (
+          <li key={u.id}>{u.name}</li>
+        ))}
+      </ul>
+    );
+  }
+  ```
+
+  Trocar `estado.dados` para um dos ramos anteriores produz erro de compilação, que é exatamente a prova pedida no item 5.
+</details>
+
 ## Desafio
 
 Transforme a tabela do exercício em um componente genérico `<Tabela<T>>` reutilizável:
@@ -375,18 +455,156 @@ Transforme a tabela do exercício em um componente genérico `<Tabela<T>>` reuti
 
 O critério de aprovação é o autocompletar: ao usar `<Tabela itens={usuarios} …>`, o editor deve sugerir apenas as chaves reais de `User` em `colunas`, e o parâmetro de `aoSelecionar` deve aparecer como `User` sem nenhuma anotação no local de uso.
 
+<details>
+  <summary>Possível resposta</summary>
+
+  O ponto central é declarar a coluna como um tipo genérico sobre a chave, para que `render` receba o valor daquela chave específica:
+
+  ```tsx title="Coluna genérica sobre a chave"
+  type Coluna<T, K extends keyof T = keyof T> = {
+    chave: K;
+    rotulo: string;
+    render?: (valor: T[K], item: T) => ReactNode;
+  };
+
+  type TabelaProps<T> = {
+    itens: T[];
+    colunas: Coluna<T>[];
+    aoSelecionar?: (item: T) => void;
+  };
+  ```
+
+  O componente percorre itens e colunas sem saber nada sobre `T`:
+
+  ```tsx title="O componente genérico"
+  function Tabela<T>({ itens, colunas, aoSelecionar }: TabelaProps<T>) {
+    return (
+      <table>
+        <thead>
+          <tr>
+            {colunas.map((c) => (
+              <th key={String(c.chave)}>{c.rotulo}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {itens.map((item, i) => (
+            <tr key={i} onClick={() => aoSelecionar?.(item)}>
+              {colunas.map((c) => (
+                <td key={String(c.chave)}>
+                  {c.render ? c.render(item[c.chave], item) : String(item[c.chave])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+  ```
+
+  No local de uso, `T` é inferido de `itens`, e uma chave inexistente vira erro de compilação:
+
+  ```tsx title="O critério de aprovação"
+  <Tabela
+    itens={usuarios}
+    colunas={[
+      { chave: "name", rotulo: "Nome" },
+      { chave: "ativo", rotulo: "Ativo", render: (v) => (v ? "sim" : "não") },
+      // { chave: "nome", rotulo: "Nome" },  // erro: 'nome' não existe em User
+    ]}
+    aoSelecionar={(item) => console.log(item.email)}
+  />
+  ```
+</details>
+
 ## Perguntas de revisão
 
-1. Por que anotar o parâmetro do componente é preferível a usar `React.FC<Props>`?
-2. Qual é a diferença entre `ReactNode` e `ReactElement`, e quando cada um é apropriado?
-3. Em quais situações o genérico de `useState` é necessário, e por quê?
-4. O que o `default` com `never` garante em um redutor?
-5. Que problema uma união discriminada de estado resolve que um objeto de booleanos não resolve?
-6. Por que `useRef<HTMLInputElement>(null)` produz um `current` somente leitura e `useRef(0)` não?
-7. Qual é a diferença entre `target` e `currentTarget` em um evento?
-8. Por que o hook de contexto lança um erro em vez de devolver `undefined`?
-9. O que quebra em um arquivo `.tsx` ao declarar `<T>` em uma arrow function, e como contornar?
-10. Por que `dado as User` depois de `response.json()` não oferece nenhuma garantia?
+### Componentes e props
+
+**1. Por que anotar o parâmetro do componente é preferível a usar `React.FC<Props>`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `React.FC` acrescentava um `children` implícito que nem todo componente aceita, o que enfraquecia o contrato, e atrapalhava a declaração de componentes genéricos. Anotar o parâmetro descreve exatamente o que o componente recebe, e o retorno continua sendo inferido do JSX.
+</details>
+
+**2. Qual é a diferença entre `ReactNode` e `ReactElement`, e quando cada um é apropriado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `ReactNode` cobre tudo que o React sabe renderizar: elementos, texto, número, array, `null` e `undefined`. É o tipo correto para `children`. `ReactElement` aceita apenas um elemento JSX e recusa texto puro, por isso só deve ser usado quando o componente realmente inspeciona ou clona o filho.
+</details>
+
+### Hooks
+
+**3. Em quais situações o genérico de `useState` é necessário, e por quê?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o valor inicial não representa o tipo completo. Um array vazio seria inferido como `never[]`, e `null` não revela o que virá depois, então `useState<string[]>([])` e `useState<User | null>(null)` precisam do genérico. Quando o inicial já é representativo, como `useState("")`, anotar é ruído.
+</details>
+
+**4. O que o `default` com `never` garante em um redutor?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Garante a exaustividade. Se todos os membros da união de ações foram tratados, o tipo que chega ao `default` é `never`, e a atribuição compila. Ao acrescentar uma ação sem tratá-la, o tipo deixa de ser `never` e a compilação falha, apontando exatamente o `switch` incompleto.
+</details>
+
+**5. Que problema uma união discriminada de estado resolve que um objeto de booleanos não resolve?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Impede que combinações impossíveis sejam representáveis. Com `{ carregando: boolean; erro: string | null; dados: User | null }`, o estado "carregando e com erro e com dados" compila, e a renderização precisa de checagens defensivas em cascata. Com a união por `status`, cada campo existe apenas no estado em que faz sentido.
+</details>
+
+**6. Por que `useRef<HTMLInputElement>(null)` produz um `current` somente leitura e `useRef(0)` não?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O valor inicial `null` sinaliza ao React que a referência será preenchida por ele ao associar o elemento, e nesse caso o tipo devolvido tem `current` somente leitura. Qualquer outro valor inicial indica um contêiner mutável de uso próprio, e `current` é gravável.
+</details>
+
+### Eventos, contexto e genéricos
+
+**7. Qual é a diferença entre `target` e `currentTarget` em um evento?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `currentTarget` é o elemento que registrou o manipulador, e o React o tipa com precisão a partir do parâmetro genérico. `target` é onde o evento nasceu, que pode ser qualquer descendente, por isso o tipo é mais largo. Em um `ChangeEvent<HTMLInputElement>` os dois coincidem; em um clique que sobe de um `<span>` dentro do botão, não.
+</details>
+
+**8. Por que o hook de contexto lança um erro em vez de devolver `undefined`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o `throw` faz duas coisas de uma vez. Para o compilador, ele remove `undefined` do tipo de retorno, o que dispensa a checagem em cada componente consumidor. Para quem desenvolve, ele troca um `undefined` silencioso por uma mensagem dizendo que falta o provedor.
+</details>
+
+**9. O que quebra em um arquivo `.tsx` ao declarar `<T>` em uma arrow function, e como contornar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O compilador não distingue a abertura de um parâmetro de tipo da abertura de um elemento JSX. A saída é escrever `<T,>` com a vírgula, ou declarar o componente com `function`, forma que não tem a ambiguidade.
+</details>
+
+**10. Por que `dado as User` depois de `response.json()` não oferece nenhuma garantia?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `json()` devolve `any`, e a asserção apenas troca o rótulo sem inspecionar o valor. Se a API mudar um nome de campo, o compilador continua satisfeito e o erro aparece na renderização. Validar a resposta antes de colocá-la no estado faz o tipo e o dado concordarem, e derivar o tipo do esquema com `z.infer` elimina a duplicação.
+</details>
 
 ## Referências
 
