@@ -49,6 +49,13 @@
 - [x] **[TASK-025] Padronização de Terminologia (Tópico / Página em vez de Aula):**
   - [x] `[TASK-025.1]` Atualizar convenções de escrita em `AGENTS.md` e nas skills de geração de conteúdo (`.agents/skills/`)
   - [x] `[TASK-025.2]` Substituir cabeçalhos `## Próxima aula` por `## Próximo tópico` e harmonizar linguagem nos arquivos `.mdx` em `src/content/docs/`
+- [ ] **[TASK-026] Reestruturação do Guia de TypeScript (paridade com o Guia de ECMAScript):** (ver [spec](../specs/active/spec-006-typescript-guide-restructure.md))
+  - [ ] `[TASK-026.1]` Criar a trilha `reference/` e mover `basics/typescript-vs-javascript` para ela, com redirect da URL antiga
+  - [ ] `[TASK-026.2]` Criar `evolution/releases.mdx` com a linha do tempo das versões do TypeScript, espelhando `evolution/tc39.mdx`
+  - [ ] `[TASK-026.3]` Criar `reference/cheat-sheet.mdx` e `reference/weird-cases.mdx`
+  - [ ] `[TASK-026.4]` Criar `reference/ai-assisted-development.mdx`
+  - [ ] `[TASK-026.5]` Acrescentar a seção "na Era da Inteligência Artificial" às páginas existentes do guia e sincronizar os materiais
+  - [ ] `[TASK-026.6]` Alinhar o `index.mdx` ao formato do ECMAScript e criar `index.slide.md` / `index.mindmap.md` do guia
 
 ### Concluídos (Conteúdo)
 
