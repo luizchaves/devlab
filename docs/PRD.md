@@ -234,7 +234,7 @@ de arquitetura.
 
 | Risco                                                     | Mitigação                                                    |
 | --------------------------------------------------------- | ------------------------------------------------------------ |
-| Citação de linha em prosa apontando para o lugar errado    | `check:doc-lines --prosa` em revisão periódica (heurístico, fora do CI) |
+| Citação de linha no texto apontando para o lugar errado    | `check:doc-lines --prosa` em revisão periódica (heurístico, fora do CI) |
 | Versões divergentes entre projetos (Express 4/5, Prisma 5/6/7) | Trilhas atuais padronizadas; legado explicitamente marcado como legado |
 | Skills desatualizadas em relação ao repositório            | README como fonte da verdade; skill corrigida quando divergir |
 | Dependência do Marp/markmap instalados localmente          | `pnpm build:fast` pula a etapa; artefatos versionados em `public/` |

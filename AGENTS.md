@@ -125,7 +125,7 @@ O essencial:
 - **Sempre um parágrafo antes de qualquer elemento que difere de `<p>` (tabelas, listas, imagens, diagramas ou blocos de código).** Nada de elemento colado em título ou em outro elemento sem texto introdutório: o texto apresenta o contexto, diz o que observar e conecta a explicação ao elemento.
 - **Evite travessões (`—`) para orações intercaladas e apostos.** Esse formato é considerado um antipadrão e vício de escrita de IA. Utilize a pontuação gramatical padrão da língua portuguesa: vírgulas (`,`), parênteses (`(...)`), dois-pontos (`:`) ou períodos diretos.
 - **Nunca uma subseção isolada.** Se `### A` existe, `### B` também precisa existir;
-  caso contrário, o conteúdo vira prosa da seção-mãe.
+  caso contrário, o conteúdo vira texto corrido da seção-mãe.
 - **Diagramas em Mermaid** (`<Mermaid>` ou fence ```mermaid```), não em imagem.
 - **Página de conceito ≠ página de projeto.** Conceito mostra 5–15 linhas
   autocontidas; o arquivo inteiro, a árvore de diretórios, o `package.json` e o passo
