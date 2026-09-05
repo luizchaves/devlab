@@ -360,8 +360,15 @@ perto de 150 linhas; tópicos densos (objetos, módulos, HTML) passam de 400.
 
 ## ✍️ Convenções de escrita
 
+As regras de escrita em português do Brasil são as mesmas das páginas de tópico e estão
+detalhadas na skill `devlab-topic-docs-generator` (seções "Regra do parágrafo de entrada e
+didática do texto" e a proibição de travessão para aposto). Aqui ficam apenas as que são
+específicas do slide.
+
 - Português (pt-BR), termos técnicos em inglês em *itálico* (`*shallow copy*`,
   `*empty slots*`) e identificadores em `` `crase` ``.
+- **Sem travessão (`—`) para oração intercalada ou aposto**: use vírgula, parênteses ou
+  dois-pontos. Vale para slides como vale para as páginas.
 - **Pontuação obrigatória em perguntas**: Em slides de `## Perguntas de revisão` e em
   qualquer questionamento didático, **toda pergunta DEVE terminar com ponto de
   interrogação (`?`)**. A regra vale para títulos de slide (`## O que observar no alias?`),
@@ -487,3 +494,22 @@ Ao atualizar regras ou templates nesta skill:
     bullets, enunciados ou itens de `## Perguntas de revisão` que tenham forma interrogativa.
 22. **Bullet solitário**: lista de um único item, quase sempre a observação final solta depois
     de um bloco de código. Transforme em parágrafo ou acrescente o segundo item.
+
+
+---
+
+## 🔎 Revisão obrigatória depois de gerar
+
+A geração termina quando a revisão passa, não quando o arquivo é salvo. Depois de criar ou
+alterar o deck `.slide.md` de um tópico, aplique a skill `devlab-content-reviewer` ao que foi produzido:
+
+1. rode `pnpm build:slides` e abra o HTML gerado em `public/slides/`;
+2. aplique o checklist do revisor ao arquivo gerado (com atenção às fases de português do Brasil, didática e paridade com a página `.mdx`);
+3. entregue o relatório de revisão junto do arquivo, com os achados classificados por
+   severidade e a lista do que foi conferido e está correto;
+4. corrija o que for **Bloqueia o merge** e **Corrigir antes de publicar** antes de dar a
+   tarefa por concluída.
+
+Revisar na mesma passagem em que se escreve não funciona: quem gerou lê o que quis dizer, e
+não o que ficou escrito. Quando o volume justificar, rode a revisão em uma sessão separada,
+com o pedido pronto que está na própria skill do revisor.

@@ -70,6 +70,16 @@ markmap:
 
 ---
 
+## ✍️ Escrita das folhas
+
+Rótulos de mapa mental são sintagmas curtos, não frases: "métodos mutadores", e não "os métodos
+que alteram o array original". As demais regras de português do Brasil são as das páginas de
+tópico, descritas na skill `devlab-topic-docs-generator`, com uma que importa especialmente
+aqui: **nada de travessão (`—`) para aposto**, porque em rótulo curto ele quase sempre pode ser
+substituído por dois-pontos ou por parênteses.
+
+---
+
 ## 📐 Estrutura da árvore
 
 ```markdown
@@ -152,3 +162,22 @@ Use quando a aula passar a linkar o mapa (o link só resolve depois do HTML gera
    linhas, provavelmente ele está omitindo conceitos importantes.
 9. **Copiar artefatos da página**: blocos ` ```js `, `<Mermaid>`, `flowchart` e HTML não
    pertencem ao mapa; transforme-os em folhas conceituais.
+
+
+---
+
+## 🔎 Revisão obrigatória depois de gerar
+
+A geração termina quando a revisão passa, não quando o arquivo é salvo. Depois de criar ou
+alterar o mapa mental `.mindmap.md` de um tópico, aplique a skill `devlab-content-reviewer` ao que foi produzido:
+
+1. rode `pnpm build:mindmaps` e abra o HTML gerado em `public/mindmaps/`;
+2. aplique o checklist do revisor ao arquivo gerado (com atenção às fases de português do Brasil e de paridade de título e cobertura com a página `.mdx`);
+3. entregue o relatório de revisão junto do arquivo, com os achados classificados por
+   severidade e a lista do que foi conferido e está correto;
+4. corrija o que for **Bloqueia o merge** e **Corrigir antes de publicar** antes de dar a
+   tarefa por concluída.
+
+Revisar na mesma passagem em que se escreve não funciona: quem gerou lê o que quis dizer, e
+não o que ficou escrito. Quando o volume justificar, rode a revisão em uma sessão separada,
+com o pedido pronto que está na própria skill do revisor.

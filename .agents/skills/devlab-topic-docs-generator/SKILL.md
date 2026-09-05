@@ -822,8 +822,20 @@ pnpm validate
 ```
 
 `validate` roda `lint` (Biome) + `check` (astro check) + `build` (inclui slides e
-mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode ao menos
-`pnpm check` sempre; rode `pnpm validate` quando tiver mexido em links ou materiais.
+mapas mentais) + `check:links` (valida cada link interno contra o `dist/`) + `check:doc-lines`
+(confere `mark`, `collapse` e `lines` do `<SourceCode>` contra `examples/`) +
+`check:step-coverage`. Rode ao menos `pnpm check` sempre; rode `pnpm validate` quando tiver
+mexido em links, materiais ou `<SourceCode>`.
+
+**A geração termina quando a revisão passa, não quando o arquivo é salvo.** Depois das
+verificações mecânicas, aplique a skill `devlab-content-reviewer` à página produzida: ela
+audita estrutura, didática, português do Brasil, fidelidade técnica, paridade com slides e
+mapa mental, e o código de `examples/` que a página exibe.
+
+Entregue o relatório de revisão junto da página, com os achados classificados por severidade,
+e corrija tudo o que for **Bloqueia o merge** ou **Corrigir antes de publicar** antes de dar a
+tarefa por concluída. Revisar na mesma passagem em que se escreve não funciona: quem gerou lê
+o que quis dizer, e não o que ficou escrito.
 
 ---
 
@@ -864,9 +876,13 @@ mapas mentais) + `check:links` (valida cada link interno contra o `dist/`). Rode
     do Codespaces, e precisa caçar o caminho do projeto no repositório.
 20. **`<ProjectLinks>` apontando para `.devcontainer/` inexistente**: o botão leva a um erro
     do Codespaces — crie a pasta ou passe `devcontainer={false}`.
-21. **Diagrama ou figura excessivamente horizontal**: criar fluxogramas muito largos que vazam do viewport ou exigem rolagem lateral em dispositivos móveis — reestruture sempre na vertical (`flowchart TD`).
+21. **Diagrama excessivamente horizontal**: acima de ~850 px de largura intrínseca o SVG é
+    **reduzido** pelo `max-width: 100%` (não ganha rolagem), e o texto das caixas fica pequeno
+    demais. Meça e aplique a escada de correções da seção "Diagramas e Recursos Visuais".
 22. **Alterar página `.mdx` sem sincronizar materiais**: editar conceitos, remover/adicionar seções ou alterar código em um tópico e esquecer de atualizar os slides (`materials/**/*.slide.md`) e o mapa mental (`materials/**/*.mindmap.md`) correspondentes para manter paridade.
-23. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
+23. **`<Aside>` de IA fora do padrão**: callout sobre código gerado por assistente sem o
+    prefixo `Dica de IA:` no título ou sem a linha final `**Prompt:**` com um pedido pronto.
+24. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
 24. **Saída sem comando**: um ` ```txt title="Output" ` solto, sem o ` ```bash title="Terminal" `
     logo acima mostrando o comando que produziu aquele resultado.
 25. **Vários arquivos sem árvore**: exibir dois ou mais `<SourceCode>` da mesma pasta sem antes

@@ -172,3 +172,22 @@ frame, e a ordem de leitura dos frames coerente com a numeração dos títulos.
 6. **Linkar o `.excalidraw` na aula**: o arquivo não é publicado — o `check:links` quebra.
 7. **`roundness` no frame**: frames e textos usam `null`; retângulos usam `{"type": 3}`;
    linhas e setas, `{"type": 2}` (o builder cuida disso).
+
+
+---
+
+## 🔎 Revisão obrigatória depois de gerar
+
+A geração termina quando a revisão passa, não quando o arquivo é salvo. Depois de criar ou
+alterar o arquivo `.excalidraw`, aplique a skill `devlab-content-reviewer` ao que foi produzido:
+
+1. rode o builder Python da skill e abra o resultado no Excalidraw;
+2. aplique o checklist do revisor ao arquivo gerado (com atenção às fases de português do Brasil e de fidelidade técnica do conteúdo desenhado);
+3. entregue o relatório de revisão junto do arquivo, com os achados classificados por
+   severidade e a lista do que foi conferido e está correto;
+4. corrija o que for **Bloqueia o merge** e **Corrigir antes de publicar** antes de dar a
+   tarefa por concluída.
+
+Revisar na mesma passagem em que se escreve não funciona: quem gerou lê o que quis dizer, e
+não o que ficou escrito. Quando o volume justificar, rode a revisão em uma sessão separada,
+com o pedido pronto que está na própria skill do revisor.
