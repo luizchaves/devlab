@@ -12,6 +12,9 @@ markmap:
 - **Origem e Ambientes**:
   - Python: script de SO, terminal, ciência de dados, backend (`CPython`).
   - JavaScript: navegador web, front-end interativo, servidores (`Node.js`/`V8`).
+- **Arquitetura de Execução**:
+  - Python: Parser + AST -> Bytecode (.pyc) -> PVM (máquina virtual em C).
+  - JavaScript: Parser + AST -> Bytecode em memória (Ignition) -> JIT nativo (TurboFan).
 - **Sintaxe e Blocos**:
   - Python: indentação obrigatória e quebra de linha.
   - JavaScript: chaves `{ ... }` e ponto e vírgula opcional.

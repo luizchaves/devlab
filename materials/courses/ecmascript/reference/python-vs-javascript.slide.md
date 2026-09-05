@@ -85,15 +85,15 @@ Comparativo das esteiras de compilação, tradução intermediária e destinos d
 
 ```txt
 ┌──────────────┐
-│  Python (.py)│ ──> CPython (Parser + AST) ──> Bytecode (.pyc) ──> PVM ──> Terminal / Servidor
+│  Python (.py)│ ──> CPython (Parser + AST) ──> Bytecode (.pyc) ──> PVM ──> Terminal / Servidores
 └──────────────┘
 ┌──────────────┐
-│   JS (.js)   │ ──> Motor JS (Ignition) ──> JIT (TurboFan) ──┬──> Navegador (DOM / Web APIs)
-└──────────────┘                                              └──> Node.js / Bun (I/O / SO)
+│   JS (.js)   │ ──> Motor JS (Parser + AST) ──> Bytecode (Ignition) ──> JIT (TurboFan) ──┬──> Navegador (DOM)
+└──────────────┘                                                                          └──> Node / Bun (I/O)
 ```
 
-- **Python**: Foco em interpretação de bytecode em máquina virtual sequencial (PVM)
-- **JavaScript**: Foco em compilação JIT dinâmica para código de máquina nativo e despacho
+- **Python**: Compilação em bytecode (`.pyc`) e interpretação sequencial na PVM (em C)
+- **JavaScript**: Bytecode em memória imediato (Ignition) e JIT nativo para *hot code* (TurboFan)
 
 ---
 
