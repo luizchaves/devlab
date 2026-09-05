@@ -544,6 +544,14 @@ export default defineConfig({
                   label: 'Comparativo com JavaScript',
                   link: '/courses/typescript/reference/typescript-vs-javascript/',
                 },
+                {
+                  label: 'Casos "Bizarros"',
+                  link: '/courses/typescript/reference/weird-cases/',
+                },
+                {
+                  label: 'Guia de Referência',
+                  link: '/courses/typescript/reference/cheat-sheet/',
+                },
               ],
             },
           ],

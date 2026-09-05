@@ -1,0 +1,380 @@
+---
+title: 'TypeScript: Casos "Bizarros"'
+description: "Comportamentos surpreendentes do sistema de tipos do TypeScript: tipagem estrutural, excess property checks, bivariância, readonly apagado, never absorvendo uniões e o abismo entre tipo e runtime."
+course: typescript
+sidebar:
+  label: 'Casos "Bizarros"'
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Materiais: [slides do tópico](../../../../slides/courses/typescript/reference/weird-cases/)
+
+Quem vem de uma linguagem de tipagem nominal, como Java ou C#, encontra no TypeScript um conjunto de comportamentos que parecem defeitos e não são. Quase todos derivam de duas decisões conscientes: o sistema de tipos é **estrutural**, e ele descreve um JavaScript que já existia antes dele.
+
+Esta página reúne os casos que mais confundem, explica a razão de cada um e mostra o que fazer no lugar.
+
+## Objetivo
+
+Reconhecer os comportamentos contraintuitivos do sistema de tipos, entender de onde eles vêm e aplicar a alternativa correta em cada situação, em vez de recorrer a `as` e `@ts-ignore` quando o compilador parece errado.
+
+## Três Fontes de Estranheza
+
+Antes dos casos, vale nomear as três origens. Praticamente todo comportamento surpreendente deste guia cabe em uma delas:
+
+| Origem | O que significa | Exemplo típico |
+| :--- | :--- | :--- |
+| **Tipagem estrutural** | O que importa é a forma, não o nome do tipo | Tipos sem relação alguma se aceitam |
+| **Apagamento** | Os tipos somem antes da execução | `readonly` não impede mutação em runtime |
+| **Compatibilidade com o JavaScript** | Verificar o que já existia obriga a concessões | Parâmetros de método são bivariantes |
+
+## Tipos Sem Relação se Aceitam
+
+O TypeScript compara tipos pela **forma**, não pelo nome. Duas declarações independentes com a mesma estrutura são intercambiáveis, mesmo que representem conceitos completamente diferentes.
+
+O exemplo abaixo compila sem nenhum erro:
+
+```ts title="Tipagem estrutural aceita o que não deveria"
+interface Metros {
+  valor: number;
+}
+
+interface Reais {
+  valor: number;
+}
+
+function distancia(m: Metros): number {
+  return m.valor * 2;
+}
+
+const preco: Reais = { valor: 100 };
+console.log(distancia(preco)); // 200, e ninguém reclamou
+```
+
+A solução é dar aos tipos formas de fato diferentes, técnica conhecida como *branded type*:
+
+```ts title="Branded type devolve a distinção"
+type Metros = number & { readonly __marca: "metros" };
+type Reais = number & { readonly __marca: "reais" };
+
+const preco = 100 as Reais;
+// const d: Metros = preco;  // agora é erro
+```
+
+<Aside type="note" title="Estrutural não é um defeito">
+  A tipagem estrutural é o que permite tipar bibliotecas JavaScript existentes sem alterá-las e o que faz um objeto literal satisfazer uma `interface` sem declarar `implements`. O custo é este: colisões acidentais de forma.
+</Aside>
+
+## O Objeto Literal é Verificado, a Variável Não
+
+O TypeScript rejeita propriedade desconhecida em objeto literal atribuído diretamente, mas aceita a mesma propriedade quando ela chega por uma variável. É o *excess property check*.
+
+Os dois casos abaixo têm o mesmo dado e resultados opostos:
+
+```ts title="A mesma propriedade extra, dois resultados"
+interface Config {
+  host: string;
+}
+
+// Erro: 'porta' não existe em 'Config'
+// const a: Config = { host: "localhost", porta: 3000 };
+
+const bruto = { host: "localhost", porta: 3000 };
+const b: Config = bruto; // compila sem reclamar
+```
+
+A regra existe para pegar erro de digitação em literal, onde a propriedade extra quase sempre é engano. Fora do literal, o excesso é considerado legítimo, porque o objeto pode ter sido criado para vários usos. Quando o excesso precisa ser barrado também na variável, `satisfies` faz a verificação:
+
+```ts title="satisfies verifica a variável"
+// const bruto = { host: "localhost", porta: 3000 } satisfies Config;
+// Erro apontado na origem, e não no destino
+```
+
+## `any` Desliga Tudo em Silêncio
+
+Um `any` no meio de uma expressão contamina todo o resultado, e o compilador para de reclamar de coisas que ele reclamaria em qualquer outro contexto.
+
+O trecho abaixo compila inteiro e quebra em runtime:
+
+```ts title="any propaga e apaga os erros seguintes"
+const dados: any = JSON.parse('{"nome":"Ana"}');
+
+const nome: number = dados.nome;    // sem erro: any vira number
+nome.toFixed(2);                    // sem erro; TypeError em runtime
+dados.metodoQueNaoExiste();         // sem erro
+```
+
+Trocar por `unknown` restaura a verificação, ao custo de exigir o estreitamento:
+
+```ts title="unknown obriga a verificar"
+const dados: unknown = JSON.parse('{"nome":"Ana"}');
+
+// dados.nome;  // erro: 'dados' is of type 'unknown'
+
+if (typeof dados === "object" && dados !== null && "nome" in dados) {
+  console.log(dados.nome);
+}
+```
+
+<Aside type="caution" title="O `any` mais perigoso é o que você não escreveu">
+  Uma biblioteca sem tipos, um `catch` sem `useUnknownInCatchVariables` e um retorno de `JSON.parse` produzem `any` sem que ninguém digite a palavra. A opção `noImplicitAny` pega apenas parte desses casos.
+</Aside>
+
+## Parâmetro de Método é Bivariante
+
+O `strictFunctionTypes` verifica parâmetros de função de forma contravariante, que é a forma segura. Métodos declarados com a sintaxe abreviada ficam **de fora** dessa verificação, por compatibilidade com padrões antigos do JavaScript.
+
+A diferença aparece entre duas declarações que parecem equivalentes:
+
+```ts title="A sintaxe muda a verificação"
+interface ComMetodo {
+  ao(evento: Event): void;      // bivariante: não verificado
+}
+
+interface ComPropriedade {
+  ao: (evento: Event) => void;  // contravariante: verificado
+}
+
+const a: ComMetodo = { ao: (e: MouseEvent) => e.clientX };      // compila
+// const b: ComPropriedade = { ao: (e: MouseEvent) => e.clientX };  // erro
+```
+
+O primeiro caso quebra em runtime assim que chegar um `Event` que não seja `MouseEvent`. Declarar o membro como propriedade de função, e não como método, é o que liga a verificação.
+
+## `readonly` Não Existe em Runtime
+
+O modificador `readonly` é **apagável**: ele impede a atribuição na verificação e desaparece no JavaScript gerado. Qualquer código que atravesse a fronteira do tipo muta o objeto normalmente.
+
+O exemplo mostra a mutação passando por baixo do modificador:
+
+```ts title="readonly protege o compilador, não o objeto"
+interface Ponto {
+  readonly x: number;
+}
+
+const p: Ponto = { x: 1 };
+// p.x = 2;  // erro de compilação
+
+const solto = p as { x: number };
+solto.x = 2;
+
+console.log(p.x); // 2 — o mesmo objeto foi alterado
+```
+
+Para imutabilidade real em runtime, `Object.freeze()` continua sendo necessário. O `readonly` documenta a intenção e protege o código que respeita o tipo.
+
+## `never` Absorve a União
+
+`never` é o tipo vazio, e por isso desaparece dentro de uma união. O comportamento é coerente, mas produz erros de tipo que apontam para o lugar errado.
+
+O exemplo mostra o desaparecimento:
+
+```ts title="never some da união e some do resultado"
+type A = string | never;   // string
+type B = never[];          // array que não pode ter elementos
+
+const lista = [];          // never[] sem noImplicitAny
+// lista.push(1);          // erro difícil de ler
+```
+
+Um array literal vazio sem anotação é inferido como `never[]` em alguns contextos, e a mensagem de erro fala de `never` sem explicar de onde ele veio. A correção é anotar a variável na declaração.
+
+O mesmo tipo, usado de propósito, é a ferramenta de exaustividade:
+
+```ts title="never como prova de exaustividade"
+function area(forma: { kind: "circulo" } | { kind: "quadrado" }): number {
+  switch (forma.kind) {
+    case "circulo":
+      return 1;
+    case "quadrado":
+      return 2;
+    default: {
+      const exaustivo: never = forma; // erro se surgir um caso novo
+      return exaustivo;
+    }
+  }
+}
+```
+
+## Condicional Distribui Sobre União
+
+Um tipo condicional aplicado a um parâmetro de tipo nu percorre a união **membro a membro** e reúne os resultados. Quem espera que a união seja avaliada como um todo se surpreende.
+
+Os dois tipos abaixo diferem apenas pelos colchetes:
+
+```ts title="Distributividade, ligada e desligada"
+type EhString<T> = T extends string ? "sim" : "nao";
+type A = EhString<string | number>; // "sim" | "nao"
+
+type EhStringEstrito<T> = [T] extends [string] ? "sim" : "nao";
+type B = EhStringEstrito<string | number>; // "nao"
+```
+
+Envolver os dois lados em tupla desliga a distribuição. É esse detalhe que faz `Exclude` funcionar: ele distribui de propósito, para remover membros um a um.
+
+## `Omit` Não Valida a Chave
+
+`Pick` verifica que a chave existe no tipo de origem. `Omit` não verifica, por decisão de projeto: ele precisa aceitar chaves que possam não existir.
+
+O resultado é um erro de digitação que passa em silêncio:
+
+```ts title="Erro de digitação que Omit deixa passar"
+interface User {
+  id: number;
+  email: string;
+}
+
+// type A = Pick<User, "emial">;   // erro: 'emial' não existe
+type B = Omit<User, "emial">;      // compila; devolve User inteiro
+```
+
+O tipo `B` continua com `email`, e nada indica o engano. Quando a intenção é remover uma chave conhecida, `Omit<User, keyof Pick<User, "email">>` devolve a validação, ao custo de verbosidade.
+
+## Enum Numérico Tem Mapeamento Reverso
+
+O `enum` numérico gera um objeto em runtime com as chaves apontando para os valores **e** os valores apontando de volta para as chaves. Isso quebra qualquer iteração ingênua.
+
+O resultado surpreende quem espera duas entradas:
+
+```ts title="O enum numérico tem o dobro de chaves"
+enum Nivel {
+  Info,
+  Erro,
+}
+
+console.log(Object.keys(Nivel));
+// ["0", "1", "Info", "Erro"]
+```
+
+O `enum` de string não tem mapeamento reverso, e a união literal com `as const` evita o problema por completo, sem emitir código nenhum.
+
+## O Tipo Mente Sobre o Dado Externo
+
+Este é o caso mais caro em produção, e o menos "bizarro" dos listados: o compilador acredita em tudo que você afirma sobre dados que ele não pode ver.
+
+O trecho abaixo compila perfeitamente e produz `undefined` em runtime:
+
+```ts title="O compilador acredita na afirmação"
+interface User {
+  name: string;
+}
+
+const resposta = await fetch("/api/user");
+const user = (await resposta.json()) as User;
+
+console.log(user.name.toUpperCase());
+// TypeError se o servidor devolveu { "nome": "Ana" }
+```
+
+A resposta de `json()` é `any`, e a asserção apenas troca o rótulo. Validar na fronteira é o que fecha o buraco:
+
+```ts title="Validação em runtime na fronteira"
+import { z } from "zod";
+
+const UserSchema = z.object({ name: z.string() });
+
+const user = UserSchema.parse(await resposta.json());
+// Agora o tipo e o dado concordam, ou a chamada lança
+```
+
+<Aside type="caution" title="Tipo é expectativa, validação é garantia">
+  Toda entrada externa é suspeita: resposta de API, corpo de requisição, variável de ambiente, arquivo lido, `localStorage` e parâmetro de rota. O tipo descreve o que você espera; só a validação em runtime confirma o que chegou.
+</Aside>
+
+## Executando
+
+Vários desses casos ficam mais claros quando o erro aparece no seu editor. O roteiro abaixo usa apenas o compilador, sem instalar nada além do TypeScript.
+
+<Steps>
+
+1. Crie um arquivo chamado `estranho.ts`:
+
+   ```ts title="estranho.ts"
+   interface Metros { valor: number }
+   interface Reais { valor: number }
+
+   function distancia(m: Metros): number {
+     return m.valor * 2;
+   }
+
+   const preco: Reais = { valor: 100 };
+   console.log(distancia(preco));
+
+   const bruto = { host: "localhost", porta: 3000 };
+   const config: { host: string } = bruto;
+   console.log(config);
+   ```
+
+2. Verifique o arquivo com o compilador:
+
+   ```bash title="Terminal"
+   npx tsc estranho.ts --strict --noEmit
+   ```
+
+   ```txt title="Output" frame="terminal"
+   sem erros
+   ```
+
+3. Acrescente a atribuição direta do literal, que o *excess property check* rejeita:
+
+   ```ts title="estranho.ts"
+   const direto: { host: string } = { host: "localhost", porta: 3000 };
+   ```
+
+4. Rode o comando novamente e compare as duas mensagens:
+
+   ```txt title="Output" frame="terminal"
+   error TS2353: Object literal may only specify known properties,
+   and 'porta' does not exist in type '{ host: string; }'.
+   ```
+
+5. Troque a atribuição por `satisfies` na declaração de `bruto` e observe o erro migrar para a origem, que é onde ele é útil.
+
+</Steps>
+
+## Exercício
+
+Reúna os casos desta página em um arquivo de investigação chamado `armadilhas.ts`:
+
+1. Escreva dois tipos estruturalmente idênticos com significados diferentes e mostre a colisão; depois corrija com *branded types*.
+2. Mostre a diferença entre método e propriedade de função na verificação de parâmetros, ativando `strictFunctionTypes`.
+3. Prove que `readonly` não impede a mutação em runtime, imprimindo o valor depois da alteração.
+4. Escreva um tipo condicional distributivo e a versão com tupla, e imprima os dois resultados como comentário.
+5. Demonstre o erro de digitação que `Omit` deixa passar e `Pick` não.
+
+Em cada item, escreva um comentário curto explicando **por que** o compilador se comporta daquele jeito, usando uma das três origens da tabela inicial.
+
+## Desafio
+
+Construa uma função `parseUser(entrada: unknown): User` que não use `as` em nenhum ponto:
+
+- Ela recebe `unknown`, e não `any`.
+- Ela estreita a entrada com verificações explícitas ou com um *type predicate*.
+- Ela lança um erro descritivo quando o formato não bate, informando qual campo falhou.
+- Ela devolve um `User` que o compilador reconhece sem nenhuma asserção.
+
+Depois, escreva a mesma função usando um validador de esquema e compare as duas versões: quantas linhas cada uma tem, e qual delas continua correta quando um campo novo entra em `User`?
+
+## Perguntas de revisão
+
+1. Por que dois tipos com nomes diferentes e a mesma forma são intercambiáveis?
+2. Por que a propriedade extra é rejeitada no literal e aceita na variável?
+3. Qual é a diferença de verificação entre declarar um membro como método e como propriedade de função?
+4. O que acontece com `readonly` no JavaScript gerado?
+5. Como desligar a distributividade de um tipo condicional, e por que isso é necessário?
+6. Por que `Pick` acusa um erro de digitação na chave e `Omit` não?
+7. Quantas chaves `Object.keys()` devolve para um `enum` numérico de dois membros, e por quê?
+8. Por que uma asserção `as User` sobre uma resposta de API não oferece nenhuma garantia?
+
+## Referências
+
+- [Type Compatibility](https://www.typescriptlang.org/docs/handbook/type-compatibility.html) (as regras de compatibilidade estrutural)
+- [Object Types: excess property checks](https://www.typescriptlang.org/docs/handbook/2/objects.html#excess-property-checks) (por que o literal é verificado de forma diferente)
+- [Conditional Types](https://www.typescriptlang.org/docs/handbook/2/conditional-types.html) (distributividade e `infer`)
+- [Do's and Don'ts](https://www.typescriptlang.org/docs/handbook/declaration-files/do-s-and-don-ts.html) (armadilhas oficiais ao escrever declarações)
+- [TypeScript FAQ](https://github.com/microsoft/TypeScript/wiki/FAQ) (respostas da equipe para as surpresas mais relatadas)
+
+## Próximo tópico
+
+Conhecidas as armadilhas do sistema de tipos, o passo seguinte é ter a sintaxe completa à mão.
+
+[Guia de Referência](../cheat-sheet/): anotações, tipos especiais, operadores de tipo, o catálogo de utility types e as opções do compilador.
