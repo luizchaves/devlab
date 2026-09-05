@@ -1,0 +1,1198 @@
+---
+title: "JavaScript: Objetos Globais e Nativos"
+description: "Objetos globais restantes do ECMAScript: protocolos de iteração e Iterator Helpers, metaprogramação com Proxy e Reflect, dados binários com ArrayBuffer, TypedArray e DataView, referências fracas com WeakRef e FinalizationRegistry, a família Intl, globalThis e as funções globais de codificação de URI."
+course: ecmascript
+sidebar:
+  label: "Objetos Globais e Nativos"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico reúne os **objetos globais** do ECMAScript que ainda não ganharam um tópico dedicado no guia: os protocolos de iteração e os *Iterator Helpers*, a metaprogramação com `Proxy` e `Reflect`, a manipulação de dados binários com `ArrayBuffer`, `TypedArray` e `DataView`, as referências fracas de `WeakRef` e `FinalizationRegistry`, a família de formatação `Intl` e os recursos globais de apoio da linguagem, como `globalThis` e as funções de codificação de URI.
+
+Materiais: [slides do tópico](../../../../slides/courses/ecmascript/stdlib/built-ins/) e [mapa mental](../../../../mindmaps/courses/ecmascript/stdlib/built-ins/).
+
+## Objetivo
+
+Completar o mapa da biblioteca padrão do JavaScript, partindo da visão geral do catálogo de objetos globais até o uso prático dos objetos avançados que sustentam bibliotecas, frameworks e protocolos binários. Ao final do tópico, o leitor deve ser capaz de:
+
+- Localizar qualquer objeto ou função global do ECMAScript, identificando em que tópico do guia ele é estudado.
+- Implementar o protocolo iterável com `Symbol.iterator` e encadear os *Iterator Helpers* do ES2025 sobre sequências preguiçosas.
+- Interceptar operações fundamentais de objetos com `Proxy`, delegando o comportamento original aos métodos de `Reflect`.
+- Manipular blocos de memória bruta com `ArrayBuffer`, visões tipadas (`TypedArray`) e leitura heterogênea via `DataView`.
+- Empregar `WeakRef` e `FinalizationRegistry` em caches oportunistas, reconhecendo a natureza não determinística do Coletor de Lixo.
+- Formatar texto sensível a idioma com a família `Intl` e aplicar os recursos globais de apoio da linguagem, de `globalThis` à codificação de parâmetros de URL.
+
+## O Catálogo de Objetos Globais
+
+A especificação ECMA-262 define um conjunto fechado de **objetos globais** (*standard built-in objects*), valores acessíveis por nome em qualquer ambiente de execução sem necessidade de importação. Eles são a biblioteca padrão da linguagem, e tudo o que existe fora dessa lista pertence ao ambiente hospedeiro (o navegador ou o Node.js) ou a pacotes de terceiros.
+
+Os tópicos anteriores do guia percorreram a maior parte desse catálogo, cada um sob a perspectiva de um tipo de dado. O diagrama a seguir organiza os objetos globais por finalidade e destaca em qual grupo estão os objetos que este tópico reúne:
+
+<Mermaid title="Organização dos objetos globais do ECMAScript por finalidade">
+{`
+flowchart LR
+  V["Valores e tipos<br/>fundamentais"] --> V1["String, Number, BigInt<br/>Boolean, Symbol, Math"]
+  C["Coleções e<br/>estruturas"] --> C1["Array, Object, Map, Set<br/>WeakMap, WeakSet, JSON"]
+  I["Iteração e<br/>controle"] --> I1["Function, Promise, Error<br/>Iterator, Generator"]
+  B["Memória e<br/>dados binários"] --> B1["ArrayBuffer, TypedArray<br/>DataView, Atomics"]
+  M["Metaprogramação<br/>e reflexão"] --> M1["Proxy, Reflect<br/>WeakRef, FinalizationRegistry"]
+  L["Internacionalização<br/>e apoio"] --> L1["Intl, globalThis, Date<br/>encodeURIComponent, eval"]
+
+  style B1 fill:#4c6ef5,color:#fff
+  style M1 fill:#4c6ef5,color:#fff
+  style I1 fill:#748ffc,color:#fff
+  style L1 fill:#748ffc,color:#fff
+`}
+</Mermaid>
+
+### Onde cada objeto é estudado neste guia
+
+Antes de avançar para os objetos novos, vale consolidar o que já foi visto. A tabela abaixo funciona como índice reverso do guia: a primeira coluna traz o objeto global, e a segunda aponta o tópico em que ele é apresentado em profundidade.
+
+Use essa tabela sempre que encontrar um identificador global desconhecido em código de terceiros: se ele estiver listado, é linguagem padrão, e o tópico indicado explica o comportamento completo.
+
+| Objeto global | Onde é estudado |
+| :--- | :--- |
+| `String`, `Symbol` | [Strings e Template Literals](../../data/strings/) |
+| `Number`, `BigInt`, `Math`, `parseInt()`, `parseFloat()`, `isNaN()` | [Numbers, BigInt e Math](../../data/numbers/) |
+| `Array` | [Arrays e Métodos Funcionais](../../data/arrays/) |
+| `Object`, `JSON` | [Objetos, Classes e Protótipos](../../data/objects/) |
+| `Boolean` | [Tipos de Dados e Coerção](../../basics/types/) |
+| `Function` | [Funções e Closures](../../structure/functions/) |
+| `Error` e suas subclasses | [Tratamento de Erros](../../structure/errors/) |
+| `Promise` | [Promises](../../async/promises/) |
+| `Date` | [Date e Manipulação de Datas](../date/) |
+| `RegExp` | [Expressões Regulares (RegExp)](../regex/) |
+| `Map`, `Set`, `WeakMap`, `WeakSet` | [Map, Set e Coleções](../../data/collections/) |
+
+### Os objetos reunidos neste tópico
+
+O que sobra da lista anterior são objetos de propósito mais específico, raramente escritos no código de aplicação do dia a dia, mas onipresentes na camada de bibliotecas, ferramentas e protocolos. Compreendê-los é o que separa quem usa um framework de quem entende como ele funciona por dentro.
+
+A tabela a seguir apresenta cada nome restante, o problema concreto que ele resolve e a versão da especificação que o introduziu. A coluna de versão importa para decidir se o recurso pode ser usado sem transpilação em um ambiente-alvo:
+
+| Objeto ou função global | Problema que resolve | Versão |
+| :--- | :--- | :--- |
+| `Iterator` | Encadear transformações preguiçosas sobre sequências, inclusive infinitas. | ES2025 |
+| `Proxy` | Interceptar leitura, escrita e remoção de propriedades de um objeto. | ES2015 |
+| `Reflect` | Executar operações internas da linguagem como funções comuns. | ES2015 |
+| `ArrayBuffer` | Reservar um bloco contínuo de memória bruta em bytes. | ES2015 |
+| `TypedArray` (`Uint8Array`, `Float64Array`, …) | Ler e escrever o buffer como números de tamanho fixo. | ES2015 |
+| `DataView` | Ler campos de tipos diferentes no mesmo buffer, com controle de *endianness*. | ES2015 |
+| `SharedArrayBuffer` e `Atomics` | Compartilhar memória entre threads com operações atômicas. | ES2017 |
+| `WeakRef` | Referenciar um objeto sem impedir sua coleta pelo Coletor de Lixo. | ES2021 |
+| `FinalizationRegistry` | Executar uma limpeza quando um objeto for coletado. | ES2021 |
+| `globalThis` | Referenciar o objeto global com o mesmo nome em qualquer ambiente. | ES2020 |
+| `encodeURIComponent()` e afins | Escapar texto para uso seguro dentro de uma URL. | ES3 |
+| `eval()` | Avaliar uma string como código-fonte em tempo de execução. | ES1 |
+| `Intl` | Formatar e comparar texto conforme as regras de cada idioma. | ECMA-402 |
+
+<Aside type="note" title="A fronteira do padrão: ECMA-262 e ECMA-402">
+  Todos os nomes acima são definidos pela própria linguagem, e não pelo ambiente. A `Intl` é o único caso particular: ela pertence à **ECMA-402** (*ECMAScript Internationalization API*), norma irmã publicada anualmente junto da ECMA-262 e implementada por todo motor moderno.
+
+  Funções como `structuredClone()`, `fetch()`, `setTimeout()` e `queueMicrotask()` parecem globais da mesma natureza, mas são fornecidas pelo ambiente hospedeiro (navegador ou Node.js) e ficam fora do escopo deste guia, conforme a distinção apresentada na [visão geral do guia](../../).
+</Aside>
+
+## Protocolos de Iteração
+
+Antes de existir qualquer objeto de coleção, o JavaScript definiu um **contrato** que descreve o que significa "percorrer algo". Esse contrato é o que faz `for...of`, o operador *spread* (`...`), a desestruturação de arrays e `Array.from()` funcionarem uniformemente sobre strings, arrays, `Map`, `Set` e objetos criados pelo próprio desenvolvedor.
+
+O contrato tem duas camadas. Um objeto é **iterável** quando possui o método `[Symbol.iterator]()`; esse método devolve um **iterador**, um objeto com o método `next()` que entrega `{ value, done }` a cada chamada. A separação entre as duas camadas permite que o mesmo iterável seja percorrido várias vezes, cada percurso com o próprio iterador independente.
+
+### O Protocolo Iterável (`Symbol.iterator`)
+
+Implementar `[Symbol.iterator]()` em um objeto comum o torna compatível com toda a sintaxe de iteração da linguagem, sem herdar de nenhuma classe. O exemplo a seguir transforma um objeto de configuração em uma sequência numérica: a função `next()` mantém o contador `current` em uma *closure* e devolve `done: true` quando ultrapassa o limite.
+
+```js title="Implementação manual do protocolo iterável"
+const range = {
+  start: 1,
+  end: 4,
+
+  [Symbol.iterator]() {
+    let current = this.start;
+    const last = this.end;
+
+    return {
+      next: () =>
+        current <= last
+          ? { value: current++, done: false }
+          : { value: undefined, done: true },
+    };
+  },
+};
+
+// O objeto passa a funcionar em toda a sintaxe de iteração:
+console.log([...range]); // [ 1, 2, 3, 4 ]
+console.log(Array.from(range)); // [ 1, 2, 3, 4 ]
+
+const [first, second] = range;
+console.log({ first, second }); // { first: 1, second: 2 }
+```
+
+Escrever o iterador à mão é raro na prática, porque as **funções geradoras** (`function*`, detalhadas em [Funções e Closures](../../structure/functions/)) produzem um objeto que já satisfaz os dois protocolos ao mesmo tempo. O trecho abaixo reescreve o mesmo intervalo em três linhas:
+
+```js title="O mesmo iterável escrito com função geradora"
+const range = {
+  start: 1,
+  end: 4,
+
+  *[Symbol.iterator]() {
+    for (let value = this.start; value <= this.end; value++) {
+      yield value;
+    }
+  },
+};
+
+console.log([...range]); // [ 1, 2, 3, 4 ]
+```
+
+### Iterator Helpers (ES2025)
+
+Métodos como `map()` e `filter()` do `Array` são **ansiosos** (*eager*): cada chamada percorre a lista inteira e materializa um novo array na memória. Encadear três transformações sobre dez mil itens cria três arrays intermediários de dez mil posições, e nada disso é possível sobre uma sequência infinita.
+
+O ES2025 padronizou o objeto global `Iterator` e adicionou ao seu protótipo os **Iterator Helpers**, versões **preguiçosas** (*lazy*) dessas mesmas operações. Cada elemento atravessa a cadeia inteira antes que o próximo seja solicitado, e nenhum array intermediário é criado.
+
+A tabela a seguir separa os métodos que devolvem um novo iterador, e portanto podem ser encadeados, dos métodos terminais, que consomem a sequência e produzem um valor final:
+
+| Categoria | Métodos | Comportamento |
+| :--- | :--- | :--- |
+| **Encadeáveis** | `map()`, `filter()`, `take(n)`, `drop(n)`, `flatMap()` | Devolvem um novo iterador preguiçoso, sem consumir a origem. |
+| **Terminais** | `toArray()`, `reduce()`, `forEach()`, `some()`, `every()`, `find()` | Consomem a sequência e devolvem um valor concreto. |
+| **Construção** | `Iterator.from(iterável)` | Adapta qualquer iterável para ganhar os métodos auxiliares. |
+
+O método `take(n)` é o que torna sequências infinitas utilizáveis: ele interrompe a cadeia após `n` elementos. No exemplo abaixo, a geradora `naturals()` nunca termina, mas apenas os valores necessários para produzir quatro quadrados ímpares são efetivamente calculados:
+
+```js title="Encadeamento preguiçoso sobre uma sequência infinita"
+function* naturals() {
+  let n = 1;
+  while (true) yield n++;
+}
+
+const oddSquares = naturals()
+  .map((n) => n * n)
+  .filter((square) => square % 2 === 1)
+  .take(4)
+  .toArray();
+
+console.log(oddSquares); // [ 1, 9, 25, 49 ]
+```
+
+Os iteradores devolvidos por `Map` e `Set` também herdam de `Iterator.prototype`, então os métodos auxiliares se aplicam diretamente ao resultado de `.values()`, `.keys()` e `.entries()`. Isso elimina a conversão intermediária para array que antes era obrigatória:
+
+```js title="Iterator Helpers aplicados a coleções"
+const catalog = new Map([
+  ["Notebook", 4500],
+  ["Monitor", 1200],
+  ["Teclado", 350],
+]);
+
+// Antes: [...catalog.values()].filter(...).reduce(...)
+const premiumTotal = catalog
+  .values()
+  .filter((price) => price > 1000)
+  .reduce((total, price) => total + price, 0);
+
+console.log(premiumTotal); // 5700
+
+// Iterator.from adapta qualquer iterável, inclusive arrays comuns
+console.log(Iterator.from([10, 20, 30]).drop(1).toArray()); // [ 20, 30 ]
+```
+
+<Aside type="caution" title="Um iterador é consumido uma única vez">
+  Diferentemente de um array, um iterador não pode ser percorrido duas vezes. Depois que um método terminal como `toArray()` esgota a sequência, novas chamadas devolvem resultados vazios. Se o mesmo conjunto de dados precisar ser lido mais de uma vez, materialize o resultado em um array e reutilize esse array.
+</Aside>
+
+### Iteração Assíncrona com `Symbol.asyncIterator`
+
+Quando cada elemento da sequência depende de uma operação assíncrona, como uma página de uma API paginada ou um trecho de um arquivo grande, o protocolo síncrono não serve: `next()` precisaria devolver o valor imediatamente. O ES2018 introduziu o protocolo assíncrono, no qual `[Symbol.asyncIterator]()` devolve um iterador cujo `next()` produz uma `Promise`.
+
+O laço `for await...of` consome esse protocolo, aguardando cada promessa antes de entregar o valor ao corpo do laço. O exemplo simula a leitura de uma API paginada, na qual cada página chega depois de uma espera:
+
+```js title="Consumo de uma fonte paginada com for await...of"
+const pageFetcher = {
+  async *[Symbol.asyncIterator]() {
+    for (let page = 1; page <= 3; page++) {
+      // Simula a latência de uma requisição HTTP
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      yield { page, items: [`item_${page}a`, `item_${page}b`] };
+    }
+  },
+};
+
+for await (const chunk of pageFetcher) {
+  console.log(`Página ${chunk.page}:`, chunk.items);
+}
+// Página 1: [ 'item_1a', 'item_1b' ]
+// Página 2: [ 'item_2a', 'item_2b' ]
+// Página 3: [ 'item_3a', 'item_3b' ]
+```
+
+Esse é exatamente o protocolo que o Node.js usa em *streams*: percorrer um arquivo linha a linha com `for await...of` funciona porque o objeto de leitura implementa `Symbol.asyncIterator`. Os detalhes do modelo assíncrono estão em [Async/Await](../../async/async-await/).
+
+## Metaprogramação com Proxy e Reflect
+
+**Metaprogramação** é escrever código que observa ou altera o comportamento de outro código em tempo de execução. No JavaScript, esse poder está concentrado em dois objetos complementares introduzidos no ES2015: o `Proxy`, que intercepta operações, e o `Reflect`, que as executa.
+
+Toda operação aparentemente simples sobre um objeto, como `obj.name` ou `delete obj.id`, é traduzida pelo motor em uma chamada a um **método interno** da especificação (`[[Get]]`, `[[Set]]`, `[[Delete]]`). O `Proxy` permite substituir esses métodos internos por funções escritas em JavaScript.
+
+O diagrama abaixo mostra o caminho de uma leitura de propriedade quando existe um `Proxy` entre o código e o objeto real:
+
+<Mermaid title="Fluxo de uma leitura de propriedade interceptada por um Proxy">
+{`
+flowchart TD
+  A["Código da aplicação<br/>proxy.name"] --> B{"Proxy possui<br/>a trap 'get'?"}
+  B -- Não --> D["Objeto alvo (target)<br/>devolve o valor"]
+  B -- Sim --> C["Handler: get(target, prop, receiver)<br/>valida, registra ou transforma"]
+  C --> E["Reflect.get(target, prop, receiver)"]
+  E --> D
+  D --> F["Valor devolvido ao código"]
+`}
+</Mermaid>
+
+### O Objeto Proxy e as Armadilhas (Traps)
+
+Um `Proxy` é construído com dois argumentos: o **alvo** (*target*), que é o objeto real, e o **manipulador** (*handler*), um objeto cujos métodos são chamados de **armadilhas** (*traps*). Cada armadilha corresponde a uma operação interceptada; as ausentes seguem direto para o alvo.
+
+A tabela a seguir reúne as armadilhas mais usadas no dia a dia. A coluna central mostra a sintaxe que dispara cada uma, o que ajuda a identificar rapidamente qual armadilha escrever para o comportamento desejado:
+
+| Armadilha | Operação interceptada | Uso típico |
+| :--- | :--- | :--- |
+| `get(target, prop, receiver)` | `proxy.prop` | Valores padrão, propriedades computadas, registro de leitura. |
+| `set(target, prop, value, receiver)` | `proxy.prop = value` | Validação de tipo, reatividade, campos somente leitura. |
+| `has(target, prop)` | `prop in proxy` | Ocultar propriedades privadas de verificações externas. |
+| `deleteProperty(target, prop)` | `delete proxy.prop` | Proteger chaves obrigatórias contra remoção. |
+| `apply(target, thisArg, args)` | `proxy(...args)` | Medir tempo de execução, memoização de funções. |
+| `construct(target, args)` | `new proxy(...args)` | Controlar a criação de instâncias de uma classe. |
+
+O exemplo mais direto é a auditoria de acessos. O `Proxy` abaixo registra toda leitura antes de devolver o valor, sem que o objeto original saiba da existência do intermediário:
+
+```js title="Interceptação de leituras com a armadilha get"
+const target = { name: "Ana", role: "Admin" };
+
+const audited = new Proxy(target, {
+  get(obj, prop, receiver) {
+    console.log(`Leitura da propriedade: ${String(prop)}`);
+    return Reflect.get(obj, prop, receiver);
+  },
+});
+
+console.log(audited.name);
+// Leitura da propriedade: name
+// Ana
+
+console.log(audited.email);
+// Leitura da propriedade: email
+// undefined
+```
+
+<Aside type="caution" title="O alvo continua acessível">
+  Um `Proxy` não altera nem protege o objeto original: ele apenas cria um segundo caminho de acesso. Quem mantiver a referência para o `target` continua lendo e escrevendo diretamente, sem passar por nenhuma armadilha. Para que a proteção seja efetiva, exponha somente o proxy e mantenha o alvo em escopo fechado, como em uma *closure*.
+</Aside>
+
+### O Objeto Reflect
+
+O `Reflect` é um objeto estático, jamais instanciado, que expõe os métodos internos da linguagem como funções comuns. Cada armadilha de `Proxy` tem um método de `Reflect` com a mesma assinatura, e é por isso que os dois costumam aparecer juntos: dentro de uma armadilha, o `Reflect` executa o comportamento padrão que acabou de ser interceptado.
+
+Boa parte dos métodos de `Reflect` duplica funcionalidades já presentes em `Object`, mas com semântica mais previsível. O trecho a seguir apresenta os principais métodos e o padrão de retorno de cada um:
+
+```js title="Métodos estáticos do objeto Reflect"
+const user = { name: "Carlos" };
+
+// Verificação de propriedade, equivalente funcional ao operador in
+console.log(Reflect.has(user, "name")); // true
+
+// Lista todas as chaves, inclusive símbolos e não enumeráveis
+console.log(Reflect.ownKeys({ a: 1, [Symbol("id")]: 2 })); // [ 'a', Symbol(id) ]
+
+// Leitura do protótipo, equivalente a Object.getPrototypeOf
+console.log(Reflect.getPrototypeOf([]) === Array.prototype); // true
+
+// Instanciação dinâmica, com os argumentos em um array
+class Repository {
+  constructor(table) {
+    this.table = table;
+  }
+}
+
+const repo = Reflect.construct(Repository, ["users"]);
+console.log(repo.table); // "users"
+```
+
+A diferença prática mais importante em relação a `Object` está no **tratamento de falhas**. Os métodos de `Object` lançam `TypeError` quando a operação é impossível, enquanto os de `Reflect` devolvem um booleano indicando sucesso, o que permite decidir o fluxo sem `try...catch`:
+
+```js title="Reflect devolve booleano onde Object lança exceção"
+const frozen = Object.freeze({ status: "ativo" });
+
+// Reflect.set sinaliza a falha pelo valor de retorno
+const applied = Reflect.set(frozen, "status", "inativo");
+console.log(applied); // false
+console.log(frozen.status); // "ativo"
+
+// Object.defineProperty, no mesmo cenário, interrompe a execução
+try {
+  Object.defineProperty(frozen, "status", { value: "inativo" });
+} catch (error) {
+  console.log(error.constructor.name); // "TypeError"
+}
+```
+
+### Validação e Valores Padrão com Proxy
+
+Reunindo os dois objetos, é possível construir um invólucro que valida escritas antes de aceitá-las. A armadilha `set` verifica a regra de negócio e, quando ela passa, delega a gravação a `Reflect.set()`, que devolve `true` para sinalizar sucesso ao motor.
+
+O terceiro parâmetro `receiver` deve ser repassado ao `Reflect`: ele carrega o objeto que originou a operação, informação necessária para que *getters* e *setters* herdados resolvam o `this` corretamente.
+
+```js title="Validação de escrita com Proxy e Reflect"
+function createValidatedProduct(initial) {
+  return new Proxy({ ...initial }, {
+    set(target, prop, value, receiver) {
+      if (prop === "price" && (typeof value !== "number" || value < 0)) {
+        throw new TypeError("O preço deve ser um número não negativo.");
+      }
+      return Reflect.set(target, prop, value, receiver);
+    },
+  });
+}
+
+const product = createValidatedProduct({ name: "Mouse", price: 120 });
+
+product.price = 150;
+console.log(product.price); // 150
+
+try {
+  product.price = -10;
+} catch (error) {
+  console.log(error.message); // "O preço deve ser um número não negativo."
+}
+```
+
+Esse é o mecanismo por trás da reatividade de frameworks modernos: ao envolver o estado em um `Proxy`, a biblioteca descobre quais propriedades cada componente leu na armadilha `get` e quais foram alteradas na armadilha `set`, redesenhando apenas o que depende do dado modificado.
+
+## Dados Binários: ArrayBuffer, TypedArray e DataView
+
+Um array comum guarda referências para valores de qualquer tipo e cresce sob demanda, o que é conveniente para lógica de negócio e inadequado para bytes. Ao ler um arquivo, receber uma resposta de rede ou processar áudio, imagem e vídeo, o dado chega como uma sequência contínua de bytes com formato fixo.
+
+Para esse cenário, o ES2015 padronizou três objetos com papéis distintos e complementares. Compreender essa divisão é o ponto central da seção, porque nenhum deles funciona sozinho:
+
+- **`ArrayBuffer`**: o bloco de memória bruta, sem tipo e sem forma de acesso direto.
+- **`TypedArray`**: uma **visão** homogênea sobre o buffer, que interpreta os bytes como números de um tipo único.
+- **`DataView`**: uma visão heterogênea, que lê e escreve tipos diferentes em posições arbitrárias do mesmo buffer.
+
+### O Buffer Bruto (`ArrayBuffer`)
+
+O `ArrayBuffer` reserva uma quantidade fixa de bytes contíguos. Ele não expõe índices nem métodos de leitura, funcionando apenas como o território sobre o qual as visões operam. Toda posição nasce zerada.
+
+Uma consequência importante desse modelo é que várias visões podem apontar para o **mesmo** buffer ao mesmo tempo. Escrever por uma delas altera o que as outras enxergam, porque não há cópia envolvida:
+
+```js title="Duas visões compartilhando o mesmo ArrayBuffer"
+const buffer = new ArrayBuffer(8); // 8 bytes zerados
+console.log(buffer.byteLength); // 8
+
+const bytes = new Uint8Array(buffer); // 8 posições de 1 byte
+const words = new Uint16Array(buffer); // 4 posições de 2 bytes
+
+bytes[0] = 255;
+console.log(bytes.length, words.length); // 8 4
+
+// A escrita em 'bytes' é imediatamente visível em 'words'
+console.log(words[0]); // 255
+```
+
+### As Visões Tipadas (`TypedArray`)
+
+`TypedArray` não é um construtor acessível diretamente: o nome designa a família de nove construtores concretos, cada um fixando quantos bytes ocupa um elemento e como esses bytes são interpretados. A escolha do tipo define simultaneamente o consumo de memória e a faixa de valores representáveis.
+
+A tabela a seguir lista os construtores mais usados. A coluna de faixa é decisiva na escolha: gravar um valor fora dela não gera erro, e sim um resultado silenciosamente incorreto.
+
+| Construtor | Bytes por elemento | Faixa de valores |
+| :--- | :--- | :--- |
+| `Int8Array` | 1 | $-128$ a $127$ |
+| `Uint8Array` | 1 | $0$ a $255$ |
+| `Uint8ClampedArray` | 1 | $0$ a $255$, com saturação em vez de estouro |
+| `Int16Array` / `Uint16Array` | 2 | $-32768$ a $32767$ / $0$ a $65535$ |
+| `Int32Array` / `Uint32Array` | 4 | Inteiros de 32 bits, com e sem sinal |
+| `Float32Array` | 4 | Ponto flutuante de precisão simples |
+| `Float64Array` | 8 | Ponto flutuante de precisão dupla, igual a `Number` |
+
+As visões tipadas oferecem `map()`, `filter()`, `reduce()` e os demais métodos funcionais familiares do `Array`, mas não são arrays: `Array.isArray()` devolve `false` e os métodos que alteram o comprimento, como `push()` e `pop()`, não existem, porque o tamanho é fixo na criação.
+
+O comportamento em caso de estouro merece atenção especial. O valor gravado sofre truncamento módulo a capacidade do tipo, sem aviso algum:
+
+```js title="Estouro silencioso em uma visão tipada"
+const scores = new Int16Array([120, -80, 340]);
+
+console.log(scores.map((score) => score * 2)); // Int16Array(3) [ 240, -160, 680 ]
+console.log(Array.isArray(scores)); // false
+console.log(scores instanceof Int16Array); // true
+
+const bytes = new Uint8Array(2);
+bytes[0] = 255; // valor máximo do tipo
+bytes[1] = 256; // ultrapassa a faixa e reinicia em zero
+console.log(bytes); // Uint8Array(2) [ 255, 0 ]
+```
+
+### Leitura Heterogênea com `DataView`
+
+Protocolos binários reais raramente são homogêneos: um pacote de sensor pode reunir um inteiro de 32 bits para o instante da medição, um inteiro de 16 bits para o identificador e um decimal de 32 bits para a temperatura. Uma visão tipada não descreve essa mistura, porque assume um único tipo do início ao fim.
+
+O `DataView` resolve o problema oferecendo métodos `get*` e `set*` que recebem o **deslocamento em bytes** e o tipo desejado a cada chamada, permitindo navegar pelo buffer campo a campo.
+
+Além disso, o `DataView` controla explicitamente a **ordem dos bytes** (*endianness*). Protocolos de rede tradicionalmente usam *big-endian*, com o byte mais significativo primeiro, enquanto processadores x86 e ARM operam em *little-endian*. O segundo argumento dos métodos define a ordem: `false` para *big-endian* e `true` para *little-endian*.
+
+Ler com a ordem errada não produz exceção, apenas um número completamente diferente, como o exemplo evidencia:
+
+```js title="Leitura de um mesmo campo com endianness distintas"
+const view = new DataView(new ArrayBuffer(4));
+
+// Escrita em big-endian (padrão de protocolos de rede)
+view.setInt32(0, 1_234_567, false);
+
+console.log(view.getInt32(0, false)); // 1234567 (leitura correta)
+console.log(view.getInt32(0, true)); // -2016013824 (bytes invertidos)
+
+console.log(new Uint8Array(view.buffer)); // Uint8Array(4) [ 0, 18, 214, 135 ]
+```
+
+### Memória Compartilhada com `SharedArrayBuffer` e `Atomics`
+
+O JavaScript executa o código da aplicação em uma única thread, mas ambientes modernos oferecem paralelismo real por meio de *Web Workers* no navegador e do módulo `node:worker_threads` no Node.js. A comunicação padrão entre threads copia os dados na passagem de mensagem, o que se torna caro em volumes grandes.
+
+O `SharedArrayBuffer` é a alternativa: ao contrário do `ArrayBuffer`, ele pode ser referenciado por várias threads simultaneamente, sem cópia. Isso reintroduz no JavaScript um problema clássico de concorrência, a **condição de corrida**, quando duas threads leem e escrevem a mesma posição ao mesmo tempo.
+
+O objeto `Atomics` fornece a solução, com operações indivisíveis sobre visões tipadas de memória compartilhada:
+
+```js title="Operações atômicas sobre memória compartilhada"
+const shared = new SharedArrayBuffer(4);
+const counter = new Int32Array(shared);
+
+// Incremento indivisível: nenhuma outra thread interrompe a operação
+Atomics.add(counter, 0, 5);
+Atomics.add(counter, 0, 3);
+
+console.log(Atomics.load(counter, 0)); // 8
+
+// Comparação e troca condicional em um único passo
+console.log(Atomics.compareExchange(counter, 0, 8, 20)); // 8 (valor anterior)
+console.log(Atomics.load(counter, 0)); // 20
+```
+
+<Aside type="note" title="Requisitos de segurança no navegador">
+  Por causa de vulnerabilidades de canal lateral como Spectre, os navegadores só disponibilizam `SharedArrayBuffer` em páginas isoladas por cabeçalhos HTTP específicos (`Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy`). No Node.js não existe essa restrição, e o objeto está sempre disponível.
+</Aside>
+
+## Referências Fracas: WeakRef e FinalizationRegistry
+
+O tópico [Map, Set e Coleções](../../data/collections/) apresentou `WeakMap` e `WeakSet`, coleções cujas chaves não impedem a atuação do Coletor de Lixo. O ES2021 completou esse conjunto com dois objetos que aplicam a mesma ideia fora de coleções: `WeakRef`, para referenciar um único objeto de forma fraca, e `FinalizationRegistry`, para reagir à coleta.
+
+Esses são os objetos mais delicados da linguagem, e a especificação é explícita ao desencorajar seu uso rotineiro. O momento em que o Coletor de Lixo age é **não determinístico**: depende do motor, da pressão de memória e de otimizações internas. Nenhuma lógica de correção pode depender de quando (ou se) uma coleta ocorrerá.
+
+### O Objeto `WeakRef`
+
+Um `WeakRef` envolve um objeto e oferece o método `deref()`, que devolve o objeto original enquanto ele existir na memória ou `undefined` depois que for coletado. Toda leitura precisa verificar o resultado, porque o valor pode desaparecer entre uma chamada e a seguinte.
+
+O uso legítimo é o **cache oportunista**: guardar um resultado caro de recalcular, aceitando perdê-lo se a memória ficar escassa. O exemplo mostra o padrão de verificação obrigatório:
+
+```js title="Cache oportunista com WeakRef"
+let report = { id: "rel_2026", rows: new Array(1000).fill("linha") };
+
+const cachedReport = new WeakRef(report);
+
+// Toda leitura exige verificar se o objeto ainda existe
+const current = cachedReport.deref();
+console.log(current ? `Relatório ${current.id} em memória` : "Relatório já coletado");
+// "Relatório rel_2026 em memória"
+
+// Removida a última referência forte, o objeto se torna elegível à coleta
+report = null;
+
+// A partir daqui, deref() pode devolver o objeto ou undefined,
+// dependendo de quando o Coletor de Lixo for executado
+console.log(cachedReport.deref()?.id ?? "coletado");
+```
+
+### O Objeto `FinalizationRegistry`
+
+O `FinalizationRegistry` recebe uma função de retorno que o motor **pode** executar depois que um objeto registrado for coletado. O método `register()` associa o objeto a um valor descritivo, e é esse valor, não o objeto, que chega à função de limpeza. Passar o próprio objeto criaria uma referência forte e impediria para sempre a coleta que se pretende observar.
+
+O uso adequado é liberar recursos externos que o Coletor de Lixo não conhece, como um descritor de arquivo ou uma conexão nativa. O exemplo registra uma conexão e sinaliza sua liberação:
+
+```js title="Observação de coleta com FinalizationRegistry"
+const registry = new FinalizationRegistry((label) => {
+  console.log(`Recurso liberado: ${label}`);
+});
+
+let connection = { host: "db.local", socket: 42 };
+
+// O segundo argumento é um rótulo, nunca o próprio objeto
+registry.register(connection, "conexão db.local");
+
+connection = null;
+// A função de retorno pode ser chamada muito depois, ou nunca,
+// caso o processo termine antes de um ciclo de coleta
+```
+
+<Aside type="danger" title="Não use finalizadores para lógica essencial">
+  A especificação não garante que a função de retorno de um `FinalizationRegistry` será executada. Processos que encerram rapidamente, motores sob baixa pressão de memória ou objetos ainda alcançáveis por otimizações internas simplesmente nunca disparam a limpeza. Fechar arquivos, encerrar conexões e liberar bloqueios deve continuar acontecendo de forma explícita, com `try...finally` ou métodos de encerramento chamados pela aplicação.
+</Aside>
+
+## Internacionalização com a Família Intl
+
+O objeto `Intl` agrupa construtores que aplicam as regras linguísticas de cada idioma sobre números, datas e texto. Duas partes dessa família já apareceram no guia: `Intl.NumberFormat`, em [Numbers, BigInt e Math](../../data/numbers/), e `Intl.DateTimeFormat` com `Intl.RelativeTimeFormat`, em [Date e Manipulação de Datas](../date/).
+
+As demais resolvem problemas de texto que parecem simples até serem testados fora do inglês. A tabela a seguir apresenta cada construtor restante ao lado do erro que ele evita quando o desenvolvedor tenta improvisar a solução:
+
+| Construtor | Finalidade | Erro que evita |
+| :--- | :--- | :--- |
+| `Intl.Collator` | Comparar e ordenar strings. | Acentos e cedilha ordenados pelo código Unicode, fora do alfabeto. |
+| `Intl.PluralRules` | Escolher a forma plural correta. | Condicionais `if (n === 1)` que quebram em idiomas com mais formas. |
+| `Intl.ListFormat` | Unir itens em uma enumeração. | Concatenação manual com vírgulas e conjunção fixa. |
+| `Intl.DisplayNames` | Traduzir códigos de idioma, região e moeda. | Dicionários de tradução mantidos à mão. |
+| `Intl.Segmenter` | Dividir texto em palavras, frases ou grafemas. | `split(" ")` e `.length` incorretos com emoji e acentos compostos. |
+
+### Ordenação Correta com `Intl.Collator`
+
+O método `sort()` sem argumentos compara strings pelo valor numérico de cada caractere no Unicode. Como as letras acentuadas ocupam posições muito acima de `A-Z`, qualquer palavra iniciada por acento vai para o fim da lista, resultado inaceitável em português.
+
+O `Intl.Collator` produz uma função `compare` que aplica as regras de ordenação do idioma. O contraste entre os dois resultados abaixo deixa o problema evidente:
+
+```js title="Ordenação alfabética com e sem Intl.Collator"
+const names = ["Ana", "álvaro", "Zoe", "Ácaro"];
+
+// Ordenação padrão: compara pontos de código Unicode
+console.log([...names].sort());
+// [ 'Ana', 'Zoe', 'Ácaro', 'álvaro' ]
+
+// Ordenação linguística do português
+const collator = new Intl.Collator("pt-BR", { sensitivity: "base" });
+console.log([...names].sort(collator.compare));
+// [ 'Ácaro', 'álvaro', 'Ana', 'Zoe' ]
+
+// A opção numeric compara sequências de dígitos pelo valor
+const naturalSort = new Intl.Collator("pt-BR", { numeric: true });
+console.log(naturalSort.compare("item2", "item10")); // -1 (item2 vem antes)
+```
+
+### Pluralização com `Intl.PluralRules`
+
+Escolher entre "1 item" e "2 itens" com um `if` funciona em português e falha em idiomas com mais de duas formas plurais, como o russo, o árabe e o polonês. O `Intl.PluralRules` devolve a **categoria** gramatical de um número no idioma indicado, e cabe ao código associar cada categoria ao texto correspondente.
+
+As categorias possíveis são `zero`, `one`, `two`, `few`, `many` e `other`, e cada idioma usa apenas um subconjunto delas:
+
+```js title="Seleção de forma plural por idioma"
+const ptRules = new Intl.PluralRules("pt-BR");
+
+console.log(ptRules.select(0)); // "one"
+console.log(ptRules.select(1)); // "one"
+console.log(ptRules.select(2)); // "other"
+
+const messages = { one: "mensagem nova", other: "mensagens novas" };
+const describe = (count) => `${count} ${messages[ptRules.select(count)]}`;
+
+console.log(describe(1)); // "1 mensagem nova"
+console.log(describe(5)); // "5 mensagens novas"
+
+// Ordinais seguem regras próprias, distintas das cardinais
+const ordinals = new Intl.PluralRules("en-US", { type: "ordinal" });
+console.log(ordinals.select(1), ordinals.select(2), ordinals.select(3));
+// one two few  (1st, 2nd, 3rd)
+```
+
+### Listas e Nomes com `Intl.ListFormat` e `Intl.DisplayNames`
+
+Enumerar itens em uma frase exige conhecer a conjunção do idioma e a posição da vírgula. O `Intl.ListFormat` cuida disso, distinguindo listas de adição (`conjunction`, com "e") de listas de alternativa (`disjunction`, com "ou").
+
+Já o `Intl.DisplayNames` traduz códigos padronizados para nomes legíveis, eliminando dicionários mantidos manualmente para países, idiomas e moedas:
+
+```js title="Formatação de listas e tradução de códigos"
+const andList = new Intl.ListFormat("pt-BR", { type: "conjunction" });
+console.log(andList.format(["HTML", "CSS", "JavaScript"]));
+// "HTML, CSS e JavaScript"
+
+const orList = new Intl.ListFormat("pt-BR", { type: "disjunction" });
+console.log(orList.format(["pix", "cartão", "boleto"]));
+// "pix, cartão ou boleto"
+
+const regions = new Intl.DisplayNames(["pt-BR"], { type: "region" });
+console.log(regions.of("BR")); // "Brasil"
+
+const languages = new Intl.DisplayNames(["pt-BR"], { type: "language" });
+console.log(languages.of("en-US")); // "inglês (Estados Unidos)"
+
+const currencies = new Intl.DisplayNames(["pt-BR"], { type: "currency" });
+console.log(currencies.of("BRL")); // "Real brasileiro"
+```
+
+### Segmentação de Texto com `Intl.Segmenter`
+
+Contar caracteres com `.length` devolve o número de unidades de código UTF-16, não o número de símbolos percebidos pelo leitor. Emoji compostos e letras com acentos combinados ocupam várias unidades, e cortar uma string no meio de uma dessas sequências produz caracteres corrompidos na tela.
+
+O `Intl.Segmenter` divide o texto respeitando as fronteiras reais definidas pelo Unicode, com três granularidades disponíveis: `grapheme` para símbolos visíveis, `word` para palavras e `sentence` para frases.
+
+```js title="Contagem e divisão respeitando fronteiras Unicode"
+const text = "família 👨‍👩‍👧";
+
+// .length conta unidades de código UTF-16
+console.log(text.length); // 16
+
+// O segmentador conta símbolos visíveis
+const graphemes = new Intl.Segmenter("pt-BR", { granularity: "grapheme" });
+console.log([...graphemes.segment(text)].length); // 9
+
+// A granularidade word separa palavras de pontuação e espaços
+const words = new Intl.Segmenter("pt-BR", { granularity: "word" });
+const phrase = "Olá, mundo do JavaScript!";
+
+const onlyWords = [...words.segment(phrase)]
+  .filter((segment) => segment.isWordLike)
+  .map((segment) => segment.segment);
+
+console.log(onlyWords); // [ 'Olá', 'mundo', 'do', 'JavaScript' ]
+```
+
+## Recursos Globais de Apoio da Linguagem
+
+Além dos construtores, a ECMA-262 define alguns valores e funções soltos no escopo global, sem pertencer a nenhum tipo de dado. Eles resolvem questões estruturais que atravessam qualquer aplicação: descobrir onde o código está rodando, preparar texto para viajar dentro de uma URL e avaliar código gerado em tempo de execução.
+
+Os três recursos a seguir aparecem com frequência em bibliotecas e em código legado, e cada um traz uma armadilha própria que vale conhecer antes de encontrá-la em produção.
+
+### O Objeto `globalThis`
+
+Historicamente, o objeto global tinha um nome diferente em cada ambiente: `window` no navegador, `self` em *Web Workers* e `global` no Node.js. Bibliotecas precisavam de uma cadeia de verificações para descobrir qual deles existia.
+
+O ES2020 padronizou `globalThis`, que aponta para o objeto global em qualquer ambiente. Ele é a forma correta de testar a presença de um recurso sem provocar `ReferenceError`, já que consultar um identificador inexistente de forma direta interrompe a execução:
+
+```js title="Detecção portável de ambiente com globalThis"
+console.log(typeof globalThis); // "object"
+
+// No Node.js, globalThis e global apontam para o mesmo objeto
+console.log(globalThis === global); // true
+
+// Detecção segura: a propriedade ausente devolve undefined, não erro
+const isBrowser = typeof globalThis.window !== "undefined";
+console.log(isBrowser); // false no Node.js
+
+// O mesmo teste serve para verificar o suporte a recursos da linguagem
+console.log(typeof globalThis.Proxy); // "function"
+console.log(typeof globalThis.SharedArrayBuffer); // "function"
+```
+
+### Codificação de URI com `encodeURIComponent()`
+
+Uma URL reserva significado especial para caracteres como `&`, `=`, `?`, `/` e o espaço. Interpolar um valor de usuário diretamente em uma URL, sem tratamento, quebra a estrutura do endereço: um `&` dentro de um termo de busca passa a ser lido pelo servidor como o início de um novo parâmetro.
+
+O ECMAScript oferece dois pares de funções para esse escape, e a diferença entre eles é a fonte de erro mais comum. O `encodeURI()` preserva os caracteres estruturais, porque recebe uma URL inteira; o `encodeURIComponent()` escapa também esses caracteres, porque recebe apenas um pedaço que será inserido na URL.
+
+A tabela a seguir resume quando cada função se aplica, e a última coluna mostra o efeito prático sobre o caractere `&`:
+
+| Função | Entrada esperada | Trata `&`, `=`, `/` e `?` |
+| :--- | :--- | :--- |
+| `encodeURI()` | Uma URL completa, já montada. | Não, preserva a estrutura do endereço. |
+| `encodeURIComponent()` | Um único valor: parâmetro, caminho ou fragmento. | Sim, escapa tudo que não seja seguro. |
+| `decodeURI()` | Uma URL completa codificada. | Não, mantém os separadores intactos. |
+| `decodeURIComponent()` | Um único valor codificado. | Sim, restaura o texto original completo. |
+
+Na prática, quase todo uso do dia a dia é do `encodeURIComponent()`, aplicado ao valor e nunca à URL inteira:
+
+```js title="Escape de um valor antes de montar a URL"
+const term = "café & bar 100%";
+
+// Correto: escapa apenas o valor, preservando a estrutura da URL
+const url = `https://api.dev/busca?q=${encodeURIComponent(term)}`;
+console.log(url);
+// "https://api.dev/busca?q=caf%C3%A9%20%26%20bar%20100%25"
+
+// Incorreto: encodeURI não escapa o '&' e o servidor lê dois parâmetros
+console.log(encodeURI(`https://api.dev/busca?q=${term}`));
+// "https://api.dev/busca?q=caf%C3%A9%20&%20bar%20100%25"
+
+// A decodificação recupera exatamente o texto original
+console.log(decodeURIComponent("caf%C3%A9%20%26%20bar")); // "café & bar"
+```
+
+Sequências de escape malformadas não são ignoradas em silêncio: elas interrompem a execução com o erro dedicado `URIError`, apresentado em [Tratamento de Erros](../../structure/errors/).
+
+```js title="Sequência percentual inválida na decodificação"
+try {
+  decodeURIComponent("%"); // '%' sem os dois dígitos hexadecimais
+} catch (error) {
+  console.log(error.constructor.name); // "URIError"
+  console.log(error.message); // "URI malformed"
+}
+```
+
+### A Função `eval()` e a Avaliação Dinâmica
+
+A função `eval()` recebe uma string, interpreta o conteúdo como código-fonte JavaScript e devolve o valor da última expressão avaliada. Ela existe desde a primeira edição da especificação e é, com folga, o recurso mais desaconselhado da linguagem.
+
+O motivo é duplo. Do ponto de vista de **segurança**, avaliar texto vindo de um formulário, de uma URL ou de uma resposta de API entrega ao remetente a capacidade de executar código arbitrário na aplicação. Do ponto de vista de **desempenho**, o `eval()` impede otimizações do motor, porque o código só é conhecido no instante da chamada.
+
+O exemplo demonstra o comportamento e, na sequência, a alternativa correta para cada caso legítimo em que a função é cogitada:
+
+```js title="Comportamento de eval e alternativas seguras"
+console.log(eval("2 + 3 * 4")); // 14
+
+// No modo estrito, as declarações ficam contidas no escopo do eval
+function scoped() {
+  "use strict";
+  eval("var hidden = 10;");
+  return typeof hidden;
+}
+console.log(scoped()); // "undefined"
+
+// Alternativa 1: dados em formato de texto viram objeto com JSON.parse
+console.log(JSON.parse('{"total": 42}').total); // 42
+
+// Alternativa 2: acesso dinâmico a propriedades usa colchetes
+const settings = { theme: "dark" };
+const key = "theme";
+console.log(settings[key]); // "dark"
+```
+
+<Aside type="danger" title="Nunca avalie string de origem externa">
+  Chamar `eval()` com qualquer texto influenciado pelo usuário é uma vulnerabilidade de execução remota de código. O construtor `new Function(...)` compartilha exatamente o mesmo risco, apenas com escopo diferente. Para converter texto em dados, use `JSON.parse()`; para acessar propriedades cujo nome varia, use a notação de colchetes; para adiar a execução de lógica, use funções de primeira classe.
+</Aside>
+
+## Resumo e Boas Práticas
+
+Os objetos deste tópico compartilham uma característica: usados no lugar certo, substituem dezenas de linhas frágeis; usados fora de contexto, tornam o código difícil de depurar. A tabela reúne as decisões que valem a pena memorizar.
+
+| Prática Recomendada | Motivo Técnico |
+| :--- | :--- |
+| **Preferir geradoras a iteradores escritos à mão** | `function*` satisfaz os dois protocolos automaticamente e dispensa o controle manual de `{ value, done }`. |
+| **Usar Iterator Helpers em sequências longas ou infinitas** | A avaliação preguiçosa evita arrays intermediários e permite interromper o cálculo com `take(n)`. |
+| **Chamar `Reflect` dentro de toda armadilha de `Proxy`** | O `Reflect` reproduz o comportamento padrão com o `receiver` correto, preservando *getters* herdados. |
+| **Manter o alvo de um `Proxy` fora de alcance** | Quem tiver a referência para o *target* ignora todas as armadilhas; exponha somente o proxy. |
+| **Escolher o `TypedArray` pela faixa de valores** | O estouro é silencioso: `Uint8Array` transforma `256` em `0` sem lançar erro algum. |
+| **Declarar a *endianness* em todo método de `DataView`** | Omitir o segundo argumento assume *little-endian*, o oposto da convenção de protocolos de rede. |
+| **Nunca depender de `WeakRef` ou finalizadores para correção** | A coleta é não determinística; libere recursos explicitamente com `try...finally`. |
+| **Ordenar e pluralizar com `Intl`, não com lógica própria** | `sort()` puro quebra com acentos, e condicionais de plural falham fora do português e do inglês. |
+| **Escapar cada valor com `encodeURIComponent()`** | Aplicar `encodeURI()` à URL inteira deixa `&` e `=` intactos e quebra a leitura dos parâmetros no servidor. |
+| **Substituir `eval()` por `JSON.parse()` ou colchetes** | Avaliar texto externo é execução remota de código, e o mesmo risco vale para `new Function(...)`. |
+
+O bloco a seguir combina as recomendações em uma rotina única de processamento de leituras, com filtragem preguiçosa, acesso auditado por `Proxy` e apresentação internacionalizada:
+
+```js title="Resumo prático dos objetos globais"
+// 1. Iteração preguiçosa sobre uma fonte potencialmente infinita
+function* sensorReadings() {
+  let id = 1;
+  while (true) yield { id: id++, celsius: 18 + (id % 12) };
+}
+
+const alerts = sensorReadings()
+  .filter((reading) => reading.celsius > 26)
+  .take(3)
+  .toArray();
+
+// 2. Acesso com valor padrão garantido por Proxy e Reflect
+const settings = new Proxy({ unit: "celsius" }, {
+  get: (target, prop, receiver) =>
+    Reflect.has(target, prop) ? Reflect.get(target, prop, receiver) : "não definido",
+});
+
+// 3. Apresentação sensível a idioma com Intl
+const list = new Intl.ListFormat("pt-BR", { type: "conjunction" });
+const labels = alerts.map((alert) => `sensor ${alert.id}`);
+
+console.log(`Unidade: ${settings.unit} / Escala: ${settings.scale}`);
+console.log(`Em alerta: ${list.format(labels)}`);
+```
+
+## Executando
+
+Os objetos apresentados neste tópico estão disponíveis nativamente no Node.js 22 ou superior, sem qualquer instalação ou flag adicional.
+
+<Steps>
+
+1. Crie um arquivo chamado `builtins-demo.js` com o seguinte código:
+
+   ```js title="builtins-demo.js"
+   // 1. Iteração preguiçosa com Iterator Helpers (ES2025)
+   function* readings() {
+     let sensor = 1;
+     while (true) yield { sensor: sensor++, celsius: 18 + (sensor % 12) };
+   }
+
+   const alerts = readings()
+     .filter((reading) => reading.celsius > 26)
+     .map((reading) => `Sensor ${reading.sensor}: ${reading.celsius} °C`)
+     .take(3)
+     .toArray();
+
+   console.log("Alertas:", alerts);
+
+   // 2. Metaprogramação com Proxy e Reflect
+   const settings = new Proxy(
+     { theme: "dark" },
+     {
+       get(target, prop, receiver) {
+         if (!Reflect.has(target, prop)) return `<sem valor para ${String(prop)}>`;
+         return Reflect.get(target, prop, receiver);
+       },
+     }
+   );
+
+   console.log("Tema:", settings.theme);
+   console.log("Idioma:", settings.language);
+
+   // 3. Internacionalização com a família Intl
+   const formatter = new Intl.ListFormat("pt-BR", { type: "conjunction" });
+   console.log("Sensores ativos:", formatter.format(["norte", "sul", "leste"]));
+
+   // 4. Escape de valor para consulta em URL
+   const query = "sensor norte & sul";
+   console.log("Consulta:", `https://api.dev/alertas?q=${encodeURIComponent(query)}`);
+   ```
+
+2. Execute o arquivo com Node.js no terminal:
+
+   ```bash title="Terminal"
+   node builtins-demo.js
+   ```
+
+   ```txt title="Output"
+   Alertas: [ 'Sensor 8: 27 °C', 'Sensor 9: 28 °C', 'Sensor 10: 29 °C' ]
+   Tema: dark
+   Idioma: <sem valor para language>
+   Sensores ativos: norte, sul e leste
+   Consulta: https://api.dev/alertas?q=sensor%20norte%20%26%20sul
+   ```
+
+3. Remova a chamada `.take(3)` do encadeamento e execute novamente para observar que a geradora infinita trava o processo, evidenciando o papel do método na avaliação preguiçosa.
+
+</Steps>
+
+## Exercício
+
+Crie um arquivo chamado `protected-config.js` para construir um objeto de configuração blindado por `Proxy`:
+
+1. Escreva a função `createProtectedConfig(defaults)` que devolva um `Proxy` sobre uma cópia rasa de `defaults`;
+2. Na armadilha `get`, lance `ReferenceError` quando a chave lida não existir no alvo, usando `Reflect.has()` na verificação;
+3. Ainda na armadilha `get`, contabilize quantas vezes cada chave foi lida em um `Map` interno, devolvendo o valor real com `Reflect.get()`;
+4. Na armadilha `set`, rejeite chaves não declaradas e valores cujo `typeof` seja diferente do valor atual, delegando a gravação válida a `Reflect.set()`;
+5. Na armadilha `deleteProperty`, lance `TypeError` para impedir a remoção de qualquer configuração;
+6. Instancie a configuração com `port`, `host` e `debug`, faça leituras e escritas válidas e inválidas e imprima o mapa de contagem de leituras.
+
+Tente implementar as instruções acima antes de inspecionar a solução de referência a seguir.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="protected-config.js"
+  function createProtectedConfig(defaults) {
+    const readCounts = new Map();
+
+    return new Proxy({ ...defaults }, {
+      get(target, prop, receiver) {
+        if (prop === "readCounts") return readCounts;
+
+        if (!Reflect.has(target, prop)) {
+          throw new ReferenceError(`Configuração inexistente: ${String(prop)}`);
+        }
+
+        readCounts.set(prop, (readCounts.get(prop) ?? 0) + 1);
+        return Reflect.get(target, prop, receiver);
+      },
+
+      set(target, prop, value, receiver) {
+        if (!Reflect.has(target, prop)) {
+          throw new ReferenceError(`Chave não declarada: ${String(prop)}`);
+        }
+
+        const currentType = typeof Reflect.get(target, prop);
+        if (typeof value !== currentType) {
+          throw new TypeError(`A chave "${String(prop)}" espera ${currentType}.`);
+        }
+
+        return Reflect.set(target, prop, value, receiver);
+      },
+
+      deleteProperty() {
+        throw new TypeError("Configurações não podem ser removidas.");
+      },
+    });
+  }
+
+  const config = createProtectedConfig({ port: 3000, host: "localhost", debug: false });
+
+  console.log(config.port); // 3000
+  console.log(config.host); // "localhost"
+  console.log(config.port); // 3000
+
+  config.port = 8080;
+  console.log(config.port); // 8080
+
+  try {
+    config.timeout = 5000;
+  } catch (error) {
+    console.log(error.message); // "Chave não declarada: timeout"
+  }
+
+  try {
+    config.port = "8080";
+  } catch (error) {
+    console.log(error.message); // 'A chave "port" espera number.'
+  }
+
+  try {
+    delete config.debug;
+  } catch (error) {
+    console.log(error.message); // "Configurações não podem ser removidas."
+  }
+
+  console.log([...config.readCounts]); // [ [ 'port', 3 ], [ 'host', 1 ] ]
+  ```
+</details>
+
+## Desafio
+
+Crie um arquivo chamado `sensor-packet.js` que codifique e decodifique um protocolo binário de telemetria, combinando `ArrayBuffer`, `DataView`, *Iterator Helpers* e `Intl`:
+
+1. Defina a constante `RECORD_SIZE` com 12 bytes por registro, distribuídos em `Uint32` para o instante, `Uint16` para o identificador do sensor, `Float32` para a temperatura, `Uint8` para o status e 1 byte de alinhamento;
+2. Escreva `encodePackets(readings)` que aloque um `ArrayBuffer` proporcional à quantidade de leituras e grave cada campo com os métodos `set*` de um `DataView` em *big-endian*;
+3. Escreva a função geradora `decodePackets(buffer)` que percorra o buffer de `RECORD_SIZE` em `RECORD_SIZE` bytes e produza um objeto por registro;
+4. Encadeie *Iterator Helpers* sobre `decodePackets()` para filtrar os registros com status `1` e montar a lista de sensores em alerta;
+5. Calcule a temperatura média e apresente o relatório com `Intl.NumberFormat` no estilo de unidade e `Intl.ListFormat`.
+
+Implemente a solução no seu arquivo antes de conferir a resolução comentada abaixo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="sensor-packet.js"
+  // 4 (timestamp) + 2 (sensor) + 4 (celsius) + 1 (status) + 1 (alinhamento)
+  const RECORD_SIZE = 12;
+
+  function encodePackets(readings) {
+    const buffer = new ArrayBuffer(readings.length * RECORD_SIZE);
+    const view = new DataView(buffer);
+
+    readings.forEach((reading, index) => {
+      const offset = index * RECORD_SIZE;
+
+      view.setUint32(offset, reading.timestamp, false);
+      view.setUint16(offset + 4, reading.sensor, false);
+      view.setFloat32(offset + 6, reading.celsius, false);
+      view.setUint8(offset + 10, reading.status);
+    });
+
+    return buffer;
+  }
+
+  function* decodePackets(buffer) {
+    const view = new DataView(buffer);
+
+    for (let offset = 0; offset + RECORD_SIZE <= view.byteLength; offset += RECORD_SIZE) {
+      yield {
+        timestamp: view.getUint32(offset, false),
+        sensor: view.getUint16(offset + 4, false),
+        celsius: Number(view.getFloat32(offset + 6, false).toFixed(2)),
+        status: view.getUint8(offset + 10),
+      };
+    }
+  }
+
+  const buffer = encodePackets([
+    { timestamp: 1_780_000_000, sensor: 11, celsius: 22.5, status: 0 },
+    { timestamp: 1_780_000_060, sensor: 12, celsius: 31.75, status: 1 },
+    { timestamp: 1_780_000_120, sensor: 11, celsius: 28.25, status: 1 },
+    { timestamp: 1_780_000_180, sensor: 13, celsius: 19, status: 0 },
+  ]);
+
+  console.log("Bytes no pacote:", buffer.byteLength); // 48
+
+  // Iterator Helpers consomem a geradora sem materializar arrays intermediários
+  const criticalSensors = decodePackets(buffer)
+    .filter((reading) => reading.status === 1)
+    .map((reading) => `sensor ${reading.sensor} (${reading.celsius} °C)`)
+    .toArray();
+
+  const temperatures = [...decodePackets(buffer)].map((reading) => reading.celsius);
+  const average = temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length;
+
+  const temperatureFormat = new Intl.NumberFormat("pt-BR", {
+    style: "unit",
+    unit: "celsius",
+    maximumFractionDigits: 1,
+  });
+  const listFormat = new Intl.ListFormat("pt-BR", { type: "conjunction" });
+
+  console.log("Leituras em alerta:", listFormat.format(criticalSensors));
+  // "sensor 12 (31.75 °C) e sensor 11 (28.25 °C)"
+
+  console.log("Temperatura média:", temperatureFormat.format(average));
+  // "25,4 °C"
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Protocolos de Iteração
+
+**1. Qual é a diferença entre um objeto iterável e um iterador?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um **iterável** é um objeto que possui o método `[Symbol.iterator]()`; um **iterador** é o objeto devolvido por esse método, que expõe `next()` e produz `{ value, done }` a cada chamada. A separação permite que o mesmo iterável seja percorrido várias vezes, porque cada percurso obtém um iterador novo e independente.
+</details>
+
+**2. Por que os *Iterator Helpers* permitem trabalhar com sequências infinitas, enquanto os métodos de `Array` não?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque os métodos de `Array` são ansiosos: percorrem a lista inteira e materializam um novo array a cada chamada, o que nunca termina sobre uma sequência infinita. Os *Iterator Helpers* são preguiçosos, avaliando um elemento por vez ao longo de toda a cadeia, e o método `take(n)` interrompe o consumo após a quantidade solicitada.
+</details>
+
+**3. O que acontece ao tentar percorrer duas vezes o mesmo iterador?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Nada é devolvido na segunda vez. O iterador é consumido de forma definitiva por um método terminal como `toArray()` ou por um laço `for...of`, e a partir daí `next()` sempre reporta `done: true`. Para reutilizar os dados, é preciso materializá-los em um array ou obter um iterador novo a partir do iterável de origem.
+</details>
+
+**4. Quando usar `Symbol.asyncIterator` em vez de `Symbol.iterator`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando a produção de cada elemento depende de uma operação assíncrona, como páginas de uma API, mensagens de uma fila ou blocos de um arquivo. Nesse protocolo o método `next()` devolve uma `Promise`, e o consumo acontece com `for await...of`.
+</details>
+
+### Proxy e Reflect
+
+**5. O que é uma armadilha (*trap*) de `Proxy` e o que ocorre quando ela não é definida?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma armadilha é um método do objeto manipulador (*handler*) que intercepta uma operação interna da linguagem, como `get`, `set`, `has` ou `deleteProperty`. Quando a armadilha não é definida, a operação é encaminhada diretamente ao objeto alvo, com o comportamento padrão inalterado.
+</details>
+
+**6. Por que se recomenda usar métodos de `Reflect` dentro das armadilhas de um `Proxy`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque cada método de `Reflect` tem exatamente a mesma assinatura da armadilha correspondente e reproduz o comportamento padrão da operação, incluindo o repasse do `receiver`. Esse repasse é o que faz *getters* e *setters* herdados resolverem o `this` para o objeto correto, algo que o acesso direto ao alvo não garante.
+</details>
+
+**7. Qual é a diferença de tratamento de falhas entre `Object.defineProperty()` e `Reflect.defineProperty()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O método de `Object` lança `TypeError` quando a operação não pode ser concluída, exigindo `try...catch`. O de `Reflect` devolve `false`, permitindo tratar a falha como um valor comum dentro do fluxo normal do código.
+</details>
+
+**8. Envolver um objeto em um `Proxy` impede que ele seja alterado por outros trechos do código?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. O `Proxy` cria apenas um caminho alternativo de acesso, e quem mantiver a referência para o objeto alvo continua operando sobre ele sem passar por nenhuma armadilha. Para que a proteção funcione, o alvo precisa ficar inacessível, normalmente preso em uma *closure*, e só o proxy deve ser exposto.
+</details>
+
+### Dados Binários
+
+**9. Qual é a diferença de papel entre `ArrayBuffer`, `TypedArray` e `DataView`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `ArrayBuffer` é o bloco de memória bruta, sem tipo e sem acesso direto. O `TypedArray` é uma visão homogênea que interpreta esse bloco como uma sequência de números de um único tipo. O `DataView` é uma visão heterogênea, que lê e escreve tipos diferentes em deslocamentos arbitrários do mesmo buffer.
+</details>
+
+**10. O que ocorre ao atribuir o valor `256` a uma posição de um `Uint8Array`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O valor sofre truncamento módulo a capacidade do tipo e é gravado como `0`, sem exceção nem aviso. Como o estouro é silencioso, a escolha do construtor deve considerar a faixa completa de valores esperada, sob risco de corromper os dados sem nenhum sinal de erro.
+</details>
+
+**11. Por que os métodos de `DataView` recebem um argumento de *endianness*?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a ordem dos bytes de um número varia entre plataformas: protocolos de rede usam tradicionalmente *big-endian*, enquanto processadores x86 e ARM operam em *little-endian*. Ler um campo com a ordem errada não gera exceção, apenas um número completamente diferente, então a ordem deve ser declarada explicitamente em cada chamada.
+</details>
+
+### Referências Fracas, Intl e Recursos Globais
+
+**12. Por que `WeakRef` e `FinalizationRegistry` não devem sustentar lógica essencial da aplicação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o momento de atuação do Coletor de Lixo é não determinístico e depende do motor, da pressão de memória e de otimizações internas. O método `deref()` pode devolver o objeto ou `undefined` de forma imprevisível, e a função de retorno de um `FinalizationRegistry` pode nunca ser executada. Liberação de recursos deve continuar explícita, com `try...finally`.
+</details>
+
+**13. Por que ordenar nomes em português com `array.sort()` produz resultado incorreto?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o `sort()` sem argumentos compara strings pelo valor numérico dos pontos de código Unicode, e as letras acentuadas ocupam posições muito acima do intervalo `A-Z`. O resultado joga palavras iniciadas por acento para o fim da lista. A ordenação linguisticamente correta vem de `Intl.Collator`, cuja função `compare` aplica as regras do idioma.
+</details>
+
+**14. Qual problema `Intl.Segmenter` resolve que a propriedade `.length` de uma string não resolve?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A propriedade `.length` conta unidades de código UTF-16, não símbolos visíveis: emoji compostos e letras com acentos combinados ocupam várias unidades cada. O `Intl.Segmenter` divide o texto pelas fronteiras reais definidas pelo Unicode, com granularidade de grafema, palavra ou frase, evitando contagens erradas e cortes que corrompem caracteres.
+</details>
+
+**15. Qual é a diferença entre `encodeURI()` e `encodeURIComponent()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `encodeURI()` recebe uma URL já montada e preserva os caracteres estruturais do endereço, como `&`, `=`, `?` e `/`. O `encodeURIComponent()` recebe um único valor que será inserido na URL e escapa também esses caracteres. Usar `encodeURI()` sobre um valor de usuário deixa um `&` intacto, e o servidor passa a interpretá-lo como o início de um novo parâmetro.
+</details>
+
+**16. Por que `eval()` é desaconselhado e o que usar no lugar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque avaliar uma string influenciada por dados externos permite a execução de código arbitrário na aplicação, e porque a compilação em tempo de execução impede otimizações do motor. O construtor `new Function(...)` carrega o mesmo risco. As alternativas são `JSON.parse()` para converter texto em dados, a notação de colchetes para acessar propriedades com nome dinâmico e funções de primeira classe para adiar a execução de lógica.
+</details>
+
+## Referências
+
+Para consultar a lista completa de objetos globais e aprofundar cada API apresentada, a documentação da MDN e o texto normativo são as fontes primárias:
+
+- Catálogo completo e protocolos da linguagem:
+  - [Standard built-in objects | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects)
+  - [Iteration protocols | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)
+  - [Iterator | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator)
+- Metaprogramação e reflexão:
+  - [Proxy | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy)
+  - [Reflect | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect)
+- Dados binários e memória compartilhada:
+  - [ArrayBuffer | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer)
+  - [TypedArray | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray)
+  - [DataView | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView)
+  - [Atomics | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Atomics)
+- Referências fracas e ciclo de vida:
+  - [WeakRef | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakRef)
+  - [FinalizationRegistry | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/FinalizationRegistry)
+- Internacionalização e recursos globais de apoio:
+  - [Intl | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl)
+  - [globalThis | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis)
+  - [encodeURIComponent() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent)
+  - [eval() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/eval)
+- Texto normativo das especificações:
+  - [Especificação ECMA-262](https://tc39.es/ecma262/) (linguagem)
+  - [Especificação ECMA-402](https://tc39.es/ecma402/) (internacionalização)
+
+## Próximo tópico
+
+Concluído o mapa dos objetos globais da linguagem, o passo seguinte deixa as estruturas de dados para tratar do modelo de concorrência do JavaScript:
+
+[Promises](../../async/promises/): Criação, encadeamento, composição e tratamento de operações assíncronas em JavaScript.

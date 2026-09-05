@@ -683,6 +683,10 @@ export default defineConfig({
                   label: 'Expressões Regulares (RegExp)',
                   link: '/courses/ecmascript/stdlib/regex/',
                 },
+                {
+                  label: 'Objetos Globais e Nativos',
+                  link: '/courses/ecmascript/stdlib/built-ins/',
+                },
               ],
             },
             {
