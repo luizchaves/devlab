@@ -245,6 +245,25 @@ async function loadInParallel() {
 
 ---
 
+## Linha do Tempo: Sequencial versus Paralelo
+
+Comparação do tempo total decorrido entre os dois modelos de execução:
+
+```txt
+1. Sequencial (await em série) — Latência somada: ~4000ms
+├── [ delay(2000ms, users) ] ──>
+                                └── [ delay(2000ms, posts) ] ──> [ Fim: 4000ms ]
+
+2. Paralelo (Promise.all) — Latência da mais lenta: ~2000ms
+├── [ delay(2000ms, users) ] ──┐
+└── [ delay(2000ms, posts) ] ──┴───────────────────────────────> [ Fim: 2000ms ]
+```
+
+- **Sequencial**: Uma tarefa só inicia após a conclusão completa da anterior
+- **Paralelo**: Tarefas concorrem simultaneamente nas APIs do ambiente
+
+---
+
 ## Comparativo: Sequencial versus Paralelo
 
 | Abordagem | Funcionamento | Tempo Total | Indicação |

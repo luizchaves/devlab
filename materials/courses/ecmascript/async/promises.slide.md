@@ -84,6 +84,8 @@ Dominar o modelo assíncrono e o uso profissional de Promises em JavaScript:
 
 ## Do Callback Hell às Promises
 
+Comparação entre o aninhamento piramidal de callbacks e o encadeamento plano de Promises:
+
 ```js
 // 1. Callbacks aninhados (difícil manutenção)
 buscarUsuario(1, (user) => {
@@ -118,7 +120,25 @@ Uma Promise atua como um contrato para um valor em três estados exclusivos:
 
 ---
 
+## Diagrama de Transições de Estado
+
+Fluxo unidirecional e imutável de liquidação (*settlement*):
+
+```txt
+                     ┌───> [ Fulfilled ] (resolve) ──> .then()
+[ Pending ] ─────────┤
+                     └───> [ Rejected  ] (reject)  ──> .catch()
+```
+
+- **Pendente (*Pending*)**: Estado neutro inicial enquanto a computação ocorre
+- **Liquidada (*Settled*)**: Transita irreversivelmente para *Fulfilled* ou *Rejected*
+- **Imutabilidade**: O resultado obtido nunca mais se altera após a transição
+
+---
+
 ## Inspeção de Estados no Console
+
+Representação visual dos estados internos observados no console do ambiente:
 
 ```js
 // 1. Promise Pendente
@@ -262,9 +282,30 @@ Promise.allSettled([p1, p2]).then((results) => {
 
 ---
 
-## Event Loop e Fila de Microtasks
+## Arquitetura do Event Loop
 
-Prioridade absoluta na ordem de execução de tarefas assíncronas:
+Orquestração espacial entre Call Stack, APIs do ambiente e filas de tarefas:
+
+```txt
+┌──────────────┐    (1) Disparo     ┌──────────────┐
+│  Call Stack  │ ─────────────────> │   Web APIs   │
+│  (Síncrono)  │                    │ (Timers, IO) │
+└──────▲───────┘                    └──────┬───────┘
+       │                                   │ (2a/2b)
+       │ (3) Monitora Stack vazia          ▼
+┌──────┴───────┐    (4) Drena 100%    ┌──────────────┐
+│  Event Loop  │ <─────────────────── │  Microtasks  │ (Promises)
+└──────▲───────┘                      └──────────────┘
+       │            (5) Move 1 por vez┌──────────────┐
+       └───────────────────────────── │  Macrotasks  │ (setTimeout)
+                                      └──────────────┘
+```
+
+---
+
+## Ordem de Execução: Microtasks vs Macrotasks
+
+Prioridade absoluta na entrega de tarefas assíncronas de volta à Call Stack:
 
 1. **Passo 1 (Stack → APIs)**: Disparo assíncrono delegado ao ambiente
 2. **Passos 2a/2b (Filas)**: Microtasks (Promises) vs. Macrotasks (Timers/IO)
