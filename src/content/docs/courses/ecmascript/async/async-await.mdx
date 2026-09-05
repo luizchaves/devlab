@@ -330,6 +330,161 @@ export async function show(req, res) {
 }
 ```
 
+## Async/Await na Era da Inteligência Artificial
+
+Código assíncrono gerado por IA quase sempre está **correto** e quase sempre está **lento**. A sugestão típica coloca um `await` em cada linha, na ordem em que o pedido foi escrito, e produz uma sequência de esperas encadeadas onde as operações eram independentes entre si.
+
+Nenhum teste de valor detecta isso: o resultado devolvido é exatamente o esperado. A diferença aparece no relógio, e é a única categoria de defeito deste tópico que só um cronômetro revela.
+
+### O await que serializa o que podia ser paralelo
+
+O trecho abaixo é a resposta mais comum ao pedido "carregue os dados do painel do usuário". As três buscas não dependem uma da outra, e ainda assim acontecem em fila:
+
+```js title="dashboard.js (primeira versão gerada)"
+export async function loadDashboard(userId) {
+  const profile = await fetchProfile(userId);   // ~300 ms
+  const orders = await fetchOrders(userId);     // ~300 ms
+  const messages = await fetchMessages(userId); // ~300 ms
+
+  return { profile, orders, messages };
+}
+```
+
+A prova de que a ordem custa caro não está no valor devolvido, e sim no relógio. O bloco abaixo mede a função inteira com `console.time()`, usando o *top-level await* dos módulos ES:
+
+```js title="dashboard.js (trecho de medição)"
+console.time("sequencial");
+await loadDashboard(42);
+console.timeEnd("sequencial");
+```
+
+A execução soma o tempo das três chamadas:
+
+```bash title="Terminal"
+node dashboard.js
+```
+
+```txt title="Output"
+sequencial: 906.412ms
+```
+
+Como nenhuma das buscas usa o resultado da anterior, as três podem ser disparadas juntas e aguardadas de uma vez. `Promise.all()` recebe as promessas já iniciadas e devolve os resultados na mesma ordem do array:
+
+```js title="dashboard.js (versão paralela)"
+export async function loadDashboard(userId) {
+  const [profile, orders, messages] = await Promise.all([
+    fetchProfile(userId),
+    fetchOrders(userId),
+    fetchMessages(userId),
+  ]);
+
+  return { profile, orders, messages };
+}
+```
+
+Com o mesmo bloco de medição, agora rotulado como `paralelo`, o tempo total passa a ser o da chamada mais lenta, não a soma das três:
+
+```bash title="Terminal"
+node dashboard.js
+```
+
+```txt title="Output"
+paralelo: 304.187ms
+```
+
+A regra de revisão que resolve a maior parte desses casos é simples de aplicar linha a linha: se o `await` de uma linha **não usa** o valor produzido pela linha anterior, as duas operações deveriam ter começado juntas.
+
+<Aside type="tip" title="Dica de IA: Peça a análise de dependência ao próprio assistente">
+  Depois de receber uma função assíncrona pronta, faça um segundo pedido em vez de conferir linha a linha. O modelo costuma acertar a análise de dependência quando ela é pedida explicitamente, e erra quando escreve tudo de uma vez.
+
+  **Prompt:** *"Nesta função, marque quais `await` dependem do resultado da linha anterior e quais são independentes entre si. Reescreva apenas os independentes com `Promise.all`, mantendo o mesmo objeto de retorno."*
+</Aside>
+
+### O await esquecido no return
+
+A segunda falha recorrente é sutil e some do rastro de erro. Uma função `async` que devolve uma promessa dentro de um `try` sem `await` encerra o bloco antes da rejeição acontecer:
+
+```js title="return sem await dentro de try...catch"
+// Sugestão comum: return direto, "porque a função já é async"
+async function saveDraft(data) {
+  try {
+    return persist(data); // a promessa sai do try antes de ser resolvida
+  } catch (error) {
+    console.error("nunca chega aqui:", error.message);
+    throw new Error("Falha ao salvar rascunho");
+  }
+}
+
+// Com await, a rejeição acontece dentro do bloco e o catch funciona
+async function saveDraftFixed(data) {
+  try {
+    return await persist(data);
+  } catch (error) {
+    throw new Error("Falha ao salvar rascunho", { cause: error });
+  }
+}
+```
+
+A diferença entre as duas funções não aparece no caminho feliz. Ela aparece quando `persist()` falha: na primeira, a rejeição vaza para quem chamou sem o contexto que o `catch` acrescentaria; na segunda, o erro chega traduzido e com a causa preservada.
+
+### Onde a sequência é obrigatória
+
+Nem todo `await` em fila é defeito, e trocar tudo por `Promise.all()` cria outra classe de problemas. A tabela separa os dois casos:
+
+| Situação | Forma correta | Motivo |
+| :--- | :--- | :--- |
+| A segunda chamada usa o resultado da primeira | `await` em sequência | Não há como iniciar antes de ter o dado. |
+| Chamadas independentes com resultado obrigatório | `Promise.all([...])` | Falha total se qualquer uma falhar, que é o comportamento desejado. |
+| Chamadas independentes em que falhas parciais são aceitáveis | `Promise.allSettled([...])` | Preserva os resultados que deram certo. |
+| Operações que gravam no mesmo registro | `await` em sequência | Disparar em paralelo cria condição de corrida na escrita. |
+| Centenas de chamadas a um serviço externo | Lotes com `for...of` sobre fatias | `Promise.all` com mil itens costuma esbarrar em limite de requisições. |
+
+A última linha é a que os assistentes mais ignoram. Ao receber "processe todos os pedidos", o modelo escreve `Promise.all(orders.map(...))` sem perguntar quantos pedidos existem, e o resultado é uma rajada simultânea contra a API de destino.
+
+### Armadilhas frequentes em código assíncrono gerado por IA
+
+O conjunto de falhas abaixo se repete com frequência suficiente para virar item de revisão:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **Serialização desnecessária** | `await` em fila para chamadas independentes. | Conferir dependência entre linhas e agrupar com `Promise.all()`. |
+| **`await` dentro de `forEach()`** | O laço dispara tudo e segue sem esperar nada. | Trocar por `for...of` com `await` ou por `Promise.all(map(...))`. |
+| **`return` sem `await` no `try`** | O `catch` da própria função nunca executa. | Usar `return await` quando houver tratamento local. |
+| **`Promise.all` sem limite de lote** | Centenas de requisições simultâneas contra um serviço externo. | Processar em fatias ou limitar a concorrência. |
+| **`async` em função sem `await`** | Assinatura assíncrona que só embrulha o retorno em promessa. | Remover o `async` ou justificar a assinatura. |
+| **Rejeição sem tratamento na borda** | *Promise* rejeitada fora de `try...catch` derrubando o processo no Node.js. | Tratar na borda do sistema e registrar antes de encerrar. |
+
+A armadilha do `forEach()` **falha em silêncio** e é especialmente enganosa, porque o log final imprime como se tudo tivesse terminado:
+
+```js title="Iteração assíncrona que não espera"
+const ids = [1, 2, 3];
+
+// Sugestão comum: forEach com callback async
+ids.forEach(async (id) => {
+  await saveOrder(id);
+});
+console.log("todos salvos"); // imprime antes de qualquer gravação terminar
+
+// for...of aguarda cada iteração
+for (const id of ids) {
+  await saveOrder(id);
+}
+console.log("todos salvos"); // agora a mensagem é verdadeira
+```
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer função assíncrona gerada com auxílio de IA, percorra as verificações abaixo:
+
+1. **Cada `await` usa o resultado do anterior?** Se não usa, as chamadas deveriam ter começado juntas;
+2. **Existe `await` dentro de `forEach()` ou de `map()` sem `Promise.all`?** O laço não espera;
+3. **Há `return` de promessa dentro de um `try` com tratamento?** Falta `await` para o `catch` funcionar;
+4. **O número de chamadas paralelas é conhecido?** `Promise.all` sobre uma lista vinda do banco de dados precisa de lote;
+5. **A falha parcial é aceitável?** Quando for, `Promise.allSettled()` preserva o que deu certo;
+6. **O tempo foi medido?** Um `console.time()` em volta da função é a única prova de que a versão paralela valeu a pena.
+
+A inteligência artificial reduziu o custo de escrever código assíncrono correto, mas não alterou em nada o custo de descobrir em produção que ele espera três vezes mais do que precisaria.
+
 ## Resumo e Boas Práticas
 
 A adoção disciplinada de `async/await` garante código legível, resiliente e de alto desempenho.

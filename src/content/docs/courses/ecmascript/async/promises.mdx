@@ -401,6 +401,155 @@ async function loadUserAsync(id) {
 }
 ```
 
+## Promises na Era da Inteligência Artificial
+
+Promises acumulam mais de uma década de estilos sobrepostos: *callbacks* com `error` no primeiro parâmetro, `.then()` encadeado, `new Promise()` em toda função e, por fim, `async/await`. Assistentes de código aprenderam com esse material inteiro, e a resposta que produzem costuma ser uma mistura das quatro épocas na mesma função.
+
+O código gerado funciona. O problema é que ele carrega, quase sempre, um dos dois defeitos clássicos que a comunidade já catalogou: o embrulho desnecessário de algo que já era uma promessa e o tratamento de falhas colocado no elo errado da cadeia.
+
+### O antipadrão do construtor explícito
+
+Ao pedir "uma função que busque o usuário e devolva uma Promise", a resposta mais frequente envolve uma promessa já existente dentro de outra:
+
+```js title="Antipadrão: new Promise em volta de uma promessa"
+function getUser(id) {
+  return new Promise((resolve, reject) => {
+    fetch(`/api/users/${id}`)
+      .then((response) => response.json())
+      .then((data) => resolve(data))
+      .catch((error) => reject(error));
+  });
+}
+```
+
+O `new Promise()` aqui não acrescenta nada: `fetch()` já devolve uma promessa, e o embrulho apenas cria um lugar novo para o erro se perder. Se `response.json()` lançar depois de `resolve()` ter sido chamado, a falha desaparece sem rastro.
+
+A versão equivalente devolve a cadeia diretamente, com o mesmo comportamento e sem o intermediário:
+
+```js title="A mesma função sem o embrulho"
+function getUser(id) {
+  return fetch(`/api/users/${id}`).then((response) => response.json());
+}
+```
+
+O construtor `new Promise()` continua tendo um uso legítimo, e é exatamente aquele que o modelo raramente sugere: **converter uma API baseada em *callback* que ainda não devolve promessa**, como `setTimeout` ou uma biblioteca antiga.
+
+```js title="Uso legítimo: adaptar uma API de callback"
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+await delay(500);
+```
+
+A regra de revisão cabe em uma frase: se dentro do `new Promise()` existe um `.then()` ou um `await`, o construtor está sobrando.
+
+### O combinador escolhido sem perguntar
+
+O segundo padrão recorrente aparece quando o pedido envolve várias operações. `Promise.all()` é a resposta automática, mesmo quando o requisito real era outro:
+
+| O que o pedido dizia | Combinador sugerido | Combinador adequado |
+| :--- | :--- | :--- |
+| "busque os três dados de uma vez" | `Promise.all()` | `Promise.all()`, correto quando todos são obrigatórios. |
+| "carregue as notificações de cada serviço" | `Promise.all()` | `Promise.allSettled()`, para não perder tudo se um serviço cair. |
+| "use o primeiro que responder" | `Promise.all()` ou `race()` | `Promise.any()`, que ignora as rejeições e espera o primeiro sucesso. |
+| "cancele se demorar mais que 2 segundos" | `Promise.all()` com contador | `Promise.race()` entre a operação e um `delay` que rejeita. |
+
+A diferença entre `all` e `allSettled` fica visível quando um dos serviços falha. No primeiro caso, os resultados que já haviam chegado são descartados junto com a rejeição:
+
+```js title="all descarta o parcial, allSettled preserva"
+const tasks = [
+  Promise.resolve("perfil carregado"),
+  Promise.reject(new Error("serviço de pedidos indisponível")),
+  Promise.resolve("mensagens carregadas"),
+];
+
+try {
+  await Promise.all(tasks);
+} catch (error) {
+  console.log("all:", error.message); // os dois sucessos foram perdidos
+}
+
+const results = await Promise.allSettled(tasks);
+
+console.log(results.map((r) => r.status)); // [ 'fulfilled', 'rejected', 'fulfilled' ]
+console.log(results.filter((r) => r.status === "fulfilled").length); // 2
+```
+
+```bash title="Terminal"
+node combinators.js
+```
+
+```txt title="Output"
+all: serviço de pedidos indisponível
+[ 'fulfilled', 'rejected', 'fulfilled' ]
+2
+```
+
+<Aside type="tip" title="Dica de IA: Descreva o comportamento na falha, não a quantidade de chamadas">
+  O elemento que falta no *prompt* quase nunca é técnico: é a regra de negócio da falha. Pedir "busque os três dados em paralelo" leva sempre a `Promise.all()`; descrever o que deve acontecer quando um deles cair leva ao combinador certo.
+
+  **Prompt:** *"Busque perfil, pedidos e mensagens em paralelo. Se um dos três serviços falhar, quero exibir os outros dois e um aviso, em vez de perder a tela inteira. Escolha o combinador de Promise adequado a esse comportamento e explique a escolha."*
+</Aside>
+
+### O catch colocado no elo errado
+
+Em uma cadeia longa, a posição do `.catch()` decide quais erros ele enxerga. Assistentes tendem a colocá-lo no meio, logo depois da chamada que parece mais arriscada, e o restante da cadeia fica descoberto.
+
+O trecho abaixo compara as duas posições sobre a mesma cadeia:
+
+```js title="Posição do catch em uma cadeia"
+// catch no meio: erros de parseUser e de render passam direto
+fetch("/api/users/1")
+  .then((response) => response.json())
+  .catch((error) => console.error("falha na rede:", error))
+  .then((data) => parseUser(data))
+  .then((user) => render(user));
+
+// catch no fim: cobre a cadeia inteira, inclusive parseUser e render
+fetch("/api/users/1")
+  .then((response) => response.json())
+  .then((data) => parseUser(data))
+  .then((user) => render(user))
+  .catch((error) => console.error("falha ao carregar usuário:", error));
+```
+
+Há um detalhe adicional que o `catch` no meio esconde: depois de tratar o erro, a cadeia **continua**, e o `.then()` seguinte recebe `undefined` como se tudo tivesse dado certo. É a mesma classe de defeito do `catch` que devolve valor padrão, agora distribuída ao longo de vários elos.
+
+### Armadilhas frequentes em código de Promise gerado por IA
+
+O conjunto de falhas abaixo se repete com frequência suficiente para virar item de revisão:
+
+| Armadilha | Como se manifesta | Como mitigar |
+| :--- | :--- | :--- |
+| **Construtor explícito desnecessário** | `new Promise()` em volta de `fetch()` ou de outra promessa. | Devolver a cadeia diretamente; o construtor só adapta *callbacks*. |
+| **Mistura de `.then()` e `await`** | A mesma função encadeia `.then()` e usa `await` no meio. | Escolher um estilo por função e pedir a reescrita completa. |
+| **`.catch()` no meio da cadeia** | Elos posteriores ficam sem tratamento e recebem `undefined`. | Concentrar o tratamento no fim ou usar `try...catch` com `await`. |
+| **`Promise.all()` por padrão** | Falha de um item descarta todos os resultados obtidos. | Perguntar o que deve acontecer na falha parcial antes de escolher. |
+| **Promessa criada e não aguardada** | A chamada dispara, a função retorna e a rejeição fica órfã. | Guardar a referência e aguardar, ou tratar com `.catch()` explícito. |
+| **Rejeição com valor que não é `Error`** | `reject("deu erro")` produz rastro de pilha inútil. | Rejeitar sempre com uma instância de `Error`. |
+
+A promessa órfã **falha em silêncio** até o processo encerrar, e no Node.js atual esse silêncio termina com a aplicação derrubada:
+
+```js title="Rejeição não tratada"
+// Sugestão comum quando o pedido é "dispare o envio do e-mail e siga"
+sendEmail(user); // promessa rejeitada sem tratamento
+
+// Intenção explícita: seguir adiante, mas registrar a falha
+sendEmail(user).catch((error) => console.error("envio falhou:", error.message));
+```
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar qualquer código baseado em Promises gerado com auxílio de IA, percorra as verificações abaixo:
+
+1. **Existe `new Promise()` com `.then()` ou `await` dentro?** O construtor está sobrando;
+2. **A função mistura `.then()` e `async/await`?** Peça a reescrita inteira em um único estilo;
+3. **Onde está o `.catch()`?** Um tratamento no meio da cadeia deixa os elos seguintes descobertos;
+4. **O combinador corresponde à regra de falha?** `all`, `allSettled`, `any` e `race` respondem a perguntas diferentes;
+5. **Toda promessa criada é aguardada ou tratada?** Chamadas disparadas e esquecidas derrubam o processo quando rejeitam;
+6. **As rejeições carregam uma instância de `Error`?** Texto solto em `reject()` chega ao log sem pilha.
+
+A inteligência artificial reduziu o custo de escrever uma cadeia de promessas, mas não alterou em nada o custo de perder uma rejeição no meio dela em produção.
+
 ## Resumo e Boas Práticas
 
 A gestão profissional de Promises previne congelamento de threads e falhas silenciosas de rede.
