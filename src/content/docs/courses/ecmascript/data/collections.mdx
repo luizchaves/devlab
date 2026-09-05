@@ -7,264 +7,415 @@ sidebar:
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-Este tópico apresenta as estruturas de dados **Map** e **Set** (introduzidas no ES6) e suas variações fracas **WeakMap** e **WeakSet**: como armazenar mapeamentos complexos de chave-valor, garantir a unicidade de elementos, iterar sobre coleções e evitar vazamentos de memória.
+Este tópico apresenta as estruturas de dados **Map** e **Set** (introduzidas no ES6) e suas variantes de referência fraca **WeakMap** e **WeakSet**: como armazenar mapeamentos complexos de chave-valor, garantir a unicidade de elementos, aplicar operações de conjuntos do ES2024, iterar sobre coleções e gerenciar memória eficientemente.
 
-Materiais: [slides do tópico](../../../../slides/courses/ecmascript/data/collections/) e
-[mapa mental](../../../../mindmaps/courses/ecmascript/data/collections/)
+Materiais: [slides do tópico](../../../../slides/courses/ecmascript/data/collections/) e [mapa mental](../../../../mindmaps/courses/ecmascript/data/collections/).
 
 ## Objetivo
 
-Compreender as coleções estruturadas `Map`, `Set`, `WeakMap` e `WeakSet` em JavaScript, reconhecer as vantagens do `Map` em relação aos objetos literais, dominar técnicas de eliminação de duplicatas em arrays utilizando `Set`, realizar operações de conjuntos e aplicar métodos de busca, inserção e iteração.
+Dominar as coleções estruturadas `Map`, `Set`, `WeakMap` e `WeakSet` em JavaScript, compreendendo suas características de desempenho, modelos de chave e algoritmos de igualdade. Ao final do tópico, o leitor deve ser capaz de:
 
----
+- Escolher entre `Map` e objetos literais com base nos tipos de chaves, frequência de mutações e requisitos de iteração.
+- Utilizar objetos e tipos primitivos como chaves de `Map`, compreendendo o algoritmo de igualdade *SameValueZero*.
+- Converter dados bidirecionalmente entre instâncias de `Map` e objetos literais com `Object.entries()` e `Object.fromEntries()`.
+- Manipular conjuntos com `Set` para eliminação de duplicatas e buscas em tempo constante $O(1)$.
+- Aplicar os métodos modernos de operações de conjuntos do ES2024 (`union`, `intersection`, `difference`, `symmetricDifference`).
+- Empregar `WeakMap` e `WeakSet` para metadados e controle de ciclo de vida sem retenção indevida de memória (*memory leaks*).
 
 ## O Objeto Map
 
-Um **`Map`** é uma coleção ordenada de pares chave-valor na qual **qualquer valor (seja um objeto, função ou tipo primitivo) pode ser usado como chave ou como valor**.
+Um **`Map`** é uma coleção ordenada de pares chave-valor na qual qualquer valor (seja um objeto, função ou tipo primitivo) pode atuar tanto como chave quanto como valor.
 
 ### Comparativo: Map vs Objeto Literal
 
-Diferente de objetos literais comuns (onde as chaves são convertidas para Strings ou Symbols), o `Map` preserva os tipos originais das chaves e a ordem exata de inserção dos elementos.
+Embora objetos literais (`{}`) sejam historicamente utilizados como dicionários em JavaScript, eles possuem limitações fundamentais em relação ao `Map`:
 
 | Característica | Objeto Literal (`{}`) | Estrutura `Map` |
 | :--- | :--- | :--- |
 | **Tipos de Chaves** | Apenas `String` ou `Symbol`. | **Qualquer valor** (objetos, funções, números, booleans). |
 | **Ordem de Inserção** | Nem sempre garantida para chaves numéricas. | **Garantida estritamente** na ordem de inserção. |
-| **Tamanho da Coleção** | Manual via `Object.keys(obj).length`. | Direta via propriedade **`.size`**. |
+| **Tamanho da Coleção** | Manual via `Object.keys(obj).length`. | Direto via propriedade **`.size`**. |
 | **Desempenho** | Otimizado para dados estruturados estáticos. | Otimizado para **inserções e remoções frequentes**. |
 | **Iteração** | Exige `Object.keys()` ou `for...in`. | **Iterável nativo** via `for...of` ou `.forEach()`. |
+| **Chaves Padrão** | Contém protótipo (`Object.prototype`) com chaves herdadas. | Contém apenas as chaves explicitamente inseridas. |
 
 ### Instanciação e Métodos Principais
 
-O `Map` é criado vazio ou a partir de uma lista de pares, e sua API é baseada em métodos, não em acesso por colchetes:
+A API do `Map` opera inteiramente por meio de métodos dedicados (`set`, `get`, `has`, `delete`, `clear`), em vez do acesso direto por colchetes ou ponto:
 
 ```js title="Uso do Objeto Map"
-// 1. Instanciação e Inserção com .set(chave, valor)
+// 1. Instanciação e inserção com .set(chave, valor)
 const userRoles = new Map();
 
 const userAna = { name: "Ana" };
 const userCarlos = { name: "Carlos" };
 
-// Usando objetos como chaves do Map:
+// Usando objetos e números como chaves legítimas do Map:
 userRoles.set(userAna, "Admin");
 userRoles.set(userCarlos, "Editor");
 userRoles.set(100, "ID_Numeric");
 
-// 2. Leitura com .get(chave)
-console.log(userRoles.get(userAna));    // "Admin"
+// 2. Leitura de valores com .get(chave)
+console.log(userRoles.get(userAna)); // "Admin"
 console.log(userRoles.get(userCarlos)); // "Editor"
-console.log(userRoles.get(100));        // "ID_Numeric"
+console.log(userRoles.get(100)); // "ID_Numeric"
 
 // 3. Verificação com .has(chave) e tamanho com .size
 console.log(userRoles.has(userAna)); // true
-console.log(userRoles.size);         // 3
+console.log(userRoles.size); // 3
 
-// 4. Remoção com .delete(chave)
+// 4. Remoção individual com .delete(chave)
 userRoles.delete(userCarlos);
-console.log(userRoles.size);         // 2
+console.log(userRoles.size); // 2
 
-// 5. Limpeza total com .clear()
-// userRoles.clear();
+// 5. Esvaziamento completo com .clear()
+userRoles.clear();
+console.log(userRoles.size); // 0
 ```
 
 <Aside type="tip" title="Chaves por Referência de Memória">
-  Ao utilizar objetos ou arrays como chaves em um `Map`, a busca via `.get()` é baseada na **referência de memória**, e não no conteúdo. Por isso, `map.get({ id: 1 })` retornará `undefined` se for passado um novo objeto literal com a mesma estrutura.
+  Ao utilizar objetos ou arrays como chaves em um `Map`, a comparação é baseada na **referência de memória**, e não no conteúdo estrutural. Por isso, duas instâncias de objetos com propriedades idênticas são tratadas como chaves totalmente distintas.
 </Aside>
 
+O trecho a seguir demonstra a diferença entre buscar uma chave por referência existente e passar um novo objeto literal em tempo de execução:
+
 ```js title="Referência de memória em chaves do Map"
-const map = new Map();
+const productMap = new Map();
 
-map.set({ id: 1 }, "Produto A");
+// Tentativa incorreta: criar o objeto direto no .set() perde a referência
+productMap.set({ id: 1 }, "Mouse Sem Fio");
+console.log(productMap.get({ id: 1 })); // undefined (endereços de memória distintos!)
 
-// Tentar buscar com um novo objeto literal igual falha:
-console.log(map.get({ id: 1 })); // undefined (referências diferentes)
-
-// Forma correta: guardar a referência da chave numa variável
-const keyObj = { id: 1 };
-map.set(keyObj, "Produto B");
-console.log(map.get(keyObj)); // "Produto B"
+// Abordagem correta: reter a referência da variável
+const mouseKey = { id: 1 };
+productMap.set(mouseKey, "Mouse Sem Fio");
+console.log(productMap.get(mouseKey)); // "Mouse Sem Fio"
 ```
 
----
+### O Algoritmo SameValueZero e o Tratamento de NaN
+
+O `Map` compara chaves utilizando o algoritmo interno da especificação denominado **SameValueZero**. Esse algoritmo funciona de forma análoga ao operador de estrita igualdade (`===`), com duas exceções fundamentais:
+
+1. **`NaN` é considerado igual a `NaN`**: diferentemente de `===`, onde `NaN === NaN` é `false`, no `Map` é possível armazenar e recuperar valores associados à chave `NaN`.
+2. **`+0` e `-0` são considerados iguais**: ambas as representações numéricas de zero apontam para a mesma chave na tabela.
+
+```js title="Comportamento do algoritmo SameValueZero no Map"
+const specialMap = new Map();
+
+// NaN é uma chave válida e recuperável
+specialMap.set(Number.NaN, "Valor Especial");
+console.log(specialMap.get(Number.NaN)); // "Valor Especial"
+
+// +0 e -0 compartilham a mesma entrada
+specialMap.set(+0, "Zero Positivo");
+specialMap.set(-0, "Zero Negativo"); // Sobrescreve a chave anterior!
+console.log(specialMap.size); // 2 (entradas: NaN e 0)
+```
+
+### Conversão entre Map e Objeto Literal
+
+Na integração com APIs REST e serialização em JSON, converter entre instâncias de `Map` e objetos tradicionais é uma rotina essencial. O JavaScript disponibiliza os métodos utilitários `Object.entries()` e `Object.fromEntries()` para essa ponte:
+
+```js title="Conversão bidirecional entre Map e Objeto"
+// 1. Objeto literal para Map (new Map com Object.entries)
+const configObj = { theme: "dark", autoSave: true, maxRetries: 3 };
+const configMap = new Map(Object.entries(configObj));
+
+console.log(configMap.get("theme")); // "dark"
+console.log(configMap.size); // 3
+
+// 2. Map para Objeto literal (Object.fromEntries)
+configMap.set("language", "pt-BR");
+const updatedObj = Object.fromEntries(configMap);
+
+console.log(updatedObj);
+// { theme: "dark", autoSave: true, maxRetries: 3, language: "pt-BR" }
+```
 
 ## O Objeto Set
 
-Um **`Set`** é uma coleção de valores **únicos**. Um mesmo valor não pode ser inserido duplicadamente em um `Set`.
+Um **`Set`** é uma coleção de valores **únicos**. Qualquer tentativa de inserir um valor já presente na coleção é ignorada de forma transparente.
 
-### Instanciação e Métodos do Set
+### Instanciação e Métodos Principais
 
-O `Set` guarda apenas valores únicos e responde a um conjunto reduzido de métodos:
+Diferente do `Map` que armazena pares chave-valor, o `Set` armazena apenas elementos individuais:
 
 ```js title="Uso do Objeto Set"
-// 1. Criando um Set com valores iniciais
-const tags = new Set(["javascript", "web", "frontend", "javascript"]);
+// 1. Criando um Set a partir de um iterável (duplicatas são removidas na origem)
+const skills = new Set(["JavaScript", "TypeScript", "Node.js", "JavaScript"]);
+console.log(skills.size); // 3 ("JavaScript" foi computado apenas uma vez)
 
-console.log(tags.size); // 3 (a duplicata "javascript" foi descartada automaticamente!)
+// 2. Inserindo elementos com .add()
+skills.add("React");
+skills.add("TypeScript"); // Ignorado silenciosamente pois já existe
+console.log(skills.size); // 4
 
-// 2. Adicionando elementos com .add()
-tags.add("react");
-tags.add("web"); // Ignorado pois já existe
-
-// 3. Checando existência com .has()
-console.log(tags.has("web"));     // true
-console.log(tags.has("backend")); // false
+// 3. Verificando presença com .has()
+console.log(skills.has("React")); // true
+console.log(skills.has("Python")); // false
 
 // 4. Removendo elemento com .delete()
-tags.delete("frontend");
-console.log(tags.size); // 3
+skills.delete("Node.js");
+console.log(skills.size); // 3
 ```
 
-### Caso de Uso Clássico: Removendo Duplicatas de um Array
+### Complexidade de Busca: Set versus Array
 
-Uma das aplicações mais populares do `Set` é a remoção instantânea de elementos duplicados de um Array utilizando o operador Spread (`...`):
+Uma das maiores motivações técnicas para a escolha entre `Set` e `Array` reside na complexidade computacional da operação de busca:
+
+- **`Array.prototype.includes()`**: realiza uma varredura sequencial linear em tempo **$O(n)$**. Em listas volumosas (como 100.000 itens), o tempo de resposta cresce proporcionalmente ao número de elementos.
+- **`Set.prototype.has()`**: opera por meio de tabela hash interna em tempo amortizado constante **$O(1)$**, realizando o teste de existência de forma praticamente instantânea, independentemente da quantidade de itens.
+
+```js title="Comparação de tempo de busca O(1) versus O(n)"
+const size = 100_000;
+const arrayData = Array.from({ length: size }, (_, i) => `item_${i}`);
+const setData = new Set(arrayData);
+
+const searchItem = "item_99999";
+
+// No Array: O(n) percorre potencialmente todos os elementos
+const inArray = arrayData.includes(searchItem);
+
+// No Set: O(1) localiza a chave via hashing imediato
+const inSet = setData.has(searchItem);
+console.log({ inArray, inSet }); // { inArray: true, inSet: true }
+```
+
+### Eliminação de Duplicatas em Arrays
+
+A combinação de `Set` com o operador *spread* (`...`) é o padrão idiomático mais rápido para remover valores duplicados de um array em uma única linha:
 
 ```js title="Removendo duplicatas de um Array"
-const numbers = [1, 2, 2, 3, 4, 4, 5, 1];
+const rawScores = [10, 20, 10, 30, 40, 20, 50, 40];
 
-// Converter Array -> Set (remove duplicatas) -> Array
-const uniqueNumbers = [...new Set(numbers)];
+// Array -> Set (deduplicação imediata) -> Array
+const uniqueScores = [...new Set(rawScores)];
 
-console.log(uniqueNumbers); // [1, 2, 3, 4, 5]
+console.log(uniqueScores); // [10, 20, 30, 40, 50]
 ```
 
-### Operações de Conjuntos (ES2024 / Métodos Utilitários)
+### Operações de Conjuntos (ES2024 / Baseline)
 
-O ecossistema JavaScript moderno introduziu métodos nativos de teoria dos conjuntos no protótipo do `Set`:
+A especificação ECMAScript 2024 introduziu métodos nativos para cálculo formal de teoria dos conjuntos no protótipo de `Set`. Todos os métodos retornam uma **nova instância** de `Set`, preservando a imutabilidade dos conjuntos originais:
 
-```js title="Operações com conjuntos no Set"
-const setA = new Set([1, 2, 3, 4]);
-const setB = new Set([3, 4, 5, 6]);
+| Método | Operação Matemática | Descrição |
+| :--- | :--- | :--- |
+| `setA.union(setB)` | $A \cup B$ | Elementos presentes em $A$ ou em $B$. |
+| `setA.intersection(setB)` | $A \cap B$ | Elementos presentes simultaneamente em $A$ e $B$. |
+| `setA.difference(setB)` | $A \setminus B$ | Elementos que pertencem a $A$, mas não pertencem a $B$. |
+| `setA.symmetricDifference(setB)` | $A \Delta B$ | Elementos presentes em $A$ ou em $B$, mas não em ambos. |
+| `setA.isSubsetOf(setB)` | $A \subseteq B$ | Retorna booleano indicando se todos os itens de $A$ estão em $B$. |
+| `setA.isSupersetOf(setB)` | $A \supseteq B$ | Retorna booleano indicando se $A$ contém todos os itens de $B$. |
+| `setA.isDisjointFrom(setB)` | $A \cap B = \emptyset$ | Retorna booleano indicando se $A$ e $B$ não têm elementos em comum. |
 
-// 1. União (Union): Combina elementos dos dois conjuntos
-const union = setA.union(setB); 
-console.log([...union]); // [1, 2, 3, 4, 5, 6]
+O código a seguir exemplifica o uso dessas operações em conjuntos de permissões de usuários:
 
-// 2. Interseção (Intersection): Apenas elementos presentes em AMBOS
-const intersection = setA.intersection(setB);
-console.log([...intersection]); // [3, 4]
+```js title="Operações com conjuntos no Set (ES2024)"
+const adminPermissions = new Set(["read", "write", "delete", "audit"]);
+const editorPermissions = new Set(["read", "write", "publish"]);
 
-// 3. Diferença (Difference): Elementos em A que NÃO estão em B
-const difference = setA.difference(setB);
-console.log([...difference]); // [1, 2]
+// 1. União: conjunto consolidado de permissões
+const allPermissions = adminPermissions.union(editorPermissions);
+console.log([...allPermissions]); // ["read", "write", "delete", "audit", "publish"]
+
+// 2. Interseção: permissões compartilhadas por ambos os papéis
+const common = adminPermissions.intersection(editorPermissions);
+console.log([...common]); // ["read", "write"]
+
+// 3. Diferença: exclusivas de admin que editor não possui
+const adminOnly = adminPermissions.difference(editorPermissions);
+console.log([...adminOnly]); // ["delete", "audit"]
+
+// 4. Diferença simétrica: privilégios que não são mútuos
+const nonShared = adminPermissions.symmetricDifference(editorPermissions);
+console.log([...nonShared]); // ["delete", "audit", "publish"]
+
+// 5. Testes relacionais booleanos
+const guestPermissions = new Set(["read"]);
+console.log(guestPermissions.isSubsetOf(adminPermissions)); // true
+console.log(adminPermissions.isDisjointFrom(guestPermissions)); // false
 ```
-
----
 
 ## Iteração sobre Map e Set
 
-Tanto o `Map` quanto o `Set` são iteráveis nativos e mantêm a ordem em que os elementos foram inseridos.
+Tanto o `Map` quanto o `Set` implementam o protocolo de iteração (`Iterable`), permitindo o uso direto em laços `for...of`, desestruturação e chamadas com `.forEach()`.
 
 ### Iterando sobre um Map
 
-A iteração devolve os pares na ordem de inserção, e a desestruturação separa chave e valor em cada passo:
+Ao iterar diretamente sobre um `Map`, cada passo devolve uma tupla `[chave, valor]`, facilitando a desestruturação no cabeçalho do laço:
 
 ```js title="Formas de iterar sobre um Map"
-const prices = new Map([
-  ["Maçã", 2.5],
-  ["Banana", 1.8],
-  ["Laranja", 3.0],
+const catalog = new Map([
+  ["Notebook", 4500],
+  ["Monitor", 1200],
+  ["Teclado", 350],
 ]);
 
-// 1. Usando for...of com desestruturação de par [chave, valor]
-for (const [fruit, price] of prices) {
-  console.log(`${fruit}: R$ ${price.toFixed(2)}`);
+// 1. Laço for...of com desestruturação de par [chave, valor]
+for (const [item, price] of catalog) {
+  console.log(`${item}: R$ ${price.toFixed(2)}`);
 }
 
-// 2. Iterando apenas pelas chaves (.keys())
-for (const fruit of prices.keys()) {
-  console.log(`Fruta: ${fruit}`);
+// 2. Iterando exclusivamente sobre chaves (.keys())
+for (const item of catalog.keys()) {
+  console.log(`Produto: ${item}`);
 }
 
-// 3. Iterando apenas pelos valores (.values())
-for (const price of prices.values()) {
-  console.log(`Preço: ${price}`);
+// 3. Iterando exclusivamente sobre valores (.values())
+for (const price of catalog.values()) {
+  console.log(`Preço: R$ ${price}`);
 }
 
-// 4. Usando .forEach(valor, chave)
-prices.forEach((price, fruit) => {
-  console.log(`${fruit} -> R$ ${price}`);
+// 4. Método forEach: recebe (valor, chave, map)
+catalog.forEach((price, item) => {
+  console.log(`${item} -> R$ ${price}`);
 });
 ```
 
 ### Iterando sobre um Set
 
-Como o `Set` só tem valores, a iteração é direta — e `entries()` existe apenas por compatibilidade com o `Map`:
+No `Set`, como cada elemento é seu próprio identificador, a iteração devolve os valores diretamente na ordem em que foram inseridos:
 
 ```js title="Formas de iterar sobre um Set"
-const colors = new Set(["vermelho", "verde", "azul"]);
+const categories = new Set(["Eletrônicos", "Acessórios", "Móveis"]);
 
-// 1. Usando for...of
-for (const color of colors) {
-  console.log(`Cor: ${color}`);
+// 1. Laço for...of direto
+for (const category of categories) {
+  console.log(`Categoria: ${category}`);
 }
 
-// 2. Usando .forEach()
-colors.forEach((color) => {
-  console.log(`Item: ${color}`);
+// 2. Método forEach
+categories.forEach((category) => {
+  console.log(`Item: ${category}`);
 });
 ```
 
----
-
 ## WeakMap e WeakSet (Coleções de Referência Fraca)
 
-O JavaScript fornece duas variantes especiais de coleções chamadas **`WeakMap`** e **`WeakSet`**. A palavra *Weak* ("fraca") refere-se à forma como o Coletor de Lixo (*Garbage Collector*) do navegador lida com as referências dos objetos guardados.
+O JavaScript fornece duas variantes especializadas chamadas **`WeakMap`** e **`WeakSet`**. O termo *Weak* ("fraco") diz respeito ao modo como o Coletor de Lixo (*Garbage Collector*) trata as referências aos objetos guardados: referências fracas não impedem que os objetos sejam desalocados da memória quando não houverem outros apontamentos ativos na aplicação.
 
 | Característica | `Map` / `Set` | `WeakMap` / `WeakSet` |
 | :--- | :--- | :--- |
-| **Tipos Permitidos** | Qualquer tipo primitivo ou objeto. | **Apenas Objetos** (e Symbols não registrados). |
-| **Coleta de Lixo (Garbage Collection)** | Mantém a referência forte, **impedindo a limpeza**. | **Referência Fraca**: permite a liberação da memória. |
-| **Propriedade `.size`** | Presente (ex: `map.size`). | **Ausente** (indeterminada). |
-| **Iteração** | Suporta `for...of`, `.keys()`, `.values()`. | **Não iterável** (não é possível listar os elementos). |
+| **Tipos Permitidos de Chave** | Qualquer tipo primitivo ou objeto. | **Apenas Objetos** (e Symbols não registrados). |
+| **Coleta de Lixo (GC)** | Mantém a referência forte, **impedindo a coleta**. | **Referência Fraca**: permite a liberação imediata da memória. |
+| **Propriedade `.size`** | Presente (ex: `map.size`). | **Ausente** (o tamanho é não determinístico). |
+| **Iterabilidade** | Suporta `for...of`, `.keys()`, `.values()`. | **Não iterável** (não é possível listar os elementos). |
+| **Método `.clear()`** | Suportado. | **Ausente**. |
 
-## Caso de Uso: Dados Privados e Metadados de Objetos
+### Casos de Uso: Metadados e Ciclo de Vida
 
-O `WeakMap` é ideal para associar dados ou metadados privados a uma instância de objeto. Se o objeto for destruído no sistema, os dados associados a ele no `WeakMap` serão automaticamente removidos da memória pelo Coletor de Lixo.
+O `WeakMap` é especialmente valioso para associar metadados ou informações privadas a instâncias de objetos sem modificar as propriedades do objeto e sem risco de vazamentos de memória (*memory leaks*):
 
-```js title="Exemplo prático de WeakMap"
-const privateData = new WeakMap();
+```js title="Exemplo prático de WeakMap para metadados privados"
+const accessLogs = new WeakMap();
 
-class User {
-  constructor(name, secretToken) {
-    this.name = name;
-    // Guarda o token privado no WeakMap usando a instância (this) como chave
-    privateData.set(this, { token: secretToken });
+class SecureSession {
+  constructor(userId) {
+    this.userId = userId;
+    // Vincula metadados confidenciais à instância (this)
+    accessLogs.set(this, {
+      createdAt: new Date(),
+      lastPing: Date.now(),
+      authToken: "JWT_TOKEN_SECRET_987",
+    });
   }
 
-  getSecretToken() {
-    return privateData.get(this).token;
+  getPing() {
+    return accessLogs.get(this).lastPing;
   }
 }
 
-const user = new User("Ana", "SECRET_123");
-console.log(user.name);             // "Ana"
-console.log(user.getSecretToken()); // "SECRET_123"
-console.log(user.secretToken);      // undefined (protegido contra acesso direto!)
+let session = new SecureSession("user_42");
+console.log(session.getPing()); // Timestamp numérico
+
+// Se a variável 'session' for anulada, o Garbage Collector descarta
+// tanto o objeto session quanto os metadados associados no WeakMap!
+session = null;
 ```
 
----
+O `WeakSet`, por sua vez, é frequentemente utilizado para **marcação de instâncias** (*tagging* ou *branding*), validando se um objeto foi criado por uma fábrica autorizada antes de executar operações sensíveis:
+
+```js title="Exemplo de validação de instância com WeakSet"
+const authorizedWidgets = new WeakSet();
+
+class Widget {
+  constructor(name) {
+    this.name = name;
+    authorizedWidgets.add(this);
+  }
+
+  render() {
+    if (!authorizedWidgets.has(this)) {
+      throw new Error("Objeto não autorizado a renderizar.");
+    }
+    return `<div>${this.name}</div>`;
+  }
+}
+
+const legitimateWidget = new Widget("Card");
+console.log(legitimateWidget.render()); // "<div>Card</div>"
+```
+
+## Resumo e Boas Práticas
+
+A escolha criteriosa da estrutura de dados adequada previne gargalos de desempenho e problemas de retenção de memória.
+
+| Prática Recomendada | Motivo Técnico |
+| :--- | :--- |
+| **Usar `Map` quando as chaves não são strings fixas** | Objeto literal converte chaves complexas para `"[object Object]"`, causando colisões graves. |
+| **Preferir `Set.has()` em vez de `Array.includes()`** | A verificação no `Set` opera em tempo amortizado constante $O(1)$, enquanto o array exige varredura $O(n)$. |
+| **Usar `WeakMap` para metadados de ciclo de vida** | Permite que o Coletor de Lixo libere instâncias destruídas sem gerar vazamentos de memória. |
+| **Guardar referências de objetos usados como chave** | A busca no `Map` avalia referências de memória; instanciar um novo `{ id: 1 }` na consulta retorna `undefined`. |
+| **Utilizar os métodos de conjunto do ES2024** | Funções nativas como `union()` e `intersection()` são imutáveis, padronizadas e otimizadas em baixo nível pelo motor. |
+| **Converter via `Object.fromEntries()` ao exportar JSON** | O formato JSON padrão suporta apenas pares chave-valor string; o `Map` puro não é serializado como dicionário por `JSON.stringify()`. |
+
+O bloco a seguir reúne essas práticas em uma rotina de gerenciamento de permissões de usuários com deduplicação, cruzamento de conjuntos e cache:
+
+```js title="Resumo prático de coleções"
+// 1. Deduplicação com Set
+const rawRoles = ["editor", "author", "editor", "subscriber"];
+const userRoles = new Set(rawRoles);
+
+// 2. Operação de conjuntos nativa (ES2024)
+const requiredRoles = new Set(["editor", "admin"]);
+const hasPermission = userRoles.intersection(requiredRoles).size > 0;
+
+// 3. Mapeamento com Map e conversão com Object.fromEntries
+const userStatus = new Map([
+  ["user_1", { active: true, roles: [...userRoles] }],
+  ["user_2", { active: false, roles: ["subscriber"] }],
+]);
+
+const exportedStatus = Object.fromEntries(userStatus);
+console.log({ hasPermission, totalActive: userStatus.size });
+```
 
 ## Executando
 
-Os conceitos de `Map`, `Set` e `WeakMap` podem ser testados com o Node.js no seu terminal ou no Console do navegador.
+Os conceitos de `Map`, `Set` e operações de conjuntos podem ser executados no terminal através do Node.js.
 
 <Steps>
 
-1. Crie um arquivo chamado `collections-demo.js`:
+1. Crie um arquivo chamado `collections-demo.js` com o seguinte código:
 
    ```js title="collections-demo.js"
-   // 1. Eliminar duplicatas com Set
-   const rawRoles = ["user", "admin", "user", "editor", "admin"];
-   const uniqueRoles = [...new Set(rawRoles)];
-   console.log("Cargos únicos:", uniqueRoles);
+   // 1. Deduplicação com Set
+   const rawTags = ["node", "express", "node", "javascript", "express"];
+   const uniqueTags = new Set(rawTags);
+   console.log("Tags únicas:", [...uniqueTags]);
 
-   // 2. Mapeamento complexo com Map
+   // 2. Operações de conjuntos (ES2024)
+   const backendSkills = new Set(["node", "express", "sql"]);
+   const intersection = uniqueTags.intersection(backendSkills);
+   console.log("Habilidades backend coincidentes:", [...intersection]);
+
+   // 3. Cache em memória com Map
    const cache = new Map();
-   cache.set("query_users", [{ id: 1, name: "Maria" }]);
-   
-   if (cache.has("query_users")) {
-     console.log("Dados em cache:", cache.get("query_users"));
-   }
+   cache.set("total_users", 1420);
+   cache.set("maintenance_mode", false);
+
+   console.log(`Usuários em cache: ${cache.get("total_users")}`);
+   console.log(`Itens registrados no cache: ${cache.size}`);
    ```
 
 2. Execute o arquivo com Node.js no terminal:
@@ -274,71 +425,231 @@ Os conceitos de `Map`, `Set` e `WeakMap` podem ser testados com o Node.js no seu
    ```
 
    ```txt title="Output"
-   Cargos únicos: [ 'user', 'admin', 'editor' ]
-   Dados em cache: [ { id: 1, name: 'Maria' } ]
+   Tags únicas: [ 'node', 'express', 'javascript' ]
+   Habilidades backend coincidentes: [ 'node', 'express' ]
+   Usuários em cache: 1420
+   Itens registrados no cache: 2
    ```
+
+3. Experimente adicionar novos elementos com chaves de tipos mistos no `Map` e inspecionar a saída com `.has()`.
 
 </Steps>
 
----
+## Exercício
+
+Crie um arquivo chamado `access-control.js` para construir um gerenciador de permissões de sistema:
+
+1. Crie uma classe `AccessController` com uma propriedade interna `userPermissions` baseada em `Map`;
+2. Implemente o método `grant(userId, permissionsList)` que associe um `Set` de permissões a um determinado usuário;
+3. Se o usuário já possuir permissões cadastradas, o método deve mesclar as novas permissões com as antigas garantindo a unicidade dos elementos;
+4. Implemente o método `hasAccess(userId, permission)` que retorne um booleano validando se o usuário possui o privilégio solicitado;
+5. Instancie o controlador, atribua permissões a dois usuários diferentes e imprima no console os testes de acesso.
+
+Tente implementar as instruções acima antes de inspecionar a solução de referência a seguir.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="access-control.js"
+  class AccessController {
+    #userPermissions = new Map();
+
+    grant(userId, newPermissions) {
+      const currentPermissions = this.#userPermissions.get(userId) || new Set();
+
+      for (const permission of newPermissions) {
+        currentPermissions.add(permission);
+      }
+
+      this.#userPermissions.set(userId, currentPermissions);
+    }
+
+    hasAccess(userId, permission) {
+      const permissions = this.#userPermissions.get(userId);
+      if (!permissions) return false;
+      return permissions.has(permission);
+    }
+
+    listPermissions(userId) {
+      const permissions = this.#userPermissions.get(userId);
+      return permissions ? [...permissions] : [];
+    }
+  }
+
+  const acl = new AccessController();
+
+  acl.grant("user_101", ["read_post", "write_post"]);
+  acl.grant("user_101", ["delete_post", "write_post"]); // "write_post" não duplica
+
+  acl.grant("user_102", ["read_post"]);
+
+  console.log("User 101 pode deletar?", acl.hasAccess("user_101", "delete_post")); // true
+  console.log("User 102 pode deletar?", acl.hasAccess("user_102", "delete_post")); // false
+  console.log("Permissões de 101:", acl.listPermissions("user_101")); // ['read_post', 'write_post', 'delete_post']
+  ```
+</details>
+
+## Desafio
+
+Crie um arquivo chamado `event-comparator.js` que receba os conjuntos de participantes de dois eventos da empresa e utilize os novos métodos de conjunto do ES2024 para gerar um relatório analítico:
+
+1. Crie dois conjuntos `workshopA` e `workshopB` contendo listas de e-mails com participantes;
+2. Escreva uma função `generateParticipationReport(setA, setB)` que calcule:
+   - O total de participantes únicos em ambos os eventos (`union`);
+   - Os participantes que estiveram em ambos os eventos (`intersection`);
+   - Os participantes exclusivos do evento A (`difference`);
+   - Os participantes que estiveram em apenas um dos eventos, mas não em ambos (`symmetricDifference`);
+3. Retorne um objeto com os resultados e exiba no console formatado com `console.table()`.
+
+Implemente a solução no seu arquivo antes de conferir a resolução comentada abaixo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="event-comparator.js"
+  const workshopA = new Set(["ana@test.com", "carlos@test.com", "beatriz@test.com", "daniel@test.com"]);
+  const workshopB = new Set(["carlos@test.com", "daniel@test.com", "eduardo@test.com", "fernanda@test.com"]);
+
+  function generateParticipationReport(setA, setB) {
+    const totalUnique = setA.union(setB);
+    const presentInBoth = setA.intersection(setB);
+    const exclusiveToA = setA.difference(setB);
+    const exclusiveToB = setB.difference(setA);
+    const nonOverlapping = setA.symmetricDifference(setB);
+
+    return {
+      totalParticipantesUnicos: totalUnique.size,
+      presentesEmAmbos: [...presentInBoth].join(", "),
+      apenasEventoA: [...exclusiveToA].join(", "),
+      apenasEventoB: [...exclusiveToB].join(", "),
+      naoRepetidos: [...nonOverlapping].join(", "),
+    };
+  }
+
+  const report = generateParticipationReport(workshopA, workshopB);
+  console.log("--- Relatório de Participação ---");
+  console.table(report);
+  ```
+</details>
 
 ## Perguntas de revisão
 
-### Map vs Objeto Literal
+### Map e Mapeamento Chave-Valor
 
-**1. Por que usar um `Map` em vez de um Objeto literal (`{}`) quando as chaves são objetos ou funções?**
-
-<details>
-  <summary>Possível resposta</summary>
-
-  Porque objetos literais convertem automaticamente qualquer chave não-string para string (fazendo com que diferentes objetos virem `"[object Object]"`). O `Map` permite usar qualquer tipo de dado como chave sem realizar conversão.
-</details>
-
-**2. Qual é a diferença entre buscar uma chave numérica em um `Map` e em um Objeto literal?**
+**1. Por que utilizar um `Map` em vez de um Objeto literal (`{}`) quando as chaves são objetos ou funções?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  No objeto literal, a chave numérica `100` e a string `"100"` são tratadas como a mesma propriedade. No `Map`, a chave numérica `100` e a string `"100"` são chaves distintas e independentes.
+  Porque objetos literais convertem automaticamente qualquer chave não-string para string (transformando diferentes instâncias de objetos na mesma chave `"[object Object]"` e sobrescrevendo valores). O `Map` permite usar qualquer tipo de dado como chave preservando referências sem coerção.
 </details>
 
-### Set e Eliminação de Duplicatas
-
-**3. Como o `Set` lida com valores duplicados ao tentar adicionar o mesmo elemento duas vezes com `.add()`?**
+**2. Qual é o comportamento do algoritmo SameValueZero adotado pelo `Map` em relação a `NaN` e zeros com sinais diferentes (`+0` e `-0`)?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  O `Set` ignora silenciosamente a tentativa de inserção e mantém apenas a primeira ocorrência do valor, garantindo que todos os elementos permaneçam únicos.
+  O algoritmo considera `NaN` igual a `NaN` (permitindo que `NaN` seja usado e recuperado como chave com sucesso) e considera `+0` e `-0` equivalentes, apontando para a mesma entrada na coleção.
 </details>
 
-**4. Como podemos converter um Array com valores duplicados em um Array com elementos únicos usando `Set`?**
+**3. Como converter um `Map` em um Objeto literal e vice-versa?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Instanciando um `Set` com o array original e espalhando o resultado de volta em um novo Array com a sintaxe `[...new Set(arrayOriginal)]`.
+  Para converter de Objeto para `Map`, utiliza-se `new Map(Object.entries(objeto))`. Para converter de `Map` para Objeto literal, utiliza-se `Object.fromEntries(map)`.
 </details>
 
-### WeakMap e WeakSet
-
-**5. Por que o `WeakMap` e o `WeakSet` não possuem a propriedade `.size` e não podem ser iterados com `for...of`?**
+**4. Por que a busca por uma chave de objeto literal recém-criada como `map.get({ id: 1 })` retorna `undefined`?**
 
 <details>
   <summary>Possível resposta</summary>
 
-  Porque o Coletor de Lixo (*Garbage Collector*) pode remover elementos de um `WeakMap` ou `WeakSet` a qualquer momento não determinístico caso os objetos-chave deixem de ser referenciados no resto da aplicação. Permitir iteração ou consulta de tamanho geraria resultados inconsistentes.
+  Porque o `Map` compara chaves baseadas em objetos pela sua referência de endereço de memória. O objeto `{ id: 1 }` passado no momento da leitura é uma nova instância na memória heap, distinta da referência utilizada no momento da inserção.
 </details>
 
----
+### Set, Complexidade e Operações de Conjuntos
+
+**5. Qual é a diferença de complexidade assintótica de busca entre `Array.prototype.includes()` e `Set.prototype.has()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `Array.prototype.includes()` possui complexidade $O(n)$, pois realiza uma varredura sequencial linear em toda a lista. Já o `Set.prototype.has()` possui complexidade média constante $O(1)$, pois localiza elementos via indexação por tabela hash.
+</details>
+
+**6. Como funciona a eliminação de duplicatas com `[...new Set(array)]`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O construtor `new Set(array)` itera sobre o array original e descarta automaticamente qualquer valor repetido por definição da estrutura. Em seguida, o operador *spread* (`...`) descompacta os valores únicos de volta em uma nova instância de `Array`.
+</details>
+
+**7. Quais são as operações de conjuntos introduzidas no ES2024 para a estrutura `Set`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A especificação ES2024 introduziu os métodos `union()`, `intersection()`, `difference()`, `symmetricDifference()`, além dos métodos relacionais de comparação `isSubsetOf()`, `isSupersetOf()` e `isDisjointFrom()`.
+</details>
+
+**8. O método `setA.intersection(setB)` altera o conjunto `setA` original?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Não. Todos os novos métodos de conjuntos do ES2024 são imutáveis e retornam uma **nova instância** de `Set` contendo o resultado da operação, sem modificar os conjuntos originais.
+</details>
+
+### Coleções Fracas (WeakMap e WeakSet)
+
+**9. O que significa o termo "fraco" (*Weak*) em `WeakMap` e `WeakSet`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Significa que a coleção retém apenas referências fracas para os objetos armazenados como chave. Se não houver outras referências fortes para o objeto no restante da aplicação, o Coletor de Lixo (*Garbage Collector*) pode liberar a memória do objeto a qualquer momento.
+</details>
+
+**10. Por que `WeakMap` e `WeakSet` não possuem a propriedade `.size` e não podem ser iterados com `for...of`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o processo de liberação de memória pelo Coletor de Lixo é não determinístico. Se a iteração ou o tamanho fossem permitidos, o resultado dependeria do momento exato em que o ciclo de coleta de lixo foi executado pelo motor, gerando comportamentos imprevisíveis.
+</details>
+
+**11. Quais tipos de dados são permitidos como chaves em um `WeakMap`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Apenas objetos (como `{}` ou instâncias de classes) e Symbols não registrados na tabela global. Tipos primitivos como números, strings e booleans não são permitidos como chave porque não podem ser coletados pelo Garbage Collector.
+</details>
+
+**12. Qual é um caso de uso prático típico para o `WeakMap` em arquitetura de software?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O armazenamento de dados privados ou metadados associados a instâncias de classes ou nós do DOM. Quando o objeto principal for descartado, todos os metadados associados a ele no `WeakMap` serão desalocados automaticamente, prevenindo vazamentos de memória.
+</details>
 
 ## Referências
 
-- [Map | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map)
-- [Set | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set)
-- [WeakMap | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap)
-- [WeakSet | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakSet)
+Para aprofundar o domínio sobre coleções e estruturas estruturadas no ecossistema JavaScript, consulte a documentação oficial da MDN:
+
+- Guias de Map e Set na MDN:
+  - [Map | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map)
+  - [Set | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set)
+  - [Set Methods (ES2024) | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set#set_composition_methods)
+- Guias de Coleções Fracas:
+  - [WeakMap | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap)
+  - [WeakSet | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakSet)
 
 ## Próximo tópico
+
+Após consolidar o domínio sobre mapas, conjuntos e coleções estruturadas, o próximo passo consiste em explorar a identificação e validação de padrões de texto com:
 
 [Expressões Regulares (RegExp)](../../stdlib/regex/): Padrões de busca, quantificadores, classes de caracteres e métodos RegExp.

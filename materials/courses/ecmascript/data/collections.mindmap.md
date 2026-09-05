@@ -7,48 +7,83 @@ markmap:
 
 # JavaScript: Map, Set e Coleções
 
-## Objetivo
-- Compreender as coleções estruturadas `Map`, `Set`, `WeakMap` e `WeakSet` em JavaScript.
+## Ideia Central
 
-## O Objeto Map
-- Um `Map` é uma coleção ordenada de pares chave-valor na qual qualquer valor (seja um objeto.
-### Comparativo: Map vs Objeto Literal
-- Tipos de Chaves: Apenas `String` ou `Symbol`.; Qualquer valor (objetos, funções, números, booleans).
-- Ordem de Inserção: Nem sempre garantida para chaves numéricas.; Garantida estritamente na ordem de inserção.
-- Tamanho da Coleção: Manual via `Object.keys(obj).length`.; Direta via propriedade `.size`.
-- Desempenho: Otimizado para dados estruturados estáticos.; Otimizado para inserções e remoções frequentes.
-- Iteração: Exige `Object.keys()` ou `for...in`.; Iterável nativo via `for...of` ou `.forEach()`.
-### Instanciação e Métodos Principais
-- O `Map` é criado vazio ou a partir de uma lista de pares, e sua API é baseada em métodos, não em acesso por colchetes
+- **Coleções ES6**: estruturas dedicadas para pares chave-valor e conjuntos únicos
+- **Vantagem sobre objetos**: chaves de qualquer tipo e ordem estrita de inserção
+- **Desempenho**: tabelas hash internas otimizadas para inserção e busca frequente
 
-## O Objeto Set
-- Um `Set` é uma coleção de valores únicos.
-- Um mesmo valor não pode ser inserido duplicadamente em um `Set`.
-### Instanciação e Métodos do Set
-- O `Set` guarda apenas valores únicos e responde a um conjunto reduzido de métodos
-### Operações de Conjuntos (ES2024 / Métodos Utilitários)
-- O ecossistema JavaScript moderno introduziu métodos nativos de teoria dos conjuntos no protótipo do `Set`
+## Estrutura Map
 
-## Iteração sobre Map e Set
-- Tanto o `Map` quanto o `Set` são iteráveis nativos e mantêm a ordem em que os elementos foram inseridos.
-### Iterando sobre um Map
-- A iteração devolve os pares na ordem de inserção, e a desestruturação separa chave e valor em cada passo
-### Iterando sobre um Set
-- Como o `Set` só tem valores, a iteração é direta — e `entries()` existe apenas por compatibilidade com o `Map`
+### Características
+- **Qualquer tipo como chave**: objetos, funções, números e booleanos
+- **Referência de memória**: busca compara endereços em chaves de objeto
+- **SameValueZero**: considera `NaN === NaN` e `+0 === -0`
+- **Tamanho direto**: propriedade `.size` imediata
 
-## WeakMap e WeakSet (Coleções de Referência Fraca)
-- Tipos Permitidos: Qualquer tipo primitivo ou objeto.; Apenas Objetos (e Symbols não registrados).
-- Coleta de Lixo (Garbage Collection): Mantém a referência forte, impedindo a limpeza..
-- Propriedade `.size`: Presente (ex: `map.size`).; Ausente (indeterminada).
-- Iteração: Suporta `for...of`, `.keys()`, `.values()`.; Não iterável (não é possível listar os elementos).
-- O JavaScript fornece duas variantes especiais de coleções chamadas `WeakMap` e `WeakSet`.
+### Métodos Principais
+- `set(chave, valor)`: insere ou atualiza entrada
+- `get(chave)`: recupera valor associado ou `undefined`
+- `has(chave)`: verifica existência retornando booleano
+- `delete(chave)`: remove entrada específica
+- `clear()`: remove todos os elementos da coleção
 
-## Caso de Uso: Dados Privados e Metadados de Objetos
-- O `WeakMap` é ideal para associar dados ou metadados privados a uma instância de objeto.
+## Estrutura Set
 
-## Síntese de Estudo
-- **Página**: aprofunda conceitos, exemplos e exercícios
-- **Slides**: organizam a exposição em sala
-- **Mapa mental**: revisa relações entre tópicos
-- **Prática**: execute os exemplos antes de memorizar regras
+### Características
+- **Valores únicos**: duplicatas são descartadas automaticamente
+- **Busca em tempo constante**: teste de existência em $O(1)$ amortizado
+- **Deduplicação de array**: padrão idiomático `[...new Set(array)]`
 
+### Métodos Principais
+- `add(valor)`: adiciona novo elemento à coleção
+- `has(valor)`: verifica presença de forma ultrarrápida
+- `delete(valor)`: remove item específico
+- `size`: número total de elementos únicos
+
+## Operações de Conjuntos (ES2024)
+
+### Operações Matemáticas
+- `union(outro)`: combinação de todos os elementos ($A \cup B$)
+- `intersection(outro)`: apenas elementos compartilhados ($A \cap B$)
+- `difference(outro)`: exclusivos do primeiro conjunto ($A \setminus B$)
+- `symmetricDifference(outro)`: presentes em um ou outro, mas não em ambos
+
+### Comparações Booleanas
+- `isSubsetOf(outro)`: valida se todos os itens estão no outro conjunto
+- `isSupersetOf(outro)`: valida se contém todos os itens do outro
+- `isDisjointFrom(outro)`: valida se não possuem nenhum item em comum
+- **Imutabilidade**: todos os métodos geram novas instâncias de `Set`
+
+## Iteração e Conversões
+
+### Modos de Iteração
+- `for...of`: desestrutura tuplas `[chave, valor]` no `Map`
+- `keys()` / `values()`: iteradores específicos de chaves ou valores
+- `forEach()`: iteração funcional preservando a ordem de inserção
+
+### Conversões de Dados
+- `new Map(Object.entries(obj))`: converte objeto literal em `Map`
+- `Object.fromEntries(map)`: converte `Map` de volta em objeto para JSON
+- `[...set]` / `Array.from(set)`: converte conjunto para array
+
+## Coleções Fracas (WeakMap e WeakSet)
+
+### Características
+- **Apenas objetos como chave**: proíbe tipos primitivos
+- **Referências fracas**: não impedem a atuação do Coletor de Lixo
+- **Sem tamanho e não iteráveis**: tamanho dinâmico impede `.size` e laços
+- **Sem vazamentos**: dados descartados quando o objeto-chave for liberado
+
+### Aplicações Práticas
+- `WeakMap`: armazenamento de metadados privados em instâncias de classes
+- `WeakSet`: validação de marcas de instâncias autorizadas (*branding*)
+- **Ciclo de vida no DOM**: vínculo de estado a nós HTML sem vazamentos
+
+## Boas Práticas
+
+- **Prefira Map para dados dinâmicos**: previne colisões com `[object Object]`
+- **Use Set para buscas frequentes**: aproveita complexidade $O(1)$ contra $O(n)$
+- **Mantenha imutabilidade no ES2024**: encadeie métodos sem mutações colaterais
+- **Converta para objeto antes de JSON**: `JSON.stringify()` não serializa `Map` direto
+- **Use WeakMap para dados efêmeros**: previne vazamentos de memória na aplicação
