@@ -123,6 +123,7 @@ Os avisos que **valem investigação**, em ordem de gravidade:
 | `comentario promete X, ausente na saida real` | O comentário de saída não corresponde ao que o código imprime hoje. |
 | `o bloco nao executa ate o fim` | Exemplo quebrado, **ou** erro proposital de didática: confira antes de "corrigir". |
 | `bloco sem title` | Falta o `title="..."` obrigatório do Expressive Code. |
+| `terminal sem output` | Comando que produz saída relevante (`node arquivo.js`, `node --test`) sem o ` ```txt title="Output" frame="terminal" ` em seguida. Exceção: sessões com prompt visível, em que comando e resposta já vêm juntos. |
 | `nao e JavaScript valido; se for assinatura` | Assinatura ou pseudocódigo marcado como `js`. |
 
 É uma ferramenta heurística, como o `check-doc-lines --prosa`: ela aponta candidatos, e a
@@ -215,14 +216,18 @@ precisam ser verdadeiras hoje:
 1. **Saídas de terminal são reais?** Todo bloco `txt title="Output"` deve ter sido produzido
    por uma execução, não escrito de memória. O `check-code-blocks.mjs --run` compara
    automaticamente; na dúvida, execute à mão.
-2. **O código do bloco roda?** A camada de sintaxe do script pega o que não compila; a de
+2. **Todo comando que gera saída relevante mostra essa saída?** Um `bash title="Terminal"` com
+   `node arquivo.js` ou `node --test` sem o `Output` seguinte obriga o leitor a executar para
+   saber o que esperar. A recíproca vale igualmente: saída sem o comando que a produziu.
+   Comandos sem retorno útil (`cd`, `mkdir`, `code .`) e instalações longas são a exceção.
+3. **O código do bloco roda?** A camada de sintaxe do script pega o que não compila; a de
    execução pega o que compila e não faz o que a página diz.
-3. **A API existe na versão citada?** Confirme com `node --eval` ou na MDN, principalmente em
+4. **A API existe na versão citada?** Confirme com `node --eval` ou na MDN, principalmente em
    recursos recentes (`toSorted`, `Object.groupBy`, `import.meta.dirname`).
-4. **A versão citada bate com a do repositório?** Node.js e dependências mudam.
-5. **Comandos e caminhos existem?** `pnpm run <script>` precisa estar no `package.json`, e o
+5. **A versão citada bate com a do repositório?** Node.js e dependências mudam.
+6. **Comandos e caminhos existem?** `pnpm run <script>` precisa estar no `package.json`, e o
    caminho de `<SourceCode>` precisa existir em `examples/`.
-6. **Links externos**: MDN e especificação, sem encurtador e sem link morto.
+7. **Links externos**: MDN e especificação, sem encurtador e sem link morto.
 
 ---
 

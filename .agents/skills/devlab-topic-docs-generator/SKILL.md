@@ -743,7 +743,12 @@ Configuração em `ec.config.mjs`. Convenções em uso:
 - **Demonstração do Resultado / Saída**: Exemplos de código CSS e HTML não devem ficar isolados apenas com a sintaxe. Sempre acompanhe o código de sua demonstração visual ou saída esperada:
   1. **Via `<HtmlPreview path="examples/..." />`**: para mostrar o resultado vivo renderizado pelo navegador a partir de arquivos reais em `examples/`.
   2. **Via ` ```txt title="Resultado na tela" ` ou comentários explicativos**: para demonstrar/descrever exatamente como o elemento é desenhado no navegador (dimensões finais, alinhamento ou efeito visual).
-- Saída de execução de terminal ou navegador: ` ```txt title="Output" ` ou ` ```txt title="Resultado na tela" `.
+- Saída de execução no terminal: ` ```txt title="Output" frame="terminal" `. O `frame="terminal"`
+  dá ao bloco a mesma moldura de janela do comando que o produziu, mantendo a continuidade visual
+  do par, e o `txt` evita que o realce de shell colora a saída como se fosse código (um `#` no
+  meio de uma mensagem viraria comentário). Não use ` ```bash ` para saída pelo mesmo motivo.
+- Saída renderizada pelo navegador: ` ```txt title="Resultado na tela" `, **sem** o
+  `frame="terminal"`, porque ali não há terminal nenhum.
 - **Nunca mostre a saída sem o comando que a produziu**: todo ` ```txt title="Output" ` deve vir
   imediatamente depois do ` ```bash title="Terminal" ` que o gerou, mesmo quando o comando já foi
   citado no texto. O leitor precisa ver o par completo (comando e resultado) para reproduzir o
@@ -754,10 +759,55 @@ Configuração em `ec.config.mjs`. Convenções em uso:
   node main.js
   ```
 
-  ```txt title="Output"
+  ```txt title="Output" frame="terminal"
   ReferenceError: sum is not defined
   ```
   ````
+- **E o inverso também vale: todo comando que produz saída relevante deve exibir essa saída.**
+  Um ` ```bash title="Terminal" ` sozinho obriga o leitor a executar para saber o que esperar, e
+  tira dele a única forma de conferir se o próprio resultado bateu. Sempre que for pertinente,
+  acrescente o ` ```txt title="Output" ` logo depois do comando.
+
+  Quando **incluir** a saída:
+
+  | Situação | Por que a saída importa |
+  | -------- | ----------------------- |
+  | O comando **é o assunto** do trecho (`node arquivo.js`, `node --test`, `npm view`) | A saída é a demonstração; sem ela o exemplo fica pela metade. |
+  | O comando **falha de propósito** | O erro exibido é o que ensina; descrevê-lo em texto não substitui a mensagem real. |
+  | A saída **contém o dado citado** no parágrafo seguinte | O leitor precisa ver de onde veio o número, o nome ou o código de status. |
+  | O comando **confirma um estado** (`node --version`, `git status`) | O que se quer mostrar é justamente o que ele responde. |
+
+  Quando **não** incluir:
+
+  | Situação | O que fazer |
+  | -------- | ----------- |
+  | Comandos sem saída útil (`cd`, `mkdir`, `code .`, `touch`) | Deixe só o comando. |
+  | Instalação com saída longa e volátil (`npm install`) | Omita, ou mostre apenas as duas ou três linhas que importam. |
+  | Servidor que fica em execução (`pnpm dev`) | Mostre só as linhas iniciais que confirmam a porta. |
+  | A saída já apareceu igual poucas linhas antes | Não repita; referencie o bloco anterior no texto. |
+
+  **Exceção: comando e saída no mesmo bloco.** Quando o trecho reproduz uma *sessão* de terminal,
+  com o prompt visível (`$` no shell, `>` no REPL do Node.js, `sqlite>` no SQLite), o comando e a
+  resposta já aparecem juntos e intercalados. Nesse caso **não** crie um `Output` separado: dividir
+  a sessão quebraria a leitura, e o prompt já distingue o que foi digitado do que foi respondido.
+
+  ````mdx
+  ```bash title="Terminal"
+  $ node
+  > const grade = 95;
+  undefined
+  > grade >= 60 ? "Approved" : "Failed"
+  'Approved'
+  > .exit
+  ```
+  ````
+
+  O bloco separado continua sendo a forma padrão para o caso mais comum, o de um comando único
+  executado e a saída que ele imprime.
+
+  Duas regras de fidelidade: **a saída é copiada de uma execução real**, nunca escrita de memória,
+  e saídas longas podem ser cortadas, desde que o corte fique explícito com `…` ou com um
+  comentário, sem inventar linhas intermediárias.
 - **Mostre a árvore de diretórios com `<FileTree>` sempre que o exemplo envolver mais de um
   arquivo**: antes de exibir os `<SourceCode>` de uma pasta, apresente a estrutura para o leitor
   saber quantos arquivos existem e qual é o papel de cada um. Use o comentário depois do nome
@@ -923,21 +973,24 @@ o que quis dizer, e não o que ficou escrito.
 23. **`<Aside>` de IA fora do padrão**: callout sobre código gerado por assistente sem o
     prefixo `Dica de IA:` no título ou sem a linha final `**Prompt:**` com um pedido pronto.
 24. **Uso de travessões (`—`) para orações intercaladas**: antipadrão e vício estilístico de IA — substitua por vírgulas, parênteses ou períodos diretos.
-24. **Saída sem comando**: um ` ```txt title="Output" ` solto, sem o ` ```bash title="Terminal" `
+25. **Comando sem saída quando a saída é o ponto**: um ` ```bash title="Terminal" ` com
+    `node arquivo.js` ou `node --test` e nenhum ` ```txt title="Output" ` em seguida. O leitor
+    fica sem o resultado que deveria comparar com o dele.
+26. **Saída sem comando**: um ` ```txt title="Output" ` solto, sem o ` ```bash title="Terminal" `
     logo acima mostrando o comando que produziu aquele resultado.
-25. **Vários arquivos sem árvore**: exibir dois ou mais `<SourceCode>` da mesma pasta sem antes
+27. **Vários arquivos sem árvore**: exibir dois ou mais `<SourceCode>` da mesma pasta sem antes
     apresentar a estrutura em `<FileTree>`, deixando o leitor sem noção de quantos arquivos
     existem e do papel de cada um.
-26. **Seção sem enunciado**: um `##` que começa direto em `###`, sem o parágrafo que apresenta a
+28. **Seção sem enunciado**: um `##` que começa direto em `###`, sem o parágrafo que apresenta a
     seção e anuncia as subseções. Exceção: `## Perguntas de revisão`.
-27. **Título numerado**: `### 1. …`, `### 2. …` em vez de títulos simples. A ordem já vem da
+29. **Título numerado**: `### 1. …`, `### 2. …` em vez de títulos simples. A ordem já vem da
     posição no documento; para sequência obrigatória, use `<Steps>` ou lista ordenada.
-28. **Pergunta sem ponto de interrogação**: títulos, bullets, callouts, enunciados e perguntas
+30. **Pergunta sem ponto de interrogação**: títulos, bullets, callouts, enunciados e perguntas
     de revisão com forma interrogativa precisam terminar em `?`; caso contrário, reescreva como
     título declarativo.
-29. **Ordem didática divergente**: sidebar, índices, badges de trilha e `## Próximo tópico`
+31. **Ordem didática divergente**: sidebar, índices, badges de trilha e `## Próximo tópico`
     apontando sequências diferentes. Reordene todos juntos para evitar que o estudante siga
     caminhos contraditórios.
-30. **Catálogo de símbolos sem modelo mental**: tópicos de sintaxe simbólica que começam por
+32. **Catálogo de símbolos sem modelo mental**: tópicos de sintaxe simbólica que começam por
     tabelas de metacaracteres, flags, operadores ou comandos sem antes explicar o fluxo
     entrada -> regra -> operação -> resultado.
