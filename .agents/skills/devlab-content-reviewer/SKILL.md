@@ -99,8 +99,19 @@ Ele trabalha em duas camadas:
 
 | Camada | O que faz | Quando roda |
 | ------ | --------- | ----------- |
-| **Sintaxe** | Escreve cada bloco `js`/`ts` em um arquivo temporário e roda `node --check`. | Sempre. Falha aqui é **ERRO**. |
+| **Sintaxe** | Confere cada bloco com o analisador da linguagem dele. | Sempre. Falha aqui é **ERRO**. |
 | **Execução** | Executa os blocos autocontidos e compara a saída real com o que a página promete. | Só com `--run`. Divergência é **AVISO**. |
+
+A camada de sintaxe escolhe o analisador pela linguagem do bloco, porque nem tudo que o
+portal ensina é JavaScript:
+
+| Linguagem do bloco | Analisador | Observação |
+| ------------------ | ---------- | ---------- |
+| `js`, `javascript`, `mjs` | `node --check` | Também é a única que a camada 2 executa. |
+| `ts`, `typescript`, `tsx`, `jsx` | Parser do TypeScript (`typescript` do repositório) | Anotação de tipo e JSX não são JavaScript válido: conferi-los com `node --check` produziria centenas de falsos positivos. Blocos assim **não** são executados. |
+
+Blocos de comparação antes/depois (`del={…}` / `ins={…}`) são pulados: eles trazem as duas
+versões do mesmo trecho, então declaram o mesmo identificador duas vezes de propósito.
 
 A comparação da segunda camada usa as duas formas que a página adota para documentar saída:
 
@@ -118,7 +129,7 @@ Os avisos que **valem investigação**, em ordem de gravidade:
 
 | Aviso | O que costuma significar |
 | ----- | ------------------------ |
-| `sintaxe invalida` (ERRO) | Chave não fechada, ou transcrição de terminal marcada como `js` (use ` ```txt `). |
+| `sintaxe invalida` (ERRO) | Chave não fechada, transcrição de terminal marcada como `js` (use ` ```txt `), ou JSX em um bloco `js` (use ` ```jsx `). |
 | `a saida real difere do bloco Output` | O `Output` da página envelheceu, ou o exemplo mudou sem atualizar a saída. |
 | `comentario promete X, ausente na saida real` | O comentário de saída não corresponde ao que o código imprime hoje. |
 | `o bloco nao executa ate o fim` | Exemplo quebrado, **ou** erro proposital de didática: confira antes de "corrigir". |

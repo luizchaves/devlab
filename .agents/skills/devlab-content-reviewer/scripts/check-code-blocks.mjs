@@ -5,10 +5,13 @@
  *
  * Duas camadas:
  *
- *   1. SINTAXE (padrao, sempre segura): cada bloco ```js / ```ts e escrito em um
- *      arquivo temporario e passa por `node --check`. Pega chave nao fechada,
- *      template literal aberto e sintaxe invalida que o build do site nao acusa,
- *      porque para o Astro o bloco e apenas texto.
+ *   1. SINTAXE (padrao, sempre segura): cada bloco e conferido pelo analisador
+ *      correspondente a sua linguagem. Blocos ```js passam por `node --check`;
+ *      blocos ```ts e ```tsx passam pelo parser do proprio TypeScript, porque
+ *      anotacao de tipo, `interface` e generic nao sao JavaScript valido e o
+ *      `node --check` os rejeitaria em massa. Pega chave nao fechada, template
+ *      literal aberto e sintaxe invalida que o build do site nao acusa, porque
+ *      para o Astro o bloco e apenas texto.
  *
  *   2. EXECUCAO (`--run`, heuristica): blocos autocontidos sao executados com
  *      Node.js e a saida real e comparada com o que a pagina promete, tanto no
@@ -25,8 +28,22 @@
 
 import { execFileSync } from 'node:child_process';
 import { globSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+/**
+ * O parser do TypeScript vem do proprio repositorio. Se por algum motivo ele nao
+ * estiver instalado, os blocos ```ts sao pulados em vez de reprovados em massa:
+ * conferi-los com `node --check` produziria centenas de falsos positivos.
+ */
+const ts = (() => {
+  try {
+    return createRequire(import.meta.url)('typescript');
+  } catch {
+    return null;
+  }
+})();
 
 const args = process.argv.slice(2);
 const run = args.includes('--run');
@@ -38,8 +55,53 @@ if (patterns.length === 0) {
   process.exit(2);
 }
 
-/** Linguagens que sabemos analisar. */
-const JS_LANGS = new Set(['js', 'javascript', 'mjs', 'ts', 'typescript']);
+/** Linguagens conferidas pelo `node --check`. */
+const JS_LANGS = new Set(['js', 'javascript', 'mjs']);
+
+/**
+ * Linguagens conferidas pelo parser do TypeScript. O `jsx` entra aqui porque o
+ * `node --check` tambem nao aceita JSX, e o parser do TypeScript aceita os dois.
+ */
+const TS_LANGS = new Set(['ts', 'typescript', 'tsx', 'jsx']);
+
+/** Todas as linguagens que sabemos analisar. */
+const LANGS = new Set([...JS_LANGS, ...TS_LANGS]);
+
+/**
+ * Confere um trecho com o parser do TypeScript e devolve o primeiro diagnostico
+ * sintatico, ou `null` quando o trecho esta correto.
+ */
+function conferirTypeScript(codigo, lang) {
+  const comJsx = lang === 'tsx' || lang === 'jsx';
+  const arquivo = comJsx ? 'bloco.tsx' : 'bloco.ts';
+
+  const fonte = ts.createSourceFile(
+    arquivo,
+    codigo,
+    { languageVersion: ts.ScriptTarget.Latest },
+    false,
+    comJsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+
+  const [primeiro] = fonte.parseDiagnostics ?? [];
+
+  return primeiro ? ts.flattenDiagnosticMessageText(primeiro.messageText, ' ') : null;
+}
+
+/**
+ * Mensagens que o parser do TypeScript emite quando o bloco e um recorte de
+ * dentro de outra construcao, mostrado isolado de proposito: a continuacao de
+ * uma uniao (`| { ... }`), um `case`/`default` sem o `switch` em volta, um
+ * membro de objeto ou de interface. Sao os equivalentes ao "Illegal return
+ * statement" do `node --check`, e recebem o mesmo tratamento.
+ */
+const RECORTE_TS = [
+  /^Expression expected\.$/,
+  /^Declaration or statement expected\.$/,
+  /^'export' expected\.$/,
+  /^Statement expected\.$/,
+  /^Unexpected token\.$/,
+];
 
 /** Sinais de que o bloco nao roda sozinho no Node.js. */
 const NAO_AUTOCONTIDO = [
@@ -64,6 +126,7 @@ function extrairBlocos(texto) {
       atual = {
         indent: abre[1].length,
         lang: (abre[2] || '').toLowerCase(),
+        meta: abre[3] || '',
         title: (abre[3].match(/title="([^"]*)"/) || [])[1] || null,
         linha: i + 1,
         corpo: [],
@@ -147,7 +210,8 @@ for (const arquivo of arquivos) {
   const relato = [];
 
   blocos.forEach((bloco, indice) => {
-    if (!JS_LANGS.has(bloco.lang)) return;
+    if (!LANGS.has(bloco.lang)) return;
+    if (TS_LANGS.has(bloco.lang) && !ts) return;
     if (!bloco.codigo || bloco.codigo.trim() === '') return;
 
     conferidos += 1;
@@ -155,56 +219,90 @@ for (const arquivo of arquivos) {
 
     // ---- camada 1: sintaxe -------------------------------------------------
     const temp = join(dir, `bloco-${indice}.mjs`);
+    const ehTypeScript = TS_LANGS.has(bloco.lang);
 
     // um bloco pode reunir mais de um arquivo, separado por cabecalhos "// arquivo.js";
     // nesse caso cada parte e conferida isoladamente
-    const cabecalhos = [...bloco.codigo.matchAll(/^\/\/\s*[\w./-]+\.(?:js|mjs|cjs|ts)\s*$/gm)];
+    const SEPARADOR = /^\/\/\s*[\w./-]+\.(?:js|mjs|cjs|ts|tsx)\s*$/gm;
+    const cabecalhos = [...bloco.codigo.matchAll(SEPARADOR)];
     const multiArquivo = cabecalhos.length >= 2;
     const partes = multiArquivo
-      ? bloco.codigo.split(/^\/\/\s*[\w./-]+\.(?:js|mjs|cjs|ts)\s*$/gm).filter((p) => p.trim())
+      ? bloco.codigo.split(SEPARADOR).filter((p) => p.trim())
       : [bloco.codigo];
 
-    writeFileSync(temp, partes[0]);
+    /**
+     * Devolve `{ msg, recorte }` do primeiro problema encontrado, ou `null`.
+     * `recorte` marca o trecho que so faz sentido dentro de outra construcao.
+     */
+    const conferirSintaxe = () => {
+      if (ehTypeScript) {
+        for (const parte of partes) {
+          const msg = conferirTypeScript(parte, bloco.lang);
+          if (msg) return { msg, recorte: RECORTE_TS.some((r) => r.test(msg)) };
+        }
+        return null;
+      }
 
-    try {
-      partes.forEach((parte, i) => {
-        const alvo = join(dir, `bloco-${indice}-${i}.mjs`);
-        writeFileSync(alvo, parte);
-        execFileSync(process.execPath, ['--check', alvo], { stdio: 'pipe' });
-      });
+      try {
+        partes.forEach((parte, i) => {
+          const alvo = join(dir, `bloco-${indice}-${i}.mjs`);
+          writeFileSync(alvo, parte);
+          execFileSync(process.execPath, ['--check', alvo], { stdio: 'pipe' });
+        });
+        return null;
+      } catch (erro) {
+        const saida = String(erro.stderr || erro.message);
+        return {
+          msg: saida.split('\n').find((l) => /SyntaxError/.test(l)),
+          recorte: /Illegal return statement|await is only valid|'super' keyword/.test(saida),
+        };
+      }
+    };
+
+    /**
+     * Bloco de comparacao antes/depois: o `del`/`ins` do Expressive Code marca as
+     * duas versoes no mesmo trecho, entao o codigo declara o mesmo identificador
+     * duas vezes de proposito. Conferir a sintaxe dele nao faz sentido.
+     */
+    const comparacao = /\b(?:del|ins)=\{/.test(bloco.meta ?? '');
+
+    if (comparacao) {
+      if (verbose) relato.push(`  PULADO ${rotulo}\n         comparacao antes/depois (del/ins)`);
+      return;
+    }
+
+    const falha = conferirSintaxe();
+
+    if (!falha) {
       writeFileSync(temp, bloco.codigo);
-    } catch (erro) {
-      const msg = String(erro.stderr || erro.message)
-        .split('\n')
-        .find((l) => /SyntaxError/.test(l));
-
+    } else {
       const linhas = bloco.codigo.trim().split('\n').length;
       const pareceAssinatura =
         /^(assinatura|sintaxe)/i.test(bloco.title ?? '') ||
         /\?[,)]/.test(bloco.codigo) || // parametro opcional na notacao de documentacao
         (linhas <= 8 && !/console\./.test(bloco.codigo) && !/;\s*$/m.test(bloco.codigo));
 
-      // trecho de dentro de uma funcao, mostrado isolado de proposito
-      if (
-        /Illegal return statement|await is only valid|'super' keyword/.test(String(erro.stderr))
-      ) {
+      // trecho de dentro de outra construcao, mostrado isolado de proposito
+      if (falha.recorte) {
         if (verbose)
           relato.push(
-            `  PULADO ${rotulo}\n         fragmento: so faz sentido dentro de funcao ou classe`
+            `  PULADO ${rotulo}\n         fragmento: so faz sentido dentro de outra construcao`
           );
         return;
       }
 
       if (pareceAssinatura) {
+        const linguagem = ehTypeScript ? 'TypeScript' : 'JavaScript';
         relato.push(
-          `  AVISO  ${rotulo}\n         nao e JavaScript valido; se for assinatura ou pseudocodigo, marque o bloco como \`\`\`txt`
+          `  AVISO  ${rotulo}\n         nao e ${linguagem} valido; se for assinatura ou pseudocodigo, marque o bloco como \`\`\`txt`
         );
         avisos += 1;
         return;
       }
 
+      const origem = ehTypeScript ? 'parser do TypeScript' : 'node --check';
       relato.push(
-        `  ERRO   ${rotulo}\n         sintaxe invalida: ${msg ?? 'ver saida do node --check'}`
+        `  ERRO   ${rotulo}\n         sintaxe invalida: ${falha.msg ?? `ver saida do ${origem}`}`
       );
       erros += 1;
       return;
@@ -220,6 +318,13 @@ for (const arquivo of arquivos) {
     if (!run) return;
 
     // ---- camada 2: execucao ------------------------------------------------
+    // o Node.js nao executa anotacao de tipo: a camada 2 so vale para blocos JS
+    if (ehTypeScript) {
+      if (verbose)
+        relato.push(`  PULADO ${rotulo}\n         TypeScript: conferido na sintaxe, nao executado`);
+      return;
+    }
+
     if (multiArquivo) {
       if (verbose) relato.push(`  PULADO ${rotulo}\n         bloco reune mais de um arquivo`);
       return;
