@@ -58,7 +58,8 @@
   - [x] `[TASK-026.6]` Acrescentar a seção "na Era da Inteligência Artificial" às páginas existentes do guia e sincronizar os materiais — **10 das 16**, mesmo critério do ECMAScript (10 de 23): as páginas em que se escreve código real
   - [x] `[TASK-026.7]` Alinhar o `index.mdx` ao formato do ECMAScript e criar `index.slide.md` / `index.mindmap.md` do guia
 - [ ] **[TASK-027]** Levar o código do Guia de TypeScript para `examples/courses/typescript/` e converter os blocos escritos à mão em `<SourceCode>` — hoje são **0 usos contra 20** no ECMAScript, e nenhum projeto executável (desdobramento previsto nos Non-goals da [spec-006](../specs/executed/spec-006-typescript-guide-restructure.md))
-- [ ] **[TASK-028]** Ensinar `check-code-blocks.mjs` a validar TypeScript: hoje ele roda `node --check` em blocos `ts` e reporta 187 falsos positivos no Guia de TypeScript
+- [x] **[TASK-028]** Ensinar `check-code-blocks.mjs` a validar TypeScript — o analisador passou a ser escolhido pela linguagem do bloco (`node --check` para `js`, parser do TypeScript para `ts`/`tsx`/`jsx`), e blocos de comparação `del`/`ins` são pulados: de **238 erros para 0** em todos os cursos, com 1185 blocos conferidos contra 1134
+  - [x] `[TASK-028.1]` Corrigir os cinco defeitos reais que estavam enterrados no ruído: JSX inválido em `react/basics/introduction`, blocos JSX marcados como `js` em `web-api/browser`, sessão `mongosh` e pseudocódigo marcados como `javascript` em `database/basics/dbms`, e bloco só de comentários marcado como `ts` em `typescript/tooling/runtime`
 
 ### Concluídos (Conteúdo)
 
