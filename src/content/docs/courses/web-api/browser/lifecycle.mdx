@@ -74,15 +74,13 @@ Compreender essa cronologia evita os dois erros mais recorrentes no desenvolvime
 Para associar ouvintes de eventos a botões, formulários e elementos visuais, utilize scripts carregados com `type="module"` ou aguarde o evento `DOMContentLoaded`. Deixe para escutar o evento `load` apenas quando sua lógica depender do carregamento completo de imagens ou folhas de estilo externas.
 </Aside>
 
-Para evitar erros de seleção de elementos inexistentes em páginas com JavaScript clássico, é comum encontrar scripts posicionados no final do documento, imediatamente antes do fechamento da tag `</body>`. Essa estratégia garante que todos os elementos HTML anteriores já tenham sido lidos pelo parser quando o script for executado. No entanto, em projetos modernos, a convenção preferida é declarar as tags no `<head>` utilizando `defer` ou `type="module"`, permitindo que o navegador inicie o download do arquivo em paralelo o mais cedo possível sem travar a renderização visual.
-
 ---
 
 ## Formas de Integrar JavaScript ao HTML
 
 No desenvolvimento web, o código JavaScript pode ser conectado ao HTML de múltiplas maneiras. Cada formato define regras próprias de isolamento de escopo, ordem de execução e manutenção da aplicação.
 
-As subseções a seguir analisam cada padrão em detalhe e apresentam cenários didáticos de visibilidade de variáveis.
+As subseções a seguir analisam cada padrão em detalhe e apresentam cenários didáticos de visibilidade de variáveis e posicionamento.
 
 ### 1. Script Embutido (Inline) vs Arquivo Externo
 
@@ -111,7 +109,56 @@ Existe uma **regra inviolável do elemento `<script>`**: a tag ou contém códig
 Para carregar um arquivo externo e executar um script de inicialização, declare sempre **duas tags `<script>` separadas**.
 </Aside>
 
-### 2. Código em Atributos HTML (Manipuladores Inline e Pseudo-protocolos)
+### 2. Posicionamento da Tag: `<head>` vs `<body>` e suas Implicações
+
+Além de escolher entre código embutido ou arquivo externo, o local físico onde a tag `<script>` é inserida no documento HTML afeta diretamente o tempo de carregamento da página e a disponibilidade dos nós do DOM.
+
+O exemplo a seguir ilustra as principais posições em um documento HTML:
+
+```html title="Cenários de posicionamento da tag script no documento"
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Posicionamento de Scripts</title>
+
+  <!-- POSIÇÃO 1: no <head> com defer ou type="module" (RECOMENDADO) -->
+  <!-- Baixa em paralelo desde o início e executa só após o DOM estar pronto -->
+  <script type="module" src="/js/app.js"></script>
+  <script defer src="/js/legado.js"></script>
+
+  <!-- POSIÇÃO 2: no <head> sem defer/module (EVITAR) -->
+  <!-- Trava a leitura do HTML e causa erro de null ao buscar elementos do body -->
+  <script src="/js/bloqueante.js"></script>
+</head>
+<body>
+  <h1>Minha Aplicação</h1>
+  <button id="btn-salvar">Salvar</button>
+
+  <!-- POSIÇÃO 3: no meio do <body> (EVITAR) -->
+  <!-- Bloqueia o parser no meio da página; só enxerga nós criados acima dele -->
+  <script>
+    console.log(document.querySelector('h1')); // Encontra o <h1>
+    console.log(document.querySelector('#rodape')); // Retorna null (ainda não existe!)
+  </script>
+
+  <footer id="rodape">Rodapé do site</footer>
+
+  <!-- POSIÇÃO 4: no final do <body>, antes de </body> (PRÁTICA CLÁSSICA) -->
+  <!-- Garante que todo o DOM anterior já existe, mas atrasa o início do download -->
+  <script src="/js/scripts-antigos.js"></script>
+</body>
+</html>
+```
+
+As consequências de cada posicionamento são:
+
+- **No `<head>` sem atributos assíncronos (`<script src="...">`)**: O parser do navegador é interrompido imediatamente antes de ler as tags visuais do `<body>`. O usuário enxerga uma tela em branco até o arquivo ser baixado e executado. Como o DOM do corpo ainda não existe na memória, qualquer tentativa de selecionar elementos via `document.querySelector('#btn-salvar')` retornará `null`, quebrando a inicialização da interface.
+- **No `<head>` com `defer` ou `type="module"` (Padrão moderno recomendado)**: O navegador inicia o download do script em paralelo nos primeiros milissegundos de vida da página, sem pausar o parser do HTML. O código só é executado após a árvore de elementos estar totalmente construída, permitindo capturar qualquer nó com segurança e proporcionando a melhor performance de renderização.
+- **No final do `<body>` (Imediatamente antes de `</body>`)**: É a prática clássica mais adotada no desenvolvimento web tradicional para contornar o erro de seleção de nós inexistentes em scripts sem `defer`. Como todo o HTML anterior já foi lido e transformado em nós do DOM, os elementos estão disponíveis. A desvantagem é que o navegador só descobre a necessidade de baixar o arquivo quando o parser alcança o fim do documento, atrasando o momento em que a página se torna interativa.
+- **No meio do `<body>`**: O script bloqueia o parsing no ponto exato onde foi inserido. Ele consegue interagir com os elementos declarados antes dele, mas não com os elementos que vêm depois, além de pausar a renderização do restante do conteúdo.
+
+### 3. Código em Atributos HTML (Manipuladores Inline e Pseudo-protocolos)
 
 O HTML permite historicamente executar JavaScript dentro de atributos de tags:
 
@@ -144,7 +191,7 @@ botao.addEventListener('click', () => {
 });
 ```
 
-### 3. Escopo e Visibilidade entre Contextos de Execução
+### 4. Escopo e Visibilidade entre Contextos de Execução
 
 Quando você possui vários scripts na mesma página, a visibilidade de variáveis depende do tipo da tag `<script>` utilizada:
 
@@ -189,18 +236,19 @@ As diferenças essenciais entre scripts clássicos e módulos JavaScript são:
 - **Strict Mode Automático**: Módulos rodam em modo estrito (`'use strict'`) por padrão, prevenindo erros sutis de variáveis não declaradas.
 - **Execução Adiada (*Deferred*)**: Módulos nunca bloqueiam a montagem do HTML; o navegador baixa os módulos em paralelo e só os executa após o DOM estar pronto.
 
-### 4. Tabela Comparativa de Integração
+### 5. Tabela Comparativa de Integração
 
 A tabela resume as opções de integração de código JavaScript no HTML:
 
-| Forma de Integração | Sintaxe Exemplo | Escopo de Variáveis | Ordem de Execução | Recomendação de Uso |
-| --- | --- | --- | --- | --- |
-| **Módulo JavaScript** | `<script type="module" src="app.js"></script>` | Módulo isolado (fechado) | Adiado (após o DOM pronto) | **Padrão recomendado para aplicações modernas** |
-| **Script Externo com `defer`** | `<script defer src="app.js"></script>` | Global compartilhado (`window`) | Adiado (após o DOM pronto) | Padrão seguro para scripts clássicos sem bundler |
-| **Script Externo Clássico** | `<script src="app.js"></script>` | Global compartilhado (`window`) | Imediato (bloqueia o parser) | Evitar no `<head>` sem `defer` |
-| **Script Embutido (Inline)** | `<script>...</script>` | Global compartilhado | Imediato na posição em que é lido | Apenas para configurações iniciais críticas |
-| **Manipulador Inline** | `<button onclick="...">` | Escopo opaco do elemento | Ao disparar o evento | **Evitar** (usar `addEventListener`) |
-| **Pseudo-protocolo `href`** | `<a href="javascript:...">` | Escopo global | Ao clicar no link | **Evitar** (usar `<button>` com ouvinte) |
+| Forma de Integração | Sintaxe Exemplo | Onde Posicionar? | Escopo de Variáveis | Ordem de Execução | Recomendação de Uso |
+| --- | --- | --- | --- | --- | --- |
+| **Módulo JavaScript** | `<script type="module" src="app.js"></script>` | `<head>` | Módulo isolado (fechado) | Adiado (após o DOM pronto) | **Padrão recomendado para aplicações modernas** |
+| **Script Externo com `defer`** | `<script defer src="app.js"></script>` | `<head>` | Global compartilhado (`window`) | Adiado (após o DOM pronto) | Padrão seguro para scripts clássicos sem bundler |
+| **Script no Fim do `<body>`** | `<script src="app.js"></script>` | Antes de `</body>` | Global compartilhado (`window`) | Ao atingir o final do HTML | Prática clássica para evitar elementos `null` |
+| **Script Externo no `<head>`** | `<script src="app.js"></script>` | `<head>` | Global compartilhado (`window`) | Imediato (bloqueia o parser) | **Evitar** (bloqueia tela e gera `null` no DOM) |
+| **Script Embutido (Inline)** | `<script>...</script>` | `<head>` ou `<body>` | Global compartilhado | Imediato na posição lida | Apenas para configurações iniciais críticas |
+| **Manipulador Inline** | `<button onclick="...">` | Atributo da tag | Escopo opaco do elemento | Ao disparar o evento | **Evitar** (usar `addEventListener`) |
+| **Pseudo-protocolo `href`** | `<a href="javascript:...">` | Atributo `href` | Escopo global | Ao clicar no link | **Evitar** (usar `<button>` com ouvinte) |
 
 ---
 
