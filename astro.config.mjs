@@ -768,6 +768,7 @@ export default defineConfig({
           label: 'Guia de Web APIs',
           items: [
             { label: 'Visão geral', link: '/courses/web-api/' },
+            { label: 'Funcionalidades Comuns', link: '/courses/web-api/common-features/' },
             {
               label: 'Ambiente e Navegador',
               items: [

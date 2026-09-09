@@ -1,0 +1,499 @@
+---
+title: "Web APIs: O que uma Aplicação Front-end Faz"
+description: "Mapa das funcionalidades mais comuns de uma aplicação web vanilla (eventos, carregamento dinâmico, rolagem, validação de formulário, persistência e navegação) e a Web API que resolve cada uma."
+course: web-api
+sidebar:
+  label: "Funcionalidades Comuns"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Aplicações web diferentes repetem as mesmas tarefas: reagir a um clique, buscar dados de um servidor,
+montar uma lista, validar um formulário, lembrar de uma preferência. Este tópico percorre essas
+tarefas na ordem em que aparecem em um projeto e diz, para cada uma, qual Web API resolve e onde ela
+é estudada em profundidade no guia.
+
+## Objetivo
+
+Formar um mapa de entrada para o guia, ligando o que uma aplicação front-end precisa fazer às
+interfaces que o navegador oferece para isso. Ao final do tópico, o leitor deve ser capaz de:
+
+- Nomear a Web API responsável por cada funcionalidade recorrente de uma aplicação vanilla.
+- Reconhecer o trecho mínimo de código de cada uma dessas tarefas.
+- Identificar quais dessas funcionalidades o HTML e o CSS já resolvem sem JavaScript.
+- Localizar, no guia, a página que aprofunda cada API citada aqui.
+- Ler uma aplicação pequena e apontar qual API sustenta cada parte dela.
+
+## O mapa por funcionalidade
+
+Antes de detalhar cada tarefa, vale ver todas juntas. A tabela é o índice deste tópico e também do
+guia: a primeira coluna é o que se quer fazer, a segunda é a interface responsável, e a terceira leva
+à página que a aprofunda.
+
+Leia-a como um roteiro, e não como uma lista de leitura obrigatória. Um projeto pequeno costuma usar
+as cinco primeiras linhas e mais nenhuma:
+
+| Funcionalidade | Web API responsável | Onde estudar |
+| --- | --- | --- |
+| Reagir a clique, tecla e envio de formulário | `addEventListener` e o objeto `Event` | [Eventos e Interatividade](../dom/events/) |
+| Encontrar e alterar elementos da página | `querySelector`, `textContent`, `classList` | [Manipulação do DOM](../dom/manipulation/) |
+| Buscar dados de um servidor | Fetch API e a classe `Response` | [Fetch API](../http/fetch/) |
+| Montar listas e cartões a partir dos dados | `createElement`, `DocumentFragment`, `<template>` | [Elementos Dinâmicos](../dom/dynamic-elements/) |
+| Validar um formulário antes de enviar | Constraint Validation e `FormData` | esta página |
+| Guardar preferências e rascunhos | Web Storage (`localStorage`) | [Local Storage](../storage/local-storage/) |
+| Manter uma sessão autenticada | Cookies com `HttpOnly` e `SameSite` | [Cookies e Sessão](../storage/cookies/) |
+| Trocar de tela sem recarregar | History API (`pushState`, `popstate`) | [History API](../browser/history/) |
+| Carregar conteúdo ao chegar perto dele | `IntersectionObserver` | [Observadores](../browser/observers/) |
+| Reagir ao tamanho de um elemento | `ResizeObserver` | [Observadores](../browser/observers/) |
+| Rolar até uma seção suavemente | `scrollIntoView()` e `scroll-behavior` | esta página |
+| Pedir uma confirmação ao usuário | `<dialog>` com `showModal()` | [Dialog API](../browser/modern-apis/dialog/) |
+| Avisar com a aba em segundo plano | Notification API | [Notification API](../browser/modern-apis/notification/) |
+| Copiar um valor para a área de transferência | Clipboard API | [Clipboard API](../browser/modern-apis/clipboard/) |
+| Executar o script no momento certo | `defer`, `type="module"`, `DOMContentLoaded` | [Ciclo de Vida da Página](../browser/lifecycle/) |
+| Tirar um cálculo pesado da interface | Web Workers | [Web Workers](../browser/workers/) |
+| Receber atualizações em tempo real | WebSocket | [WebSockets API](../http/websockets/) |
+
+Três leituras saem dessa tabela. A primeira: **quase tudo é DOM e eventos**, e as duas primeiras
+linhas sustentam todas as outras. A segunda: **rede e armazenamento são o segundo bloco**, e é onde
+aparecem os erros que só se manifestam em produção. A terceira: **as APIs de dispositivo ficam no
+fim**, porque quase nenhum projeto precisa delas.
+
+<Mermaid title="Camadas de uma aplicação front-end vanilla e as APIs de cada uma">
+{`
+flowchart TD
+  A["Carregamento<br/>defer, DOMContentLoaded"] --> B["Estrutura<br/>DOM, querySelector"]
+  B --> C["Interação<br/>addEventListener, delegação"]
+  C --> D["Dados<br/>fetch, Response"]
+  D --> E["Persistência<br/>Web Storage, cookies"]
+  E --> F["Navegação<br/>History API"]
+  F --> G["Extras<br/>observers, dialog, workers"]
+`}
+</Mermaid>
+
+O diagrama sugere uma ordem de estudo, e ela é a mesma ordem em que um projeto costuma crescer: uma
+página que ainda não carrega dados não precisa de armazenamento, e uma que não tem mais de uma tela
+não precisa de roteamento.
+
+## Reagir ao que o usuário faz
+
+Toda interatividade começa no mesmo ponto: um ouvinte registrado em um elemento, que executa uma
+função quando algo acontece. É a API mais usada de todas, e a primeira a ser aprendida.
+
+O trecho abaixo é a forma mínima, com o objeto `Event` chegando ao tratador:
+
+```js title="Ouvinte mínimo de clique"
+document.querySelector('#salvar').addEventListener('click', (event) => {
+  event.preventDefault();
+  console.log('clicou em', event.currentTarget.id); // 'salvar'
+});
+```
+
+O detalhe que muda a escala do código é a **delegação**. Em vez de um ouvinte por elemento, registra-se
+um único ouvinte no contêiner, que atende inclusive os itens criados depois:
+
+```js title="Delegação em uma lista que ainda vai crescer"
+document.querySelector('#lista').addEventListener('click', (event) => {
+  const botao = event.target.closest('button[data-id]');
+  if (!botao) return;
+
+  remover(Number(botao.dataset.id));
+});
+```
+
+A linha 2 é o que faz o padrão funcionar: `closest()` sobe a partir do elemento clicado até encontrar
+o botão, mesmo que o clique tenha caído em um ícone dentro dele. O tópico
+[Eventos e Interatividade](../dom/events/) aprofunda as fases de propagação e as opções do ouvinte.
+
+## Carregar conteúdo dinâmico
+
+Poucas aplicações nascem com os dados dentro do HTML. O normal é a página subir vazia e buscar o
+conteúdo em seguida, o que introduz três estados que a interface precisa representar: carregando,
+carregado e falhou.
+
+O trecho abaixo cobre os três, e a linha 4 é a que mais falta em código de exemplo encontrado por aí:
+
+```js title="Carga de dados com os três estados na tela"
+async function carregar() {
+  status.textContent = 'Carregando…';
+  try {
+    const resposta = await fetch('/api/investimentos');
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+
+    render(await resposta.json());
+    status.textContent = '';
+  } catch (erro) {
+    status.textContent = `Não foi possível carregar: ${erro.message}`;
+  }
+}
+```
+
+Sem o `if (!resposta.ok)`, um erro 500 do servidor é tratado como sucesso, porque o `fetch()` só
+rejeita quando a requisição nem chega a completar. O tópico [Fetch API](../http/fetch/) detalha esse
+comportamento, os verbos HTTP e o cancelamento com `AbortController`.
+
+## Montar e atualizar a tela
+
+Com os dados em mãos, a próxima tarefa é transformá-los em elementos. Inserir um por um dentro de um
+laço funciona e é lento: cada inserção no documento pode provocar um novo cálculo de layout.
+
+A saída é montar o lote fora da árvore e inseri-lo de uma vez:
+
+```js title="Lista construída em um DocumentFragment"
+const fragmento = document.createDocumentFragment();
+
+for (const item of investimentos) {
+  const li = document.createElement('li');
+  li.textContent = `${item.name} · ${item.amount}`;
+  fragmento.append(li);
+}
+
+lista.replaceChildren(fragmento);
+```
+
+O `textContent` da linha 5 não é preferência de estilo. Como o nome vem de fora da página, usar
+`innerHTML` ali executaria qualquer marcação vinda junto do dado. O tópico
+[Elementos Dinâmicos](../dom/dynamic-elements/) trata do `<template>` e do custo de cada técnica.
+
+## Validar um formulário
+
+Validação é a funcionalidade em que mais se escreve código desnecessário. O HTML já declara as regras
+(`required`, `minlength`, `min`, `type="email"`, `pattern`), e o navegador já traduz as mensagens para
+o idioma do usuário.
+
+O papel do JavaScript é perguntar se está válido e decidir onde mostrar a mensagem:
+
+```js title="Validação apoiada nas regras do HTML"
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+
+  if (!form.checkValidity()) {
+    const invalido = form.querySelector(':invalid');
+    erro.textContent = invalido.validationMessage;
+    invalido.focus();
+    return;
+  }
+
+  const dados = new FormData(form);
+  enviar(Object.fromEntries(dados));
+});
+```
+
+Duas interfaces aparecem aqui. A **Constraint Validation API** entrega `checkValidity()`,
+`validationMessage` e o seletor `:invalid`, que também serve para estilizar o campo no CSS. E o
+`FormData` lê todos os campos pelo atributo `name`, sem um `querySelector` por campo.
+
+Para uma regra que o HTML não expressa, como "a data final precisa ser posterior à inicial",
+`setCustomValidity()` acrescenta a mensagem sem abandonar o mecanismo nativo:
+
+```js title="Regra própria integrada à validação nativa"
+fim.addEventListener('input', () => {
+  const invalido = fim.value <= inicio.value;
+  fim.setCustomValidity(invalido ? 'A data final deve ser posterior à inicial.' : '');
+});
+```
+
+<Aside type="caution" title="Dica de IA: Peça validação apoiada no HTML, não substituindo-o">
+Pedidos como "valide este formulário" costumam devolver uma cadeia de `if` comparando `value` com
+string vazia, com mensagens escritas à mão em um idioma só. O resultado ignora `required`,
+`validationMessage`, o seletor `:invalid` e a tradução automática do navegador, e ainda deixa o
+formulário sem validação quando o JavaScript falha ao carregar.
+
+**Prompt:** *"Reescreva esta validação usando `required`, `minlength` e `type` no HTML mais
+`checkValidity()` e `validationMessage` no JavaScript, e mostre onde `setCustomValidity()` seria
+necessário nas regras que os atributos não cobrem."*
+</Aside>
+
+## Reagir à rolagem e ao tamanho
+
+Rolagem é a área em que a solução antiga e a moderna mais divergem. O ouvinte de `scroll` dispara
+dezenas de vezes por segundo e obriga o código a calcular posições a cada disparo; o
+`IntersectionObserver` avisa apenas quando um elemento entra ou sai da área visível.
+
+O trecho abaixo carrega conteúdo quando o fim da lista se aproxima, que é o padrão de rolagem
+infinita:
+
+```js title="Carregamento ao aproximar do fim da lista"
+const observador = new IntersectionObserver((entradas) => {
+  for (const entrada of entradas) {
+    if (entrada.isIntersecting) carregarProximaPagina();
+  }
+}, { rootMargin: '200px' });
+
+observador.observe(document.querySelector('#fim-da-lista'));
+```
+
+O `rootMargin` da linha 4 antecipa o disparo em 200 pixels, para que o conteúdo chegue antes de o
+usuário alcançar o fim. Já o movimento em si, rolar até uma seção, não precisa de biblioteca nem de
+animação escrita à mão:
+
+```js title="Rolagem suave até um elemento"
+document.querySelector('#secao-precos').scrollIntoView({ behavior: 'smooth', block: 'start' });
+```
+
+O mesmo efeito é obtido só com CSS, aplicando `scroll-behavior: smooth` no elemento raiz, e assim
+vale também para os links de âncora comuns. O tópico [Observadores](../browser/observers/) trata dos
+três observadores e do encerramento da observação.
+
+## Lembrar do usuário entre visitas
+
+Uma aplicação que esquece tudo a cada recarregamento parece quebrada. O navegador oferece três
+lugares para guardar estado, e a escolha entre eles não é de tamanho, é de **quem precisa ler o
+dado**.
+
+A tabela resume a decisão, que aparece em quase todo projeto:
+
+| Dado | Onde guardar | Por quê |
+| --- | --- | --- |
+| Tema, idioma, ordenação da lista | `localStorage` | Só o navegador precisa, e deve sobreviver ao fechamento |
+| Rascunho válido até fechar a aba | `sessionStorage` | Expira sozinho, sem código de limpeza |
+| Sessão autenticada | Cookie `HttpOnly` | O servidor precisa a cada requisição, e o script não deve ler |
+| Dados que o usuário verá em outro aparelho | Servidor | Nada guardado no navegador atravessa dispositivos |
+
+A leitura precisa tratar dois casos que sempre acontecem, a primeira visita e o dado corrompido:
+
+```js title="Leitura tolerante do armazenamento"
+function ler(chave, padrao = []) {
+  try {
+    return JSON.parse(localStorage.getItem(chave)) ?? padrao;
+  } catch {
+    return padrao;
+  }
+}
+```
+
+Os tópicos [Local Storage](../storage/local-storage/) e [Cookies e Sessão](../storage/cookies/)
+aprofundam cada mecanismo e os atributos de segurança do cookie.
+
+## Trocar de tela sem recarregar
+
+Assim que a aplicação tem mais de uma tela, surge a pergunta de como trocar entre elas mantendo a URL
+compartilhável. A History API altera a barra de endereços sem disparar requisição, e o evento
+`popstate` avisa quando o usuário aperta o botão voltar.
+
+```js title="Troca de rota e retorno pelo botão voltar"
+function irPara(caminho) {
+  history.pushState({ caminho }, '', caminho);
+  renderizar(caminho);
+}
+
+window.addEventListener('popstate', (event) => {
+  renderizar(event.state?.caminho ?? location.pathname);
+});
+```
+
+Há uma condição que não está no código: o servidor precisa devolver o mesmo HTML para qualquer
+caminho, senão a URL funciona ao ser navegada e retorna 404 ao ser colada na barra de endereços. O
+tópico [History API](../browser/history/) detalha esse ponto.
+
+## O que o HTML e o CSS já resolvem
+
+Boa parte do que se escreve em JavaScript hoje é reimplementação de algo que a plataforma passou a
+oferecer. Antes de codificar qualquer uma das funcionalidades abaixo, vale conferir se a versão
+nativa atende.
+
+A tabela lista os casos em que a solução nativa venceu, com o que se ganha ao adotá-la:
+
+| Funcionalidade | Solução nativa | O que se ganha |
+| --- | --- | --- |
+| Acordeão e seções recolhíveis | `<details>` e `<summary>` | Teclado, busca da página e zero JavaScript |
+| Janela modal | `<dialog>` com `showModal()` | Foco preso, `Esc`, `::backdrop` e camada superior |
+| Balão de dica ou menu suspenso | Atributo `popover` | Fechamento ao clicar fora, sem `z-index` |
+| Rolagem suave | `scroll-behavior: smooth` | Funciona também nos links de âncora |
+| Imagem fora da área visível | `loading="lazy"` | Nenhum observador a escrever |
+| Validação de campo obrigatório | `required` e `:invalid` | Mensagem traduzida pelo navegador |
+| Máscara simples de formato | `pattern` e `inputmode` | Teclado adequado no celular |
+| Carrossel com pontos de parada | `scroll-snap-type` no CSS | Rolagem nativa, com toque e teclado |
+
+A linha do `<details>` é a mais direta de aplicar em um projeto existente. A do `popover` é a mais
+recente, e vale conferir o suporte nos navegadores que o projeto atende antes de adotá-la.
+
+<Aside type="tip" title="A pergunta que vem antes de escrever JavaScript">
+Diante de qualquer funcionalidade desta página, pergunte primeiro se ela existe em HTML ou CSS. O
+código que não é escrito não tem defeito, não precisa de teste e continua funcionando quando o
+JavaScript falha ao carregar.
+</Aside>
+
+## Tudo junto em uma página
+
+O exemplo abaixo reúne cinco dessas funcionalidades em uma aplicação de carteira de investimentos,
+sem nenhuma dependência: a carga inicial vem de um arquivo JSON, a lista é montada em um fragmento,
+o formulário usa validação nativa, a remoção passa por um `<dialog>` e o estado sobrevive ao
+recarregamento.
+
+<HtmlPreview path="examples/courses/web-api/common-features/index.html" height="30rem" label="index.html" allowScripts serveFromPublic />
+
+Cada bloco a seguir é um recorte desse mesmo arquivo. A carga inicial prefere o que já está no
+navegador e só busca o JSON na primeira visita:
+
+<SourceCode path="examples/courses/web-api/common-features/index.html" region="fetch" lang="js" title="index.html" />
+
+A renderização monta a lista fora da árvore e a insere de uma vez, com `replaceChildren()` no lugar
+de limpar o contêiner à mão:
+
+<SourceCode path="examples/courses/web-api/common-features/index.html" region="render" lang="js" title="index.html" />
+
+O envio do formulário não repete as regras já declaradas no HTML: ele apenas pergunta se está válido
+e exibe a mensagem que o navegador produziu:
+
+<SourceCode path="examples/courses/web-api/common-features/index.html" region="validation" lang="js" title="index.html" />
+
+A remoção usa um ouvinte só, no `<ul>`, e confirma a ação no diálogo nativo antes de alterar os
+dados:
+
+<SourceCode path="examples/courses/web-api/common-features/index.html" region="events" lang="js" title="index.html" />
+
+Repare em `event.submitter`, na segunda parte do recorte: como o diálogo contém um
+`<form method="dialog">`, o envio fecha a janela e informa qual botão foi acionado. O mesmo valor
+fica registrado em `dialog.returnValue` depois do fechamento, e o tópico
+[Dialog API](../browser/modern-apis/dialog/) trata das duas formas de lê-lo.
+
+Repare que nenhum dos quatro recortes tem mais de vinte linhas. Uma aplicação vanilla pequena cabe
+nesse tamanho porque quase todo o trabalho pesado já está no navegador.
+
+## Executando
+
+Os passos abaixo percorrem as cinco funcionalidades na ordem em que o usuário as encontra:
+
+<Steps>
+1. Entre na pasta do exemplo, em `examples/courses/web-api/common-features/`.
+
+2. Sirva a pasta por HTTP, porque o `fetch()` do JSON não funciona a partir de `file://`:
+
+   ```bash title="Terminal"
+   npx serve .
+   ```
+
+3. Abra o endereço informado. A primeira carga vem do arquivo JSON, e o parágrafo de status diz isso.
+
+4. Envie o formulário vazio e observe a mensagem: ela foi escrita pelo navegador, não pela página.
+
+5. Adicione um investimento, recarregue e confirme que o status agora diz "restaurados do navegador".
+
+6. Remova um item e cancele no diálogo. Nada deve mudar, porque a remoção só acontece quando o
+   botão acionado tem `value="remover"`.
+
+7. Abra *Application › Local Storage*, apague a chave `common-features:investments` e recarregue para
+   voltar ao estado inicial.
+</Steps>
+
+## Exercício
+
+Os itens abaixo acrescentam ao exemplo funcionalidades que aparecem na tabela do início do tópico:
+
+1. Mostre o total investido, somando os valores e formatando com `toLocaleString`.
+2. Acrescente um campo de busca que filtre a lista enquanto o usuário digita.
+3. Impeça o cadastro de um nome já existente usando `setCustomValidity()`.
+4. Adicione um botão que copie o resumo da carteira com a Clipboard API.
+5. Faça a lista rolar até o item recém-adicionado com `scrollIntoView()`.
+
+O item 3 é o que mais exige atenção, porque a regra não existe em HTML e precisa conviver com as que
+existem:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A verificação roda a cada digitação e alimenta a validação nativa em vez de substituí-la:
+
+  ```js title="Nome duplicado como regra de validação"
+  campoNome.addEventListener('input', () => {
+    const duplicado = investments.some((item) => item.name === campoNome.value.trim());
+    campoNome.setCustomValidity(duplicado ? 'Já existe um investimento com esse nome.' : '');
+  });
+  ```
+
+  Com a mensagem definida, `form.checkValidity()` passa a devolver `false`, o seletor `:invalid`
+  passa a casar com o campo e o restante do código de envio continua igual.
+</details>
+
+## Perguntas de revisão
+
+### Escolha da API
+
+1. **Qual API sustenta praticamente todas as outras funcionalidades desta página?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O DOM, junto do registro de eventos. Buscar dados, validar formulário e guardar estado só viram
+  interface depois de passar por seleção e alteração de elementos.
+</details>
+
+2. **Por que `IntersectionObserver` substituiu o ouvinte de `scroll` em rolagem infinita?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele notifica apenas quando o elemento entra ou sai da área visível, em vez de executar código
+  a cada quadro de rolagem e calcular posições à mão.
+</details>
+
+3. **Onde deve ficar um token de sessão, e por quê?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em um cookie `HttpOnly`, que o JavaScript não consegue ler. Em `localStorage`, qualquer script
+  injetado na página teria acesso a ele.
+</details>
+
+4. **O que a History API exige do servidor para funcionar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Que ele devolva o mesmo HTML para qualquer caminho, senão as URLs criadas com `pushState()` retornam
+  404 ao serem acessadas diretamente.
+</details>
+
+### Plataforma antes do código
+
+5. **O que a Constraint Validation API entrega que uma cadeia de `if` não entrega?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Mensagens já traduzidas para o idioma do usuário, o seletor `:invalid` para estilização e validação
+  que continua existindo mesmo sem JavaScript.
+</details>
+
+6. **Para que serve o `FormData` no envio de um formulário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para ler todos os campos de uma vez pelo atributo `name`, dispensando um `querySelector` por campo.
+</details>
+
+7. **Cite três funcionalidades desta página que o HTML ou o CSS resolvem sem JavaScript.**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Seções recolhíveis com `<details>`, rolagem suave com `scroll-behavior`, carregamento tardio de
+  imagem com `loading="lazy"`. Modal com `<dialog>` e validação com `required` também contam.
+</details>
+
+8. **Por que o exemplo usa `textContent` e não `innerHTML` ao montar a lista?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o nome vem de fora da página. Com `innerHTML`, qualquer marcação presente no dado seria
+  interpretada, o que abre caminho para injeção de script.
+</details>
+
+## Referências
+
+- [Web APIs | MDN](https://developer.mozilla.org/en-US/docs/Web/API)
+- [Client-side form validation | MDN](https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Forms/Form_validation)
+- [FormData | MDN](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
+- [Element.scrollIntoView() | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView)
+- [Popover API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Popover_API)
+- [`<details>` | MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/details)
+
+## Próximo tópico
+
+[APIs Modernas do Navegador](../browser/modern-apis/): o catálogo completo das interfaces do
+navegador, com a decisão de qual usar em cada problema.

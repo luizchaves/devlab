@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Funcionalidades comuns de uma aplicação front-end</title>
+    <style>
+      /* Só estrutura: as cores vêm do tema do navegador. */
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 1.5rem;
+        max-width: 40rem;
+      }
+
+      h1 {
+        font-size: 1.1rem;
+        margin: 0 0 0.25rem;
+      }
+
+      form {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        margin: 1rem 0;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.8rem;
+        gap: 0.2rem;
+      }
+
+      input {
+        padding: 0.35rem 0.5rem;
+      }
+
+      input:invalid:not(:placeholder-shown) {
+        outline: 2px solid currentColor;
+      }
+
+      button {
+        padding: 0.4rem 0.9rem;
+        cursor: pointer;
+      }
+
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        border-bottom: 1px solid currentColor;
+        padding: 0.5rem 0;
+      }
+
+      #error {
+        font-size: 0.8rem;
+        min-height: 1.2em;
+      }
+
+      #status {
+        font-size: 0.8rem;
+        border-top: 1px solid currentColor;
+        margin-top: 1rem;
+        padding-top: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Carteira de investimentos</h1>
+    <p id="status">Carregando…</p>
+
+    <form id="form" novalidate>
+      <label>
+        Nome
+        <input id="name" name="name" required minlength="3" placeholder="Tesouro Selic" />
+      </label>
+      <label>
+        Valor
+        <input id="amount" name="amount" type="number" required min="1" placeholder="1000" />
+      </label>
+      <button type="submit">Adicionar</button>
+    </form>
+
+    <p id="error" role="alert"></p>
+
+    <ul id="list"></ul>
+
+    <dialog id="confirm">
+      <form method="dialog">
+        <p id="confirm-text">Remover este investimento?</p>
+        <button value="cancelar">Cancelar</button>
+        <button value="remover">Remover</button>
+      </form>
+    </dialog>
+
+    <script type="module">
+      const list = document.querySelector('#list');
+      const form = document.querySelector('#form');
+      const error = document.querySelector('#error');
+      const status = document.querySelector('#status');
+      const dialog = document.querySelector('#confirm');
+
+      const STORAGE_KEY = 'common-features:investments';
+      let investments = [];
+
+      const format = (value) =>
+        value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      // #region storage
+      // Web Storage: a carteira sobrevive ao recarregamento. Como tudo é string,
+      // o valor passa por JSON, e a leitura trata a primeira visita e o dado corrompido.
+      function load() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? null;
+        } catch {
+          return null;
+        }
+      }
+
+      function save() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(investments));
+      }
+      // #endregion storage
+
+      // #region render
+      // DOM: a lista é montada fora da árvore, em um DocumentFragment, e inserida
+      // de uma vez só. O texto usa textContent, nunca innerHTML, porque o nome
+      // vem de fora da página.
+      function render() {
+        const fragment = document.createDocumentFragment();
+
+        for (const item of investments) {
+          const li = document.createElement('li');
+          const label = document.createElement('span');
+          const button = document.createElement('button');
+
+          label.textContent = `${item.name} · ${format(item.amount)}`;
+          button.type = 'button';
+          button.textContent = 'Remover';
+          button.dataset.id = item.id;
+
+          li.append(label, button);
+          fragment.append(li);
+        }
+
+        list.replaceChildren(fragment);
+      }
+      // #endregion render
+
+      // #region fetch
+      // Fetch: a carga inicial vem de um arquivo JSON. O status é conferido antes
+      // de o corpo ser lido, e os três estados da tela aparecem no parágrafo de status.
+      async function loadInitialData() {
+        const stored = load();
+
+        if (stored) {
+          investments = stored;
+          status.textContent = `${investments.length} investimentos restaurados do navegador.`;
+          return;
+        }
+
+        try {
+          const response = await fetch('./investments.json');
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          investments = await response.json();
+          save();
+          status.textContent = `${investments.length} investimentos carregados da API.`;
+        } catch (cause) {
+          investments = [];
+          status.textContent = `Não foi possível carregar: ${cause.message}`;
+        }
+      }
+      // #endregion fetch
+
+      // #region validation
+      // Constraint Validation: as regras estão no HTML (required, minlength, min).
+      // O JavaScript apenas pergunta se o formulário é válido e exibe a mensagem
+      // que o próprio navegador já traduziu.
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+
+        if (!form.checkValidity()) {
+          const invalid = form.querySelector(':invalid');
+          error.textContent = invalid.validationMessage;
+          invalid.focus();
+          return;
+        }
+
+        const data = new FormData(form);
+
+        investments.push({
+          id: Date.now(),
+          name: data.get('name'),
+          amount: Number(data.get('amount')),
+        });
+
+        error.textContent = '';
+        form.reset();
+        save();
+        render();
+      });
+      // #endregion validation
+
+      // #region events
+      // Delegação de eventos: um único ouvinte no <ul> atende todos os botões,
+      // inclusive os que ainda não existiam quando o ouvinte foi registrado.
+      let pendingId = null;
+
+      list.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-id]');
+        if (!button) return;
+
+        pendingId = Number(button.dataset.id);
+        dialog.showModal();
+      });
+
+      // O formulário do diálogo usa method="dialog": o envio fecha a janela e
+      // event.submitter aponta para o botão acionado. O mesmo valor fica em
+      // dialog.returnValue depois do fechamento.
+      dialog.querySelector('form').addEventListener('submit', (event) => {
+        const confirmou = event.submitter?.value === 'remover';
+
+        if (!confirmou || pendingId === null) {
+          pendingId = null;
+          return;
+        }
+
+        investments = investments.filter((item) => item.id !== pendingId);
+        pendingId = null;
+        save();
+        render();
+      });
+      // #endregion events
+
+      await loadInitialData();
+      render();
+    </script>
+  </body>
+</html>
