@@ -1,0 +1,378 @@
+---
+title: "Web APIs: Formulários e Validação"
+description: "Constraint Validation API, FormData e os seletores de estado: regras declaradas no HTML, mensagens traduzidas pelo navegador e leitura dos campos sem um querySelector por campo."
+course: web-api
+sidebar:
+  label: "Formulários e Validação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Formulário é a principal porta de entrada de dados de uma aplicação web, e é também onde mais se
+escreve código desnecessário. O navegador já sabe validar campo obrigatório, formato de e-mail,
+tamanho mínimo e padrão de texto, e já traduz as mensagens para o idioma do usuário. Este tópico
+mostra como usar esse mecanismo em vez de reconstruí-lo.
+
+## Objetivo
+
+Compreender a validação de formulários como um mecanismo do próprio navegador, no qual o JavaScript
+consulta o resultado em vez de reimplementar as regras. Ao final do tópico, o leitor deve ser capaz
+de:
+
+- Declarar restrições no HTML com `required`, `minlength`, `type`, `pattern` e `min`.
+- Consultar o estado do formulário com `checkValidity()`, `reportValidity()` e o objeto `validity`.
+- Exibir a mensagem já traduzida em `validationMessage` no lugar certo da interface.
+- Acrescentar regras próprias com `setCustomValidity()` sem abandonar o mecanismo nativo.
+- Ler todos os campos de uma vez com `FormData` e enviá-los como JSON.
+- Diferenciar `:invalid` de `:user-invalid` ao estilizar campos com erro.
+
+## Onde a validação acontece?
+
+Existem três lugares possíveis para uma regra de formulário, e eles não são alternativas: são
+camadas que se somam. Confundi-los produz os dois erros clássicos do assunto, o de validar só no
+cliente e o de reimplementar no cliente o que o HTML já faz.
+
+<Mermaid title="As três camadas de validação de um formulário e o papel de cada uma">
+{`
+flowchart TD
+  A["HTML<br/>required, type, pattern"] -->|"impede o envio<br/>e produz a mensagem"| B["JavaScript<br/>checkValidity, setCustomValidity"]
+  B -->|"decide onde mostrar<br/>e acrescenta regras próprias"| C["Servidor<br/>validação obrigatória"]
+  C -->|"única camada<br/>que não pode ser burlada"| D[(Dados aceitos)]
+`}
+</Mermaid>
+
+A seta final é a que importa mais. Tudo que acontece no navegador é conveniência para o usuário:
+qualquer pessoa pode enviar uma requisição direta à API sem passar pelo formulário. O tópico
+[Fetch API](../../http/fetch/) mostra como essa requisição é feita, e a validação do lado do
+servidor é assunto do Guia de Express.js.
+
+O que este tópico cobre é a primeira camada e a ponte para a segunda.
+
+## Restrições declaradas no HTML
+
+Antes de qualquer linha de JavaScript, os atributos do próprio campo já descrevem o que é aceito. O
+navegador impede o envio, marca o campo e escreve a mensagem, tudo sem código.
+
+A tabela reúne os atributos mais usados e o que cada um recusa:
+
+| Atributo | Recusa | Observação |
+| --- | --- | --- |
+| `required` | Campo vazio | Vale também para `checkbox` e `select` |
+| `type="email"` | Texto sem formato de e-mail | Verifica o formato, não a existência do endereço |
+| `type="number"` com `min` e `max` | Valor fora da faixa | Combine com `step` para casas decimais |
+| `minlength` e `maxlength` | Texto curto ou longo demais | Só valida depois que o usuário digita |
+| `pattern` | Texto fora da expressão regular | Acompanhe de `title` para explicar o formato |
+| `inputmode` | Nada | Não valida; escolhe o teclado no celular |
+
+A quarta linha guarda uma sutileza que aparece em teste automatizado: `minlength` e `maxlength` só
+entram em vigor quando o valor foi alterado por digitação. Um valor definido por script não aciona
+essas duas restrições, enquanto `required` e `pattern` valem sempre.
+
+O exemplo deste tópico declara todas as regras na marcação, sem repetir nenhuma no JavaScript:
+
+<SourceCode path="examples/courses/web-api/forms/index.html" region="markup" lang="html" title="index.html" />
+
+O atributo `novalidate` no formulário não desliga a validação: ele apenas impede o balão nativo do
+navegador, deixando as mensagens por conta da página. `checkValidity()`, `validationMessage` e os
+seletores de estado continuam funcionando.
+
+## Consultando o estado pela Constraint Validation API
+
+Com as regras declaradas, o JavaScript precisa de três informações: se o formulário está válido,
+qual restrição falhou e qual mensagem exibir. A Constraint Validation API entrega as três.
+
+A tabela lista o que se usa no dia a dia:
+
+| Membro | Devolve | Uso típico |
+| --- | --- | --- |
+| `form.checkValidity()` | `true` ou `false` | Decidir se o envio prossegue |
+| `form.reportValidity()` | O mesmo, e exibe o balão nativo | Quando a mensagem padrão do navegador basta |
+| `campo.validity` | Objeto com uma flag por restrição | Descobrir **qual** regra falhou |
+| `campo.validationMessage` | Texto já traduzido | Exibir ao lado do campo |
+| `campo.setCustomValidity(texto)` | Nada | Acrescentar uma regra própria |
+| `form.querySelector(':invalid')` | O primeiro campo inválido | Mover o foco para ele |
+
+A linha do `validity` é a que abre espaço para personalização cirúrgica. Em vez de escrever todas as
+mensagens à mão, dá para trocar apenas a que não serve, como a de `pattern`, que o navegador
+descreve de forma genérica:
+
+<SourceCode path="examples/courses/web-api/forms/index.html" region="messages" lang="js" title="index.html" />
+
+A verificação de `campo.validity.valid`, na linha 8, limpa a mensagem quando o campo volta a ficar
+correto. Sem ela, o erro fica na tela mesmo depois de corrigido.
+
+## Regras que o HTML não expressa
+
+Nem toda regra cabe em um atributo. "As duas senhas precisam coincidir", "a data final é posterior à
+inicial" e "este nome já existe" dependem de outros campos ou de dados que só o JavaScript conhece.
+
+`setCustomValidity()` resolve esses casos sem abandonar o mecanismo nativo: uma mensagem não vazia
+torna o campo inválido, e uma string vazia o torna válido de novo:
+
+<SourceCode path="examples/courses/web-api/forms/index.html" region="custom" lang="js" title="index.html" />
+
+O ponto que mais gera defeito está na linha 12: a mensagem precisa ser limpa quando a condição deixa
+de valer. Um `setCustomValidity('erro')` sem o correspondente `setCustomValidity('')` deixa o campo
+permanentemente inválido, e o formulário nunca mais é enviado.
+
+<Aside type="caution" title="Dica de IA: Peça validação que se apoie no HTML, e não que o substitua">
+Pedidos como "valide este formulário" costumam devolver uma cadeia de `if` comparando `value` com
+string vazia e mensagens escritas à mão em um idioma só. O resultado ignora `required`,
+`validationMessage`, os seletores de estado e a tradução automática, e deixa o formulário sem
+nenhuma validação quando o JavaScript falha ao carregar.
+
+**Prompt:** *"Reescreva esta validação declarando `required`, `minlength`, `type` e `pattern` no
+HTML e usando `checkValidity()` com `validationMessage` no JavaScript; aponte quais regras só podem
+ser feitas com `setCustomValidity()` e escreva apenas essas à mão."*
+</Aside>
+
+## Lendo os campos com `FormData`
+
+Depois de validado, o formulário precisa virar dado. `FormData` lê todos os campos pelo atributo
+`name`, sem um `querySelector` por campo e sem esquecer nenhum quando um campo novo é acrescentado
+ao HTML.
+
+<SourceCode path="examples/courses/web-api/forms/index.html" region="submit" lang="js" title="index.html" />
+
+`Object.fromEntries()`, na linha 15, converte o `FormData` em um objeto comum, pronto para
+`JSON.stringify()`. Duas ressalvas valem para essa conversão: campos de seleção múltipla e grupos de
+`checkbox` com o mesmo `name` perdem os valores repetidos, e para eles usa-se `formData.getAll(nome)`.
+
+Quando o envio inclui arquivo, o `FormData` vai direto no corpo da requisição, sem conversão:
+
+```js title="Envio com arquivo, sem serializar para JSON"
+await fetch('/api/usuarios', {
+  method: 'POST',
+  body: new FormData(form), // o navegador define o Content-Type e o boundary
+});
+```
+
+Repare que não há cabeçalho `Content-Type` na chamada acima. Defini-lo à mão quebra o envio, porque
+o navegador precisa acrescentar o delimitador que separa as partes do corpo.
+
+## Estilizando o campo com erro
+
+O CSS enxerga o estado de validação sem ajuda do JavaScript, e a escolha do seletor decide se a
+página parece hostil ou prestativa.
+
+A tabela compara os três seletores disponíveis:
+
+| Seletor | Casa quando | Efeito na primeira visita |
+| --- | --- | --- |
+| `:invalid` | O campo está inválido, desde o carregamento | Marca de vermelho todo campo obrigatório ainda vazio |
+| `:user-invalid` | O campo está inválido **e** o usuário já interagiu com ele | Não marca nada até a pessoa mexer no campo |
+| `:placeholder-shown` | O campo está vazio e exibe o `placeholder` | Usado para adiar a marcação antes do `:user-invalid` |
+
+A segunda linha é a recomendação atual. `:invalid` sozinho pinta de erro um formulário que o usuário
+nem começou a preencher, e `:user-invalid` existe justamente para evitar isso:
+
+```css title="Marcação de erro apenas após a interação"
+input:user-invalid {
+  border-color: crimson;
+}
+```
+
+## Quando usar, e quando não usar?
+
+A validação nativa cobre a maior parte dos formulários de uma aplicação. A pergunta prática é em que
+ponto ela deixa de bastar e uma biblioteca passa a valer a dependência.
+
+A tabela contrapõe cada situação à alternativa que costuma ser escolhida por hábito:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| Cadastro, login, contato, busca | Restrições no HTML mais `checkValidity()` | Cadeia de `if`, que perde tradução e acessibilidade |
+| Regra que depende de outro campo | `setCustomValidity()` | Validação paralela, que ignora `:user-invalid` |
+| Regra que depende do servidor, como e-mail já cadastrado | Verificação assíncrona alimentando `setCustomValidity()` | Bloquear o envio sem explicar o motivo |
+| Formulário com dezenas de campos e regras condicionais | Biblioteca de formulários (Zod, Valibot, React Hook Form) | Reimplementar dependência entre campos à mão |
+| Qualquer dado que chega ao banco | Validação também no servidor | Confiar no navegador, que pode ser contornado |
+| Máscara de digitação (CPF, telefone) | `pattern` mais `inputmode` | Biblioteca de máscara para um único campo |
+
+A quinta linha não é uma escolha de arquitetura, é uma regra de segurança. Nenhuma validação de
+navegador impede uma requisição direta à API, e o tópico [CORS e Segurança](../../http/cors/) explica
+por que o bloqueio do navegador também não serve para isso.
+
+## Executando
+
+Os passos abaixo percorrem cada camada da validação na ordem em que o usuário a encontra:
+
+<Steps>
+1. Entre na pasta do exemplo, em `examples/courses/web-api/forms/`, e sirva-a por HTTP:
+
+   ```bash title="Terminal"
+   npx serve .
+   ```
+
+2. Clique em **Cadastrar** com o formulário vazio. As mensagens vêm do navegador, no idioma dele.
+
+3. Digite `ab` no nome e saia do campo. A mensagem agora é a de `minlength`, não a de `required`.
+
+4. Digite um e-mail sem `@`. Compare a mensagem com a do campo de telefone, que foi personalizada
+   pela verificação de `validity.patternMismatch`.
+
+5. Preencha senhas diferentes e observe que a mensagem vem de `setCustomValidity()`, embora o campo
+   se comporte como qualquer outro inválido.
+
+6. Corrija tudo e envie. O parágrafo final mostra o objeto que `FormData` produziu, já sem o campo
+   de confirmação.
+</Steps>
+
+<HtmlPreview path="examples/courses/web-api/forms/index.html" height="34rem" label="index.html" allowScripts serveFromPublic />
+
+## Exercício
+
+Os itens abaixo ampliam o formulário e exercitam as três camadas vistas até aqui:
+
+1. Acrescente um campo de data de nascimento que recuse datas futuras com `max`.
+2. Exiba um contador de caracteres restantes usando `maxlength` e o evento `input`.
+3. Troque a mensagem de `type="email"` por uma redação própria, sem afetar as demais restrições.
+4. Impeça o envio enquanto um campo de aceite de termos não estiver marcado.
+5. Faça o botão de envio ficar desabilitado enquanto o formulário estiver inválido.
+
+O item 3 é o que exige distinguir uma restrição da outra:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A verificação usa a flag correspondente do objeto `validity`, deixando as demais mensagens
+  intactas:
+
+  ```js title="Mensagem própria apenas para o formato de e-mail"
+  function mensagemDe(campo) {
+    if (campo.validity.typeMismatch) return 'Informe um e-mail no formato nome@dominio.com.';
+
+    return campo.validationMessage;
+  }
+  ```
+
+  O item 5 merece uma ressalva: desabilitar o botão esconde do usuário o motivo do bloqueio. Marcar
+  os campos e explicar o erro no envio costuma ser mais acessível.
+</details>
+
+## Desafio
+
+Implemente a verificação de disponibilidade de e-mail contra uma API, sem sair do mecanismo nativo.
+
+O campo deve consultar o servidor enquanto o usuário digita e recusar um endereço já cadastrado, com
+a mesma aparência dos demais erros. A resposta indica o caminho:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A consulta é assíncrona, então o resultado alimenta `setCustomValidity()` quando chega, e o envio
+  precisa esperar por ela:
+
+  ```js title="Disponibilidade consultada no servidor"
+  let emAndamento = null;
+
+  email.addEventListener('input', () => {
+    email.setCustomValidity('');
+    clearTimeout(emAndamento);
+
+    emAndamento = setTimeout(async () => {
+      const resposta = await fetch(`/api/usuarios?email=${encodeURIComponent(email.value)}`);
+      if (!resposta.ok) return;
+
+      const { existe } = await resposta.json();
+      email.setCustomValidity(existe ? 'Este e-mail já está cadastrado.' : '');
+    }, 400);
+  });
+  ```
+
+  O `setTimeout` evita uma requisição por tecla digitada, e a limpeza da mensagem na linha 4 impede
+  que um resultado antigo continue bloqueando um endereço que já mudou.
+</details>
+
+## Perguntas de revisão
+
+### Restrições e estado
+
+1. **O que o atributo `novalidate` desliga, e o que ele mantém?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Desliga apenas o balão nativo exibido no envio. `checkValidity()`, `validationMessage`, o objeto
+  `validity` e os seletores de estado continuam funcionando.
+</details>
+
+2. **Qual a diferença entre `checkValidity()` e `reportValidity()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Os dois devolvem o mesmo booleano, mas `reportValidity()` também exibe o balão nativo no primeiro
+  campo inválido.
+</details>
+
+3. **Para que serve o objeto `validity` se `validationMessage` já traz o texto?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para saber **qual** restrição falhou (`valueMissing`, `typeMismatch`, `patternMismatch`, `tooShort`)
+  e personalizar apenas a mensagem que não serve.
+</details>
+
+4. **Por que `minlength` pode não bloquear um valor definido por script?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque essa restrição só entra em vigor quando o valor foi alterado por digitação do usuário.
+  `required` e `pattern` valem em qualquer caso.
+</details>
+
+### Regras próprias e envio
+
+5. **O que acontece quando `setCustomValidity()` é chamado com uma mensagem e nunca com string vazia?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O campo fica permanentemente inválido, e o formulário nunca mais é enviado, mesmo depois de a
+  condição do erro deixar de valer.
+</details>
+
+6. **Que vantagem `FormData` tem sobre ler cada campo com `querySelector`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele lê todos os campos de uma vez pelo atributo `name`, e continua completo quando um campo novo é
+  acrescentado ao HTML.
+</details>
+
+7. **Por que não definir `Content-Type` ao enviar um `FormData` com arquivo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o navegador precisa gerar o delimitador que separa as partes do corpo, e defini-lo à mão
+  omite esse valor e quebra o envio.
+</details>
+
+8. **Por que `:user-invalid` costuma ser preferível a `:invalid`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `:invalid` marca como erro todo campo obrigatório ainda vazio no carregamento, enquanto
+  `:user-invalid` só marca depois que a pessoa interagiu com o campo.
+</details>
+
+## Referências
+
+- [Client-side form validation | MDN](https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Forms/Form_validation)
+- [Constraint Validation | MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Guides/Constraint_validation)
+- [ValidityState | MDN](https://developer.mozilla.org/en-US/docs/Web/API/ValidityState)
+- [HTMLFormElement.checkValidity() | MDN](https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/checkValidity)
+- [FormData | MDN](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
+- [`:user-invalid` | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/:user-invalid)
+
+## Próximo tópico
+
+[Rolagem e Posicionamento](../scroll/): rolar por código, medir a posição do documento e o que o CSS
+já resolve sozinho.

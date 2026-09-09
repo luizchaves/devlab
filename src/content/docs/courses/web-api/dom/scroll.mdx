@@ -1,0 +1,295 @@
+---
+title: "Web APIs: Rolagem e Posicionamento"
+description: "scrollIntoView, scrollTo, scrollY e scrollHeight, rolagem suave com scroll-behavior, pontos de parada com scroll-snap e seção ativa com IntersectionObserver."
+course: web-api
+sidebar:
+  label: "Rolagem e Posicionamento"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Rolagem é a interação mais frequente de uma página e a que mais gera código desnecessário. Boa parte
+do que se escreve em JavaScript para rolar, animar e destacar seções foi absorvida pelo CSS e pelos
+observadores. Este tópico separa o que ainda precisa de código do que já vem pronto.
+
+## Objetivo
+
+Compreender como o navegador mede e movimenta a rolagem, e reconhecer quais efeitos de rolagem o CSS
+já resolve sem JavaScript. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar `scrollY`, `scrollTop`, `scrollHeight` e `clientHeight` pelo que cada um mede.
+- Rolar por código com `scrollIntoView()`, `scrollTo()` e `scrollBy()`.
+- Obter rolagem suave e recuo de cabeçalho fixo apenas com CSS.
+- Criar pontos de parada em uma galeria com `scroll-snap-type`.
+- Destacar a seção ativa com `IntersectionObserver` em vez de um ouvinte de `scroll`.
+- Respeitar `prefers-reduced-motion` em qualquer animação de rolagem.
+
+## O que se mede em uma rolagem?
+
+Antes de mover a página, é preciso saber ler a posição dela. Quatro medidas respondem a quase toda
+pergunta sobre rolagem, e confundi-las é a origem de barras de progresso que passam de 100% e de
+detecções de fim de página que nunca disparam.
+
+O diagrama mostra as três alturas envolvidas e onde a posição atual se encaixa entre elas:
+
+<Mermaid title="As três alturas de um documento rolável e a posição atual da rolagem">
+{`
+flowchart TD
+  A["scrollHeight<br/>altura total do conteúdo"] --> B["innerHeight<br/>parte visível na tela"]
+  B --> C["scrollHeight - innerHeight<br/>quanto ainda dá para rolar"]
+  C --> D["scrollY<br/>quanto já foi rolado"]
+  D --> E["scrollY / (scrollHeight - innerHeight)<br/>progresso entre 0 e 1"]
+`}
+</Mermaid>
+
+A tabela liga cada propriedade ao que ela devolve e ao erro que costuma acompanhá-la:
+
+| Propriedade | Mede | Cuidado |
+| --- | --- | --- |
+| `window.scrollY` | Pixels já rolados no documento | Vale para a página; um elemento usa `scrollTop` |
+| `elemento.scrollTop` | Pixels já rolados dentro do elemento | Só existe se o elemento tiver rolagem própria |
+| `elemento.scrollHeight` | Altura total do conteúdo | Inclui o que está fora da vista |
+| `elemento.clientHeight` | Altura visível do elemento | Exclui barra de rolagem e margens |
+| `window.innerHeight` | Altura visível da janela | O equivalente ao `clientHeight` da página |
+| `elemento.getBoundingClientRect()` | Posição relativa à janela, agora | Muda a cada rolagem; não guarde o valor |
+
+A linha decisiva é a última. `getBoundingClientRect()` devolve a posição **em relação à janela**, não
+ao documento, então o valor muda a cada pixel rolado. Guardá-lo em uma variável e reutilizá-lo depois
+é a causa mais comum de elementos destacados na posição errada.
+
+## Rolar por código
+
+Quando o movimento parte de uma ação da interface, e não de um link, três métodos cobrem os casos.
+Todos aceitam a opção `behavior`, que escolhe entre o salto imediato e a animação.
+
+A tabela indica qual usar em cada situação:
+
+| Método | Move até | Uso típico |
+| --- | --- | --- |
+| `elemento.scrollIntoView(opções)` | O elemento indicado | Levar o usuário a uma seção ou ao item recém-criado |
+| `window.scrollTo({ top, behavior })` | Uma posição absoluta | Voltar ao topo |
+| `window.scrollBy({ top, behavior })` | Um deslocamento relativo | Avançar uma tela |
+
+O mais usado é o primeiro, porque não exige calcular posição nenhuma:
+
+<SourceCode path="examples/courses/web-api/scroll/index.html" region="rolar" lang="js" title="index.html" />
+
+As opções `block` e `inline` decidem onde o elemento para: `'start'` alinha pelo topo, `'center'`
+centraliza e `'nearest'` só rola se o elemento estiver fora da vista, que costuma ser a escolha certa
+para não sacudir a página sem necessidade.
+
+## O que o CSS resolve sozinho?
+
+Boa parte do comportamento de rolagem não precisa de JavaScript. As três declarações abaixo cobrem os
+efeitos mais pedidos, e valem também para os links de âncora comuns, que o JavaScript nem chega a
+interceptar.
+
+<SourceCode path="examples/courses/web-api/scroll/index.html" region="css" lang="css" title="index.html" />
+
+Três pontos merecem atenção nesse trecho. O `scroll-behavior: smooth` da linha 5 anima **toda**
+rolagem do documento, inclusive a de um `<a href="#secao">`. O `scroll-margin-top` da linha 17
+resolve o problema clássico do cabeçalho fixo cobrindo o título de destino, sem nenhum cálculo de
+deslocamento. E o `scroll-snap-type` da linha 25 cria os pontos de parada da galeria horizontal, com
+suporte a toque e teclado que uma implementação própria dificilmente alcançaria.
+
+<Aside type="caution" title="Animação de rolagem e preferência do usuário">
+Rolagem animada provoca desconforto e enjoo em parte das pessoas, e o sistema operacional já registra
+essa preferência. O bloco `@media (prefers-reduced-motion: reduce)` do exemplo devolve a rolagem
+imediata a quem pediu menos animação, e ele deve acompanhar toda declaração de `scroll-behavior`.
+</Aside>
+
+## Saber onde o usuário está
+
+O índice que destaca a seção em leitura é o caso mais comum de código de rolagem, e também o mais
+frequentemente escrito da forma cara: um ouvinte de `scroll` que percorre todas as seções e calcula
+posições a cada disparo, dezenas de vezes por segundo.
+
+O `IntersectionObserver` faz o mesmo trabalho sendo avisado apenas quando uma seção entra ou sai de
+uma faixa da tela:
+
+<SourceCode path="examples/courses/web-api/scroll/index.html" region="ativo" lang="js" title="index.html" />
+
+O `rootMargin` da linha 18 é o que define "estar em leitura". O valor `-45% 0px -45% 0px` encolhe a
+área observada para uma faixa central de 10% da altura da tela, de modo que a seção só é considerada
+ativa quando cruza o meio da janela. O tópico [Observadores](../../browser/observers/) trata dos três
+observadores em profundidade.
+
+Já a barra de progresso de leitura é um dos poucos casos em que o ouvinte de `scroll` continua sendo
+a resposta certa, porque o valor precisa acompanhar cada pixel:
+
+<SourceCode path="examples/courses/web-api/scroll/index.html" region="progresso" lang="js" title="index.html" />
+
+A opção `{ passive: true }`, na linha 12, informa ao navegador que o ouvinte não vai cancelar a
+rolagem com `preventDefault()`. Sem ela, o navegador precisa esperar a função terminar antes de rolar,
+e a página parece travada durante o gesto.
+
+## Quando usar, e quando não usar?
+
+Rolagem é a área em que a diferença entre a solução antiga e a atual mais aparece. A tabela contrapõe
+cada necessidade à alternativa que ainda circula em material antigo:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| Ir a uma seção ao clicar em um link | `<a href="#secao">` com `scroll-behavior: smooth` | `preventDefault()` mais animação escrita à mão |
+| Levar o usuário a um elemento recém-criado | `scrollIntoView({ block: 'nearest' })` | `scrollTo()` com posição calculada |
+| Compensar cabeçalho fixo no destino | `scroll-margin-top` no CSS | Subtrair a altura do cabeçalho no JavaScript |
+| Destacar a seção em leitura | `IntersectionObserver` com `rootMargin` | Ouvinte de `scroll` percorrendo todas as seções |
+| Carregar mais itens ao chegar ao fim | `IntersectionObserver` em um elemento sentinela | Comparar `scrollY` com `scrollHeight` a cada disparo |
+| Barra de progresso de leitura | Ouvinte de `scroll` com `{ passive: true }` | Observador, que não notifica a cada pixel |
+| Galeria que para em cada item | `scroll-snap-type` no CSS | Biblioteca de carrossel |
+| Imagem fora da área visível | `loading="lazy"` no `<img>` | Observador escrito para isso |
+| Rolagem controlada em vez de livre | Reconsiderar | Sequestrar a rolagem prejudica acessibilidade e teclado |
+
+As duas últimas linhas são as mais importantes. `loading="lazy"` dispensa observador para o caso mais
+comum de carregamento tardio, e o *scroll jacking*, que substitui a rolagem do navegador por uma
+animação própria, quebra teclado, leitor de tela e a expectativa do usuário sobre o próprio gesto.
+
+## Executando
+
+Os passos abaixo percorrem os quatro comportamentos do exemplo, do CSS ao observador:
+
+<Steps>
+1. Entre na pasta do exemplo, em `examples/courses/web-api/scroll/`, e sirva-a por HTTP:
+
+   ```bash title="Terminal"
+   npx serve .
+   ```
+
+2. Clique nos links do índice. A animação vem do CSS, e nenhum deles passa por JavaScript.
+
+3. Role a página devagar e observe a barra de progresso no topo acompanhando o percentual rolado.
+
+4. Continue rolando e veja o item do índice mudar de destaque ao cruzar o meio da tela.
+
+5. Arraste a galeria horizontal. Ela para alinhada em cada cartão por conta do `scroll-snap-align`.
+
+6. Clique em **Ir para a conclusão** para ver o `scrollIntoView()` levando a página ao fim.
+
+7. Ative a redução de movimento no sistema e recarregue. A rolagem passa a ser imediata.
+</Steps>
+
+<HtmlPreview path="examples/courses/web-api/scroll/index.html" height="30rem" label="index.html" allowScripts serveFromPublic />
+
+## Exercício
+
+Os itens abaixo ampliam o exemplo e exercitam a escolha entre CSS, observador e ouvinte:
+
+1. Acrescente um botão "voltar ao topo" que apareça só depois de 400 pixels rolados.
+2. Faça a galeria parar alinhada pela esquerda, e não pelo centro.
+3. Acrescente uma quinta seção e confirme que o índice a reconhece sem alterar o JavaScript.
+4. Exiba, ao lado da barra, o percentual lido em número inteiro.
+5. Troque `block: 'start'` por `block: 'nearest'` no botão e descreva a diferença de comportamento.
+
+O item 1 exige decidir entre observador e ouvinte, que é a discussão central do tópico:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O caso pede um observador, porque interessa apenas o cruzamento de um limiar, e não cada pixel. Um
+  elemento sentinela no topo da página resolve sem medir posição:
+
+  ```js title="Botão de voltar ao topo por observação de sentinela"
+  const sentinela = document.querySelector('#topo-sentinela');
+  const botao = document.querySelector('#voltar-ao-topo');
+
+  new IntersectionObserver(([entrada]) => {
+    botao.hidden = entrada.isIntersecting;
+  }).observe(sentinela);
+  ```
+
+  A alternativa com `scroll` também funciona e exige `{ passive: true }` mais uma comparação de
+  `window.scrollY` a cada disparo.
+</details>
+
+## Perguntas de revisão
+
+### Medidas e movimento
+
+1. **Qual a diferença entre `window.scrollY` e `elemento.scrollTop`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `scrollY` mede a rolagem do documento; `scrollTop` mede a rolagem interna de um elemento que tem
+  barra própria.
+</details>
+
+2. **Como calcular o progresso de leitura de uma página?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Dividindo `window.scrollY` por `document.documentElement.scrollHeight - window.innerHeight`, que é
+  o total realmente rolável.
+</details>
+
+3. **Por que não se deve guardar o resultado de `getBoundingClientRect()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele é relativo à janela e muda a cada pixel rolado; o valor guardado fica desatualizado
+  imediatamente.
+</details>
+
+4. **O que a opção `block: 'nearest'` de `scrollIntoView()` faz de diferente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ela só rola quando o elemento está fora da vista, evitando mover a página quando ele já está
+  visível.
+</details>
+
+### Escolha da técnica
+
+5. **Como compensar um cabeçalho fixo que cobre o título de destino?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `scroll-margin-top` no elemento de destino, no CSS, sem calcular deslocamento em JavaScript.
+</details>
+
+6. **Por que `IntersectionObserver` é preferível a um ouvinte de `scroll` para destacar a seção ativa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele notifica apenas nos cruzamentos de limiar, em vez de executar código e medir posições a
+  cada quadro de rolagem.
+</details>
+
+7. **Em que caso o ouvinte de `scroll` continua sendo a escolha correta?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o valor precisa acompanhar cada pixel, como em uma barra de progresso de leitura. Nesse caso
+  use `{ passive: true }`.
+</details>
+
+8. **O que `prefers-reduced-motion` deve alterar em uma página com rolagem animada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Deve desativar a animação, devolvendo `scroll-behavior: auto`, porque parte dos usuários sente
+  desconforto com movimento na tela.
+</details>
+
+## Referências
+
+- [Element.scrollIntoView() | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView)
+- [Window.scrollTo() | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/scrollTo)
+- [scroll-behavior | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/scroll-behavior)
+- [CSS scroll snap | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_scroll_snap)
+- [scroll-margin | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/scroll-margin)
+- [prefers-reduced-motion | MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion)
+
+## Próximo tópico
+
+[Observadores](../../browser/observers/): `IntersectionObserver`, `ResizeObserver` e
+`MutationObserver` em profundidade.

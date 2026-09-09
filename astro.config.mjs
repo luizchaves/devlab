@@ -800,6 +800,8 @@ export default defineConfig({
                 { label: 'Manipulação do DOM', link: '/courses/web-api/dom/manipulation/' },
                 { label: 'Eventos e Interatividade', link: '/courses/web-api/dom/events/' },
                 { label: 'Elementos Dinâmicos', link: '/courses/web-api/dom/dynamic-elements/' },
+                { label: 'Formulários e Validação', link: '/courses/web-api/dom/forms/' },
+                { label: 'Rolagem e Posicionamento', link: '/courses/web-api/dom/scroll/' },
                 { label: 'Observadores (Observers)', link: '/courses/web-api/browser/observers/' },
               ],
             },

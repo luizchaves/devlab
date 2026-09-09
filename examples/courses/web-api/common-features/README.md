@@ -1,6 +1,6 @@
 # Funcionalidades comuns de uma aplicação front-end
 
-Exemplo do tópico [Web APIs: O que uma Aplicação Front-end Faz](../../../../src/content/docs/courses/web-api/common-features.mdx).
+Exemplo do tópico [Web APIs: O que uma Aplicação Front-end Faz?](../../../../src/content/docs/courses/web-api/common-features.mdx).
 
 Uma única página reúne seis das funcionalidades mais comuns de uma aplicação
 vanilla, cada uma marcada com `#region` para ser recortada pela documentação:
