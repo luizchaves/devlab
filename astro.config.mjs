@@ -923,6 +923,15 @@ export default defineConfig({
                 { label: 'InvestApp (Fetch e API)', link: '/courses/web-api/practice/invest-app/' },
               ],
             },
+            {
+              label: 'Referência',
+              items: [
+                {
+                  label: 'Outras Web APIs',
+                  link: '/courses/web-api/reference/other-apis/',
+                },
+              ],
+            },
           ],
         },
         {
