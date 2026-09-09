@@ -7,6 +7,7 @@ sidebar:
 ---
 import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 import ModernWebApisDiagram from '@components/diagrams/ModernWebApisDiagram.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Os navegadores modernos evoluíram de simples leitores de documentos HTML para plataformas de execução robustas capazes de acessar hardware, gerenciar armazenamento local, capturar mídia e se comunicar em tempo real. As **Web APIs** são as interfaces nativas fornecidas pelo navegador para que o JavaScript interaja com todos esses recursos do sistema.
 
@@ -143,6 +144,137 @@ Os cartões estão agrupados na mesma ordem do mapa apresentado no início da p�
     [Abrir página](../../http/websockets/)
   </Card>
 </CardGrid>
+
+## Web APIs na Era da Inteligência Artificial
+
+Pedir a um assistente "carregue os dados da API e mostre na tela" ou "copie este texto para a área de
+transferência" devolve, em segundos, um trecho que compila, executa e faz o que foi pedido. O
+problema é que quase toda Web API tem um comportamento de borda que só aparece fora do caminho
+feliz, e é justamente esse comportamento que o modelo não pode verificar por você.
+
+O que mudou no trabalho, então, não foi a escrita: foi o ponto onde a atenção precisa estar.
+
+| O que mudou | O que permanece |
+| --- | --- |
+| Escrever a chamada da API deixou de ser o gargalo | Decidir **qual** API resolve o problema continua sendo humano |
+| O modelo conhece a assinatura de quase toda interface | Ele não sabe se o seu servidor envia `Access-Control-Allow-Origin` |
+| O código gerado passa no primeiro teste manual | Permissão negada, `null` e status 500 continuam acontecendo em produção |
+| A sintaxe raramente vem errada | O caso de erro raramente vem tratado |
+
+As subseções a seguir mostram esse desencontro em um caso concreto, catalogam o que o modelo erra por
+API e fecham com o que conferir antes de aprovar um *pull request*.
+
+### O erro que passa no caminho feliz
+
+O pedido "escreva uma função que busca os itens da API e devolve os nomes" produz, com frequência,
+exatamente este código:
+
+<SourceCode path="examples/courses/web-api/ai-review/load-items.generated.js" title="load-items.generated.js" />
+
+Não há nada de sintaticamente errado nele, e ele funciona: com a API respondendo `200`, os nomes
+chegam à tela. O defeito só existe quando o servidor responde com erro, porque `fetch()` não rejeita
+por status, e a linha 8 tenta chamar `map()` sobre o objeto de erro devolvido pelo servidor.
+
+O teste abaixo escreve o contrato que a função deveria cumprir. Ele usa `node:test`, `fetch` e
+`Response`, todos nativos, e troca de implementação pela variável `IMPL`:
+
+<SourceCode path="examples/courses/web-api/ai-review/load-items.test.js" title="load-items.test.js" />
+
+Executado contra a versão gerada, o segundo caso falha:
+
+```bash title="Terminal"
+IMPL=generated node --test
+```
+
+```txt title="Output" frame="terminal"
+✔ devolve os nomes quando a API responde 200 (14.8ms)
+✖ falha citando o status quando a API responde 500 (0.6ms)
+ℹ tests 2
+ℹ pass 1
+ℹ fail 1
+
+✖ failing tests:
+
+✖ falha citando o status quando a API responde 500
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /HTTP 500/. Input:
+
+  'TypeError: data.map is not a function'
+```
+
+A mensagem `data.map is not a function` é o retrato do problema: o erro aparece longe da causa, em uma
+linha que não tem defeito nenhum, e não menciona o status que o servidor devolveu. Quem for depurar
+isso em produção vai olhar para o `map()`, não para a chamada de rede.
+
+A correção cabe em três linhas e move a falha para o lugar certo:
+
+<SourceCode path="examples/courses/web-api/ai-review/load-items.js" mark="6-8" title="load-items.js" />
+
+Com a checagem de `response.ok`, o mesmo teste passa:
+
+```bash title="Terminal"
+node --test
+```
+
+```txt title="Output" frame="terminal"
+✔ devolve os nomes quando a API responde 200 (14.0ms)
+✔ falha citando o status quando a API responde 500 (0.4ms)
+ℹ tests 2
+ℹ pass 2
+ℹ fail 0
+```
+
+### Armadilhas por API
+
+O caso do `response.ok` é o mais frequente, mas cada interface deste catálogo tem a sua. A tabela
+reúne as que mais aparecem em código gerado, com o sintoma pelo qual você as reconhece na revisão:
+
+| API | O que o modelo costuma gerar | Como se manifesta | Como mitigar |
+| --- | --- | --- | --- |
+| Fetch | `await response.json()` sem checar o status | Erro em `map()` ou tela em branco | Exigir `if (!response.ok) throw` no *prompt* |
+| Web Storage | `JSON.parse(localStorage.getItem(k))` direto | `null` na primeira visita, `SyntaxError` com dado corrompido | Pedir valor padrão e `try/catch` na leitura |
+| Notification | `requestPermission()` no carregamento | Bloqueio permanente para o site | Pedir que a chamada nasça de um gesto do usuário |
+| Clipboard | `writeText()` sem `try/catch` | Botão que não reage quando a permissão falha | Exigir retorno visível para sucesso e falha |
+| Geolocation | Só o callback de sucesso | Tela parada quando o usuário recusa | Exigir o callback de erro e um caminho manual |
+| Drag and Drop | `drop` sem `preventDefault()` em `dragover` | O item nunca é aceito pelo destino | Citar os dois `preventDefault()` no pedido |
+| CORS | `mode: 'no-cors'` como solução do bloqueio | Resposta opaca, corpo ilegível, erro só depois | Rejeitar e corrigir os cabeçalhos no servidor |
+| DOM | `innerHTML` com dado vindo da API | Injeção de script (XSS) sem nenhum aviso | Exigir `textContent` para conteúdo externo |
+
+A linha do CORS merece destaque porque a sugestão é ativamente prejudicial. `mode: 'no-cors'` não
+libera nada: ele troca o erro visível no console por uma resposta opaca, cujo corpo o JavaScript não
+consegue ler, e adia a descoberta do problema para bem mais tarde.
+
+### O que colocar no pedido
+
+Um pedido que descreve só o resultado devolve só o caminho feliz. Fixar dialeto, casos de erro e
+forma de verificação muda bastante o que chega de volta:
+
+```txt title="Prompt de geração com contrato explícito"
+Escreva uma função `loadItems(url)` que busca itens em uma API REST e devolve os nomes.
+Requisitos: JavaScript moderno com módulos ECMAScript, sem bibliotecas; lançar erro citando
+o status quando `response.ok` for falso; não engolir falha de rede. Depois escreva testes
+com `node:test` cobrindo: resposta 200 com dois itens, resposta 500 e falha de rede. Mostre
+primeiro os testes e explique o que cada um garante.
+```
+
+Três elementos fazem a diferença nesse texto, e valem para qualquer Web API: o **dialeto**
+(JavaScript moderno, sem bibliotecas), o **contrato de erro** (o que deve acontecer quando dá errado)
+e a **verificação** (os testes, pedidos antes do código).
+
+### Checklist de revisão antes do merge
+
+Antes de aprovar um trecho de Web API gerado por assistente, percorra os pontos abaixo. Eles cobrem
+os defeitos que o código gerado tem com mais frequência, e nenhum deles aparece no caminho feliz:
+
+1. Todo `fetch()` confere `response.ok` antes de consumir o corpo?
+2. Toda leitura de `localStorage` tem valor padrão e proteção contra JSON inválido?
+3. Toda API que pede permissão é chamada a partir de um gesto do usuário, e não no carregamento?
+4. Toda Promise de Web API tem tratamento de rejeição com retorno visível na interface?
+5. Nenhum dado vindo de fora da página é escrito com `innerHTML`?
+6. O código só usa APIs disponíveis nos navegadores que o projeto suporta?
+7. Existe um teste, mesmo pequeno, cobrindo o caminho de erro descrito acima?
+
+A responsabilidade continua sendo de quem assina o *commit*. O assistente escreve o caminho feliz em
+segundos; o caso de erro, a permissão negada e o dado ausente continuam sendo problema de quem revisa.
 
 ## Como estudar?
 
