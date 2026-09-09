@@ -70,6 +70,7 @@
 - [ ] **[TASK-030] Páginas de projeto do Web APIs no molde do InvestApp do Express:** (spec-008, a escrever)
   - [ ] `[TASK-030.1]` Reescrever `web-api/practice/invest-app.mdx` e `monitor-app.mdx` no formato de `expressjs/practice/investapp/index.mdx` (análise de requisitos, RF/RNF, stack, arquitetura, protótipo visual, modelo de domínio, trilha incremental) — hoje são **91 e 96 linhas** contra **515**
   - [ ] `[TASK-030.2]` Refatorar o front-end da etapa final de cada app (`examples/courses/web-api/fetch-api/invest-app` e `monitor-app`) com Tailwind de verdade, UX/UI revisada e lógica JS reorganizada — hoje o Tailwind está configurado mas o estilo mora em `css/style.css` escrito à mão
+- [x] **[TASK-031]** Página de entrada `web-api/common-features.mdx` ligando as funcionalidades recorrentes de uma aplicação vanilla (eventos, carregamento dinâmico, rolagem, validação de formulário, persistência, navegação) à Web API de cada uma — 17 linhas de mapa, e cobre três assuntos que o guia não tinha em lugar nenhum: Constraint Validation com `FormData`, `scrollIntoView`/`scroll-behavior` e o que HTML e CSS já resolvem sem JavaScript (`<details>`, `popover`, `loading="lazy"`, `scroll-snap`)
 
 ### Concluídos (Conteúdo)
 
