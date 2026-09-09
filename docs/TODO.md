@@ -66,6 +66,9 @@
   - [ ] `[TASK-029.3]` Colocar conceito antes do exemplo nas 10 páginas finas de `browser/modern-apis/` e fechá-las com `## Perguntas de revisão` — hoje elas vão do parágrafo de abertura direto ao arquivo HTML inteiro
   - [ ] `[TASK-029.4]` Criar `browser/webassembly.mdx` com projeto executável em `examples/courses/web-api/webassembly/` — WebAssembly tem **0 menções** no repositório
   - [ ] `[TASK-029.5]` Escrever `## Web APIs na Era da Inteligência Artificial` no catálogo e um aside `Dica de IA:` nas cinco páginas de código real — hoje o guia tem **0** asides e **0** seções de IA
+- [ ] **[TASK-030] Páginas de projeto do Web APIs no molde do InvestApp do Express:** (spec-008, a escrever)
+  - [ ] `[TASK-030.1]` Reescrever `web-api/practice/invest-app.mdx` e `monitor-app.mdx` no formato de `expressjs/practice/investapp/index.mdx` (análise de requisitos, RF/RNF, stack, arquitetura, protótipo visual, modelo de domínio, trilha incremental) — hoje são **91 e 96 linhas** contra **515**
+  - [ ] `[TASK-030.2]` Refatorar o front-end da etapa final de cada app (`examples/courses/web-api/fetch-api/invest-app` e `monitor-app`) com Tailwind de verdade, UX/UI revisada e lógica JS reorganizada — hoje o Tailwind está configurado mas o estilo mora em `css/style.css` escrito à mão
 
 ### Concluídos (Conteúdo)
 
