@@ -262,6 +262,26 @@ export default defineConfig({
     '/courses/typescript/basics/typescript-vs-javascript': withBase(
       '/courses/typescript/reference/typescript-vs-javascript/'
     ),
+    '/courses/web-api/browser/modern-apis': withBase('/courses/web-api/browser/catalog/'),
+    '/courses/web-api/browser/modern-apis/dialog': withBase('/courses/web-api/ui/dialog/'),
+    '/courses/web-api/browser/modern-apis/fullscreen': withBase('/courses/web-api/ui/fullscreen/'),
+    '/courses/web-api/browser/modern-apis/canvas': withBase('/courses/web-api/media/canvas/'),
+    '/courses/web-api/browser/modern-apis/web-speech': withBase(
+      '/courses/web-api/media/web-speech/'
+    ),
+    '/courses/web-api/browser/modern-apis/clipboard': withBase('/courses/web-api/input/clipboard/'),
+    '/courses/web-api/browser/modern-apis/drag-and-drop': withBase(
+      '/courses/web-api/input/drag-and-drop/'
+    ),
+    '/courses/web-api/browser/modern-apis/geolocation': withBase(
+      '/courses/web-api/device/geolocation/'
+    ),
+    '/courses/web-api/browser/modern-apis/notification': withBase(
+      '/courses/web-api/device/notification/'
+    ),
+    '/courses/web-api/browser/modern-apis/vibration': withBase(
+      '/courses/web-api/device/vibration/'
+    ),
   },
   integrations: [
     starlight({
@@ -776,8 +796,8 @@ export default defineConfig({
                   link: '/courses/web-api/common-features/',
                 },
                 {
-                  label: 'APIs Modernas do Navegador',
-                  link: '/courses/web-api/browser/modern-apis/',
+                  label: 'Catálogo de APIs do Navegador',
+                  link: '/courses/web-api/browser/catalog/',
                 },
                 { label: 'Ciclo de Vida da Página', link: '/courses/web-api/browser/lifecycle/' },
               ],
@@ -789,11 +809,11 @@ export default defineConfig({
                 { label: 'History API (Navegação SPA)', link: '/courses/web-api/browser/history/' },
                 {
                   label: 'Dialog API (Modais Nativos)',
-                  link: '/courses/web-api/browser/modern-apis/dialog/',
+                  link: '/courses/web-api/ui/dialog/',
                 },
                 {
                   label: 'Fullscreen API (Tela Cheia)',
-                  link: '/courses/web-api/browser/modern-apis/fullscreen/',
+                  link: '/courses/web-api/ui/fullscreen/',
                 },
               ],
             },
@@ -813,11 +833,11 @@ export default defineConfig({
               items: [
                 {
                   label: 'Canvas API (Desenho 2D)',
-                  link: '/courses/web-api/browser/modern-apis/canvas/',
+                  link: '/courses/web-api/media/canvas/',
                 },
                 {
                   label: 'Web Speech API (Voz)',
-                  link: '/courses/web-api/browser/modern-apis/web-speech/',
+                  link: '/courses/web-api/media/web-speech/',
                 },
               ],
             },
@@ -826,11 +846,11 @@ export default defineConfig({
               items: [
                 {
                   label: 'Clipboard API (Copiar e Colar)',
-                  link: '/courses/web-api/browser/modern-apis/clipboard/',
+                  link: '/courses/web-api/input/clipboard/',
                 },
                 {
                   label: 'Drag and Drop API (Arrastar)',
-                  link: '/courses/web-api/browser/modern-apis/drag-and-drop/',
+                  link: '/courses/web-api/input/drag-and-drop/',
                 },
               ],
             },
@@ -839,15 +859,15 @@ export default defineConfig({
               items: [
                 {
                   label: 'Geolocation API (Localização)',
-                  link: '/courses/web-api/browser/modern-apis/geolocation/',
+                  link: '/courses/web-api/device/geolocation/',
                 },
                 {
                   label: 'Notification API (Notificações)',
-                  link: '/courses/web-api/browser/modern-apis/notification/',
+                  link: '/courses/web-api/device/notification/',
                 },
                 {
                   label: 'Vibration API (Feedback Tátil)',
-                  link: '/courses/web-api/browser/modern-apis/vibration/',
+                  link: '/courses/web-api/device/vibration/',
                 },
                 {
                   label: 'Web Workers API (Multi-threading)',
