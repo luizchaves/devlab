@@ -60,6 +60,12 @@
 - [ ] **[TASK-027]** Levar o código do Guia de TypeScript para `examples/courses/typescript/` e converter os blocos escritos à mão em `<SourceCode>` — hoje são **0 usos contra 20** no ECMAScript, e nenhum projeto executável (desdobramento previsto nos Non-goals da [spec-006](../specs/executed/spec-006-typescript-guide-restructure.md))
 - [x] **[TASK-028]** Ensinar `check-code-blocks.mjs` a validar TypeScript — o analisador passou a ser escolhido pela linguagem do bloco (`node --check` para `js`, parser do TypeScript para `ts`/`tsx`/`jsx`), e blocos de comparação `del`/`ins` são pulados: de **238 erros para 0** em todos os cursos, com 1185 blocos conferidos contra 1134
   - [x] `[TASK-028.1]` Corrigir os cinco defeitos reais que estavam enterrados no ruído: JSX inválido em `react/basics/introduction`, blocos JSX marcados como `js` em `web-api/browser`, sessão `mongosh` e pseudocódigo marcados como `javascript` em `database/basics/dbms`, e bloco só de comentários marcado como `ts` em `typescript/tooling/runtime`
+- [ ] **[TASK-029] Reestruturação do Guia de Web APIs:** (ver [spec](../specs/active/spec-007-web-api-guide-restructure.md))
+  - [ ] `[TASK-029.1]` Aplicar o `## Objetivo` bipartido (Geral + específicos) nas 30 páginas de tópico — hoje são **0 de 30**, contra 19 páginas já no padrão em `ecmascript`, `typescript` e `npm`
+  - [ ] `[TASK-029.2]` Acrescentar `## Quando usar, e quando não usar?` às páginas que ensinam uma API concreta, com tabela de decisão nomeando a alternativa perdedora
+  - [ ] `[TASK-029.3]` Colocar conceito antes do exemplo nas 10 páginas finas de `browser/modern-apis/` e fechá-las com `## Perguntas de revisão` — hoje elas vão do parágrafo de abertura direto ao arquivo HTML inteiro
+  - [ ] `[TASK-029.4]` Criar `browser/webassembly.mdx` com projeto executável em `examples/courses/web-api/webassembly/` — WebAssembly tem **0 menções** no repositório
+  - [ ] `[TASK-029.5]` Escrever `## Web APIs na Era da Inteligência Artificial` no catálogo e um aside `Dica de IA:` nas cinco páginas de código real — hoje o guia tem **0** asides e **0** seções de IA
 
 ### Concluídos (Conteúdo)
 
