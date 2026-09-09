@@ -17,8 +17,8 @@ Markdown/MDX e o código dos tópicos e exemplos existe de verdade, em projetos 
 | Dimensão                      | Estado atual                                  |
 | ----------------------------- | --------------------------------------------- |
 | Cursos e guias                | 14 (`src/lib/courses.ts`)                     |
-| Páginas de tópicos            | 255 arquivos `.mdx`                           |
-| Projetos executáveis          | 77 projetos em `examples/courses/`            |
+| Páginas de tópicos            | 266 arquivos `.mdx`                           |
+| Projetos executáveis          | 82 projetos em `examples/courses/`            |
 | Slides / mapas mentais        | 66 / 66 em `materials/`                       |
 | Devcontainers (Codespaces)    | 24 pastas em `.devcontainer/`                 |
 | Idioma                        | Português do Brasil                           |
