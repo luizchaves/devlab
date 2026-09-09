@@ -14,9 +14,10 @@ executa scripts e dispara eventos em uma ordem específica.
 
 ## Objetivo
 
-Compreender o caminho que o navegador percorre do primeiro byte de HTML até a página interativa, para escolher o momento certo de executar cada script. Ao final do tópico, o leitor deve ser capaz de:
+Compreender o caminho que o navegador percorre do primeiro byte de HTML até a página interativa, para escolher o momento certo e o formato ideal de executar cada script. Ao final do tópico, o leitor deve ser capaz de:
 
 - Descrever as etapas entre a chegada do HTML e a construção completa do DOM.
+- Comparar as diferentes formas de integrar JavaScript ao HTML (scripts embutidos, externos, atributos inline e módulos) e suas regras de escopo.
 - Escolher entre `defer`, `async` e `type="module"` conforme o script precise ou não do DOM pronto.
 - Diferenciar `DOMContentLoaded` de `load` pelo que já está disponível em cada um.
 - Consultar `document.readyState` para decidir se o código deve esperar por um evento.
@@ -75,10 +76,135 @@ Para associar ouvintes de eventos a botões, formulários e elementos visuais, u
 
 ---
 
-## Scripts Bloqueantes, `defer` e `type="module"`
+## Formas de Integrar JavaScript ao HTML
 
-Por padrão, um `<script src="app.js"></script>` encontrado no meio do HTML pausa o parser até o
-arquivo ser baixado e executado. Isso pode atrasar a construção da página.
+No desenvolvimento web, o código JavaScript pode ser conectado ao HTML de múltiplas maneiras. Cada formato define regras próprias de isolamento de escopo, ordem de execução e manutenção da aplicação.
+
+As subseções a seguir analisam cada padrão em detalhe e apresentam cenários didáticos de visibilidade de variáveis.
+
+### 1. Script Embutido (Inline) vs Arquivo Externo
+
+A tag `<script>` pode conter o código diretamente em seu corpo ou apontar para um arquivo externo através do atributo `src`:
+
+```html title="Comparativo: script embutido vs arquivo externo"
+<!-- 1. Script Embutido (Inline): o código mora dentro do arquivo HTML -->
+<script>
+  console.log('Executando script embutido no HTML');
+</script>
+
+<!-- 2. Script Externo: o código mora em um arquivo .js separado -->
+<script src="/js/app.js"></script>
+```
+
+Existe uma **regra inviolável do elemento `<script>`**: a tag ou contém código interno entre `<script>` e `</script>`, ou utiliza o atributo `src`, **mas nunca os dois ao mesmo tempo**. Se você declarar `src` e também escrever código dentro da tag, o navegador fará o download do arquivo externo e **ignorará solenemente todo o código interno**:
+
+```html title="Armadilha comum: código interno ignorado quando src existe"
+<!-- ATENÇÃO: o console.log NÃO será executado pelo navegador! -->
+<script src="/js/app.js">
+  console.log('Este código é 100% ignorado pelo navegador porque o atributo src foi informado!');
+</script>
+```
+
+<Aside type="caution" title="Regra de ouro">
+Para carregar um arquivo externo e executar um script de inicialização, declare sempre **duas tags `<script>` separadas**.
+</Aside>
+
+### 2. Código em Atributos HTML (Manipuladores Inline e Pseudo-protocolos)
+
+O HTML permite historicamente executar JavaScript dentro de atributos de tags:
+
+```html title="Exemplos de código embutido em atributos HTML"
+<!-- 1. Manipuladores de eventos inline (onevent) -->
+<button onclick="alert('Clicado!')">Salvar</button>
+<input type="text" oninput="console.log(this.value)" />
+
+<!-- 2. Pseudo-protocolo javascript: em links -->
+<a href="javascript:void(0)" onclick="abrirModal()">Ver Detalhes</a>
+```
+
+Apesar de funcionarem por compatibilidade com a web antiga, essas práticas são **fortemente desencorajadas em projetos modernos**:
+
+- **Mistura de responsabilidades**: Dificulta a manutenção ao espalhar regras de negócio e lógica de controle dentro da estrutura visual da página.
+- **Escopo confuso**: O código dentro de um `onclick` roda em uma cadeia de escopos oculta do navegador, o que gera comportamentos imprevisíveis ao tentar acessar variáveis do script principal.
+- **Incompatível com CSP**: Políticas de segurança contra ataques de injeção de script (XSS) bloqueiam manipuladores inline por padrão.
+- **Prejuízo à acessibilidade**: O uso de `href="javascript:..."` quebra o comportamento padrão de links para leitores de tela e atalhos de teclado.
+
+A abordagem moderna e recomendada é manter o HTML declarativo e registrar os ouvintes no JavaScript via `addEventListener()`:
+
+```html title="HTML limpo e semântico"
+<button id="btn-salvar">Salvar Alterações</button>
+```
+
+```js title="app.js"
+const botao = document.querySelector('#btn-salvar');
+botao.addEventListener('click', () => {
+  console.log('Evento tratado de forma limpa e desacoplada');
+});
+```
+
+### 3. Escopo e Visibilidade entre Contextos de Execução
+
+Quando você possui vários scripts na mesma página, a visibilidade de variáveis depende do tipo da tag `<script>` utilizada:
+
+```html title="Cenário de múltiplos scripts e visibilidade de escopo"
+<!-- Script Clássico 1: variáveis no topo entram no escopo global -->
+<script>
+  var nomeApp = 'DevLab';
+  let versao = 1.0;
+  function somar(a, b) {
+    return a + b;
+  }
+</script>
+
+<!-- Script Clássico 2: enxerga tudo declarado no Script 1 -->
+<script>
+  console.log(nomeApp); // 'DevLab' (disponível diretamente)
+  console.log(window.nomeApp); // 'DevLab' (var vira propriedade de window)
+  console.log(versao); // 1.0 (let global é compartilhado entre scripts clássicos)
+  console.log(somar(10, 5)); // 15
+</script>
+
+<!-- Script Módulo: possui escopo de módulo totalmente ISOLADO -->
+<script type="module">
+  const segredoInterno = 'chave-123';
+  export const TAXA = 0.05;
+
+  // Para expor intencionalmente algo para scripts externos legados:
+  window.executarAcaoGlobal = () => console.log('Ação chamada do módulo');
+</script>
+
+<!-- Script Clássico 3: NÃO consegue acessar variáveis internas do Módulo -->
+<script>
+  console.log(typeof segredoInterno); // 'undefined' (o módulo não vaza variáveis!)
+  window.executarAcaoGlobal(); // Funciona porque foi anexada explicitamente a window
+</script>
+```
+
+As diferenças essenciais entre scripts clássicos e módulos JavaScript são:
+
+- **Scripts Clássicos (`<script>`)**: Compartilham o escopo global. Declarações com `var` e `function` viram propriedades diretas do objeto `window`. Variáveis `let` e `const` no topo não entram em `window`, mas permanecem visíveis para scripts clássicos executados posteriormente.
+- **Módulos JavaScript (`<script type="module">`)**: Possuem **escopo fechado por arquivo**. Nenhuma variável declarada vaza para `window` ou para outros scripts, evitando colisões de nomes.
+- **Strict Mode Automático**: Módulos rodam em modo estrito (`'use strict'`) por padrão, prevenindo erros sutis de variáveis não declaradas.
+- **Execução Adiada (*Deferred*)**: Módulos nunca bloqueiam a montagem do HTML; o navegador baixa os módulos em paralelo e só os executa após o DOM estar pronto.
+
+### 4. Tabela Comparativa de Integração
+
+A tabela resume as opções de integração de código JavaScript no HTML:
+
+| Forma de Integração | Sintaxe Exemplo | Escopo de Variáveis | Ordem de Execução | Recomendação de Uso |
+| --- | --- | --- | --- | --- |
+| **Módulo JavaScript** | `<script type="module" src="app.js"></script>` | Módulo isolado (fechado) | Adiado (após o DOM pronto) | **Padrão recomendado para aplicações modernas** |
+| **Script Externo com `defer`** | `<script defer src="app.js"></script>` | Global compartilhado (`window`) | Adiado (após o DOM pronto) | Padrão seguro para scripts clássicos sem bundler |
+| **Script Externo Clássico** | `<script src="app.js"></script>` | Global compartilhado (`window`) | Imediato (bloqueia o parser) | Evitar no `<head>` sem `defer` |
+| **Script Embutido (Inline)** | `<script>...</script>` | Global compartilhado | Imediato na posição em que é lido | Apenas para configurações iniciais críticas |
+| **Manipulador Inline** | `<button onclick="...">` | Escopo opaco do elemento | Ao disparar o evento | **Evitar** (usar `addEventListener`) |
+| **Pseudo-protocolo `href`** | `<a href="javascript:...">` | Escopo global | Ao clicar no link | **Evitar** (usar `<button>` com ouvinte) |
+
+---
+
+## Modos de Execução: Síncrono, `defer`, `async` e Módulos
+
+Ao utilizar arquivos JavaScript externos com a tag `<script src="...">`, o navegador oferece três atributos fundamentais para controlar **quando o arquivo é baixado** e **quando ele é executado**:
 
 | Forma de carregar | Quando baixa? | Quando executa? | Uso recomendado |
 | --- | --- | --- | --- |
