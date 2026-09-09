@@ -768,10 +768,13 @@ export default defineConfig({
           label: 'Guia de Web APIs',
           items: [
             { label: 'Visão geral', link: '/courses/web-api/' },
-            { label: 'Funcionalidades Comuns', link: '/courses/web-api/common-features/' },
             {
               label: 'Ambiente e Navegador',
               items: [
+                {
+                  label: 'O que o Front-end Faz?',
+                  link: '/courses/web-api/common-features/',
+                },
                 {
                   label: 'APIs Modernas do Navegador',
                   link: '/courses/web-api/browser/modern-apis/',
