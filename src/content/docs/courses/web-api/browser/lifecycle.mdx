@@ -26,31 +26,52 @@ Compreender o caminho que o navegador percorre do primeiro byte de HTML até a p
 
 ## O Caminho do HTML até a Página Interativa
 
-Quando o navegador recebe um documento HTML, ele não espera tudo terminar para começar a trabalhar.
-Ele processa o arquivo progressivamente, criando nós no DOM conforme encontra tags.
+Quando o navegador requisita um endereço na web, a página não surge instantaneamente pronta. O navegador recebe um fluxo contínuo de bytes pela rede e realiza diversas tarefas em paralelo: analisa as tags HTML (*parsing*), constrói a árvore de elementos do DOM, dispara o download de recursos externos (folhas de estilo CSS, imagens, fontes e scripts JavaScript) e executa o código conforme as regras de bloqueio de cada tag.
+
+O diagrama de sequência abaixo ilustra a ordem temporal em que o servidor, o navegador, o parser HTML e o motor JavaScript interagem durante o carregamento de uma página:
 
 <Mermaid title="Linha do Tempo do Carregamento da Página">
 {`
 sequenceDiagram
+  autonumber
   participant S as Servidor
-  participant B as Navegador
+  participant B as Navegador (Scanner)
   participant P as Parser HTML
-  participant D as DOM
-  participant JS as JavaScript
+  participant D as Árvore DOM
+  participant JS as Motor JavaScript
 
-  S->>B: Envia HTML
-  B->>P: Inicia parsing
-  P->>D: Cria elementos
-  P->>B: Encontra CSS, imagens e scripts
-  B->>JS: Executa scripts conforme atributo
-  P->>D: DOM completo
-  D-->>JS: DOMContentLoaded
-  B-->>JS: load apos recursos externos
+  S->>B: Transmite stream de bytes HTML
+  B->>P: Converte bytes em tokens e nós
+  P->>D: Constrói elementos progressivamente
+  B-->>S: Dispara downloads paralelos (CSS, imagens, scripts)
+  Note over P,JS: Tag <script> síncrona pausa o parser até o JS rodar
+  P->>D: Finaliza leitura do documento HTML
+  D->>JS: Dispara evento DOMContentLoaded (DOM pronto)
+  S-->>B: Conclui download de imagens e estilos externos
+  B->>JS: Dispara evento window load (página e assets 100% carregados)
 `}
 </Mermaid>
 
-O ponto principal é: **o arquivo JavaScript pode executar antes de um elemento existir no DOM**. Isso
-explica erros como `Cannot read properties of null`, comuns quando `querySelector()` retorna `null`.
+### O Processo de Carregamento Passo a Passo
+
+O fluxo demonstrado na linha do tempo organiza-se em cinco etapas fundamentais:
+
+1. **Recepção do Stream e Parsing Incremental**: O navegador não aguarda o arquivo `.html` completo chegar pela rede para iniciar o processamento. Conforme os primeiros pacotes de bytes chegam, o parser converte o texto em tokens (`<html>`, `<body>`, `<main>`) e insere os nós correspondentes na árvore DOM.
+2. **Preload Scanner e Downloads em Paralelo**: Enquanto o parser principal analisa o documento sequencialmente, um processo em segundo plano (*Preload Scanner*) inspeciona o arquivo à procura de tags `<link rel="stylesheet">`, `<img>` e `<script src="...">`, solicitando o download desses recursos pela rede o mais cedo possível.
+3. **Ponto Crítico de Bloqueio do Parser**: Ao encontrar uma tag `<script>` tradicional (sem `defer` ou `type="module"`), o parser interrompe a leitura do HTML. O navegador aguarda o download do arquivo JavaScript e o executa imediatamente antes de continuar a processar as tags restantes do corpo da página.
+4. **Disparo do Evento `DOMContentLoaded`**: Assim que o parser atinge a tag de fechamento `</html>` e todos os scripts com `defer` ou módulos foram executados, o evento `DOMContentLoaded` é emitido. Neste estágio, a estrutura de elementos está completamente montada na memória.
+5. **Disparo do Evento `window.load`**: Após o término do download e decodificação de todas as imagens, fontes tipográficas, folhas de estilo CSS e iframes externos, o navegador emite o evento global `load` na janela (`window`).
+
+### Impacto Prático no Código Front-end
+
+Compreender essa cronologia evita os dois erros mais recorrentes no desenvolvimento front-end com JavaScript vanilla:
+
+- **Seleção de elementos inexistentes (`null`)**: Se um script for executado no `<head>` sem atributos assíncronos, o parser ainda não terá chegado nas tags do `<body>`. Qualquer chamada a `document.querySelector('#botao')` retornará `null`, gerando a clássica exceção `TypeError: Cannot read properties of null`.
+- **Medição de dimensões zeradas em imagens**: No momento em que o evento `DOMContentLoaded` dispara, os nós `<img>` já existem no DOM, mas os arquivos de imagem podem ainda estar em trânsito pela rede. Tentar ler propriedades dimensionais como `img.offsetWidth` ou `img.naturalHeight` nesse instante pode retornar `0`. Medições geométricas de mídia só são confiáveis após o evento `load` da própria imagem ou de `window`.
+
+<Aside type="tip" title="Diretriz de inicialização">
+Para associar ouvintes de eventos a botões, formulários e elementos visuais, utilize scripts carregados com `type="module"` ou aguarde o evento `DOMContentLoaded`. Deixe para escutar o evento `load` apenas quando sua lógica depender do carregamento completo de imagens ou folhas de estilo externas.
+</Aside>
 
 ---
 
