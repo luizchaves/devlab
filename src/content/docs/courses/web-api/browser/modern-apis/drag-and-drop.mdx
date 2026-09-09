@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import HtmlPreview from '@components/HtmlPreview.astro';
 import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
 A **Drag and Drop API** permite criar interações de arrastar e soltar. Ela aparece em kanbans,
 uploads, reordenação de listas e interfaces em que o gesto espacial ajuda mais do que um formulário.
@@ -21,6 +22,52 @@ Compreender o encadeamento de eventos que sustenta o arrastar e soltar nativo, e
 - Ler o dado transportado no evento `drop` e concluir a ação de negócio.
 - Limpar o estado visual em `dragend`, mesmo quando o gesto é abandonado.
 - Escolher entre a API nativa, eventos de ponteiro e um `<input type="file">` conforme o gesto e o público.
+
+## O ciclo de um arrasto
+
+Arrastar e soltar não é um evento, é uma sequência deles, disparados em dois elementos diferentes. A
+origem informa o que está sendo levado; o destino precisa declarar que aceita receber, e só então
+recebe.
+
+O ponto que quebra quase toda primeira implementação está no meio dessa sequência: por padrão, uma
+área da página **não** aceita nada solto sobre ela. O destino só passa a aceitar quando o código
+cancela o comportamento padrão do evento `dragover`.
+
+<Mermaid title="Sequência de eventos entre a origem e o destino de um arrasto">
+{`
+sequenceDiagram
+  participant O as Origem
+  participant D as Destino
+  O->>O: dragstart<br/>grava o dado no DataTransfer
+  O->>D: dragover (repetido)
+  D->>D: preventDefault()<br/>declara que aceita
+  O->>D: drop<br/>lê o dado e conclui a ação
+  D->>O: dragend<br/>limpa o estado visual
+`}
+</Mermaid>
+
+O trecho abaixo é a versão mínima dessa sequência. Repare que o `preventDefault()` da linha 6 não é
+uma correção de bug: ele é a declaração de que aquela área é um destino válido.
+
+```js title="Origem e destino mínimos"
+source.addEventListener('dragstart', (event) => {
+  event.dataTransfer.setData('text/plain', source.id);
+});
+
+target.addEventListener('dragover', (event) => {
+  event.preventDefault();
+});
+
+target.addEventListener('drop', (event) => {
+  event.preventDefault();
+  const id = event.dataTransfer.getData('text/plain');
+  target.append(document.getElementById(id));
+});
+```
+
+O dado trafega como texto identificado por um tipo MIME. Em geral não se transporta o elemento em si,
+e sim o identificador dele, como na linha 2, deixando para o destino a decisão do que fazer com essa
+informação.
 
 ## Modelo da API
 
@@ -60,6 +107,25 @@ Drag and drop é útil, mas não deve ser a única forma de executar uma ação 
 | Mover item entre colunas | Atualize o estado de dados, não só o DOM visual |
 | Interface mobile | Teste suporte e considere Pointer Events |
 
+## Quando usar, e quando não usar?
+
+O arrastar e soltar nativo é um gesto de mouse. Ele não tem equivalente por teclado, funciona mal em
+telas de toque e depende de precisão motora, o que o torna uma escolha ruim como caminho único para
+qualquer ação.
+
+A tabela relaciona cada necessidade à interface adequada:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| Receber arquivos vindos da área de trabalho | API nativa, lendo `dataTransfer.files` | Apenas o seletor de arquivos, que ignora o gesto natural |
+| Reordenar itens de uma lista curta | API nativa **com** botões de subir e descer | Só o arrasto, que exclui quem navega por teclado |
+| Mover cartões entre colunas em telas de toque | Eventos de ponteiro (*Pointer Events*) | A API nativa, cujo suporte em toque é irregular |
+| Ação crítica, como excluir ou enviar | Botão comum | Arrasto para uma área de descarte, difícil de desfazer |
+| Upload simples de um arquivo | `<input type="file">` | Toda a sequência de eventos, para o mesmo resultado |
+
+A segunda linha é a regra prática do tópico: o arrasto pode ser o caminho rápido, nunca o único. Toda
+ação alcançável por arrasto precisa de um equivalente acionável por teclado.
+
 ## Executando
 
 <Steps>
@@ -80,6 +146,82 @@ Drag and drop é útil, mas não deve ser a única forma de executar uma ação 
 
   No `dragstart`, use `event.dataTransfer.setData('text/plain', elemento.id)`. No `drop`, leia com
   `getData('text/plain')`, busque o elemento por ID e mova para o destino atual.
+</details>
+
+## Perguntas de revisão
+
+### Sequência de eventos
+
+1. **Por que uma área da página não aceita um item solto sobre ela sem código adicional?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o comportamento padrão do navegador é recusar. O destino só passa a aceitar quando cancela
+  esse padrão com `preventDefault()` em `dragover`.
+</details>
+
+2. **Em qual evento o dado transportado deve ser gravado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em `dragstart`, com `event.dataTransfer.setData(tipo, valor)`.
+</details>
+
+3. **Qual a função do atributo `draggable="true"`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Marcar o elemento como origem de arrasto, o que faz o navegador disparar `dragstart` sobre ele.
+</details>
+
+4. **Para que serve o evento `dragend`, já que o `drop` conclui a ação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para limpar o estado visual da origem, inclusive quando o gesto é abandonado fora de um destino
+  válido e o `drop` nunca acontece.
+</details>
+
+### Dados e alternativas
+
+5. **Por que se costuma transportar o identificador do elemento e não o elemento em si?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o `DataTransfer` trafega strings por tipo MIME. Com o identificador, o destino localiza o
+  elemento e decide o que fazer com ele.
+</details>
+
+6. **Como receber arquivos arrastados da área de trabalho?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Lendo `event.dataTransfer.files` no evento `drop`, que traz uma `FileList` equivalente à de um
+  `<input type="file">`.
+</details>
+
+7. **Por que o arrasto não pode ser o único caminho para uma ação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque não existe equivalente por teclado, o que exclui parte dos usuários. A ação precisa de um
+  botão ou menu correspondente.
+</details>
+
+8. **Quando os *Pointer Events* são preferíveis à API nativa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em interfaces de toque, onde o suporte da API nativa é irregular e o controle direto do ponteiro
+  dá um gesto mais previsível.
 </details>
 
 ## Referências

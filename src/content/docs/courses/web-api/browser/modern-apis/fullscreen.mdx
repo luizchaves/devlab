@@ -22,6 +22,44 @@ Compreender a tela cheia como mudança de modo de apresentação de um elemento 
 - Sincronizar a interface com os eventos `fullscreenchange` e `fullscreenerror`.
 - Reconhecer quando a tela cheia ajuda (mídia, mapa, apresentação) e quando ela só atrapalha a navegação.
 
+## Tela cheia é um modo, não uma janela
+
+A Fullscreen API não abre nada. Ela pede ao navegador que um elemento **que já existe na página**
+passe a ocupar a tela inteira, escondendo barra de endereços, abas e o restante do documento. Ao sair,
+o elemento volta exatamente ao lugar onde estava.
+
+Duas consequências vêm daí. A primeira é que o estado não pertence ao código da página: o usuário pode
+sair a qualquer momento pelo teclado ou pelo sistema, sem passar por nenhuma função sua. A segunda é
+que a entrada precisa nascer de um gesto, para que nenhuma página consiga ocupar a tela sozinha.
+
+A tabela resume quem controla o quê:
+
+| Ação | Quem pode iniciar | Observação |
+| --- | --- | --- |
+| Entrar em tela cheia | Só o usuário, por um gesto que o código atende | A chamada fora de um gesto é rejeitada |
+| Sair da tela cheia | O usuário ou o código | `Esc` e o sistema operacional sempre funcionam |
+| Saber o estado atual | O código, por consulta | `document.fullscreenElement` é a fonte da verdade |
+
+Por isso a interface não deve guardar um booleano próprio de "estou em tela cheia". Ela deve consultar
+o documento e reagir ao evento, como no trecho abaixo:
+
+```js title="Alternância e sincronização com o estado real"
+button.addEventListener('click', () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    player.requestFullscreen();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  button.textContent = document.fullscreenElement ? 'Sair' : 'Tela cheia';
+});
+```
+
+O ouvinte da linha 9 é o que mantém o rótulo correto quando o usuário sai pelo `Esc`. Sem ele, o botão
+continua escrito "Sair" com a página já fora da tela cheia.
+
 ## Modelo da API
 
 A API não cria uma nova janela. Ela muda o modo de apresentação de um elemento existente da página.
@@ -59,6 +97,26 @@ Fullscreen pode ser bloqueado por política de iframe ou por ausência de gesto 
 | Erro de solicitação | Trate a Promise rejeitada por `requestFullscreen()` |
 | Layout em tela cheia | Use CSS para adaptar controles e tamanhos |
 
+## Quando usar, e quando não usar?
+
+Tela cheia remove os pontos de referência do navegador, inclusive o botão de voltar. Ela compensa
+quando o conteúdo é o único assunto naquele momento, e incomoda em qualquer situação onde o usuário
+ainda precisa navegar.
+
+A tabela separa os dois grupos:
+
+| Situação | Escolha | Por quê |
+| --- | --- | --- |
+| Vídeo, mapa ou visualização de imagem | `requestFullscreen()` no contêiner | O conteúdo se beneficia de cada pixel disponível |
+| Apresentação de slides ou modo de leitura | `requestFullscreen()` | O usuário pediu explicitamente para se concentrar |
+| Jogo em canvas | `requestFullscreen()` mais *pointer lock* | O gesto do mouse passa a ser do jogo |
+| Formulário ou fluxo de compra | Página normal | O usuário precisa da barra de endereços e do botão voltar |
+| Chamar ao carregar a página | Não fazer | A solicitação é rejeitada e passa a impressão de tentativa de sequestro da tela |
+| Simular tela cheia com CSS | `position: fixed` em toda a viewport | Não esconde a interface do navegador, mas não depende de gesto |
+
+A última linha oferece a saída para quando o gesto não está disponível: um contêiner fixo ocupando a
+viewport resolve boa parte dos casos de "modo foco", sem depender da API.
+
 ## Executando
 
 <Steps>
@@ -80,6 +138,82 @@ Fullscreen pode ser bloqueado por política de iframe ou por ausência de gesto 
   O listener de `fullscreenchange` pode atualizar um texto com base em
   `document.fullscreenElement ? 'Tela cheia ativa' : 'Tela cheia inativa'`. A disponibilidade pode
   ser checada antes de habilitar o botão.
+</details>
+
+## Perguntas de revisão
+
+### Estado e controle
+
+1. **Por que a entrada em tela cheia precisa partir de um gesto do usuário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para impedir que uma página ocupe a tela inteira sozinha, escondendo a interface do navegador sem
+  consentimento.
+</details>
+
+2. **Qual a fonte da verdade sobre o estado atual?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A propriedade `document.fullscreenElement`, que devolve o elemento em tela cheia ou `null`.
+</details>
+
+3. **Por que guardar o estado em uma variável própria costuma dar errado?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o usuário pode sair pelo `Esc` ou pelo sistema sem passar pelo código, e a variável fica
+  dessincronizada.
+</details>
+
+4. **Qual a diferença entre `fullscreenchange` e `fullscreenerror`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O primeiro dispara a cada entrada ou saída bem-sucedida; o segundo, quando a solicitação é recusada.
+</details>
+
+### Escolha e alternativas
+
+5. **O que `document.fullscreenEnabled` informa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Se a funcionalidade está disponível no contexto atual, o que pode ser negado, por exemplo, dentro de
+  um iframe sem a permissão correspondente.
+</details>
+
+6. **Qual elemento deve receber `requestFullscreen()` em um player de vídeo com controles próprios?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O contêiner que envolve o vídeo e os controles, e não a tag `<video>` isolada, para que os controles
+  continuem visíveis.
+</details>
+
+7. **Por que um fluxo de compra não deve entrar em tela cheia?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o usuário perde a barra de endereços e o botão voltar, justamente onde ele mais precisa
+  confirmar onde está e poder retroceder.
+</details>
+
+8. **Que alternativa existe quando não há gesto disponível para chamar a API?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um contêiner com `position: fixed` ocupando a viewport, que cria um modo de foco sem esconder a
+  interface do navegador.
 </details>
 
 ## Referências

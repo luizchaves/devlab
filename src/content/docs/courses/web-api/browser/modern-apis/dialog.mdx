@@ -23,6 +23,39 @@ Compreender o `<dialog>` como elemento nativo de janela modal, com foco, camada 
 - Explicar o que o navegador entrega de graça (foco preso, `::backdrop`, `inert`) e que uma `div` improvisada não entrega.
 - Reconhecer os casos em que um modal é a solução errada e um aviso na própria página resolve melhor.
 
+## O que o navegador resolve por você?
+
+Antes do `<dialog>`, um modal era uma `div` posicionada por CSS, com um fundo escuro desenhado à mão e
+um bom número de detalhes que quase ninguém implementava até o fim: prender o foco dentro da janela,
+impedir a rolagem do que está atrás, fechar com `Esc` e devolver o foco ao botão de origem.
+
+O elemento nativo entrega esse conjunto pronto. A diferença não é de aparência, é de comportamento, e
+ela aparece justamente para quem navega por teclado ou por leitor de tela.
+
+A tabela lista o que muda entre a solução improvisada e a nativa:
+
+| Comportamento | `div` com CSS | `<dialog>` com `showModal()` |
+| --- | --- | --- |
+| Camada acima de todo o resto | `z-index` disputado com outros componentes | Camada superior (*top layer*) do navegador |
+| Fundo escurecido | Elemento extra na marcação | Pseudoelemento `::backdrop` |
+| Restante da página inerte | `pointer-events` e `aria-hidden` manuais | Automático enquanto o modal está aberto |
+| Fechar com `Esc` | Ouvinte de teclado escrito à mão | Nativo, com o evento `cancel` |
+| Foco preso na janela | Laço de tabulação implementado à mão | Nativo |
+
+Abrir e fechar exige duas linhas. O trecho abaixo mostra o par mínimo, com o valor da escolha do
+usuário chegando em `returnValue`:
+
+```js title="Abertura e leitura da escolha"
+openButton.addEventListener('click', () => dialog.showModal());
+
+dialog.addEventListener('close', () => {
+  console.log(dialog.returnValue); // 'confirmar' ou 'cancelar'
+});
+```
+
+O valor lido em `returnValue` vem do botão que fechou o diálogo. Basta que ele esteja dentro de um
+`<form method="dialog">` e tenha um atributo `value`, sem nenhum código extra.
+
 ## Modelo da API
 
 O diálogo faz parte do HTML, mas ganha comportamento por JavaScript. Em vez de esconder e mostrar uma
@@ -36,11 +69,6 @@ O diálogo faz parte do HTML, mas ganha comportamento por JavaScript. Em vez de 
 | `dialog.close(valor)` | Fecha o diálogo e pode registrar um valor de retorno |
 | `method="dialog"` | Permite fechar o diálogo pelo envio de um formulário interno |
 | `cancel` e `close` | Eventos para interceptar cancelamento e reagir ao fechamento |
-
-<Aside type="tip" title="Quando usar">
-Use `<dialog>` para confirmação, edição curta, escolha rápida ou fluxo modal pequeno. Para uma página
-inteira de cadastro, navegação normal costuma ser mais simples e acessível.
-</Aside>
 
 ## Exemplo com preview e código
 
@@ -61,6 +89,26 @@ preencher algo, `show()` ou uma tela comum podem ser melhores do que `showModal(
 | Formulário dentro do diálogo | Use `method="dialog"` quando o envio não depende de servidor |
 | Fechar com teclado | Trate o evento `cancel` se `Esc` não puder fechar naquele caso |
 | Valor escolhido | Leia `dialog.returnValue` no evento `close` |
+
+## Quando usar, e quando não usar?
+
+Um modal interrompe o que o usuário estava fazendo, e essa interrupção só se justifica quando a
+decisão é curta e não depende do conteúdo que ficou atrás da janela.
+
+A tabela separa os casos em que `<dialog>` ajuda daqueles em que ele atrapalha:
+
+| Situação | Escolha | Por quê |
+| --- | --- | --- |
+| Confirmar uma ação destrutiva | `showModal()` | A decisão é binária e precisa da atenção do usuário |
+| Editar dois ou três campos de um item da lista | `showModal()` | O contexto da lista continua visível ao fechar |
+| Cadastro longo, com muitos campos e validação | Página própria | O modal ficaria com rolagem interna e URL não compartilhável |
+| Painel que o usuário consulta enquanto trabalha na página | `show()` | Abre sem tornar o restante inerte |
+| Mensagem de sucesso ou erro após uma ação | Aviso na própria página | Não exige decisão, então não deve bloquear nada |
+| Conteúdo que precisa de URL própria | Rota e navegação normal | Um modal não é endereçável nem sobrevive ao recarregamento |
+
+As duas últimas linhas explicam por que tantos formulários acabam voltando de modal para página. Assim
+que o conteúdo precisa ser compartilhado por link ou recuperado depois de um recarregamento, o modal
+deixa de ser suficiente.
 
 ## Executando
 
@@ -83,6 +131,83 @@ preencher algo, `show()` ou uma tela comum podem ser melhores do que `showModal(
   O botão pode alterar o texto do diálogo antes de chamar `showModal()`. O evento `close` pode ler
   `dialog.returnValue`, e o evento `cancel` pode chamar `event.preventDefault()` quando o fechamento
   pelo teclado não for permitido naquele estado.
+</details>
+
+## Perguntas de revisão
+
+### Abertura e fechamento
+
+1. **Qual a diferença entre `show()` e `showModal()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `show()` abre o diálogo sem bloquear o restante da página; `showModal()` o coloca na camada superior
+  e torna o resto inerte, com `::backdrop` e fechamento por `Esc`.
+</details>
+
+2. **Como um formulário dentro do diálogo o fecha sem JavaScript?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Declarando `<form method="dialog">`. O envio fecha o diálogo e registra em `returnValue` o `value`
+  do botão acionado.
+</details>
+
+3. **De onde vem o valor lido em `dialog.returnValue`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Do argumento passado a `close(valor)` ou do atributo `value` do botão que enviou o formulário com
+  `method="dialog"`.
+</details>
+
+4. **Como impedir que `Esc` feche o diálogo em um estado específico?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Tratando o evento `cancel` e chamando `event.preventDefault()` quando o fechamento não for
+  permitido.
+</details>
+
+### Acessibilidade e alternativas
+
+5. **O que o `<dialog>` entrega de acessibilidade que uma `div` posicionada não entrega?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Foco preso dentro da janela, restante da página inerte, fechamento por teclado e devolução do foco
+  ao elemento de origem.
+</details>
+
+6. **Por que `z-index` deixa de ser problema com `showModal()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o diálogo modal é promovido para a camada superior do navegador, acima de qualquer contexto
+  de empilhamento da página.
+</details>
+
+7. **Qual estilo é aplicado ao fundo escurecido de um modal?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O do pseudoelemento `dialog::backdrop`, que o navegador cria automaticamente.
+</details>
+
+8. **Quando um cadastro deve deixar de ser modal e virar página?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando ele fica longo o bastante para exigir rolagem interna, ou quando o estado precisa de URL
+  própria e sobreviver a um recarregamento.
 </details>
 
 ## Referências

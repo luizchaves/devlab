@@ -22,6 +22,43 @@ Compreender a Geolocation API como uma interface sensível, cujo resultado é ap
 - Encerrar uma observação contínua com `clearWatch()` para não drenar bateria.
 - Oferecer uma alternativa manual de endereço para o caso, comum, de permissão recusada.
 
+## Uma resposta aproximada e opcional
+
+Duas características separam a Geolocation API de quase tudo que o navegador oferece. A primeira é que
+a resposta é **opcional**: o usuário pode recusar, e a recusa é definitiva até que ele mesmo mude a
+configuração do site. A segunda é que a resposta é **aproximada**, e o grau de aproximação varia
+conforme a origem do dado.
+
+A tabela mostra de onde a posição pode vir e a ordem de grandeza do erro em cada caso:
+
+| Origem do dado | Precisão típica | Situação comum |
+| --- | --- | --- |
+| GPS do aparelho | Poucos metros | Celular ao ar livre |
+| Wi-Fi conhecido | Dezenas de metros | Celular ou notebook em área urbana |
+| Torre de celular | Centenas de metros | Área sem Wi-Fi mapeado |
+| Endereço IP | Cidade ou região | Computador de mesa com conexão fixa |
+
+É por isso que `coords.accuracy` acompanha toda resposta: ele informa, em metros, o raio dentro do
+qual a posição provavelmente está. Uma interface que exibe coordenadas sem mostrar essa margem sugere
+uma exatidão que o dado não tem.
+
+O trecho abaixo é a chamada mínima, com o callback de erro que a maior parte dos exemplos esquece:
+
+```js title="Solicitação mínima com os dois desfechos"
+navigator.geolocation.getCurrentPosition(
+  (position) => {
+    const { latitude, longitude, accuracy } = position.coords;
+    show(`${latitude}, ${longitude} (±${Math.round(accuracy)} m)`);
+  },
+  (error) => show(`Localização indisponível: ${error.message}`),
+  { timeout: 10_000 }
+);
+```
+
+A API é anterior às Promises, então ela trabalha com dois callbacks: o primeiro recebe a posição, o
+segundo recebe o erro. Omitir o segundo, como na linha 6, deixa a recusa do usuário sem nenhum retorno
+na tela.
+
 ## Modelo da API
 
 A API fica em `navigator.geolocation` e trabalha com callbacks, não com Promise nativa.
@@ -61,6 +98,26 @@ de contexto seguro.
 | Precisão insuficiente | Mostre a margem de erro ao usuário |
 | Observação contínua | Use `clearWatch()` quando não precisar mais |
 
+## Quando usar, e quando não usar?
+
+Pedir localização tem um custo que não aparece no código: um usuário que recusa hoje continua
+recusando amanhã, porque o navegador guarda a decisão. Por isso a pergunta certa antes de chamar a API
+é se o pedido faz sentido naquele momento da interação.
+
+A tabela contrapõe cada necessidade à alternativa que costuma resolver com menos atrito:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| "Lojas perto de mim", após o clique no botão | `getCurrentPosition()` | Pedir a posição no carregamento da página |
+| Preencher um endereço de entrega | Campo de CEP com busca | Coordenadas, que ainda precisariam virar endereço |
+| Navegação passo a passo em movimento | `watchPosition()` com `clearWatch()` | Chamadas repetidas de `getCurrentPosition()` |
+| Conteúdo regional (idioma, moeda, fuso) | Cabeçalho da requisição ou seleção manual | Geolocalização, precisa demais para a finalidade |
+| Registrar por onde o usuário andou | Não fazer sem finalidade declarada | Coleta contínua, que é dado sensível |
+
+A quarta linha é o desvio de uso mais comum. Para escolher moeda ou idioma, uma resposta em nível de
+país basta, e ela já chega pelo IP no servidor: acionar o diálogo de permissão para isso gasta um
+recurso escasso em algo que não exigia.
+
 ## Executando
 
 <Steps>
@@ -81,6 +138,83 @@ de contexto seguro.
 
   O terceiro argumento de `getCurrentPosition()` pode receber `{ timeout: 10000 }`. No callback de
   sucesso, use `position.coords.accuracy`. No callback de erro, exiba o campo manual.
+</details>
+
+## Perguntas de revisão
+
+### Resposta e erro
+
+1. **Por que `coords.accuracy` deve aparecer na interface junto das coordenadas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a posição é aproximada. Exibir apenas latitude e longitude sugere uma exatidão que o dado não
+  tem.
+</details>
+
+2. **Por que a API usa callbacks em vez de devolver uma Promise?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ela é anterior à adoção das Promises nas APIs do navegador, e a assinatura foi mantida por
+  compatibilidade.
+</details>
+
+3. **Quais são os três desfechos possíveis do callback de erro?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permissão negada, posição indisponível e tempo esgotado, distinguidos pelo código em
+  `GeolocationPositionError`.
+</details>
+
+4. **O que a opção `timeout` controla?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O tempo máximo de espera pela posição antes de o callback de erro ser acionado.
+</details>
+
+### Permissão e uso responsável
+
+5. **O que acontece com um pedido recusado uma vez?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O navegador guarda a decisão para aquele site, e novos pedidos falham sem exibir o diálogo até que o
+  usuário altere a configuração manualmente.
+</details>
+
+6. **Por que pedir localização no carregamento da página é uma má prática?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o usuário ainda não sabe para que serve, e a recusa nesse momento bloqueia também os usos
+  legítimos que viriam depois.
+</details>
+
+7. **Quando `watchPosition()` é preferível a chamadas repetidas de `getCurrentPosition()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando a posição muda continuamente, como em navegação. Ele notifica só quando há mudança relevante
+  e é encerrado com `clearWatch()`.
+</details>
+
+8. **Por que não usar geolocalização para escolher idioma ou moeda?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o nível de detalhe necessário é o de país, que já chega pelo IP ou pela configuração do
+  navegador, sem gastar o diálogo de permissão.
 </details>
 
 ## Referências

@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import HtmlPreview from '@components/HtmlPreview.astro';
 import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
 A **Notification API** permite que uma página solicite permissão para exibir notificações do sistema
 operacional. A mensagem aparece fora da área visual da página e precisa ser usada com cuidado.
@@ -21,6 +22,45 @@ Compreender o fluxo de permissão das notificações do navegador e a diferença
 - Explicar por que pedir permissão no carregamento da página costuma resultar em bloqueio definitivo.
 - Reconhecer quando a notificação precisa de um *service worker* para sobreviver ao fechamento da aba.
 - Escolher entre notificação do sistema e aviso na própria página conforme a urgência da mensagem.
+
+## O contrato de permissão
+
+A notificação é a única API deste catálogo capaz de alcançar o usuário quando ele não está olhando
+para a página. Esse alcance é exatamente o que a torna sensível, e o navegador o condiciona a uma
+permissão de três estados, guardada por origem.
+
+<Mermaid title="Estados da permissão de notificação e as transições possíveis">
+{`
+flowchart TD
+  A["permission === 'default'"] -->|requestPermission| B{Escolha do usuário}
+  B -->|Permitir| C["'granted'<br/>new Notification funciona"]
+  B -->|Bloquear| D["'denied'<br/>pedidos futuros falham em silêncio"]
+  D -.->|só pelas configurações<br/>do navegador| A
+`}
+</Mermaid>
+
+A seta tracejada é a parte que importa. De `denied` não se volta por código: nenhum novo
+`requestPermission()` exibe o diálogo outra vez. Um pedido feito na hora errada não custa uma recusa,
+custa o recurso inteiro para aquele site.
+
+Daí a regra prática do tópico: consulte o estado antes de pedir, e peça só quando o usuário acabou de
+demonstrar interesse em ser avisado.
+
+```js title="Pedido condicionado ao estado atual"
+async function notifyOnFinish(message) {
+  if (Notification.permission === 'denied') return;
+
+  if (Notification.permission === 'default') {
+    const result = await Notification.requestPermission();
+    if (result !== 'granted') return;
+  }
+
+  new Notification('Processamento concluído', { body: message });
+}
+```
+
+A saída antecipada da linha 2 evita a chamada inútil, e a da linha 6 respeita a recusa sem insistir. O
+`new Notification()` só é alcançado quando a permissão está de fato concedida.
 
 ## Modelo da API
 
@@ -60,6 +100,27 @@ notificações mais robustas, o caminho costuma envolver service worker.
 | Usuário negou permissão | Não peça repetidamente |
 | Conteúdo sensível | Evite expor dados privados no texto da notificação |
 
+## Quando usar, e quando não usar?
+
+Uma notificação do sistema interrompe o usuário fora do navegador. Ela se justifica quando o assunto
+sobreviveu à saída da aba, e não quando a informação está visível na própria tela que ele está
+olhando.
+
+A tabela indica o canal correto para cada tipo de aviso:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| Processamento longo que terminou com a aba em segundo plano | `new Notification()` | Mensagem na página, que o usuário não está vendo |
+| Mensagem nova em um chat aberto em outra aba | `new Notification()` | Apenas o contador no título da aba |
+| Erro de validação de formulário | Aviso ao lado do campo | Notificação, que tira o usuário do contexto do erro |
+| Confirmação de uma ação que ele acabou de fazer | Aviso na própria página | Notificação, redundante com o que está na tela |
+| Aviso que precisa chegar com o site fechado | *Push* com *service worker* | `new Notification()`, que morre junto com a página |
+| Pedir permissão logo na primeira visita | Não fazer | O bloqueio resultante é permanente |
+
+A quinta linha é a que separa as duas famílias de notificação. O `new Notification()` deste tópico só
+existe enquanto a página existe; para alcançar o usuário depois que ele fechou o site, é preciso um
+*service worker* registrado e uma assinatura de *push*.
+
 ## Executando
 
 <Steps>
@@ -81,6 +142,83 @@ notificações mais robustas, o caminho costuma envolver service worker.
   Leia `Notification.permission` ao carregar a página e depois de `requestPermission()`. Se o valor
   for `denied`, desabilite o botão e explique que a permissão precisa ser alterada nas configurações
   do navegador.
+</details>
+
+## Perguntas de revisão
+
+### Permissão
+
+1. **Quais são os três valores possíveis de `Notification.permission`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `default` (ainda não decidido), `granted` (permitido) e `denied` (bloqueado).
+</details>
+
+2. **O que acontece ao chamar `requestPermission()` quando o estado já é `denied`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Nada visível: o diálogo não é exibido e a Promise resolve com `denied`. Só o usuário reverte isso nas
+  configurações do site.
+</details>
+
+3. **Por que consultar `Notification.permission` antes de pedir?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para não chamar o pedido inutilmente quando já há decisão registrada, e para reagir de forma
+  adequada a cada estado.
+</details>
+
+4. **Por que pedir permissão no carregamento da página costuma resultar em bloqueio?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o usuário ainda não sabe o que será notificado e recusa por precaução, e essa recusa é
+  permanente para o site.
+</details>
+
+### Uso e alcance
+
+5. **Qual a diferença entre `new Notification()` e `showNotification()` do *service worker*?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A primeira só existe enquanto a página está aberta; a segunda é persistente e funciona mesmo com o
+  site fechado.
+</details>
+
+6. **Como reagir ao clique do usuário em uma notificação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Atribuindo um manipulador a `notification.onclick`, normalmente para focar a aba correspondente com
+  `window.focus()`.
+</details>
+
+7. **Por que um erro de validação não deve virar notificação?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o usuário está olhando para o formulário. A mensagem deve aparecer junto do campo que causou o
+  erro, e não fora do navegador.
+</details>
+
+8. **Em que momento da interação faz sentido pedir a permissão?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Logo depois de o usuário demonstrar interesse em ser avisado, como ao ativar um alerta ou iniciar um
+  processamento longo.
 </details>
 
 ## Referências

@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import HtmlPreview from '@components/HtmlPreview.astro';
 import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
 A **Canvas API** fornece uma área de desenho em bitmap. O HTML cria a superfície com `<canvas>`, e o
 JavaScript desenha pixels usando um contexto, como `2d`.
@@ -21,6 +22,46 @@ Compreender o `<canvas>` como uma superfície de pixels, desenhada por comandos,
 - Localizar um ponto no sistema de coordenadas do canvas, com origem no canto superior esquerdo.
 - Redesenhar a cena a cada quadro com `requestAnimationFrame()`.
 - Escolher entre canvas, SVG e elementos HTML conforme a necessidade de acessibilidade, interatividade e volume de elementos.
+
+## Pixels em vez de elementos
+
+Todo o resto deste guia trata de elementos: nós que o navegador guarda, redesenha quando mudam e
+entrega ao leitor de tela. O `<canvas>` funciona pelo princípio oposto. Ele é um retângulo de pixels,
+e cada comando de desenho pinta esses pixels de uma vez, sem deixar registro do que foi desenhado.
+
+A consequência prática aparece logo no primeiro exercício de animação: para mover um círculo, não
+existe "o círculo" para alterar. É preciso limpar a área e desenhar tudo de novo na posição nova.
+
+<Mermaid title="Elemento no DOM e forma no canvas: o que o navegador guarda em cada caso">
+{`
+flowchart TD
+  subgraph DOM["Elemento no DOM"]
+    direction TB
+    A1[div criada] --> A2[Navegador guarda o nó]
+    A2 --> A3[Mudar style.left<br/>reposiciona sozinho]
+  end
+  subgraph CV["Forma no canvas"]
+    direction TB
+    B1[arc desenhado] --> B2[Navegador guarda só os pixels]
+    B2 --> B3[Mudar a posição exige<br/>limpar e redesenhar]
+  end
+  DOM ~~~ CV
+`}
+</Mermaid>
+
+O trecho abaixo é o menor programa de canvas possível. Ele obtém o contexto de desenho na linha 2 e
+pinta um único retângulo azul de 120 por 80 pixels a partir do ponto `(10, 10)`:
+
+```js title="Desenho mínimo no contexto 2D"
+const canvas = document.querySelector('#board');
+const ctx = canvas.getContext('2d');
+
+ctx.fillStyle = '#2563eb';
+ctx.fillRect(10, 10, 120, 80);
+```
+
+Repare que `fillRect()` não devolve nada. Não há objeto retângulo para guardar em uma variável, e é
+essa ausência que separa o canvas de tudo que foi visto em manipulação do DOM.
 
 ## Modelo da API
 
@@ -62,6 +103,26 @@ desenho pode ficar esticado ou borrado.
 | Animação | Limpe e redesenhe a cena a cada quadro |
 | Acessibilidade | Forneça texto alternativo fora do canvas quando houver informação importante |
 
+## Quando usar, e quando não usar?
+
+Canvas é a ferramenta certa para muitos elementos que mudam a cada quadro, e a errada para poucos
+elementos que precisam ser lidos, clicados ou encontrados por busca.
+
+A tabela contrapõe as três formas de desenhar na web pelo que cada uma entrega ao usuário:
+
+| Situação | Escolha | Por quê |
+| --- | --- | --- |
+| Animação com centenas de partículas ou um jogo 2D | Canvas | O DOM não sustenta centenas de nós mudando a cada quadro |
+| Gráfico estático que precisa de rótulo acessível | SVG | Cada forma é um elemento, com texto selecionável e `aria-label` |
+| Ícone ou ilustração que escala com o zoom | SVG | Vetor não perde definição; canvas é bitmap |
+| Filtro ou recorte de imagem no navegador | Canvas | Acesso direto aos pixels por `getImageData()` |
+| Interface com botões e campos | Elementos HTML | Foco, teclado e leitor de tela vêm de graça |
+| Visualização 3D | WebGL (`getContext('webgl2')`) | O contexto 2D não tem projeção nem iluminação |
+
+A terceira e a quinta linhas são as que mais custam quando ignoradas. O que é desenhado no canvas não
+existe para o leitor de tela nem para a busca da página, então interface desenhada em pixels precisa
+de um equivalente textual ao lado.
+
 ## Executando
 
 <Steps>
@@ -83,6 +144,82 @@ desenho pode ficar esticado ou borrado.
   A função `desenharCena()` deve receber o contexto 2D ou acessá-lo no escopo externo. Dentro dela,
   os comandos podem configurar `fillStyle`, chamar `fillRect()` e depois chamar `fillText()` para
   desenhar a legenda.
+</details>
+
+## Perguntas de revisão
+
+### Modelo de desenho
+
+1. **Por que não é possível "mover" uma forma já desenhada no canvas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o canvas guarda apenas os pixels resultantes, não a forma. Para mover, limpa-se a área com
+  `clearRect()` e desenha-se novamente na posição nova.
+</details>
+
+2. **O que `canvas.getContext('2d')` devolve, e o que acontece se o mesmo contexto for pedido duas vezes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Devolve o objeto com a API de desenho 2D. Pedir de novo devolve o mesmo objeto, não um novo contexto.
+</details>
+
+3. **Qual a diferença entre os atributos `width`/`height` da tag e as dimensões definidas por CSS?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Os atributos definem a resolução interna do bitmap; o CSS apenas estica ou encolhe o resultado na
+  tela. Definir só o CSS produz desenho borrado.
+</details>
+
+4. **Onde fica a origem do sistema de coordenadas do canvas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No canto superior esquerdo, com `x` crescendo para a direita e `y` crescendo para baixo.
+</details>
+
+### Animação e escolha da ferramenta
+
+5. **Por que `requestAnimationFrame()` é preferível a `setInterval()` para animar?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele sincroniza com o ciclo de pintura do navegador e é suspenso quando a aba fica oculta,
+  o que economiza CPU e bateria.
+</details>
+
+6. **Quando um gráfico deve ser feito em SVG e não em canvas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando os elementos são poucos e precisam ser acessíveis, clicáveis individualmente, selecionáveis
+  como texto ou escaláveis sem perda.
+</details>
+
+7. **Qual o problema de construir uma interface inteira dentro de um canvas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Nada do que é desenhado existe para o leitor de tela, para a navegação por teclado ou para a busca
+  da página; tudo isso teria de ser reimplementado à mão.
+</details>
+
+8. **O que muda ao trocar `getContext('2d')` por `getContext('webgl2')`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A API de desenho passa a ser a do WebGL, com projeção 3D e execução na GPU; os métodos do contexto
+  2D, como `fillRect()`, deixam de existir.
 </details>
 
 ## Referências

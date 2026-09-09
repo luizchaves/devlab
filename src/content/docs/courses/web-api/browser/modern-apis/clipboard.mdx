@@ -23,6 +23,40 @@ Compreender por que copiar e colar por JavaScript é uma operação assíncrona 
 - Tratar a rejeição da Promise com `try/catch` e dar retorno visível ao usuário.
 - Decidir entre a Clipboard API e a seleção manual de texto quando a permissão não estiver disponível.
 
+## Por que copiar exige permissão?
+
+A área de transferência é um espaço compartilhado por todos os programas do sistema. Nela passam
+senhas coladas de um gerenciador, trechos de documentos e números de cartão. Uma página que pudesse
+ler esse conteúdo sem aviso teria acesso a dados que nunca foram digitados nela.
+
+Por isso o navegador trata as duas operações de forma desigual. Escrever é pouco arriscado, porque a
+página só sobrescreve algo com um valor que ela já conhecia. Ler é arriscado, porque a página passa a
+conhecer algo que era de outro programa.
+
+A tabela mostra o tratamento que cada operação recebe:
+
+| Operação | Exigência típica | Motivo |
+| --- | --- | --- |
+| `writeText()` | Contexto seguro, página em foco e gesto do usuário | A página só entrega um dado que já era dela |
+| `readText()` | Tudo acima e, em alguns navegadores, permissão explícita | A página passa a ver o que outro programa copiou |
+
+Como toda operação pode ser recusada, a chamada é assíncrona e devolve uma Promise. O trecho abaixo é
+a forma mínima de copiar com tratamento de falha:
+
+```js title="Cópia mínima com tratamento de recusa"
+button.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText('texto copiado');
+    status.textContent = 'Copiado.';
+  } catch {
+    status.textContent = 'Não foi possível copiar.';
+  }
+});
+```
+
+O `try/catch` não é detalhe de estilo. Sem ele, a recusa vira uma Promise rejeitada silenciosa, e o
+usuário fica olhando para um botão que aparentemente não fez nada.
+
 ## Modelo da API
 
 A interface principal fica em `navigator.clipboard`. Suas operações são assíncronas porque passam por
@@ -61,6 +95,26 @@ aberto em uma aba própria.
 | Ambiente sem suporte | Mostre uma mensagem alternativa |
 | Erro de permissão | Capture a exceção e não trate como falha do usuário |
 
+## Quando usar, e quando não usar?
+
+A Clipboard API resolve um caso estreito, o de copiar um valor que o usuário não conseguiria
+selecionar com facilidade. Fora dele, a seleção manual do texto costuma ser mais confiável, porque
+não depende de permissão nenhuma.
+
+A tabela indica a escolha por situação:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| Botão "copiar" ao lado de um token ou chave de API | `writeText()` | Pedir que o usuário selecione uma string longa à mão |
+| Copiar o link da página atual | `writeText()` | Instruir a copiar da barra de endereços |
+| Colar dados em um formulário | `<input>` com colagem normal | `readText()`, que pede permissão para algo que o navegador já faz |
+| Ler o clipboard ao carregar a página | Não fazer | Qualquer leitura sem gesto do usuário é bloqueada e soa invasiva |
+| Copiar imagem ou HTML formatado | `write()` com `ClipboardItem` | `writeText()`, que perde a formatação |
+
+A terceira linha merece atenção porque aparece com frequência em formulários de código de verificação.
+Colar já funciona nativamente em qualquer campo: chamar `readText()` para "facilitar" troca um gesto
+que sempre funciona por um que depende de permissão.
+
 ## Executando
 
 <Steps>
@@ -82,6 +136,82 @@ aberto em uma aba própria.
   A ação principal deve ficar dentro de um listener de clique com `async/await`. Depois de
   `await navigator.clipboard.writeText(input.value)`, a interface pode mostrar sucesso. No `catch`,
   o texto deve explicar que o navegador bloqueou o acesso.
+</details>
+
+## Perguntas de revisão
+
+### Permissão e contexto
+
+1. **Por que a leitura do clipboard é mais restrita que a escrita?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ler expõe à página um dado que veio de outro programa, possivelmente uma senha; escrever
+  apenas grava algo que a página já conhecia.
+</details>
+
+2. **O que significa "contexto seguro" no contexto desta API?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A página precisa estar em HTTPS ou em `localhost`. Em HTTP comum, `navigator.clipboard` não fica
+  disponível.
+</details>
+
+3. **Por que a cópia falha quando disparada por um `setTimeout()` longo após o clique?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a ativação do usuário expira. A chamada precisa acontecer dentro do tratamento do gesto que
+  a originou.
+</details>
+
+4. **O que acontece se a página não estiver em foco no momento da chamada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A operação é rejeitada. O navegador exige que o documento esteja focado para acessar a área de
+  transferência.
+</details>
+
+### Tratamento e alternativas
+
+5. **Por que `writeText()` devolve uma Promise em vez de um valor imediato?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a operação pode envolver verificação de permissão e acesso ao sistema operacional, e pode
+  ser recusada.
+</details>
+
+6. **O que o usuário percebe quando a rejeição não é tratada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Nada. O botão parece não responder, e o erro fica apenas no console como Promise rejeitada.
+</details>
+
+7. **Quando `readText()` não deve ser usado, mesmo estando disponível?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o objetivo é apenas colar em um campo: a colagem nativa já resolve o caso sem pedir
+  permissão.
+</details>
+
+8. **Como copiar conteúdo que não seja texto simples?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `navigator.clipboard.write()` e um `ClipboardItem`, informando o tipo MIME do conteúdo.
 </details>
 
 ## Referências

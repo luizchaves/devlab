@@ -8,6 +8,7 @@ sidebar:
 import { Aside, Steps } from '@astrojs/starlight/components';
 import HtmlPreview from '@components/HtmlPreview.astro';
 import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
 
 A **Fetch API** conecta uma página a recursos HTTP. Neste tópico, o foco é o uso em uma interface:
 botões disparam requisições, a resposta vira JSON e o resultado aparece no HTML.
@@ -21,6 +22,51 @@ Aplicar a Fetch API dentro de uma interface real, do disparo da requisição à 
 - Enviar dados com `method`, `headers` e `body` em uma requisição `POST`.
 - Separar falha de rede, capturada no `catch`, de falha de aplicação, sinalizada pelo status.
 - Exibir os estados de carregamento, sucesso e erro na própria interface, sem deixar a tela muda.
+
+## Do disparo até a tela
+
+Uma chamada de rede em uma interface não termina quando a resposta chega. Ela passa por quatro
+momentos, e cada um deles pode falhar de um jeito diferente: a requisição pode não sair, o servidor
+pode responder com erro, o corpo pode não ser o JSON esperado, e a renderização pode receber um valor
+ausente.
+
+O diagrama separa esses momentos e mostra onde cada tipo de falha aparece:
+
+<Mermaid title="Os quatro momentos de uma chamada fetch em uma interface">
+{`
+flowchart TD
+  A[Gesto do usuário] --> B["fetch(url)"]
+  B -->|rede indisponível<br/>ou CORS| E1[catch]
+  B --> C[Response recebida]
+  C -->|"response.ok === false"| E2[Erro de aplicação<br/>404, 422, 500]
+  C -->|ok| D["response.json()"]
+  D -->|corpo inválido| E1
+  D --> F[Renderização na tela]
+`}
+</Mermaid>
+
+O ramo que mais surpreende é o do meio. Um `404` ou um `500` chegam como resposta bem-sucedida do
+ponto de vista da rede: a Promise resolve normalmente, e o `catch` não é acionado. Sem a checagem de
+`response.ok`, o código segue adiante e tenta renderizar a mensagem de erro do servidor como se fosse
+o dado esperado.
+
+O trecho abaixo é a forma mínima que cobre os dois tipos de falha, com a checagem na linha 4:
+
+```js title="Chamada mínima com as duas falhas tratadas"
+async function loadItems() {
+  try {
+    const response = await fetch('/api/items');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    render(await response.json());
+  } catch (error) {
+    showMessage(error.message);
+  }
+}
+```
+
+Com o `throw` da linha 4, a falha de aplicação passa a percorrer o mesmo caminho da falha de rede, e a
+interface só precisa de um lugar para exibir mensagem de erro.
 
 ## Modelo da API
 
@@ -57,6 +103,24 @@ métodos, CORS, REST, query strings, cancelamento e organização de cliente.
 
 [Abrir tópico completo de Fetch API](../../../http/fetch/)
 
+## Quando usar, e quando não usar?
+
+Este tópico trata da Fetch API aplicada à interface. A decisão que aparece aqui não é sobre a API em
+si, e sim sobre onde colocar cada responsabilidade da chamada.
+
+A tabela resume as escolhas que mais aparecem ao ligar uma tela a uma API:
+
+| Situação | Escolha | Em vez de |
+| --- | --- | --- |
+| Uma tela que consome vários endpoints | Módulo de serviço com as funções de acesso | `fetch()` espalhado dentro dos manipuladores de evento |
+| Duas chamadas independentes na mesma tela | `Promise.all()` | Dois `await` em sequência, que somam os tempos |
+| Busca disparada a cada tecla digitada | `AbortController` para cancelar a anterior | Deixar as respostas chegarem fora de ordem |
+| Dado que não muda durante a sessão | Buscar uma vez e guardar em memória | Refazer a chamada a cada abertura do componente |
+| Estado de carregamento e erro por componente | Biblioteca de dados (TanStack Query, SWR) | Reimplementar cache, *retry* e revalidação à mão |
+
+A terceira linha resolve um defeito difícil de reproduzir: sem cancelamento, uma resposta antiga pode
+chegar depois da nova e sobrescrever a tela com o resultado de uma busca que o usuário já abandonou.
+
 ## Executando
 
 <Steps>
@@ -78,6 +142,82 @@ métodos, CORS, REST, query strings, cancelamento e organização de cliente.
   Antes de chamar `response.json()`, teste `response.ok`. Se for falso, lance
   `new Error(\`HTTP ${response.status}\`)`. Use `try/catch/finally` para ligar e desligar o estado
   de carregamento.
+</details>
+
+## Perguntas de revisão
+
+### Response e tratamento de erro
+
+1. **Por que um status 404 não aciona o `catch` de um `await fetch()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a requisição foi concluída com sucesso do ponto de vista da rede. A Promise só rejeita quando
+  a requisição não chega a completar, como em falha de rede ou bloqueio de CORS.
+</details>
+
+2. **O que `response.ok` representa exatamente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um booleano verdadeiro quando o status está na faixa de 200 a 299.
+</details>
+
+3. **Por que `response.json()` também devolve uma Promise?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o corpo chega em fluxo e pode ainda não ter sido recebido por completo quando os cabeçalhos
+  já estão disponíveis.
+</details>
+
+4. **O que acontece ao chamar `response.json()` duas vezes na mesma resposta?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A segunda chamada falha: o corpo é um fluxo que só pode ser consumido uma vez.
+</details>
+
+### Interface e estados
+
+5. **Quais três estados a tela precisa representar durante uma chamada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Carregando, sucesso e erro. Sem o primeiro e o terceiro, a interface fica muda enquanto espera ou
+  quando falha.
+</details>
+
+6. **O que muda no `fetch()` ao enviar um `POST` com JSON?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Passam a ser necessários `method: 'POST'`, o cabeçalho `Content-Type: application/json` e o corpo
+  serializado com `JSON.stringify()`.
+</details>
+
+7. **Por que concentrar as chamadas em um módulo de serviço?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para que URL base, cabeçalhos e tratamento de erro fiquem em um lugar só, e a interface trate apenas
+  de exibir o resultado.
+</details>
+
+8. **Qual problema o `AbortController` resolve em um campo de busca?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O de respostas fora de ordem: sem cancelar a requisição anterior, um resultado antigo pode chegar
+  depois e sobrescrever o mais recente.
 </details>
 
 ## Referências
