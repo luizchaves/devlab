@@ -83,7 +83,7 @@ O Browser Object Model representa o ambiente fornecido pelo navegador.
 O objeto `window` representa a janela ou aba aberta no navegador.
 
 - **Dimensões da Janela**: As propriedades `innerWidth` e `innerHeight` retornam a largura.
-- **Diálogos Nativos**: O navegador oferece três métodos síncronos para interagir diretamente.
+- **Diálogos Nativos**: `alert()`, `confirm()` e `prompt()` pausam a página.
 - **Abertura e Fechamento de Janelas**: Você pode abrir novas abas ou janelas através do método `open()`.
 
 ---
@@ -104,8 +104,31 @@ console.log(`Viewport atual: ${largura}px x ${altura}px`);
 ## Objeto Window: Casos
 
 - **Dimensões da Janela**: As propriedades `innerWidth` e `innerHeight` retornam a largura.
-- **Diálogos Nativos**: O navegador oferece três métodos síncronos para interagir diretamente.
+- **Diálogos Nativos**: cada método bloqueante tem retorno diferente.
 - **Abertura e Fechamento de Janelas**: Você pode abrir novas abas ou janelas através do método `open()`.
+
+---
+
+## Diálogos Nativos Bloqueantes
+
+Os três métodos exibem caixas do sistema e travam a execução até a resposta.
+
+| Método | Retorno | Uso didático |
+| --- | --- | --- |
+| `alert()` | `undefined` | mensagem simples |
+| `confirm()` | `true` ou `false` | decisão binária |
+| `prompt()` | texto ou `null` | entrada curta |
+
+---
+
+## Diálogos Nativos: Preview
+
+A página agora traz botões para testar os três comportamentos no navegador.
+
+- **Testar `alert()`**: fecha sem devolver escolha ao código.
+- **Testar `confirm()`**: registra confirmação ou cancelamento.
+- **Testar `prompt()`**: mostra o texto digitado ou o cancelamento.
+- **Observe**: timers, renderização e cliques ficam pausados durante a caixa.
 
 ---
 
@@ -145,9 +168,10 @@ location.reload();
 
 O objeto `history` permite interagir com o histórico da aba atual, simulando os botões de avançar e voltar do navegador.
 
-- <Aside type="tip" title="Single Page Applications (SPAs)"> A History API moderna também fornece os métodos.
-- pushState()` e `history.
-- replaceState().
+- `history.back()` volta uma entrada no histórico.
+- `history.forward()` avança quando existe próxima entrada.
+- `history.go(-2)` desloca mais de uma página.
+- `pushState()` e `replaceState()` sustentam roteadores de SPAs.
 
 ---
 
@@ -172,8 +196,10 @@ history.go(-2); // Volta duas páginas
 
 O objeto `navigator` fornece informações sobre o navegador, a plataforma, o estado de conectividade e as permissões do dispositivo do usuário.
 
-- ---.
-- Trate estados de sucesso, erro e ausência de suporte.
+- `navigator.userAgent` identifica o navegador de forma aproximada.
+- `navigator.language` revela a preferência de idioma.
+- `navigator.onLine` indica conectividade atual.
+- Trate ausência de suporte e estados transitórios.
 
 ---
 
@@ -202,18 +228,21 @@ if (navigator.onLine) {
 
 O objeto `console` fornece acesso ao console de depuração do navegador.
 
-- Além do conhecido.
-- ---.
+- `console.log()` registra mensagens gerais.
+- `console.warn()` e `console.error()` separam severidade.
+- `console.table()` organiza arrays e objetos.
+- `console.time()` e `console.timeEnd()` medem duração.
 
 ---
 
 ## Cuidados com Server-Side Rendering (SSR)
 
-Em frameworks modernos de renderização no servidor (*Server-Side Rendering*) como Next.
+Em SSR, o primeiro ambiente pode ser Node.js, não a aba do usuário.
 
-- js, Nuxt, SvelteKit e Astro, o código JavaScript da página executa primeiro no ambiente Node.
-- js do servidor para gerar a estrutura HTML inicial.
-- <Aside type="caution" title="ReferenceError: window is not defined"> Como o ambiente Node.
+- `window`, `document`, `location` e `navigator` não existem no servidor.
+- Proteja acessos com `typeof window !== 'undefined'`.
+- Em React/Next.js, leia objetos do BOM dentro de `useEffect()`.
+- Em Astro, diferencie renderização inicial e código hidratado no cliente.
 
 ---
 

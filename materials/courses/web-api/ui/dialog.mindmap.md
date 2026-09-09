@@ -23,6 +23,7 @@ markmap:
 ## Exemplo com preview e código
 - **Ideia**: O exemplo importado mostra abertura, fechamento e manipulação do conteúdo de um diálogo nativo
 - **Detalhe**: Prévia HTML interativa disponível na página do tópico
+- **Comparação**: botões de `alert()`, `confirm()` e `prompt()` contrastam com o modal em `<dialog>`
 
 ## Cuidados práticos
 - **Ideia**: Nem todo modal precisa ser modal de verdade

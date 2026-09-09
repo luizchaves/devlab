@@ -97,7 +97,7 @@ dialog.addEventListener('close', () => {
 
 O diálogo faz parte do HTML, mas ganha comportamento por JavaScript.
 
-- **`<script>`**: Elemento HTML que representa a janela de diálogo.
+- **`<dialog>`**: Elemento HTML que representa a janela de diálogo.
 - **`dialog.show()`**: Abre sem bloquear interação com o restante da página.
 - **`dialog.showModal()`**: Abre como modal e torna o restante da página inerte.
 - **`dialog.close(valor)`**: Fecha o diálogo e pode registrar um valor de retorno.
@@ -109,9 +109,10 @@ O diálogo faz parte do HTML, mas ganha comportamento por JavaScript.
 
 O exemplo importado mostra abertura, fechamento e manipulação do conteúdo de um diálogo nativo.
 
-- <HtmlPreview path="examples/courses/web-api/browser-web-apis/dom.
-- html" height="20rem" label="dom.
-- <SourceCode path="examples/courses/web-api/browser-web-apis/dom.
+- O preview agora separa diálogos bloqueantes e `<dialog>`.
+- `alert()`, `confirm()` e `prompt()` mostram a diferença para o modal moderno.
+- O bloco de `<dialog>` continua demonstrando `showModal()` e `method="dialog"`.
+- O código completo fica importado da página por `<SourceCode>`.
 
 ---
 
@@ -161,7 +162,7 @@ Um modal interrompe o que o usuário estava fazendo, e essa interrupção só se
 2. Como um formulário dentro do diálogo o fecha sem JavaScript?
 3. De onde vem o valor lido em `dialog.returnValue`?
 4. Como impedir que `Esc` feche o diálogo em um estado específico?
-5. O que o `<script>` entrega de acessibilidade que uma `div` posicionada não entrega?
+5. O que o `<dialog>` entrega de acessibilidade que uma `div` posicionada não entrega?
 
 ---
 

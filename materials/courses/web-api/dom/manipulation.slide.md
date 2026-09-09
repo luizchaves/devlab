@@ -70,12 +70,52 @@ A Árvore DOM · Seleção de Elementos · Conteúdo de Elementos · Alteração
 
 ## A Árvore DOM
 
-Quando o navegador carrega um arquivo HTML, o motor de renderização analisa a marcação e constrói uma representação hierárquica na memória.
+Quando o navegador carrega HTML, ele transforma a marcação em objetos navegáveis por JavaScript.
 
 - `Document`: O nó raiz de todo o documento HTML.
 - `Element`: Representa qualquer tag HTML (`<div>`, `<p>`, `<a>`).
 - `Text`: O conteúdo de texto dentro ou entre as tags.
 - `Attr`: Os atributos associados aos elementos (ex: `href`, `class`).
+
+---
+
+## A Árvore DOM: HTML de Entrada
+
+Este HTML pequeno já contém documento, elementos, texto e atributos.
+
+```html
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <title>DevLab</title>
+  </head>
+  <body>
+    <h1>Manipulação do DOM</h1>
+    <p class="descricao">
+      Leia a documentação no <a id="link-mdn">MDN</a>.
+    </p>
+  </body>
+</html>
+```
+
+---
+
+## A Árvore DOM: Representação
+
+O JavaScript altera os objetos da árvore, não o texto do arquivo original.
+
+```txt
+Document
+└── html
+    ├── head
+    │   └── title
+    │       └── "DevLab"
+    └── body
+        ├── h1
+        │   └── "Manipulação do DOM"
+        └── p.descricao
+            └── a#link-mdn
+```
 
 ---
 
@@ -92,7 +132,7 @@ Antes de alterar qualquer elemento da página, é necessário obtê-lo através 
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
-```js
+```js title="seletores.js"
 // Retorna o PRIMEIRO elemento que corresponde ao seletor CSS
 const titulo = document.querySelector('h1');
 const botaoSalvar = document.querySelector('#btn-salvar');
@@ -123,7 +163,7 @@ Existem três propriedades principais para ler ou alterar o conteúdo de um elem
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
-```js
+```js title="conteudo.js"
 const elemento = document.querySelector('#mensagem');
 
 // 1. textContent: Obtém ou define o texto puro (preserva espaços, ignora HTML)
@@ -140,10 +180,29 @@ elemento.innerHTML = "<strong>Texto em negrito</strong> com <em>ênfase</em>";
 
 ## Alteração de Estilos e Classes
 
-A melhor prática para alterar o visual de um elemento é manipular suas classes CSS através da propriedade `classList`.
+A melhor prática é mudar estado visual por classe e reservar estilo inline para valores calculados.
 
-- **A propriedade `classList`**: O objeto `classList` fornece métodos convenientes para alterar o estado visual sem sobrescrever outras classes.
-- **Estilos Inline (`style`)**: Caso seja necessário aplicar estilos dinâmicos diretos (ex: posições calculadas em pixels).
+- `classList`: liga ou desliga estados previstos no CSS.
+- `style`: aplica valores calculados em tempo de execução.
+
+---
+
+## DOM, CSSOM e Renderização
+
+O DOM guarda a estrutura; o CSSOM guarda as regras de estilo aplicáveis.
+
+```txt
+DOM: elementos e atributos
+        │
+        ├── classList.add('ativo')
+        │
+CSSOM: regras .ativo, .card, #menu
+        │
+        ▼
+Renderização: cor, tamanho, posição e visibilidade
+```
+
+*Prefira classes para estados visuais e `style` para valores calculados.*
 
 ---
 
@@ -151,7 +210,7 @@ A melhor prática para alterar o visual de um elemento é manipular suas classes
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
-```js
+```js title="estilos.js"
 const caixa = document.querySelector('.caixa');
 
 // Propriedades CSS em camelCase (background-color vira backgroundColor)
@@ -169,17 +228,21 @@ caixa.style.cssText = 'color: white; padding: 16px; border-radius: 8px;';
 
 É possível ler, definir ou remover atributos HTML de qualquer elemento através da interface de atributos.
 
-- ---.
-- Trate estados de sucesso, erro e ausência de suporte.
+- `getAttribute()` lê atributos declarados na marcação.
+- `setAttribute()` altera ou cria atributos.
+- `removeAttribute()` remove o atributo do elemento.
+- `dataset` expõe atributos `data-*` em camelCase.
 
 ---
 
 ## Propriedades de Formulários
 
-Elementos de entrada de formulários (`<script>`, `<script>`, `<script>`) possuem propriedades dedicadas.
+Elementos de entrada de formulários possuem propriedades dedicadas para dados do usuário.
 
-- ---.
-- Trate estados de sucesso, erro e ausência de suporte.
+- `input.value` lê ou escreve o texto atual.
+- `checkbox.checked` indica seleção booleana.
+- `select.value` informa a opção escolhida.
+- Use essas propriedades antes de montar validações e mensagens.
 
 ---
 
@@ -187,7 +250,7 @@ Elementos de entrada de formulários (`<script>`, `<script>`, `<script>`) possue
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
-```js
+```js title="formularios.js"
 const campoEmail = document.querySelector('#email');
 const campoAceito = document.querySelector('#termos');
 
@@ -209,11 +272,11 @@ if (campoAceito.checked) {
 
 As APIs de manipulação se sobrepõem bastante, e quase toda alteração pode ser escrita de três formas diferentes.
 
-- **Exibir texto vindo de uma API ou de um campo**: `innerHTML`, que interpreta marcação e abre espaço para XSS.
-- **Ler o texto como o usuário o enxerga, sem partes**: `textContent`, que devolve também o que está com `display: none`.
-- **Aplicar um conjunto de estilos ligado a um estad**: `element.style`, que espalha valores fixos pelo JavaScript.
-- **Guardar um identificador junto do elemento**: Atributo inventado, que não é válido em HTML.
-- **Selecionar vários elementos e percorrê-los**: `getElementsByClassName()`, cuja coleção viva muda durante o laço.
+- **Texto externo**: use `textContent`, não `innerHTML`.
+- **Texto visível**: use `innerText` quando CSS importa.
+- **Estado visual**: use `classList.toggle()`, não estilo inline fixo.
+- **Identificador no elemento**: use `dataset`, não atributo inventado.
+- **Lista estática**: use `querySelectorAll()` antes de alterar classes.
 
 ---
 
@@ -238,7 +301,7 @@ As APIs de manipulação se sobrepõem bastante, e quase toda alteração pode s
 
 ## Desafio
 
-Crie uma função `destacarLinksExternos()` que selecione todos os links `<script>` da página e adicione a classe CSS `link-externo`.
+Crie uma função `destacarLinksExternos()` que selecione todos os links `<a>` da página e adicione a classe CSS `link-externo`.
 
 1. Adicione tratamento de erro ou permissão.
 2. Separe responsabilidades em funções pequenas.

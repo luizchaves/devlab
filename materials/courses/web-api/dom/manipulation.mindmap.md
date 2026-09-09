@@ -15,6 +15,7 @@ markmap:
 ## A Árvore DOM
 - **Ideia**: Quando o navegador carrega um arquivo HTML, o motor de renderização analisa a marcação e constrói uma representação hierárquica na memória
 - **Detalhe**: Cada tag, texto e atributo torna-se um nó (*Node*) na árvore DOM
+- **Sequência didática**: primeiro leia o HTML de entrada, depois observe sua representação em árvore
 - **Ponto**: `Document`: O nó raiz de todo o documento HTML
 - **Ponto**: `Element`: Representa qualquer tag HTML (``, ``, ``)
 - **Ponto**: `Text`: O conteúdo de texto dentro ou entre as tags
@@ -33,6 +34,8 @@ markmap:
 
 ## Alteração de Estilos e Classes
 - **Ideia**: A melhor prática para alterar o visual de um elemento é manipular suas classes CSS através da propriedade `classList`
+- **CSSOM**: DOM guarda elementos e atributos; CSSOM guarda regras CSS; a renderização combina ambos
+- **Decisão**: `classList` para estados visuais, `style` para valores calculados dinamicamente
 ### A propriedade `classList`
 - **Ideia**: O objeto `classList` fornece métodos convenientes para alterar o estado visual sem sobrescrever outras classes:
 ### Estilos Inline (`style`)

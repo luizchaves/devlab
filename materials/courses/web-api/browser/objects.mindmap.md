@@ -23,6 +23,8 @@ markmap:
 - **Ideia**: As propriedades `innerWidth` e `innerHeight` retornam a largura e a altura da área útil de exibição da página (viewport), em pixels, excluindo barras de ferramentas do navegador:
 ### Diálogos Nativos
 - **Ideia**: O navegador oferece três métodos síncronos para interagir diretamente com o usuário por meio de caixas de diálogo do sistema operacional: Diálogos nativos como `alert()`, `confirm()` e `prompt()` bloqueiam a execução de todo o código JavaScript e a renderização da página até que o usuário responda
+- **Preview**: botões para testar `alert()`, `confirm()` e `prompt()` na página
+- **Retornos**: `alert()` não retorna escolha, `confirm()` retorna booleano e `prompt()` retorna texto ou `null`
 ### Abertura e Fechamento de Janelas
 - **Ideia**: Você pode abrir novas abas ou janelas através do método `open()`: ---
 
