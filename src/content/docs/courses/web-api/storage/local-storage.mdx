@@ -6,18 +6,20 @@ sidebar:
   label: "Local Storage e Web Storage"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
 import Mermaid from '@components/Mermaid.astro';
 
-Diferente das requisições HTTP tradicionais que armazenam dados no servidor, as **Web Storage APIs** permitem que as aplicações mantenham informações salvas diretamente no navegador do usuário de forma persistente.
+Diferente das requisições HTTP tradicionais que armazenam dados no servidor, as **Web Storage APIs** (`localStorage` e `sessionStorage`) permitem que as aplicações mantenham informações salvas diretamente no navegador do usuário de forma persistente e síncrona.
 
 ## Objetivo
 
-Compreender a Web Storage API como persistência simples no cliente, com suas garantias e seus limites. Ao final do tópico, o leitor deve ser capaz de:
+Compreender a Web Storage API como persistência simples no cliente, com suas garantias, comportamentos de conversão e limites de cota. Ao final do tópico, o leitor deve ser capaz de:
 
 - Comparar `localStorage`, `sessionStorage`, cookies e IndexedDB por tempo de vida, capacidade e finalidade.
 - Usar `setItem()`, `getItem()`, `removeItem()` e `clear()`, lembrando que tudo é armazenado como string.
-- Serializar e recuperar objetos com `JSON.stringify()` e `JSON.parse()`, tratando o valor ausente.
-- Encapsular o acesso em um módulo reutilizável em vez de espalhar chaves pelo código.
+- Serializar e recuperar objetos com `JSON.stringify()` e `JSON.parse()`, tratando chaves inexistentes e dados corrompidos.
+- Encapsular o acesso em um módulo reutilizável com tratamento tolerante a falhas.
 - Sincronizar abas abertas na mesma origem com o evento `storage`.
 
 ---
@@ -49,9 +51,9 @@ flowchart TD
 `}
 </Mermaid>
 
-A interface tem cinco métodos, e todos operam sobre strings. O exemplo percorre gravação, leitura e remoção:
+A interface tem cinco métodos principais, e todos operam sobre strings:
 
-```js title="Operações com localStorage"
+```js title="Operações fundamentais com localStorage"
 // 1. Armazenar uma string
 localStorage.setItem('temaPref', 'dark');
 
@@ -68,9 +70,41 @@ localStorage.clear();
 
 ---
 
-## Serialização de Objetos com JSON
+## Comportamento de Conversão e Valores Ausentes
 
-Como a Web Storage API armazena **exclusivamente valores do tipo string**, tentar salvar um objeto JavaScript diretamente resultará na gravação da string inútil `"[object Object]"`.
+O Web Storage armazena estritamente pares de texto (strings). Duas regras determinam o tratamento correto de leitura e gravação no dia a dia:
+
+1. **Tudo vira string**: números e booleanos são convertidos em seus literais textuais, e objetos gravados sem serialização viram o texto inútil `"[object Object]"`.
+2. **Chaves inexistentes devolvem `null`**: o método `getItem()` devolve `null` quando a chave nunca foi criada, exigindo valor padrão para não quebrar chamadas subsequentes.
+
+A tabela resume as conversões mais comuns e o cuidado exigido em cada uma:
+
+| O que foi gravado | O que `getItem()` devolve | Cuidado |
+| --- | --- | --- |
+| `setItem('total', 42)` | `'42'` | Converter com `Number()` antes de calcular |
+| `setItem('user', { id: 1 })` | `'[object Object]'` | Serializar com `JSON.stringify()` antes de gravar |
+| Nada, chave inexistente | `null` | Definir um valor padrão na leitura (`?? fallback`) |
+| JSON corrompido por edição | A string inválida | `JSON.parse()` lança `SyntaxError` (usar `try/catch`) |
+
+```js title="Padrão tolerante de leitura e escrita"
+function read(key, fallback = []) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function write(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+```
+
+O operador `??` resolve a chave inexistente, enquanto o bloco `catch` neutraliza dados corrompidos. Sem essas duas proteções, a primeira visita de um usuário ou um dado quebrado impede a renderização da tela.
+
+---
+
+## Serialização de Objetos com JSON
 
 Para armazenar estruturas de dados complexas (arrays e objetos), devemos serializá-las para JSON na gravação e desserializá-las na leitura:
 
@@ -102,17 +136,21 @@ if (dadosSalvos) {
 Tentar gravar dados além do limite de cota (~5MB) disparará a exceção `QuotaExceededError`. Envolva sempre operações de `setItem` em blocos `try/catch` quando lidar com dados volumosos.
 </Aside>
 
+<Aside type="caution" title="Storage não é cofre de segurança">
+Não grave senhas, tokens JWT sensíveis ou credenciais em `localStorage`. Qualquer script executado na mesma origem (incluindo dependências de terceiros ou falhas de XSS) tem acesso irrestrito aos valores gravados.
+</Aside>
+
 ---
 
-<Aside type="caution" title="Dica de IA: Confira a primeira visita no código de armazenamento gerado">
-`JSON.parse(localStorage.getItem('items'))` é a linha que quase todo assistente escreve, e ela
-funciona em todas as execuções menos na primeira: sem a chave gravada, `getItem()` devolve `null`, o
-`parse()` também devolve `null` e o `map()` seguinte quebra a tela. Um valor corrompido produz um
-`SyntaxError` igualmente fatal.
+## Exemplo Prático com Interface
 
-**Prompt:** *"Reescreva estas funções de leitura e escrita com valor padrão para chave inexistente e
-`try/catch` para JSON inválido, e liste os valores de `localStorage` que quebram a versão atual."*
-</Aside>
+O preview interativo abaixo demonstra uma interface que lê, grava e remove dados do `localStorage` com tratamento de listas e atualização em tempo real:
+
+<HtmlPreview path="examples/courses/web-api/browser-web-apis/storage.html" height="22rem" label="storage.html" allowScripts serveFromPublic />
+
+<SourceCode path="examples/courses/web-api/browser-web-apis/storage.html" />
+
+---
 
 ## Módulo de Armazenamento Reutilizável
 
@@ -251,7 +289,11 @@ Crie uma função `salvarHistoricoBusca(termo)` que mantenha um array dos últim
 
 ## Perguntas de revisão
 
+Teste seus conhecimentos sobre persistência client-side, limitações e ciclo de vida do Web Storage:
+
 ### Capacidade e Exceções
+
+As questões a seguir avaliam o comportamento de cota e inspeção de chaves gravadas:
 
 1. **Qual exceção é lançada pelo navegador quando o limite de cota do `localStorage` é ultrapassado?**
    <details>
@@ -263,6 +305,22 @@ Crie uma função `salvarHistoricoBusca(termo)` que mantenha um array dos últim
    <details>
      <summary>Possível resposta</summary>
      Acessando a propriedade `localStorage.length`.
+   </details>
+
+### Serialização e Eventos
+
+As questões a seguir avaliam o armazenamento de estruturas complexas e a sincronização entre abas:
+
+1. **Por que é obrigatório serializar objetos JavaScript com `JSON.stringify()` antes de gravá-los no `localStorage`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o Web Storage armazena exclusivamente valores em formato de texto (string). Se um objeto for passado diretamente, ele será convertido para a string `"[object Object]"`, perdendo suas propriedades.
+   </details>
+
+2. **Em quais janelas o evento `'storage'` é disparado quando um dado é gravado no `localStorage`?**
+   <details>
+     <summary>Possível resposta</summary>
+     O evento `'storage'` é disparado em todas as outras abas e janelas abertas na mesma origem, exceto na própria aba que realizou a gravação.
    </details>
 
 ---

@@ -863,37 +863,50 @@ export default defineConfig({
                   label: 'Local Storage e Web Storage',
                   link: '/courses/web-api/storage/local-storage/',
                 },
-                {
-                  label: 'Web Storage API (Exemplo)',
-                  link: '/courses/web-api/browser/modern-apis/web-storage/',
-                },
                 { label: 'Cookies e Sessão', link: '/courses/web-api/storage/cookies/' },
               ],
             },
             {
-              label: 'Rede: APIs do Navegador',
+              label: 'Comunicação de Rede',
               items: [
-                { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
                 {
-                  label: 'Fetch API (Exemplo)',
-                  link: '/courses/web-api/browser/modern-apis/fetch/',
+                  label: 'APIs do Navegador',
+                  items: [
+                    { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
+                    {
+                      label: 'WebSockets API (Tempo Real)',
+                      link: '/courses/web-api/http/websockets/',
+                    },
+                    { label: 'Server-Sent Events (SSE)', link: '/courses/web-api/http/sse/' },
+                  ],
                 },
-                { label: 'WebSockets API (Tempo Real)', link: '/courses/web-api/http/websockets/' },
-                { label: 'CORS e Segurança', link: '/courses/web-api/http/cors/' },
+                {
+                  label: 'Fundamentos de Rede',
+                  items: [
+                    {
+                      label: 'Clientes HTTP (Ferramentas)',
+                      link: '/courses/web-api/http/clients/',
+                    },
+                    { label: 'REST API (Arquitetura)', link: '/courses/web-api/http/rest/' },
+                    {
+                      label: 'GraphQL (Linguagem de Consulta)',
+                      link: '/courses/web-api/http/graphql/',
+                    },
+                    {
+                      label: 'Server-Side Rendering (SSR)',
+                      link: '/courses/web-api/browser/ssr/',
+                    },
+                  ],
+                },
               ],
             },
             {
-              label: 'Rede: O Que Roda no Servidor',
+              label: 'Segurança no Navegador',
               items: [
-                { label: 'REST API (Arquitetura)', link: '/courses/web-api/http/rest/' },
+                { label: 'CORS e Segurança', link: '/courses/web-api/http/cors/' },
                 {
-                  label: 'GraphQL (Linguagem de Consulta)',
-                  link: '/courses/web-api/http/graphql/',
-                },
-                { label: 'Clientes HTTP (Ferramentas)', link: '/courses/web-api/http/clients/' },
-                {
-                  label: 'Server-Side Rendering (SSR)',
-                  link: '/courses/web-api/browser/ssr/',
+                  label: 'OWASP e Segurança no Cliente',
+                  link: '/courses/web-api/security/client-side/',
                 },
               ],
             },

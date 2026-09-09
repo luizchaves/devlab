@@ -189,6 +189,7 @@ Esta é a fase que mais rende, e a que nenhum script cobre:
 | Conceito abstrato tem recurso visual. | Escopo, ciclo de vida, arquitetura ou eixos sem diagrama. |
 | Diagramas têm `title` e são apresentados no texto. | Figura sem legenda ou sem introdução. |
 | Nenhuma subseção solitária. | Um único `###` dentro de um `##`. |
+| Toda seção (`##`) abre com enunciado antes de qualquer subseção (`###`). | Seção (`##`) pulando diretamente para subseção (`###`) sem parágrafo de abertura. |
 | Parágrafos curtos, sem blocos monolíticos. | Parágrafo com mais de seis ou sete linhas densas. |
 | Exercício e Desafio com parágrafo de transição antes do `<details>`. | Resposta colada no enunciado. |
 | Perguntas de revisão agrupadas por `###`, numeradas e em negrito. | Formato divergente do restante do curso. |

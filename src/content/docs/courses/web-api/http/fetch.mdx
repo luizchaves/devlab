@@ -1,24 +1,27 @@
 ---
 title: "Web APIs: Fetch API"
-description: "Requisições HTTP assíncronas nativas no navegador e Node.js com fetch, async/await, tratamento de erros e CORS."
+description: "Requisições HTTP assíncronas nativas no navegador e Node.js com fetch, async/await, Response, JSON, tratamento de erros, CORS e integração com interface."
 course: web-api
 sidebar:
   label: "Fetch API"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
 import Mermaid from '@components/Mermaid.astro';
 
 A **Fetch API** é a interface padrão nativa do navegador (e disponível no Node.js a partir da versão 18) para realizar requisições HTTP assíncronas pela rede. Ela substituiu a antiga e verbosa API `XMLHttpRequest`, fornecendo uma abstração limpa baseada em **Promises**.
 
 ## Objetivo
 
-Dominar o consumo de APIs HTTP no front-end com a Fetch API, do `GET` mais simples ao cancelamento de uma requisição em andamento. Ao final do tópico, o leitor deve ser capaz de:
+Dominar o consumo de APIs HTTP no front-end com a Fetch API, do `GET` básico à renderização na interface, tratamento de erros de status, cancelamento de requisições e envio de dados complexos. Ao final do tópico, o leitor deve ser capaz de:
 
 - Explicar a natureza assíncrona do `fetch()` e a relação dele com o *event loop*.
-- Ler a resposta pela classe `Response`, checando `ok` e `status` antes de consumir o corpo.
+- Percorrer o fluxo `fetch()` -> `Response` -> leitura do corpo -> renderização na tela.
+- Justificar por que status `404` ou `500` não rejeitam a Promise e exigem a checagem explícita de `response.ok`.
 - Implementar as quatro operações CRUD com `method`, `headers` e `body`.
 - Montar parâmetros de consulta com `URLSearchParams` em vez de concatenar strings.
-- Cancelar uma requisição com `AbortController` e tratar o erro `AbortError` separadamente.
+- Cancelar requisições em andamento com `AbortController` e tratar o erro `AbortError`.
 
 ---
 
@@ -27,6 +30,12 @@ Dominar o consumo de APIs HTTP no front-end com a Fetch API, do `GET` mais simpl
 A comunicação com servidores remotos via rede é uma operação de entrada e saída (*I/O*) não bloqueante. O método `fetch()` não trava a execução da página nem paralisa a interface do usuário enquanto aguarda os dados do servidor.
 
 Em vez disso, ele delega a tarefa de rede para o navegador e retorna uma **Promise**. Quando a resposta do servidor chega, o navegador envia o resultado para a fila de *microtasks* do Event Loop, permitindo que a aplicação trate os dados sem causar congelamento (*freezing*) na tela. Por isso, a sintaxe padrão recomendada em todo o guia é o uso de `async/await` com blocos `try/catch`.
+
+<Aside type="note" title="Evolução Histórica: Do XMLHttpRequest (XHR) ao fetch()">
+Antes da padronização do `fetch()`, as requisições assíncronas no navegador eram feitas através da API `XMLHttpRequest` (XHR), que popularizou o termo AJAX nos anos 2000. O XHR dependia de instanciação manual, múltiplos callbacks de eventos (`onreadystatechange`, `onload`, `onerror`) e checagem de estados numéricos complexos (`readyState` 1 a 4).
+
+O `fetch()` modernizou esse cenário ao introduzir uma arquitetura nativa baseada em **Promises**, integração com `async/await` e leitura de corpos em formato de *streams*. Hoje, o XHR é considerado legado para novos projetos, sendo utilizado principalmente por bibliotecas legadas ou quando há necessidade específica de medir o progresso de envio em uploads de arquivos (`xhr.upload.onprogress`).
+</Aside>
 
 ---
 
@@ -37,6 +46,8 @@ A função `fetch()` aceita uma URL de destino e um objeto opcional de opções 
 ```js title="Assinatura da função fetch"
 fetch(url, options)
 ```
+
+O diagrama abaixo ilustra o fluxo de execução do `fetch()` e o momento da verificação de status:
 
 <Mermaid title="Fluxo de Execução do fetch e Parse do JSON">
 {`
@@ -52,7 +63,50 @@ flowchart TD
 
 ---
 
+## Do Disparo até a Tela: Ciclo de Vida na Interface
+
+Uma chamada de rede em uma interface gráfica não termina quando a resposta chega. Ela passa por quatro momentos distintos, e cada um deles pode falhar de uma forma diferente: a requisição pode não sair por queda de conexão, o servidor pode responder com status de erro, o corpo pode não ser o JSON esperado e a renderização pode receber um valor ausente.
+
+O diagrama a seguir separa esses quatro momentos e mapeia onde cada tipo de falha se manifesta:
+
+<Mermaid title="Os quatro momentos de uma chamada fetch em uma interface">
+{`
+flowchart TD
+  A[Gesto do usuário] --> B["fetch(url)"]
+  B -->|rede indisponível ou CORS| E1[catch]
+  B --> C[Response recebida]
+  C -->|"response.ok === false"| E2["Erro de aplicação (404, 422, 500)"]
+  C -->|ok| D["response.json()"]
+  D -->|corpo inválido| E1
+  D --> F[Renderização na tela]
+`}
+</Mermaid>
+
+O ramo que mais gera confusão é o intermediário: códigos como `404` ou `500` chegam como respostas válidas do ponto de vista do transporte de rede. A Promise resolve normalmente e o bloco `catch` não é acionado sozinho. Sem a checagem de `response.ok`, o código tentará processar a mensagem de erro do servidor como se fosse a lista de dados esperada.
+
+O trecho abaixo apresenta o padrão mínimo para cobrir ambas as falhas:
+
+```js title="Chamada robusta com tratamento de falhas de rede e de aplicação"
+async function carregarItens() {
+  try {
+    const response = await fetch('/api/itens');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const dados = await response.json();
+    renderizarNaTela(dados);
+  } catch (error) {
+    exibirMensagemErro(error.message);
+  }
+}
+```
+
+---
+
 ## Operações CRUD com `fetch`
+
+A Fetch API suporta todos os verbos e operações do ciclo CRUD (*Create, Read, Update, Delete*) através da configuração do objeto de opções. As subseções a seguir detalham a estrutura de requisição e resposta para cada um dos métodos HTTP fundamentais:
 
 ### Leitura de Dados (GET)
 
@@ -85,9 +139,12 @@ Uma Promise retornada pelo `fetch()` **NÃO é rejeitada** em caso de erro HTTP 
 ### Envio de Dados (POST)
 
 Para enviar dados em formato JSON para uma API, três configurações no objeto de opções são obrigatórias:
+
 1. `method: 'POST'`
 2. `headers: { 'Content-Type': 'application/json' }`
 3. `body: JSON.stringify(dados)`
+
+O exemplo a seguir demonstra o cadastro de um novo recurso:
 
 ```js title="POST - Criando um recurso"
 async function criarUsuario(novoUsuario) {
@@ -112,7 +169,7 @@ async function criarUsuario(novoUsuario) {
 
 ### Atualização (PUT e PATCH) e Remoção (DELETE)
 
-As três operações restantes seguem o mesmo formato do `POST`, mudando apenas o verbo e o que vai no corpo. O exemplo reúne as três para tornar a diferença entre `PUT` e `PATCH` visível:
+As operações de alteração e exclusão seguem o mesmo padrão de configuração do `POST`, ajustando o verbo semântico e o corpo da mensagem:
 
 ```js title="PUT, PATCH e DELETE"
 // PUT - Atualização completa do recurso
@@ -136,18 +193,16 @@ if (resDelete.status === 204) {
 ---
 
 <Aside type="caution" title="Dica de IA: Exija a checagem de status antes de aceitar a função gerada">
-A omissão mais frequente em código de `fetch()` gerado por assistente é o `if (!response.ok)`. O
-trecho funciona no primeiro teste manual e quebra em produção com `data.map is not a function`, uma
-mensagem que aponta para a linha errada. A [seção sobre código gerado](../../browser/modern-apis/#web-apis-na-era-da-inteligência-artificial)
-mostra o caso completo, com teste que falha.
+A omissão mais frequente em código de `fetch()` gerado por assistentes de IA é a ausência do `if (!response.ok)`. O trecho funciona no primeiro teste manual de caminho feliz e quebra em produção com `data.map is not a function`.
 
-**Prompt:** *"Reescreva esta função lançando erro com o status quando `response.ok` for falso, e
-escreva testes com `node:test` para resposta 200, resposta 500 e falha de rede."*
+**Prompt recomendado:** *"Reescreva esta função lançando erro com o código de status quando `response.ok` for falso, e implemente o tratamento com try/catch exibindo feedback visual na interface."*
 </Aside>
+
+---
 
 ## Montando Query Strings com `URLSearchParams`
 
-Evite concatenar strings manualmente para passar parâmetros na URL. Utilize o utilitário nativo `URLSearchParams`:
+Evite concatenar strings manualmente para passar parâmetros de filtro e paginação na URL. Utilize o utilitário nativo `URLSearchParams` para codificar caracteres especiais de forma segura:
 
 ```js title="Construção segura de query parameters"
 const parametros = new URLSearchParams({
@@ -168,6 +223,8 @@ const resposta = await fetch(url);
 
 O **CORS** é um mecanismo de segurança implementado pelos navegadores que restringe requisições HTTP feitas via scripts para um domínio (origem) diferente daquele que serviu a página atual.
 
+O diagrama abaixo apresenta a validação de cabeçalhos efetuada pelo navegador:
+
 <Mermaid title="Fluxo de Verificação do CORS pelo Navegador">
 {`
 flowchart TD
@@ -186,7 +243,7 @@ Se a API remota não retornar o cabeçalho `Access-Control-Allow-Origin` autoriz
 
 ## Cancelando Requisições com `AbortController`
 
-Em busca dinâmica ou navegação rápida, requisições antigas que ainda estão em andamento devem ser canceladas para evitar *race conditions* ou desperdício de banda. Isso é feito com a API `AbortController`:
+Em buscas dinâmicas com digitação ou ao trocar rapidamente de página, requisições antigas que ainda estão em trânsito devem ser canceladas para evitar concorrência desordenada (*race conditions*) ou desperdício de banda. Isso é controlado com a API `AbortController`:
 
 ```js title="Cancelando requisições com AbortController"
 const controller = new AbortController();
@@ -212,32 +269,39 @@ async function buscarDadosComTimeout() {
 }
 ```
 
-<Aside type="tip" title="Projeto Prático">
-Para ver a Fetch API integrada a um serviço REST completo com autenticação, tokens de API e interface reativa, acesse a página de projeto prático do [InvestApp (Fetch e API)](../../practice/invest-app/).
+---
+
+## Exemplo Interativo com Interface HTML
+
+O exemplo interativo abaixo demonstra uma aplicação web completa consumindo endpoints `GET` e `POST`, manipulando estados de carregamento e renderizando a resposta na interface:
+
+<HtmlPreview path="examples/courses/web-api/browser-web-apis/fetch.html" height="26rem" label="fetch.html" allowScripts serveFromPublic />
+
+O código-fonte integral do exemplo ilustra o tratamento de eventos e a manipulação do DOM:
+
+<SourceCode path="examples/courses/web-api/browser-web-apis/fetch.html" />
+
+<Aside type="tip" title="Projeto Prático Completo">
+Para ver a Fetch API integrada a uma arquitetura com banco de dados, autenticação por tokens JWT e rotas protegidas, consulte o projeto prático [InvestApp (Fetch e API)](../../practice/invest-app/).
 </Aside>
 
 ---
 
 ## Quando usar, e quando não usar?
 
-A Fetch API é nativa, não adiciona dependência e cobre a maior parte dos casos. A pergunta prática
-não é se usar `fetch()`, e sim quando ele deixa de bastar e o projeto ganha algo real ao trocar de
-ferramenta.
+A Fetch API é nativa, não adiciona dependências ao projeto e atende à grande maioria das necessidades de comunicação cliente-servidor. A decisão prática consiste em identificar quando a aplicação demanda recursos arquiteturais mais avançados.
 
-A tabela compara os quatro caminhos disponíveis hoje pelo que cada um entrega além do envio da
-requisição:
+A tabela compara os principais cenários de uso e decisões no front-end:
 
 | Situação | Escolha | Por quê |
 | --- | --- | --- |
 | Requisições comuns em qualquer projeto | `fetch()` nativo | Sem dependência, disponível no navegador e no Node.js |
-| Muitas chamadas com a mesma base e o mesmo cabeçalho | Camada de serviços sobre `fetch()` | Concentra a configuração sem trazer biblioteca |
-| Necessidade de interceptadores e erro por status | `axios` ou `ky` | Rejeitam sozinhos em 4xx e 5xx, o que `fetch()` não faz |
-| Barra de progresso de upload | `XMLHttpRequest` ou `axios` | `fetch()` não expõe progresso de envio |
-| Cache, revalidação e estado de carregamento em componentes | TanStack Query ou SWR | O problema é gerência de estado, não transporte |
+| Muitas chamadas com a mesma base e cabeçalhos | Camada de serviços sobre `fetch()` | Concentra configuração e tratamento de erro sem dependências |
+| Interceptadores globais de requisição e resposta | `axios` ou `ky` | Tratamento automático de 4xx/5xx e transformação de dados |
+| Barra de progresso de upload | `XMLHttpRequest` ou `axios` | `fetch()` não expõe evento de progresso no upload de arquivos |
+| Cache, revalidação e estado em componentes | TanStack Query ou SWR | Gerenciamento de cache e sincronização reativa de tela |
 
-A última linha é a mais importante para quem está começando. Reescrever `fetch()` com cache manual,
-*retry* e controle de estado por componente é reconstruir uma biblioteca inteira: quando esse for o
-problema, ele já não é um problema de Fetch API.
+---
 
 ## Executando
 
@@ -261,7 +325,7 @@ Siga os passos abaixo para consultar uma API pública de CEP diretamente no cons
 Os itens exercitam as quatro operações CRUD e o tratamento de erro que a API não faz sozinha:
 
 1. Por que uma requisição `fetch()` que retorna o código de status HTTP `404 Not Found` **não** cai no bloco `catch` de um `try/catch`?
-2. Quais são os três cabeçalhos/propriedades fundamentais necessários para enviar dados em formato JSON utilizando o método `POST` no `fetch`?
+2. Quais são as três configurações fundamentais necessárias para enviar dados em formato JSON utilizando o método `POST` no `fetch`?
 3. O que é e para que serve o `AbortController`?
 
 <details>
@@ -269,12 +333,12 @@ Os itens exercitam as quatro operações CRUD e o tratamento de erro que a API n
 
   1. Porque a Fetch API considera como "rejeição" apenas falhas físicas de rede (sem conexão, falha de DNS ou erro de CORS). Respostas HTTP válidas retornadas pelo servidor (mesmo com erros 4xx ou 5xx) resolvem a Promise normalmente.
 
-  2. As três propriedades são:
+  2. As três configurações são:
      - `method: 'POST'`
      - `headers: { 'Content-Type': 'application/json' }`
      - `body: JSON.stringify(dados)`
 
-  3. O `AbortController` é uma API nativa que permite abortar/cancelar uma ou mais requisições HTTP em andamento, sendo usada para timeouts ou para cancelar buscas anteriores quando o usuário digita um novo termo.
+  3. O `AbortController` é uma API nativa que permite abortar ou cancelar requisições HTTP em andamento, sendo usada para timeouts ou para cancelar buscas anteriores quando o usuário digita um novo termo.
 </details>
 
 ---
@@ -310,7 +374,11 @@ Escreva uma função `buscarComRetry(url, tentativas)` que tente realizar um `fe
 
 ## Perguntas de revisão
 
+Teste seus conhecimentos sobre o funcionamento assíncrono, a classe `Response` e o tratamento de requisições com a Fetch API:
+
 ### Resposta e Erros HTTP
+
+As questões a seguir avaliam a interpretação de códigos de status e respostas do servidor:
 
 1. **Qual propriedade da interface `Response` retorna `true` apenas se o código de status HTTP estiver na faixa de `200` a `299`?**
    <details>
@@ -322,6 +390,28 @@ Escreva uma função `buscarComRetry(url, tentativas)` que tente realizar um `fe
    <details>
      <summary>Possível resposta</summary>
      Como uma resposta `204` não possui corpo textual, tentar fazer o parse com `.json()` resultará em um erro de sintaxe (*SyntaxError: Unexpected end of JSON input*).
+   </details>
+
+3. **Por que `response.json()` retorna uma Promise em vez de devolver o objeto JavaScript imediatamente?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o corpo da resposta chega em fluxo (*stream*) pela rede e pode ainda não ter sido totalmente transferido quando os cabeçalhos HTTP já estão disponíveis.
+   </details>
+
+### Cancelamento e Interface
+
+As questões a seguir avaliam o controle de fluxo, cancelamento de requisições e estados de tela:
+
+1. **Como cancelar uma requisição `fetch()` em andamento caso a ação do usuário seja interrompida?**
+   <details>
+     <summary>Possível resposta</summary>
+     Utilizando uma instância de `AbortController`, vinculando seu sinal através da opção `{ signal: controller.signal }` na chamada do `fetch()` e executando `controller.abort()` quando a requisição precisar ser cancelada.
+   </details>
+
+2. **Quais são os três estados visuais fundamentais que uma interface deve representar durante uma chamada assíncrona?**
+   <details>
+     <summary>Possível resposta</summary>
+     Os estados de carregamento (*loading*), sucesso (com os dados renderizados) e erro (com mensagem descritiva para o usuário), evitando que a tela permaneça estática ou silenciosa durante falhas.
    </details>
 
 ---
@@ -336,4 +426,4 @@ Escreva uma função `buscarComRetry(url, tentativas)` que tente realizar um `fe
 
 ## Próximo tópico
 
-[Axios](../../../npm/http/axios/): Cliente HTTP baseado em Promises com transformação automática de dados, instâncias configuráveis e interceptores de requisição/resposta.
+[WebSockets API](../websockets/): Comunicação em tempo real e bidirecional (*Full-Duplex*) entre cliente e servidor com a WebSockets API nativa.

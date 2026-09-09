@@ -1,0 +1,314 @@
+---
+title: Segurança no Navegador e OWASP Client-Side
+description: Entenda as principais vulnerabilidades front-end da OWASP e aprenda a construir aplicações Vanilla JS seguras contra XSS, CSRF e vazamento de dados.
+course: web-api
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A segurança de uma aplicação web não depende apenas das validações no servidor. O navegador do usuário é um ambiente dinâmico e exposto, no qual scripts maliciosos podem tentar interceptar dados sensíveis, manipular o DOM e forjar requisições em nome da vítima.
+
+A [**OWASP (Open Web Application Security Project)**](https://owasp.org/) cataloga as principais falhas de segurança em software. No lado do cliente (*client-side*), aplicações construídas com JavaScript puro (Vanilla JS) exigem que o desenvolvedor conheça os vetores de ataque para aplicar defesas nativas corretas sem depender da proteção automática de frameworks.
+
+## Objetivo
+
+Compreender o modelo de segurança do navegador (*Same-Origin Policy*), identificar as vulnerabilidades mais críticas do front-end (como XSS, CSRF, armazenamento inseguro e injeção de links) e dominar as práticas recomendadas em Vanilla JS para construir interfaces robustas e resilientes.
+
+## O Modelo de Segurança do Navegador
+
+O navegador executa código JavaScript em um ambiente de isolamento que utiliza a **Política de Mesma Origem** (*Same-Origin Policy* ou SOP) como fundação primordial de proteção.
+
+### Princípio da Mesma Origem (SOP)
+
+Duas páginas pertencem à mesma origem quando compartilham exatamente o mesmo **protocolo**, **domínio** (host) e **porta**.
+
+A SOP impede que um script de `https://site-malicioso.com` acesse o DOM, leia cookies ou consulte o `localStorage` pertencente a `https://banco.com`. Sem essa política, qualquer aba aberta no navegador poderia inspecionar o conteúdo de outras abas e roubar informações confidenciais.
+
+### A Fronteira do Cliente
+
+Apesar do isolamento garantido pela SOP, o código que roda no cliente está completamente sob controle do usuário e de extensões instaladas no navegador.
+
+Nenhum dado que reside apenas no front-end pode ser considerado secreto ou inviolável. Por esse motivo, chaves de API restritas, credenciais de banco de dados e regras críticas de negócio devem sempre residir no servidor. O papel da segurança client-side é garantir a integridade da interface do usuário e proteger os dados contra scripts injetados no contexto da própria aplicação.
+
+---
+
+## Principais Riscos OWASP no Front-End
+
+A [OWASP](https://owasp.org/) destaca vulnerabilidades recorrentes que afetam diretamente o código executado nos navegadores.
+
+### Cross-Site Scripting (XSS)
+
+O XSS ocorre quando um invasor consegue injetar e executar scripts JavaScript arbitrários no contexto de execução de uma aplicação confiável.
+
+As três categorias mais comuns de XSS são:
+
+1. **Stored XSS (Persistente)**: O script malicioso é salvo no banco de dados pelo servidor (como em um comentário) e entregue para todas as vítimas que visualizam a página.
+2. **Reflected XSS (Refletido)**: O script malicioso vem em um parâmetro da URL ou formulário e é refletido diretamente na resposta HTTP sem sanitização.
+3. **DOM-based XSS (Baseado no DOM)**: O código JavaScript do front-end lê um dado não confiável (como `location.hash` ou `location.search`) e o insere no documento através de métodos perigosos.
+
+No Vanilla JS, o principal vetor de DOM XSS é a propriedade `innerHTML` ao receber dados de terceiros ou parâmetros de URL:
+
+```js title="Exemplo de vetor vulnerável e correção segura"
+// VULNERÁVEL: interpreta tags <script> ou <img onerror="..."> injetadas
+const inputUsuario = "<img src=x onerror='alert(document.cookie)'>";
+document.querySelector('#saudacao').innerHTML = `Olá, ${inputUsuario}`;
+
+// SEGURO: trata a entrada puramente como texto, sem interpretar HTML
+document.querySelector('#saudacao').textContent = `Olá, ${inputUsuario}`;
+```
+
+<Aside type="caution" title="APIs perigosas no Vanilla JS">
+Evite usar `innerHTML`, `outerHTML`, `document.write()`, `eval()` e `new Function()` com dados externos. Para renderizar texto, utilize `textContent`. Para montar elementos complexos, prefira `document.createElement()` associado a `setAttribute()` ou `classList`.
+</Aside>
+
+### Content Security Policy (CSP)
+
+A **Content Security Policy** (CSP) é uma camada adicional de defesa configurada através do cabeçalho HTTP `Content-Security-Policy` ou de uma meta tag `<meta>`.
+
+O CSP permite que o servidor declare quais fontes de scripts, estilos, imagens e conexões são autorizadas a carregar na página. Quando configurado de forma estrita, o CSP neutraliza ataques de XSS ao bloquear a execução de scripts inline e funções perigosas como `eval()`.
+
+```http title="Exemplo de cabeçalho HTTP de Content Security Policy"
+Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.confiavel.com; object-src 'none';
+```
+
+A diretiva `default-src 'self'` estabelece que, por padrão, recursos só podem ser baixados da mesma origem da página, enquanto `object-src 'none'` desabilita plugins legados como Flash e Java Applets.
+
+### Armazenamento Inseguro: Storage vs Cookies
+
+A escolha de onde armazenar identificadores de sessão e tokens de autenticação afeta diretamente a superfície de ataque da aplicação.
+
+A tabela compara os mecanismos de armazenamento disponíveis no navegador e seus riscos de segurança:
+
+| Mecanismo | Acesso via JavaScript | Risco Primário | Uso Recomendado |
+| --- | --- | --- | --- |
+| `localStorage` | Sim (`window.localStorage`) | Acessível por qualquer script XSS | Preferências visuais e rascunhos não sensíveis |
+| `sessionStorage` | Sim (`window.sessionStorage`) | Acessível por script XSS na aba | Estado temporário de formulários |
+| Cookie comum | Sim (`document.cookie`) | Acessível por XSS | Dados não confidenciais de navegação |
+| Cookie com `HttpOnly` | **Não** (bloqueado no JS) | Protegido contra leitura via XSS | Tokens de sessão e credenciais de login |
+
+<Aside type="tip" title="Proteção de Cookies em Produção">
+Cookies de autenticação devem sempre ser emitidos com as três flags de segurança: `HttpOnly` (impede leitura via JavaScript), `Secure` (trafega exclusivamente via HTTPS) e `SameSite=Strict` ou `SameSite=Lax` (protege contra ataques de CSRF).
+</Aside>
+
+### Cross-Site Request Forgery (CSRF)
+
+O CSRF é um ataque no qual um site malicioso induz o navegador da vítima a executar ações não autorizadas em uma aplicação na qual ela já está autenticada via cookies.
+
+Para proteger aplicações Vanilla JS contra CSRF:
+
+1. Configure os cookies de sessão com o atributo `SameSite=Lax` ou `SameSite=Strict`.
+2. Em requisições `fetch()`, envie cabeçalhos personalizados (como `X-Requested-With` ou tokens anti-CSRF gerados pelo servidor) que sites externos não conseguem forjar devido à SOP.
+
+### Injeção em Links e Prevenção de Tabnabbing
+
+A inserção dinâmica de links fornecidos por usuários pode introduzir vetores de execução de código e sequestro de abas (*reverse tabnabbing*).
+
+Se um usuário fornecer uma URL iniciando com o pseudoprotocolo `javascript:`, o clique no link executará código malicioso:
+
+```js title="Validação de URLs em Vanilla JS"
+function criarLinkSeguro(url, rotulo) {
+  const link = document.createElement('a');
+
+  // Valida se a URL usa protocolos seguros HTTP ou HTTPS
+  try {
+    const urlValidada = new URL(url, window.location.origin);
+    if (urlValidada.protocol === 'http:' || urlValidada.protocol === 'https:') {
+      link.href = urlValidada.href;
+    } else {
+      link.href = '#';
+    }
+  } catch {
+    link.href = '#';
+  }
+
+  link.textContent = rotulo;
+
+  // Proteção contra tabnabbing ao abrir em nova aba
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+
+  return link;
+}
+```
+
+O atributo `rel="noopener noreferrer"` garante que a nova aba não tenha acesso ao objeto `window.opener` da aba original, impedindo que a página externa redirecione a sua aplicação para um endereço malicioso.
+
+---
+
+## Fluxo Comparativo: Ataque vs Defesa
+
+O diagrama abaixo ilustra a diferença entre um fluxo vulnerável a XSS com armazenamento inseguro e um fluxo protegido com defesas coordenadas.
+
+<Mermaid title="Fluxo de Ataque XSS vs Cadeia de Defesa em Camadas">
+{`
+flowchart LR
+  subgraph Seguro["2. Fluxo Seguro em Camadas"]
+    B1["Entrada do usuário"] --> B2["document.textContent ou createElement"]
+    B2 --> B3["Texto renderizado como dado puro"]
+    B4["Content Security Policy"] -.->|"Bloqueia scripts externos"| B3
+    B5["Cookie HttpOnly e Secure"] -.->|"Inacessível para o JavaScript"| B3
+  end
+
+  subgraph Inseguro["1. Fluxo Vulnerável a XSS"]
+    A1["Entrada não sanitizada"] --> A2["document.innerHTML"]
+    A2 --> A3["Script malicioso executado"]
+    A3 --> A4["Leitura de token no localStorage"]
+    A4 --> A5["Envio de credencial para o invasor"]
+  end
+`}
+</Mermaid>
+
+---
+
+## Checklist de Segurança no Vanilla JS
+
+Antes de publicar uma aplicação web em produção, confira os itens da lista de verificação de segurança client-side:
+
+| Área | Verificação | Correção |
+| --- | --- | --- |
+| **Manipulação do DOM** | Todo dado dinâmico é inserido sem `innerHTML`? | Use `textContent` ou crie elementos com `createElement()`. |
+| **Execução de Código** | A aplicação está livre de `eval()` e `setTimeout(string)`? | Passe sempre funções de callback legítimas em vez de strings. |
+| **Armazenamento** | Tokens de autenticação e dados confidenciais estão fora do `localStorage`? | Armazene credenciais em cookies com `HttpOnly`, `Secure` e `SameSite`. |
+| **Política de Conteúdo** | A página define cabeçalhos de Content Security Policy (CSP)? | Configure `default-src 'self'` e restrinja as origens de scripts externos. |
+| **Links Dinâmicos** | Links externos usam `rel="noopener noreferrer"` e validam o protocolo? | Rejeite protocolos `javascript:` ou `data:` e adicione `rel` protetor. |
+| **Proteção de Frame** | O servidor envia `X-Frame-Options: DENY` ou CSP `frame-ancestors 'none'`? | Impede que a página seja embutida em iframes maliciosos (Clickjacking). |
+
+---
+
+## Executando
+
+Experimente o comportamento defensivo do navegador abrindo o console do desenvolvedor (<kbd>F12</kbd>) em qualquer página e executando os testes abaixo:
+
+<Steps>
+1. Crie um contêiner de teste no DOM executando `const div = document.createElement('div');`.
+2. Insira uma string potencialmente perigosa usando `textContent`:
+   `div.textContent = '<img src=x onerror=alert(1)>';`
+3. Inspecione o resultado em `div.innerHTML`. Observe como os caracteres especiais `<` e `>` foram automaticamente convertidos para entidades seguras `&lt;` e `&gt;`, sem disparar nenhum alerta.
+4. Tente instanciar uma URL com pseudoprotocolo para testar o parser de validação:
+   `const url = new URL('javascript:alert(1)', window.location.origin);`
+   Verifique que `url.protocol` resulta na string `'javascript:'`, permitindo a sua rejeição programática antes da renderização.
+</Steps>
+
+---
+
+## Exercício
+
+Responda aos itens abaixo para exercitar a identificação de vulnerabilidades front-end e suas mitigações:
+
+1. Por que um token JWT armazenado em `localStorage` fica vulnerável em caso de Cross-Site Scripting (XSS)?
+2. Qual a função do atributo `rel="noopener noreferrer"` ao abrir links externos com `target="_blank"`?
+3. O que acontece quando uma aplicação com CSP configurado como `script-src 'self'` tenta executar um bloco `<script>alert(1)</script>` embutido no HTML?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o `localStorage` é compartilhado por todo script que roda na mesma origem. Se um invasor conseguir injetar código via XSS, o script malicioso pode simplesmente executar `localStorage.getItem('token')` e enviar o token para um servidor externo.
+
+  2. Ele impede que a nova aba aberta acesse a propriedade `window.opener` da página original, neutralizando ataques de *reverse tabnabbing* (onde a nova aba redireciona a aba original para uma página de phishing).
+
+  3. O navegador bloqueia a execução do script e registra uma violação de segurança no console, pois a diretiva `script-src 'self'` autoriza apenas scripts carregados de arquivos externos da mesma origem e proíbe scripts inline.
+</details>
+
+---
+
+## Desafio
+
+Crie uma função Vanilla JS chamada `renderizarMensagensSeguras(container, listaMensagens)` que receba um elemento do DOM e um array de objetos `{ autor: string, texto: string, link: string }`. A função deve criar os elementos de forma 100% segura contra XSS, sanitizando o autor e texto com nós puros de texto e validando o link para aceitar apenas protocolos `https:`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="Renderização defensiva de mensagens"
+  function renderizarMensagensSeguras(container, listaMensagens) {
+    // Limpa o conteúdo anterior de forma segura
+    container.replaceChildren();
+
+    listaMensagens.forEach((msg) => {
+      const card = document.createElement('article');
+      card.classList.add('mensagem-card');
+
+      const titulo = document.createElement('h4');
+      titulo.textContent = msg.autor;
+
+      const corpo = document.createElement('p');
+      corpo.textContent = msg.texto;
+
+      card.appendChild(titulo);
+      card.appendChild(corpo);
+
+      // Validação de URL
+      if (msg.link) {
+        try {
+          const urlObj = new URL(msg.link, window.location.origin);
+          if (urlObj.protocol === 'https:') {
+            const linkElemento = document.createElement('a');
+            linkElemento.href = urlObj.href;
+            linkElemento.textContent = 'Ver referência';
+            linkElemento.target = '_blank';
+            linkElemento.rel = 'noopener noreferrer';
+            card.appendChild(linkElemento);
+          }
+        } catch {
+          // Ignora links inválidos sem quebrar a aplicação
+        }
+      }
+
+      container.appendChild(card);
+    });
+  }
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+Responda às questões a seguir para consolidar os conceitos de segurança client-side e conformidade com os princípios da OWASP.
+
+### Vulnerabilidades e Mitigações
+
+Questões sobre identificação de falhas e mecanismos de proteção no DOM:
+
+1. **Qual a diferença entre Stored XSS e DOM-based XSS?**
+   <details>
+     <summary>Possível resposta</summary>
+     No Stored XSS, o código malicioso foi gravado no banco de dados pelo servidor e é entregue no HTML das requisições. No DOM-based XSS, a vulnerabilidade existe inteiramente no código JavaScript do cliente, que lê uma fonte insegura (como a URL) e insere no DOM sem tratamento.
+   </details>
+
+2. **Por que `textContent` é seguro contra XSS enquanto `innerHTML` é vulnerável?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque `textContent` insere o valor diretamente como um nó de texto literal, fazendo com que o parser do navegador não interprete tags ou atributos HTML, enquanto `innerHTML` analisa a string como marcação HTML e executa scripts embutidos.
+   </details>
+
+### Políticas e Armazenamento
+
+Questões sobre isolamento de dados, cabeçalhos de segurança e credenciais:
+
+1. **Por que a flag `HttpOnly` é fundamental para cookies de sessão?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ela instrui o navegador a impedir qualquer acesso ao cookie através de código JavaScript (`document.cookie`), garantindo que, mesmo em caso de falha de XSS, o invasor não consiga roubar a credencial da sessão.
+   </details>
+
+2. **Como a Content Security Policy (CSP) ajuda a mitigar falhas de injeção de script?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ao definir uma lista estrita de fontes autorizadas para carregar e executar scripts, bloqueando por padrão a execução de código inline e funções perigosas como `eval()`.
+   </details>
+
+---
+
+## Referências
+
+- [OWASP Top 10 | OWASP Foundation](https://owasp.org/www-project-top-ten/)
+- [Cross-Site Scripting (XSS) Prevention Cheat Sheet | OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+- [Content Security Policy (CSP) | MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP)
+- [Same-Origin Policy | MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy)
+
+---
+
+## Próximo tópico
+
+[MonitorApp (DOM e Storage)](../../practice/monitor-app/): Aplicação prática de manipulação do DOM e persistência local.

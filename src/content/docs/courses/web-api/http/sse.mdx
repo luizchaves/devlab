@@ -1,0 +1,442 @@
+---
+title: "Web APIs: Server-Sent Events (SSE)"
+description: "Transmissão unidirecional de dados em tempo real do servidor para o cliente usando a API EventSource e o protocolo text/event-stream."
+course: web-api
+sidebar:
+  label: "Server-Sent Events (SSE)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Quando uma aplicação precisa receber atualizações contínuas do servidor em tempo real (como feeds de notícias, cotações financeiras, notificações ou geração de texto por modelos de inteligência artificial), nem sempre é necessário abrir um canal bidirecional complexo como o WebSocket. A especificação de **Server-Sent Events (SSE)** oferece uma solução nativa, simples e baseada em HTTP padrão para envio unidirecional de eventos do servidor para o navegador.
+
+No navegador, essa tecnologia é consumida através da interface nativa `EventSource`, que gerencia automaticamente a conexão, a recepção de mensagens e a reconexão em caso de falhas na rede.
+
+## Objetivo
+
+Compreender o funcionamento do protocolo Server-Sent Events e aprender a consumir fluxos contínuos de dados no navegador com a API `EventSource`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Contrastar Server-Sent Events com requisições HTTP tradicionais, *short/long polling* e WebSockets.
+- Conectar a um endpoint de streaming usando a classe nativa `EventSource`.
+- Tratar eventos padrão (`open`, `message`, `error`) e registrar escutadores para eventos customizados com `addEventListener`.
+- Compreender o formato de dados do protocolo `text/event-stream` (`data`, `event`, `id` e `retry`).
+- Explicar como a reconexão automática nativa preserva o estado através do cabeçalho `Last-Event-ID`.
+- Identificar as vantagens e limitações do SSE (unidirecionalidade, limite de conexões no HTTP/1.1 vs HTTP/2).
+
+---
+
+## O que são Server-Sent Events?
+
+O **Server-Sent Events** é um padrão web que permite a um servidor web enviar dados de forma contínua e assíncrona para o cliente após o estabelecimento de uma única conexão HTTP persistente.
+
+Diferente do ciclo de requisição e resposta convencional, onde o servidor responde e fecha a conexão imediatamente, no SSE o servidor mantém a resposta aberta com o cabeçalho `Content-Type: text/event-stream`. A partir desse momento, o servidor pode enviar novos blocos de texto a qualquer instante, que são interpretados pelo navegador como eventos disparados no JavaScript.
+
+A tabela a seguir resume as principais diferenças entre as estratégias de comunicação em tempo real no navegador:
+
+| Característica | Short / Long Polling | Server-Sent Events (SSE) | WebSockets API |
+| --- | --- | --- | --- |
+| **Protocolo** | HTTP tradicional | HTTP / HTTPS (`text/event-stream`) | WS / WSS (TCP independente após handshake) |
+| **Direção** | Unidirecional (Cliente pede sempre) | Unidirecional (Servidor envia ao cliente) | Bidirecional (*Full-Duplex*, ambos enviam) |
+| **Formato de Dados** | Texto / JSON | Texto plano codificado em UTF-8 | Texto ou Binário (ArrayBuffer / Blob) |
+| **Reconexão Automática** | Manual no JavaScript | Nativa e automática pelo navegador | Manual no JavaScript |
+| **Sobretaxa de Rede** | Alta (múltiplos cabeçalhos HTTP) | Muito baixa após a conexão aberta | Muito baixa após o handshake |
+| **Casos Típicos** | Verificações esporádicas | Feeds, dashboards, cotações, streaming de LLMs | Chats interativos, jogos multiplayer |
+
+O diagrama de sequência abaixo ilustra o ciclo de vida completo de uma conexão SSE, desde a negociação inicial até a transmissão contínua e a recuperação automática de falhas:
+
+<Mermaid title="Ciclo de Vida e Streaming com Server-Sent Events">
+{`
+sequenceDiagram
+  autonumber
+  actor JS as JavaScript (Aplicação)
+  participant Browser as Navegador (EventSource)
+  participant Server as Servidor HTTP
+
+  Note over JS,Server: 1. Estabelecimento da Conexão
+  JS->>Browser: new EventSource('/api/stream')
+  Browser->>Server: GET /api/stream (Accept: text/event-stream)
+  Server-->>Browser: HTTP 200 OK (Content-Type: text/event-stream)
+  Browser->>JS: Dispara evento 'open'
+
+  Note over JS,Server: 2. Transmissão Contínua (Servidor -> Cliente)
+  Server-->>Browser: id: 1<br/>data: {"preco": 104.5}
+  Browser->>JS: Dispara evento 'message'
+  Server-->>Browser: event: alerta<br/>id: 2<br/>data: Limite atingido
+  Browser->>JS: Dispara ouvinte 'alerta'
+
+  Note over JS,Server: 3. Queda de Rede e Reconexão Automática
+  Server--xBrowser: Falha de rede / Conexão interrompida
+  Browser->>JS: Dispara evento 'error' (estado CONNECTING)
+  Note over Browser: Navegador aguarda intervalo (retry)
+  Browser->>Server: GET /api/stream (Last-Event-ID: 2)
+  Server-->>Browser: HTTP 200 OK (retoma streaming após ID 2)
+  Browser->>JS: Dispara evento 'open' (restabelecido)
+`}
+</Mermaid>
+
+---
+
+## A Classe Nativa `EventSource`
+
+A interface `EventSource` é nativa dos navegadores modernos e dispensa a instalação de bibliotecas externas. Ela herda de `EventTarget`, permitindo o uso de `addEventListener` para escutar diferentes tipos de mensagens enviadas pelo servidor.
+
+Para iniciar uma conexão, basta instanciar o construtor informando a URL do endpoint de eventos:
+
+```js title="Instanciação básica do EventSource"
+const fonteEventos = new EventSource('/api/stream-eventos');
+```
+
+O ciclo de vida da conexão pode ser acompanhado por meio de três tratadores de evento fundamentais:
+
+```js title="Tratamento dos eventos fundamentais"
+// 1. Conexão aberta com sucesso
+fonteEventos.addEventListener('open', () => {
+  console.log('Conexão SSE estabelecida com o servidor.');
+});
+
+// 2. Mensagem padrão recebida (sem campo event definido)
+fonteEventos.addEventListener('message', (event) => {
+  console.log('Mensagem recebida:', event.data);
+  console.log('ID do evento:', event.lastEventId);
+});
+
+// 3. Erro de rede ou desconexão temporária
+fonteEventos.addEventListener('error', (event) => {
+  if (fonteEventos.readyState === EventSource.CLOSED) {
+    console.error('A conexão SSE foi encerrada definitivamente.');
+  } else {
+    console.warn('Conexão perdida. O navegador tentará reconectar automaticamente...');
+  }
+});
+```
+
+<Aside type="note" title="Reconexão automática gerenciada pelo navegador">
+Se o servidor cair ou a conexão de rede oscilar, o navegador tenta restabelecer a conexão de forma transparente a cada poucos segundos, sem que você precise escrever lógica de repetição manual no JavaScript.
+</Aside>
+
+---
+
+## O Protocolo `text/event-stream`
+
+O protocolo Server-Sent Events padroniza tanto a formatação dos dados transmitidos pelo servidor quanto a forma como o navegador interpreta diferentes tipos de mensagens. As subseções a seguir detalham a estrutura bruta dos campos e a filtragem de eventos específicos no cliente:
+
+### Estrutura e Campos da Mensagem
+
+O servidor se comunica com o cliente enviando blocos de texto puro formatados em linhas com campos específicos, separados por quebras de linha duplas (`\n\n`).
+
+Cada mensagem no fluxo pode conter quatro campos principais:
+
+- `data:` O conteúdo da mensagem a ser entregue. Múltiplas linhas consecutivas de `data:` são unidas pelo navegador com quebra de linha.
+- `event:` O nome do tipo de evento customizado. Permite disparar ouvintes específicos registrados com `addEventListener(tipo, callback)`.
+- `id:` Um identificador único sequencial para o evento. O navegador armazena esse valor e o envia no cabeçalho HTTP `Last-Event-ID` ao se reconectar.
+- `retry:` O tempo em milissegundos que o navegador deve aguardar antes de tentar reconectar caso a conexão caia.
+
+O exemplo abaixo apresenta uma amostra bruta do que o servidor transmite pela resposta HTTP:
+
+```http title="Exemplo de payload text/event-stream enviado pelo servidor"
+event: cotacao
+id: 101
+data: {"ativo": "PETR4", "preco": 38.50}
+
+event: cotacao
+id: 102
+data: {"ativo": "VALE3", "preco": 62.10}
+
+id: 103
+data: Mensagem padrão sem tipo customizado.
+
+: Esta linha começa com dois-pontos e é tratada como comentário (útil para keep-alive).
+```
+
+### Escutando Eventos Customizados
+
+Quando o servidor define o campo `event: nome-do-evento`, o ouvinte genérico `onmessage` não é acionado para essa mensagem. Em vez disso, deve-se registrar um ouvinte para o nome do evento correspondente:
+
+```js title="Escutando tipos específicos de evento"
+const fonteEventos = new EventSource('/api/mercado-financeiro');
+
+// Escuta apenas mensagens com "event: cotacao"
+fonteEventos.addEventListener('cotacao', (event) => {
+  const cotacao = JSON.parse(event.data);
+  console.log(`Ativo: ${cotacao.ativo} - Preço: R$ ${cotacao.preco}`);
+});
+
+// Escuta apenas mensagens com "event: alerta"
+fonteEventos.addEventListener('alerta', (event) => {
+  console.warn('Alerta do sistema:', event.data);
+});
+```
+
+---
+
+## Estados da Conexão e Encerramento
+
+A instância de `EventSource` disponibiliza a propriedade somente leitura `readyState`, que reflete o estado atual do canal através de constantes numéricas:
+
+```js title="Estados de prontidão do EventSource"
+console.log(fonteEventos.readyState);
+// 0 (EventSource.CONNECTING) -> Conectando ou tentando reconectar
+// 1 (EventSource.OPEN)       -> Conexão ativa e recebendo dados
+// 2 (EventSource.CLOSED)     -> Conexão fechada permanentemente
+```
+
+Quando o cliente não precisar mais receber notificações (por exemplo, ao mudar de página ou deslogar), é essencial fechar o canal para liberar os recursos do servidor e do navegador:
+
+```js title="Fechando a conexão manualmente"
+// Encerra a conexão e impede reconexões automáticas futuras
+fonteEventos.close();
+console.log('Canal de eventos encerrado pelo cliente.');
+```
+
+---
+
+## Exemplo Prático: Servidor e Cliente
+
+Para visualizar o funcionamento de ponta a ponta, considere um backend em Node.js com Express que envia notificações periódicas, e um cliente JavaScript que as exibe em tela.
+
+### Implementação do Endpoint no Servidor
+
+O servidor deve definir os cabeçalhos de resposta corretos e manter o socket de resposta aberto sem chamar `res.end()`:
+
+```js title="Servidor Express emitindo SSE"
+import express from 'express';
+
+const app = express();
+
+app.get('/api/notificacoes', (req, res) => {
+  // 1. Cabeçalhos obrigatórios para streaming SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Envia um evento inicial de boas-vindas
+  res.write(`data: ${JSON.stringify({ texto: 'Conectado ao canal de notificações!' })}\n\n`);
+
+  let contador = 1;
+  const intervalo = setInterval(() => {
+    const payload = JSON.stringify({
+      id: contador,
+      timestamp: new Date().toLocaleTimeString(),
+      mensagem: `Atualização periódica #${contador}`
+    });
+
+    res.write(`id: ${contador}\n`);
+    res.write(`data: ${payload}\n\n`);
+    contador++;
+  }, 3000);
+
+  // 2. Limpa o temporizador quando o cliente desconectar
+  req.on('close', () => {
+    clearInterval(intervalo);
+    res.end();
+  });
+});
+
+app.listen(3000, () => {
+  console.log('Servidor SSE rodando na porta 3000');
+});
+```
+
+### Consumo no Front-End
+
+O código JavaScript no navegador conecta ao endpoint e atualiza uma lista visual na página:
+
+```html title="Página HTML consumindo o endpoint SSE"
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel de Notificações SSE</title>
+</head>
+<body>
+  <h1>Notificações em Tempo Real</h1>
+  <ul id="lista-eventos"></ul>
+  <button id="btn-desconectar">Parar Atualizações</button>
+
+  <script>
+    const lista = document.getElementById('lista-eventos');
+    const btnDesconectar = document.getElementById('btn-desconectar');
+
+    const sse = new EventSource('/api/notificacoes');
+
+    sse.addEventListener('message', (event) => {
+      const item = document.createElement('li');
+      const dados = JSON.parse(event.data);
+      item.textContent = `[${dados.timestamp || 'Início'}] ${dados.mensagem || dados.texto}`;
+      lista.appendChild(item);
+    });
+
+    sse.addEventListener('error', () => {
+      console.warn('Erro na conexão com o servidor de eventos.');
+    });
+
+    btnDesconectar.addEventListener('click', () => {
+      sse.close();
+      const item = document.createElement('li');
+      item.textContent = 'Canal de notificações encerrado.';
+      lista.appendChild(item);
+      btnDesconectar.disabled = true;
+    });
+  </script>
+</body>
+</html>
+```
+
+---
+
+## Boas Práticas e Limitações
+
+Antes de adotar Server-Sent Events em produção, é importante considerar algumas regras de arquitetura:
+
+- **Comunicação estritamente unidirecional**: O cliente não pode enviar dados pelo objeto `EventSource`. Se o usuário precisar enviar uma ação para o servidor, use chamadas convencionais via `fetch()` (POST, PUT, DELETE).
+- **Limite de conexões simultâneas no HTTP/1.1**: Navegadores limitam a 6 o número de conexões HTTP simultâneas abertas por domínio no HTTP/1.1. Ao abrir múltiplas abas de um mesmo site, o limite pode ser atingido rapidamente. **Uso de HTTP/2** é altamente recomendado, pois multiplexa todas as requisições e streams sobre uma única conexão TCP.
+- **Suporte a Cookies e Credenciais**: Por padrão, o `EventSource` envia cookies apenas para requisições na mesma origem. Para enviar credenciais entre origens (*cross-origin*), passe a opção `withCredentials: true`:
+
+```js title="Configurando credenciais cross-origin no EventSource"
+const sse = new EventSource('https://api.outro-dominio.com/stream', {
+  withCredentials: true
+});
+```
+
+---
+
+## Exercício
+
+Crie um script cliente que se conecte a um endpoint de streaming `/api/placar-jogos` e realize as seguintes ações:
+
+1. Registre um ouvinte para o evento customizado `gol`.
+2. Quando um evento `gol` for disparado, exiba uma mensagem formatada no console contendo o time que marcou e o minuto do lance.
+3. Garanta o tratamento adequado caso ocorra algum erro na conexão.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="Solução do exercício"
+  const placarStream = new EventSource('/api/placar-jogos');
+
+  placarStream.addEventListener('open', () => {
+    console.log('Acompanhando placar em tempo real.');
+  });
+
+  placarStream.addEventListener('gol', (event) => {
+    try {
+      const lance = JSON.parse(event.data);
+      console.log(`⚽ GOL! ${lance.time} marcou aos ${lance.minuto} minutos!`);
+    } catch {
+      console.log('⚽ Gol marcado:', event.data);
+    }
+  });
+
+  placarStream.addEventListener('error', (event) => {
+    if (placarStream.readyState === EventSource.CLOSED) {
+      console.error('Conexão com o placar encerrada.');
+    } else {
+      console.warn('Falha temporária no placar. Aguardando reconexão...');
+    }
+  });
+  ```
+</details>
+
+---
+
+## Desafio
+
+Crie uma função `conectarStreamingComTimeout(url, timeoutMs)` que receba uma URL de SSE e um tempo limite em milissegundos. Se nenhuma mensagem ou evento for recebido do servidor dentro do tempo limite estipulado, a conexão deve ser automaticamente fechada e uma notificação de aviso emitida. Cada nova mensagem recebida deve reiniciar o temporizador.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="Solução do desafio com heartbeat e timeout"
+  function conectarStreamingComTimeout(url, timeoutMs = 10000) {
+    const sse = new EventSource(url);
+    let temporizador = null;
+
+    function reiniciarTimeout() {
+      if (temporizador) clearTimeout(temporizador);
+      temporizador = setTimeout(() => {
+        console.warn(`Nenhuma atividade recebida em ${timeoutMs}ms. Encerrando conexão.`);
+        sse.close();
+      }, timeoutMs);
+    }
+
+    sse.addEventListener('open', () => {
+      console.log('Conexão estabelecida. Monitorando atividade...');
+      reiniciarTimeout();
+    });
+
+    sse.addEventListener('message', (event) => {
+      console.log('Mensagem recebida:', event.data);
+      reiniciarTimeout();
+    });
+
+    sse.addEventListener('error', () => {
+      if (sse.readyState === EventSource.CLOSED) {
+        if (temporizador) clearTimeout(temporizador);
+      }
+    });
+
+    return {
+      desconectar: () => {
+        if (temporizador) clearTimeout(temporizador);
+        sse.close();
+      }
+    };
+  }
+
+  // Exemplo de uso:
+  const stream = conectarStreamingComTimeout('/api/feed', 15000);
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+Teste seus conhecimentos sobre o ciclo de vida, o protocolo `text/event-stream` e as decisões de arquitetura com Server-Sent Events:
+
+### Casos de Uso e Arquitetura
+
+As questões a seguir avaliam o critério de escolha entre SSE e outros protocolos em tempo real:
+
+1. **Por que o Server-Sent Events é frequentemente preferido em relação aos WebSockets para streaming de respostas de IA (LLMs) e feeds de notícias?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque esses cenários demandam apenas transmissão unidirecional (do servidor para o cliente). O SSE opera sobre HTTP puro, é mais simples de implementar no servidor, atravessa firewalls e proxies corporativos sem necessidade de configurações especiais e oferece reconexão automática nativa no navegador.
+   </details>
+
+2. **Como a limitação de conexões HTTP/1.1 afeta o uso de SSE em múltiplas abas do mesmo navegador?**
+   <details>
+     <summary>Possível resposta</summary>
+     No HTTP/1.1, os navegadores limitam o total de conexões simultâneas a 6 por domínio. Como cada canal SSE consome uma conexão aberta contínua, abrir várias abas pode esgotar o limite rapidamente. O uso de **HTTP/2** resolve esse problema ao multiplexar múltiplos streams em uma única conexão TCP.
+   </details>
+
+### Protocolo e Reconexão
+
+As questões a seguir avaliam o formato das mensagens e a resiliência da conexão:
+
+1. **Qual é o papel do cabeçalho `Last-Event-ID` no protocolo Server-Sent Events?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o servidor envia eventos com o campo `id: <valor>`, o navegador armazena o último ID recebido. Se a conexão for perdida e restabelecida, o navegador envia automaticamente o cabeçalho HTTP `Last-Event-ID: <valor>` na nova requisição, permitindo ao servidor reenviar apenas as mensagens perdidas durante a desconexão.
+   </details>
+
+2. **Qual a diferença no JavaScript ao receber uma mensagem sem o campo `event` e outra com `event: notificacao`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Mensagens sem o campo `event` disparam o ouvinte genérico `message` (ou `onmessage`). Mensagens com um tipo nomeado disparam exclusivamente os ouvintes registrados via `addEventListener('notificacao', callback)`.
+   </details>
+
+---
+
+## Referências
+
+- [Server-sent events | MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+- [Using server-sent events | MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)
+- [EventSource | MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)
+- [HTML Standard — Server-Sent Events | WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)
+
+---
+
+## Próximo tópico
+
+[CORS e Segurança](../cors/): Compreendendo a *Same-Origin Policy*, requisições de *preflight* e como servidores autorizam origens cruzadas.
