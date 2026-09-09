@@ -1,0 +1,369 @@
+---
+title: "Web APIs: WebAssembly"
+description: "Execução de código compilado no navegador com WebAssembly: formato binário, instanciação por JavaScript, memória linear, comparação de desempenho e casos em que ele não se justifica."
+course: web-api
+sidebar:
+  label: "WebAssembly (Código Compilado)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+O **WebAssembly** (abreviado como **Wasm**) é um formato binário que o navegador executa ao lado do
+JavaScript. Ele não substitui a linguagem da web: ele acrescenta um caminho para rodar código escrito
+em C, C++, Rust, Go ou Zig dentro da mesma página, com desempenho próximo ao nativo.
+
+## Objetivo
+
+Compreender o WebAssembly como um segundo formato executável do navegador, complementar ao
+JavaScript, e reconhecer os poucos problemas em que ele realmente compensa. Ao final do tópico, o
+leitor deve ser capaz de:
+
+- Explicar por que existe um formato binário além do JavaScript e o que ele resolve.
+- Relacionar o formato de texto (`.wat`) ao binário (`.wasm`) que o navegador carrega.
+- Carregar e instanciar um módulo com `WebAssembly.instantiateStreaming()`.
+- Chamar funções exportadas pelo módulo a partir do JavaScript e medir a diferença de tempo.
+- Descrever a memória linear e por que strings e objetos não atravessam a fronteira sozinhos.
+- Decidir, diante de um problema concreto, se WebAssembly é a ferramenta adequada.
+
+## Por que existe um formato binário?
+
+O JavaScript chega ao navegador como texto. Antes de executar, o motor precisa analisá-lo, montar uma
+representação interna e compilá-lo em etapas, otimizando com base no que observa durante a execução.
+Esse processo é rápido o bastante para quase tudo, e é justamente o que torna a linguagem flexível.
+
+Para uma classe estreita de problemas, porém, ele é o gargalo. Um decodificador de vídeo, um motor de
+física ou um filtro de imagem executam o mesmo laço milhões de vezes, sobre números, sem nada de
+dinâmico para observar. Aí um formato já compilado, com tipos fixos, sai na frente.
+
+É esse o espaço do WebAssembly. A tabela contrasta os dois formatos pelo que cada um entrega:
+
+| Aspecto | JavaScript | WebAssembly |
+| --- | --- | --- |
+| Formato entregue | Texto, analisado a cada carregamento | Binário, validado em uma passagem |
+| Tipagem | Dinâmica, resolvida em execução | Estática, definida no módulo |
+| Desempenho | Alto, mas dependente de otimização em execução | Previsível, próximo ao nativo |
+| Acesso ao DOM | Direto | Nenhum; só através do JavaScript |
+| Origem do código | Escrito à mão | Compilado de C, C++, Rust, Go, Zig |
+| Depuração no navegador | Código-fonte legível | Mapas de código e formato de texto |
+
+A quarta linha é a que define o papel de cada um na página. O WebAssembly **não alcança o DOM**, não
+lê `localStorage` e não faz `fetch()`. Ele calcula; quem interage com a página continua sendo o
+JavaScript. A divisão de trabalho é a mesma dos [Web Workers](../workers/), com uma diferença: o
+worker separa por *thread*, o WebAssembly separa por formato de execução.
+
+## Do fonte ao módulo carregado
+
+O WebAssembly tem duas representações do mesmo módulo. O `.wasm` é o binário que o navegador baixa e
+executa. O `.wat` é o formato de texto equivalente, feito para leitura e depuração, e é o que se vê ao
+inspecionar um módulo nas ferramentas do desenvolvedor.
+
+O diagrama resume o percurso, do código-fonte até a chamada de função no JavaScript:
+
+<Mermaid title="Percurso de um módulo, do código-fonte à função chamada pelo JavaScript">
+{`
+flowchart TD
+  A["Fonte em C, Rust<br/>ou WAT"] --> B[Compilador]
+  B --> C["Módulo .wasm<br/>(binário)"]
+  C --> D["instantiateStreaming()"]
+  D --> E["instance.exports<br/>funções disponíveis"]
+  E --> F[JavaScript chama<br/>e usa o resultado]
+`}
+</Mermaid>
+
+O exemplo deste tópico dispensa compilador instalado. O módulo tem duas funções e o fonte cabe em
+poucas linhas de WAT. O trecho abaixo é a função `add`, que recebe dois inteiros de 32 bits e devolve
+a soma:
+
+<SourceCode path="examples/courses/web-api/webassembly/math.wat" lines="7-11" lang="wasm" title="math.wat" />
+
+A notação empilha valores: as duas primeiras instruções colocam os parâmetros na pilha, e `i32.add`
+os consome e deixa o resultado no lugar. O tipo aparece no nome da instrução porque, ao contrário do
+JavaScript, não existe número genérico: `i32`, `i64`, `f32` e `f64` são operações diferentes.
+
+A segunda função calcula Fibonacci por iteração, e é ela que o exemplo usa para comparar tempos:
+
+<SourceCode path="examples/courses/web-api/webassembly/math.wat" lines="13-42" lang="wasm" title="math.wat" />
+
+O bloco `loop` da linha 24 repete enquanto o `br_if` da linha 28 não desviar para fora do `block`. É o mesmo `for`
+que qualquer linguagem escreveria, expresso em instruções de baixo nível.
+
+## Carregando o módulo pelo JavaScript
+
+Um módulo `.wasm` não roda sozinho. Ele precisa ser baixado, validado e instanciado, e é o JavaScript
+que faz as três coisas. A forma recomendada é `WebAssembly.instantiateStreaming()`, que compila o
+binário enquanto ele ainda está sendo transferido.
+
+O trecho abaixo é o carregamento completo do exemplo, com as funções exportadas chegando em
+`instance.exports`:
+
+<SourceCode path="examples/courses/web-api/webassembly/index.html" region="instantiate" lang="js" title="index.html" />
+
+Duas condições precisam estar satisfeitas para que isso funcione. O arquivo tem de ser servido por
+HTTP, porque `fetch()` não abre `file://`, e o servidor precisa enviá-lo com o cabeçalho
+`Content-Type: application/wasm`, que é o que a forma *streaming* exige.
+
+<Aside type="caution" title="O erro mais comum na primeira execução">
+Abrir o `index.html` com duplo clique produz `TypeError: Failed to fetch`, porque o protocolo é
+`file://`. Servir a pasta por HTTP resolve. Se o servidor não conhecer a extensão `.wasm`, o erro
+muda para `Incorrect response MIME type`, e a saída é usar `WebAssembly.instantiate()` com
+`arrayBuffer()` em vez da forma *streaming*.
+</Aside>
+
+Com a instância pronta, a chamada é indistinguível de uma função JavaScript comum. O exemplo executa
+as duas implementações do mesmo algoritmo e cronometra cada uma:
+
+<SourceCode path="examples/courses/web-api/webassembly/index.html" region="compare" lang="js" title="index.html" />
+
+A função `measure()` repete a chamada muitas vezes de propósito. Uma única execução de `fib(30)` é
+rápida demais para ser medida com confiança, e a diferença entre os dois formatos só aparece no
+acumulado.
+
+## O exemplo em execução
+
+O projeto tem quatro arquivos, e nenhum deles depende de instalação:
+
+<FileTree>
+{`
+webassembly/
+├── math.wat          # fonte legível do módulo
+├── math.wasm         # binário de 109 bytes carregado pela página
+├── build-wasm.mjs    # gera o binário e confere o resultado
+├── index.html        # instancia o módulo e compara os tempos
+└── README.md
+`}
+</FileTree>
+
+A página abaixo carrega o módulo real e permite variar `n` e o número de repetições:
+
+<HtmlPreview path="examples/courses/web-api/webassembly/index.html" height="28rem" label="index.html" allowScripts serveFromPublic />
+
+Ao comparar os tempos, espere números próximos para valores pequenos de `n`. O motor JavaScript é
+muito bom nesse tipo de laço numérico, e a vantagem do WebAssembly só se destaca quando o trabalho
+cresce ou quando o algoritmo é grande demais para ser otimizado em execução.
+
+## A fronteira entre os dois mundos
+
+A limitação que mais surpreende quem chega ao WebAssembly é a dos tipos. Um módulo só troca números
+com o JavaScript: `i32`, `i64`, `f32` e `f64`. Não existe string, não existe objeto e não existe
+array na assinatura de uma função exportada.
+
+O que existe é a **memória linear**, um bloco contíguo de bytes que os dois lados enxergam. O
+JavaScript o acessa como um `ArrayBuffer`, e é por ali que dados estruturados atravessam.
+
+A tabela mostra como cada tipo de dado faz a travessia:
+
+| Dado | Como atravessa | Quem converte |
+| --- | --- | --- |
+| Número inteiro ou de ponto flutuante | Direto, no argumento da função | Ninguém, o tipo já é comum aos dois lados |
+| String | Bytes gravados na memória linear, mais posição e tamanho | Código de cola gerado pelo compilador |
+| Array numérico | `TypedArray` sobre a memória do módulo | O JavaScript, ao criar a visão |
+| Objeto | Serializado ou representado campo a campo | O programador ou o compilador |
+| Acesso ao DOM | Chamada de volta a uma função JavaScript importada | O JavaScript, sempre |
+
+Na prática, ninguém escreve essa conversão à mão. Ferramentas como `wasm-bindgen`, no Rust, e
+Emscripten, no C e C++, geram o código de cola junto do módulo, e o resultado é importado como um
+módulo ECMAScript comum. Este tópico usa apenas números justamente para deixar a fronteira visível.
+
+## Quando usar, e quando não usar?
+
+WebAssembly é uma ferramenta especializada. Ele acrescenta um artefato binário ao projeto, uma etapa
+de compilação e uma fronteira de tipos a administrar, e esse custo só se paga quando o gargalo é
+mesmo de processamento.
+
+A tabela contrapõe os casos em que ele vence àqueles em que outra solução resolve melhor:
+
+| Situação | Escolha | Por quê |
+| --- | --- | --- |
+| Edição de imagem, áudio ou vídeo no navegador | WebAssembly | Laços numéricos pesados, sem acesso ao DOM |
+| Reaproveitar uma biblioteca existente em C ou Rust | WebAssembly | Evita reescrever e revalidar algoritmo consolidado |
+| Motor de física, simulação ou jogo | WebAssembly | Desempenho previsível a cada quadro |
+| Interface lenta por excesso de alterações no DOM | Revisar a renderização | O módulo não alcança o DOM; o gargalo continua onde está |
+| Cálculo pesado que trava a tela | [Web Worker](../workers/) primeiro | O problema é bloquear a *thread*, não a velocidade do cálculo |
+| Regra de negócio comum de formulário | JavaScript | O ganho é imperceptível e o custo de manutenção é real |
+| Esconder o código-fonte da aplicação | Nada disso | O binário é baixado e pode ser lido; não é proteção |
+
+As duas linhas do meio concentram o engano mais frequente. Quando a página trava, a pergunta certa é
+se ela trava por **cálculo** ou por **renderização**: no primeiro caso, um worker já devolve a
+fluidez; no segundo, nem o worker nem o WebAssembly ajudam.
+
+<Aside type="tip" title="Diagnóstico antes da decisão">
+Meça antes de adotar. A aba *Performance* das ferramentas do desenvolvedor mostra se o tempo está
+sendo gasto em execução de script, em *layout* ou em pintura. WebAssembly só endereça o primeiro
+caso, e apenas quando o script é dominado por operações numéricas.
+</Aside>
+
+## Executando
+
+Siga os passos para rodar o exemplo localmente e observar a diferença entre as duas implementações:
+
+<Steps>
+1. Entre na pasta do exemplo, em `examples/courses/web-api/webassembly/`.
+
+2. Regere o binário e confira a validação:
+
+   ```bash title="Terminal"
+   node build-wasm.mjs math.wasm
+   ```
+
+   ```txt title="Output" frame="terminal"
+   bytes: 109 valid: true
+   add(2,3) = 5
+   fib confere de 0 a 30: true | fib(30) = 832040
+   ```
+
+3. Sirva a pasta por HTTP, porque `file://` não funciona com `instantiateStreaming()`:
+
+   ```bash title="Terminal"
+   npx serve .
+   ```
+
+4. Abra o endereço informado, clique em **Comparar** e anote os dois tempos.
+
+5. Aumente o número de repetições para 2000000 e compare de novo. Observe que a diferença entre os
+   dois formatos cresce junto com o volume de trabalho.
+</Steps>
+
+## Exercício
+
+Os itens abaixo partem do exemplo já em execução e exercitam a fronteira entre os dois formatos:
+
+1. Chame `instance.exports.add(7, 5)` no console e confirme o resultado.
+2. Passe `add(1.5, 2.5)` e explique o valor devolvido, lembrando que os parâmetros são `i32`.
+3. Meça `fib(40)` com 1000 repetições e compare os tempos das duas implementações.
+4. Force o erro de protocolo abrindo o `index.html` por duplo clique e leia a mensagem no console.
+5. Substitua `instantiateStreaming()` por `instantiate()` com `arrayBuffer()` e verifique que a
+   página volta a funcionar.
+
+A resposta abaixo trata os dois itens que costumam gerar dúvida, o segundo e o quinto:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em `add(1.5, 2.5)`, o JavaScript converte cada argumento para `i32` truncando a parte decimal, de
+  modo que a chamada equivale a `add(1, 2)` e devolve `3`.
+
+  A forma sem *streaming* baixa o binário por completo antes de compilar:
+
+  ```js title="Alternativa sem streaming"
+  const response = await fetch('./math.wasm');
+  const bytes = await response.arrayBuffer();
+  const { instance } = await WebAssembly.instantiate(bytes);
+  ```
+
+  Ela é mais lenta, porque não aproveita o download em andamento, mas não depende do cabeçalho
+  `Content-Type: application/wasm`.
+</details>
+
+## Desafio
+
+Acrescente ao módulo uma terceira função e leve-a até a interface, exercitando o ciclo completo de
+alteração do binário.
+
+O desafio é escrever `mul(a, b)`, exportá-la e usá-la na página para exibir o produto de dois campos
+numéricos. A resposta indica o caminho, sem entregar o código pronto:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No `build-wasm.mjs`, a função de multiplicação reaproveita o mesmo tipo de `add`, trocando apenas a
+  instrução final: `0x6c` (`i32.mul`) no lugar de `0x6a` (`i32.add`). É preciso acrescentar a nova
+  entrada em `funcs`, em `exports_` e em `code`, mantendo a mesma ordem nos três vetores, porque o
+  índice da função é o que liga as três seções.
+
+  Com o wabt instalado, o caminho mais curto é declarar `$mul` no `math.wat` e recompilar com
+  `wat2wasm math.wat -o math.wasm`, sem tocar no script.
+</details>
+
+## Perguntas de revisão
+
+### Formato e carregamento
+
+1. **Por que o WebAssembly não substitui o JavaScript?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele não acessa o DOM nem as demais Web APIs. Ele calcula, e o JavaScript continua sendo
+  quem interage com a página.
+</details>
+
+2. **Qual a relação entre `.wat` e `.wasm`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  São duas representações do mesmo módulo: o `.wat` é o formato de texto, feito para leitura e
+  depuração, e o `.wasm` é o binário que o navegador carrega.
+</details>
+
+3. **Por que `instantiateStreaming()` é preferível a `instantiate()` com `arrayBuffer()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele compila o módulo enquanto o download acontece, em vez de esperar o arquivo inteiro
+  chegar.
+</details>
+
+4. **Por que abrir o exemplo por `file://` produz um erro?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o carregamento usa `fetch()`, que não opera sobre o protocolo `file://`. O arquivo precisa
+  ser servido por HTTP.
+</details>
+
+### Fronteira e decisão
+
+5. **Quais tipos podem aparecer diretamente na assinatura de uma função exportada?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Apenas números: `i32`, `i64`, `f32` e `f64`. String, objeto e array precisam atravessar pela
+  memória linear.
+</details>
+
+6. **O que é a memória linear de um módulo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um bloco contíguo de bytes compartilhado entre o módulo e o JavaScript, acessível do lado da página
+  como um `ArrayBuffer`.
+</details>
+
+7. **Por que WebAssembly não resolve uma página lenta por excesso de alterações no DOM?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o módulo não alcança o DOM. O tempo continua sendo gasto em *layout* e pintura, que nenhum
+  dos dois formatos acelera.
+</details>
+
+8. **Por que compilar para WebAssembly não protege o código-fonte?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o binário é baixado pelo navegador e pode ser inspecionado, inclusive convertido de volta
+  para o formato de texto.
+</details>
+
+## Referências
+
+- [WebAssembly | MDN](https://developer.mozilla.org/pt-BR/docs/WebAssembly)
+- [WebAssembly.instantiateStreaming() | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/instantiateStreaming)
+- [Understanding WebAssembly text format | MDN](https://developer.mozilla.org/en-US/docs/WebAssembly/Guides/Understanding_the_text_format)
+- [WebAssembly Specification | W3C](https://webassembly.github.io/spec/core/)
+- [wabt: The WebAssembly Binary Toolkit | GitHub](https://github.com/WebAssembly/wabt)
+
+## Próximo tópico
+
+[MonitorApp (DOM e Storage)](../../practice/monitor-app/): aplique manipulação do DOM e persistência
+em um projeto guiado.

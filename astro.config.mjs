@@ -847,6 +847,10 @@ export default defineConfig({
                   label: 'Web Workers API (Multi-threading)',
                   link: '/courses/web-api/browser/workers/',
                 },
+                {
+                  label: 'WebAssembly (Código Compilado)',
+                  link: '/courses/web-api/browser/webassembly/',
+                },
               ],
             },
             {

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebAssembly: JavaScript e .wasm lado a lado</title>
+    <style>
+      /* Só estrutura: as cores ficam por conta do tema do navegador, para que o
+         exemplo funcione igual em claro e em escuro. */
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 1.5rem;
+      }
+
+      h1 {
+        font-size: 1.1rem;
+        margin: 0 0 0.75rem;
+      }
+
+      p {
+        margin: 0 0 1rem;
+        font-size: 0.9rem;
+      }
+
+      .row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      input {
+        width: 6rem;
+        padding: 0.35rem 0.5rem;
+      }
+
+      button {
+        padding: 0.4rem 0.9rem;
+        cursor: pointer;
+      }
+
+      table {
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        width: 100%;
+        max-width: 30rem;
+      }
+
+      th,
+      td {
+        border: 1px solid currentColor;
+        padding: 0.4rem 0.6rem;
+        text-align: left;
+      }
+
+      #status {
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fibonacci em JavaScript e em WebAssembly</h1>
+
+    <p>
+      As duas implementações usam o mesmo algoritmo iterativo. A da direita vem do módulo
+      <code>math.wasm</code>, carregado e instanciado pela página.
+    </p>
+
+    <div class="row">
+      <label for="n">n</label>
+      <input id="n" type="number" value="30" min="0" max="46" />
+      <label for="reps">repetições</label>
+      <input id="reps" type="number" value="200000" min="1" />
+      <button id="run" type="button" disabled>Comparar</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Implementação</th>
+          <th>Resultado</th>
+          <th>Tempo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>JavaScript</td>
+          <td id="js-result">—</td>
+          <td id="js-time">—</td>
+        </tr>
+        <tr>
+          <td>WebAssembly</td>
+          <td id="wasm-result">—</td>
+          <td id="wasm-time">—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p id="status">Carregando math.wasm…</p>
+
+    <script type="module">
+      // #region instantiate
+      // instantiateStreaming lê o binário enquanto ele ainda está sendo baixado.
+      // O servidor precisa enviar o arquivo com Content-Type: application/wasm.
+      const { instance } = await WebAssembly.instantiateStreaming(fetch('./math.wasm'));
+
+      // As funções exportadas ficam em instance.exports, com os nomes do módulo.
+      const { fib: fibWasm } = instance.exports;
+      // #endregion instantiate
+
+      // #region compare
+      function fibJs(n) {
+        let a = 0;
+        let b = 1;
+        for (let i = 0; i < n; i += 1) {
+          const next = a + b;
+          a = b;
+          b = next;
+        }
+        return a;
+      }
+
+      function measure(fn, n, reps) {
+        const start = performance.now();
+        let result = 0;
+        for (let i = 0; i < reps; i += 1) result = fn(n);
+        return { result, elapsed: performance.now() - start };
+      }
+      // #endregion compare
+
+      const status = document.querySelector('#status');
+      const runButton = document.querySelector('#run');
+
+      runButton.addEventListener('click', () => {
+        const n = Number(document.querySelector('#n').value);
+        const reps = Number(document.querySelector('#reps').value);
+
+        const js = measure(fibJs, n, reps);
+        const wasm = measure(fibWasm, n, reps);
+
+        document.querySelector('#js-result').textContent = js.result;
+        document.querySelector('#js-time').textContent = `${js.elapsed.toFixed(1)} ms`;
+        document.querySelector('#wasm-result').textContent = wasm.result;
+        document.querySelector('#wasm-time').textContent = `${wasm.elapsed.toFixed(1)} ms`;
+
+        status.textContent =
+          js.result === wasm.result
+            ? 'As duas implementações devolveram o mesmo valor.'
+            : 'Os resultados divergiram, verifique o módulo.';
+      });
+
+      runButton.disabled = false;
+      status.textContent = 'math.wasm instanciado. Clique em Comparar.';
+    </script>
+  </body>
+</html>
