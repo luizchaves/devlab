@@ -74,6 +74,7 @@
   - [x] `[TASK-031.1]` Criar `dom/forms.mdx` (Constraint Validation, `FormData`, `validity`, `setCustomValidity`, `:user-invalid`) com exemplo em `examples/courses/web-api/forms/` — o guia não tinha **nenhuma** cobertura de formulários
   - [x] `[TASK-031.2]` Criar `dom/scroll.mdx` (`scrollIntoView`, `scrollY`/`scrollHeight`, `scroll-behavior`, `scroll-margin-top`, `scroll-snap`, `prefers-reduced-motion`) com exemplo em `examples/courses/web-api/scroll/`
   - [x] `[TASK-031.3]` Reescrever o mapa da página de entrada em seis tabelas agrupadas, cobrindo as **33 páginas** do guia, sem nenhuma linha apontando para a própria página
+  - [x] `[TASK-031.4]` Desfazer a ambiguidade entre **Web API do navegador** e **API web servida por HTTP**: a trilha "Comunicação de Rede" da sidebar misturava `fetch`/`WebSocket` (interfaces) com REST, GraphQL, CORS e clientes HTTP (convenções, política e ferramentas). Dividida em "Rede: APIs do Navegador" e "Rede: O Que Roda no Servidor", com a seção `## Duas coisas diferentes chamadas de API` na visão geral e um parágrafo de desambiguação na abertura de `rest`, `graphql`, `clients` e `cors`
 
 ### Concluídos (Conteúdo)
 

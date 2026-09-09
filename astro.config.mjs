@@ -871,19 +871,30 @@ export default defineConfig({
               ],
             },
             {
-              label: 'Comunicação de Rede',
+              label: 'Rede: APIs do Navegador',
               items: [
-                { label: 'Server-Side Rendering (SSR)', link: '/courses/web-api/browser/ssr/' },
-                { label: 'WebSockets API (Tempo Real)', link: '/courses/web-api/http/websockets/' },
                 { label: 'Fetch API', link: '/courses/web-api/http/fetch/' },
                 {
                   label: 'Fetch API (Exemplo)',
                   link: '/courses/web-api/browser/modern-apis/fetch/',
                 },
+                { label: 'WebSockets API (Tempo Real)', link: '/courses/web-api/http/websockets/' },
                 { label: 'CORS e Segurança', link: '/courses/web-api/http/cors/' },
-                { label: 'Clientes HTTP', link: '/courses/web-api/http/clients/' },
-                { label: 'REST API', link: '/courses/web-api/http/rest/' },
-                { label: 'GraphQL', link: '/courses/web-api/http/graphql/' },
+              ],
+            },
+            {
+              label: 'Rede: O Que Roda no Servidor',
+              items: [
+                { label: 'REST API (Arquitetura)', link: '/courses/web-api/http/rest/' },
+                {
+                  label: 'GraphQL (Linguagem de Consulta)',
+                  link: '/courses/web-api/http/graphql/',
+                },
+                { label: 'Clientes HTTP (Ferramentas)', link: '/courses/web-api/http/clients/' },
+                {
+                  label: 'Server-Side Rendering (SSR)',
+                  link: '/courses/web-api/browser/ssr/',
+                },
               ],
             },
             {
