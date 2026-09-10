@@ -26,11 +26,14 @@ markmap:
 - **Inspeção no DevTools**: Aba Elements > Event Listeners (com/sem *Ancestors*) e `getEventListeners($0)`
 
 ## Principais Eventos do Navegador
-- **Mouse**: `click`, `dblclick`, `contextmenu`
-- **Teclado**: `keydown`, `keyup` (`event.key`)
-- **Formulário**: `submit`, `change`, `input`
-- **Foco**: `focusin`, `focusout` (com borbulhamento)
-- **Documento**: `DOMContentLoaded` (DOM montado e pronto)
+- **Interação Direta (Triviais)**: `click`, `keydown`, `input`, `submit` (gestos físicos na UI)
+- **Estado e Ciclo de Vida (Não Triviais)**: `load`, `DOMContentLoaded`, `visibilitychange`, `online` (transições de runtime/rede)
+- **Mouse e Pointer**: `click`, `dblclick`, `contextmenu`, `pointerdown`, `pointerup`
+- **Teclado e Entrada**: `keydown`, `keyup`, `input`, `beforeinput`
+- **Formulário e Validação**: `submit`, `change`, `invalid`, `formdata`
+- **Foco e Seleção**: `focus`, `blur`, `focusin`, `focusout`
+- **Documento e Janela**: `DOMContentLoaded`, `load`, `beforeunload`, `resize`, `scroll`, `visibilitychange`
+- **Catálogo Completo em `EventTarget`**: Drag & Drop, Clipboard, Touch, Mídia, Animações CSS, UI/Dialog e Comunicação (WebSocket/SSE)
 
 ## Ciclo de Propagação (*Event Flow*)
 - **1. Fase de Captura (*Trickling*)**: Desce da raiz (`window` -> `document` -> `html` -> `body`) até o pai do alvo

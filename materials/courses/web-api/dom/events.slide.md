@@ -160,6 +160,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ---
 
+## Eventos de Interação vs. Eventos de Estado
+
+Nem todo evento decorre de um clique ou gesto físico direto:
+
+- **Interação direta (triviais)**: `click`, `keydown`, `input`, `submit`.
+  - Disparados em resposta a ações conscientes do usuário no elemento.
+- **Estado e ciclo de vida (não triviais)**: `load`, `DOMContentLoaded`, `visibilitychange`, `online`.
+  - Disparados por transições de fase do runtime, rede ou do próprio navegador.
+- **Unificação**: todos operam sob o mesmo contrato da interface `EventTarget`.
+
+---
+
 ## O Ciclo de Propagação de Eventos (*Event Flow*)
 
 Quando ocorre uma interação em um nó aninhado, o evento viaja pela árvore DOM em três fases:
