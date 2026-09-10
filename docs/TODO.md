@@ -42,7 +42,7 @@
   - [x] `[TASK-023.2]` Criar a trilha `task-api-*` em doze etapas cumulativas, só API, absorvendo `hello`, `router`, `mvc`, `typescript`, `prisma` e `auth` — **as doze publicadas**, cada uma executada e exercitada por HTTP; a 12 traz 21 testes
   - [x] `[TASK-023.3]` Converter os blocos escritos à mão das páginas de conceito em `<SourceCode>` — de 172 para **6** (todos comparações `del`/`ins`), e de ~38 para **114 recortes reais**; só `api/construction` segue sem projeto, por ser página de projeto de API
   - [x] `[TASK-023.4]` Redirecionar as seis páginas de projeto antigas e remover os quatro diretórios órfãos (`hello-simple`, `hello-lang`, `invest-app-prismajs-simple` e `prisma`)
-  - [x] `[TASK-023.5]` Construir e rodar a imagem da etapa 12 — o build revelou **cinco defeitos** que a leitura não pegava (`prisma generate` sem schema, pnpm não pinada, `EACCES` em `uploads/` e no volume, `prisma.config.ts` ausente no runtime, `loadEnvFile` sem `.env`); corrigidos e verificados: `docker compose up` sobe *healthy*, aplica migrations, e os dados sobrevivem ao restart
+  - [x] `[TASK-023.5]` Construir e rodar a imagem da etapa 12 — o build revelou **cinco defeitos** que a leitura não pegava (`prisma generate` sem schema, pnpm não pinada, `EACCES` em `uploads/` e no volume, `prisma.config.ts` ausente no runtime, `loadEnvFile` sem `.env`); corrigidos e verificados: `docker compose up` sobe _healthy_, aplica migrations, e os dados sobrevivem ao restart
 - [ ] **[TASK-024] Inclusão e Integração de Exercícios e BrainCheck:**
   - [ ] `[TASK-024.1]` Avaliar a inclusão do acervo de exercícios do `ifpb/exercises` no DevLab (migração/incorporação dos problemas práticos ou estruturação via `exercises/*.exercise.md` vinculados às aulas)
   - [ ] `[TASK-024.2]` Avaliar a inclusão/integração do BrainCheck (`brain-check-questions` / quizzes interativos) no DevLab (seção de quizzes embutida ou estruturação via `exercises/*.braincheck.md`)
@@ -78,6 +78,32 @@
   - [x] `[TASK-031.5]` Normalizar páginas de Web APIs: mesclar páginas de exemplo redundantes (`fetch.mdx` e `web-storage.mdx`) em suas páginas canônicas (`http/fetch.mdx` e `storage/local-storage.mdx`), criar página de segurança client-side (`security/client-side.mdx` cobrindo OWASP, XSS, CSRF, CSP e sanitização), reestruturar trilha de segurança (CORS e OWASP) e rede (mover SSR para rede, adicionar SSE), e sincronizar sidebar, links e badges do índice
   - [x] `[TASK-031.6]` Reorganizar a seção `browser/modern-apis/` em diretórios temáticos (`ui/`, `media/`, `input/`, `device/` e `browser/catalog.mdx`), criar página de referência exaustiva `reference/other-apis.mdx` (WebGL, WebGPU, IndexedDB, Service Workers, Web Audio, WebRTC, WebAuthn, hardware e sensores), atualizar diagrama SVG interativo e configurar 10 redirecionamentos retrocompatíveis em `astro.config.mjs`
   - [x] `[TASK-031.7]` Expandir a trilha de Desenho e Mídia do Guia de Web APIs com páginas dedicadas, projetos executáveis, slides e mapas mentais para `media/media-devices.mdx` (câmera e áudio), `media/streaming.mdx` (WebRTC e MSE) e `media/webgl-webgpu.mdx` (gráficos 3D e computação); atualizar catálogo, diagrama SVG interativo e páginas de referência (`cheat-sheet.mdx` e `other-apis.mdx`)
+- [ ] **[TASK-032] Guia de Express.js — ajustes gerais:**
+  - [ ] `[TASK-032.1]` Ajustar as imagens ruins de ver do guia (baixa resolução, contraste ou legibilidade)
+  - [ ] `[TASK-032.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
+- [ ] **[TASK-033] TaskAPI — ajustes e páginas pendentes:**
+  - [ ] `[TASK-033.1]` Ajustar as imagens ruins de ver na trilha `task-api-*`
+  - [ ] `[TASK-033.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
+  - [ ] `[TASK-033.3]` Escrever a página de Especificação da API (contrato OpenAPI consolidado da TaskAPI)
+  - [ ] `[TASK-033.4]` Escrever a página de Próximos Passos da TaskAPI (débitos técnicos, features e desafios, no molde da `[TASK-017.1]`)
+  - [ ] `[TASK-033.5]` Validar cookies com Zod na etapa de autenticação
+- [ ] **[TASK-034] Novas validações de segurança:**
+  - [ ] `[TASK-034.1]` Validar o JWT (assinatura, expiração e claims) na etapa de autenticação da TaskAPI
+  - [ ] `[TASK-034.2]` Adicionar a validação de dados do front-end como uma etapa própria da trilha do InvestApp
+- [ ] **[TASK-035]** Escrever a spec do curso de LP2 para as avaliações 3.x e 4.x
+- [ ] **[TASK-036] Guia de Web APIs — melhorias adicionais:**
+  - [ ] `[TASK-036.1]` Criar prompt para gerar análise de gargalo, performance e melhorias de um sistema de software, aplicável às avaliações da disciplina e à etapa final das páginas de projeto (ex: InvestApp)
+  - [ ] `[TASK-036.2]` Refazer os projetos práticos do guia (ver também `[TASK-030]`)
+  - [ ] `[TASK-036.3]` Refazer os slides do guia
+- [x] **[TASK-037] Guia de NPM — pacotes adicionais:**
+  - [x] `[TASK-037.1]` Mapear e cobrir outros pacotes relevantes do ecossistema npm (`dev-dependencies`, `zod`, `d3`, `echarts`, `leaflet` e `reference/package-map`)
+  - [x] `[TASK-037.2]` Revisar e expandir a página de BaaS — absorvida pela `[TASK-038]`: expandir BaaS dentro do guia npm piorava o recorte do guia, então o assunto virou guia próprio
+- [x] **[TASK-038] Extração do BaaS para o Guia de Computação em Nuvem:** (ver [spec](../specs/executed/spec-009-cloud-guide-extraction.md))
+  - [x] `[TASK-038.1]` Criar o guia `cloud` (`Guia de Computação em Nuvem`) e mover as **7 páginas** de `npm/baas/` e os **3 projetos** de `examples/courses/npm/baas/`, com **19 redirecionamentos** (7 de `/courses/npm/baas/*`, 7 repontados de `/courses/packages/baas/*` e 5 de `/courses/pw2-csbes-jp/package/*`)
+  - [x] `[TASK-038.2]` Fechar o lado do npm: cartão, badges, `description`, diagrama, tabela de decisão e roteiro do `index.mdx`, mais `reference/package-map`, `ui/leaflet` e `pw2-csbes-jp/topics/packages` — **zero** ocorrências de `npm/baas` em `src/`
+  - [x] `[TASK-038.3]` Normalizar as 7 páginas migradas: `## Objetivo` bipartido de **0 para 7**, `## Quando usar, e quando não usar?` de **0 para 7**, `## Desafio` de **0 para 7** e um aside `Dica de IA:` nas 5 páginas que escrevem código; `<SourceCode>` de **13 para 20** recortes, com `storage.js` das duas trilhas deixando de ser bloco escrito à mão
+  - [x] `[TASK-038.4]` Escrever as **5 páginas novas**: `foundations/cloud-computing`, `foundations/baas`, `hosting/static-hosting` e `hosting/serverless-functions` (com projetos executáveis em `examples/courses/cloud/`) e `reference/platform-map`
+  - [x] `[TASK-038.5]` Revisar com a `devlab-content-reviewer`: 4 títulos interrogativos sem `?` reescritos, 11 parágrafos de entrada ausentes, 2 subseções solitárias e 1 anglicismo (`deletar`); `check-code-blocks` com 21 blocos e 0 erro, e `pnpm validate` limpo
 
 ### Concluídos (Conteúdo)
 
