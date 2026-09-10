@@ -45,7 +45,7 @@ markmap:
 
 ## Objeto Console
 - **Ideia**: O objeto `console` fornece acesso ao console de depuração do navegador
-- **Detalhe**: Além do conhecido `console
+- **Detalhe**: Métodos como `console.log()`, `console.warn()`, `console.error()`, `console.dir()`, `console.table()` e `console.time()` auxiliam no diagnóstico e inspeção de estruturas
 
 ## Executando
 - **Ideia**: Siga os passos para inspecionar os objetos do BOM diretamente nas ferramentas do desenvolvedor: Abra qualquer página web no navegador Google Chrome ou Firefox

@@ -43,7 +43,7 @@ O Browser Object Model (BOM) · Objeto Window · Objeto Location · Objeto Histo
 - Ler e alterar a URL corrente pelas propriedades de `location`.
 - Consultar o histórico da sessão com `history` sem provocar recarregamento.
 - Obter informações do ambiente de execução por `navigator`, sabendo o que nele é confiável.
-- Investigar código com os métodos de `console` além do `log()`, como `table()`, `time()` e `error()`.
+- Investigar código com os métodos de `console` além do `log()`, como `dir()`, `table()`, `time()` e `error()`.
 
 ---
 
@@ -230,6 +230,7 @@ O objeto `console` fornece acesso ao console de depuração do navegador.
 
 - `console.log()` registra mensagens gerais.
 - `console.warn()` e `console.error()` separam severidade.
+- `console.dir()` inspeciona propriedades e protótipos em formato de árvore de objetos.
 - `console.table()` organiza arrays e objetos.
 - `console.time()` e `console.timeEnd()` medem duração.
 
