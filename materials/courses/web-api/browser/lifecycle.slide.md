@@ -33,7 +33,7 @@ description: "Slides completos do tópico Web APIs: Ciclo de Vida da Página."
 
 # Web APIs: Ciclo de Vida da Página
 
-O Caminho do HTML até a Página Interativa · Formas de Integrar JavaScript ao HTML · Modos de Execução: Síncrono, `defer`, `async` e Módulos · `DOMContentLoaded` vs `load`
+O Caminho do HTML até a Página Interativa · Formas de Integrar JavaScript ao HTML · Tempo de Execução e Eventos da Página
 
 ---
 
@@ -52,10 +52,9 @@ O Caminho do HTML até a Página Interativa · Formas de Integrar JavaScript ao 
 
 - **O Caminho do HTML até a Página Interativa**.
 - **Formas de Integrar JavaScript ao HTML**.
-- **Modos de Execução: Síncrono, `defer`, `async` e Módulos**.
-- **`DOMContentLoaded` vs `load`**.
-- **`document.readyState`**.
-- **Página Visível, Oculta ou Descartada**.
+- **Tempo de Execução e Eventos da Página**.
+- **Quando usar, e quando não usar?**.
+- **Erros Comuns**.
 
 ---
 
@@ -108,18 +107,18 @@ Observe o ponto mínimo que demonstra a regra da seção.
 
 ---
 
-## Modos de Execução: Síncrono, `defer`, `async` e Módulos
+## Tempo de Execução e Eventos da Página
 
-Ao utilizar arquivos JavaScript externos com a tag `<script>`.
+Depois de escolher como o JavaScript entra no HTML, a próxima decisão é quando esse código deve executar.
 
-- **`<script>`**: Evitar em páginas modernas.
-- **`<script>`**: Padrão seguro para scripts clássicos.
-- **`<script>`**: Scripts independentes, como analytics.
-- **`<script>`**: Padrão moderno para aplicações.
+- **Scripts síncronos**: executam imediatamente e bloqueiam o parser.
+- **`defer` e módulos**: executam com o DOM pronto, preservando a ordem.
+- **`async`**: executa assim que baixar, sem ordem garantida.
+- **Eventos do ciclo de vida**: indicam DOM pronto, recursos carregados, aba oculta ou saída.
 
 ---
 
-## Modos de Execução: Síncrono, `defer`, `async` e Módulos: Exemplo
+## Tempo de Execução e Eventos: Script Moderno
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
@@ -134,7 +133,7 @@ Observe o ponto mínimo que demonstra a regra da seção.
 
 ---
 
-## `DOMContentLoaded` vs `load`
+## Tempo de Execução e Eventos: `DOMContentLoaded` vs `load`
 
 Dois eventos aparecem muito no ciclo de carregamento.
 
@@ -143,7 +142,7 @@ Dois eventos aparecem muito no ciclo de carregamento.
 
 ---
 
-## `DOMContentLoaded` vs `load`: Exemplo
+## Tempo de Execução e Eventos: Exemplo de Eventos
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
@@ -160,7 +159,7 @@ window.addEventListener('load', () => {
 
 ---
 
-## `document.readyState`
+## Tempo de Execução e Eventos: `document.readyState`
 
 A propriedade.
 
@@ -170,7 +169,7 @@ A propriedade.
 
 ---
 
-## Página Visível, Oculta ou Descartada
+## Tempo de Execução e Eventos: Visibilidade da Página
 
 O usuário pode trocar de aba, bloquear o celular, minimizar a janela ou navegar para outra página.
 
@@ -181,7 +180,7 @@ O usuário pode trocar de aba, bloquear o celular, minimizar a janela ou navegar
 
 ---
 
-## Página Visível, Oculta ou Descartada: Exemplo
+## Tempo de Execução e Eventos: Exemplo de Visibilidade
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
@@ -262,6 +261,4 @@ Crie uma função `inicializarQuandoPronto(callback)` que execute o `callback` i
 
 - **O Caminho do HTML até a Página Interativa**: revise o papel desse eixo no uso da API.
 - **Formas de Integrar JavaScript ao HTML**: revise o papel desse eixo no uso da API.
-- **Modos de Execução: Síncrono, `defer`, `async` e Módulos**: revise o papel desse eixo no uso da API.
-- **`DOMContentLoaded` vs `load`**: revise o papel desse eixo no uso da API.
-- **`document.readyState`**: revise o papel desse eixo no uso da API.
+- **Tempo de Execução e Eventos da Página**: revise o papel desse eixo no uso da API.

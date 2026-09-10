@@ -53,33 +53,23 @@ markmap:
 ### 5. Tabela Comparativa de Integração
 - **Ideia**: A tabela resume as opções de integração de código JavaScript no HTML: ---
 
-## Modos de Execução: Síncrono, `defer`, `async` e Módulos
-- **Ideia**: Ao utilizar arquivos JavaScript externos com a tag ``, o navegador oferece três atributos fundamentais para controlar quando o arquivo é baixado e quando ele é executado: Como módulos são adiados por padrão, o botão já existe quando `main
-- **Detalhe**: js` roda: Em projetos com Vite, React, Vue ou módulos ES, use `type="module"`
-
-## `DOMContentLoaded` vs `load`
-- **Ideia**: Dois eventos aparecem muito no ciclo de carregamento: `DOMContentLoaded`: dispara quando o HTML foi lido e o DOM está montado
-- **Detalhe**: `load`: dispara depois que imagens, CSS, iframes e outros recursos externos terminaram de carregar
-- **Ponto**: `DOMContentLoaded`: dispara quando o HTML foi lido e o DOM está montado
-- **Ponto**: `load`: dispara depois que imagens, CSS, iframes e outros recursos externos terminaram de carregar
-
-## `document.readyState`
-- **Ideia**: A propriedade `document
-- **Detalhe**: readyState` informa o estágio atual do documento: Esse padrão é útil para bibliotecas ou arquivos reaproveitáveis que podem ser carregados em momentos diferentes
-
-## Página Visível, Oculta ou Descartada
-- **Ideia**: O usuário pode trocar de aba, bloquear o celular, minimizar a janela ou navegar para outra página
-- **Detalhe**: O navegador expõe alguns eventos para reagir a essas mudanças
-- **Ponto**: pausar animações ou polling;
-- **Ponto**: reduzir chamadas HTTP quando a aba está em segundo plano;
-- **Ponto**: salvar rascunhos antes de uma navegação;
-- **Ponto**: retomar sincronização quando a aba volta a ficar visível
-### `visibilitychange`
-- **Ideia**: O evento `visibilitychange` indica se a página está visível ou oculta: Casos comuns: pausar animações ou polling; reduzir chamadas HTTP quando a aba está em segundo plano; salvar rascunhos antes de uma navegação; retomar sincronização quando a aba volta a ficar visível
-- **Ponto**: pausar animações ou polling;
-- **Ponto**: reduzir chamadas HTTP quando a aba está em segundo plano;
-### `beforeunload`
-- **Ideia**: O evento `beforeunload` pode avisar sobre perda de dados ao fechar ou recarregar a página
+## Tempo de Execução e Eventos da Página
+- **Ideia**: Depois de escolher como o JavaScript entra no HTML, a próxima decisão é quando esse código deve executar
+### Scripts Síncronos, `defer`, `async` e Módulos
+- **Ideia**: A tag `<script src="...">` controla quando o arquivo é baixado e quando ele é executado
+- **Ponto**: `defer` e `type="module"` baixam em paralelo e executam com o DOM pronto
+- **Ponto**: `async` serve para scripts independentes, pois não preserva ordem relativa
+### `DOMContentLoaded` vs `load`
+- **Ideia**: `DOMContentLoaded` dispara quando o DOM está montado; `load` espera imagens, CSS, iframes e outros recursos externos
+- **Ponto**: Inicialize interatividade com `DOMContentLoaded`
+- **Ponto**: Use `load` quando a lógica depende das dimensões finais de recursos externos
+### `document.readyState`
+- **Ideia**: `document.readyState` informa se o documento está em `loading`, `interactive` ou `complete`
+- **Ponto**: Bibliotecas reaproveitáveis podem decidir entre executar agora ou aguardar `DOMContentLoaded`
+### Página Visível, Oculta ou Descartada
+- **Ideia**: A página pode ficar invisível, voltar ao primeiro plano ou ser descartada pelo navegador
+- **Ponto**: `visibilitychange` permite pausar animações, reduzir polling e salvar rascunhos
+- **Ponto**: `beforeunload` deve ser usado com moderação para avisar sobre perda real de trabalho não salvo
 
 ## Quando usar, e quando não usar?
 - **Ideia**: Escolher o momento de execução é uma decisão de uma linha, tomada no atributo da tag ou no nome do evento, e ela define se o script vê o DOM pronto, se ele atrasa a primeira pintura da página e se ele ainda roda quando o usuário troca de aba
