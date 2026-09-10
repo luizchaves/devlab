@@ -33,160 +33,217 @@ description: "Slides completos do tópico Web APIs: Elementos Dinâmicos."
 
 # Web APIs: Elementos Dinâmicos
 
-Criação e Inserção Básica de Nós · Otimização de Performance com `DocumentFragment` · O Elemento `<script>` · Quando usar, e quando não usar?
+Página estática x dinâmica · criação de nós · `DocumentFragment` · `<template>`
 
 ---
 
 ## Objetivo
 
-- Criar e inserir nós com `createElement()`, `append()`, `prepend()` e `insertAdjacentHTML()`.
-- Remover nós com `remove()` e limpar um contêiner sem deixar ouvintes órfãos.
-- Explicar o que é um *reflow* e por que inserir em laço direto no documento o provoca repetidas vezes.
-- Montar um lote de elementos fora da árvore com `DocumentFragment` e inseri-lo de uma vez.
-- Clonar marcação declarada em `<template>` para gerar listas sem concatenar HTML em string.
+- Diferenciar **página estática** de interface dinâmica no cliente.
+- Criar nós com `createElement()` e inseri-los com `appendChild()`.
+- Usar `insertAdjacentHTML()` quando a marcação controlada vem como string.
+- Reduzir *reflows* agrupando inserções com `DocumentFragment`.
+- Clonar estruturas declaradas em `<template>` sem concatenar HTML.
 
 ---
 
 ## Mapa do Tópico
 
-- **Criação e Inserção Básica de Nós**.
-- **Otimização de Performance com `DocumentFragment`**.
-- **O Elemento `<script>`**.
-- **Quando usar, e quando não usar?**.
+- **Modelo mental**: quando o HTML pronto vira interface reativa.
+- **Criação de nós**: elemento em memória, conteúdo e inserção.
+- **Inserção por posição**: `insertAdjacentHTML()` em pontos específicos.
+- **Performance**: lote em memória com `DocumentFragment`.
+- **Reutilização**: `<template>` como molde inerte.
 
 ---
 
-## Motivação
+## Página Estática x Dinâmica
 
-- **Recurso nativo**: use o navegador como parte da arquitetura.
-- **Contrato claro**: identifique entrada, saída, evento, permissão e erro.
-- **Experiência real**: preserve resposta visual, teclado, foco e acessibilidade.
+O ponto de virada é o DOM mudar depois do carregamento inicial.
 
-*Regra de ouro: uma Web API boa reduz código próprio e aumenta previsibilidade.*
-
----
-
-## Criação e Inserção Básica de Nós
-
-Para construir elementos via JavaScript, o navegador oferece a API de criação de nós do objeto `document`.
-
-- **Métodos `createElement` e `appendChild`**: A criação de um nó acontece em duas etapas separadas: primeiro o elemento passa a existir na memória.
-- **Inserção com `insertAdjacentHTML`**: O método `insertAdjacentHTML()` permite inserir uma string de marcação HTML em uma posição específica.
+| Modelo | Mudança na tela | APIs principais |
+| --- | --- | --- |
+| Estática | HTML já contém o conteúdo | DOM para leitura |
+| Dinâmica no cliente | JS altera partes da interface | DOM, eventos, `fetch`, storage |
+| Dinâmica com servidor | servidor entrega dados ou marcação | REST, GraphQL, SSR, CORS |
 
 ---
 
-## Criação e Inserção Básica de Nós: Exemplo
+## Fluxo de uma Interface Dinâmica
 
-Observe o ponto mínimo que demonstra a regra da seção.
+Dados e eventos entram; nós DOM saem como atualização visual.
 
-```js
-const container = document.querySelector('#container');
-
-// Insere a marcação HTML antes do final do container
-container.insertAdjacentHTML('beforeend', '<div class="item">Novo Item</div>');
+```txt title="Fluxo de uma interface dinâmica"
+┌────────────┐   ┌─────────────┐   ┌──────────────┐
+│ evento ou  │──>│ JavaScript  │──>│ novos nós DOM │
+│ dados API  │   │ decide      │   │ entram na UI  │
+└────────────┘   └─────────────┘   └──────────────┘
+                         │
+                         └── estado, validação e segurança
 ```
 
 ---
 
-## Otimização de Performance com `DocumentFragment`
+## Criação de Nós
 
-Quando manipulamos o DOM, cada chamada direta como.
+A criação acontece fora da árvore visível; a inserção torna o nó parte da página.
 
-- appendChild(el).
-- Inserir 100 itens diretamente no DOM em um laço de repetição causará 100 recálculos de layout, desacelerando a aplicação.
-- O `DocumentFragment` é uma versão leve do objeto `Document` que existe apenas em memória.
+```js title="Criação e inserção de um card"
+const card = document.createElement('div');
+card.classList.add('card-produto');
 
----
+const titulo = document.createElement('h3');
+titulo.textContent = 'Notebook Gamer';
 
-## O Elemento `<script>`
-
-A tag `<script>` do HTML5 permite declarar blocos de marcação que permanecem completamente inertes.
-
-- <Aside type="tip" title="Projeto Prático"> Para ver esses conceitos aplicados em uma arquitetura completa de componentes dinâmicos e tabelas.
-- ---.
+card.appendChild(titulo);
+document.querySelector('#lista-produtos').appendChild(card);
+```
 
 ---
 
-## O Elemento `<script>`: Exemplo
+## Inserção por Posição
 
-Observe o ponto mínimo que demonstra a regra da seção.
+`insertAdjacentHTML()` escolhe onde a marcação entra em relação ao elemento alvo.
 
-```html
+```txt title="Posições do insertAdjacentHTML"
+beforebegin
+<div id="container">
+  afterbegin
+  ...conteúdo atual...
+  beforeend
+</div>
+afterend
+```
+
+```js title="Inserção antes do fechamento"
+container.insertAdjacentHTML(
+  'beforeend',
+  '<div class="item">Novo item</div>'
+);
+```
+
+---
+
+## Performance com `DocumentFragment`
+
+Monte o lote em memória e faça uma inserção visível.
+
+```txt title="Lote em memória antes do DOM"
+Memória                         DOM visível
+┌──────────────────────┐        ┌──────────────┐
+│ DocumentFragment     │        │ ul#lista      │
+│ ├─ li Teclado        │──1x───>│ ├─ li Teclado │
+│ ├─ li Mouse          │ append │ ├─ li Mouse   │
+│ └─ li Monitor        │        │ └─ li Monitor │
+└──────────────────────┘        └──────────────┘
+```
+
+*Menos inserções diretas reduzem recálculos de layout.*
+
+---
+
+## `DocumentFragment`: Exemplo
+
+O fragmento recebe todos os itens antes de tocar a árvore principal.
+
+```js title="Inserção em lote com fragmento"
+const produtos = ['Teclado', 'Mouse', 'Monitor'];
+const fragmento = document.createDocumentFragment();
+
+produtos.forEach((nome) => {
+  const item = document.createElement('li');
+  item.textContent = nome;
+  fragmento.appendChild(item);
+});
+
+document.querySelector('#lista').appendChild(fragmento);
+```
+
+---
+
+## `<template>` como Molde
+
+O conteúdo do `<template>` é lido pelo navegador, mas não aparece até ser clonado.
+
+```html title="Molde HTML inerte"
 <template id="card-template">
   <div class="card">
     <h3 class="card-title"></h3>
-    <button class="btn-detalhes">Ver detalhes</button>
+    <button>Ver detalhes</button>
   </div>
 </template>
+```
 
-<div id="container-cards"></div>
+```js title="Clonagem e preenchimento do template"
+const clone = template.content.cloneNode(true);
+clone.querySelector('.card-title').textContent = 'Projeto Alpha';
+container.appendChild(clone);
 ```
 
 ---
 
-## Quando usar, e quando não usar?
+## Escolha da Técnica
 
-Nem toda inserção precisa de `DocumentFragment` ou de `<script>`.
+A técnica depende do volume, da origem da marcação e do risco de segurança.
 
-- **Inserir um único elemento**: Fragmento, que não tem o que agrupar.
-- **Renderizar uma lista de dezenas ou centenas de i**: `append()` dentro do laço, que provoca um *reflow* por item.
-- **Estrutura fixa e repetida, já escrita no HTML**: Concatenação de strings, que perde o realce e valida nada.
-- **Inserir texto vindo do usuário ou de uma API**: `innerHTML`, que executa marcação injetada.
-- **Trocar o conteúdo inteiro de um contêiner**: `innerHTML = ''` seguido de novas inserções.
+| Situação | Escolha |
+| --- | --- |
+| Um elemento isolado | `createElement()` + `appendChild()` |
+| Lista grande | `DocumentFragment` |
+| Estrutura repetida no HTML | `<template>` + `cloneNode(true)` |
+| Texto externo | `textContent`, não `innerHTML` |
 
 ---
 
 ## Executando
 
-1. Pressione <kbd>F12</kbd> e abra a aba Console.
-2. Cole o código.
-3. Pressione <kbd>Enter</kbd> e observe o parágrafo verde sendo renderizado no final da página.
+Teste a criação dinâmica no Console do DevTools.
 
----
-
-## Executando: Comando
-
-```js
+```js title="Criação dinâmica no Console"
 const novoParagrafo = document.createElement('p');
-   novoParagrafo.textContent = 'Parágrafo criado dinamicamente!';
-   novoParagrafo.style.color = '#16a34a';
-   document.body.appendChild(novoParagrafo);
+novoParagrafo.textContent = 'Parágrafo criado dinamicamente!';
+novoParagrafo.style.color = '#16a34a';
+document.body.appendChild(novoParagrafo);
 ```
+
+**Resultado esperado:** um parágrafo verde aparece no final da página.
 
 ---
 
 ## Exercício Prático
 
-1. Qual a diferença de performance entre fazer.
-2. Por que a tag `<script>` é considerada inerte antes de ser clonada?
-3. Escreva um trecho de código que crie uma tag `<script>` com o texto "Ir.
-4. Fazer 50 inserções diretas no DOM causa 50 recálculos de layout (*reflows*) e renderizações (*repaints*), desacelerando a aplicação.
-5. Porque o navegador lê a marcação do `<script>`, mas não a renderiza na tela.
+1. Explique por que 50 `appendChild()` diretos podem causar 50 recálculos.
+2. Crie uma tag `<a>` com texto `Ir para o topo` usando `createElement()`.
+3. Insira o link no início do `<body>` com `insertAdjacentElement()`.
+4. Compare quando usar `textContent` e quando usar `insertAdjacentHTML()`.
 
 ---
 
 ## Desafio
 
-Crie uma função `renderizarTabela(dados)` que receba um array de objetos.
+Crie `renderizarTabela(dados)` para preencher uma tabela existente.
 
-1. Adicione tratamento de erro ou permissão.
-2. Separe responsabilidades em funções pequenas.
-3. Valide no navegador e documente o resultado.
+1. Receba objetos com `{ id, produto, preco }`.
+2. Crie as linhas `<tr>` com `createElement()`.
+3. Agrupe as linhas em um `DocumentFragment`.
+4. Limpe o `<tbody>` e insira tudo em uma operação.
 
 ---
 
 ## Perguntas de revisão
 
-1. O que acontece com os nós filhos contidos em um `DocumentFragment` após ele ser adicionado a um nó do DOM com `appendChild(fragmento)`?
-2. Como remover um elemento do DOM utilizando a API moderna?
-3. Por que o conteúdo dentro de uma tag `<script>` não é exibido nem executa scripts durante o carregamento inicial da página?
-4. Qual é o papel do argumento `true` no método `template.content.cloneNode(true)`?
+1. O que torna uma página dinâmica do ponto de vista do navegador?
+2. O que acontece com os filhos de um `DocumentFragment` após `appendChild(fragmento)`?
+3. Quando `insertAdjacentHTML()` é aceitável e quando vira risco?
+4. Por que `<template>` é inerte antes de ser clonado?
+5. Qual é o papel de `true` em `cloneNode(true)`?
 
 ---
 
 ## Resumo do Tópico
 
-- **Criação e Inserção Básica de Nós**: revise o papel desse eixo no uso da API.
-- **Otimização de Performance com `DocumentFragment`**: revise o papel desse eixo no uso da API.
-- **O Elemento `<script>`**: revise o papel desse eixo no uso da API.
-- **Quando usar, e quando não usar?**: revise o papel desse eixo no uso da API.
+- **Dinâmica**: JavaScript altera a interface após o carregamento.
+- **Nós**: crie em memória antes de inserir no DOM visível.
+- **Posição**: `insertAdjacentHTML()` controla onde a marcação entra.
+- **Performance**: `DocumentFragment` agrupa inserções repetidas.
+- **Molde**: `<template>` reutiliza estruturas HTML inertes.

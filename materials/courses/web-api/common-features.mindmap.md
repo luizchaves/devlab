@@ -42,6 +42,8 @@ markmap:
 - **Ideia**: Toda interatividade começa no mesmo ponto: um ouvinte registrado em um elemento, que executa uma função quando algo acontece
 ### Carregar conteúdo dinâmico
 - **Ideia**: Poucas aplicações nascem com os dados dentro do HTML
+- **Estático**: documentação, página institucional ou artigo com HTML pronto
+- **Dinâmico**: feed, painel, busca ou carrinho com dados após a carga inicial
 ### Montar e atualizar a tela
 - **Ideia**: Com os dados em mãos, a próxima tarefa é transformá-los em elementos
 ### Alterar estilos e classes (CSS via JavaScript)

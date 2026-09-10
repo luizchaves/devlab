@@ -92,7 +92,7 @@ A seguir, analisamos a implementação prática das tarefas mais recorrentes em 
 
 Observe o ponto mínimo que demonstra a regra da seção.
 
-```js
+```js title="Ouvinte mínimo de clique"
 document.querySelector('#salvar').addEventListener('click', (event) => {
   event.preventDefault();
   console.log('clicou em', event.currentTarget.id); // 'salvar'

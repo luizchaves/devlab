@@ -49,7 +49,6 @@ Ambiente do navegador · camadas de API · trilhas de estudo · roteiro
 ## Mapa do Tópico
 
 - **Ambiente**: o navegador injeta objetos como `window` e `document`.
-- **Estática x dinâmica**: quando HTML pronto vira interface reativa.
 - **Trilhas**: famílias de recursos da plataforma web.
 - **Três APIs**: linguagem, navegador e serviço remoto.
 - **Roteiro**: ordem sugerida para estudar o guia.
@@ -82,18 +81,6 @@ O mesmo JavaScript muda de alcance conforme o *host environment*.
           │                         │
           └──────── roda no mesmo código ────────┘
 ```
-
----
-
-## Página Estática x Dinâmica
-
-O ponto de virada é a interface reagir e mudar sem trocar o documento inteiro.
-
-| Modelo | Mudança | Web APIs |
-| --- | --- | --- |
-| Estática | HTML já chega pronto | DOM para leitura ou ajuste |
-| Dinâmica no cliente | JS altera a tela | DOM, eventos, `fetch`, storage |
-| Dinâmica com servidor | dados vêm do back-end | REST, GraphQL, SSR, CORS |
 
 ---
 
@@ -185,10 +172,9 @@ Comece pelo problema de produto, depois escolha a interface nativa.
 ## Perguntas de revisão
 
 1. O que diferencia uma Web API de uma API da linguagem?
-2. O que torna uma página dinâmica do ponto de vista do navegador?
-3. Por que `fetch()` não é a API HTTP remota em si?
-4. Qual trilha do guia resolve persistência no navegador?
-5. Quando uma política do navegador pode bloquear uma chamada correta?
+2. Por que `fetch()` não é a API HTTP remota em si?
+3. Qual trilha do guia resolve persistência no navegador?
+4. Quando uma política do navegador pode bloquear uma chamada correta?
 
 ---
 
@@ -196,7 +182,6 @@ Comece pelo problema de produto, depois escolha a interface nativa.
 
 - **Linguagem**: ECMAScript define sintaxe, objetos e Promises.
 - **Navegador**: Web APIs expõem página, rede, storage e dispositivo.
-- **Dinâmica**: DOM, eventos, `fetch` e storage fazem a tela reagir.
 - **Servidor**: APIs HTTP entregam contratos remotos de negócio.
 - **Trilhas**: escolha o bloco do guia pelo problema real.
 - **Roteiro**: ambiente e DOM vêm antes de rede e recursos avançados.
