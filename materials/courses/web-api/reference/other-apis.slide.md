@@ -33,159 +33,115 @@ description: "Slides completos do tópico Web APIs: Outras Web APIs do Navegador
 
 # Web APIs: Outras Web APIs do Navegador
 
-O Panorama Estendido da Plataforma Web · Gráficos 3D e Computação Acelerada por GPU · Armazenamento Estruturado e Aplicações Offline (PWA) · Autenticação, Criptografia e Pagamentos
+O Panorama Estendido da Plataforma Web · Gráficos Desacoplados · PWA Offline · Áudio Modular · Segurança Biométrica · Hardware
 
 ---
 
 ## Objetivo
 
-- Categorizar as principais Web APIs avançadas por domínio de aplicação (gráficos, persistência, rede, mídia, segurança e periféricos).
-- Diferenciar os casos de uso de APIs básicas e suas contrapartes avançadas (ex: Canvas 2D vs WebGL/WebGPU, Web Storage vs IndexedDB).
+- Categorizar as principais Web APIs avançadas por domínio de aplicação (gráficos, persistência, mídia, segurança, hardware e sistema).
+- Diferenciar os casos de uso de APIs básicas e suas contrapartes avançadas (ex: Canvas tradicional vs OffscreenCanvas, Web Storage vs IndexedDB).
 - Avaliar requisitos de segurança, permissões e suporte entre navegadores para recursos experimentais ou de baixo nível.
-- Selecionar a especificação adequada para cenários de aplicações web progressivas (PWA), processamento de mídia.
+- Selecionar a especificação adequada para cenários de PWA, áudio profissional, autenticação moderna e integração física.
 
 ---
 
 ## Mapa do Tópico
 
 - **O Panorama Estendido da Plataforma Web**.
-- **Gráficos 3D e Computação Acelerada por GPU**.
-- **Armazenamento Estruturado e Aplicações Offline (PWA)**.
-- **Autenticação, Criptografia e Pagamentos**.
-- **Áudio Avançado, Câmera e Comunicação em Tempo Real**.
-- **Interface Moderna, Animações e Compartilhamento**.
+- **Gráficos em Segundo Plano e Imersão (OffscreenCanvas, WebXR)**.
+- **Armazenamento Estruturado e Offline (IndexedDB, Service Workers)**.
+- **Autenticação, Criptografia e Permissões (WebAuthn, FedCM)**.
+- **Áudio Modular, Codecs e Mídia (Web Audio, WebCodecs)**.
+- **Streams, Compressão e Arquivos (Compression Streams)**.
+- **Hardware, Periféricos e Janelas (Web NFC, Window Overlay)**.
 
 ---
 
 ## Motivação
 
-- **Recurso nativo**: use o navegador como parte da arquitetura.
-- **Contrato claro**: identifique entrada, saída, evento, permissão e erro.
-- **Experiência real**: preserve resposta visual, teclado, foco e acessibilidade.
+- **Recurso nativo**: use o navegador como plataforma de aplicação completa.
+- **Performance isolada**: processe gráficos e áudio fora da thread principal de UI.
+- **Experiência moderna**: biometria sem senha, modo offline e conexão com periféricos.
 
-*Regra de ouro: uma Web API boa reduz código próprio e aumenta previsibilidade.*
-
----
-
-## O Panorama Estendido da Plataforma Web
-
-Além das interfaces fundamentais de manipulação do DOM, requisições HTTP e armazenamento básico abordadas nas seções principais deste guia.
-
-- O mapa do tópico agrupa essas interfaces em domínios especializados.
-- A seguir, analisamos cada uma dessas famílias, seus objetivos, interfaces principais e quando adotá-las.
-- ---.
+*Regra de ouro: conheça o ecossistema estendido para não reinventar recursos nativos da plataforma.*
 
 ---
 
-## Gráficos 3D e Computação Acelerada por GPU
+## Gráficos em Segundo Plano e Imersão
 
-Para renderização gráfica tridimensional, sombreamento de shaders e processamento massivo paralelo.
-
-- **WebGL / WebGL 2**: Visualizações 3D, mapas interativos, jogos de navegador (via Three.js, Babylon.js).
-- **WebGPU**: Modelos de IA e redes neurais no cliente.
-
----
-
-## Armazenamento Estruturado e Aplicações Offline (PWA)
-
-Aplicações que operam sem conexão de rede (*offline-first*) ou que lidam.
-
-- **IndexedDB API**: Cache offline de grandes coleções de registros, editores de texto com histórico local.
-- **Service Workers API**: Progressive Web Apps (PWAs), funcionamento offline completo, sincronização em segundo plano.
-- **Cache API**: Cache de assets estáticos (HTML, CSS, JS, imagens) e respostas da API para navegação instantânea.
-- **Storage Manager API**: Verificar quota de armazenamento disponível e evitar que o navegador limpe o cache automaticamente.
+- **OffscreenCanvas API**: Renderização 2D/WebGL em Web Workers sem travar a interface.
+- **WebXR Device API**: Experiências de Realidade Virtual (VR) e Realidade Aumentada (AR).
+- **EyeDropper API**: Ferramenta nativa de conta-gotas para capturar cores na tela.
 
 ---
 
-## Autenticação, Criptografia e Pagamentos
+## Armazenamento Estruturado e Offline (PWA)
 
-Para substituir senhas inseguras por autenticação biométrica nativa e realizar operações criptográficas de ponta a ponta.
-
-- **Web Authentication API (WebAuthn / Passkeys)**: Login com biometria (Touch ID, Face ID, Windows Hello) ou chaves físicas de segurança (FIDO2 / YubiKey).
-- **Web Cryptography API**: Geração de assinaturas digitais, hash SHA-256 no cliente, criptografia ponta a ponta (E2EE) em chats.
-- **Payment Request API**: Formulários de pagamento simplificados integrados a Apple Pay, Google Pay e cartões salvos no navegador.
-- **Credential Management API**: Login automático com 1 clique e sincronização de credenciais de login entre dispositivos do usuário.
+- **IndexedDB API**: Banco de dados orientado a objetos no cliente para grandes volumes.
+- **Service Workers API**: Proxy de rede programável em segundo plano com suporte offline.
+- **Cache API**: Armazenamento de pares Request/Response para carregamento instantâneo.
+- **Storage Manager API**: Estimativa de uso de disco e garantia de persistência.
 
 ---
 
-## Áudio Avançado, Câmera e Comunicação em Tempo Real
+## Autenticação, Criptografia e Permissões
 
-A manipulação de áudio em nível de nó e a comunicação ponto a ponto dispensam plugins externos.
-
-- **Web Audio API**: Sintetizadores musicais, equalizadores, jogos com áudio espacial 3D, analisadores de espectro sonoro.
-- **MediaStreams / getUserMedia**: Gravação de voz, leitura de QR Codes por câmera, captura de tela para streaming.
-- **WebRTC API**: Videoconferências em tempo real (como Google Meet e Discord Web), compartilhamento P2P de arquivos.
-- **WebCodecs API**: Edição de vídeo no navegador com aceleração de hardware, streaming de jogos e renderização personalizada.
+- **WebAuthn / Passkeys**: Login sem senha com biometria (Touch ID, Face ID, Windows Hello).
+- **FedCM API**: Autenticação federada com Google/Apple preservando a privacidade do usuário.
+- **Permissions API**: Consulta prévia do status de permissões da aplicação.
+- **Credential Management API**: Armazenamento e preenchimento federado de credenciais.
 
 ---
 
-## Interface Moderna, Animações e Compartilhamento
+## Áudio Modular, Codecs e Capacidades
 
-Interfaces modernas que aproximam a experiência de aplicações web da experiência de aplicativos móveis nativos.
-
-- **View Transitions API**: Navegação cinematográfica com animação contínua de elementos compartilhados (SPA e MPA nativo).
-- **Web Animations API (WAAPI)**: Animações dinâmicas dirigidas por código JS, controle de reprodução (`pause`, `reverse`, `playbackRate`).
-- **Web Share API**: Botão de "Compartilhar" que abre a folha nativa do celular/desktop para WhatsApp, Telegram ou e-mail.
-- **Badging API**: Exibir a contagem de mensagens não lidas no ícone do PWA na barra de tarefas ou na tela inicial do celular.
+- **Web Audio API**: Processamento e síntese de áudio modular em tempo real via grafo de nós.
+- **WebCodecs API**: Acesso direto aos codificadores e decodificadores de mídia na GPU.
+- **Media Capabilities API**: Consulta de fluidez e eficiência energética de codecs pelo hardware.
+- **Remote Playback API**: Transmissão e controle de vídeo em smart TVs e Chromecast.
 
 ---
 
-## Streams e Manipulação de Arquivos
+## Streams, Compressão e Manipulação de Arquivos
 
-Para processamento eficiente de fluxos contínuos de dados sem carregar arquivos gigantescos inteiramente na memória RAM.
-
-- **Streams API**: Descompactação em tempo real de downloads, processamento de vídeo em streaming.
-- **File System Access API**: IDEs web (como VS Code for Web), editores de imagem, ferramentas de edição de código local no navegador.
-
----
-
-## Redes de Próxima Geração e Métricas de Performance
-
-Ferramentas para transporte de dados em alta velocidade e monitoramento de desempenho da aplicação em produção.
-
-- **WebTransport API**: Jogos multiplayer online em tempo real, streaming de baixa latência e alternativas flexíveis a WebSockets.
-- **Performance Timeline API**: Medição em tempo real de LCP (*Largest Contentful Paint*), FID/INP e requisições lentas de rede.
-- **Network Information API**: Adaptar a qualidade das imagens e vídeos automaticamente quando o usuário estiver em redes 3G ou modo.
+- **Streams API**: Encadeamento e consumo de fluxos de dados contínuos em blocos.
+- **Compression Streams API**: Compactação e descompactação nativa em Gzip/Deflate.
+- **File System Access API**: Leitura e gravação direta em arquivos do sistema operacional.
 
 ---
 
 ## Hardware, Periféricos e Conectividade Local
 
-Ambientes restritos e sistemas operacionais desktop/mobile permitem conectar dispositivos físicos via navegador sob permissões explícitas.
-
-- **Web Bluetooth API**: Monitoramento de frequência cardíaca, leitura de sensores IoT, controle de drones e robôs educacionais.
-- **Web USB API**: Configuração de teclados customizados, placas microcontroladoras (Arduino, ESP32) e leitores fiscais.
-- **Web Serial API**: Gravação de firmware em microcontroladores, conexão com impressoras térmicas e equipamentos industriais.
-- **WebHID API**: Gamepads especiais, pedais de controle, mesas de som e controladores de voo.
+- **Web Bluetooth API**: Comunicação com sensores BLE via perfil GATT.
+- **Web USB / Web Serial API**: Acesso direto a microcontroladores e impressoras térmicas.
+- **Web NFC API**: Leitura e gravação de tags NFC sem contato no celular.
+- **WebHID API**: Integração com controladores especiais, gamepads e mesas de som.
 
 ---
 
 ## Sensores, Janelas e Controle do Sistema
 
-Interfaces que controlam o comportamento da aba e reagem ao estado físico do dispositivo.
-
-- **Screen Wake Lock API**: Receitas culinárias na tela, aplicativos de apresentação de slides, teleprompters.
-- **Picture-in-Picture API**: Reprodutores de vídeo e chamadas de videoconferência enquanto o usuário navega em outras abas.
-- **Web Locks API**: Evitar que duas abas abertas sincronizem ou gravem dados conflitantes no IndexedDB simultaneamente.
-- **Broadcast Channel API**: Deslogar o usuário em todas as abas abertas quando ele clicar em "Sair" em uma delas.
-- **Sensor APIs**: Jogos baseados em inclinação do celular, ajuste dinâmico de brilho e bússolas digitais.
+- **Screen Wake Lock API**: Impede que a tela do aparelho entre em descanso ou bloqueie.
+- **Window Controls Overlay API**: Integra a barra de título em PWAs instaladas no desktop.
+- **Picture-in-Picture API**: Vídeo flutuante sobreposto enquanto o usuário navega em outras abas.
+- **Web Locks API**: Coordena acesso concorrente a recursos entre abas da mesma origem.
 
 ---
 
-## Perguntas de revisão
+## Perguntas de Revisão
 
-1. Qual a diferença fundamental de aplicação entre Local Storage e IndexedDB?
-2. Por que WebGL e WebGPU operam de forma diferente da Canvas 2D API?
-3. Qual é a vantagem da View Transitions API em relação a bibliotecas JS de animação?
-4. Como o WebAuthn melhora a segurança em relação a senhas tradicionais?
-5. Por que APIs como Web Bluetooth e Web USB exigem gesto do usuário e HTTPS?
+1. Qual a diferença fundamental entre Local Storage e IndexedDB?
+2. Qual a vantagem do OffscreenCanvas em relação ao Canvas tradicional?
+3. Como o WebAuthn melhora a segurança em relação a senhas tradicionais?
+4. Por que APIs como Web Bluetooth e Web USB exigem HTTPS e gesto do usuário?
+5. Para que serve a Screen Wake Lock API?
 
 ---
 
 ## Resumo do Tópico
 
-- **O Panorama Estendido da Plataforma Web**: revise o papel desse eixo no uso da API.
-- **Gráficos 3D e Computação Acelerada por GPU**: revise o papel desse eixo no uso da API.
-- **Armazenamento Estruturado e Aplicações Offline (PWA)**: revise o papel desse eixo no uso da API.
-- **Autenticação, Criptografia e Pagamentos**: revise o papel desse eixo no uso da API.
-- **Áudio Avançado, Câmera e Comunicação em Tempo Real**: revise o papel desse eixo no uso da API.
+- **Além do básico**: a plataforma web dispõe de dezenas de APIs especializadas.
+- **Desempenho e isolamento**: use workers, OffscreenCanvas e Web Audio.
+- **Segurança e biometria**: WebAuthn e FedCM como padrão moderno de autenticação.
+- **Integração com o SO**: sensores, hardware e janelas PWA de primeira classe.

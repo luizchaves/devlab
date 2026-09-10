@@ -57,9 +57,14 @@ markmap:
 - **Fullscreen API**: `requestFullscreen()`, `exitFullscreen()`, `fullscreenElement`
 - **Popover API**: `showPopover()`, `hidePopover()`, `togglePopover()`
 
-## Mídia, Entrada e Segurança
+## Desenho e Mídia
 - **Canvas 2D**: `getContext('2d')`, `fillRect()`, `beginPath()`, `arc()`, `fill()`, `stroke()`, `drawImage()`
+- **Gráficos 3D**: WebGL2 (`createShader`, `createBuffer`, `drawArrays`), WebGPU (`requestAdapter`, `requestDevice`)
+- **MediaDevices**: `getUserMedia` (câmera/áudio), `getDisplayMedia` (tela), `enumerateDevices()`
+- **Streaming de Vídeo**: `RTCPeerConnection` (WebRTC P2P), `MediaSource` (MSE adaptativo), `MediaRecorder`
 - **Web Speech**: `SpeechRecognition` (voz para texto), `speechSynthesis.speak()` (texto para voz)
+
+## Entrada, Dispositivo e Segurança
 - **Área de Transferência e Drag & Drop**: `navigator.clipboard`, `DataTransfer`, `dropEffect`
 - **Dispositivo**: `Geolocation`, `Notification`, `navigator.vibrate()`
 - **Concorrência**: `Web Workers` com `new Worker()` e `postMessage()`

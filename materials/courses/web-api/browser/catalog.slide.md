@@ -82,7 +82,7 @@ O guia organiza as interfaces por afinidade de uso.
 | --- | --- |
 | Ambiente e Interface | History, Dialog, Fullscreen |
 | DOM e Interatividade | DOM, Events, Forms, Observers |
-| Mídia e Entrada | Canvas, Web Speech, Clipboard, Drag and Drop |
+| Mídia e Entrada | Canvas, Web Speech, MediaDevices, Streaming, Clipboard, Drag and Drop |
 | Dispositivo | Geolocation, Notification, Vibration |
 | Rede e Dados | Storage, Cookies, Fetch, SSE, WebSockets |
 

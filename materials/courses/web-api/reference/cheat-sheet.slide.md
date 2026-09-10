@@ -53,7 +53,8 @@ Panorama de assinaturas e métodos essenciais da plataforma Web.
 - **Rede e HTTP**: `fetch()`, `Response`, `Request`, `AbortController`, `WebSocket`.
 - **Persistência**: `localStorage`, `sessionStorage`, cookies e `IndexedDB`.
 - **Observers e UI**: `IntersectionObserver`, `ResizeObserver`, `dialog` e tela cheia.
-- **Mídia e Dispositivo**: Canvas 2D, Clipboard, Geolocation e Web Crypto.
+- **Desenho e Mídia**: Canvas 2D, WebGL/WebGPU, Web Speech, MediaDevices e Streaming.
+- **Dispositivo e Segurança**: Clipboard, Geolocation, Notification, Workers e Web Crypto.
 
 ---
 
@@ -300,33 +301,65 @@ document.fullscreenElement;          // elemento ocupando tela cheia atual
 
 ---
 
-## Mídia, Gráficos e Dispositivo
+## Desenho e Mídia: Canvas, 3D e Áudio
 
 ```js
-// Canvas 2D
-const ctx = canvas.getContext('2d');
-ctx.fillStyle = '#0284c7';
-ctx.fillRect(10, 10, 100, 100);
+// Canvas 2D e WebGL 3D
+const ctx2d = canvas.getContext('2d');
+const gl = canvas.getContext('webgl2');
 
-// Clipboard API
+// MediaDevices (Webcam e Microfone)
+const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+stream.getTracks().forEach(track => track.stop()); // libera o hardware
+
+// Web Speech API (Voz)
+window.speechSynthesis.speak(new SpeechSynthesisUtterance('Olá DevLab'));
+```
+
+---
+
+## Streaming de Vídeo e Tempo Real
+
+```js
+// WebRTC (P2P de Baixa Latência)
+const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+stream.getTracks().forEach(t => pc.addTrack(t, stream));
+pc.ontrack = (e) => remoteVideo.srcObject = e.streams[0];
+
+// Media Source Extensions (MSE - Streaming Adaptativo)
+const ms = new MediaSource();
+video.src = URL.createObjectURL(ms);
+ms.onsourceopen = () => {
+  const sb = ms.addSourceBuffer('video/mp4; codecs="avc1.42E01E, mp4a.40.2"');
+  sb.appendBuffer(videoChunkArrayBuffer);
+};
+```
+
+---
+
+## Entrada, Dispositivo e Segurança
+
+```js
+// Clipboard e Geolocation
 await navigator.clipboard.writeText('Texto copiado');
-const texto = await navigator.clipboard.readText();
+navigator.geolocation.getCurrentPosition(pos => console.log(pos.coords.latitude));
 
-// Geolocation
-navigator.geolocation.getCurrentPosition(
-  pos => console.log(pos.coords.latitude, pos.coords.longitude)
-);
+// Notification e Vibração
+await Notification.requestPermission();
+new Notification('Alerta', { body: 'Mensagem' });
+navigator.vibrate([100, 50, 100]);
 
-// Web Crypto (UUID v4)
+// Web Crypto (UUID v4 e Hash)
 const uuid = crypto.randomUUID();
+const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('senha'));
 ```
 
 ---
 
 ## Resumo do Guia
 
-- **BOM**: controle da janela, histórico de navegação e diagnósticos.
-- **DOM**: construção reativa da árvore e escuta de eventos.
-- **Rede**: `fetch()` com `AbortSignal`, WebSockets e streams.
-- **Armazenamento**: `localStorage` simples e `IndexedDB` estruturado.
-- **Modernidade**: `dialog`, observers, canvas e Web Crypto nativos.
+- **BOM e DOM**: controle da janela, navegação reativa e escuta de eventos.
+- **Rede e Armazenamento**: `fetch()`, `AbortSignal`, WebSockets, `localStorage` e `IndexedDB`.
+- **Observers e UI**: `IntersectionObserver`, `dialog` e tela cheia nativos.
+- **Desenho e Mídia**: Canvas 2D, WebGL/WebGPU 3D, Web Speech, MediaDevices e Streaming.
+- **Hardware e Segurança**: Clipboard, Geolocation, Workers e Web Cryptography.
