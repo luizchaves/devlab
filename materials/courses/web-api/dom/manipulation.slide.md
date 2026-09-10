@@ -85,14 +85,14 @@ Este HTML pequeno já contém documento, elementos, texto e atributos.
 
 ```html
 <!doctype html>
-<html lang="pt-BR">
+<html>
   <head>
     <title>DevLab</title>
   </head>
   <body>
     <h1>Manipulação do DOM</h1>
     <p class="descricao">
-      Leia a documentação no <a id="link-mdn">MDN</a>.
+      Leia a documentação no <a href="https://developer.mozilla.org">MDN</a>.
     </p>
   </body>
 </html>
@@ -106,15 +106,20 @@ O JavaScript altera os objetos da árvore, não o texto do arquivo original.
 
 ```txt
 Document
-└── html
-    ├── head
-    │   └── title
-    │       └── "DevLab"
-    └── body
-        ├── h1
-        │   └── "Manipulação do DOM"
-        └── p.descricao
-            └── a#link-mdn
+└── Element: html
+    ├── Element: head
+    │   └── Element: title
+    │       └── Text: "DevLab"
+    └── Element: body
+        ├── Element: h1
+        │   └── Text: "Manipulação do DOM"
+        └── Element: p
+            ├── Attr: class="descricao"
+            ├── Text: "Leia a documentação no "
+            ├── Element: a
+            │   ├── Attr: href="https://developer.mozilla.org"
+            │   └── Text: "MDN"
+            └── Text: "."
 ```
 
 ---

@@ -12,6 +12,12 @@ markmap:
 - **Contexto**: O Guia de Web APIs estuda as interfaces nativas que o navegador disponibiliza para que o JavaScript interaja com a página, a rede, o armazenamento e os recursos do sistema operacional
 - **Ambiente**: navegador, JavaScript e políticas da plataforma
 
+## Página Estática x Dinâmica
+- **Estática**: HTML, CSS e assets chegam prontos ao navegador
+- **Dinâmica no cliente**: JavaScript altera DOM, reage a eventos e busca dados
+- **Dinâmica com servidor**: back-end monta ou entrega dados por REST, GraphQL ou SSR
+- **Virada prática**: interface muda sem trocar o documento inteiro
+
 ## Trilhas de Aprendizado
 - **Ideia**: O guia está organizado em trilhas de aprendizado, agrupadas pelo tipo de recurso que cada API expõe
 - **Detalhe**: Os cartões abaixo listam as páginas de cada trilha: Conheça o ciclo de vida da página, o modelo de objetos do navegador (BOM), roteamento SPA com a History API e a visão geral do catálogo

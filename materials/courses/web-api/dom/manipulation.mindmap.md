@@ -16,6 +16,7 @@ markmap:
 - **Ideia**: Quando o navegador carrega um arquivo HTML, o motor de renderização analisa a marcação e constrói uma representação hierárquica na memória
 - **Detalhe**: Cada tag, texto e atributo torna-se um nó (*Node*) na árvore DOM
 - **Sequência didática**: primeiro leia o HTML de entrada, depois observe sua representação em árvore
+- **Representação completa**: inclui elementos, atributos (`class`, `href`) e textos (`DevLab`, `Manipulação do DOM`, frase do parágrafo, `MDN` e ponto final)
 - **Ponto**: `Document`: O nó raiz de todo o documento HTML
 - **Ponto**: `Element`: Representa qualquer tag HTML (``, ``, ``)
 - **Ponto**: `Text`: O conteúdo de texto dentro ou entre as tags
