@@ -1,0 +1,231 @@
+---
+title: "Nuvem: Computação em Nuvem"
+description: "Fundamentos da computação em nuvem para desenvolvimento web: modelos de serviço IaaS, PaaS, SaaS, BaaS e FaaS, responsabilidade compartilhada, regiões, modelos de cobrança e dependência de fornecedor."
+course: cloud
+sidebar:
+  label: "Computação em Nuvem"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o vocabulário da computação em nuvem do ponto de vista de quem desenvolve aplicações web. Antes de escolher entre Supabase, Firebase ou um servidor próprio, é preciso saber o que exatamente se está terceirizando em cada caso, quem responde quando algo falha e o que a conta no fim do mês está cobrando.
+
+## Objetivo
+
+Compreender a computação em nuvem como uma escala de terceirização, e não como um produto único, situando cada modelo de serviço pelo trabalho que ele assume e pelo que deixa para o desenvolvedor. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar os modelos de serviço *IaaS*, *PaaS*, *SaaS*, *BaaS* e *FaaS* pelo que cada um gerencia.
+- Aplicar o modelo de responsabilidade compartilhada para saber o que continua sendo problema seu.
+- Explicar o efeito de regiões e latência na escolha de onde a aplicação roda.
+- Interpretar os modelos de cobrança e prever o que faz uma conta crescer.
+- Avaliar o custo de saída de uma plataforma antes de adotá-la.
+
+---
+
+## Nuvem é Computador de Outra Pessoa, com Contrato
+
+A definição formal do NIST descreve a nuvem como acesso sob demanda, por rede, a um conjunto compartilhado de recursos computacionais configuráveis. Traduzindo para o dia a dia: você usa máquinas que não comprou, provisionadas em minutos por uma API, e paga pelo que consumiu.
+
+O que distingue a nuvem de uma hospedagem tradicional não é o fato de o servidor ser remoto, e sim três propriedades que mudam a forma de projetar sistemas.
+
+| Propriedade | O que significa na prática |
+| --- | --- |
+| **Autoatendimento sob demanda** | Um banco de dados nasce de uma chamada de API, sem pedido, sem espera e sem contrato novo. |
+| **Elasticidade** | A capacidade acompanha a demanda, para cima e para baixo, em minutos. |
+| **Medição de uso** | Tudo é contado: requisições, gigabytes, segundos de execução, linhas lidas. |
+
+A terceira propriedade é a que mais surpreende quem vem de um servidor alugado por mês. Em um servidor fixo, um laço mal escrito que faz mil consultas desnecessárias custa desempenho. Na nuvem, ele custa desempenho e dinheiro.
+
+---
+
+## Os Modelos de Serviço
+
+Os modelos de serviço formam uma escala, e a pergunta que os separa é sempre a mesma: **onde termina a responsabilidade do provedor e começa a sua?**
+
+O diagrama abaixo mostra essa escala, do modelo em que você gerencia quase tudo até aquele em que só escreve a função:
+
+<Mermaid title="Escala de terceirização entre os modelos de serviço de nuvem">
+{`
+flowchart LR
+  OnPrem["Servidor próprio<br/>você gerencia tudo"] --> IaaS["IaaS<br/>máquina virtual e rede"]
+  IaaS --> PaaS["PaaS<br/>plataforma de execução"]
+  PaaS --> BaaS["BaaS<br/>banco, auth e storage"]
+  BaaS --> FaaS["FaaS<br/>função sob demanda"]
+  FaaS --> SaaS["SaaS<br/>software pronto"]
+`}
+</Mermaid>
+
+Cada degrau troca controle por conveniência. A tabela a seguir mostra o que cada modelo gerencia, o que sobra para você e um exemplo concreto:
+
+| Modelo | O provedor cuida de | Você cuida de | Exemplo |
+| --- | --- | --- | --- |
+| **IaaS** | Hardware, virtualização, rede | Sistema operacional, runtime, aplicação, dados | Máquina virtual em AWS EC2 ou DigitalOcean |
+| **PaaS** | Tudo o anterior, mais runtime e escalonamento | Aplicação e dados | Render, Railway, Fly.io |
+| **BaaS** | Banco, autenticação, storage, API gerada | Modelo de dados, políticas de acesso, front-end | [Supabase](../../supabase/), [Firebase](../../firebase/) |
+| **FaaS** | Execução sob demanda de funções isoladas | O código da função e seu tempo de execução | Cloud Functions, Vercel Functions, Cloudflare Workers |
+| **SaaS** | O software inteiro | Apenas o uso e a configuração | Gmail, Figma, GitHub |
+
+Uma aplicação real quase nunca usa um modelo só. É comum um front-end publicado como site estático, os dados em um BaaS, uma função *serverless* para o que não pode rodar no navegador e um SaaS de e-mail transacional, tudo no mesmo produto.
+
+<Aside type="tip" title="A sigla importa menos que a fronteira">
+Fornecedores classificam os próprios produtos com liberdade, e a mesma plataforma aparece como PaaS em um texto e BaaS em outro. Em vez de decorar as siglas, pergunte três coisas de qualquer serviço: quem aplica as atualizações de segurança, quem responde às três da manhã quando o serviço cai, e o que exatamente é cobrado.
+</Aside>
+
+---
+
+## Responsabilidade Compartilhada
+
+Terceirizar infraestrutura não terceiriza a responsabilidade pela aplicação. O provedor garante a segurança **da** nuvem: data center, hardware, hipervisor, rede física. Você continua responsável pela segurança **na** nuvem: quem pode ler cada dado, que chave está exposta, qual porta ficou aberta.
+
+Essa divisão explica os incidentes mais comuns em projetos que adotam BaaS. Nenhum deles é falha do provedor.
+
+| Incidente típico | De quem é a responsabilidade |
+| --- | --- |
+| Bucket de arquivos com leitura pública | Sua: a configuração de acesso é do cliente. |
+| Tabela sem política de acesso, exposta pela API gerada | Sua: a política é parte do modelo de dados. |
+| Chave administrativa publicada no repositório do front-end | Sua: a chave é secreta por contrato. |
+| Data center inteiro fora do ar | Do provedor, com os limites descritos no acordo de nível de serviço. |
+
+O acordo de nível de serviço, ou *SLA*, é onde essa fronteira está escrita, e ele tem duas leituras. A primeira é a disponibilidade prometida, normalmente entre 99,9% e 99,99%. A segunda, mais importante, é o que acontece quando a promessa não é cumprida: quase sempre um crédito proporcional na fatura, nunca uma indenização pelo prejuízo do seu negócio.
+
+---
+
+## Regiões, Latência e Residência de Dados
+
+Um serviço de nuvem roda em regiões geográficas, e a região escolhida tem três consequências diretas no projeto.
+
+A primeira é a **latência**. A velocidade da luz em fibra impõe um piso: cerca de 100 ms de ida e volta entre o Brasil e a Europa, contra 10 ms a 20 ms dentro do mesmo país. Uma tela que faz seis requisições encadeadas sente essa diferença como quase meio segundo de espera.
+
+A segunda é o **custo**. Tráfego entre regiões e tráfego de saída para a internet são cobrados à parte na maioria dos provedores, e costumam ser a linha mais mal compreendida de uma fatura.
+
+A terceira é **legal**. Dados pessoais sob a LGPD podem ter exigências de tratamento e transferência internacional, e a região é o que determina onde eles fisicamente residem.
+
+<Aside type="caution" title="A região é escolhida uma vez">
+Quase nenhum provedor permite mover um projeto de região depois de criado. A troca é uma migração: exportar, recriar e reapontar a aplicação. Escolher a região mais próxima dos usuários leva trinta segundos na criação do projeto e vira um problema de dias se for deixado para depois.
+</Aside>
+
+---
+
+## Modelos de Cobrança
+
+Modelos de cobrança diferentes recompensam decisões de arquitetura diferentes. Vale conhecê-los antes de escolher, porque o mesmo sistema pode custar valores muito distintos conforme o modelo.
+
+| Modelo de cobrança | Como cresce | Onde costuma doer |
+| --- | --- | --- |
+| **Capacidade reservada** | Valor fixo por mês, independentemente do uso | Paga-se pela ociosidade da madrugada |
+| **Por consumo** | Proporcional a requisições, leituras e bytes | Um laço mal escrito multiplica a fatura |
+| **Por camadas** | Gratuito até um limite, depois degraus | O salto entre degraus não é suave |
+| **Por assento** | Proporcional ao número de pessoas com acesso | Cresce com a equipe, não com o sistema |
+
+O plano gratuito merece atenção especial em projetos de estudo. Ele existe para viabilizar o aprendizado e os protótipos, e costuma ser generoso, mas vem com limites que não aparecem no primeiro dia: pausa automática de projetos inativos, retenção curta de *backups* e teto de tráfego mensal.
+
+---
+
+## Dependência de Fornecedor
+
+Toda adoção de plataforma cria alguma dependência. O que varia é o preço de sair, e ele deve ser estimado na entrada, não na saída.
+
+Três perguntas medem esse preço com razoável precisão:
+
+<Steps>
+1. **Os dados saem em formato padrão?** Um `pg_dump` do PostgreSQL entra em qualquer outro PostgreSQL. Um export proprietário exige escrever um conversor antes de qualquer coisa.
+2. **A interface é aberta ou exclusiva?** Código escrito contra SQL ou contra HTTP viaja; código escrito contra um SDK exclusivo é reescrito na mudança.
+3. **A plataforma roda fora dela mesma?** Serviços open-source podem ser auto-hospedados, o que transforma a dependência em uma escolha reversível.
+</Steps>
+
+Dependência não é defeito. Ela é o preço da velocidade, e há projetos em que esse preço vale muito a pena: um MVP que precisa existir em duas semanas não deveria gastar uma delas evitando um acoplamento que talvez nunca custe nada. O erro é assumir a dependência sem perceber que ela existe.
+
+---
+
+## Exercício
+
+As perguntas abaixo checam se a escala de modelos e a fronteira de responsabilidade ficaram claras:
+
+1. Em qual modelo de serviço o provedor gerencia o sistema operacional, mas a aplicação e os dados continuam sendo responsabilidade sua?
+2. Uma tabela de um projeto BaaS ficou legível por qualquer pessoa na internet por causa de uma política de acesso ausente. De quem é a responsabilidade, segundo o modelo de responsabilidade compartilhada?
+3. Por que uma aplicação cobrada por consumo pode ficar mais cara ao ganhar usuários do que uma hospedada em capacidade reservada, mesmo servindo o mesmo conteúdo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. No **PaaS**: o provedor cuida da infraestrutura e do runtime, e você entrega apenas a aplicação e os dados.
+
+  2. Do **cliente**, ou seja, sua. O provedor garante a segurança da infraestrutura; as regras de quem acessa cada dado são configuração da aplicação.
+
+  3. Porque no consumo cada requisição, leitura e byte trafegado é medido e cobrado, então o custo acompanha o tráfego. Na capacidade reservada, o valor é fixo até o limite da máquina, e o crescimento aparece como lentidão antes de aparecer na fatura.
+</details>
+
+---
+
+## Desafio
+
+Escolher onde uma aplicação roda é uma decisão que se justifica com números, não com preferência. Considere uma aplicação web com front-end estático, uma API, um banco relacional e envio de e-mails transacionais, atendendo cerca de 2.000 usuários por mês.
+
+Monte três arquiteturas para ela: uma inteiramente em IaaS, uma combinando site estático com BaaS, e uma combinando site estático com funções *serverless* e banco gerenciado. Para cada uma, estime o custo mensal com os preços públicos atuais, indique o que quebra primeiro se o número de usuários multiplicar por cem, e diga quanto tempo levaria para migrar dela para outra.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A comparação costuma revelar três padrões. **Em IaaS, o custo começa alto e cresce devagar**: paga-se a máquina desde o primeiro usuário, e ela aguenta bastante crescimento antes de precisar de outra. **Em BaaS, o custo começa em zero e cresce com o uso**, e o que quebra primeiro raramente é o banco: são os limites do plano, como conexões simultâneas ou tráfego mensal. **Na composição com funções, o custo é o menor em repouso**, e o gargalo aparece em partida a frio e em limites de execução concorrente.
+
+  O tempo de migração é o dado que mais desequilibra a decisão, e é o mais fácil de ignorar. Sair de uma máquina virtual é copiar arquivos e apontar o DNS. Sair de um BaaS é reescrever a camada de acesso a dados e reimplementar em código as políticas que viviam na configuração da plataforma.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelos e fronteiras
+
+1. **Qual é a diferença central entre PaaS e FaaS quanto ao que fica em execução?**
+   <details>
+     <summary>Possível resposta</summary>
+     No PaaS existe um processo permanentemente no ar aguardando requisições, cobrado enquanto existir. No FaaS não há processo: a função é instanciada na chegada da requisição e encerrada depois, e a cobrança é pelo tempo efetivo de execução.
+   </details>
+
+2. **Por que "segurança na nuvem" e "segurança da nuvem" não são a mesma coisa?**
+   <details>
+     <summary>Possível resposta</summary>
+     A segurança *da* nuvem é do provedor: data center, hardware, virtualização e rede física. A segurança *na* nuvem é do cliente: controle de acesso, gestão de chaves, configuração dos serviços e proteção dos dados. A maioria dos incidentes relatados em projetos pequenos está do lado do cliente.
+   </details>
+
+3. **O que um SLA de 99,9% garante ao seu negócio quando é descumprido?**
+   <details>
+     <summary>Possível resposta</summary>
+     Em geral, apenas um crédito proporcional na fatura do período. O SLA descreve o compromisso de disponibilidade e a compensação contratual, não uma indenização pelo prejuízo causado pela indisponibilidade.
+   </details>
+
+### Custo e localização
+
+4. **Que efeito a escolha de região tem sobre uma aplicação com usuários no Brasil?**
+   <details>
+     <summary>Possível resposta</summary>
+     Afeta a latência de cada requisição (dezenas contra centenas de milissegundos), o custo de tráfego entre regiões e a residência legal dos dados. Como a região não pode ser trocada depois, a escolha vale a atenção no momento da criação do projeto.
+   </details>
+
+5. **Por que um plano gratuito não é um bom termômetro do custo de produção?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele é dimensionado para prototipagem, com limites que a produção ultrapassa cedo: pausa de projetos inativos, retenção curta de backups, teto de tráfego e ausência de garantias de disponibilidade.
+   </details>
+
+6. **Como se estima o custo de saída de uma plataforma antes de adotá-la?**
+   <details>
+     <summary>Possível resposta</summary>
+     Verificando se os dados saem em formato padrão, se o código foi escrito contra uma interface aberta (SQL, HTTP) ou contra um SDK exclusivo, e se a plataforma pode ser auto-hospedada. Quanto mais respostas negativas, mais cara a saída.
+   </details>
+
+---
+
+## Referências
+
+- [The NIST Definition of Cloud Computing (SP 800-145)](https://csrc.nist.gov/pubs/sp/800/145/final)
+- [AWS Shared Responsibility Model](https://aws.amazon.com/compliance/shared-responsibility-model/)
+- [Google Cloud: Shared responsibilities](https://cloud.google.com/architecture/framework/security/shared-responsibility-shared-fate)
+- [Lei Geral de Proteção de Dados Pessoais (LGPD)](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)
+
+---
+
+## Próximo tópico
+
+[Backend as a Service](../baas/): O que um BaaS assume, onde ele para e como decidir entre plataforma e back-end próprio.

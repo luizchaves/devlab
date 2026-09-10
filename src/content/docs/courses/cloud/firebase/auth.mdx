@@ -1,7 +1,7 @@
 ---
-title: "npm: Firebase Auth"
+title: "Nuvem: Firebase Auth"
 description: "Autenticação de usuários com o Firebase Auth: cadastro com e-mail/senha, login, gestão de sessão e observadores de estado no front-end."
-course: npm
+course: cloud
 sidebar:
   label: "Firebase Auth"
 ---
@@ -12,7 +12,13 @@ O **Firebase Auth** é o serviço completo de gestão de identidade e autentica�
 
 ## Objetivo
 
-Aprender a integrar o Firebase Auth em uma aplicação web, implementar fluxos de registro (`createUserWithEmailAndPassword`), login (`signInWithEmailAndPassword`), logout (`signOut`) e observar mudanças no estado de autenticação do usuário com `onAuthStateChanged`.
+Integrar o Firebase Auth a uma aplicação web, do cadastro do primeiro usuário ao observador que mantém a interface sincronizada com a sessão, entendendo que a identidade emitida aqui só protege os dados quando as regras de segurança do Firestore a utilizam. Ao final do tópico, o leitor deve ser capaz de:
+
+- Inicializar o serviço de autenticação com `getAuth()` a partir da configuração do projeto.
+- Implementar cadastro, login e logout com as funções de e-mail e senha do SDK.
+- Manter a interface sincronizada com a sessão usando `onAuthStateChanged`.
+- Tratar os códigos de erro do serviço e traduzi-los em mensagens úteis ao usuário.
+- Relacionar o `uid` do usuário autenticado às *Security Rules* que autorizam o acesso aos documentos.
 
 ---
 
@@ -41,7 +47,7 @@ O SDK do Firebase Auth gerencia e renova automaticamente os tokens de autentica�
 
 No módulo de configuração da aplicação (`services/api.js`), instancie o serviço de autenticação com `getAuth()`:
 
-```js title="js/services/api.js (Configuração do Firebase Auth)"
+```js title="Configuração do serviço de autenticação"
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
@@ -66,6 +72,8 @@ export const auth = getAuth(app);
 
 ### Cadastro de Usuário com E-mail e Senha (`createUserWithEmailAndPassword`)
 
+A função devolve um objeto de credencial com o usuário criado, e o cadastro já deixa a sessão ativa: não é preciso chamar o login em seguida.
+
 ```js title="Cadastrando um novo usuário no Firebase Auth"
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './services/api.js';
@@ -87,6 +95,8 @@ async function cadastrarUsuario(email, password) {
 
 ### Autenticação / Login (`signInWithEmailAndPassword`)
 
+O login recebe os mesmos dois argumentos do cadastro e rejeita a promessa quando a credencial não confere, sempre com o mesmo código de erro, sem revelar se o e-mail existe.
+
 ```js title="Autenticando um usuário existente"
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from './services/api.js';
@@ -106,6 +116,8 @@ async function realizarLogin(email, password) {
 ---
 
 ### Encerrar Sessão (`signOut`)
+
+O `signOut` encerra a sessão local e dispara o observador de estado, o que permite à interface reagir sem que o código do botão precise atualizar a tela.
 
 ```js title="Realizando o logout do usuário"
 import { signOut } from 'firebase/auth';
@@ -144,9 +156,33 @@ onAuthStateChanged(auth, (user) => {
 });
 ```
 
+<Aside type="caution" title="Dica de IA: A regra de segurança é a proteção, o `if` é a interface">
+  Ao pedir "proteja esta página com Firebase Auth", assistentes entregam o observador acima com um redirecionamento no `else`, e param aí. Sem uma *Security Rule* que compare `request.auth.uid` com o dono do documento, qualquer pessoa com a configuração pública do projeto lê a coleção inteira pelo SDK, sem passar por página nenhuma.
+
+  **Prompt:** *"Escreva a Security Rule do Firestore que permite ler e escrever na coleção `investments` apenas quando `request.auth.uid` for igual ao campo `user_id` do documento, e mostre como testá-la no emulador com um usuário que não é o dono."*
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+O Firebase Auth entrega identidade com pouquíssimo esforço, e essa facilidade esconde a pergunta que importa: onde a decisão de autorização será tomada. No modelo do Firebase, ela vive nas *Security Rules* ou em uma *Cloud Function*, nunca no código do navegador.
+
+A tabela abaixo separa os cenários:
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Aplicação que já usa Firestore ou Storage do Firebase | **Firebase Auth** | O `uid` chega às regras de segurança sem nenhuma integração adicional. |
+| Login social, telefone ou anônimo em aplicativo móvel | **Firebase Auth** | Os provedores e a persistência de sessão já vêm resolvidos nos SDKs. |
+| Aplicação cujo banco é PostgreSQL | **[Supabase Auth](../../supabase/auth/)** | O token se integra às políticas RLS do próprio banco. |
+| API própria que precisa confiar no usuário | **Verificação no servidor** ([Guia de Express.js](../../../expressjs/)) | O servidor precisa validar o token com o Admin SDK antes de aceitar a identidade. |
+| Regras de acesso complexas, com papéis e hierarquia | **Custom claims ou back-end próprio** | As *Security Rules* ficam ilegíveis quando expressam mais do que posse de documento. |
+
 ---
 
 ## Executando
+
+Os passos abaixo exercitam o ciclo completo, do provedor habilitado no console à sessão visível no navegador:
 
 <Steps>
 1. Abra o [Firebase Console](https://console.firebase.google.com/) e acesse seu projeto.
@@ -159,6 +195,8 @@ onAuthStateChanged(auth, (user) => {
 
 ## Exercício
 
+Responda com base nos métodos e no observador apresentados nesta página:
+
 1. Qual função do Firebase Auth deve ser registrada para atualizar a interface do usuário automaticamente quando a sessão é iniciada ou encerrada?
 2. O que a propriedade `userCredential.user.uid` representa no Firebase Auth?
 
@@ -168,6 +206,35 @@ onAuthStateChanged(auth, (user) => {
   1. A função `onAuthStateChanged(auth, callback)`.
 
   2. O identificador único e exclusivo (UID) gerado pelo Firebase para aquele usuário cadastrado.
+</details>
+
+---
+
+## Desafio
+
+Um formulário de autenticação real vive dos casos que dão errado. O `createUserWithEmailAndPassword` e o `signInWithEmailAndPassword` rejeitam a promessa com um `error.code` específico para cada situação, e mostrar esse código ao usuário não ajuda ninguém.
+
+Escreva uma camada que traduza os erros do Firebase Auth em mensagens em português, cobrindo pelo menos e-mail já cadastrado, senha fraca, credenciais inválidas e excesso de tentativas. Decida também o que fazer no caso em que o serviço não devolve erro algum, mas o usuário ainda não confirmou o e-mail.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A tradução é um mapa de códigos, com uma mensagem genérica como padrão para tudo o que não estiver previsto:
+
+  ```js title="Esboço da tradução de erros"
+  const messages = {
+    'auth/email-already-in-use': 'Este e-mail já possui cadastro.',
+    'auth/weak-password': 'A senha precisa ter ao menos seis caracteres.',
+    'auth/invalid-credential': 'E-mail ou senha incorretos.',
+    'auth/too-many-requests': 'Muitas tentativas seguidas. Tente novamente em alguns minutos.',
+  };
+
+  export function describeAuthError(error) {
+    return messages[error.code] ?? 'Não foi possível concluir a operação. Tente novamente.';
+  }
+  ```
+
+  Duas decisões acompanham o mapa. A primeira é de segurança: `auth/invalid-credential` cobre tanto senha errada quanto e-mail inexistente, e é assim de propósito, porque distinguir os dois casos revela quem tem conta no sistema. A segunda é de fluxo: e-mail não verificado não gera erro no login, e sim um `user.emailVerified` falso; cabe à aplicação decidir entre bloquear o acesso e apenas exibir um aviso com a opção de reenviar a verificação por `sendEmailVerification()`.
 </details>
 
 ---
@@ -198,4 +265,4 @@ onAuthStateChanged(auth, (user) => {
 
 ## Próximo tópico
 
-[Vite](../../build/vite/): Servidor de desenvolvimento e build tool para aplicações web modernas.
+[Vite](../../../npm/build/vite/): Servidor de desenvolvimento e build tool para aplicações web modernas.

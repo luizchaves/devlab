@@ -69,6 +69,11 @@ const courses = {
     shortTitle: 'npm',
     href: '/courses/npm/',
   },
+  cloud: {
+    title: 'Guia de Computação em Nuvem',
+    shortTitle: 'Nuvem',
+    href: '/courses/cloud/',
+  },
 } as const;
 
 export type CourseId = keyof typeof courses;

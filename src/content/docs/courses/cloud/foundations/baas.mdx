@@ -1,0 +1,235 @@
+---
+title: "Nuvem: Backend as a Service"
+description: "O que um Backend as a Service assume no lugar de um back-end próprio: API gerada a partir do esquema, autorização declarativa, chave pública no navegador e critérios para escolher entre plataforma e servidor."
+course: cloud
+sidebar:
+  label: "Backend as a Service"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do modelo que sustenta o Supabase e o Firebase: substituir o servidor da aplicação por uma plataforma que já traz banco de dados, autenticação, armazenamento e uma API gerada a partir do próprio esquema. O que muda não é apenas quem hospeda, mas onde as decisões de acesso passam a ser escritas.
+
+## Objetivo
+
+Compreender o Backend as a Service como um deslocamento de responsabilidade, e não como ausência de back-end, identificando o que a plataforma passa a decidir, o que continua sendo do desenvolvedor e em que ponto o modelo deixa de servir. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar como uma API surge do esquema de dados, sem código de servidor.
+- Descrever o caminho de uma requisição em um BaaS e onde a autorização acontece nele.
+- Justificar por que a chave que o front-end carrega é pública e o que decorre disso.
+- Comparar autorização declarativa na plataforma com autorização em código no servidor.
+- Decidir entre BaaS, back-end próprio e arquitetura mista a partir das restrições do projeto.
+
+---
+
+## O Que a Plataforma Assume
+
+Em uma aplicação com back-end próprio, existe um programa seu entre o navegador e o banco. Ele recebe a requisição, confere quem está pedindo, decide se aquilo é permitido, monta a consulta e devolve a resposta. Cada uma dessas etapas é código que alguém escreveu, testou e mantém.
+
+Um BaaS remove esse programa e redistribui as suas quatro tarefas. O diagrama abaixo mostra para onde cada uma vai:
+
+<Mermaid title="Para onde vão as tarefas do back-end em uma arquitetura BaaS">
+{`
+flowchart TD
+  Req["Requisição do navegador"] --> Gate["Gateway da plataforma"]
+  Gate --> AuthN["Autenticação<br/>serviço da plataforma valida o token"]
+  AuthN --> AuthZ["Autorização<br/>política declarativa que VOCÊ escreveu"]
+  AuthZ --> Query["Consulta<br/>gerada a partir do esquema"]
+  Query --> DB[(Banco de dados gerenciado)]
+`}
+</Mermaid>
+
+A distribuição não é uniforme, e é aí que mora o mal-entendido mais comum sobre o modelo. A tabela abaixo separa o que a plataforma resolve do que continua na sua mesa:
+
+| Tarefa | Quem resolve em um BaaS |
+| --- | --- |
+| Receber a requisição e roteá-la | A plataforma, a partir do esquema de dados. |
+| Verificar **quem** está pedindo | A plataforma, validando o token que ela mesma emitiu. |
+| Decidir **se aquilo é permitido** | Você, na política de acesso que escreve e mantém. |
+| Traduzir o pedido em consulta ao banco | A plataforma. |
+| Modelar os dados | Você, e essa decisão condiciona todo o resto. |
+| Aplicar regra de negócio não expressável em política | Você, em uma função na nuvem ou em um servidor próprio. |
+
+"Sem back-end" descreve bem a infraestrutura e mal a responsabilidade. As duas decisões mais difíceis de um back-end, o modelo de dados e quem pode ver o quê, continuam inteiras com o desenvolvedor. O que desaparece é o código repetitivo entre elas.
+
+---
+
+## A Chave Pública Muda o Jogo
+
+Em uma arquitetura tradicional, a credencial do banco vive no servidor e nunca sai de lá. O navegador conversa com a sua API, e a sua API conversa com o banco. Se o front-end for inteiramente reescrito por um usuário mal-intencionado, ele ainda esbarra nas regras do servidor.
+
+Em um BaaS, o navegador fala diretamente com a plataforma, e para isso carrega uma chave de identificação do projeto. Essa chave é **pública por construção**: ela está no *bundle* JavaScript, visível para qualquer pessoa que abra as ferramentas de desenvolvedor.
+
+<Aside type="danger" title="A chave pública identifica o projeto, não autoriza o acesso">
+A chave anônima do Supabase e a configuração do Firebase não são segredos, e tratá-las como tal produz uma falsa sensação de segurança. Elas dizem à plataforma **qual projeto** está sendo acessado. Quem pode ler e escrever o quê é decidido inteiramente pela política de acesso. Uma tabela sem política, com a chave pública circulando, está aberta para a internet.
+</Aside>
+
+A consequência prática é direta: em um BaaS, **a política de acesso é o back-end**. Ela é o único código que separa os dados do mundo, e por isso merece a mesma atenção que se daria a um middleware de autorização, incluindo testes.
+
+Já a chave administrativa segue a regra oposta. A `service_role` do Supabase e a credencial do Admin SDK do Firebase ignoram todas as políticas por definição. Elas existem para código de servidor e nunca podem aparecer em um front-end.
+
+---
+
+## Autorização Declarativa
+
+A diferença mais concreta entre os dois modelos aparece quando se escreve a mesma regra nos dois lugares. Considere a exigência de que cada usuário só enxergue os próprios investimentos.
+
+Em um servidor Express, ela é uma instrução dentro do fluxo da requisição, e depende de o desenvolvedor lembrar de aplicá-la em todas as rotas:
+
+```js title="Autorização em código, no servidor"
+app.get('/investments', requireAuth, async (req, res) => {
+  const investments = await db.investment.findMany({
+    where: { userId: req.user.id },
+  });
+
+  res.json(investments);
+});
+```
+
+Em um BaaS, ela é uma declaração anexada à tabela, aplicada a toda consulta que a alcance, independentemente de onde tenha partido:
+
+```sql title="Autorização declarativa, na plataforma"
+create policy "cada usuário vê os próprios investimentos"
+  on investments
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+As duas formas têm forças opostas, e reconhecê-las é o que permite escolher com critério:
+
+| Aspecto | Autorização em código | Autorização declarativa |
+| --- | --- | --- |
+| **Alcance** | Vale na rota em que foi escrita | Vale em toda consulta à tabela |
+| **Esquecimento** | Uma rota sem o filtro vaza dados | Não há rota para esquecer |
+| **Expressividade** | Qualquer lógica que a linguagem permita | Limitada ao que a política consegue expressar |
+| **Teste** | Testes automatizados da aplicação | Exige testar contra o banco, com usuários distintos |
+| **Leitura** | Espalhada pelas rotas | Concentrada, mas fora do repositório da aplicação |
+
+---
+
+## Os Limites do Modelo
+
+Há classes de problema que um BaaS não resolve, e insistir nelas dentro da plataforma produz sistemas frágeis. Vale conhecê-las antes, porque todas aparecem tarde, quando a aplicação já cresceu.
+
+<Steps>
+1. **Segredo de terceiros.** Uma chave de gateway de pagamento ou de uma API paga não pode ir para o navegador. A chamada precisa sair de um servidor ou de uma função na nuvem.
+2. **Regra que o cliente não pode burlar.** Calcular preço, aplicar desconto, decidir aprovação: se a regra vive no front-end, ela é uma sugestão, porque o cliente é editável.
+3. **Trabalho longo ou agendado.** Processar um arquivo grande, gerar um relatório noturno ou reprocessar uma fila não cabe no modelo de requisição e resposta cobrado por chamada.
+4. **Integração que exige orquestração.** Chamar três serviços em sequência, com compensação em caso de falha, pede um lugar com controle de fluxo e registro do que aconteceu.
+5. **Consulta que a política não expressa.** Quando a regra de acesso depende de dados de outras tabelas e de estado externo, ela deixa de caber em uma política e vira código.
+</Steps>
+
+A saída para todos esses casos costuma ser a mesma, e não é abandonar a plataforma: acrescentar um pedaço de servidor onde ele é necessário. Uma função na nuvem ao lado do BaaS, ou uma API própria pequena que guarda apenas os segredos e as regras críticas, mantém o ganho do modelo sem a fragilidade.
+
+---
+
+## Critérios de Decisão
+
+A decisão raramente é "BaaS ou não". É "quanto de BaaS", e a resposta vem do que o projeto precisa proteger e de quanto tempo tem.
+
+| Restrição do projeto | Escolha | Por quê |
+| --- | --- | --- |
+| Prazo curto e equipe pequena, dados de baixa criticidade | **BaaS puro** | O tempo economizado em código de infraestrutura é real e imediato. |
+| Aplicação com pagamento, integração paga ou segredo de terceiros | **BaaS + funções na nuvem** | O segredo fica no servidor; o restante segue direto do cliente. |
+| Regra de negócio complexa, auditável, com muitos estados | **Back-end próprio** ([Guia de Express.js](../../../expressjs/)) | A lógica precisa de um lugar com testes, versionamento e controle de fluxo. |
+| Exigência regulatória sobre onde e como o dado é tratado | **Auto-hospedagem ou back-end próprio** | O controle sobre a infraestrutura passa a ser requisito, não preferência. |
+| Equipe aprendendo a modelar dados e a projetar acesso | **BaaS, com política escrita desde o primeiro dia** | O modelo expõe a decisão de autorização em vez de escondê-la em middleware. |
+
+<Aside type="tip" title="Modelo Mental">
+Escolher um BaaS é decidir que a sua aplicação vai confiar em uma política declarativa em vez de em um programa seu. Essa é uma boa decisão quando a política consegue expressar a regra inteira, e uma decisão ruim quando ela expressa só parte dela e o restante fica no front-end, onde não protege nada.
+</Aside>
+
+---
+
+## Exercício
+
+Antes de responder, releia a tabela de distribuição de tarefas e o aside sobre a chave pública:
+
+1. Em um BaaS, quem decide se uma requisição de leitura pode devolver determinada linha da tabela?
+2. Por que a chave anônima do Supabase, ou a configuração do Firebase, não precisa ser mantida em segredo, enquanto a chave administrativa precisa?
+3. Uma aplicação precisa consultar uma API paga de cotações usando uma chave contratada. Por que essa chamada não pode partir do navegador, mesmo com o usuário autenticado?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A **política de acesso** escrita pelo desenvolvedor e avaliada pela plataforma (RLS no Supabase, *Security Rules* no Firebase). A plataforma valida a identidade; a autorização é a política.
+
+  2. Porque a chave pública apenas identifica o projeto, e todo acesso feito com ela passa pelas políticas. A chave administrativa, ao contrário, ignora as políticas por definição, então quem a possui tem acesso irrestrito aos dados.
+
+  3. Porque tudo o que chega ao navegador é visível e reutilizável por quem abrir as ferramentas de desenvolvedor. A chave contratada seria copiada e usada por terceiros, na sua conta. A chamada precisa sair de um servidor ou de uma função na nuvem, que devolve ao cliente apenas o resultado.
+</details>
+
+---
+
+## Desafio
+
+Escrever a política é fácil; provar que ela funciona é o que separa uma aplicação segura de uma que apenas parece segura. Escolha uma plataforma, crie uma tabela de investimentos com uma coluna de dono e escreva a política que restringe cada linha ao seu criador.
+
+Em seguida, monte um roteiro de verificação com pelo menos cinco tentativas de acesso indevido, feitas fora da sua aplicação: pela API REST com a chave pública, sem token; com o token de outro usuário; alterando o campo de dono no corpo de uma escrita; lendo por um filtro que tenta contornar a política; e apagando uma linha alheia. Registre a resposta HTTP de cada tentativa e diga qual delas seria o alarme se mudasse.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O resultado esperado é um conjunto de respostas vazias e de recusas, e a distinção entre elas é instrutiva. Leituras bloqueadas por política costumam responder `200` com uma lista **vazia**, não `403`: para o banco, as linhas simplesmente não existem naquele contexto. Já escritas que violam o `with check` falham explicitamente, com erro da plataforma.
+
+  A tentativa mais reveladora é a terceira. Enviar `user_id` de outra pessoa no corpo da requisição é o teste que separa uma política escrita apenas com `using` de uma política completa: sem `with check`, a leitura fica protegida e a escrita não. Esse é o alarme a observar, e é também o motivo pelo qual essas verificações precisam ser roteiro repetível, e não inspeção manual feita uma vez.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### O modelo
+
+1. **Por que dizer que um BaaS elimina o back-end é impreciso?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque as duas decisões centrais de um back-end, a modelagem dos dados e a autorização de acesso, continuam sendo do desenvolvedor. O que a plataforma elimina é o código repetitivo entre elas: roteamento, serialização e a tradução de requisição em consulta.
+   </details>
+
+2. **Qual é a diferença entre autenticação e autorização em uma arquitetura BaaS?**
+   <details>
+     <summary>Possível resposta</summary>
+     A autenticação é da plataforma: ela emite e valida o token que identifica o usuário. A autorização é sua: é a política declarativa que decide, linha a linha ou documento a documento, o que aquele usuário pode ler e escrever.
+   </details>
+
+3. **O que acontece com uma tabela publicada sem nenhuma política de acesso?**
+   <details>
+     <summary>Possível resposta</summary>
+     No Supabase, com RLS habilitado e sem política, nada é acessível; com RLS desabilitado, a tabela fica exposta a qualquer portador da chave pública. No Firestore, o modo de teste libera leitura e escrita para todos por um prazo. Nos dois casos, a ausência de política é uma decisão de segurança, e quase nunca a desejada.
+   </details>
+
+### As fronteiras
+
+4. **Cite duas situações em que uma função na nuvem se torna necessária ao lado do BaaS.**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando a operação usa um segredo de terceiros (uma chave de pagamento, por exemplo) e quando a regra de negócio não pode ser burlada pelo cliente, como o cálculo de um preço ou a aprovação de uma transação.
+   </details>
+
+5. **Por que uma regra de negócio implementada apenas no front-end não protege nada?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o código do cliente é inteiramente inspecionável e modificável, e a requisição pode ser reproduzida fora da aplicação. Tudo o que roda no navegador é conveniência de interface; garantia só existe onde o usuário não pode interferir.
+   </details>
+
+6. **Que vantagem a autorização declarativa tem sobre a autorização espalhada em rotas?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ela vale para toda consulta que alcance a tabela, venha de onde vier, e por isso não pode ser esquecida em uma rota nova. Em compensação, é limitada ao que a linguagem de políticas consegue expressar.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase: Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Firebase Security Rules](https://firebase.google.com/docs/rules)
+- [OWASP Top 10: Broken Access Control](https://owasp.org/Top10/A01_2021-Broken_Access_Control/)
+
+---
+
+## Próximo tópico
+
+[Visão geral do Supabase](../../supabase/): A plataforma BaaS construída sobre PostgreSQL, com API REST gerada e segurança por linha.

@@ -39,13 +39,22 @@ export default defineConfig({
     '/courses/packages/mock/json-server': withBase('/courses/npm/mock/json-server/'),
     '/courses/packages/http/axios': withBase('/courses/npm/http/axios/'),
     '/courses/packages/ui/chartjs': withBase('/courses/npm/ui/chartjs/'),
-    '/courses/packages/baas/supabase': withBase('/courses/npm/baas/supabase/'),
-    '/courses/packages/baas/supabase-api': withBase('/courses/npm/baas/supabase-api/'),
-    '/courses/packages/baas/supabase-client': withBase('/courses/npm/baas/supabase-client/'),
-    '/courses/packages/baas/supabase-auth': withBase('/courses/npm/baas/supabase-auth/'),
-    '/courses/packages/baas/firebase': withBase('/courses/npm/baas/firebase/'),
-    '/courses/packages/baas/firebase-firestore': withBase('/courses/npm/baas/firebase-firestore/'),
-    '/courses/packages/baas/firebase-auth': withBase('/courses/npm/baas/firebase-auth/'),
+    '/courses/packages/baas/supabase': withBase('/courses/cloud/supabase/'),
+    '/courses/packages/baas/supabase-api': withBase('/courses/cloud/supabase/api/'),
+    '/courses/packages/baas/supabase-client': withBase('/courses/cloud/supabase/client/'),
+    '/courses/packages/baas/supabase-auth': withBase('/courses/cloud/supabase/auth/'),
+    '/courses/packages/baas/firebase': withBase('/courses/cloud/firebase/'),
+    '/courses/packages/baas/firebase-firestore': withBase('/courses/cloud/firebase/firestore/'),
+    '/courses/packages/baas/firebase-auth': withBase('/courses/cloud/firebase/auth/'),
+    // O BaaS saiu do guia de pacotes e virou o "Guia de Computação em Nuvem",
+    // porque o assunto e a infraestrutura hospedada, nao o registro npm.
+    '/courses/npm/baas/supabase': withBase('/courses/cloud/supabase/'),
+    '/courses/npm/baas/supabase-api': withBase('/courses/cloud/supabase/api/'),
+    '/courses/npm/baas/supabase-client': withBase('/courses/cloud/supabase/client/'),
+    '/courses/npm/baas/supabase-auth': withBase('/courses/cloud/supabase/auth/'),
+    '/courses/npm/baas/firebase': withBase('/courses/cloud/firebase/'),
+    '/courses/npm/baas/firebase-firestore': withBase('/courses/cloud/firebase/firestore/'),
+    '/courses/npm/baas/firebase-auth': withBase('/courses/cloud/firebase/auth/'),
     // Redirecionamento legado do Guia de Express para expressjs.
     '/courses/express': withBase('/courses/expressjs/'),
     // Persistencia migrou do Guia de Banco de Dados para o Guia de Express.js.
@@ -218,13 +227,13 @@ export default defineConfig({
     '/courses/pw2-csbes-jp/package/http-client': withBase('/courses/web-api/http/clients/'),
     '/courses/pw2-csbes-jp/package/vite': withBase('/courses/npm/build/vite/'),
     '/courses/pw2-csbes-jp/package/json-server': withBase('/courses/npm/mock/json-server/'),
-    '/courses/pw2-csbes-jp/package/supabase-api': withBase('/courses/npm/baas/supabase-api/'),
-    '/courses/pw2-csbes-jp/package/supabase-client': withBase('/courses/npm/baas/supabase-client/'),
-    '/courses/pw2-csbes-jp/package/supabase-auth': withBase('/courses/npm/baas/supabase-auth/'),
+    '/courses/pw2-csbes-jp/package/supabase-api': withBase('/courses/cloud/supabase/api/'),
+    '/courses/pw2-csbes-jp/package/supabase-client': withBase('/courses/cloud/supabase/client/'),
+    '/courses/pw2-csbes-jp/package/supabase-auth': withBase('/courses/cloud/supabase/auth/'),
     '/courses/pw2-csbes-jp/package/firebase-firestore': withBase(
-      '/courses/npm/baas/firebase-firestore/'
+      '/courses/cloud/firebase/firestore/'
     ),
-    '/courses/pw2-csbes-jp/package/firebase-auth': withBase('/courses/npm/baas/firebase-auth/'),
+    '/courses/pw2-csbes-jp/package/firebase-auth': withBase('/courses/cloud/firebase/auth/'),
     '/courses/pw2-csbes-jp/react/introduction': withBase('/courses/react/basics/introduction/'),
     '/courses/pw2-csbes-jp/react/style': withBase('/courses/react/basics/style/'),
     '/courses/pw2-csbes-jp/react/hooks': withBase('/courses/react/state/hooks/'),
@@ -1415,7 +1424,10 @@ export default defineConfig({
             },
             {
               label: 'Build e Desenvolvimento',
-              items: [{ label: 'Vite', link: '/courses/npm/build/vite/' }],
+              items: [
+                { label: 'Pacotes de Desenvolvimento', link: '/courses/npm/dev/dev-dependencies/' },
+                { label: 'Vite', link: '/courses/npm/build/vite/' },
+              ],
             },
             {
               label: 'APIs de Prototipagem',
@@ -1426,32 +1438,74 @@ export default defineConfig({
               items: [{ label: 'Axios', link: '/courses/npm/http/axios/' }],
             },
             {
-              label: 'Interface',
-              items: [{ label: 'Chart.js', link: '/courses/npm/ui/chartjs/' }],
+              label: 'Validação de Dados',
+              items: [{ label: 'Zod', link: '/courses/npm/validation/zod/' }],
             },
             {
-              label: 'Backend as a Service (BaaS)',
+              label: 'Interface',
+              items: [
+                { label: 'Chart.js', link: '/courses/npm/ui/chartjs/' },
+                { label: 'D3.js', link: '/courses/npm/ui/d3/' },
+                { label: 'Apache ECharts', link: '/courses/npm/ui/echarts/' },
+                { label: 'Leaflet', link: '/courses/npm/ui/leaflet/' },
+              ],
+            },
+            {
+              label: 'Referência',
               items: [
                 {
-                  label: 'Firebase',
-                  items: [
-                    { label: 'Visão geral do Firebase', link: '/courses/npm/baas/firebase/' },
-                    {
-                      label: 'Cloud Firestore',
-                      link: '/courses/npm/baas/firebase-firestore/',
-                    },
-                    { label: 'Firebase Auth', link: '/courses/npm/baas/firebase-auth/' },
-                  ],
+                  label: 'Mapa de Pacotes',
+                  link: '/courses/npm/reference/package-map/',
                 },
+              ],
+            },
+          ],
+        },
+        {
+          label: 'Guia de Computação em Nuvem',
+          items: [
+            { label: 'Visão geral', link: '/courses/cloud/' },
+            {
+              label: 'Fundamentos',
+              items: [
                 {
-                  label: 'Supabase',
-                  items: [
-                    { label: 'Visão geral do Supabase', link: '/courses/npm/baas/supabase/' },
-                    { label: 'Supabase API', link: '/courses/npm/baas/supabase-api/' },
-                    { label: 'Supabase Client', link: '/courses/npm/baas/supabase-client/' },
-                    { label: 'Supabase Auth', link: '/courses/npm/baas/supabase-auth/' },
-                  ],
+                  label: 'Computação em Nuvem',
+                  link: '/courses/cloud/foundations/cloud-computing/',
                 },
+                { label: 'Backend as a Service', link: '/courses/cloud/foundations/baas/' },
+              ],
+            },
+            {
+              label: 'Supabase',
+              items: [
+                { label: 'Visão geral do Supabase', link: '/courses/cloud/supabase/' },
+                { label: 'Supabase API', link: '/courses/cloud/supabase/api/' },
+                { label: 'Supabase Client', link: '/courses/cloud/supabase/client/' },
+                { label: 'Supabase Auth', link: '/courses/cloud/supabase/auth/' },
+              ],
+            },
+            {
+              label: 'Firebase',
+              items: [
+                { label: 'Visão geral do Firebase', link: '/courses/cloud/firebase/' },
+                { label: 'Cloud Firestore', link: '/courses/cloud/firebase/firestore/' },
+                { label: 'Firebase Auth', link: '/courses/cloud/firebase/auth/' },
+              ],
+            },
+            {
+              label: 'Hospedagem e Execução',
+              items: [
+                { label: 'Hospedagem Estática', link: '/courses/cloud/hosting/static-hosting/' },
+                {
+                  label: 'Funções Serverless',
+                  link: '/courses/cloud/hosting/serverless-functions/',
+                },
+              ],
+            },
+            {
+              label: 'Referência',
+              items: [
+                { label: 'Mapa de Plataformas', link: '/courses/cloud/reference/platform-map/' },
               ],
             },
           ],

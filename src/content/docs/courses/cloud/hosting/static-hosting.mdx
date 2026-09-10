@@ -1,0 +1,314 @@
+---
+title: "Nuvem: Hospedagem Estática"
+description: "Publicação de um site estático em GitHub Pages, Netlify, Vercel e Cloudflare Pages: caminho base, build no CI, reescrita de rotas, cabeçalhos de cache e variáveis de ambiente no front-end."
+course: cloud
+sidebar:
+  label: "Hospedagem Estática"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico mostra como um projeto Vite sai da máquina de desenvolvimento e passa a responder em um endereço público, nas quatro plataformas mais usadas para isso. O código é o mesmo em todas; o que muda é o caminho base, a regra de reescrita de rotas e onde a configuração mora.
+
+## Objetivo
+
+Publicar uma aplicação de front-end em uma plataforma de hospedagem estática, entendendo o que acontece entre o `git push` e a página no ar, e reconhecendo as três configurações que separam um site que funciona de um que retorna 404 em produção. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o que é uma hospedagem estática e por que ela dispensa servidor de aplicação.
+- Configurar o caminho base (`base`) conforme o site seja servido na raiz ou em subdiretório.
+- Escrever a regra de reescrita que evita 404 ao recarregar uma rota interna.
+- Publicar o mesmo projeto em GitHub Pages, Netlify, Vercel e Cloudflare Pages.
+- Distinguir variável de ambiente de build de segredo, e reconhecer o que nunca pode ir para o *bundle*.
+
+---
+
+## O Que Uma Hospedagem Estática Faz
+
+Uma hospedagem estática serve arquivos prontos. Não há processo da sua aplicação em execução do outro lado: o build gerou HTML, CSS, JavaScript e imagens, e a plataforma os distribui a partir de uma rede de entrega de conteúdo, o *CDN*.
+
+O caminho entre o seu repositório e o navegador do visitante tem sempre as mesmas etapas:
+
+<Mermaid title="Do commit ao navegador em uma hospedagem estática">
+{`
+flowchart LR
+  Push["git push"] --> CI["Build na plataforma<br/>npm ci && npm run build"]
+  CI --> Dist["Pasta dist/<br/>HTML, CSS, JS, assets"]
+  Dist --> CDN["CDN<br/>cópias em vários pontos"]
+  CDN --> User["Navegador do visitante"]
+`}
+</Mermaid>
+
+Esse modelo explica as vantagens e o limite. Como não há processo, não há o que reiniciar, escalar ou invadir pela aplicação, e o custo em repouso é próximo de zero. Em contrapartida, **nada é decidido no servidor**: qualquer dado dinâmico vem de uma API, de um [BaaS](../../foundations/baas/) ou de uma [função *serverless*](../serverless-functions/) chamada pelo navegador.
+
+---
+
+## O Projeto de Exemplo
+
+O projeto `invest-site` é um Vite mínimo, com os arquivos de configuração das quatro plataformas lado a lado, para que a comparação seja concreta:
+
+<FileTree>
+{`
+invest-site/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml
+├── public/
+│   ├── _headers
+│   ├── _redirects
+│   └── vite.svg
+├── src/
+│   ├── main.js
+│   └── style.css
+├── .gitignore
+├── index.html
+├── netlify.toml
+├── package-lock.json
+├── package.json
+├── README.md
+├── vercel.json
+└── vite.config.js
+`}
+</FileTree>
+
+Um projeto real publica em uma plataforma só. Ter as quatro configurações no mesmo repositório serve ao estudo: cada arquivo é a resposta de uma plataforma às mesmas três perguntas.
+
+---
+
+## O Caminho Base
+
+Esta é a configuração que mais causa confusão, e a que produz o sintoma mais desconcertante: a página abre em branco, sem erro visível, com os arquivos retornando 404 no painel de rede.
+
+A causa é simples. Netlify, Vercel e Cloudflare Pages servem o site na raiz de um domínio, então `/assets/index.js` é o caminho certo. O GitHub Pages de projeto serve em `https://usuario.github.io/repositorio/`, e ali o caminho certo é `/repositorio/assets/index.js`.
+
+O Vite resolve isso com a opção `base`, lida de uma variável de ambiente para que o mesmo código sirva aos dois casos:
+
+<SourceCode path="examples/courses/cloud/static-hosting/invest-site/vite.config.js" mark={[8]} />
+
+O valor escolhido chega ao código como `import.meta.env.BASE_URL`, e todo caminho montado em tempo de execução precisa passar por ele:
+
+<SourceCode path="examples/courses/cloud/static-hosting/invest-site/src/main.js" region="build-info" />
+
+<Aside type="caution" title="Dica de IA: Peça o build com o base de produção, não só o `npm run dev`">
+  Assistentes validam a sugestão rodando o servidor de desenvolvimento, onde o `base` é sempre `/` e o problema não aparece. O erro só se manifesta no build publicado em subdiretório, e como não há exceção no console, ele é confundido com falha da plataforma.
+
+  **Prompt:** *"Liste todos os pontos deste projeto Vite em que um caminho é montado em tempo de execução sem passar por `import.meta.env.BASE_URL`, e mostre o comando que reproduz o problema localmente com `base` igual a `/invest-site/`."*
+</Aside>
+
+---
+
+## A Reescrita de Rotas
+
+O segundo problema clássico aparece em aplicações de página única. Navegar de `/` para `/investimentos` funciona, porque o roteamento acontece no JavaScript. Recarregar a página em `/investimentos` devolve 404, porque a plataforma procura um arquivo com esse nome e não o encontra.
+
+A solução é a mesma nas quatro: mandar servir o `index.html` para qualquer caminho não encontrado, mantendo a URL e respondendo `200`. O que muda é onde a regra é escrita.
+
+No Netlify, ela vai no `netlify.toml`, junto do comando de build e do diretório publicado:
+
+<SourceCode path="examples/courses/cloud/static-hosting/invest-site/netlify.toml" mark={{ ins: [10, 11, 12, 13] }} />
+
+Na Vercel, o mesmo é expresso em JSON, com `rewrites`:
+
+<SourceCode path="examples/courses/cloud/static-hosting/invest-site/vercel.json" mark={[7]} />
+
+No Cloudflare Pages, a regra vive em um arquivo `_redirects` dentro de `public/`, que o Vite copia para `dist/` sem alterações:
+
+<SourceCode path="examples/courses/cloud/static-hosting/invest-site/public/_redirects" />
+
+O GitHub Pages é o único sem reescrita configurável. A saída tradicional é publicar uma cópia do `index.html` como `404.html`, aproveitando que o Pages serve esse arquivo para caminhos inexistentes.
+
+---
+
+## Cabeçalhos e Cache
+
+Os arquivos que o Vite gera em `dist/assets/` trazem um *hash* no nome, que muda sempre que o conteúdo muda. Isso permite a política de cache mais agressiva possível para eles, e uma bem mais curta para o `index.html`, que é o arquivo que aponta para os demais.
+
+No Cloudflare Pages, os cabeçalhos vão em um arquivo dedicado, também servido a partir de `public/`:
+
+<SourceCode path="examples/courses/cloud/static-hosting/invest-site/public/_headers" mark={[3, 4]} />
+
+Além do cache, esse é o lugar onde entram os cabeçalhos de segurança da resposta. Os três presentes no arquivo cobrem o essencial: `X-Frame-Options` impede que o site seja embutido em um `iframe` de terceiros, `X-Content-Type-Options` desliga a adivinhação de tipo de conteúdo e `Referrer-Policy` limita o que é enviado ao navegar para fora.
+
+---
+
+## Publicando em Cada Plataforma
+
+A publicação segue o mesmo roteiro nas três plataformas que detectam o projeto sozinhas. O GitHub Pages é o caso que exige um passo a mais, porque o build acontece em um fluxo de trabalho que você escreve.
+
+<Steps>
+1. **Netlify, Vercel ou Cloudflare Pages**: conecte o repositório pelo painel da plataforma. Ela detecta o Vite, sugere `npm run build` e `dist`, e publica a cada `push` na branch principal. Os arquivos `netlify.toml` e `vercel.json` já respondem por essa configuração, sem preenchimento manual.
+2. **GitHub Pages**: em *Settings → Pages*, selecione **GitHub Actions** como origem, e adicione o fluxo de trabalho que constrói e publica.
+3. **Confira o caminho base**: abra o site publicado e verifique a linha de informação da página, que imprime o `BASE_URL` resolvido no build. Em um Pages de projeto, ela precisa mostrar `/repositorio/`.
+4. **Teste a rota interna**: acesse uma URL interna diretamente, sem passar pela navegação da aplicação. Se voltar 404, a regra de reescrita não está ativa.
+</Steps>
+
+O fluxo de trabalho do GitHub Pages vive em `.github/workflows/deploy.yml`. O trecho decisivo é a variável `BASE_PATH`, montada a partir do nome do repositório, que é exatamente o que o `vite.config.js` consome:
+
+```yaml title=".github/workflows/deploy.yml"
+      - run: npm ci
+      - run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+```
+
+---
+
+## Variáveis de Ambiente e Segredos
+
+O Vite expõe ao código apenas as variáveis prefixadas com `VITE_`, e essa restrição é uma proteção contra vazamento acidental. O que ela **não** faz é tornar secreto o que é exposto.
+
+| O que é | Onde pode ficar | Por quê |
+| --- | --- | --- |
+| URL da API, chave pública do projeto, identificador de analytics | `VITE_…`, no build | São públicos por natureza; a proteção vem da política de acesso do serviço. |
+| Chave administrativa, token de API paga, segredo de assinatura | **Nunca no front-end** | Tudo o que entra no *bundle* é legível por qualquer visitante. |
+
+<Aside type="danger" title="Variável de build não é segredo">
+Uma variável usada no build é substituída pelo seu valor dentro do JavaScript publicado. Ela não fica no repositório, mas fica no site, e basta abrir o arquivo servido para lê-la. Segredo de verdade só existe em código que roda no servidor, como uma [função *serverless*](../serverless-functions/).
+</Aside>
+
+---
+
+## Executando
+
+Para reproduzir localmente o cenário que quebra em produção, rode o build com o caminho base do GitHub Pages e sirva o resultado:
+
+<Steps>
+1. Instale as dependências do projeto:
+
+   ```bash title="Terminal"
+   npm install
+   ```
+2. Rode o servidor de desenvolvimento e observe a linha de informação da página, que mostra `Base: /`:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+3. Gere o build simulando um GitHub Pages de projeto e sirva a pasta publicada:
+
+   ```bash title="Terminal"
+   BASE_PATH=/invest-site/ npm run build && npm run preview
+   ```
+4. Confirme no HTML gerado que os caminhos ganharam o prefixo:
+
+   ```txt title="Output"
+   href="/invest-site/vite.svg"
+   src="/invest-site/assets/index-C56ycdGA.js"
+   href="/invest-site/assets/index-hrm3bI7s.css"
+   ```
+</Steps>
+
+---
+
+## Quando usar, e quando não usar?
+
+Hospedagem estática é a escolha certa para quase todo front-end moderno, e a errada quando a página precisa ser diferente antes de chegar ao navegador.
+
+A tabela abaixo separa os casos:
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Aplicação de página única que busca dados por API | **Hospedagem estática** | O HTML é sempre o mesmo; o conteúdo chega por requisição do cliente. |
+| Site institucional, documentação, portfólio | **Hospedagem estática** | Conteúdo gerado no build, servido por CDN a custo próximo de zero. |
+| Página que precisa de HTML diferente por usuário ou por idioma | **Renderização no servidor** | A decisão precisa acontecer antes da resposta, e não há processo para tomá-la. |
+| Conteúdo que muda a cada minuto e precisa ser indexável | **Renderização no servidor ou incremental** | Um build por alteração não acompanha a frequência. |
+| Operação com segredo ou regra que o cliente não pode burlar | **[Função *serverless*](../serverless-functions/) ou back-end próprio** | O *bundle* é público; segredo exige código fora do navegador. |
+
+---
+
+## Exercício
+
+Use o projeto `invest-site` como referência para responder:
+
+1. Um site publicado em `https://usuario.github.io/invest-site/` abre em branco, e o painel de rede mostra 404 em todos os arquivos de `assets/`. Qual configuração está errada?
+2. Qual arquivo do projeto resolve o 404 ao recarregar uma rota interna no Cloudflare Pages, e por que ele fica dentro de `public/`?
+3. Por que uma chave declarada como `VITE_API_KEY` não pode ser tratada como segredo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O `base` do Vite. Em um GitHub Pages de projeto, ele precisa valer `/invest-site/`; se ficar em `/`, o HTML aponta para caminhos que não existem naquele domínio.
+
+  2. O `public/_redirects`, com a regra `/*  /index.html  200`. Ele fica em `public/` porque o Vite copia esse diretório para `dist/` sem processar, e a plataforma espera o arquivo na raiz do site publicado.
+
+  3. Porque toda variável `VITE_` é substituída pelo seu valor dentro do JavaScript gerado. Ela não aparece no repositório, mas aparece no *bundle* servido a qualquer visitante.
+</details>
+
+---
+
+## Desafio
+
+O projeto publica hoje uma única versão, a partir da branch principal. Times reais precisam de mais do que isso: revisar uma alteração antes de ela ir ao ar, e voltar atrás rapidamente quando algo quebra.
+
+Configure a publicação de *preview* por pull request na plataforma que preferir, de modo que cada PR receba a própria URL, e escreva no `README.md` do projeto o procedimento de reversão para produção. Depois, meça: qual é o tempo entre abrir o PR e a URL de preview responder, e qual é o tempo entre decidir reverter e a versão anterior estar no ar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Netlify, Vercel e Cloudflare Pages fazem previews por PR sem configuração adicional assim que o repositório é conectado: cada PR ganha um domínio próprio e comentários automáticos com o link. No GitHub Pages não existe equivalente nativo, e a alternativa é publicar o preview em outro serviço ou em um diretório separado da mesma origem.
+
+  A reversão é o ponto que costuma surpreender. Nas três plataformas gerenciadas, cada build fica guardado e a promoção de uma versão anterior é imediata, sem rebuild, porque os arquivos já existem no CDN. No GitHub Pages, reverter significa rodar o fluxo de trabalho de novo a partir do commit anterior, e o tempo passa a ser o tempo do build. A diferença entre segundos e minutos, nesse caso, é uma decisão de arquitetura, não um detalhe operacional.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Build e caminhos
+
+1. **Por que um site estático dispensa servidor de aplicação, e o que ele passa a exigir em troca?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o build já produziu todos os arquivos, e a plataforma apenas os distribui por CDN. Em troca, todo dado dinâmico precisa vir de outro lugar: uma API, um BaaS ou uma função serverless chamada pelo navegador.
+   </details>
+
+2. **O que o `base` do Vite altera no resultado do build?**
+   <details>
+     <summary>Possível resposta</summary>
+     O prefixo de todos os caminhos gerados para scripts, folhas de estilo e recursos de `public/`, além do valor de `import.meta.env.BASE_URL` disponível em tempo de execução.
+   </details>
+
+3. **Por que o problema do caminho base não aparece no `npm run dev`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o servidor de desenvolvimento serve o site na raiz, onde o `base` vale `/`. O sintoma só surge no build publicado em subdiretório, como no GitHub Pages de projeto.
+   </details>
+
+### Rotas e segurança
+
+4. **Por que recarregar uma rota interna de uma SPA devolve 404 sem regra de reescrita?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a plataforma procura um arquivo correspondente ao caminho pedido e ele não existe: aquela rota só existe no roteador em JavaScript, que ainda não foi carregado. A reescrita manda servir o `index.html` com status 200, preservando a URL.
+   </details>
+
+5. **Que política de cache faz sentido para `dist/assets/` e por quê?**
+   <details>
+     <summary>Possível resposta</summary>
+     Cache longo e imutável, porque os nomes desses arquivos contêm um hash do conteúdo: qualquer mudança gera um nome novo. O `index.html`, que aponta para eles, precisa de cache curto para que a troca seja percebida.
+   </details>
+
+6. **O que diferencia uma variável de ambiente de build de um segredo?**
+   <details>
+     <summary>Possível resposta</summary>
+     A variável de build é substituída pelo valor dentro do código publicado e fica legível para qualquer visitante. Um segredo precisa permanecer em código que roda no servidor, onde o cliente não alcança.
+   </details>
+
+---
+
+## Referências
+
+- [Vite: Deploying a Static Site](https://vite.dev/guide/static-deploy)
+- [GitHub Pages: Publishing with a custom workflow](https://docs.github.com/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+- [Netlify: Redirects and rewrites](https://docs.netlify.com/routing/redirects/)
+- [Vercel: Project Configuration](https://vercel.com/docs/project-configuration)
+- [Cloudflare Pages: Headers and Redirects](https://developers.cloudflare.com/pages/configuration/headers/)
+
+---
+
+## Próximo tópico
+
+[Funções Serverless](../serverless-functions/): O pedaço de servidor que volta quando o site estático precisa guardar um segredo.

@@ -1,0 +1,268 @@
+---
+title: "Nuvem: Supabase Client"
+description: "Uso da biblioteca cliente oficial @supabase/supabase-js para operações CRUD assíncronas, consultas fluentes e integração no front-end."
+course: cloud
+sidebar:
+  label: "Supabase Client"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O SDK cliente oficial **`@supabase/supabase-js`** fornece uma API fluente, tipada e assíncrona para interagir com todos os serviços do Supabase (Banco de Dados, Autenticação, Storage e Realtime) diretamente do front-end ou de projetos Node.js sem a necessidade de compor requisições HTTP manuais.
+
+## Objetivo
+
+Dominar o uso do cliente `@supabase/supabase-js` em uma aplicação real, da inicialização com as chaves do projeto até um módulo de serviço que concentra as quatro operações de persistência e o tratamento de erro de todas elas. Ao final do tópico, o leitor deve ser capaz de:
+
+- Inicializar o cliente com a URL do projeto e a *anon key* lidas de variáveis de ambiente.
+- Implementar `create`, `read`, `update` e `remove` com a interface encadeada do SDK.
+- Interpretar a resposta `{ data, error }` e converter o erro em exceção no módulo de serviço.
+- Diferenciar a chave `anon` da `service_role` e explicar por que só uma delas pode ir ao navegador.
+- Isolar o acesso ao Supabase em um módulo, mantendo os componentes de interface independentes da plataforma.
+
+---
+
+## Arquitetura do Supabase JS Client
+
+O SDK cliente do Supabase abstrai as chamadas HTTP do PostgREST através de uma interface encadeada baseada em Promises:
+
+<Mermaid title="Fluxo de Dados com o Supabase JS Client">
+{`
+flowchart TD
+  App["Aplicação Front-End (main.js)"] -- "supabase.from('investments').select()" --> SDK["@supabase/supabase-js Client"]
+  SDK -- "Compõe HTTP + Header apikey" --> API["PostgREST API (Supabase Cloud)"]
+  API -- "Executa Query no Postgres" --> DB[(PostgreSQL)]
+  DB -- "Retorna { data, error }" --> App
+`}
+</Mermaid>
+
+---
+
+## 1. Instalação e Inicialização
+
+Instale a biblioteca cliente oficial no projeto através do gerenciador de pacotes:
+
+<PackageManagerTabs package="@supabase/supabase-js" />
+
+Para instanciar o cliente, forneça a URL do projeto e a chave anônima pública (*anon key*). O objeto devolvido por `createClient()` é o ponto de entrada para banco de dados, autenticação, storage e tempo real:
+
+```js title="Exemplo básico de inicialização"
+import { createClient } from '@supabase/supabase-js';
+
+const API_URL = 'https://xyz.supabase.co';
+const API_KEY = 'public-anon-key';
+
+const supabase = createClient(API_URL, API_KEY);
+
+// Consulta dados da tabela investments
+const { data, error } = await supabase
+  .from('investments')
+  .select();
+
+if (error) {
+  console.error('Erro na consulta:', error.message);
+} else {
+  console.log('Investimentos:', data);
+}
+```
+
+---
+
+## 2. Estrutura do Projeto `Invest-app`
+
+Na aplicação `Invest-app`, centralizamos toda a lógica de comunicação com o Supabase dentro de um módulo de serviço (`services/storage.js`):
+
+<FileTree>
+{`
+invest-app/
+├── css/
+│   └── style.css
+├── js/
+│   ├── components/
+│   │   ├── InvestmentCard.js
+│   │   ├── InvestmentForm.js
+│   │   └── Modal.js
+│   ├── lib/
+│   │   ├── dom.js
+│   │   ├── format.js
+│   │   └── investments.js
+│   ├── services/
+│   │   └── storage.js
+│   └── main.js
+├── public/
+│   └── vite.svg
+├── .env.example
+├── .gitignore
+├── index.html
+├── package-lock.json
+├── package.json
+├── postcss.config.js
+└── tailwind.config.js
+`}
+</FileTree>
+
+---
+
+## 3. Implementação do Módulo de Serviço CRUD (`storage.js`)
+
+Todo o acesso ao Supabase mora em um único arquivo, `js/services/storage.js`. O restante da aplicação chama funções com nomes de domínio (`create`, `read`, `update`, `remove`) e nunca vê o SDK, o que mantém os componentes independentes da plataforma.
+
+O arquivo abre lendo as chaves do ambiente. O Vite expõe em `import.meta.env` apenas as variáveis prefixadas com `VITE_`, e é a partir delas que a linha 6 monta o cliente:
+
+<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="1-6" />
+
+### Operação de Criação (`create`)
+
+O método `.insert()` aceita um objeto ou um array de objetos, mas por padrão devolve apenas a confirmação da escrita. O `.select('*')` encadeado na linha 9 pede o registro de volta já com os campos que o banco gerou, como `id` e `created_at`, e a linha 15 devolve o primeiro item desse array:
+
+<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="8-16" mark={[9, 15]} />
+
+### Operação de Leitura (`read`)
+
+A mesma função atende à listagem e à busca por identificador. O operador ternário das linhas 19 a 21 decide entre acrescentar ou não o filtro `.eq('id', id)`, e o retorno é sempre um array: com `id`, ele traz no máximo um item; sem `id`, traz a tabela inteira:
+
+<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="18-28" mark={[20]} />
+
+### Operação de Atualização (`update`)
+
+O `.update()` envia apenas os campos presentes no objeto `data`, o que caracteriza uma atualização parcial. O filtro `.eq('id', id)` da linha 34 é o que impede a operação de atingir a tabela inteira:
+
+<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="30-42" mark={[34]} />
+
+<Aside type="caution" title="Dica de IA: Peça o teste que prova o filtro antes de aceitar um update">
+  Assistentes escrevem `update` e `delete` sem o `.eq()` com frequência, e o erro não aparece em desenvolvimento: a chamada retorna sucesso, só que aplicada a todas as linhas visíveis pela política de acesso. Como o `error` vem nulo, nenhum `try/catch` denuncia o problema.
+
+  **Prompt:** *"Escreva um teste que insere três investimentos, chama `update('investments', id, data)` e falha se algum registro diferente do `id` informado tiver sido alterado; depois mostre o que acontece com esse teste se o `.eq('id', id)` for removido."*
+</Aside>
+
+### Operação de Remoção (`remove`)
+
+O `.delete()` não devolve dados úteis, então a função só precisa reagir ao erro. A linha 54 exporta o objeto que o restante da aplicação importa:
+
+<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="44-54" />
+
+---
+
+## Quando usar, e quando não usar?
+
+O SDK e a API REST do PostgREST chegam ao mesmo banco, e a escolha entre eles é de ergonomia e de lugar de execução, não de capacidade. Há ainda um terceiro caminho, o mais fácil de esquecer: quando a chave que autentica a chamada não pode aparecer no navegador, nenhuma das duas serve, e a operação precisa acontecer no servidor.
+
+A tabela abaixo separa os três casos:
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| CRUD do front-end, com sessão do usuário | **`@supabase/supabase-js`** | O SDK acopla o token da sessão a cada chamada e trata a renovação sozinho. |
+| Escuta de mudanças ao vivo na tabela | **`@supabase/supabase-js`** | O canal Realtime só existe no SDK; a API REST não abre WebSocket. |
+| Script pontual, teste manual ou integração fora do JavaScript | **[API REST](../api/)** com `curl` ou `.http` | Uma requisição HTTP não exige instalar, empacotar e versionar uma dependência. |
+| Operação com a chave `service_role` | **Back-end próprio** ([Guia de Express.js](../../../expressjs/)) | A chave ignora o RLS; publicá-la no *bundle* do front-end entrega o banco inteiro. |
+| Consulta que a interface encadeada não expressa | **Função SQL (RPC)** | Uma função no banco, chamada por `supabase.rpc()`, resolve o que o encadeamento não alcança. |
+
+---
+
+## Executando
+
+Siga os passos para testar a integração do Supabase Client:
+
+<Steps>
+1. Configure o arquivo `.env` do seu projeto front-end com as chaves do Supabase:
+   ```ini
+   VITE_APP_SUPABASE_URL=https://seu-projeto.supabase.co
+   VITE_APP_SUPABASE_KEY=sua_chave_anon
+   ```
+2. Instale o pacote:
+
+   <PackageManagerTabs package="@supabase/supabase-js" />
+3. Inicie o servidor de desenvolvimento Vite: `npm run dev`.
+4. Abra o console do navegador e confirme o carregamento e salvamento de dados na nuvem.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base no módulo `storage.js` que você acabou de ler, e não de memória sobre outros SDKs:
+
+1. Qual objeto retornado pelas chamadas do `@supabase/supabase-js` contém a mensagem de erro caso uma operação falhe no banco de dados?
+2. Por que é necessário chamar `.select('*')` logo após um `.insert(data)` se desejamos obter o objeto completo criado com o `id` retornado?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A propriedade `error` (desestruturada da resposta `{ data, error }`).
+
+  2. Por padrão, o `.insert()` apenas executa a inserção. Chamar `.select('*')` força o Supabase a retornar o registro em sua forma final com os campos calculados e gerados pelo banco (como `id` e `created_at`).
+</details>
+
+---
+
+## Desafio
+
+O `storage.js` da aplicação devolve a tabela inteira em toda listagem, o que funciona com dez investimentos e deixa de funcionar com dez mil. Estenda o módulo com uma função `list(resource, options)` que aceite paginação (`page` e `perPage`), ordenação (`orderBy` e `ascending`) e um filtro opcional por categoria.
+
+A função deve devolver os itens da página e o total de registros que satisfazem o filtro, para que a interface consiga desenhar a paginação sem uma segunda consulta. Trate o caso em que a página pedida está além do fim dos dados.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A contagem e a página saem da mesma chamada, porque o PostgREST devolve o total no cabeçalho `Content-Range` quando o `select` pede `count`:
+
+  ```js title="Esboço da função list"
+  async function list(resource, { page = 1, perPage = 10, orderBy = 'id', ascending = true, category } = {}) {
+    const from = (page - 1) * perPage;
+    const to = from + perPage - 1;
+
+    let query = supabase
+      .from(resource)
+      .select('*', { count: 'exact' })
+      .order(orderBy, { ascending })
+      .range(from, to);
+
+    if (category) {
+      query = query.eq('category', category);
+    }
+
+    const { data, count, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return { items: data, total: count ?? 0, page, perPage };
+  }
+  ```
+
+  O `.range()` usa índices baseados em zero e inclui os dois extremos, por isso o `to` desconta um. Uma página além do fim não é erro: a consulta devolve um array vazio com o `count` correto, e é esse total que permite à interface voltar para a última página válida.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Como encadear múltiplos filtros em uma consulta com o Supabase Client (ex: valor maior que 1000 e categoria igual a 'Pós')?**
+   <details>
+     <summary>Possível resposta</summary>
+     Encadeando métodos na consulta: `supabase.from('investments').select('*').gt('value', 1000).eq('category', 'Pós')`.
+   </details>
+
+2. **Qual a diferença entre a chave `anon public key` e a chave `service_role key` no Supabase?**
+   <details>
+     <summary>Possível resposta</summary>
+     A chave `anon` respeita todas as regras de segurança RLS e deve ser usada no front-end. A chave `service_role` ignora o RLS e tem acesso administrativo total, devendo ser mantida estritamente secreta no servidor backend.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase JavaScript Client Docs](https://supabase.com/docs/reference/javascript/introduction)
+- [Supabase Select Reference](https://supabase.com/docs/reference/javascript/select)
+- [Supabase Insert Reference](https://supabase.com/docs/reference/javascript/insert)
+
+---
+
+## Próximo tópico
+
+[Supabase Auth](../auth/): Gerenciamento de usuários, cadastro, login e sessões de autenticação com Supabase Auth.

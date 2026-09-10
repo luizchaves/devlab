@@ -1,7 +1,7 @@
 ---
-title: "npm: Supabase Auth"
+title: "Nuvem: Supabase Auth"
 description: "Autenticação de usuários com Supabase Auth: cadastro, login com e-mail e senha, gestão de sessão JWT e proteção de rotas."
-course: npm
+course: cloud
 sidebar:
   label: "Supabase Auth"
 ---
@@ -12,7 +12,13 @@ O **Supabase Auth** é o serviço integrado de gestão de identidades e autentic
 
 ## Objetivo
 
-Compreender o funcionamento da autenticação no Supabase, implementar fluxos de registro de novos usuários (`signUp`), login (`signInWithPassword`), logout (`signOut`), escuta de mudanças no estado da sessão com `onAuthStateChange` e integração de permissões por usuário no banco de dados.
+Construir o ciclo completo de autenticação de uma aplicação com o Supabase Auth, do cadastro do usuário à política que amarra cada linha da tabela ao dono dela, entendendo que identidade e autorização são duas etapas distintas do mesmo fluxo. Ao final do tópico, o leitor deve ser capaz de:
+
+- Implementar cadastro, login e logout com `signUp`, `signInWithPassword` e `signOut`.
+- Reagir a mudanças de sessão com `onAuthStateChange` em vez de consultar o estado manualmente.
+- Explicar como o token JWT chega ao PostgreSQL e vira `auth.uid()` dentro de uma política.
+- Escrever a política RLS que restringe cada linha ao usuário que a criou.
+- Reconhecer por que autenticar no front-end não protege dado algum sem a política correspondente.
 
 ---
 
@@ -172,6 +178,28 @@ create policy "Usuários gerenciam suas próprias tarefas"
   with check (auth.uid() = user_id);
 ```
 
+<Aside type="caution" title="Dica de IA: Esconder a tela não protege a tabela">
+  Pedir "proteja a área logada do meu app Supabase" costuma render um `if (!session) location.href = '/login'` e nada mais. Esse desvio é interface: quem abrir o console do navegador, ou chamar a URL do PostgREST direto, continua lendo a tabela inteira enquanto a política RLS não existir. O `using` e o `with check` acima são a proteção real; o redirecionamento apenas evita uma tela vazia.
+
+  **Prompt:** *"Assumindo a tabela `todos` com `user_id` e a política que compara `auth.uid() = user_id`, escreva os passos para eu tentar ler as linhas de outro usuário direto pela API REST, e diga qual resposta HTTP prova que a política está ativa."*
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+O Supabase Auth resolve identidade, e identidade é só metade do problema. A outra metade é a autorização, que continua sendo escrita por você em SQL. Vale medir a escolha contra as duas alternativas: escrever a autenticação à mão em um servidor próprio, ou usar um provedor de identidade dedicado.
+
+A tabela abaixo indica a escolha por cenário:
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Aplicação de front-end que já usa o banco do Supabase | **Supabase Auth** | O mesmo token vale para o banco: `auth.uid()` chega às políticas sem integração extra. |
+| Login social ou *magic link* sem infraestrutura de e-mail | **Supabase Auth** | Provedores e envio de e-mail vêm configurados no console. |
+| Regras de sessão próprias, SSO corporativo, SAML, MFA elaborado | **Provedor de identidade dedicado** | Fluxos federados complexos estão fora do que o serviço cobre bem. |
+| API própria que precisa validar o usuário | **Back-end próprio** ([Guia de Express.js](../../../expressjs/)) | O servidor precisa verificar a assinatura do JWT; o token do cliente não é prova por si só. |
+| Exigência de guardar as credenciais na sua infraestrutura | **Autenticação própria ou auto-hospedagem** | O GoTrue é open-source e pode subir junto do restante da pilha auto-hospedada. |
+
 ---
 
 ## Executando
@@ -189,6 +217,8 @@ Siga os passos para rodar o fluxo de autenticação:
 
 ## Exercício
 
+Antes de responder, releia o fluxo do diagrama de autenticação e a política RLS desta página:
+
 1. Qual função do Supabase Auth é utilizada para autenticar um usuário usando e-mail e senha no cliente?
 2. Como o banco de dados PostgreSQL do Supabase descobre o ID do usuário autenticado para aplicar regras de segurança em políticas RLS?
 
@@ -198,6 +228,37 @@ Siga os passos para rodar o fluxo de autenticação:
   1. A função `supabase.auth.signInWithPassword({ email, password })`.
 
   2. Através da função utilitária `auth.uid()`, que extrai a chave primária do usuário a partir do token JWT enviado no cabeçalho `Authorization: Bearer <token>` da requisição.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação com autenticação tem estados que o formulário de login não revela: sessão ausente, sessão válida, sessão expirada enquanto a aba estava aberta, e usuário que fez logout em outra aba. Implemente uma camada de sessão que trate os quatro.
+
+O módulo deve expor `getSession()`, `login()`, `logout()` e uma função que registre um ouvinte de mudanças, mantendo o cabeçalho da página sincronizado com o estado atual sem que nenhum componente consulte o `localStorage` diretamente. Descreva também como você testaria o caso da expiração sem esperar o token vencer.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `onAuthStateChange` é o centro da solução, porque ele dispara nos quatro casos, inclusive quando outra aba encerra a sessão:
+
+  ```js title="Esboço do módulo de sessão"
+  const listeners = new Set();
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    for (const listener of listeners) {
+      listener({ event, user: session?.user ?? null });
+    }
+  });
+
+  export function onSessionChange(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
+  ```
+
+  Os eventos que importam são `SIGNED_IN`, `SIGNED_OUT` e `TOKEN_REFRESHED`; a expiração aparece como uma renovação bem-sucedida ou, quando o *refresh token* também venceu, como um `SIGNED_OUT`. Para testar sem esperar, reduza o tempo de vida do token nas configurações de autenticação do projeto, ou apague a chave da sessão no `localStorage` e force uma chamada ao banco: a resposta `401` é o que a interface precisa tratar.
 </details>
 
 ---
@@ -228,4 +289,4 @@ Siga os passos para rodar o fluxo de autenticação:
 
 ## Próximo tópico
 
-[Cloud Firestore](../firebase-firestore/): Banco de dados NoSQL em tempo real e persistência na nuvem com o Firebase.
+[Cloud Firestore](../../firebase/firestore/): Banco de dados NoSQL em tempo real e persistência na nuvem com o Firebase.

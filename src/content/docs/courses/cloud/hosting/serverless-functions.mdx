@@ -1,0 +1,273 @@
+---
+title: "Nuvem: Funções Serverless"
+description: "Funções serverless para aplicações web: contrato Request/Response, execução sob demanda, partida a frio, ausência de estado, limites de tempo e adaptação da mesma função a Vercel, Netlify e Cloudflare Workers."
+course: cloud
+sidebar:
+  label: "Funções Serverless"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do pedaço de servidor que volta quando o site estático encontra o seu limite: uma função HTTP que roda na nuvem, guarda um segredo e é cobrada apenas enquanto executa. O exemplo é uma cotação de ativo consultada com uma chave que não pode chegar ao navegador.
+
+## Objetivo
+
+Construir e executar uma função *serverless* que atende requisições HTTP, entendendo o modelo de execução sob demanda que a sustenta e as restrições que ele impõe ao código escrito para ele. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o que caracteriza uma função *serverless* e como ela difere de um servidor sempre no ar.
+- Escrever uma função com o contrato padrão de `Request` e `Response` da plataforma web.
+- Executar e testar a mesma função localmente, sem publicar em nuvem alguma.
+- Reconhecer os efeitos de partida a frio, ausência de estado e limite de tempo de execução.
+- Adaptar a mesma função a Vercel, Netlify e Cloudflare Workers sem reescrevê-la.
+
+---
+
+## Execução Sob Demanda
+
+Um servidor tradicional é um processo que fica no ar, esperando. Ele ocupa memória à meia-noite de domingo exatamente como às dez da manhã de segunda, e é cobrado nos dois casos.
+
+Uma função *serverless* inverte isso: não há processo esperando. A plataforma instancia o ambiente quando a requisição chega, executa a função, devolve a resposta e encerra. A cobrança é pelo tempo de execução, medido em milissegundos.
+
+<Mermaid title="Ciclo de vida de uma requisição a uma função serverless">
+{`
+flowchart LR
+  Req["Requisição HTTP"] --> Check{"Instância<br/>disponível?"}
+  Check -->|"Não"| Cold["Partida a frio<br/>cria o ambiente"]
+  Check -->|"Sim"| Warm["Reaproveita a instância"]
+  Cold --> Exec["Executa a função"]
+  Warm --> Exec
+  Exec --> Res["Resposta"]
+  Res --> Idle["Instância ociosa<br/>encerrada depois de um tempo"]
+`}
+</Mermaid>
+
+O ramo da esquerda do diagrama é a **partida a frio**: a primeira requisição depois de um período de ociosidade paga a criação do ambiente, que custa de dezenas a algumas centenas de milissegundos conforme a plataforma. As requisições seguintes reaproveitam a instância enquanto ela viver.
+
+Três consequências decorrem desse ciclo, e todas afetam o código:
+
+| Característica | O que ela impõe ao código |
+| --- | --- |
+| **Sem estado entre chamadas** | Nada guardado em memória sobrevive de forma confiável; estado vai para banco ou cache externo. |
+| **Tempo de execução limitado** | Tarefas longas precisam ser quebradas ou movidas para uma fila. |
+| **Instância descartável** | Conexões persistentes são caras; cada instância pode abrir a sua e perdê-la logo. |
+
+---
+
+## O Contrato: Request e Response
+
+A função deste tópico segue o contrato padrão da plataforma web: recebe uma `Request`, devolve uma `Response`. É por isso que ela roda sem alteração em três plataformas e também no servidor local do projeto.
+
+O arquivo `handler.js` começa validando o método e o parâmetro esperado, e devolve o erro adequado quando falta algum deles:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/handler.js" region="handler" mark={[5, 10, 18]} />
+
+A linha 18 é a razão de existir da função. A chave de API é lida do ambiente do servidor, usada para consultar o provedor e **nunca** devolvida ao cliente: a resposta traz apenas a cotação já calculada. Fosse a mesma consulta feita pelo navegador, a chave estaria no *bundle*, à vista de qualquer visitante.
+
+A resposta é montada por uma função auxiliar, que centraliza o cabeçalho de tipo de conteúdo e o código de status:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/handler.js" region="json" />
+
+O acesso ao ambiente é o único ponto em que as plataformas divergem de fato, e ele fica isolado em uma função de três linhas:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/handler.js" region="env" />
+
+---
+
+## Rodando Localmente
+
+Publicar para testar é um ciclo lento demais para desenvolver. Como o contrato é padrão, um servidor local em `node:http` executa exatamente a mesma função, traduzindo requisição e resposta nos dois sentidos:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/server.js" region="local-server" mark={[10, 16]} />
+
+Esse arquivo torna visível o que a plataforma faz por baixo. As linhas 10 a 14 montam a `Request` a partir do pedido recebido, e as linhas 18 e 19 escrevem a `Response` de volta no formato do `node:http`. Em produção, essa tradução é feita pelo tempo de execução da plataforma, e o `server.js` não é publicado.
+
+O projeto completo tem uma adaptação por plataforma, cada uma de duas ou três linhas:
+
+<FileTree>
+{`
+quote-api/
+├── api/
+│   └── quote.js
+├── netlify/
+│   └── functions/
+│       └── quote.js
+├── .env.example
+├── handler.js
+├── package.json
+├── README.md
+├── requests.http
+├── server.js
+└── worker.js
+`}
+</FileTree>
+
+Na Vercel, a rota nasce do caminho do arquivo, e o arquivo apenas reexporta a função:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/api/quote.js" />
+
+No Netlify, a rota é declarada em uma configuração exportada ao lado da função:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/netlify/functions/quote.js" />
+
+No Cloudflare Workers, o módulo exporta um objeto com o método `fetch`, e o ambiente chega como argumento em vez de `process.env`:
+
+<SourceCode path="examples/courses/cloud/serverless-functions/quote-api/worker.js" mark={[6, 7]} />
+
+<Aside type="caution" title="Dica de IA: Confirme em que tempo de execução a função vai rodar">
+  O código sugerido para funções na nuvem costuma misturar dois mundos: `fs`, `process.env` e módulos do Node em uma função destinada ao ambiente de borda, que não tem sistema de arquivos e recebe o ambiente como argumento. O erro não aparece no editor nem no `node`, só na publicação.
+
+  **Prompt:** *"Aponte, neste `handler.js`, tudo o que depende de APIs exclusivas do Node.js e não existe em um Worker do Cloudflare, e reescreva cada trecho usando apenas APIs padrão da plataforma web."*
+</Aside>
+
+---
+
+## Executando
+
+O projeto não tem dependências: ele usa apenas o que o Node.js 22 já oferece. Suba a função e exercite os três caminhos previstos.
+
+<Steps>
+1. Inicie o servidor local com a chave no ambiente:
+
+   ```bash title="Terminal"
+   QUOTE_API_KEY=demo123 npm start
+   ```
+2. Consulte a cotação de um ativo:
+
+   ```bash title="Terminal"
+   curl 'http://localhost:3000/api/quote?symbol=PETR4'
+   ```
+
+   ```json title="Output"
+   {"symbol":"PETR4","price":103.49,"currency":"BRL","provider":"demo:dem***","fetchedAt":"2026-09-10T20:33:14.262Z"}
+   ```
+3. Confirme os erros previstos, sem o parâmetro e com o método errado:
+
+   ```bash title="Terminal"
+   curl -o /dev/null -w "%{http_code}\n" 'http://localhost:3000/api/quote'
+   curl -o /dev/null -w "%{http_code}\n" -X POST 'http://localhost:3000/api/quote?symbol=PETR4'
+   ```
+
+   ```txt title="Output"
+   400
+   405
+   ```
+4. Suba o servidor **sem** a variável de ambiente e repita a consulta: a resposta passa a ser `503`, e a chave ausente não vaza detalhe algum ao cliente.
+</Steps>
+
+O arquivo `requests.http` traz as mesmas três chamadas para quem prefere executá-las de dentro do editor.
+
+---
+
+## Quando usar, e quando não usar?
+
+A função *serverless* ocupa uma faixa estreita e muito útil entre o site estático e o servidor próprio. Ela é a resposta certa para trabalho curto, esporádico e que precisa de um lugar seguro; é a errada para trabalho longo, contínuo ou com estado.
+
+A tabela abaixo indica a escolha por cenário:
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Esconder uma chave de terceiros de um front-end estático | **Função serverless** | O segredo fica no ambiente do servidor e só o resultado volta ao cliente. |
+| *Webhook* que recebe eventos esporádicos | **Função serverless** | Custo zero em repouso, e a escala acompanha picos sem provisionamento. |
+| Regra de negócio curta que o cliente não pode burlar | **Função serverless** | Executa fora do alcance do navegador, sem manter um servidor no ar. |
+| API extensa, com dezenas de rotas e estado compartilhado | **Back-end próprio** ([Guia de Express.js](../../../expressjs/)) | Roteamento, camadas e testes ficam mais simples em um processo único. |
+| Processamento longo, em lote ou agendado | **Fila com processo dedicado** | O limite de tempo de execução interrompe a tarefa no meio. |
+| Tráfego alto e constante o dia inteiro | **Servidor sempre no ar** | Sem ociosidade a economizar, a cobrança por execução perde para a capacidade reservada. |
+| Conexão persistente com banco relacional a cada chamada | **Pooler de conexões ou back-end próprio** | Cada instância abre a própria conexão, e o banco esgota o limite. |
+
+---
+
+## Exercício
+
+Use o `handler.js` e o `server.js` do projeto como referência:
+
+1. Por que a mesma função roda no servidor local, na Vercel, no Netlify e no Cloudflare Workers sem alteração?
+2. O que é uma partida a frio e por que ela afeta a primeira requisição depois de um período sem uso?
+3. Por que guardar a última cotação consultada em uma variável do módulo, para servir de cache, é uma decisão frágil neste modelo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque ela recebe uma `Request` e devolve uma `Response`, que são padrões da plataforma web, e não um formato proprietário. Cada plataforma precisa apenas de um arquivo de adaptação com duas ou três linhas.
+
+  2. É a criação do ambiente de execução quando não há instância disponível. Como a plataforma encerra instâncias ociosas, a requisição seguinte a um período parado paga esse custo, que vai de dezenas a centenas de milissegundos.
+
+  3. Porque não há garantia de que a próxima requisição caia na mesma instância: ela pode ser atendida por uma instância nova, sem o valor, ou por várias instâncias com valores diferentes. Cache confiável precisa de um armazenamento externo compartilhado.
+</details>
+
+---
+
+## Desafio
+
+A função atual atende qualquer pessoa que descubra a URL, quantas vezes quiser, e cada chamada consumiria a cota do provedor de cotações em produção. Isso transforma o segredo protegido em um custo aberto.
+
+Acrescente duas defesas ao `handler.js`: um limite de requisições por origem em uma janela de tempo, e uma validação da origem da requisição que rejeite chamadas vindas de fora do domínio do seu site. Depois responda à pergunta que o modelo impõe: onde o contador do limite pode viver, já que a memória da instância não é confiável?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A validação de origem é a parte direta: comparar o cabeçalho `Origin` com uma lista permitida e devolver `403` fora dela, lembrando que o cabeçalho é enviado pelo navegador e não impede uma chamada feita por `curl`. Ele reduz o abuso pelo navegador de terceiros, não o abuso deliberado.
+
+  O contador é a parte instrutiva. Em memória, ele não funciona: instâncias são criadas e destruídas, e várias podem atender em paralelo, cada uma com o próprio contador. A solução é um armazenamento compartilhado com operação atômica de incremento e expiração automática, como um Redis gerenciado, o KV da plataforma ou uma tabela com `increment` no próprio BaaS. A escolha entre eles é uma decisão de latência: o contador entra no caminho de toda requisição, então uma consulta lenta encarece exatamente o que ela deveria proteger.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo de execução
+
+1. **O que diferencia uma função serverless de um processo de servidor sempre no ar?**
+   <details>
+     <summary>Possível resposta</summary>
+     Não existe processo aguardando requisições: a plataforma cria o ambiente na chegada da requisição, executa e encerra. A cobrança é pelo tempo de execução, e não pelo tempo em que o serviço está disponível.
+   </details>
+
+2. **Por que dizer que uma função serverless "não tem estado" é uma restrição de projeto, e não um detalhe?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque qualquer coisa mantida em memória entre chamadas pode desaparecer a qualquer momento e não é compartilhada entre instâncias simultâneas. Sessão, cache e contadores precisam morar em um armazenamento externo.
+   </details>
+
+3. **Que problema uma função serverless cria ao se conectar a um banco relacional?**
+   <details>
+     <summary>Possível resposta</summary>
+     Cada instância abre a própria conexão, e sob concorrência o número de conexões cresce rápido até esgotar o limite do banco. A saída é um *pooler* de conexões ou um banco acessado por HTTP.
+   </details>
+
+### Uso e limites
+
+4. **Por que uma chave de API de terceiros exige uma função, mesmo em uma aplicação que já tem BaaS?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o BaaS é acessado diretamente pelo navegador, e tudo o que o navegador precisa saber é público. A chave contratada precisa ser usada em um código que o cliente não alcança, e a função é o menor lugar possível para isso.
+   </details>
+
+5. **Em que situação um servidor sempre no ar sai mais barato que funções cobradas por execução?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o tráfego é alto e constante. A cobrança por execução compensa a ociosidade; sem ociosidade, o custo por requisição de um processo fixo é menor.
+   </details>
+
+6. **Como testar uma função serverless sem publicá-la?**
+   <details>
+     <summary>Possível resposta</summary>
+     Executando o mesmo `handler` a partir de um servidor local que traduz a requisição recebida em `Request` e escreve a `Response` devolvida, como faz o `server.js` deste projeto.
+   </details>
+
+---
+
+## Referências
+
+- [MDN: Request](https://developer.mozilla.org/docs/Web/API/Request)
+- [MDN: Response](https://developer.mozilla.org/docs/Web/API/Response)
+- [Vercel Functions](https://vercel.com/docs/functions)
+- [Netlify Functions](https://docs.netlify.com/functions/overview/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+
+---
+
+## Próximo tópico
+
+[Mapa de Plataformas](../../reference/platform-map/): Tabela de decisão entre as plataformas de nuvem cobertas e as candidatas próximas.
