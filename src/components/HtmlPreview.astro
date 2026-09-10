@@ -24,7 +24,7 @@
  * Para exemplos didaticos que dependem de scripts isolados no iframe, como o
  * Play CDN do Tailwind, use `allowScripts`.
  */
-import { cpSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { Icon } from '@astrojs/starlight/components';
 import { withBase } from '../lib/site';
@@ -100,6 +100,46 @@ function shouldCopyPublicPreviewEntry(sourcePath: string, rootPath: string): boo
   return true;
 }
 
+function copyChangedFile(sourcePath: string, targetPath: string): void {
+  if (existsSync(targetPath)) {
+    const source = readFileSync(sourcePath);
+    const target = readFileSync(targetPath);
+
+    if (source.equals(target)) {
+      return;
+    }
+  }
+
+  mkdirSync(dirname(targetPath), { recursive: true });
+  copyFileSync(sourcePath, targetPath);
+}
+
+function syncPublicPreviewRoot(
+  sourceRoot: string,
+  publicRoot: string,
+  currentPath = sourceRoot
+): void {
+  if (!shouldCopyPublicPreviewEntry(currentPath, sourceRoot)) {
+    return;
+  }
+
+  const currentStat = statSync(currentPath);
+
+  if (currentStat.isDirectory()) {
+    mkdirSync(join(publicRoot, relative(sourceRoot, currentPath)), { recursive: true });
+
+    for (const entry of readdirSync(currentPath)) {
+      syncPublicPreviewRoot(sourceRoot, publicRoot, join(currentPath, entry));
+    }
+
+    return;
+  }
+
+  if (currentStat.isFile()) {
+    copyChangedFile(currentPath, join(publicRoot, relative(sourceRoot, currentPath)));
+  }
+}
+
 function publishPublicPreview(filePath: string): string {
   const root = publicExampleRoot(filePath);
   const publicHref = withBase(`/${filePath}`);
@@ -112,12 +152,7 @@ function publishPublicPreview(filePath: string): string {
   const sourceRoot = join(projectRoot, root);
   const publicRoot = join(projectRoot, 'public', root);
 
-  mkdirSync(publicRoot, { recursive: true });
-  cpSync(sourceRoot, publicRoot, {
-    recursive: true,
-    force: true,
-    filter: (sourcePath) => shouldCopyPublicPreviewEntry(sourcePath, sourceRoot),
-  });
+  syncPublicPreviewRoot(sourceRoot, publicRoot);
 
   return publicHref;
 }
