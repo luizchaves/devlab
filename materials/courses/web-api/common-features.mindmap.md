@@ -40,6 +40,8 @@ markmap:
 - **Ponto**: Estilos inline e Variáveis CSS via `element.style`: Usado quando o valor visual é estritamente dinâmico e calculado em tempo de execução pela lógica do script (como porcentagem de uma barra de progresso, coordenadas em drag-and-drop ou temas customizados via CSS Custom Properties):
 ### Reagir ao que o usuário faz
 - **Ideia**: Toda interatividade começa no mesmo ponto: um ouvinte registrado em um elemento, que executa uma função quando algo acontece
+### Configurar ações via atalho de teclado
+- **Ideia**: Interceptação de atalhos globais com `keydown` e teclas modificadoras (`ctrlKey`, `metaKey`, `event.key`)
 ### Carregar conteúdo dinâmico
 - **Ideia**: Poucas aplicações nascem com os dados dentro do HTML
 - **Estático**: documentação, página institucional ou artigo com HTML pronto

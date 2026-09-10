@@ -71,6 +71,7 @@ Ao projetar ou construir uma aplicação front-end, o desenvolvedor pensa em ter
 - **Encontrar e alterar o conteúdo de elementos**: Manipulação do DOM.
 - **Alterar estilos e classes visuais**: Manipulação do DOM.
 - **Reagir a clique, tecla e envio de formulário**: Eventos e Interatividade.
+- **Configurar ações e atalhos de teclado**: Eventos e Interatividade.
 - **Atender itens que ainda não existem**: Eventos e Interatividade.
 - **Montar listas e cartões a partir dos dados**: Elementos Dinâmicos.
 
