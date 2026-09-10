@@ -46,9 +46,10 @@ markmap:
 - **Ponto**: Mistura de responsabilidades: Dificulta a manutenção ao espalhar regras de negócio e lógica de controle dentro da estrutura visual da página
 - **Ponto**: Escopo confuso: O código dentro de um `onclick` roda em uma cadeia de escopos oculta do navegador, o que gera comportamentos imprevisíveis ao tentar acessar variáveis do script principal
 ### 4. Escopo e Visibilidade entre Contextos de Execução
-- **Ideia**: Quando você possui vários scripts na mesma página, a visibilidade de variáveis depende do tipo da tag `` utilizada: As diferenças essenciais entre scripts clássicos e módulos JavaScript são: Scripts Clássicos (``): Compartilham o escopo global
-- **Ponto**: Scripts Clássicos (``): Compartilham o escopo global. Declarações com `var` e `function` viram propriedades diretas do objeto `window`. Variáveis `let` e `const` no topo não entram em `window`, mas permanecem visíveis para scripts clássicos executados posteriormente
-- **Ponto**: Módulos JavaScript (``): Possuem escopo fechado por arquivo. Nenhuma variável declarada vaza para `window` ou para outros scripts, evitando colisões de nomes
+- **Ideia**: Quando você possui vários scripts na mesma página, a visibilidade de variáveis depende do tipo da tag `<script>` utilizada
+- **Ponto**: Scripts Clássicos (`<script>`): Compartilham o escopo global. Declarações com `var` e `function` viram propriedades diretas de `window`. Variáveis `let` e `const` permanecem visíveis para scripts subsequentes
+- **Ponto**: Módulos JavaScript (`<script type="module">`): Possuem escopo fechado por arquivo, sem poluir o escopo global
+- **Ordem de Carregamento**: O hoisting não atravessa blocos `<script>` distintos; chamar bibliotecas ou funções antes da tag que as define gera `ReferenceError`
 ### 5. Tabela Comparativa de Integração
 - **Ideia**: A tabela resume as opções de integração de código JavaScript no HTML: ---
 

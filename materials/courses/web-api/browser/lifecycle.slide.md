@@ -84,10 +84,10 @@ Quando o navegador requisita um endereço na web, a página não surge instantan
 
 No desenvolvimento web, o código JavaScript pode ser conectado ao HTML de múltiplas maneiras.
 
-- **Módulo JavaScript**: Padrão recomendado para aplicações modernas.
+- **Módulo JavaScript**: Padrão recomendado para aplicações modernas (escopo isolado).
 - **Script Externo com `defer`**: Padrão seguro para scripts clássicos sem bundler.
-- **Script no Fim do `<script>`**: Prática clássica para evitar elementos `null`.
-- **Script Externo no `<script>`**: Evitar (bloqueia tela e gera `null` no DOM).
+- **Ordem de carregamento**: Hoisting não atravessa tags de script; chame bibliotecas apenas após o script que as carrega.
+- **Script no Fim do `<body>`**: Prática clássica para evitar elementos `null`.
 - **Script Embutido (Inline)**: Apenas para configurações iniciais críticas.
 
 ---
