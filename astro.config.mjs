@@ -947,6 +947,10 @@ export default defineConfig({
               label: 'Referência',
               items: [
                 {
+                  label: 'Guia de Referência',
+                  link: '/courses/web-api/reference/cheat-sheet/',
+                },
+                {
                   label: 'Outras Web APIs',
                   link: '/courses/web-api/reference/other-apis/',
                 },
