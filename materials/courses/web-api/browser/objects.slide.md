@@ -72,9 +72,11 @@ O Browser Object Model (BOM) · Objeto Window · Objeto Location · Objeto Histo
 
 O Browser Object Model representa o ambiente fornecido pelo navegador.
 
-- Ao contrário do ECMAScript puro (que trata apenas da linguagem), o BOM conecta o código JavaScript com a aba.
-- No topo dessa hierarquia está o objeto global `window`.
-- Tudo o que existe no escopo global do navegador (variáveis globais, funções nativas e outras Web APIs) é propriedade de `window`.
+- **Objeto global raiz**: No topo dessa hierarquia está `window`, contendo todas as variáveis e Web APIs.
+- **Prefixo `window.` opcional**: `alert()` e `window.alert()` ou `location` e `window.location` são equivalentes.
+- **Convenção de nomenclatura**:
+  - **ECMAScript**: Construtores/classes em PascalCase (`Object`, `Array`, `Promise`, `Date`).
+  - **BOM**: Objetos em minúsculo (`window`, `document`, `location`, `navigator`) pois já são instâncias (*singletons*).
 
 ---
 

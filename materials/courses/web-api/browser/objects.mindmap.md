@@ -14,7 +14,11 @@ markmap:
 
 ## O Browser Object Model (BOM)
 - **Ideia**: O Browser Object Model representa o ambiente fornecido pelo navegador
-- **Detalhe**: Ao contrário do ECMAScript puro (que trata apenas da linguagem), o BOM conecta o código JavaScript com a aba, a janela e o sistema do usuário
+- **Detalhe**: Conecta o código JavaScript com a aba, janela e sistema operacional
+- **Escopo Global**: `window` é o objeto raiz; o prefixo `window.` é opcional (`alert()` vs `window.alert()`)
+- **Nomenclatura**:
+  - Construtores ECMAScript em maiúsculo (`Object`, `Array`, `Promise`)
+  - Objetos BOM em minúsculo (`window`, `document`, `location`) por serem instâncias *singletons* pré-criadas
 
 ## Objeto Window
 - **Ideia**: O objeto `window` representa a janela ou aba aberta no navegador
