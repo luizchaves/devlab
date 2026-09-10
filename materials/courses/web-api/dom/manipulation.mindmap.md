@@ -44,8 +44,13 @@ markmap:
 - **Ideia**: Antes dos seletores CSS, cada critério de busca tinha um método próprio
 
 ## Conteúdo de Elementos
-- **Ideia**: Existem três propriedades principais para ler ou alterar o conteúdo de um elemento HTML: Nunca atribua entradas não confiáveis do usuário diretamente ao `innerHTML`
-- **Detalhe**: Isso expõe sua aplicação a ataques de Cross-Site Scripting (XSS)
+- **Ideia**: Três propriedades principais para ler ou alterar o conteúdo de um elemento HTML (`textContent`, `innerText`, `innerHTML`)
+- **textContent**: Obtém ou define texto puro, imune a injeções de HTML
+- **innerText**: Obtém o texto visível renderizado respeitando CSS
+- **innerHTML Seguro**: Dados estáticos e conhecidos, montados em elementos isolados na memória antes do append
+- **innerHTML Inseguro (XSS)**: Concatenação de dados não confiáveis de inputs, formulários, URLs ou APIs externas
+- **innerHTML +=**: Antipadrão no documento ativo, destrói referências e recria a subárvore do DOM
+- **Abordagem Defensiva**: `document.createElement()` com atribuição a `textContent` para dados dinâmicos de terceiros
 
 ## Alteração de Estilos e Classes
 - **Ideia**: A melhor prática para alterar o visual de um elemento é manipular suas classes CSS através da propriedade `classList`

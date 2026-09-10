@@ -265,6 +265,16 @@ elemento.innerHTML = "<strong>Texto em negrito</strong> com <em>ênfase</em>";
 
 ---
 
+## `innerHTML`: Uso Seguro vs Inseguro
+
+A segurança de `innerHTML` depende da origem dos dados e do momento da inserção:
+
+- **Seguro**: dados estáticos ou controlados no próprio código, gerados em elemento na memória (`document.createElement`) antes do `append`.
+- **Inseguro (XSS)**: dados vindos de inputs, URLs ou APIs públicas injetados direto no HTML.
+- **Inadequado**: `innerHTML +=` no documento, pois destrói e recria todos os nós filhos.
+
+---
+
 ## Alteração de Estilos e Classes
 
 A melhor prática é mudar estado visual por classe e reservar estilo inline para valores calculados.

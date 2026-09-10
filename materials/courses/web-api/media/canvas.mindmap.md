@@ -30,7 +30,9 @@ markmap:
 
 ## Quando usar, e quando não usar?
 - **Ideia**: Canvas é a ferramenta certa para muitos elementos que mudam a cada quadro, e a errada para poucos elementos que precisam ser lidos, clicados ou encontrados por busca
-- **Detalhe**: A tabela contrapõe as três formas de desenhar na web pelo que cada uma entrega ao usuário: A terceira e a quinta linhas são as que mais custam quando ignoradas
+- **Comparativo**: Canvas (muitas partículas, jogos, manipulação direta de pixels), SVG (gráficos acessíveis e vetoriais), DOM (interfaces com botões e formulários)
+- **Canvas na Era da IA**: Assistentes geram facilmente funções em JS puro com a API 2D nativa (trigonometria, curvas de Bézier e animação)
+- **Zero Dependências**: Dispensa bibliotecas pesadas de terceiros para gráficos simples, assinaturas ou filtros, preservando a leveza do bundle
 
 ## Executando
 - **Ideia**: Percorra os passos com o preview aberto para relacionar cada comando de desenho ao que aparece na tela: Abra o preview e observe que a imagem não é composta por elementos HTML separados

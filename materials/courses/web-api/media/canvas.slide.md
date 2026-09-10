@@ -128,11 +128,20 @@ O tamanho visual do canvas em CSS pode ser diferente da resolução do bitmap.
 
 Canvas é a ferramenta certa para muitos elementos que mudam a cada quadro, e a errada para poucos elementos que precisam ser lidos.
 
-- **Animação com centenas de partículas ou um jogo 2**: O DOM não sustenta centenas de nós mudando a cada quadro.
-- **Gráfico estático que precisa de rótulo acessível**: Cada forma é um elemento, com texto selecionável e `aria-label`.
-- **Ícone ou ilustração que escala com o zoom**: Vetor não perde definição; canvas é bitmap.
-- **Filtro ou recorte de imagem no navegador**: Acesso direto aos pixels por `getImageData()`.
-- **Interface com botões e campos**: Foco, teclado e leitor de tela vêm de graça.
+- **Animação ou jogos 2D**: O DOM não sustenta centenas de nós mudando a cada quadro.
+- **Gráfico estático acessível**: Prefira SVG (texto selecionável e `aria-label`).
+- **Filtro ou recorte de imagem**: Canvas nativo (`getImageData()`).
+- **Interface com botões e campos**: Elementos HTML nativos.
+
+---
+
+## Canvas Nativo vs Bibliotecas na Era da IA
+
+Com assistentes de IA, nem sempre é necessário incluir bibliotecas gráficas pesadas:
+
+- **IA escreve matemática de desenho**: cálculos de curvas de Bézier, trigonometria e transformações são gerados facilmente em JS puro.
+- **Economia de bundle**: dispense pacotes pesados para gráficos simples, assinaturas ou partículas.
+- **Controle total**: sem dependências externas nem riscos na cadeia de suprimentos.
 
 ---
 
