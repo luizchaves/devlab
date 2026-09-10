@@ -1,0 +1,235 @@
+---
+title: "npm: Zod"
+description: "Validação de dados em tempo de execução com Zod: schemas, parse, safeParse, mensagens de erro, inferência de tipos TypeScript e uso em fronteiras de entrada."
+course: npm
+sidebar:
+  label: "Zod"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta o **Zod**, uma biblioteca TypeScript-first para descrever e validar dados em tempo de execução. Ele resolve uma lacuna importante: TypeScript ajuda durante o desenvolvimento, mas dados vindos de formulário, JSON, query string, arquivo ou API externa só são conhecidos de verdade quando o programa roda.
+
+## Objetivo
+
+Compreender como usar Zod para validar dados externos, transformar entradas inseguras em objetos confiáveis e derivar tipos TypeScript a partir dos próprios schemas. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar schemas com `z.object()`, `z.string()`, `z.enum()` e validadores encadeados.
+- Diferenciar `parse()` de `safeParse()` e escolher a forma adequada de tratar erro.
+- Usar coerção e valores padrão em entradas que chegam como texto.
+- Derivar tipos com `z.infer` sem duplicar contratos entre runtime e TypeScript.
+- Posicionar schemas nas fronteiras da aplicação, antes da regra de negócio.
+
+## Tipo Estático e Validação em Runtime
+
+O TypeScript descreve o código que você escreve; o Zod verifica os dados que chegam de fora. Essa diferença fica mais importante em APIs, formulários e integrações, porque o dado externo pode ter campo faltando, tipo incorreto ou valor fora da regra de negócio.
+
+O fluxo abaixo mostra onde o schema entra:
+
+<Mermaid title="Fluxo de validação com Zod nas fronteiras da aplicação">
+{`
+flowchart TD
+  A["Entrada externa<br/>body, query, form"] --> B["Schema Zod<br/>parse ou safeParse"]
+  B -->|"válido"| C["Dado tipado<br/>regra de negócio"]
+  B -->|"inválido"| D["Issues<br/>mensagens por campo"]
+  C --> E["Controller<br/>service, banco, UI"]
+  D --> F["Resposta de erro<br/>400 ou 422"]
+`}
+</Mermaid>
+
+O ponto central é tratar a entrada como `unknown` até que um schema prove o contrário. Depois da validação, o restante da aplicação pode trabalhar com dados no formato esperado.
+
+<Aside type="caution" title="TypeScript não valida JSON recebido">
+  Uma anotação como `const user: User = await response.json()` informa ao compilador o que você espera, mas não verifica o conteúdo recebido. Se a API devolver `age: "42"` em vez de `age: 42`, o erro só aparece depois, quando alguma regra tentar usar o valor como número.
+</Aside>
+
+## Instalando o Zod
+
+O Zod entra como `dependencies` quando participa da validação em produção, seja no front-end, no back-end ou em uma biblioteca compartilhada. Em projetos TypeScript modernos, ele também pode derivar tipos a partir dos schemas.
+
+<PackageManagerTabs package="zod" />
+
+## Schemas Como Contrato
+
+Um schema Zod descreve forma, tipo e regras de valor. Na TaskAPI, os schemas ficam separados do middleware: um arquivo declara o contrato dos dados, e outro decide como uma requisição inválida vira erro HTTP.
+
+A árvore abaixo destaca os dois arquivos recortados nesta página:
+
+<FileTree>
+{`
+task-api-validation/
+    src/
+        middlewares/
+            validate.ts       executa safeParse e anexa o dado validado
+        schemas/
+            task.ts           declara body, params, query e tipos derivados
+`}
+</FileTree>
+
+No corpo de criação de tarefa, o schema exige título com tamanho mínimo, prioridade em uma lista fechada e data ISO opcional.
+
+<SourceCode path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts" region="body" title="src/schemas/task.ts (schemas de body)" />
+
+O mesmo arquivo também valida `params` e `query`, duas fontes que chegam ao Express como texto. Por isso a coerção explícita é parte do contrato, não um detalhe do controller.
+
+<SourceCode path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts" region="params" title="src/schemas/task.ts (params)" />
+
+Na query string, os valores padrão garantem que o controller receba uma paginação consistente mesmo quando a URL não informa `page` ou `perPage`.
+
+<SourceCode path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts" region="query" title="src/schemas/task.ts (query string)" />
+
+## `parse()` e `safeParse()`
+
+As duas funções validam com o mesmo schema, mas comunicam erro de formas diferentes. `parse()` lança exceção quando o dado não passa; `safeParse()` devolve um objeto discriminado com `success: true` ou `success: false`.
+
+A tabela resume a decisão:
+
+| Método | Quando usar | Forma de erro |
+| --- | --- | --- |
+| `parse()` | Scripts, testes e pontos onde exceção é o fluxo natural. | Lança `ZodError`. |
+| `safeParse()` | Middleware, UI e APIs que precisam devolver resposta controlada. | Retorna `{ success: false, error }`. |
+
+Em um middleware Express, `safeParse()` costuma ser melhor porque a aplicação precisa transformar a falha em resposta HTTP previsível, com status e lista de problemas.
+
+<SourceCode path="examples/courses/expressjs/projects/task-api-validation/src/middlewares/validate.ts" region="validate" title="src/middlewares/validate.ts (safeParse no middleware)" />
+
+## Inferência de Tipos
+
+O Zod evita duplicar contrato quando o tipo TypeScript nasce do schema. Se o schema muda, o tipo derivado muda junto, e o compilador passa a cobrar a nova forma do dado validado.
+
+O trecho final do schema da TaskAPI deriva os tipos usados nas camadas seguintes:
+
+<SourceCode path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts" region="schemas" title="src/schemas/task.ts (schemas exportados)" />
+
+Os tipos abaixo nascem dos schemas menores, como `createBody`, `updateBody` e `query`, para que cada camada use o formato já validado.
+
+<SourceCode path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts" lines="48-50" title="src/schemas/task.ts (tipos derivados)" />
+
+<Aside type="tip" title="Dica de IA: Peça validação de fronteira, não só tipos">
+  Assistentes costumam gerar `interface` ou `type` para dados externos e parar ali. Isso compila, mas não protege o programa quando o JSON real chega com campo ausente, string vazia ou valor fora da enumeração.
+
+  **Prompt:** *"Transforme estes tipos TypeScript em schemas Zod equivalentes; use `safeParse()` na fronteira de entrada, derive os tipos com `z.infer` e inclua um caso inválido que mostre as `issues` geradas."*
+</Aside>
+
+## Onde Colocar Schemas?
+
+Schemas pertencem às fronteiras do sistema, isto é, nos lugares em que dados deixam de ser confiáveis. Em uma API, isso inclui `body`, `params` e `query`. Em um front-end, inclui formulários, `localStorage`, resposta HTTP e parâmetros de URL.
+
+| Fronteira | Exemplo de dado | Por que validar? |
+| --- | --- | --- |
+| Formulário | Campos digitados pelo usuário. | Evita enviar payload impossível ou exibir estado incoerente. |
+| API HTTP | `request.body`, `request.query`, `request.params`. | Impede que regra de negócio receba tipo errado. |
+| Resposta externa | JSON de serviço de terceiros. | Protege a aplicação contra mudança de contrato. |
+| Persistência local | `localStorage`, IndexedDB, arquivo. | Dados antigos podem sobreviver a versões novas do app. |
+
+Não espalhe `schema.parse()` por toda a base. Valide cedo, transforme erro em mensagem útil e entregue para o restante do código um valor já confiável.
+
+## Executando
+
+Siga os passos abaixo para experimentar o Zod em um projeto pequeno:
+
+<Steps>
+1. Crie um projeto com `npm init -y` e configure ESM com `npm pkg set type=module`.
+2. Instale o Zod com `npm install zod`.
+3. Crie um schema para um formulário ou payload de API.
+4. Teste um objeto válido com `parse()` ou `safeParse()`.
+5. Teste pelo menos um objeto inválido e leia a lista `error.issues`.
+</Steps>
+
+## Exercício
+
+Modele um schema Zod para cadastro de usuário em um front-end. O objetivo é recusar dados ruins antes de chamar a API.
+
+1. Crie um schema com `name`, `email`, `password` e `birthDate`.
+2. Exija nome com pelo menos três caracteres.
+3. Use validação de e-mail para `email`.
+4. Exija senha com pelo menos oito caracteres.
+5. Aceite `birthDate` como string no formato ISO de data.
+
+Uma resposta aceitável deve validar a entrada e tratar a falha sem quebrar a interface:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A solução cria `const signupSchema = z.object({ ... })`, chama `signupSchema.safeParse(formData)` e, quando `success` é falso, transforma `result.error.issues` em mensagens por campo. O envio para a API só acontece quando `success` é verdadeiro.
+</details>
+
+## Desafio
+
+Use Zod para validar uma resposta de API antes de renderizar dados na tela.
+
+1. Busque um JSON com `fetch()`.
+2. Modele um schema para a resposta esperada.
+3. Trate `safeParse()` com sucesso e falha.
+4. Mostre uma mensagem amigável quando a resposta não bater com o contrato.
+5. Explique por que essa validação não substitui a validação no servidor.
+
+Use a resposta abaixo como referência de responsabilidade:
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O front-end valida a resposta para proteger a interface contra contrato quebrado. O servidor continua precisando validar entrada, porque é ele que protege banco, autenticação e regra de negócio. As duas validações têm fronteiras diferentes.
+</details>
+
+## Perguntas de revisão
+
+As perguntas abaixo verificam se você entendeu a fronteira entre tipo estático, validação em runtime e tratamento de erro.
+
+### Schemas e runtime
+
+1. **Por que TypeScript não substitui Zod em dados vindos de uma API?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque TypeScript roda no compilador e não valida o JSON recebido em tempo de execução. O Zod verifica o valor real quando ele chega ao programa.
+</details>
+
+2. **Qual é a diferença prática entre `parse()` e `safeParse()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `parse()` devolve o dado validado ou lança `ZodError`. `safeParse()` devolve um objeto com `success`, permitindo tratar sucesso e falha sem exceção.
+</details>
+
+3. **Por que `z.coerce.number()` aparece em validação de query string e params?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `query` e `params` chegam como strings em frameworks HTTP. A coerção transforma o texto em número antes de aplicar regras como inteiro, positivo e limite máximo.
+</details>
+
+### Contrato e manutenção
+
+4. **Qual é a vantagem de derivar tipos com `z.infer`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O tipo TypeScript passa a nascer do schema. Assim, o contrato validado em runtime e o contrato usado pelo compilador evoluem juntos.
+</details>
+
+5. **Por que validar cedo reduz bugs em controllers e services?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a regra de negócio recebe dados já convertidos e conferidos. Isso evita espalhar `if`, conversões e mensagens de erro por várias camadas.
+</details>
+
+## Referências
+
+- [Zod](https://zod.dev/)
+- [Zod: Basic usage](https://zod.dev/basics)
+- [Zod: Defining schemas](https://zod.dev/api)
+- [TypeScript: unknown](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown)
+
+## Próximo tópico
+
+[Chart.js](../../ui/chartjs/): visualização de dados interativa com gráficos renderizados em Canvas.
