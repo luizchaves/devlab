@@ -1,0 +1,281 @@
+---
+title: "Web APIs: Gráficos 3D com WebGL e WebGPU"
+description: "Renderização 3D acelerada por hardware no navegador com WebGL2, shaders GLSL/WGSL, matrizes de transformação, pipeline gráfico e computação com WebGPU."
+course: web-api
+sidebar:
+  label: "Gráficos 3D (WebGL e WebGPU)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+A renderização gráfica tridimensional no navegador permite criar visualizações científicas, jogos imersivos, configuradores de produtos em e-commerce e modelos de inteligência artificial acelerados por hardware. Através de **WebGL** (baseado no padrão OpenGL ES) e da moderna **WebGPU** (projetada para as GPUs atuais), o JavaScript delega cálculos vetoriais massivos diretamente para a placa de vídeo.
+
+Materiais: [slides do tópico](../../../../slides/courses/web-api/media/webgl-webgpu/) e [mapa mental](../../../../mindmaps/courses/web-api/media/webgl-webgpu/).
+
+## Objetivo
+
+Compreender o pipeline de renderização gráfica 3D acelerado por hardware no navegador, a função dos shaders de vértice e fragmento, e as distinções fundamentais entre WebGL, bibliotecas de alto nível e WebGPU. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o fluxo do pipeline gráfico na GPU (vértices, shaders, rasterização e framebuffer).
+- Obter o contexto WebGL e compilar shaders programáveis utilizando a linguagem GLSL (*OpenGL Shading Language*).
+- Alocar e alimentar buffers de memória na GPU com `Float32Array` e `gl.bufferData()`.
+- Compreender a função das matrizes de projeção, visão e modelo (MVP) na transformação de coordenadas tridimensionais para o plano da tela.
+- Reconhecer os avanços da WebGPU em computação paralela de propósito geral (Compute Shaders) e execução de IA no cliente.
+- Escolher conscientemente entre código nativo de baixo nível e motores de abstração como Three.js e Babylon.js.
+
+---
+
+## Do Canvas 2D ao Pipeline Gráfico na GPU
+
+Enquanto o contexto 2D tradicional (`canvas.getContext('2d')`) processa formas de forma imperativa e síncrona pela CPU, o **WebGL** e a **WebGPU** operam de forma assíncrona através de uma arquitetura altamente paralela executada diretamente nos núcleos de processamento da GPU.
+
+O pipeline gráfico tridimensional transforma dados brutos de geometria geométrica em pixels coloridos na tela através de estágios estruturados:
+
+<Mermaid title="Pipeline de Renderização 3D na GPU">
+{`
+flowchart LR
+  subgraph CPU["CPU (JavaScript)"]
+    Verts["Vértices 3D<br/>(Float32Array)"]
+    Mats["Matrizes MVP & Uniforms"]
+  end
+
+  subgraph GPU["GPU (Pipeline Gráfico)"]
+    VS["Vertex Shader<br/>(Posicionamento 3D -> 2D)"]
+    Rast["Rasterização<br/>(Conversão em Fragmentos/Pixels)"]
+    FS["Fragment Shader<br/>(Cálculo de Cor e Iluminação)"]
+  end
+
+  subgraph Output["Tela"]
+    FB["Framebuffer / Canvas"]
+  end
+
+  Verts -->|Buffers VBO| VS
+  Mats -->|Uniforms| VS
+  VS --> Rast
+  Rast --> FS
+  FS --> FB
+`}
+</Mermaid>
+
+Cada estágio possui uma responsabilidade específica:
+
+1. **Vertex Shader**: Programa executado uma vez para cada vértice da geometria. Transforma as coordenadas 3D do modelo no espaço global em posições projetadas na tela através de multiplicações de matrizes.
+2. **Rasterização**: O hardware conecta os vértices em triângulos e identifica quais pixels da tela estão cobertos por cada face, gerando fragmentos candidatos.
+3. **Fragment Shader**: Programa executado em paralelo para cada pixel/fragmento coberto. Calcula a cor final resultante com base em texturas, vetores normais de reflexão e fontes de luz.
+
+---
+
+## Anatomia de uma Cena WebGL: Shaders e Buffers
+
+Uma aplicação WebGL mínima requer a criação de dois programas em linguagem **GLSL** compilados em tempo de execução no navegador:
+
+```js title="Exemplo simplificado de shaders GLSL e matrizes de projeção"
+// 1. Vertex Shader: calcula a posição final do ponto no espaço
+const vertexShaderSource = `
+  attribute vec3 aPosition;
+  uniform mat4 uModelViewMatrix;
+  uniform mat4 uProjectionMatrix;
+  void main() {
+    gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0);
+  }
+`;
+
+// 2. Fragment Shader: determina a cor RGB de cada pixel da face
+const fragmentShaderSource = `
+  precision mediump float;
+  uniform vec4 uColor;
+  void main() {
+    gl_FragColor = uColor;
+  }
+`;
+```
+
+A comunicação entre o código JavaScript e a GPU envolve o envio de dados através de duas categorias de variáveis:
+
+- **Attributes e Buffers (VBOs)**: Vetores de dados densos que variam por vértice (ex: posições `x, y, z`, vetores normais e coordenadas de textura `u, v`).
+- **Uniforms**: Variáveis globais constantes para todos os vértices de uma mesma chamada de desenho (ex: matriz de projeção da câmera, cor da luz, posição do observador).
+
+---
+
+## WebGPU: A Nova Geração de Computação e Gráficos
+
+A **WebGPU** é a sucessora do WebGL, desenhada do zero para espelhar as arquiteturas modernas de GPUs (DirectX 12, Vulkan e Metal), eliminando o estado global monolítico do OpenGL.
+
+As principais inovações da WebGPU incluem:
+
+1. **Menor Sobrecarga de CPU**: Validações de estado ocorrem na criação de pipelines, permitindo despachar milhares de comandos de desenho com uso mínimo de processador.
+2. **Linguagem WGSL (*WebGPU Shading Language*)**: Sintaxe moderna, tipada e padronizada para escrita de shaders.
+3. **Compute Shaders (GPGPU)**: Capacidade de executar algoritmos não visuais massivamente paralelos na GPU. É essa capacidade que viabiliza a execução de **modelos de linguagem (LLMs)** e redes neurais de IA diretamente no navegador do usuário (via bibliotecas como Transformers.js e ONNX Runtime Web) com performance próxima a programas nativos.
+
+---
+
+## Ecossistema e Motores 3D: Quando Abstrair?
+
+Embora compreender o WebGL/WebGPU puro seja indispensável para criar filtros de shaders customizados e entender o funcionamento da GPU, desenvolver cenas complexas diretamente em WebGL puro exige escrever manualmente milhares de linhas para cálculos de câmera, sombras, colisões e importação de formatos como `.gltf`.
+
+Por essa razão, o ecossistema divide-se em níveis de abstração:
+
+| Abordagem | Ferramentas | Quando Utilizar |
+| :--- | :--- | :--- |
+| **Baixo Nível Nativo** | WebGL 2.0 / WebGPU puro | Efeitos visuais especializados (post-processing shaders), visualização de dados científicos sob medida ou aprendizado dos fundamentos gráficos. |
+| **Motores de Alto Nível** | **Three.js**, **Babylon.js** | Jogos 3D, configuradores de produtos em e-commerce, passeios virtuais arquitetônicos e carregamento de modelos 3D (`.gltf` / `.glb`). |
+| **Computação e IA na GPU** | WebGPU + ONNX / WebLLM | Inferência de modelos de machine learning, simulação de física de fluidos e processamento de áudio/vídeo no cliente. |
+
+A manipulação de matrizes de câmera em código gerado por IA exige atenção a convenções matemáticas:
+
+<Aside type="caution" title="Dica de IA: Não use matrizes manuais para cenas 3D complexas">
+Ao solicitar código 3D em WebGL puro, assistentes frequentemente escrevem matrizes 4x4 manualmente com arrays literais. Pequenos erros na ordem de transposição (*row-major* vs *column-major*) ou na ordem de multiplicação das matrizes resultam em telas pretas ou geometrias distorcidas. Para projetos de produção, utilize bibliotecas matemáticas otimizadas como `gl-matrix` ou adote o **Three.js**.
+
+**Prompt:** *"Refatore o cálculo das matrizes de projeção e rotação utilizando funções padronizadas da biblioteca gl-matrix, garantindo o correto empacotamento em Float32Array para envio aos uniforms do WebGL."*
+</Aside>
+
+---
+
+## Exemplo com preview e código
+
+O exemplo abaixo implementa um cubo tridimensional colorido e rotativo renderizado em tempo real com WebGL puro nativo:
+
+<HtmlPreview path="examples/courses/web-api/browser-web-apis/webgl.html" height="30rem" label="webgl.html" allowScripts serveFromPublic />
+
+<SourceCode path="examples/courses/web-api/browser-web-apis/webgl.html" />
+
+---
+
+## Cuidados práticos
+
+O desenvolvimento tridimensional na web exige controle estrito de memória e desempenho em diferentes perfis de hardware:
+
+| Desafio | Cuidado Prático |
+| :--- | :--- |
+| **Perda de Contexto (`webglcontextlost`)** | O sistema operacional pode desalocar o contexto WebGL quando a aba entra em segundo plano ou a GPU fica sobrecarregada. Trate os eventos `webglcontextlost` e `webglcontextrestored` para recriar buffers e texturas. |
+| **Vazamento de Memória na GPU** | Objetos alocados na memória de vídeo (como buffers com `gl.createBuffer()` e texturas com `gl.createTexture()`) não são limpos automaticamente pelo Garbage Collector do JS. Destrua-os explicitamente com `gl.deleteBuffer()` e `gl.deleteTexture()`. |
+| **Alta Densidade de Pixels (Retina)** | Multiplicar as dimensões do canvas por `window.devicePixelRatio` em resoluções 4K pode sobrecarregar a taxa de preenchimento da GPU (*fill rate*). Limite a proporção máxima de pixel a 2x em dispositivos móveis. |
+| **Teste de Profundidade (*Depth Test*)** | Sempre habilite `gl.enable(gl.DEPTH_TEST)` para que faces posteriores de objetos 3D não sejam desenhadas incorretamente sobre faces frontais. |
+
+---
+
+## Quando usar, e quando não usar?
+
+A tabela abaixo compara as diferentes soluções gráficas disponíveis na plataforma web:
+
+| Cenário | Escolha | Justificativa |
+| :--- | :--- | :--- |
+| **Gráficos estáticos, ícones e diagramas acessíveis** | **SVG** | Escalabilidade vetorial perfeita com nós DOM inspecionáveis e acessíveis para leitores de tela. |
+| **Animações 2D simples e recorte de imagens** | **Canvas 2D** | API simples e direta com baixo custo de desenvolvimento. |
+| **Visualização 3D interativa ou catálogo de produtos** | **Three.js / WebGL** | Suporte completo a materiais PBR, iluminação realista e importação de arquivos `.gltf`. |
+| **Inferência de IA no cliente ou simulação física massiva** | **WebGPU** | Computação paralela geral através de Compute Shaders com aceleração direta na GPU. |
+
+---
+
+## Executando
+
+Siga os passos a seguir para inspecionar a renderização tridimensional no exemplo interativo:
+
+<Steps>
+1. Abra o exemplo interativo e observe a rotação suave do cubo tridimensional colorido.
+2. Altere o controle deslizante de **Velocidade** para verificar o impacto na taxa de incremento angular por quadro.
+3. Clique em **Pausar Rotação** para congelar o loop de animação e verificar o teste de profundidade das faces.
+4. Abra o DevTools (F12) e verifique que todo o desenho é processado em um único elemento `<canvas>`, sem nós HTML individuais para cada face do cubo.
+</Steps>
+
+---
+
+## Exercício
+
+Pratique conceitos de iluminação, cores e transformações no código WebGL:
+
+1. Altere o array `faceColors` para aplicar uma paleta em tons de azul e roxo no cubo.
+2. Modifique a função `render` para incluir uma translação oscilatória no eixo Z utilizando `Math.sin(now * 0.001)`.
+3. Adicione uma luz direcional simples multiplicando a cor da face pelo produto escalar do vetor normal com a direção da luz.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No Vertex Shader, calcule a iluminação difusa básica:
+  ```glsl
+  attribute vec3 aNormal;
+  uniform vec3 uLightDirection;
+  varying float vLight;
+  void main() {
+    gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0);
+    vLight = max(dot(aNormal, normalize(uLightDirection)), 0.2);
+  }
+  ```
+  O valor `vLight` modula o brilho final no Fragment Shader.
+</details>
+
+---
+
+## Desafio
+
+Substitua a geometria do cubo por uma **pirâmide de base quadrada** (5 vértices e 6 triângulos), configurando corretamente as coordenadas dos vértices, índices e cores para cada uma das faces triangulares e da base.
+
+---
+
+## Perguntas de revisão
+
+Teste seus conhecimentos sobre aceleração gráfica, shaders e modelos de computação 3D:
+
+### Pipeline Gráfico e Shaders
+
+As questões a seguir avaliam o funcionamento do pipeline e da linguagem GLSL:
+
+1. **Qual a diferença fundamental entre o Vertex Shader e o Fragment Shader?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O Vertex Shader é executado uma vez por vértice para transformar posições geométricas tridimensionais no espaço da tela; o Fragment Shader é executado para cada pixel/fragmento coberto pelas faces para calcular a cor final e iluminação.
+</details>
+
+2. **Para que serve o teste de profundidade (`gl.DEPTH_TEST`) no WebGL?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para verificar a coordenada Z de cada fragmento em relação ao buffer de profundidade (*Z-buffer*), garantindo que objetos e faces que estão atrás de outras superfícies fiquem ocultos, independentemente da ordem em que os triângulos foram desenhados.
+</details>
+
+3. **Qual a diferença entre variáveis do tipo `attribute` e `uniform` em GLSL?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `attributes` contêm dados individuais específicos para cada vértice (como coordenadas de posição e normais), enquanto `uniforms` contêm valores constantes globais compartilhados por todos os vértices de uma chamada de desenho (como matrizes de projeção e cor da luz).
+</details>
+
+### WebGPU e Ecossistema
+
+As questões a seguir avaliam as evoluções da WebGPU e a escolha de motores:
+
+4. **Quais as principais vantagens da WebGPU sobre o WebGL?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A WebGPU reduz o gargalo de CPU ao espelhar APIs modernas de GPU (Vulkan/Metal/DirectX 12), oferece a linguagem tipada WGSL e introduz Compute Shaders para computação paralela de propósito geral (GPGPU), viabilizando modelos de inteligência artificial no cliente.
+</details>
+
+5. **Por que a maioria das aplicações 3D utiliza Three.js em vez de WebGL puro?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o Three.js abstrai a matemática complexa de matrizes, gerenciamento de materiais realistas (PBR), sombras dinâmicas, carregamento de modelos 3D padronizados (`.gltf`) e controles de câmera interativos, economizando milhares de linhas de código boilerplate de baixo nível.
+</details>
+
+---
+
+## Referências
+
+- [WebGL: 2D and 3D graphics for the web | MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API)
+- [WebGPU API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API)
+- [Three.js Documentation](https://threejs.org/docs/)
+
+---
+
+## Próximo tópico
+
+[Web Speech API](../web-speech/): síntese de voz e reconhecimento de fala nativos no navegador.

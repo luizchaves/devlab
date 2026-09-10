@@ -1,0 +1,317 @@
+---
+title: "Web APIs: Streaming de Vídeo na Web"
+description: "Transmissão de vídeo na web com WebRTC (RTCPeerConnection), streaming adaptativo com Media Source Extensions (MSE), WebCodecs e captura de tela."
+course: web-api
+sidebar:
+  label: "Streaming de Vídeo (WebRTC e MSE)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+O streaming de vídeo na plataforma web abrange desde transmissões bidirecionais de latência ultra-baixa (como videoconferências e jogos em nuvem) até distribuição de vídeo sob demanda em larga escala para milhões de espectadores. O navegador moderno oferece um conjunto especializado de APIs nativas projetadas para cada regime de latência, largura de banda e processamento de mídia.
+
+Materiais: [slides do tópico](../../../../slides/courses/web-api/media/streaming/) e [mapa mental](../../../../mindmaps/courses/web-api/media/streaming/).
+
+## Objetivo
+
+Compreender a arquitetura das APIs de streaming da web, diferenciando comunicação em tempo real de distribuição adaptativa com buffer, e dominando a negociação de conexões peer-to-peer e alimentação de buffers de mídia. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar os três modelos fundamentais de streaming na web (WebRTC, Media Source Extensions e WebCodecs).
+- Estabelecer uma sessão WebRTC com `RTCPeerConnection`, negociando ofertas e respostas SDP (*Session Description Protocol*) e candidatos ICE.
+- Vincular faixas remotas recebidas pelo evento `track` a elementos `<video>`.
+- Explicar como a API `MediaSource` (MSE) viabiliza o streaming adaptativo (HLS e MPEG-DASH) via injeção de segmentos binários com `SourceBuffer`.
+- Utilizar `navigator.mediaDevices.getDisplayMedia()` para captura e transmissão de tela, janelas ou abas do sistema operacional.
+- Escolher a arquitetura e a API corretas conforme as exigências de latência, número de espectadores e custo de infraestrutura.
+
+---
+
+## Os Três Paradigmas de Streaming na Web
+
+A escolha da API adequada depende diretamente da relação entre **latência** e **escala de distribuição**:
+
+<Mermaid title="Comparativo de Arquiteturas de Streaming na Web">
+{`
+flowchart TD
+  subgraph RealTime["1. Tempo Real (< 500 ms)"]
+    direction TB
+    W_Cap["getUserMedia / getDisplayMedia"] --> W_PC["RTCPeerConnection (WebRTC)"]
+    W_PC --> W_Dest["Videoconferência / P2P / SFU"]
+  end
+
+  subgraph Adaptive["2. Streaming Adaptativo (2 s a 10 s)"]
+    direction TB
+    M_Fetch["fetch(segmentos .mp4 / .ts)"] --> M_MSE["MediaSource (MSE)"]
+    M_MSE --> M_Video["<video> (HLS / DASH)"]
+  end
+
+  subgraph LowLevel["3. Baixo Nível (< 50 ms)"]
+    direction TB
+    C_In["Frames Brutos"] --> C_Codecs["WebCodecs (Hardware GPU)"]
+    C_Codecs --> C_Out["Cloud Gaming / Canvas"]
+  end
+`}
+</Mermaid>
+
+Cada paradigma atende a um padrão arquitetural distinto:
+
+1. **WebRTC (`RTCPeerConnection`)**: Projetado para comunicação bidirecional em tempo real com latência inferior a 500 milissegundos sobre UDP (SRTP), essencial para chamadas interativas e salas virtuais.
+2. **Media Source Extensions (`MediaSource`)**: Permite que o JavaScript construa dinamicamente fluxos de mídia injetando pequenos fragmentos de vídeo (`ArrayBuffer`) no buffer da tag `<video>`, permitindo adaptação contínua de resolução (taxa de bits adaptativa).
+3. **WebCodecs API**: Fornece controle de baixo nível sobre os codificadores e decodificadores de hardware da GPU do cliente (`VideoEncoder`, `VideoDecoder`, `AudioDecoder`), operando diretamente sobre objetos `VideoFrame`.
+
+---
+
+## WebRTC: Transmissão Bidirecional em Tempo Real
+
+A API **WebRTC** (*Web Real-Time Communication*) permite a troca direta de áudio, vídeo e dados arbitrários entre navegadores sem necessidade de intermediar os bytes de mídia pelo servidor web tradicional.
+
+A conexão entre dois pares é orquestrada pela interface `RTCPeerConnection` por meio de quatro etapas principais:
+
+1. **Adição de faixas locais**: O `MediaStream` obtido da câmera ou tela é anexado à conexão via `pc.addTrack(track, stream)`.
+2. **Troca de candidatos ICE**: O navegador descobre endereços de rede públicos e locais através do protocolo ICE (*Interactive Connectivity Establishment*) e servidores STUN/TURN, disparando o evento `icecandidate`.
+3. **Negociação SDP**: O transmissor gera uma proposta de mídia com `pc.createOffer()`, define sua descrição local e a envia ao receptor. O receptor responde gerando uma `pc.createAnswer()`.
+4. **Recebimento de faixas remotas**: Quando o canal de mídia é estabelecido, o evento `track` é acionado no par receptor, entregando o `MediaStream` remoto pronto para ser exibido em `<video srcObject>`.
+
+O trecho a seguir demonstra a negociação simplificada em *loopback* (dois objetos de conexão no mesmo documento):
+
+```js title="Negociação de conexão WebRTC entre dois pares"
+// 1. Instanciação dos pares
+const pcLocal = new RTCPeerConnection();
+const pcRemote = new RTCPeerConnection();
+
+// 2. Troca de candidatos de rede ICE
+pcLocal.onicecandidate = (e) => e.candidate && pcRemote.addIceCandidate(e.candidate);
+pcRemote.onicecandidate = (e) => e.candidate && pcLocal.addIceCandidate(e.candidate);
+
+// 3. Receptor escuta a chegada do fluxo de mídia
+pcRemote.ontrack = (event) => {
+  const remoteVideo = document.querySelector('#remoteVideo');
+  remoteVideo.srcObject = event.streams[0];
+};
+
+// 4. Transmissor anexa as faixas locais da webcam
+localStream.getTracks().forEach((track) => pcLocal.addTrack(track, localStream));
+
+// 5. Negociação de oferta e resposta (SDP)
+const offer = await pcLocal.createOffer();
+await pcLocal.setLocalDescription(offer);
+await pcRemote.setRemoteDescription(offer);
+
+const answer = await pcRemote.createAnswer();
+await pcRemote.setLocalDescription(answer);
+await pcLocal.setRemoteDescription(answer);
+```
+
+---
+
+## Media Source Extensions (MSE) e Streaming Adaptativo
+
+Para serviços de streaming com milhares de espectadores simultâneos (como YouTube, Netflix e Twitch), o modelo P2P do WebRTC é inviável financeiramente e computacionalmente. Nesses cenários, adota-se o streaming adaptativo baseado em HTTP (HLS ou MPEG-DASH) utilizando a **MSE API**.
+
+Em vez de apontar o `<video src>` para um arquivo `.mp4` estático gigante, a aplicação instancia um `MediaSource` e anexa pedaços pequenos de 2 a 6 segundos baixados sob demanda:
+
+```js title="Alimentação de buffer com MediaSource (MSE)"
+const video = document.querySelector('video');
+const mediaSource = new MediaSource();
+
+video.src = URL.createObjectURL(mediaSource);
+
+mediaSource.addEventListener('sourceopen', async () => {
+  // Define o formato do codec esperado pelo container
+  const mimeCodec = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"';
+  const sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+
+  // Baixa o segmento inicial e adiciona ao buffer de reprodução
+  const response = await fetch('/videos/segmento_01.mp4');
+  const buffer = await response.arrayBuffer();
+
+  sourceBuffer.appendBuffer(buffer);
+});
+```
+
+Na prática, a lógica de alternância automática de qualidade conforme a velocidade da conexão é gerenciada por bibliotecas consagradas de código aberto (como `hls.js` ou `dash.js`), que operam inteiramente sobre a API `MediaSource` nativa.
+
+---
+
+## Captura de Tela (Screen Capture API)
+
+O compartilhamento de telas, janelas de aplicativos ou abas do navegador é realizado pelo método `navigator.mediaDevices.getDisplayMedia()`.
+
+Ele retorna um `MediaStream` de vídeo (e opcionalmente áudio do sistema) idêntico ao produzido pela câmera, podendo ser transmitido diretamente para um `RTCPeerConnection` ou gravado:
+
+```js title="Captura de tela do sistema operacional"
+try {
+  const displayStream = await navigator.mediaDevices.getDisplayMedia({
+    video: { cursor: 'always' },
+    audio: true,
+  });
+
+  const preview = document.querySelector('video');
+  preview.srcObject = displayStream;
+
+  // Escuta quando o usuário clica no botão "Parar compartilhamento" nativo do SO
+  displayStream.getVideoTracks()[0].addEventListener('ended', () => {
+    console.log('Compartilhamento de tela finalizado pelo usuário.');
+  });
+} catch (error) {
+  console.error('Permissão de captura de tela recusada:', error);
+}
+```
+
+A arquitetura de sinalização do WebRTC costuma gerar confusões conceituais em implementações assistidas por IA:
+
+<Aside type="caution" title="Dica de IA: Não confunda sinalização com transporte de mídia no WebRTC">
+O WebRTC transporta os pacotes de áudio e vídeo de forma autônoma e criptografada (SRTP). No entanto, o padrão WebRTC **não define** o protocolo de sinalização inicial para troca de mensagens SDP e candidatos ICE. Você deve utilizar um canal de controle separado (como WebSockets ou SSE) para que os navegadores troquem as strings de oferta e resposta antes de iniciar a transmissão direta.
+
+**Prompt:** *"Implemente a troca de mensagens de oferta, resposta e candidatos ICE via WebSocket seguro (wss://), garantindo que mensagens de candidatos recebidas antes do setRemoteDescription sejam enfileiradas corretamente."*
+</Aside>
+
+---
+
+## Exemplo com preview e código
+
+O exemplo interativo a seguir estabelece uma conexão WebRTC *loopback* completa na mesma página, transferindo o fluxo da câmera local para um segundo receptor de vídeo remoto através de `RTCPeerConnection`:
+
+<HtmlPreview path="examples/courses/web-api/browser-web-apis/streaming.html" height="30rem" label="streaming.html" allowScripts serveFromPublic />
+
+<SourceCode path="examples/courses/web-api/browser-web-apis/streaming.html" />
+
+---
+
+## Cuidados práticos
+
+A implementação de streaming exige atenção a restrições de rede corporativa, codecs de hardware e controle de memória:
+
+| Desafio | Cuidado Prático |
+| :--- | :--- |
+| **Bloqueio de NAT e Firewall** | Conexões WebRTC em redes reais exigem servidores **STUN** (para descobrir IP público) e **TURN** (relé de pacotes quando conexões P2P diretas são bloqueadas). |
+| **Vazamento de Memória em MSE** | Em transmissões ao vivo contínuas de longa duração, remova os segmentos de vídeo antigos do buffer chamando `sourceBuffer.remove(start, end)` periodicamente. |
+| **Política de CORS em Vídeos** | Segmentos de vídeo baixados via `fetch()` para alimentação de `SourceBuffer` exigem cabeçalhos de CORS (`Access-Control-Allow-Origin`) configurados no servidor de mídia ou CDN. |
+| **Consumo de Bateria e CPU** | Priorize codecs acelerados por hardware universalmente suportados (como H.264 / AVC1 e VP8/VP9) em vez de codecs sem decodificador dedicado no dispositivo do usuário. |
+
+---
+
+## Quando usar, e quando não usar?
+
+A tabela a seguir orienta a seleção da tecnologia de acordo com o objetivo do projeto:
+
+| Cenário de Aplicação | Tecnologia Recomendada | Justificativa Técnica |
+| :--- | :--- | :--- |
+| **Chamada de voz/vídeo 1:1 ou conferência em grupo** | **WebRTC** (`RTCPeerConnection` + SFU) | Latência em tempo real (< 500 ms) bidirecional obrigatória para conversação fluida. |
+| **Webinário ou live unidirecional para milhares de pessoas** | **HLS / DASH** com **MediaSource (MSE)** | Baixo custo de distribuição via CDNs HTTP convencionais com cache em borda. |
+| **Vídeo institucional ou tutorial curto gravado** | Elemento `<video src="video.mp4">` nativo | Não necessita de complexidade de segmentação ou APIs de streaming; o navegador realiza buffering progressivo sozinho. |
+| **Cloud gaming ou edição de vídeo com WebGPU** | **WebCodecs API** + **WebTransport** | Permite acesso direto aos frames descompactados com aceleração de hardware sem latência de contêiner. |
+
+---
+
+## Executando
+
+Siga os passos a seguir para testar a transmissão de vídeo peer-to-peer no exemplo prático:
+
+<Steps>
+1. Clique no botão **1. Iniciar Câmera** e autorize o acesso no diálogo de permissão do navegador.
+2. Observe que o primeiro quadro exibe o vídeo local capturado pelo sensor.
+3. Clique em **2. Transmitir via WebRTC** e observe a negociação instantânea de ofertas SDP e candidatos ICE alimentando o segundo quadro de vídeo remoto.
+4. Clique em **3. Encerrar Transmissão** para fechar as conexões dos dois pares e liberar a câmera.
+</Steps>
+
+---
+
+## Exercício
+
+Os itens a seguir exercitam a captura de tela, negociação de mídia e monitoramento de conexão:
+
+1. Substitua `navigator.mediaDevices.getUserMedia` por `navigator.mediaDevices.getDisplayMedia` para transmitir a tela do computador no receptor remoto.
+2. Adicione um ouvinte para o evento `pcLocal.addEventListener('connectionstatechange', ...)` e exiba no status quando a conexão atingir o estado `connected`.
+3. Crie um canal de dados paralelo com `pcLocal.createDataChannel('chat')` para enviar mensagens de texto instantâneas durante o streaming de vídeo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para monitorar a mudança de estado da conexão:
+  ```js
+  pcLocal.addEventListener('connectionstatechange', () => {
+    console.log('Estado da conexão WebRTC:', pcLocal.connectionState);
+    if (pcLocal.connectionState === 'connected') {
+      status.textContent = 'Pares WebRTC conectados com sucesso!';
+    }
+  });
+  ```
+  O estado evolui através de `connecting` -> `connected` -> `disconnected` / `failed`.
+</details>
+
+---
+
+## Desafio
+
+Crie uma aplicação de **gravação e download de tela**: capture a tela do usuário com `getDisplayMedia()`, conecte o stream a um `MediaRecorder`, armazene os pedaços binários gerados pelo evento `dataavailable` em um array e, ao finalizar a gravação com o evento `stop`, gere um link de download para um arquivo `gravacao.webm` com `URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }))`.
+
+---
+
+## Perguntas de revisão
+
+Responda às questões a seguir para avaliar a compreensão sobre protocolos de streaming, negociação de pares e buffers adaptativos:
+
+### Arquiteturas e Protocolos
+
+As questões a seguir avaliam as diferenças conceituais entre transmissão em tempo real e sob demanda:
+
+1. **Por que o WebRTC não é a escolha primária para transmitir lives para 100.000 espectadores simultâneos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o WebRTC utiliza conexões diretas ponto a ponto ou roteadores de mídia dedicados (SFU/MCU) com tráfego contínuo sob demanda de banda alta no servidor, tornando o custo de infraestrutura impraticável para grandes públicos quando comparado a CDNs HTTP com cache em borda usadas por HLS/DASH.
+</details>
+
+2. **Qual a função dos servidores STUN e TURN em uma arquitetura WebRTC de produção?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O servidor STUN permite que o navegador descubra seu endereço IP público e porta externa por trás de roteadores NAT. O servidor TURN atua como um relé de retransmissão de dados quando restrições estritas de firewall ou NATs simétricos impedem a conexão P2P direta.
+</details>
+
+3. **O que é o Session Description Protocol (SDP)?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É o formato textual padronizado que descreve as capacidades multimídia de cada par na conexão WebRTC, incluindo codecs suportados, resoluções, endereços de rede, tipos de mídia (áudio/vídeo) e parâmetros de criptografia.
+</details>
+
+### Buffers e Decodificação
+
+As questões a seguir avaliam a manipulação de buffers e hardware no cliente:
+
+4. **Qual a vantagem da API `MediaSource` (MSE) em comparação com uma tag `<video src="video.mp4">` tradicional?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A `MediaSource` permite que a aplicação JavaScript insira fragmentos de vídeo sob demanda em tempo de execução, permitindo que players ajustem a qualidade (taxa de bits) dinamicamente de acordo com a velocidade de rede do usuário sem interromper a reprodução.
+</details>
+
+5. **Para que serve a WebCodecs API e como ela se diferencia do elemento `<video>`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A WebCodecs fornece acesso direto e programático aos encoders e decoders de hardware da GPU, operando frame a frame sem o overhead de renderização automática ou encapsulamento de contêineres multimídia que o elemento `<video>` impõe.
+</details>
+
+---
+
+## Referências
+
+- [WebRTC API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API)
+- [RTCPeerConnection | MDN](https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection)
+- [Media Source Extensions (MSE) | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API)
+- [Screen Capture API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Capture_API)
+
+---
+
+## Próximo tópico
+
+[Clipboard API](../../input/clipboard/): leitura e escrita assíncrona na área de transferência com suporte a texto e imagens.

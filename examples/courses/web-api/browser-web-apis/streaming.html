@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Streaming de Vídeo na Web</title>
+    <style>
+      .video-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      @media (max-width: 600px) {
+        .video-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .video-box {
+        background: #18181b;
+        padding: 0.75rem;
+        border-radius: 8px;
+        color: #fff;
+      }
+
+      .video-box h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.95rem;
+      }
+
+      video {
+        width: 100%;
+        background: #000;
+        border-radius: 4px;
+        display: block;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      button {
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        cursor: pointer;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        background: #f4f4f5;
+      }
+
+      button:hover {
+        background: #e4e4e7;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      #status {
+        margin-top: 0.75rem;
+        font-weight: bold;
+        min-height: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Streaming de Vídeo: WebRTC Loopback</h1>
+
+    <div class="controls">
+      <button type="button" id="startMediaBtn">1. Iniciar Câmera</button>
+      <button type="button" id="callBtn" disabled>2. Transmitir via WebRTC</button>
+      <button type="button" id="hangupBtn" disabled>3. Encerrar Transmissão</button>
+    </div>
+
+    <p id="status"></p>
+
+    <div class="video-grid">
+      <div class="video-box">
+        <h3>Transmissor Local (Origem)</h3>
+        <video id="localVideo" autoplay playsinline muted></video>
+      </div>
+      <div class="video-box">
+        <h3>Receptor Remoto (WebRTC Stream)</h3>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
+    </div>
+
+    <script>
+      const startMediaBtn = document.querySelector('#startMediaBtn');
+      const callBtn = document.querySelector('#callBtn');
+      const hangupBtn = document.querySelector('#hangupBtn');
+      const localVideo = document.querySelector('#localVideo');
+      const remoteVideo = document.querySelector('#remoteVideo');
+      const status = document.querySelector('#status');
+
+      let localStream = null;
+      let pcLocal = null;
+      let pcRemote = null;
+
+      function updateStatus(text, color = '#333') {
+        status.textContent = text;
+        status.style.color = color;
+      }
+
+      startMediaBtn.addEventListener('click', async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          updateStatus('getUserMedia não suportado neste navegador.', '#e74c3c');
+          return;
+        }
+
+        try {
+          updateStatus('Acessando câmera local...');
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false,
+          });
+
+          localVideo.srcObject = localStream;
+          startMediaBtn.disabled = true;
+          callBtn.disabled = false;
+          updateStatus('Câmera local pronta. Clique em "Transmitir via WebRTC".', '#16a34a');
+        } catch (error) {
+          updateStatus(`Falha ao obter vídeo: ${error.message}`, '#e74c3c');
+        }
+      });
+
+      callBtn.addEventListener('click', async () => {
+        updateStatus('Negociando conexão WebRTC local...');
+
+        try {
+          // Cria os dois pares de conexão local
+          pcLocal = new RTCPeerConnection();
+          pcRemote = new RTCPeerConnection();
+
+          // Troca de candidatos ICE (Internet Connectivity Establishment)
+          pcLocal.addEventListener('icecandidate', (event) => {
+            if (event.candidate) {
+              pcRemote.addIceCandidate(event.candidate);
+            }
+          });
+
+          pcRemote.addEventListener('icecandidate', (event) => {
+            if (event.candidate) {
+              pcLocal.addIceCandidate(event.candidate);
+            }
+          });
+
+          // Receptor recebe as faixas remotas
+          pcRemote.addEventListener('track', (event) => {
+            if (remoteVideo.srcObject !== event.streams[0]) {
+              remoteVideo.srcObject = event.streams[0];
+              updateStatus('Streaming WebRTC ativo e transmitindo em tempo real!', '#2563eb');
+            }
+          });
+
+          // Adiciona as faixas locais ao transmissor
+          localStream.getTracks().forEach((track) => {
+            pcLocal.addTrack(track, localStream);
+          });
+
+          // Negociação SDP (Oferta e Resposta)
+          const offer = await pcLocal.createOffer();
+          await pcLocal.setLocalDescription(offer);
+          await pcRemote.setRemoteDescription(offer);
+
+          const answer = await pcRemote.createAnswer();
+          await pcRemote.setLocalDescription(answer);
+          await pcLocal.setRemoteDescription(answer);
+
+          callBtn.disabled = true;
+          hangupBtn.disabled = false;
+        } catch (error) {
+          updateStatus(`Erro na negociação WebRTC: ${error.message}`, '#e74c3c');
+        }
+      });
+
+      hangupBtn.addEventListener('click', () => {
+        if (pcLocal) {
+          pcLocal.close();
+          pcLocal = null;
+        }
+        if (pcRemote) {
+          pcRemote.close();
+          pcRemote = null;
+        }
+
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+          localStream = null;
+        }
+
+        localVideo.srcObject = null;
+        remoteVideo.srcObject = null;
+
+        startMediaBtn.disabled = false;
+        callBtn.disabled = true;
+        hangupBtn.disabled = true;
+
+        updateStatus('Conexão WebRTC e câmera encerradas.', '#71717a');
+      });
+    </script>
+  </body>
+</html>

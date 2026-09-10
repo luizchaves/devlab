@@ -836,8 +836,20 @@ export default defineConfig({
                   link: '/courses/web-api/media/canvas/',
                 },
                 {
+                  label: 'Gráficos 3D (WebGL e WebGPU)',
+                  link: '/courses/web-api/media/webgl-webgpu/',
+                },
+                {
                   label: 'Web Speech API (Voz)',
                   link: '/courses/web-api/media/web-speech/',
+                },
+                {
+                  label: 'MediaDevices API (Câmera e Áudio)',
+                  link: '/courses/web-api/media/media-devices/',
+                },
+                {
+                  label: 'Streaming de Vídeo (WebRTC e MSE)',
+                  link: '/courses/web-api/media/streaming/',
                 },
               ],
             },

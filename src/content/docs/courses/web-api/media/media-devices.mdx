@@ -1,0 +1,287 @@
+---
+title: "Web APIs: MediaDevices e Captura de Mídia"
+description: "Captura de vídeo e áudio do usuário com navigator.mediaDevices.getUserMedia, MediaStream, restrições de hardware, captura com Canvas e encerramento de faixas."
+course: web-api
+sidebar:
+  label: "MediaDevices (Câmera e Áudio)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import HtmlPreview from '@components/HtmlPreview.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+A **MediaDevices API** fornece acesso a dispositivos de entrada multimídia conectados ao sistema, como câmeras, microfones e compartilhamento de tela. Através do método `navigator.mediaDevices.getUserMedia()`, aplicações web conseguem capturar fluxos contínuos de áudio e vídeo em tempo real diretamente no navegador.
+
+Materiais: [slides do tópico](../../../../slides/courses/web-api/media/media-devices/) e [mapa mental](../../../../mindmaps/courses/web-api/media/media-devices/).
+
+## Objetivo
+
+Compreender o funcionamento da captura de mídia no navegador, o ciclo de vida dos fluxos de dados, o gerenciamento seguro de permissões de hardware e a manipulação de quadros em tempo real. Ao final do tópico, o leitor deve ser capaz de:
+
+- Solicitar acesso à câmera e microfone utilizando `navigator.mediaDevices.getUserMedia()`.
+- Definir restrições de captura (*constraints*) como resolução ideal, taxa de quadros e câmera frontal ou traseira (`facingMode`).
+- Vincular fluxos de mídia (`MediaStream`) a elementos `<video>` utilizando a propriedade `srcObject`.
+- Extrair fotos instantâneas desenhando o quadro do vídeo em um `<canvas>` 2D.
+- Tratar cenários de recusa de permissão e erros de hardware (`NotAllowedError`, `NotFoundError`, `NotReadableError`).
+- Encerrar adequadamente as faixas de mídia com `track.stop()`, liberando os recursos do dispositivo e apagando o indicador de uso da câmera.
+
+---
+
+## O Modelo de Fluxos de Mídia (MediaStream)
+
+A captura de mídia na web baseia-se em uma hierarquia de objetos que representam fluxos contínuos de dados gerados pelos sensores de hardware. Quando a permissão é concedida pelo usuário, o navegador entrega um objeto `MediaStream`.
+
+Um `MediaStream` funciona como um canal agrupador composto por uma ou mais faixas de mídia individuais (`MediaStreamTrack`), tipicamente separadas em faixa de vídeo e faixa de áudio:
+
+<Mermaid title="Arquitetura de Captura e Consumo de Fluxos de Mídia">
+{`
+flowchart LR
+  subgraph Hardware["Sensores Físicos"]
+    Cam["Webcam / Câmera"]
+    Mic["Microfone"]
+  end
+
+  subgraph Browser["MediaStream"]
+    VTrack["MediaStreamTrack (Vídeo)"]
+    ATrack["MediaStreamTrack (Áudio)"]
+  end
+
+  subgraph Destinos["Consumidores no DOM"]
+    Vid["<video srcObject>"]
+    Canv["<canvas drawImage>"]
+    Rec["MediaRecorder"]
+  end
+
+  Cam --> VTrack
+  Mic --> ATrack
+  VTrack --> Vid
+  VTrack --> Canv
+  VTrack --> Rec
+  ATrack --> Rec
+`}
+</Mermaid>
+
+Cada faixa possui seu próprio ciclo de vida, estado de habilitação (`track.enabled`) e métodos de controle. Para exibir o vídeo ao vivo na interface, o `MediaStream` é atribuído diretamente à propriedade `srcObject` de um elemento `<video>`.
+
+---
+
+## Solicitando Permissões e Restrições (Constraints)
+
+O método `navigator.mediaDevices.getUserMedia()` opera de forma assíncrona, retornando uma `Promise` que é resolvida com o `MediaStream` ou rejeitada com um erro específico de permissão ou dispositivo.
+
+A requisição exige um objeto de configuração (*constraints*) que especifica quais tipos de mídia são necessários e os parâmetros ideais de resolução:
+
+```js title="Configuração de constraints e solicitação de fluxo"
+const constraints = {
+  video: {
+    width: { ideal: 1280, max: 1920 },
+    height: { ideal: 720, max: 1080 },
+    facingMode: 'user', // 'user' para frontal, 'environment' para traseira em celulares
+  },
+  audio: true,
+};
+
+try {
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  const videoElement = document.querySelector('video');
+  videoElement.srcObject = stream;
+} catch (error) {
+  tratarErroDeCaptura(error);
+}
+```
+
+### Contexto Seguro e Tratamento de Erros
+
+A API de captura exige obrigatoriamente um **Contexto Seguro** (HTTPS ou `localhost`). Em conexões HTTP comuns, a propriedade `navigator.mediaDevices` permanece indefinida.
+
+O tratamento de erros deve discriminar as principais exceções disparadas pelo navegador:
+
+- **`NotAllowedError`**: O usuário negou a permissão no diálogo do navegador ou o dispositivo está bloqueado pelas permissões do sistema operacional.
+- **`NotFoundError`**: Não existe nenhuma câmera ou microfone conectado que atenda às restrições solicitadas.
+- **`NotReadableError`**: O dispositivo existe, mas já está bloqueado ou em uso exclusivo por outro aplicativo no sistema operacional.
+- **`OverconstrainedError`**: Nenhuma câmera conectada consegue atender às restrições obrigatórias (ex: resolução mínima exigida maior que o sensor físico suporta).
+
+---
+
+## Captura de Fotos com Canvas e Encerramento de Faixas
+
+Uma vez que o elemento `<video>` esteja reproduzindo o fluxo, é possível extrair quadros estáticos utilizando a Canvas API.
+
+O método `ctx.drawImage()` aceita um elemento `<video>` como fonte gráfica, renderizando o frame atual exatamente na resolução nativa do sensor:
+
+```js title="Extração de fotos e encerramento de faixas"
+function capturarFoto(video, canvas) {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  return canvas.toDataURL('image/jpeg', 0.9);
+}
+
+function pararTransmissao(stream, video) {
+  // Encerra cada faixa individualmente para desligar o hardware
+  stream.getTracks().forEach((track) => track.stop());
+  video.srcObject = null;
+}
+```
+
+O encerramento explícito através de `track.stop()` é uma responsabilidade essencial da aplicação. Se apenas a tag de vídeo for ocultada ou removida do DOM sem invocar `track.stop()`, a câmera continuará ligada, consumindo bateria e mantendo o LED de atividade aceso.
+
+A gestão de ciclo de vida de streams costuma apresentar descuidos frequentes em códigos gerados por assistentes:
+
+<Aside type="caution" title="Dica de IA: Trate o encerramento explícito de faixas e estados de erro">
+Ao gerar interfaces de captura com câmera, assistentes frequentemente atribuem `video.srcObject = null` ao fechar modais, esquecendo de invocar `track.stop()` em cada item de `stream.getTracks()`. Isso deixa a câmera ativa em segundo plano no navegador.
+
+**Prompt:** *"Adicione uma rotina completa de desmontagem que execute track.stop() em todas as faixas do MediaStream e trate adequadamente exceções NotAllowedError e NotFoundError com feedback visual claro."*
+</Aside>
+
+---
+
+## Exemplo com preview e código
+
+O exemplo abaixo permite solicitar acesso à câmera, visualizar a transmissão em tempo real, capturar um snapshot instantâneo e encerrar o dispositivo.
+
+<HtmlPreview path="examples/courses/web-api/browser-web-apis/media-devices.html" height="30rem" label="media-devices.html" allowScripts serveFromPublic />
+
+<SourceCode path="examples/courses/web-api/browser-web-apis/media-devices.html" />
+
+---
+
+## Cuidados práticos
+
+A manipulação de sensores físicos envolve privacidade estrita do usuário e particularidades de hardware móvel e desktop:
+
+| Situação | Cuidado Prático |
+| :--- | :--- |
+| **Origem não segura** | `navigator.mediaDevices` só está disponível sob HTTPS ou `localhost`. |
+| **Gesto do usuário** | Dispare a solicitação de permissão apenas em resposta a um clique explícito do usuário, nunca na carga automática da página. |
+| **Visualização em celulares** | Inclua os atributos `autoplay`, `playsinline` e `muted` no elemento `<video>` para evitar abertura em tela cheia forçada no iOS Safari. |
+| **Liberação de hardware** | Execute `track.stop()` em todas as faixas quando o componente for desmontado ou a tela fechada. |
+| **Resolução real do vídeo** | Leia `video.videoWidth` e `video.videoHeight` apenas após o evento `loadedmetadata` ou quando o stream estiver ativo. |
+
+---
+
+## Quando usar, e quando não usar?
+
+A tabela a seguir orienta a escolha entre `getUserMedia` e alternativas nativas mais simples da plataforma web:
+
+| Cenário | Escolha | Motivo |
+| :--- | :--- | :--- |
+| **Leitura de QR Code ou escaneamento em tempo real** | `getUserMedia` | Exige processamento contínuo de quadros da câmera em tempo de execução. |
+| **Foto de perfil ou upload avulso de imagem** | `<input type="file" accept="image/*" capture>` | Muito mais simples, abre o app nativo da câmera no celular sem precisar gerenciar stream, canvas ou permissões manuais. |
+| **Gravação de áudio ou vídeo longo** | `MediaRecorder` com `getUserMedia` | Permite capturar e codificar mídia diretamente em formato WebM/MP4 no navegador. |
+| **Compartilhamento de tela do computador** | `navigator.mediaDevices.getDisplayMedia()` | API específica projetada para captura de telas, janelas e abas do sistema operacional. |
+
+---
+
+## Executando
+
+Siga os passos a seguir para testar o fluxo completo de permissão e captura no exemplo interativo:
+
+<Steps>
+1. Clique no botão **Iniciar Câmera** e observe o diálogo de permissão exibido pelo navegador.
+2. Autorize o acesso para visualizar o vídeo em tempo real na área de visualização.
+3. Clique em **Tirar Foto** para extrair o quadro atual renderizado pelo canvas e exibi-lo como imagem.
+4. Clique em **Parar Câmera** e verifique que o indicador luminoso da webcam do seu computador é desativado imediatamente.
+</Steps>
+
+---
+
+## Exercício
+
+Os exercícios a seguir praticam o controle de constraints, manipulação de faixas e tratamento de exceções:
+
+1. Modifique as restrições para solicitar a câmera traseira do celular utilizando `facingMode: { exact: 'environment' }`.
+2. Adicione uma verificação prévia com `navigator.mediaDevices.enumerateDevices()` para listar os nomes de todas as câmeras conectadas.
+3. Crie uma função para alternar o mudo do microfone sem interromper o vídeo, modificando a propriedade `enabled` da faixa de áudio.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para alternar o áudio:
+  ```js
+  function alternarMudo(stream) {
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+    }
+  }
+  ```
+  A propriedade `enabled = false` silencia a transmissão sem fechar a conexão de hardware.
+</details>
+
+---
+
+## Desafio
+
+Construa um mini-aplicativo de **leitura contínua de luminosidade**: capture o vídeo da webcam, desenhe o quadro em um `<canvas>` invisível a cada 200ms utilizando `requestAnimationFrame` ou `setInterval`, calcule a média dos valores RGB de todos os pixels com `ctx.getImageData()` e exiba na tela uma mensagem indicando se o ambiente do usuário está "Claro", "Adequado" ou "Escuro".
+
+---
+
+## Perguntas de revisão
+
+Teste seus conhecimentos sobre o modelo de faixas, permissões e ciclo de vida de captura multimídia:
+
+### Modelo de Fluxo e Permissões
+
+As questões a seguir avaliam o comportamento assíncrono e os objetos de captura:
+
+1. **Qual a diferença entre um `MediaStream` e um `MediaStreamTrack`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `MediaStream` é o contêiner agrupador que representa o fluxo multimídia como um todo, enquanto o `MediaStreamTrack` representa cada canal de mídia individual (uma faixa de vídeo ou uma faixa de áudio).
+</details>
+
+2. **Por que `getUserMedia` falha silenciosamente ou permanece indefinido em conexões `http://exemplo.com`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque APIs que acessam hardware sensível (como câmeras e microfones) são restritas a Contextos Seguros (HTTPS ou localhost) para proteger a privacidade dos usuários contra interceptação em trânsito.
+</details>
+
+3. **Qual a diferença entre o erro `NotAllowedError` e `NotFoundError`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `NotAllowedError` indica que o usuário ou o sistema recusou a concessão de permissão; `NotFoundError` indica que o hardware solicitado (câmera ou microfone) simplesmente não existe ou não está conectado ao computador.
+</details>
+
+### Ciclo de Vida e Recursos
+
+As questões a seguir avaliam o consumo de hardware e manipulação visual:
+
+4. **O que acontece se um desenvolvedor apenas definir `video.srcObject = null` sem chamar `track.stop()`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O elemento `<video>` para de exibir a imagem, mas o sensor da câmera física permanece ligado no sistema operacional, gastando bateria, consumindo CPU e mantendo o LED de atividade aceso.
+</details>
+
+5. **Quando é preferível usar `<input type="file" capture>` em vez de `getUserMedia`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando a aplicação necessita apenas de uma foto ou vídeo pontual (ex: foto de perfil ou anexo de documento). O input nativo delega a captura para o aplicativo nativo da câmera do celular sem exigir lógica manual de streams, canvas ou permissões assíncronas complexas.
+</details>
+
+---
+
+## Referências
+
+- [MediaDevices.getUserMedia() | MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)
+- [MediaStream | MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
+- [MediaStreamTrack | MDN](https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack)
+
+---
+
+## Próximo tópico
+
+[Streaming de Vídeo](../streaming/): transmissão em tempo real com WebRTC, streaming adaptativo com Media Source Extensions (MSE) e WebCodecs.
