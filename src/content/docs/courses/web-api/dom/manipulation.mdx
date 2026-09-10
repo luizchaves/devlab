@@ -17,6 +17,7 @@ Materiais: [slides do tópico](../../../../slides/courses/web-api/dom/manipulati
 Compreender o DOM como a árvore de objetos que o navegador constrói a partir do HTML, e alterá-la com as APIs modernas de consulta e edição. Ao final do tópico, o leitor deve ser capaz de:
 
 - Situar nós de elemento, de texto e de atributo dentro da árvore do documento.
+- Reconhecer a hierarquia de interfaces e o polimorfismo dos nós do DOM (EventTarget, Node, Element, HTMLElement, HTMLInputElement).
 - Selecionar elementos com `querySelector()` e `querySelectorAll()`, diferenciando `NodeList` de `HTMLCollection`.
 - Escolher entre `textContent`, `innerText` e `innerHTML` conforme o risco de injeção e o custo de renderização.
 - Manipular classes e estilos com `classList` e `style`, preferindo a classe ao estilo inline.
@@ -72,6 +73,164 @@ Existem diferentes tipos de nós no DOM:
 - **`Element`**: Representa qualquer tag HTML (`<div>`, `<p>`, `<a>`).
 - **`Text`**: O conteúdo de texto dentro ou entre as tags.
 - **`Attr`**: Os atributos associados aos elementos (ex: `href`, `class`).
+
+---
+
+## Hierarquia de Interfaces e Polimorfismo no DOM
+
+No DOM, os elementos não são estruturas isoladas: eles formam uma cadeia de herança orientada a objetos padronizada pelas especificações do W3C e WHATWG (Web IDL). Esse modelo exemplifica o conceito de **polimorfismo por herança**: um mesmo elemento pode ser visto e manipulado sob diferentes interfaces, onde cada camada acrescenta métodos e propriedades especializados.
+
+Considere como exemplo um elemento `<input>`. Esse objeto herda cumulativamente de seis camadas principais na cadeia de protótipos:
+
+1. **`Object`**: A raiz de todos os objetos em JavaScript. Fornece métodos utilitários fundamentais da linguagem (`toString()`, `valueOf()`, `hasOwnProperty()`, `isPrototypeOf()`).
+2. **`EventTarget`**: Interface raiz de eventos. Permite que o objeto receba, registre e dispare eventos (`addEventListener()`, `removeEventListener()`, `dispatchEvent()`).
+3. **`Node`**: Interface genérica para qualquer nó da árvore. Fornece propriedades estruturais e métodos de navegação hierárquica (`parentNode`, `childNodes`, `firstChild`, `appendChild()`, `removeChild()`, `cloneNode()`, `textContent`).
+4. **`Element`**: Especialização para nós que representam elementos de marcação (HTML, SVG ou XML). Introduz suporte a tags, classes CSS, seletores e atributos (`tagName`, `id`, `className`, `classList`, `getAttribute()`, `setAttribute()`, `querySelector()`, `innerHTML`, `getBoundingClientRect()`).
+5. **`HTMLElement`**: Especialização para elementos pertencentes à linguagem HTML. Acrescenta suporte a estilos inline, atributos `data-*`, acessibilidade, foco e renderização (`style`, `dataset`, `hidden`, `tabIndex`, `focus()`, `blur()`, `click()`).
+6. **`HTMLInputElement`**: Implementação concreta do elemento de formulário `<input>`. Disponibiliza propriedades de controle de entrada, validação e manipulação de texto digitado (`type`, `value`, `checked`, `placeholder`, `disabled`, `select()`, `setSelectionRange()`, `checkValidity()`).
+
+O diagrama a seguir detalha a cadeia de herança e as capacidades agregadas por cada interface:
+
+<Mermaid title="Hierarquia de Interfaces e Polimorfismo de um Elemento HTML">
+{`
+classDiagram
+  direction TB
+  class Object {
+    +toString()
+    +valueOf()
+    +hasOwnProperty()
+    +isPrototypeOf()
+  }
+  class EventTarget {
+    +addEventListener()
+    +removeEventListener()
+    +dispatchEvent()
+  }
+  class Node {
+    +nodeType
+    +parentNode
+    +childNodes
+    +textContent
+    +appendChild()
+    +removeChild()
+    +cloneNode()
+  }
+  class ARIAMixin {
+    <<mixin>>
+    +ariaLabel
+    +ariaHidden
+    +ariaRequired
+    +ariaInvalid
+    +role
+  }
+  class Element {
+    +tagName
+    +id
+    +className
+    +classList
+    +getAttribute()
+    +setAttribute()
+    +querySelector()
+    +innerHTML
+  }
+  class GlobalEventHandlers {
+    <<mixin>>
+    +onclick
+    +oninput
+    +onchange
+    +onkeydown
+    +onfocus
+  }
+  class HTMLElement {
+    +style
+    +dataset
+    +hidden
+    +tabIndex
+    +focus()
+    +blur()
+    +click()
+  }
+  class HTMLInputElement {
+    +type
+    +value
+    +checked
+    +placeholder
+    +disabled
+    +select()
+    +checkValidity()
+  }
+
+  Object <|-- EventTarget : herda
+  EventTarget <|-- Node : herda
+  Node <|-- Element : herda
+  ARIAMixin <|.. Element : implementa
+  Element <|-- HTMLElement : herda
+  GlobalEventHandlers <|.. HTMLElement : implementa
+  HTMLElement <|-- HTMLInputElement : herda
+`}
+</Mermaid>
+
+Todas essas capacidades coexistem na mesma instância. O código a seguir demonstra o acesso a propriedades de cada nível da hierarquia e comprova essa relação com o operador `instanceof`:
+
+```js title="Inspeção de interfaces e polimorfismo no elemento input"
+const input = document.querySelector('input');
+
+// 1. Camada EventTarget: escuta de eventos do usuário
+input.addEventListener('input', (event) => {
+  console.log('Texto digitado:', event.target.value);
+});
+
+// 2. Camada Node: navegação estrutural na árvore
+console.log(input.parentNode);
+console.log(input.nodeType); // 1 (Node.ELEMENT_NODE)
+
+// 3. Camada Element: atributos gerais e classes CSS
+input.setAttribute('aria-label', 'Campo de busca');
+input.classList.add('campo-ativo');
+
+// 4. Camada HTMLElement: estilo visual e controle de foco
+input.style.borderColor = '#2563eb';
+input.focus();
+
+// 5. Camada HTMLInputElement: propriedades específicas de formulários
+input.value = 'usuario@exemplo.com';
+input.select();
+
+// Verificação de herança e polimorfismo com instanceof
+console.log(input instanceof HTMLInputElement); // true
+console.log(input instanceof HTMLElement);      // true
+console.log(input instanceof Element);          // true
+console.log(input instanceof Node);             // true
+console.log(input instanceof EventTarget);      // true
+console.log(input instanceof Object);           // true
+```
+
+Compreender o polimorfismo no DOM ajuda a evitar erros de tipo e chamadas inválidas: métodos visuais como `focus()` existem apenas a partir de `HTMLElement`, e propriedades de digitação como `value` pertencem a classes específicas como `HTMLInputElement` e `HTMLTextAreaElement`, não existindo em uma `<div>` genérica.
+
+<Aside type="tip" title="Como inspecionar a hierarquia no DevTools">
+  Você pode visualizar toda a cadeia de herança e protótipos de qualquer elemento diretamente nas ferramentas do desenvolvedor (DevTools):
+
+  1. **Aba Console com `console.dir()`**: Em vez de `console.log()` (que exibe a representação em árvore HTML), utilize `console.dir(elemento)` ou inspecione o elemento atual com `console.dir($0)`. Ao abrir o objeto e navegar pelos campos sucessivos `[[Prototype]]`, o console exibe exatamente as camadas `HTMLInputElement` -> `HTMLElement` -> `Element` -> `Node` -> `EventTarget` -> `Object`, com os métodos e acessores de cada nível.
+  2. **Aba Elements > Painel lateral Properties**: Ao selecionar um elemento na árvore HTML da aba **Elements**, clique no painel lateral **Properties**. O DevTools lista todas as propriedades e métodos agrupados em seções recolhíveis, organizadas de forma idêntica à hierarquia de classes.
+</Aside>
+
+O bloco recolhível a seguir categoriza a extensa listagem de propriedades observada no `console.dir` de um `<input>`, mapeando cada campo à sua respectiva interface de origem na hierarquia:
+
+<details>
+  <summary>Mapeamento completo de propriedades de um &lt;input&gt; por camada de interface</summary>
+
+  A tabela a seguir organiza as propriedades mais comuns encontradas na inspeção de um `<input>` de acordo com a interface ou mixin que as declara:
+
+  | Interface / Mixin | Papel no elemento | Propriedades e métodos observados no `console.dir` |
+  | :--- | :--- | :--- |
+  | **`HTMLInputElement`** | Regras, atributos e estados exclusivos do campo de formulário | `value`, `type`, `name`, `checked`, `defaultChecked`, `defaultValue`, `placeholder`, `disabled`, `required`, `readOnly`, `multiple`, `min`, `max`, `minLength`, `maxLength`, `pattern`, `size`, `step`, `accept`, `alt`, `src`, `width`, `height`, `autocomplete`, `autofocus`, `form`, `formAction`, `formEnctype`, `formMethod`, `formNoValidate`, `formTarget`, `validity`, `validationMessage`, `willValidate`, `labels`, `files`, `selectionStart`, `selectionEnd`, `selectionDirection`, `valueAsDate`, `valueAsNumber`, `select()`, `setSelectionRange()`, `checkValidity()`, `reportValidity()`, `setCustomValidity()` |
+  | **`HTMLElement`** (com `GlobalEventHandlers`) | Recursos da linguagem HTML, renderização visual e manipuladores on-event | **Propriedades gerais**: `style`, `dataset`, `hidden`, `inert`, `tabIndex`, `title`, `lang`, `dir`, `accessKey`, `draggable`, `spellcheck`, `autocapitalize`, `contentEditable`, `isContentEditable`, `enterKeyHint`, `inputMode`, `innerText`, `outerText`, `offsetParent`, `offsetTop`, `offsetLeft`, `offsetWidth`, `offsetHeight`, `popover`, `focus()`, `blur()`, `click()`<br /><br />**Propriedades On-Event (`on*`)**: `onclick`, `oninput`, `onchange`, `onkeydown`, `onkeyup`, `onkeypress`, `onfocus`, `onblur`, `onsubmit`, `onreset`, `oninvalid`, `onselect`, `onpaste`, `oncopy`, `oncut`, `ondrag`, `ondragstart`, `ondragover`, `ondrop`, `onwheel`, `onanimationstart`, `ontransitionend`, `onpointerdown`, `onpointerup` e correlatos |
+  | **`Element`** (com `ARIAMixin`) | Marcação, tags, classes, seletores CSS e atributos de acessibilidade ARIA | **Marcação e Layout**: `tagName`, `id`, `className`, `classList`, `attributes`, `innerHTML`, `outerHTML`, `children`, `firstElementChild`, `lastElementChild`, `childElementCount`, `previousElementSibling`, `nextElementSibling`, `scrollTop`, `scrollLeft`, `scrollWidth`, `scrollHeight`, `clientTop`, `clientLeft`, `clientWidth`, `clientHeight`, `part`, `slot`, `shadowRoot`, `getAttribute()`, `setAttribute()`, `removeAttribute()`, `querySelector()`, `querySelectorAll()`, `closest()`, `matches()`, `getBoundingClientRect()`<br /><br />**Acessibilidade WAI-ARIA (`aria*`)**: `ariaLabel`, `ariaHidden`, `ariaRequired`, `ariaInvalid`, `ariaDisabled`, `ariaExpanded`, `ariaChecked`, `ariaLive`, `ariaValueNow`, `ariaValueMin`, `ariaValueMax`, `ariaPlaceholder`, `ariaReadOnly`, `ariaDescription`, `ariaDescribedByElements`, `ariaErrorMessageElements`, `ariaRoleDescription`, `role` e demais reflexões ARIA |
+  | **`Node`** | Parentesco e conexão estrutural na árvore DOM | `nodeType`, `nodeName`, `nodeValue`, `textContent`, `parentNode`, `parentElement`, `childNodes`, `firstChild`, `lastChild`, `previousSibling`, `nextSibling`, `ownerDocument`, `isConnected`, `baseURI`, `appendChild()`, `removeChild()`, `replaceChild()`, `insertBefore()`, `cloneNode()`, `contains()`, `hasChildNodes()` |
+  | **`EventTarget`** | Barramento e ouvinte desacoplado de eventos | `addEventListener()`, `removeEventListener()`, `dispatchEvent()` |
+  | **`Object`** | Raiz de todos os objetos JavaScript na memória Heap | `constructor`, `toString()`, `valueOf()`, `hasOwnProperty()`, `isPrototypeOf()`, `propertyIsEnumerable()`, `toLocaleString()` |
+
+</details>
 
 ---
 

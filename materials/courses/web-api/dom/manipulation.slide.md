@@ -40,6 +40,7 @@ A Árvore DOM · Seleção de Elementos · Conteúdo de Elementos · Alteração
 ## Objetivo
 
 - Situar nós de elemento, de texto e de atributo dentro da árvore do documento.
+- Reconhecer a hierarquia de interfaces e o polimorfismo dos nós do DOM.
 - Selecionar elementos com `querySelector()` e `querySelectorAll()`, diferenciando `NodeList` de `HTMLCollection`.
 - Escolher entre `textContent`, `innerText` e `innerHTML` conforme o risco de injeção e o custo de renderização.
 - Manipular classes e estilos com `classList` e `style`, preferindo a classe ao estilo inline.
@@ -50,6 +51,7 @@ A Árvore DOM · Seleção de Elementos · Conteúdo de Elementos · Alteração
 ## Mapa do Tópico
 
 - **A Árvore DOM**.
+- **Hierarquia de Interfaces e Polimorfismo**.
 - **Seleção de Elementos**.
 - **Conteúdo de Elementos**.
 - **Alteração de Estilos e Classes**.
@@ -121,6 +123,86 @@ Document
             │   └── Text: "MDN"
             └── Text: "."
 ```
+
+---
+
+## Hierarquia de Interfaces e Polimorfismo
+
+Cada elemento HTML no DOM implementa uma cadeia cumulativa de herança de interfaces:
+
+- **`Object`**: Raiz dos objetos JS (`toString()`, `hasOwnProperty()`).
+- **`EventTarget`**: Registro e disparo de eventos (`addEventListener()`).
+- **`Node`**: Nó estrutural na árvore (`parentNode`, `appendChild()`, `textContent`).
+- **`Element`**: Elemento de marcação (`tagName`, `classList`, `getAttribute()`).
+- **`HTMLElement`**: Elemento da linguagem HTML (`style`, `dataset`, `focus()`).
+- **`HTMLInputElement`**: Campo de formulário (`value`, `type`, `checked`, `select()`).
+
+---
+
+## Hierarquia de Interfaces: Diagrama
+
+A cadeia de herança orientada a objetos de um elemento `<input>`:
+
+```txt
+┌───────────────────────┐
+│         Object        │  toString(), hasOwnProperty()
+└───────────┬───────────┘
+            ▲
+┌───────────┴───────────┐
+│      EventTarget      │  addEventListener(), dispatchEvent()
+└───────────┬───────────┘
+            ▲
+┌───────────┴───────────┐
+│          Node         │  parentNode, appendChild(), textContent
+└───────────┬───────────┘
+            ▲
+┌───────────┴───────────┐   ┌───────────────┐
+│        Element        │◄──┤   ARIAMixin   │ (ariaLabel, ariaHidden)
+└───────────┬───────────┘   └───────────────┘
+            ▲
+┌───────────┴───────────┐   ┌─────────────────────┐
+│      HTMLElement      │◄──┤ GlobalEventHandlers │ (onclick, oninput)
+└───────────┬───────────┘   └─────────────────────┘
+            ▲
+┌───────────┴───────────┐
+│   HTMLInputElement    │  type, value, checked, select()
+└───────────────────────┘
+```
+
+---
+
+## Polimorfismo no DOM: Exemplo
+
+O mesmo objeto em memória atende a todas as visões da hierarquia:
+
+```js title="polimorfismo.js"
+const input = document.querySelector('input');
+
+// EventTarget: escuta de eventos
+input.addEventListener('input', (e) => console.log(e.target.value));
+
+// Element e HTMLElement: atributos, classes e estilos
+input.setAttribute('aria-label', 'Busca');
+input.classList.add('ativo');
+input.style.borderColor = '#2563eb';
+
+// HTMLInputElement: propriedade específica de formulário
+input.value = 'usuario@exemplo.com';
+input.select();
+
+// Verificação de tipos
+console.log(input instanceof HTMLInputElement); // true
+console.log(input instanceof Node);             // true
+```
+
+---
+
+## Inspeção no DevTools
+
+Como auditar a cadeia de protótipos e o polimorfismo nas ferramentas do navegador:
+
+- **Console com `console.dir($0)`**: exibe o objeto JS e a cadeia de `[[Prototype]]` com os métodos de cada nível.
+- **Aba Elements > Properties**: painel lateral com seções agrupadas por classe (`HTMLInputElement`, `HTMLElement`, `Element`, `Node`, `EventTarget`).
 
 ---
 
@@ -324,8 +406,9 @@ Crie uma função `destacarLinksExternos()` que selecione todos os links `<a>` d
 
 ## Resumo do Tópico
 
-- **A Árvore DOM**: revise o papel desse eixo no uso da API.
-- **Seleção de Elementos**: revise o papel desse eixo no uso da API.
-- **Conteúdo de Elementos**: revise o papel desse eixo no uso da API.
-- **Alteração de Estilos e Classes**: revise o papel desse eixo no uso da API.
-- **Manipulação de Atributos**: revise o papel desse eixo no uso da API.
+- **A Árvore DOM**: nós, elementos e representação em memória.
+- **Hierarquia e Polimorfismo**: cadeia `Object` -> `EventTarget` -> `Node` -> `Element` -> `HTMLElement` -> `HTMLInputElement`.
+- **Seleção de Elementos**: consulta com `querySelector()` e `querySelectorAll()`.
+- **Conteúdo de Elementos**: `textContent`, `innerText` e segurança contra XSS.
+- **Alteração de Estilos e Classes**: `classList` e propriedades `style`.
+- **Manipulação de Atributos**: `getAttribute()`, `setAttribute()` e `dataset`.

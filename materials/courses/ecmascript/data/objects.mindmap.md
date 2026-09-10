@@ -52,6 +52,7 @@ markmap:
   - `Object.values(obj)`: valores das propriedades.
   - `Object.entries(obj)`: pares `[chave, valor]` para `for...of`, `map` e `filter`.
   - `for...in`: chaves enumeráveis do objeto e da cadeia de protótipos.
+  - `console.dir(obj)`: inspeção interativa de propriedades e protótipos (no Node.js com `depth: null`).
 - **Transformação e Mesclagem**:
   - `Object.fromEntries(pairs)`: reconstrói objeto a partir de pares.
   - `Object.assign(target, ...sources)`: copia propriedades para um alvo mutável.
@@ -78,6 +79,10 @@ markmap:
 - **Ausência de Sobrecarga (*Overloading*)**:
   - JavaScript não suporta sobrecarga nativa por assinatura (última substitui anterior).
   - Simulação via parâmetros padrão, checagem de tipos ou objetos de opções.
+- **Composição com Mixins**:
+  - Alternativa à herança múltipla para comportamentos transversais.
+  - Mixins de objeto com `Object.assign(Class.prototype, mixin)`.
+  - Mixins de fábrica de subclasses com `Base => class extends Base`.
 - **Membros Estáticos (`static`)**: métodos utilitários atrelados à função construtora.
 
 ## Formato e Manipulação de JSON

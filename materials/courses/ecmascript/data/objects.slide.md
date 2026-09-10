@@ -46,7 +46,7 @@ Dominar a modelagem de dados, Programação Orientada a Objetos e manipulação 
 - Inspecionar existência com o **operador `in`** e **`Object.hasOwn()`**.
 - Aplicar **desestruturação** e o **operador spread (`...`)** para imutabilidade.
 - Aplicar recursos estáticos de **`Object`** para inspeção, transformação e proteção.
-- Declarar e instanciar **classes ES6+** com construtores, herança (`extends`, `super()`), métodos estáticos e **campos privados (`#`)**.
+- Declarar e instanciar **classes ES6+** com construtores, herança (`extends`, `super()`), composição com **mixins**, métodos estáticos e **campos privados (`#`)**.
 - Manipular dados com **`JSON.stringify()`** e **`JSON.parse()`**.
 
 ---
@@ -62,6 +62,7 @@ Dominar a modelagem de dados, Programação Orientada a Objetos e manipulação 
 - Recursos Estáticos de `Object`
 - Classes ES6+: Construtores, Métodos e Protótipos
 - Campos Privados (`#`) e Herança (`extends` / `super`)
+- Composição com Mixins
 - Formato e Objeto Global JSON (`stringify` / `parse`)
 - Exercício, Desafio e Revisão
 
@@ -480,6 +481,15 @@ for (const [student, score] of Object.entries(scores)) {
 
 ---
 
+## Inspeção de Objetos com `console.dir()`
+
+Exibe a estrutura interna e protótipos de objetos JavaScript:
+
+- **Navegador**: renderiza uma árvore interativa de propriedades e a cadeia `[[Prototype]]`.
+- **Node.js**: `console.dir(obj, { depth: null, colors: true })` inspeciona estruturas aninhadas sem ocultar níveis com `[Object]`.
+
+---
+
 ## Transformação com `fromEntries` e `assign`
 
 Use pares `[chave, valor]` para filtrar ou reconstruir objetos:
@@ -680,6 +690,46 @@ console.log(calc.sum(5, 20)); // 25
 - **Modificadores de Acesso**: `public`, `private`, `protected` e `readonly`.
 - **Parameter Properties**: declaração e atribuição simplificada no construtor.
 - **Assinaturas de Sobrecarga**: múltiplas assinaturas checadas em tempo de compilação.
+
+---
+
+## Composição com Mixins
+
+Como o JavaScript não suporta herança múltipla, usa-se o padrão **Mixin** para compartilhar comportamentos transversais:
+
+- **Via `Object.assign`**: copia métodos para o protótipo da classe alvo.
+- **Via Fábrica de Subclasses (*Class Factory*)**: função que recebe a classe base e retorna uma nova classe filha.
+- **Vantagem**: evita hierarquias profundas e favorece composição sobre herança.
+
+---
+
+## Mixins: Exemplo de Fábrica de Subclasses
+
+Funções de extensão combinadas na cláusula `extends`:
+
+```js
+const Timestamped = (Base) =>
+  class extends Base {
+    createdAt = new Date();
+    getAge() { return Date.now() - this.createdAt.getTime(); }
+  };
+
+const Activatable = (Base) =>
+  class extends Base {
+    active = true;
+    deactivate() { this.active = false; }
+  };
+
+class Account {
+  constructor(owner) { this.owner = owner; }
+}
+
+class PremiumAccount extends Timestamped(Activatable(Account)) {}
+
+const acc = new PremiumAccount("Carlos");
+console.log(acc.active); // true
+console.log(acc instanceof Account); // true
+```
 
 ---
 

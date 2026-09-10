@@ -22,7 +22,7 @@ Dominar a estrutura de dados mais usada da linguagem, do par chave-valor mais si
 - Extrair dados com desestruturação e atualizar objetos de forma imutável com o operador spread.
 - Explicar por que `==` e `===` comparam referências, e escolher entre cópia rasa e `structuredClone()`.
 - Aplicar os recursos estáticos de `Object` para inspecionar, transformar e proteger estruturas.
-- Estruturar classes ES6+ com construtor, herança (`extends`/`super`), campos privados (`#`) e membros estáticos.
+- Estruturar classes ES6+ com construtor, herança (`extends`/`super`), composição com mixins, campos privados (`#`) e membros estáticos.
 - Serializar e desserializar dados com `JSON.stringify()` e `JSON.parse()`, reconhecendo os tipos sem representação no formato.
 
 ## Criação de Objetos e Notação Literal
@@ -619,6 +619,13 @@ for (const [student, score] of Object.entries(scores)) {
 }
 ```
 
+<Aside type="tip" title="Inspeção detalhada de objetos com console.dir()">
+  Para além dos métodos estáticos de `Object`, a API do console fornece o método `console.dir()` para inspecionar a árvore interna de propriedades de um objeto:
+
+  - **No Navegador**: enquanto `console.log(elemento)` muitas vezes exibe apenas a representação em árvore HTML ou resumos, `console.dir(objeto)` renderiza uma visão interativa e hierárquica contendo todas as propriedades, acessores e a cadeia completa de protótipos (`[[Prototype]]`).
+  - **No Node.js**: `console.dir(objeto, { depth: null, colors: true })` permite inspecionar objetos profundamente aninhados sem que o terminal abrevie os níveis internos com `[Object]` ou `[Array]`.
+</Aside>
+
 ### Transformação e Mesclagem
 
 Quando o objetivo é transformar a estrutura de um objeto, `Object.entries()` costuma aparecer em conjunto com `Object.fromEntries()`. O primeiro converte o objeto em uma lista de pares; o segundo reconstrói um objeto a partir dessa lista.
@@ -1029,6 +1036,117 @@ console.log(calc.sum(5, 20)); // 25
   - **Parameter Properties**: Cria e inicializa propriedades diretamente na assinatura do construtor (`constructor(public name: string, private role: string) {}`).
   - **Assinaturas de Sobrecarga (*Method Overloading*)**: Permite declarar múltiplas assinaturas de tipos para uma mesma função ou método, viabilizando checagem estática precisa de argumentos antes da execução.
 </Aside>
+
+### Composição de Comportamentos com Mixins
+
+Em JavaScript, uma classe pode herdar de apenas uma única classe pai via `extends` (herança simples). A linguagem não suporta herança múltipla direta, o que impede uma classe de estender duas ou mais classes simultaneamente. Para compartilhar comportamentos transversais (como registro de logs, serialização, validação ou controle de timestamps) entre classes não relacionadas, utiliza-se o padrão **Mixin**.
+
+Um *mixin* é um bloco de código reutilizável que fornece métodos prontos para serem incorporados a outras classes ou objetos, promovendo a composição de funcionalidades em vez de hierarquias rígidas e profundas de herança.
+
+Existem duas abordagens idiomáticas para implementar mixins em JavaScript moderno:
+
+1. **Mixins baseados em Objetos e Protótipos**: Utilizam `Object.assign()` para copiar métodos utilitários diretamente para o protótipo (`prototype`) da classe alvo.
+2. **Mixins de Fábrica de Subclasses (*Class Factory Mixins*)**: Utilizam funções que recebem uma classe base como parâmetro e retornam uma nova subclasse estendendo-a. Essa técnica é a mais flexível, pois preserva a integridade da cadeia de protótipos e permite encadear múltiplos mixins na declaração da classe.
+
+O diagrama a seguir ilustra a composição de uma classe `Account` com múltiplos mixins funcionais:
+
+<Mermaid title="Composição de Funcionalidades em Classes via Mixins">
+{`
+classDiagram
+  direction TB
+  class Account {
+    +String owner
+  }
+  class TimestampedMixin {
+    <<mixin>>
+    +Date createdAt
+    +getAgeInSeconds() Number
+  }
+  class ActivatableMixin {
+    <<mixin>>
+    +Boolean active
+    +deactivate() void
+  }
+  class PremiumAccount {
+    +String plan
+  }
+
+  Account <|-- PremiumAccount : estende
+  TimestampedMixin <|.. PremiumAccount : compõe
+  ActivatableMixin <|.. PremiumAccount : compõe
+`}
+</Mermaid>
+
+O exemplo a seguir demonstra as duas estratégias de mixin em execução prática:
+
+```js title="Composição de classes utilizando mixins"
+// 1. Mixin baseado em Objetos (via Object.assign no protótipo)
+const logMixin = {
+  log(message) {
+    console.log(`[${this.constructor.name}] ${message}`);
+  },
+};
+
+class Order {
+  constructor(id, total) {
+    this.id = id;
+    this.total = total;
+  }
+}
+
+// Injeta os métodos do mixin no protótipo de Order
+Object.assign(Order.prototype, logMixin);
+
+const order = new Order(101, 250.0);
+order.log("Pedido registrado com sucesso.");
+// "[Order] Pedido registrado com sucesso."
+
+// 2. Mixin baseado em Fábrica de Subclasses (Class Factory Mixin)
+const Timestamped = (Base) =>
+  class extends Base {
+    createdAt = new Date();
+
+    getAgeInSeconds() {
+      return Math.floor((Date.now() - this.createdAt.getTime()) / 1000);
+    }
+  };
+
+const Activatable = (Base) =>
+  class extends Base {
+    active = true;
+
+    deactivate() {
+      this.active = false;
+    }
+  };
+
+// Classe base
+class Account {
+  constructor(owner) {
+    this.owner = owner;
+  }
+}
+
+// Composição de mixins encadeados na herança da classe
+class PremiumAccount extends Timestamped(Activatable(Account)) {
+  constructor(owner, plan) {
+    super(owner);
+    this.plan = plan;
+  }
+}
+
+const account = new PremiumAccount("Carlos", "Enterprise");
+console.log(account.owner);          // "Carlos"
+console.log(account.active);         // true
+account.deactivate();
+console.log(account.active);         // false
+console.log(account.getAgeInSeconds()); // 0
+
+// A subclasse preserva a relação de herança com a classe base
+console.log(account instanceof Account); // true
+```
+
+A composição com mixins ajuda a evitar hierarquias de herança excessivamente acopladas e profundas, permitindo que comportamentos reutilizáveis sejam combinados sob demanda conforme a necessidade de cada modelo.
 
 ### Métodos e Campos Estáticos (`static`)
 
@@ -1518,6 +1636,7 @@ Ao reunir estado e comportamento no mesmo modelo, use classes como sintaxe organ
 - Estruture dados e comportamentos com `class` e `constructor`.
 - Use campos privados (`#`) e acessores `get`/`set` para encapsulamento.
 - Use `extends` e `super()` para herança e sobrescrita.
+- Use mixins para compor comportamentos transversais sem incorrer em hierarquias rígidas.
 
 ### JSON
 

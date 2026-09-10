@@ -33,146 +33,124 @@ description: "Slides completos do tópico Web APIs: Eventos e Interatividade."
 
 # Web APIs: Eventos e Interatividade
 
-O Ciclo de Propagação de Eventos (*Event Flow*) · Registrando Ouvintes de Evento · O Objeto Event · Delegação de Eventos (*Event Delegation*)
+O Ciclo de Propagação de Eventos · Fases de Captura e Borbulhamento · O Objeto Event · Delegação de Eventos
 
 ---
 
 ## Objetivo
 
-- Descrever as três fases do fluxo de eventos: captura, alvo e borbulhamento.
-- Registrar e remover ouvintes com `addEventListener()` e `removeEventListener()`, incluindo as opções `once`, `capture` e `passive`.
-- Diferenciar `event.target` de `event.currentTarget` em um ouvinte compartilhado.
-- Distinguir `preventDefault()` de `stopPropagation()` pelo que cada um cancela.
-- Aplicar delegação de eventos para atender elementos que ainda não existem no momento do registro.
+- Descrever a arquitetura de eventos baseada em `EventTarget`, `GlobalEventHandlers` e propriedades on-event.
+- Descrever as três fases do fluxo de eventos: captura, alvo e borbulhamento (*bubbling*).
+- Identificar eventos que borbulham e eventos que não propagam via `event.bubbles`.
+- Registrar ouvintes nas fases de borbulhamento ou de captura com `addEventListener()`.
+- Diferenciar `event.target` de `event.currentTarget` durante a propagação.
+- Distinguir `preventDefault()` de `stopPropagation()` e `stopImmediatePropagation()`.
+- Aplicar o padrão de delegação de eventos centralizando ouvintes em ancestrais.
 
 ---
 
 ## Mapa do Tópico
 
-- **O Ciclo de Propagação de Eventos (*Event Flow*)**.
+- **Arquitetura de Eventos: `EventTarget` e `GlobalEventHandlers`**.
 - **Registrando Ouvintes de Evento**.
-- **O Objeto Event**.
-- **Delegação de Eventos (*Event Delegation*)**.
 - **Principais Eventos do Navegador**.
+- **O Ciclo de Propagação de Eventos (*Event Flow*)**.
+- **O Borbulhamento na Prática e a Viagem Completa**.
+- **Eventos que Borbulham e que Não Borbulham**.
+- **O Objeto Event e Métodos de Controle**.
+- **Delegação de Eventos (*Event Delegation*)**.
 - **Quando usar, e quando não usar?**.
 
 ---
 
-## Motivação
+## Arquitetura de Eventos: `EventTarget`
 
-- **Recurso nativo**: use o navegador como parte da arquitetura.
-- **Contrato claro**: identifique entrada, saída, evento, permissão e erro.
-- **Experiência real**: preserve resposta visual, teclado, foco e acessibilidade.
+A classe base fundamental do navegador para recepção e envio de eventos:
 
-*Regra de ouro: uma Web API boa reduz código próprio e aumenta previsibilidade.*
+```txt
+               ┌───────────────────────┐
+               │      EventTarget      │
+               │  +addEventListener()  │
+               │  +removeEventListener │
+               │  +dispatchEvent()     │
+               └───────────┬───────────┘
+                    ▲             ▲
+                    │             │
+              ┌─────┴─────┐ ┌─────┴─────┐
+              │   Window  │ │    Node   │
+              └───────────┘ └─────┬─────┘
+                                  │
+                            ┌─────┴─────┐
+                            │  Element  │
+                            └─────┬─────┘
+                                  │
+                            ┌─────┴─────┐
+                            │HTMLElement│
+                            └───────────┘
+```
 
 ---
 
-## O Ciclo de Propagação de Eventos (*Event Flow*)
+## Mixin `GlobalEventHandlers` e Propriedades On-Event
 
-Quando o usuário clica em um elemento filho (por exemplo, um botão `<button>` dentro de um `<div>`).
+Mixin que define propriedades de conveniência em `HTMLElement`, `Document` e `Window`:
 
-- Fase de Captura (*Capturing Phase*): O evento desce desde a raiz.
-- Fase de Alvo (*Target Phase*): O evento atinge o elemento específico onde a interação ocorreu (`event.target`).
-- Fase de Borbulhamento (*Bubbling Phase*): O evento "subirá" de volta pela árvore DOM.
+- **Propriedades On-Event**: `onclick`, `onkeydown`, `oninput`, `onsubmit`, `onload`.
+- **Comportamento**: aceitam uma única função (`elem.onclick = fn`), sobrescrevendo tratadores anteriores.
+- **`EventTarget` vs On-Event**: prefira `addEventListener()` para múltiplos ouvintes desacoplados.
 
 ---
 
 ## Registrando Ouvintes de Evento
 
-Existem três formas de vincular código JavaScript a interações do usuário.
+- **Atributos HTML Inline**: `<button onclick="...">` (legado, mistura marcação e lógica).
+- **Propriedades On-Event**: `botao.onclick = fn` (sobrescreve tratadores anteriores).
+- **Método `addEventListener()`**: padrão moderno, permite múltiplos ouvintes independentes.
 
-- **Atributos HTML Inline (Legado - Evitar)**: A forma mais antiga escreve o código dentro do próprio HTML.
-- **Propriedades On-Event (Limitado)**: A segunda forma tira o código do HTML, mas mantém a limitação principal.
-- **O Método `addEventListener` (Padrão Moderno)**: O método `addEventListener` é a forma padrão e recomendada.
+```js
+const botao = document.querySelector('#btn-salvar');
 
----
-
-## Registrando Ouvintes de Evento: Exemplo
-
-Observe o ponto mínimo que demonstra a regra da seção.
-
-```html
-<button onclick="alert('Clicado!')">Enviar</button>
+botao.addEventListener('click', dispararSalvamento);
+botao.addEventListener('click', notificarUsuario);
 ```
 
 ---
 
-## Registrando Ouvintes de Evento: Casos
+## Ouvintes na Fase de Captura
 
-- **Atributos HTML Inline (Legado - Evitar)**: A forma mais antiga escreve o código dentro do próprio HTML.
-- **Propriedades On-Event (Limitado)**: A segunda forma tira o código do HTML, mas mantém a limitação principal.
-- **O Método `addEventListener` (Padrão Moderno)**: O método `addEventListener` é a forma padrão e recomendada.
-
----
-
-## O Objeto Event
-
-Quando uma função ouvinte é disparada, ela recebe automaticamente como primeiro argumento um objeto `Event` com metadados sobre a interatividade.
-
-- `event.target`: O elemento exato que originou o evento (onde o usuário clicou).
-- `event.currentTarget`: O elemento onde o `addEventListener` foi registrado.
-
----
-
-## O Objeto Event: Exemplo
-
-Observe o ponto mínimo que demonstra a regra da seção.
+Para interceptar eventos durante a **descida** (antes de chegarem ao alvo), use `{ capture: true }`:
 
 ```js
 const container = document.querySelector('#container');
 
+// Executa na descida, antes do botão filho receber o clique
 container.addEventListener('click', (event) => {
-  console.log('Elemento clicado (target):', event.target);
-  console.log('Elemento escutando (currentTarget):', event.currentTarget);
-});
+  console.log('Container interceptou na captura!');
+}, { capture: true });
 ```
 
 ---
 
-## Delegação de Eventos (*Event Delegation*)
+## Inspeção de Event Listeners no DevTools
 
-A Delegação de Eventos é um padrão de otimização de performance onde.
+Como auditar ouvintes de eventos diretamente nas ferramentas do desenvolvedor:
 
-- Economia de memória: Reduz drasticamente o número de objetos `EventListener` criados no navegador.
-- Suporte a elementos dinâmicos: Elementos adicionados ao DOM posteriormente funcionarão automaticamente sem precisar registrar novos ouvintes.
-
----
-
-## Delegação de Eventos (*Event Delegation*): Exemplo
-
-Observe o ponto mínimo que demonstra a regra da seção.
-
-```js
-const listaTarefas = document.querySelector('#lista-tarefas');
-
-// Registro de um ÚNICO listener no elemento pai (ul)
-listaTarefas.addEventListener('click', (event) => {
-  // Verifica se o elemento clicado possui a classe .btn-excluir
-  if (event.target.matches('.btn-excluir')) {
-    const item = event.target.closest('li'); // Encontra o item <li> ancestral
-    item.remove();                           // Remove o item da lista
-    console.log('Item removido via delegação de eventos!');
-  }
-});
-```
+- **Aba Elements > Event Listeners**:
+  - **Com Ancestors**: exibe ouvintes próprios e herdados de pais (`body`, `document`, `window`).
+  - **Sem Ancestors**: filtra apenas os ouvintes registrados diretamente no nó selecionado.
+- **Console com `getEventListeners($0)`**: retorna objeto com os tratadores do elemento selecionado.
 
 ---
 
 ## Principais Eventos do Navegador
 
-Os eventos do navegador se agrupam por origem: mouse, teclado, formulário, janela e recurso.
+Os eventos do navegador se agrupam por origem:
 
-- **Mouse**: Interações com o cursor do mouse.
-- **Teclado**: Pressionamento e soltura de teclas (`event.key`).
-- **Formulário**: Digitação, alteração e envio de dados.
-- **Documento**: Disparado quando o HTML foi completamente lido e parseado.
-
----
-
-## Principais Eventos do Navegador: Exemplo
-
-Observe o ponto mínimo que demonstra a regra da seção.
+- **Mouse**: `click`, `dblclick`, `contextmenu`.
+- **Teclado**: `keydown`, `keyup` (`event.key`).
+- **Formulário**: `submit`, `change`, `input`.
+- **Foco**: `focusin`, `focusout` (com suporte a borbulhamento).
+- **Documento**: `DOMContentLoaded` (árvore DOM pronta).
 
 ```js
 document.addEventListener('DOMContentLoaded', () => {
@@ -182,59 +160,233 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ---
 
+## O Ciclo de Propagação de Eventos (*Event Flow*)
+
+Quando ocorre uma interação em um nó aninhado, o evento viaja pela árvore DOM em três fases:
+
+1. **Fase de Captura (*Capturing*)**: o evento desce da raiz (`window` -> `document` -> `html` -> `body`) até o pai do alvo.
+2. **Fase de Alvo (*Target*)**: o evento atinge o elemento exato onde a ação se originou (`event.target`).
+3. **Fase de Borbulhamento (*Bubbling*)**: o evento sobe de volta pela hierarquia (alvo -> pai -> avô -> raiz).
+
+*Analogia: como bolhas de ar subindo do fundo até a superfície da água.*
+
+---
+
+## O Fluxo de Eventos no DOM
+
+Esquema da viagem de ida e volta `Capturing → Target → Bubbling`:
+
+```txt
+Fase 1: Captura (Descida)        Fase 3: Borbulhamento (Subida)
+   window / document                     window / document  ^
+           │                                     │          │
+           ▼                                     │          │
+         <body>                                <body>       │
+           │                                     │          │
+           ▼                                     │          │
+        <form>                                <form>        │
+           │                                     │          │
+           ▼                                     │          │
+         <div>                                 <div>        │
+           │                                     ▲          │
+           ▼                                     │          │
+  ┌─────────────────────────────────────────────────────────┴┐
+  │ Fase 2: Alvo (Target) -> <button>                        │
+  └──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## O Borbulhamento na Prática: Exemplo
+
+Ouvintes configurados em elementos aninhados escutam por padrão na subida:
+
+```js
+const form = document.querySelector('#formulario');
+const container = document.querySelector('#container');
+const botao = document.querySelector('#botao');
+
+form.addEventListener('click', () => console.log('3. Form (Borbulhamento)'));
+container.addEventListener('click', () => console.log('2. Div (Borbulhamento)'));
+botao.addEventListener('click', () => console.log('1. Botão (Alvo)'));
+```
+
+Clique no botão:
+1. `1. Botão (Alvo)` (fase de alvo)
+2. `2. Div (Borbulhamento)` (borbulha para o pai)
+3. `3. Form (Borbulhamento)` (borbulha para o avô)
+
+---
+
+## A Viagem Completa: Captura e Borbulhamento
+
+Registrando ouvintes com `{ capture: true }` para rastrear o ciclo completo:
+
+```js
+// Descida (Fase 1: Captura)
+form.addEventListener('click', () => console.log('1. Form (Captura)'), { capture: true });
+div.addEventListener('click', () => console.log('2. Div (Captura)'), { capture: true });
+
+// Alvo e Subida (Fase 2 e 3: Borbulhamento)
+botao.addEventListener('click', () => console.log('3. Botão (Alvo)'));
+div.addEventListener('click', () => console.log('4. Div (Borbulhamento)'));
+form.addEventListener('click', () => console.log('5. Form (Borbulhamento)'));
+```
+
+Saída: `Form (Captura)` $\rightarrow$ `Div (Captura)` $\rightarrow$ `Botão (Alvo)` $\rightarrow$ `Div (Borbulhamento)` $\rightarrow$ `Form (Borbulhamento)`.
+
+---
+
+## Eventos: Borbulhamento e a Propriedade `bubbles`
+
+A propriedade booleana `event.bubbles` indica se o evento propaga para os nós ancestrais:
+
+- **Borbulham (`bubbles: true`)**: `click`, `keydown`, `keyup`, `input`, `change`, `submit`, `focusin`, `focusout`, `mouseover`.
+- **Não borbulham (`bubbles: false`)**: `focus`, `blur`, `mouseenter`, `mouseleave`, `load`, `unload`, `resize`, `scroll`.
+
+*Dica: use `focusin`/`focusout` em vez de `focus`/`blur` quando precisar delegar foco no elemento pai.*
+
+---
+
+## O Objeto Event: `target` vs `currentTarget`
+
+Na propagação por múltiplos elementos, as duas propriedades se diferenciam:
+
+- **`event.target`**: o nó mais interno onde a interação física ocorreu (o elemento clicado).
+- **`event.currentTarget`**: o elemento onde o `addEventListener` em execução foi registrado.
+
+```js
+container.addEventListener('click', (event) => {
+  console.log('Origem da ação (target):', event.target.tagName);
+  console.log('Elemento escutando (currentTarget):', event.currentTarget.tagName);
+});
+```
+
+---
+
+## Controle de Propagação e Ação Padrão
+
+- **`event.stopPropagation()`**: interrompe a subida do evento para os elementos pai.
+- **`event.stopImmediatePropagation()`**: interrompe a subida e cancela outros ouvintes no mesmo nó.
+- **`event.preventDefault()`**: cancela a ação nativa do navegador (ex: envio de form ou link), mas **não** interrompe a propagação no DOM.
+
+```js
+formulario.addEventListener('submit', (event) => {
+  event.preventDefault(); // Impede o recarregamento da página
+});
+```
+
+---
+
+## Detalhes de Teclado e Atalhos (`KeyboardEvent`)
+
+- **`event.key`**: valor semântico da tecla (`'Enter'`, `'Escape'`, `'k'`).
+- **`event.code`**: posição física da tecla no teclado (`'KeyK'`, `'Digit1'`).
+- **Modificadores**: `event.ctrlKey`, `event.metaKey` (Cmd/Win), `event.shiftKey`, `event.altKey`.
+- **Obsolescência**: `event.keyCode` e `event.which` estão descontinuados.
+
+```js
+document.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    console.log('Atalho de busca acionado!');
+  }
+});
+```
+
+---
+
+## Eventos Customizados com `CustomEvent`
+
+Permite comunicação desacoplada entre componentes com payload via `detail`:
+
+```js
+// 1. Escutando evento customizado no ancestral via borbulhamento
+container.addEventListener('usuario-selecionado', (event) => {
+  console.log('Payload recebido:', event.detail);
+});
+
+// 2. Disparando evento com dados e borbulhamento ativo
+const evento = new CustomEvent('usuario-selecionado', {
+  detail: { id: 42, nome: 'Ana Maria' },
+  bubbles: true,
+});
+botao.dispatchEvent(evento);
+```
+
+---
+
+## Delegação de Eventos (*Event Delegation*)
+
+Padrão arquitetural centralizado que depende do borbulhamento: anexa-se um **único ouvinte no elemento pai** em vez de um para cada elemento filho.
+
+```js
+const lista = document.querySelector('#lista-tarefas');
+
+lista.addEventListener('click', (event) => {
+  const btnExcluir = event.target.closest('.btn-excluir');
+  if (btnExcluir && lista.contains(btnExcluir)) {
+    btnExcluir.closest('li')?.remove();
+  }
+});
+```
+
+Vantagens: **economia drástica de memória** e **suporte automático a nós inseridos dinamicamente**.
+
+---
+
 ## Quando usar, e quando não usar?
 
-Delegação de eventos é a técnica mais útil deste tópico e também a mais aplicada fora de hora.
-
-- **Lista que recebe itens depois do carregamento**: Um ouvinte por item, que não alcança o que ainda não existe.
-- **Um botão único e permanente na página**: Delegação, que obriga a testar `event.target` sem necessidade.
-- **Ouvinte que deve rodar uma vez só**: `removeEventListener()` manual dentro do próprio callback.
-- **Rolagem, toque e gestos contínuos**: Ouvinte padrão, que pode travar a rolagem enquanto executa.
-- **Impedir o envio padrão de um formulário**: `stopPropagation()`, que não cancela a ação, só interrompe o percurso.
+- **Coleção dinâmica de itens**: delegação no ancestral (em vez de um ouvinte por item).
+- **Botão estático único**: ouvinte direto no botão (sem filtro desnecessário de `target`).
+- **Ouvinte de disparo único**: opção `{ once: true }` (em vez de `removeEventListener` manual).
+- **Escutar foco via delegação**: eventos `focusin`/`focusout` (pois `focus`/`blur` não borbulham).
+- **Cancelar envio padrão de form**: `preventDefault()` (e não `stopPropagation()`).
 
 ---
 
 ## Executando
 
-1. Abra as ferramentas do desenvolvedor com <kbd>F12</kbd> e selecione a aba Console.
-2. Cole o código: `document.addEventListener('click', e => console.log('Clicado em:', e.target));`.
-3. Clique em diferentes elementos da página (botões, parágrafos, imagens) e observe o objeto.
+1. Abra o DevTools com <kbd>F12</kbd> e selecione a aba **Console**.
+2. Cole o ouvinte global para inspecionar o borbulhamento:
+   ```js
+   document.addEventListener('click', e => console.log('Borbulhou até document:', e.target));
+   ```
+3. Clique em botões, links e títulos da página para observar o fluxo.
 
 ---
 
 ## Exercício Prático
 
-1. Por que o método `event.preventDefault()` é frequentemente utilizado no evento de `submit` de um formulário em aplicações modernas?
-2. Explique a diferença entre `event.target` e `event.currentTarget`.
-3. Escreva um exemplo de código que escute o evento `keyup` em um campo de texto e exiba uma mensagem apenas.
-4. Em formulários HTML normais, a submissão faz o navegador realizar um POST/GET recarregando a página inteira.
-5. `event.target` é o elemento exato que recebeu o clique/interação original (o alvo).
+1. Por que o clique em um botão dispara também o ouvinte configurado na `<div>` pai?
+2. Qual a diferença entre `event.target` e `event.currentTarget` na subida?
+3. Por que `focus` não serve para delegação comum de formulário no pai?
+4. Como evitar o recarregamento de página ao submeter um formulário?
 
 ---
 
 ## Desafio
 
-Implemente a delegação de eventos para uma tabela com ID `tabela-produtos`.
-
-1. Adicione tratamento de erro ou permissão.
-2. Separe responsabilidades em funções pequenas.
-3. Valide no navegador e documente o resultado.
+Implemente delegação de eventos em `#tabela-produtos`:
+- Ao clicar em uma célula `<td>`, destaca a linha `<tr>` com fundo `#fef08a`.
+- Ao clicar no botão `.btn-detalhes` interno, exibe os dados do produto sem acionar a seleção visual da linha.
 
 ---
 
 ## Perguntas de revisão
 
-1. Em qual fase do evento os ouvintes registrados com `addEventListener` executam por padrão?
-2. O que acontece quando chamamos `event.stopPropagation()` em um handler de clique?
-3. Qual é a vantagem de utilizar a técnica de delegação de eventos em listas dinâmicas com muitos itens?
-4. Como identificar qual elemento filho disparou o clique dentro de um ouvinte delegado no elemento pai?
+1. Quais são as três fases consecutivas do fluxo de eventos do DOM?
+2. Como escutar um evento na fase de captura com `addEventListener`?
+3. Qual é a diferença entre `stopPropagation()` e `stopImmediatePropagation()`?
+4. Qual é a finalidade da propriedade `event.bubbles`?
+5. Por que a delegação de eventos depende do borbulhamento?
 
 ---
 
 ## Resumo do Tópico
 
-- **O Ciclo de Propagação de Eventos (*Event Flow*)**: revise o papel desse eixo no uso da API.
-- **Registrando Ouvintes de Evento**: revise o papel desse eixo no uso da API.
-- **O Objeto Event**: revise o papel desse eixo no uso da API.
-- **Delegação de Eventos (*Event Delegation*)**: revise o papel desse eixo no uso da API.
-- **Principais Eventos do Navegador**: revise o papel desse eixo no uso da API.
+- **Fluxo de Eventos**: Captura (desce) -> Alvo -> Borbulhamento (sobe).
+- **Borbulhamento**: mecanismo padrão onde eventos sobem notificando ancestrais.
+- **`event.bubbles`**: consulta se o evento propaga para cima na árvore.
+- **`target` vs `currentTarget`**: elemento que disparou vs elemento que escuta.
+- **Delegação**: aproveita o borbulhamento para gerenciar eventos em massa com alta performance.

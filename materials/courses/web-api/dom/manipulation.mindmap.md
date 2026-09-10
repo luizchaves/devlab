@@ -22,6 +22,20 @@ markmap:
 - **Ponto**: `Text`: O conteúdo de texto dentro ou entre as tags
 - **Ponto**: `Attr`: Os atributos associados aos elementos (ex: `href`, `class`)
 
+## Hierarquia de Interfaces e Polimorfismo
+- **Cadeia de herança**: `Object` -> `EventTarget` -> `Node` -> `Element` -> `HTMLElement` -> `HTMLInputElement`
+- **Polimorfismo**: um mesmo elemento responde a múltiplas visões e contratos da Web IDL
+- **Object**: `toString()`, `valueOf()`, `hasOwnProperty()`, `isPrototypeOf()`
+- **EventTarget**: `addEventListener()`, `removeEventListener()`, `dispatchEvent()`
+- **Node**: `parentNode`, `childNodes`, `appendChild()`, `removeChild()`, `cloneNode()`, `textContent`
+- **Element**: `tagName`, `id`, `className`, `classList`, `getAttribute()`, `setAttribute()`, `querySelector()`
+- **ARIAMixin**: mixin de acessibilidade em Element (`ariaLabel`, `ariaHidden`, `ariaRequired`, `role`)
+- **HTMLElement**: `style`, `dataset`, `hidden`, `tabIndex`, `focus()`, `blur()`, `click()`
+- **GlobalEventHandlers**: mixin de eventos em HTMLElement (`onclick`, `oninput`, `onchange`, `onkeydown`)
+- **HTMLInputElement**: `type`, `value`, `checked`, `placeholder`, `disabled`, `select()`, `checkValidity()`
+- **Inspeção com instanceof**: verificação de tipos e interfaces em tempo de execução
+- **Inspeção no DevTools**: `console.dir($0)` para explorar `[[Prototype]]` ou aba lateral Elements > Properties
+
 ## Seleção de Elementos
 - **Ideia**: Antes de alterar qualquer elemento da página, é necessário obtê-lo através dos métodos de consulta do objeto `document`
 ### Métodos Modernos de Seleção (`querySelector`)
