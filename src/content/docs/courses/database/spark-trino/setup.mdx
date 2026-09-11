@@ -1,0 +1,216 @@
+---
+title: "Spark e Trino: Instalação e Clientes"
+description: "Configuração de ambiente local para Big Data com PySpark, Trino via Docker Compose, e conexão através de bibliotecas em Python e Node.js."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Para desenvolver e validar pipelines de Big Data localmente antes do deploy em clusters de produção, podemos utilizar o **PySpark** em modo local e subir instâncias do **Trino** utilizando containers Docker.
+
+---
+
+## Objetivo
+
+Instalar o ecossistema PySpark, subir o servidor Trino com Docker e executar scripts analíticos distribuídos em Python e Node.js. Ao final deste tópico, o leitor será capaz de:
+
+- Configurar uma sessão local do Apache Spark utilizando PySpark.
+- Subir o Trino via Docker Compose com conectores para MinIO/S3 e PostgreSQL.
+- Executar comandos interativos via Trino CLI.
+- Conectar aplicações em Node.js utilizando o driver oficial `trino-client`.
+
+---
+
+## Ambiente PySpark em Python
+
+O PySpark inclui o runtime do Apache Spark embutido e pode ser instalado via pip:
+
+<Steps>
+1. **Instalar o PySpark**:
+   ```bash title="Terminal: Instalar PySpark e PyArrow"
+   pip install pyspark pyarrow
+   ```
+
+2. **Criar uma SparkSession local**:
+   ```python title="spark_demo.py: Inicialização do Spark em modo local"
+   from pyspark.sql import SparkSession
+
+   # Cria a sessão alocando todos os núcleos de CPU locais (*)
+   spark = SparkSession.builder \
+       .appName("DevLabBigData") \
+       .master("local[*]") \
+       .config("spark.sql.shuffle.partitions", "4") \
+       .getOrCreate()
+
+   print(f"Versão do Apache Spark: {spark.version}")
+
+   # Criação de um DataFrame distribuído a partir de dados em memória
+   dados = [("PETR4", 38.20, 1500000), ("VALE3", 62.50, 2300000), ("ITUB4", 34.10, 890000)]
+   df = spark.createDataFrame(dados, ["symbol", "price", "volume"])
+
+   df.show()
+   ```
+</Steps>
+
+---
+
+## Trino Server via Docker Compose
+
+O arquivo abaixo configura um nó único do Trino na porta `8080`:
+
+```yaml title="docker-compose.yml: Servidor Trino"
+services:
+  trino:
+    image: trinodb/trino:latest
+    container_name: trino-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+```
+
+Inicie o container com:
+
+```bash title="Terminal: Subir o Trino"
+docker compose up -d
+```
+
+---
+
+## Clientes de Programação: Python e Node.js
+
+### 1. Cliente Trino em Python (`trino-python-client`)
+
+Instale o cliente oficial:
+
+```bash title="Terminal: Instalar cliente Trino"
+pip install trino
+```
+
+```python title="trino_query.py: Consulta SQL distribuída no Trino em Python"
+import trino
+
+conn = trino.dbapi.connect(
+    host='localhost',
+    port=8080,
+    user='admin_devlab',
+    catalog='tpch',
+    schema='sf1'
+)
+cur = conn.cursor()
+
+# Executa consulta SQL de agregação
+cur.execute("SELECT returnflag, linestatus, sum(quantity) AS total_qty FROM lineitem GROUP BY 1, 2")
+rows = cur.fetchall()
+
+for row in rows:
+    print(row)
+```
+
+### 2. Cliente Trino em Node.js / TypeScript
+
+Instale a biblioteca do Trino:
+
+<PackageManagerTabs command="install trino-client" />
+
+```typescript title="trino-client.ts: Conexão e query no Trino com Node.js"
+import { Trino } from 'trino-client';
+
+const trino = Trino.create({
+  server: 'http://localhost:8080',
+  username: 'admin_devlab',
+  catalog: 'tpch',
+  schema: 'sf1',
+});
+
+async function main() {
+  const query = 'SELECT nationkey, name, count(*) AS total_cust FROM customer GROUP BY 1, 2 LIMIT 5';
+  const iter = await trino.query(query);
+
+  for await (const row of iter) {
+    console.log('Linha retornada:', row);
+  }
+}
+
+main().catch(console.error);
+```
+
+---
+
+## Exercício
+
+Pratique a inicialização e escrita de scripts no PySpark:
+
+1. Inicie uma sessão do PySpark em um script Python.
+2. Crie um DataFrame com 5 linhas representando pedidos de clientes e execute uma filtragem com `.filter("valor > 100")`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python
+  from pyspark.sql import SparkSession
+
+  spark = SparkSession.builder.master("local[*]").appName("Exercicio").getOrCreate()
+  pedidos = [(1, "Carlos", 150.0), (2, "Ana", 80.0), (3, "Bruno", 220.0)]
+  df = spark.createDataFrame(pedidos, ["id", "cliente", "valor"])
+
+  filtrado = df.filter("valor > 100")
+  filtrado.show()
+  ```
+</details>
+
+---
+
+## Desafio
+
+Crie um script em PySpark que leia múltiplos arquivos CSV de transações financeiras, converta os tipos de dados para inteiros e datas estritas, e exporte o resultado final consolidado em formato colunar Parquet particionado por ano.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python
+  from pyspark.sql import SparkSession
+  from pyspark.sql.functions import year, to_date
+
+  spark = SparkSession.builder.master("local[*]").appName("DesafioETL").getOrCreate()
+
+  # Lê os CSVs com inferência de cabeçalho
+  df = spark.read.option("header", "true").csv("data/raw/*.csv")
+
+  # Converte e adiciona coluna de ano
+  df_transformed = df.withColumn("data_parsed", to_date("data", "yyyy-MM-dd")) \
+                     .withColumn("ano", year("data_parsed"))
+
+  # Grava em Parquet particionado
+  df_transformed.write.partitionBy("ano").mode("overwrite").parquet("data/processed_parquet")
+  print("ETL concluído com sucesso!")
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que significa a configuração `.master("local[*]")` no PySpark?**
+   <details><summary>Possível resposta</summary>Instrui o Spark a executar localmente no mesmo computador alocando uma thread para cada núcleo de CPU disponível no processador.</details>
+
+2. **Como o Trino gerencia autenticação de usuários em ambientes de desenvolvimento?**
+   <details><summary>Possível resposta</summary>Por padrão aceita qualquer nome de usuário informado na conexão HTTP, podendo ser integrado a LDAP, Kerberos ou OAuth/OIDC em ambientes de produção corporativa.</details>
+
+3. **Qual a vantagem do PyArrow integrado ao PySpark?**
+   <details><summary>Possível resposta</summary>Permite conversões ultrarrápidas com zero-cópia entre DataFrames do Apache Spark e DataFrames do Pandas/Polars em memória.</details>
+
+---
+
+## Referências
+
+- [PySpark Getting Started](https://spark.apache.org/docs/latest/api/python/getting_started/index.html)
+- [Trino Docker Image Guide](https://trino.io/docs/current/installation/containers.html)
+- [Trino Python Client](https://github.com/trinodb/trino-python-client)
+
+---
+
+## Próximo tópico
+
+[Processamento Distribuído e SQL em Escala](../processing/): Transformações distribuídas, junções pesadas (Broadcast vs Shuffle Hash), janelamento e streaming.

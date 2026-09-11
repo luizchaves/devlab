@@ -1,0 +1,178 @@
+---
+title: "Spark e Trino: Processamento Distribuído e SQL em Escala"
+description: "Padrões de processamento distribuído em Big Data: transformações, agregações analíticas massivas, junções Broadcast vs Shuffle e consultas federadas no Trino."
+course: database
+sidebar:
+  label: "Processamento e SQL em Escala"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O processamento distribuído de Big Data exige estratégias específicas para lidar com o custo de movimentação de dados pela rede (*Data Shuffling*). Quando executamos agregações e junções sobre bilhões de linhas no Apache Spark ou no Trino, compreender a diferença entre uma **Junção Broadcast** e uma **Junção Shuffle** é o fator determinante entre um pipeline que termina em segundos ou uma falha de falta de memória (*Out Of Memory - OOM*).
+
+---
+
+## Objetivo
+
+Dominar as técnicas avançadas de processamento distribuído no Apache Spark e consultas federadas no Trino. Ao final deste tópico, o leitor será capaz de:
+
+- Explicar o funcionamento do *Data Shuffling* e como minimizar a movimentação de dados pela rede.
+- Aplicar a técnica de *Broadcast Join* para tabelas pequenas de dimensão.
+- Utilizar funções de janelamento analítico distribuído (*Window Functions*) em bilhões de registros.
+- Executar consultas federadas multi-banco com o Trino cruzando arquivos no S3 e tabelas relacionais.
+
+---
+
+## Tipos de Junção Distribuída: Broadcast vs. Shuffle Hash
+
+Em um cluster com dezenas de nós, cruzar duas tabelas distribuídas pode exigir o reenvio de gigabytes de dados pela rede do data center:
+
+<Mermaid title="Estratégias de Junção Distribuída no Apache Spark">
+{`
+flowchart TD
+    subgraph ShuffleJoin ["1. Shuffle Hash Join (Tabelas Grandes)"]
+        direction TB
+        T1["Tabela Fato A (500 GB)"] --> S1["Redistribuição por Hash na Rede (Lento)"]
+        T2["Tabela Fato B (300 GB)"] --> S1
+        S1 --> E1["Executors processam pares de hash"]
+    end
+
+    subgraph BroadcastJoin ["2. Broadcast Join (Tabela Grande + Tabela Pequena)"]
+        direction TB
+        Dim["Tabela Dimensão (5 MB)"] --> B1["Driver envia cópia completa para todos os nós"]
+        Large["Tabela Fato (500 GB)"] --> B2["Executors processam localmente sem rede (Ultrarrápido)"]
+        B1 --> B2
+    end
+`}
+</Mermaid>
+
+No PySpark, a otimização com `broadcast()` instrui o motor a enviar a tabela menor para a memória de todos os executores:
+
+```python title="broadcast_join.py: Otimização de junção no PySpark"
+from pyspark.sql.functions import broadcast
+
+# 1. Tabela Fato massiva (1 bilhão de transações)
+df_transactions = spark.read.parquet("s3://data-lake/transactions/*.parquet")
+
+# 2. Tabela Dimensão pequena (50 categorias de produtos)
+df_categories = spark.read.csv("s3://data-lake/categories.csv", header=True)
+
+# 3. Junção otimizada via Broadcast (Zero Shuffle)
+df_result = df_transactions.join(
+    broadcast(df_categories), 
+    df_transactions.category_id == df_categories.id
+)
+
+df_result.write.mode("overwrite").parquet("s3://data-lake/enriched_transactions")
+```
+
+---
+
+## Funções de Janelamento Distribuído (Window Functions)
+
+Para calcular métricas cumulativas ou médias móveis em grandes volumes temporais, o Spark distribui as janelas por chaves de partição:
+
+```python title="window_analytics.py: Cálculo de ranking e média móvel no PySpark"
+from pyspark.sql.window import Window
+from pyspark.sql.functions import avg, row_number, col
+
+window_spec = Window.partitionBy("symbol").orderBy("quote_date")
+
+df_analytics = df_quotes.withColumn(
+    "media_movel_7d",
+    avg("close_price").over(window_spec.rowsBetween(-6, 0))
+).withColumn(
+    "ranking_dia",
+    row_number().over(Window.partitionBy("quote_date").orderBy(col("volume").desc()))
+)
+```
+
+---
+
+## Consultas Federadas Multi-Banco com Trino
+
+O Trino permite unificar silos de dados corporativos em uma única instrução SQL sem necessidade de movimentar ou sincronizar bancos antecipadamente:
+
+```sql title="Query federada no Trino: Cruzando S3, PostgreSQL e MySQL"
+SELECT 
+    c.customer_name,
+    c.tier,
+    sum(t.amount) AS total_gasto_s3,
+    acc.credit_limit AS limite_banco_relacional
+FROM hive.lakehouse.transactions t
+INNER JOIN postgresql.public.customers c ON t.customer_id = c.id
+INNER JOIN mysql.crm.account_limits acc ON c.account_code = acc.code
+WHERE t.year = 2026
+GROUP BY c.customer_name, c.tier, acc.credit_limit
+ORDER BY total_gasto_s3 DESC
+LIMIT 100;
+```
+
+---
+
+## Exercício
+
+Com base nos padrões de processamento distribuído, responda:
+
+1. Por que a operação de *Shuffle* é considerada o maior gargalo de desempenho em clusters Spark?
+2. Em que circunstância o uso de `broadcast()` é recomendado no Spark e qual o risco se a tabela transmitida for muito grande?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque exige serializar dados em disco, transferi-los via rede TCP entre diferentes servidores do cluster e desserializá-los nos nós de destino, consumindo I/O e largura de banda de rede.
+
+  2. É recomendada quando uma das tabelas da junção é pequena (geralmente menor que 10 MB a 100 MB). Se a tabela for muito grande, o envio de uma cópia para todos os executores pode causar estouro de memória (*Out of Memory*) no Driver e nos Workers.
+</details>
+
+---
+
+## Desafio
+
+Escreva uma query SQL analítica para o Trino que consulte uma tabela de log de eventos no S3 (formato Iceberg), identifique os 10 usuários com maior número de acessos suspeitos na última hora e cruze com a tabela de bloqueio de segurança em um banco PostgreSQL.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  SELECT 
+      e.user_id,
+      count(*) AS total_eventos_suspeitos,
+      p.email,
+      p.is_blocked
+  FROM iceberg.security_lakehouse.audit_events e
+  JOIN postgres.security.users p ON e.user_id = p.id
+  WHERE e.event_time >= NOW() - INTERVAL '1' HOUR
+    AND e.severity = 'HIGH'
+  GROUP BY e.user_id, p.email, p.is_blocked
+  ORDER BY total_eventos_suspeitos DESC
+  LIMIT 10;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que é o Catalyst Optimizer no Spark?**
+   <details><summary>Possível resposta</summary>É o motor de otimização de consultas que analisa o código SQL/DataFrame e gera planos lógicos e físicos otimizados automaticamente antes da execução.</details>
+
+2. **Como o Trino protege contra sobrecarga em bancos relacionais durante consultas federadas?**
+   <details><summary>Possível resposta</summary>Através de *Predicate Pushdown*: o Trino envia as cláusulas `WHERE` diretamente para o banco relacional de origem, trazendo pela rede apenas o subconjunto filtrado de registros.</details>
+
+3. **Qual a diferença entre `.repartition()` e `.coalesce()` no PySpark?**
+   <details><summary>Possível resposta</summary>O `.repartition(N)` faz um shuffle completo redistribuindo os dados igualmente em N partições. O `.coalesce(N)` apenas reduz o número de partições combinando partições existentes sem realizar shuffle na rede.</details>
+
+---
+
+## Referências
+
+- [Apache Spark Performance Tuning Guide](https://spark.apache.org/docs/latest/sql-performance-tuning.html)
+- [Trino Connectors Reference](https://trino.io/docs/current/connector.html)
+- [Broadcast Variables in Distributed Systems](https://spark.apache.org/docs/latest/rdd-programming-guide.html#broadcast-variables)
+
+---
+
+## Próximo tópico
+
+[EMR e Dataproc](../../bigdata-cloud/): Clusters gerenciados na nuvem (AWS EMR, Google Cloud Dataproc e Spark Serverless).

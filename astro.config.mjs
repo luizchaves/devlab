@@ -1693,7 +1693,7 @@ export default defineConfig({
               ],
             },
             {
-              label: 'Data Lakehouse e Big Data',
+              label: 'Data Lakehouse',
               items: [
                 {
                   label: 'DuckDB e Apache Iceberg',
@@ -1726,6 +1726,45 @@ export default defineConfig({
                     {
                       label: 'Recursos de Nuvem e Operações',
                       link: '/courses/database/lakehouse-cloud/operations/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Big Data',
+              items: [
+                {
+                  label: 'Apache Spark e Trino',
+                  items: [
+                    {
+                      label: 'Visão geral de Spark e Trino',
+                      link: '/courses/database/spark-trino/',
+                    },
+                    {
+                      label: 'Instalação e cliente',
+                      link: '/courses/database/spark-trino/setup/',
+                    },
+                    {
+                      label: 'Processamento Distribuído e Federação SQL',
+                      link: '/courses/database/spark-trino/processing/',
+                    },
+                  ],
+                },
+                {
+                  label: 'AWS EMR e Google Dataproc',
+                  items: [
+                    {
+                      label: 'Visão geral de EMR e Dataproc',
+                      link: '/courses/database/bigdata-cloud/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/bigdata-cloud/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/bigdata-cloud/operations/',
                     },
                   ],
                 },

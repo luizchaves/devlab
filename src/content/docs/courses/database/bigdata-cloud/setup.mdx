@@ -1,0 +1,209 @@
+---
+title: "Big Data na Nuvem: Provisionamento e Clientes"
+description: "Criação de clusters Amazon EMR e Google Dataproc, submissão de jobs Spark via CLI e integração através de SDKs em Python e Node.js."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O provisionamento de clusters de Big Data na nuvem pode ser realizado através de ferramentas de linha de comando (*CLI*), esteiras de infraestrutura como código (Terraform) ou de forma programática através dos SDKs oficiais.
+
+---
+
+## Objetivo
+
+Aprender a provisionar clusters de computação distribuída na AWS e Google Cloud, submeter aplicações Spark para execução em lote e monitorar jobs através de scripts em Python e Node.js. Ao final deste tópico, o leitor será capaz de:
+
+- Criar clusters Amazon EMR e Google Dataproc via linha de comando.
+- Submeter scripts PySpark com parâmetros de memória e paralelismo.
+- Controlar o ciclo de vida de jobs Spark utilizando a biblioteca `boto3` em Python.
+- Integrar esteiras de orquestração em Node.js com o SDK `@aws-sdk/client-emr`.
+
+---
+
+## Provisionando Clusters via Linha de Comando
+
+### 1. Amazon EMR via AWS CLI
+
+O comando abaixo cria um cluster com 1 nó mestre e 2 nós trabalhadores com suporte a Apache Spark e catálogo Glue:
+
+```bash title="Terminal: Criação de cluster Amazon EMR com instâncias Spot"
+aws emr create-cluster \
+    --name "Cluster-Analitico-Spark" \
+    --release-label emr-7.0.0 \
+    --applications Name=Spark Name=Hadoop \
+    --ec2-attributes KeyName=minha-chave-ssh,InstanceProfile=EMR_EC2_DefaultRole \
+    --service-role EMR_DefaultRole \
+    --instance-groups \
+        InstanceGroupType=MASTER,InstanceCount=1,InstanceType=m6g.xlarge \
+        InstanceGroupType=CORE,InstanceCount=2,InstanceType=m6g.xlarge,BidPrice=OnDemandPrice
+```
+
+### 2. Google Cloud Dataproc via gcloud CLI
+
+No GCP, a inicialização do cluster leva menos de dois minutos:
+
+```bash title="Terminal: Criação de cluster Dataproc no GCP"
+gcloud dataproc clusters create cluster-dataproc-spark \
+    --region us-central1 \
+    --master-machine-type n2-standard-4 \
+    --num-workers 2 \
+    --worker-machine-type n2-standard-4 \
+    --image-version 2.2-debian12
+```
+
+---
+
+## Submissão de Jobs Spark
+
+Após o provisionamento do cluster, o envio da aplicação Spark ocorre via comando `submit-job` apontando para o script armazenado no Object Storage:
+
+```bash title="Terminal: Submeter job PySpark no Amazon EMR"
+aws emr add-steps \
+    --cluster-id j-2AL4XYZ981 \
+    --steps Type=Spark,Name="Processamento-Vendas-Daily",ActionOnFailure=CONTINUE,\
+Args=[--deploy-mode,cluster,--master,yarn,s3://meu-bucket/scripts/etl_vendas.py]
+```
+
+---
+
+## Clientes de Programação: Python e Node.js
+
+### 1. Orquestração com Python (`boto3`)
+
+O script abaixo submete o job e aguarda a conclusão:
+
+```python title="submit_spark_job.py: Submissão de job EMR em Python"
+import boto3
+import time
+
+emr = boto3.client('emr', region_name='us-east-1')
+
+def submit_spark_step(cluster_id: str, script_s3_path: str):
+    response = emr.add_job_flow_steps(
+        JobFlowId=cluster_id,
+        Steps=[
+            {
+                'Name': 'Pipeline-ETL-Noturno',
+                'ActionOnFailure': 'CONTINUE',
+                'HadoopJarStep': {
+                    'Jar': 'command-runner.jar',
+                    'Args': [
+                        'spark-submit',
+                        '--deploy-mode', 'cluster',
+                        script_s3_path
+                    ]
+                }
+            }
+        ]
+    )
+    step_id = response['StepIds'][0]
+    print(f"Step Spark adicionado com sucesso: {step_id}")
+    return step_id
+
+submit_spark_step("j-2AL4XYZ981", "s3://meu-bucket/scripts/process_transactions.py")
+```
+
+### 2. Orquestração com Node.js / TypeScript
+
+Instale o cliente oficial do EMR:
+
+<PackageManagerTabs command="install @aws-sdk/client-emr" />
+
+```typescript title="emr-job.ts: Submissão de job EMR via TypeScript"
+import { EMRClient, AddJobFlowStepsCommand } from '@aws-sdk/client-emr';
+
+const client = new EMRClient({ region: 'us-east-1' });
+
+async function triggerSparkJob(clusterId: string) {
+  const command = new AddJobFlowStepsCommand({
+    JobFlowId: clusterId,
+    Steps: [
+      {
+        Name: 'Agregacao-Financeira',
+        ActionOnFailure: 'CONTINUE',
+        HadoopJarStep: {
+          Jar: 'command-runner.jar',
+          Args: ['spark-submit', '--deploy-mode', 'cluster', 's3://meu-bucket/scripts/daily_summary.py'],
+        },
+      },
+    ],
+  });
+
+  const response = await client.send(command);
+  console.log('Step Spark submetido via Node.js:', response.StepIds);
+}
+
+triggerSparkJob('j-2AL4XYZ981').catch(console.error);
+```
+
+---
+
+## Exercício
+
+Com base nos métodos de provisionamento e submissão, responda:
+
+1. Qual a função do arquivo `command-runner.jar` na submissão de passos (*Steps*) no Amazon EMR?
+2. Por que o modo `--deploy-mode cluster` é preferível em relação a `--deploy-mode client` ao executar jobs Spark em produção?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. É o utilitário nativo fornecido pela AWS no EMR que permite invocar comandos arbitrários do sistema operacional e frameworks (como `spark-submit`, `hive`, `hdfs`) diretamente através da API de passos do EMR.
+
+  2. Porque no modo `cluster` o Spark Driver roda dentro de um nó executor do próprio cluster, evitando que falhas de rede na máquina cliente interrompam o processamento de um job longo.
+</details>
+
+---
+
+## Desafio
+
+Crie um script em Python que verifique a lista de clusters EMR ativos na sua conta da AWS e, caso encontre um cluster ocioso há mais de 1 hora sem jobs em execução, envie um comando de desligamento (*termination*) para evitar custos desnecessários.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python
+  import boto3
+
+  emr = boto3.client('emr', region_name='us-east-1')
+
+  clusters = emr.list_clusters(ClusterStates=['WAITING'])['Clusters']
+
+  for cluster in clusters:
+      cluster_id = cluster['Id']
+      print(f"Cluster ocioso identificado: {cluster_id} ({cluster['Name']})")
+      # Envia comando de desligamento
+      emr.terminate_job_flows(JobFlowIds=[cluster_id])
+      print(f"Cluster {cluster_id} encerrado com sucesso para economia de custos.")
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a diferença entre nós Master e nós Core no Amazon EMR?**
+   <details><summary>Possível resposta</summary>O nó Master gerencia a alocação de recursos e coordena o cluster (YARN Resource Manager). Os nós Core executam as tarefas de processamento e mantêm dados persistentes no sistema de arquivos HDFS.</details>
+
+2. **Como passar parâmetros e variáveis de ambiente para um script PySpark submetido no cluster?**
+   <details><summary>Possível resposta</summary>Adicionando argumentos extras na lista `Args` após o caminho do script (ex: `['spark-submit', 'script.py', '--data-inicio', '2026-01-01']`).</details>
+
+3. **O que é o EMR Studio?**
+   <details><summary>Possível resposta</summary>É um ambiente de desenvolvimento integrado baseado em JupyterLab totalmente gerenciado que permite a engenheiros e cientistas de dados escrever, depurar e executar código Spark interativamente.</details>
+
+---
+
+## Referências
+
+- [AWS CLI: EMR Command Reference](https://docs.aws.amazon.com/cli/latest/reference/emr/)
+- [Google Cloud: Dataproc gcloud Reference](https://cloud.google.com/sdk/gcloud/reference/dataproc)
+- [Boto3: EMR Client Documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/emr.html)
+
+---
+
+## Próximo tópico
+
+[Recursos de Nuvem e Operações](../operations/): Autoescala dinâmica, estratégias de instâncias Spot, esteiras de dados e controle de custos.

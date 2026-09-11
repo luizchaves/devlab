@@ -1,0 +1,145 @@
+---
+title: "Big Data na Nuvem: Recursos de Nuvem e Operações"
+description: "Governança operacional de Big Data em nuvem: autoescala de clusters, uso avançado de instâncias Spot, monitoramento com Spark UI e estratégias de redução de custos."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A operação contínua de pipelines de Big Data em nuvem envolve balancear capacidade computacional, velocidade de entrega de relatórios e controle rigoroso de custos. Sem mecanismos inteligentes de autoescala e uso estratégico de instâncias Spot/Preemptible, clusters de Big Data podem facilmente se tornar o maior centro de custos de infraestrutura de uma organização.
+
+---
+
+## Objetivo
+
+Dominar as práticas operacionais de governança, monitoramento e otimização financeira de clusters de Big Data em nuvem pública. Ao final deste tópico, o leitor será capaz de:
+
+- Configurar políticas de autoescala gerenciada (*Managed Auto-Scaling*) para expandir e contrair nós de acordo com o consumo de memória YARN.
+- Implementar arquiteturas híbridas combinando instâncias *On-Demand* e *Spot* para atingir até 90% de economia.
+- Diagnosticar gargalos de processamento distribuído (*Skewed Data* e *Stragglers*) através do Spark UI e Ganglia.
+- Aplicar políticas de desligamento automático de clusters ociosos (*Auto-Termination*).
+
+---
+
+## Estratégia de Instâncias Híbridas: On-Demand vs. Spot
+
+A combinação correta de tipos de instâncias em um cluster de Big Data é a chave para garantir estabilidade operacional com custo mínimo:
+
+<Mermaid title="Distribuição de papéis de instâncias em um cluster Amazon EMR">
+{`
+flowchart TD
+    subgraph MasterGroup ["1. Nó Master (1 Instância)"]
+        direction TB
+        M["Instância On-Demand Fixa<br/>(Sem risco de interrupção)"]
+    end
+
+    subgraph CoreGroup ["2. Nós Core (Capacidade Mínima)"]
+        direction TB
+        C1["Instâncias On-Demand / Reservadas<br/>Mantêm HDFS e Driver seguro"]
+    end
+
+    subgraph TaskGroup ["3. Nós Task Elásticos (Escala Massiva)"]
+        direction TB
+        T1["Instâncias Spot (Até 90% Desconto)<br/>Adicionadas e removidas dinamicamente"]
+    end
+
+    MasterGroup --> CoreGroup
+    CoreGroup --> TaskGroup
+`}
+</Mermaid>
+
+- **Nó Master**: Deve ser sempre provisionado em modo *On-Demand* para garantir que o coordenador do cluster nunca seja desligado repentinamente pela nuvem.
+- **Nós Core**: Dimensionados com o número mínimo de instâncias *On-Demand* necessárias para hospedar o armazenamento temporário HDFS e os drivers principais.
+- **Nós Task (Elásticos)**: 100% compostos por instâncias *Spot*. Como esses nós não armazenam dados persistentes, caso uma máquina Spot seja revogada pelo provedor de nuvem, o Spark simplesmente redistribui as tarefas pendentes para os nós restantes sem corromper o resultado final.
+
+---
+
+## Autoescala Gerenciada (Managed Auto-Scaling)
+
+Em vez de configurar regras manuais complexas baseadas em uso de CPU, serviços como o EMR utilizam métricas nativas do YARN para adicionar ou remover nós:
+
+- **Métricas Analisadas**: `YARNMemoryAvailablePercentage` e `ContainerPendingRatio`.
+- **Comportamento**: Se a fila de tarefas do Spark ultrapassar a capacidade de memória atual, o cluster aloca nós adicionais em poucos minutos; ao término da etapa de processamento pesado, os nós adicionais são desprovisionados para zerar o custo extra.
+
+---
+
+## Diagnóstico de Gargalos: Dados Desbalanceados (Data Skew)
+
+O problema mais frequente em processamento distribuído é o **Data Skew** (desbalanceamento de dados), onde 99% das tarefas terminam em 10 segundos, mas uma única tarefa (*Straggler*) trava por horas processando uma chave de partição desproporcionalmente grande (como registros com `cliente_id = NULL` ou um cliente corporativo gigante):
+
+<Aside type="tip" title="Como resolver o Data Skew no Spark?">
+  1. **Habilite o Adaptive Query Execution (AQE)**: Ative `spark.sql.adaptive.enabled = true` e `spark.sql.adaptive.skewJoin.enabled = true`. O Spark detecta partições desbalanceadas em tempo de execução e as divide automaticamente em sub-partições menores.
+  2. **Salting**: Técnica de adicionar um sufixo numérico aleatório à chave de agrupamento (ex: `cliente_id_salt = cliente_id + "_" + random(0, 10)`), espalhando os dados uniformemente entre todos os executores do cluster.
+</Aside>
+
+---
+
+## Desligamento Automático (Auto-Termination)
+
+Para evitar que clusters permaneçam ativos após o término de rotinas manuais ou falhas em pipelines noturnos, habilita-se a política de terminação por ociosidade:
+
+```bash title="Terminal: Configurar auto-terminação de cluster após 30 minutos ocioso"
+aws emr create-cluster \
+    --name "Cluster-Com-AutoTerminacao" \
+    --release-label emr-7.0.0 \
+    --auto-termination-policy IdleTimeout=1800 \
+    --applications Name=Spark
+```
+
+---
+
+## Exercício
+
+Com base nas práticas operacionais de Big Data em nuvem, responda:
+
+1. Por que é arriscado alocar o nó Master ou os nós Core em instâncias Spot?
+2. O que é o recurso de Adaptive Query Execution (AQE) introduzido no Apache Spark 3.0?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque instâncias Spot podem ser interrompidas a qualquer momento pelo provedor de nuvem caso a demanda por máquinas On-Demand aumente. Se o nó Master for interrompido, todo o cluster cai; se nós Core forem perdidos em grande número, o HDFS pode sofrer perda de blocos intermediários de dados.
+
+  2. É o mecanismo que reotimiza o plano de execução de consultas dinamicamente durante a execução da query, ajustando o número de partições de shuffle, convertendo junções para Broadcast e tratando desbalanceamentos (*Skew Join*) com base nas estatísticas reais de cada estágio.
+</details>
+
+---
+
+## Desafio
+
+Um job noturno do Spark processa 500 milhões de cliques de usuários. Uma análise no Spark UI revelou que 199 tarefas terminam em 2 minutos, mas 1 única tarefa leva 45 minutos para finalizar por causa de valores nulos na chave de agrupamento. Descreva a solução técnica no código PySpark para eliminar esse gargalo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O gargalo é causado por *Data Skew* onde todos os registros com valor nulo são enviados para o mesmo executor. A solução consiste em filtrar registros nulos antes da agregação (se forem inválidos) ou aplicar a técnica de *Salting*, substituindo a chave nula por um identificador temporário distribuído aleatoriamente entre 10 partições diferentes, processando a agregação em duas etapas para diluir a carga entre todos os executores.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que é a Spark UI?**
+   <details><summary>Possível resposta</summary>É o painel web visual fornecido pelo Apache Spark que permite inspecionar estágios de execução (*Stages*), tarefas (*Tasks*), tempo de CPU, volume de dados de shuffle e consumo de memória RAM de cada executor.</details>
+
+2. **Como a política de `IdleTimeout` protege a organização contra estouro de orçamento em nuvem?**
+   <details><summary>Possível resposta</summary>Monitora a atividade do cluster e o desliga automaticamente após um período configurado (ex: 30 minutos) sem nenhuma aplicação ou tarefa em execução.</details>
+
+3. **Qual a diferença entre nós On-Demand e nós Spot na AWS/GCP?**
+   <details><summary>Possível resposta</summary>Instâncias On-Demand possuem disponibilidade garantida e preço fixo. Instâncias Spot utilizam capacidade ociosa dos data centers com descontos de até 90%, mas podem ser interrompidas com aviso prévio de 2 minutos caso o provedor precise da capacidade.</details>
+
+---
+
+## Referências
+
+- [AWS EMR: Managed Scaling Guide](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-managed-scaling.html)
+- [Adaptive Query Execution in Apache Spark](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution)
+- [Spark UI and Debugging Stragglers](https://spark.apache.org/docs/latest/web-ui.html)
+
+---
+
+## Próximo tópico
+
+[Visão geral do immudb](../../immudb/): Fundamentos de bancos de dados imutáveis e ledger com verificação criptográfica SHA-256 e árvores de Merkle.

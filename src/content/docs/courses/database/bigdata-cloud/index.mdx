@@ -1,0 +1,143 @@
+---
+title: "Big Data na Nuvem: AWS EMR e Google Cloud Dataproc"
+description: "Visão geral de plataformas gerenciadas de Big Data em nuvem pública: Amazon EMR, Google Cloud Dataproc, Spark Serverless e ecossistemas elásticos de processamento em escala."
+course: database
+sidebar:
+  label: "Visão geral de EMR e Dataproc"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Gerenciar clusters físicos de Big Data no próprio data center envolve altos custos com servidores ociosos, manutenção de hardware e complexidade de orquestração do Hadoop/YARN. Os serviços gerenciados em nuvem pública como **Amazon EMR (Elastic MapReduce)**, **Google Cloud Dataproc** e **Microsoft Azure HDInsight / Synapse Spark** resolvem essa barreira através de provisionamento sob demanda, autoescala dinâmica e modelos **Serverless**.
+
+---
+
+## Objetivo
+
+Compreender a arquitetura, o modelo operacional e os benefícios econômicos de executar clusters de Big Data em nuvem pública gerenciada. Ao final deste tópico, o leitor será capaz de:
+
+- Descrever a arquitetura de clusters elásticos desacoplados de armazenamento (computação em EC2/Compute Engine lendo de S3/GCS).
+- Comparar clusters persistentes de longa duração com clusters efémeros orientados a Jobs (*Job-Scoped Clusters*).
+- Avaliar os modelos de execução: Clusters Tradicionais vs. Spark on Kubernetes vs. Spark Serverless.
+- Analisar estratégias de economia com instâncias Spot/Preemptible para redução drástica de custos em pipelines de dados.
+
+---
+
+## O Modelo Desacoplado de Big Data na Nuvem
+
+No ecossistema legado do Hadoop (HDFS), armazenamento e processamento residiam obrigatoriamente nas mesmas máquinas físicas. Na nuvem moderna, a arquitetura é 100% **desacoplada**:
+
+<Mermaid title="Arquitetura de Big Data com Computação Elástica e Armazenamento em Nuvem">
+{`
+flowchart TD
+    subgraph ComputeCluster ["Camada de Computação Elástica (Amazon EMR / Google Dataproc)"]
+        direction TB
+        M["Master / Coordinator Node"]
+        W1["Core / Worker Node 1 (Processa Tasks)"]
+        W2["Core / Worker Node 2 (Processa Tasks)"]
+        T1["Task Node (Instâncias Spot Elásticas)"]
+        T2["Task Node (Instâncias Spot Elásticas)"]
+        
+        M --> W1
+        M --> W2
+        M -.-> T1
+        M -.-> T2
+    end
+
+    subgraph StorageLayer ["Camada de Armazenamento Persistente (Object Storage)"]
+        direction TB
+        S3[("Amazon S3 / Google Cloud Storage<br/>Arquivos Parquet / Iceberg / Delta Lake")]
+    end
+
+    W1 <-->|"Leitura / Escrita de Alta Velocidade"| S3
+    W2 <-->|"Leitura / Escrita de Alta Velocidade"| S3
+    T1 <-->|"Leitura / Escrita de Alta Velocidade"| S3
+    T2 <-->|"Leitura / Escrita de Alta Velocidade"| S3
+`}
+</Mermaid>
+
+Com essa separação:
+- Os dados permanecem perenemente seguros no S3/GCS com custo de poucos centavos por gigabyte.
+- O cluster de computação pode ser criado apenas para rodar uma rotina pesada de 30 minutos e destruído imediatamente após o término (*Clusters Efémeros*).
+
+---
+
+## Comparativo de Serviços Gerenciados de Big Data
+
+A tabela abaixo compara as principais plataformas de Big Data em nuvem pública:
+
+| Dimensão | Amazon EMR (AWS) | Google Cloud Dataproc (GCP) | Azure Synapse Spark / HDInsight |
+| :--- | :--- | :--- | :--- |
+| **Motores Suportados** | Apache Spark, Trino, Flink, Hive, Presto, HBase | Apache Spark, Trino, Flink, Hadoop, Hive | Apache Spark, Hadoop, Hive, Storm |
+| **Opções de Execução** | EMR on EC2, EMR on EKS (Kubernetes), EMR Serverless | Dataproc on Compute Engine, Dataproc on GKE, Dataproc Serverless | Synapse Spark Pools, HDInsight on AKS |
+| **Tempo de Provisionamento** | 3 a 7 minutos (EC2) / Instantâneo (Serverless) | Menos de 90 segundos (Compute Engine) / Instantâneo (Serverless) | 2 a 5 minutos |
+| **Otimização de Custos** | Instâncias Spot (até 90% desconto), Auto-Scaling | Máquinas Spot/Preemptible, Custom Machine Types | Azure Spot VMs, Pools com suspensão automática |
+| **Integração de Catálogo** | AWS Glue Data Catalog, Lake Formation | Google Cloud Dataplex, Metastore gerenciado | Azure Purview / Synapse Metastore |
+
+---
+
+## Clusters Efémeros vs. Spark Serverless
+
+Historicamente, equipes criavam clusters permanentes ligados 24 horas por dia. Hoje, predominam dois modelos econômicos:
+
+### 1. Clusters Efémeros (Job-Scoped Clusters)
+O orquestrador de esteiras (Airflow, AWS Step Functions ou Prefect) envia um comando para provisionar um cluster de 50 nós, executa a rotina de processamento PySpark e destrói todas as máquinas automaticamente assim que o job é concluído.
+
+### 2. Spark Serverless (EMR Serverless / Dataproc Serverless)
+Elimina completamente o conceito de cluster. Você apenas envia o arquivo `.py` ou `.jar` da aplicação; o provedor de nuvem aloca a capacidade exata de memória e núcleos de CPU sob demanda e cobra apenas pelos segundos exatos de execução.
+
+---
+
+## Exercício
+
+Com base na arquitetura de Big Data em nuvem, responda:
+
+1. Qual é a principal vantagem econômica dos clusters efémeros em comparação a clusters mantidos ligados 24/7?
+2. Como a separação de armazenamento e computação viabiliza o uso seguro de instâncias Spot (com risco de interrupção repentina) sem perda de dados?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A eliminação do desperdício financeiro de manter hardware de computação ocioso durante a maior parte do dia, pagando pelos servidores apenas durante os minutos ou horas exatas em que o processamento está sendo executado.
+
+  2. Porque os dados permanentes e os resultados finais são gravados diretamente no Object Storage (S3 ou GCS). Se uma instância Spot for desprovisionada pela nuvem, apenas as tarefas daquela máquina são reexecutadas em outro nó pelo Spark Driver, sem nenhum risco de corrupção ou perda de dados persistentes.
+</details>
+
+---
+
+## Desafio
+
+Desenhe um pipeline de processamento noturno de 100 TB de dados utilizando Apache Airflow para orquestração e EMR Serverless para execução Spark, descrevendo o fluxo de dados desde a ingestão até a camada de entrega analítica.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O Airflow dispara uma DAG diariamente às 01:00. O primeiro operador submete uma tarefa Spark ao EMR Serverless apontando para o script `transform_daily.py`. O EMR Serverless aloca automaticamente dezenas de executores virtuais, lê os 100 TB de arquivos brutos do S3 (`s3://data-lake/raw/`), executa as transformações e agregações com o Catalyst Optimizer e grava o resultado refinado em tabelas Apache Iceberg no S3 (`s3://data-lake/curated/`). Ao término do processamento, o EMR desliga todos os recursos automaticamente e o Airflow aciona a notificação de sucesso.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que são Task Nodes em um cluster Amazon EMR?**
+   <details><summary>Possível resposta</summary>São nós de trabalho adicionais que executam exclusivamente tarefas de processamento sem manter dados de sistema de arquivos local (HDFS), tornando-os ideais para instâncias Spot que podem ser interrompidas sem risco para o cluster.</details>
+
+2. **Qual a vantagem do Google Cloud Dataproc em relação à velocidade de provisionamento?**
+   <details><summary>Possível resposta</summary>O Dataproc foi projetado para inicializar clusters em menos de 90 segundos na Google Cloud, tornando a criação de clusters efémeros quase tão ágil quanto funções serverless.</details>
+
+3. **O que é o Spark on Kubernetes (EKS/GKE)?**
+   <details><summary>Possível resposta</summary>É o modelo onde o Apache Spark roda diretamente como pods em um cluster Kubernetes corporativo, compartilhando a mesma infraestrutura de containers do restante dos microsserviços da empresa.</details>
+
+---
+
+## Referências
+
+- [Amazon EMR Documentation](https://docs.aws.amazon.com/emr/)
+- [Google Cloud Dataproc Documentation](https://cloud.google.com/dataproc/docs)
+- [EMR Serverless User Guide](https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/what-is-emr-serverless.html)
+
+---
+
+## Próximo tópico
+
+[Provisionamento e Clientes](setup/): Criação de clusters EMR/Dataproc, submissão de Jobs via CLI e integração com SDKs.
