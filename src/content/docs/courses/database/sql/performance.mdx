@@ -12,13 +12,60 @@ Este tópico ensina a fazer ao banco a pergunta que resolve a maioria dos proble
 
 ## Objetivo
 
-Compreender o plano de execução como a ferramenta de diagnóstico de desempenho, para reconhecer os três padrões que mais custam em aplicações web e corrigi-los antes de aumentar o servidor. Ao final do tópico, o leitor deve ser capaz de:
+Compreender a criação de índices e o plano de execução como ferramentas essenciais de diagnóstico e otimização de desempenho, capacitando o desenvolvedor a estruturar índices adequados e eliminar gargalos em aplicações web. Ao final do tópico, o leitor deve ser capaz de:
 
-- Ler um plano de execução e distinguir varredura de busca por índice.
+- Criar, configurar e remover índices simples, compostos e únicos (`CREATE INDEX`, `CREATE UNIQUE INDEX`, `DROP INDEX`).
+- Reconhecer os tipos de índice e suas peculiaridades nos principais motores de banco de dados (PostgreSQL, MySQL e SQLite).
+- Ler um plano de execução com `EXPLAIN` e distinguir varredura sequencial (*Scan*) de busca por índice (*Index Search*).
 - Identificar as expressões no `WHERE` que impedem o planejador de usar um índice existente.
 - Reconhecer o problema N+1 no código da aplicação e substituí-lo por uma junção.
 - Explicar o custo da paginação por `OFFSET` e implementar a paginação por cursor.
 - Decidir quando o problema é a consulta, o índice, o modelo ou o servidor.
+
+---
+
+## Criação e Gestão de Índices (INDEX)
+
+Um **índice** é uma estrutura de dados auxiliar gerenciada pelo SGBD para acelerar drasticamente a localização de registros em tabelas relacionais. De forma análoga ao índice remissivo ao final de um livro, o índice armazena chaves ordenadas apontando diretamente para a localização física das linhas em disco (*ROWID* ou ponteiro de tupla), transformando varreduras sequenciais completas (*Table Scans*) em buscas balanceadas de tempo logarítmico $O(\log n)$.
+
+### 1. Definição e Sintaxe SQL Fundamental
+
+A linguagem SQL DDL padroniza a criação e remoção de índices por meio das seguintes instruções:
+
+```sql
+-- 1. Índice Simples: acelera filtros WHERE, junções JOIN e cláusulas ORDER BY
+CREATE INDEX idx_post_views ON Post (views);
+
+-- 2. Índice Composto (Multi-coluna): ordenação combinada onde a ordem das colunas importa
+CREATE INDEX idx_post_author_created ON Post (authorId, createdAt DESC);
+
+-- 3. Índice Único: garante unicidade de valores e otimiza a recuperação exata
+CREATE UNIQUE INDEX idx_user_email_unique ON User (email);
+
+-- 4. Índice Parcial (Condicional): indexa apenas linhas que atendem a um predicado
+CREATE INDEX idx_post_published ON Post (createdAt) WHERE published = 1;
+
+-- 5. Remoção de Índices (DROP INDEX)
+-- Padrão PostgreSQL e SQLite:
+DROP INDEX IF EXISTS idx_post_views;
+
+-- Padrão MySQL (exige especificar o nome da tabela com a cláusula ON):
+DROP INDEX idx_post_views ON Post;
+```
+
+A criação de um índice traz ganhos expressivos em operações de leitura, mas impõe um custo de escrita: a cada `INSERT`, `UPDATE` ou `DELETE`, o motor do banco precisa atualizar não apenas a tabela principal, mas também cada uma das árvores de índice associadas.
+
+### 2. Tipos de Índices e Comportamento nos Motores
+
+Embora a estrutura de **Árvore B-Tree** (ou B+Tree) seja o padrão universal para comparações de igualdade e intervalos (`=`, `<`, `>`, `BETWEEN`), os principais SGBDs fornecem famílias especializadas de índices para diferentes cargas de trabalho:
+
+| Motor SGBD | Tipos de Índice Suportados | Características Notáveis |
+| :--- | :--- | :--- |
+| **PostgreSQL** | B-Tree (padrão), Hash, GIN, GiST, BRIN, SP-GiST | Suporta índices parciais com `WHERE`, índices em expressões calculadas (`LOWER(col)`), tipos GIN para busca em documentos `JSONB` e vetores, e criação concorrente sem travar escritas com `CREATE INDEX CONCURRENTLY`. |
+| **MySQL (InnoDB)** | B-Tree (Clustered e Secondary), Full-Text, Spatial (R-Tree) | A chave primária forma o *Clustered Index* (as linhas da tabela ficam fisicamente ordenadas dentro da árvore da PK). Os índices secundários armazenam o valor da chave primária como ponteiro. |
+| **SQLite** | B-Tree | Índices leves embutidos no próprio arquivo de banco, com suporte a índices parciais e índices sobre expressões, além de índices automáticos criados para `PRIMARY KEY` e restrições `UNIQUE`. |
+
+Compreender o comportamento do índice em cada motor permite escolher a melhor estratégia de indexação para cada volume de dados e padrão de acesso da aplicação.
 
 ---
 
@@ -206,27 +253,27 @@ Registre os tempos e responda: em qual das três a diferença é maior, e o que 
 
 ## Perguntas de revisão
 
-### Plano
+### Índices e Plano de Execução
 
-1. **O que `EXPLAIN` mostra, e o que ele não faz?**
-   <details><summary>Possível resposta</summary>Mostra como o motor pretende executar a consulta (ordem, índices, junções), sem executá-la. No PostgreSQL, `EXPLAIN ANALYZE` executa e mede.</details>
+1. **Qual é a diferença entre `CREATE INDEX` e `CREATE UNIQUE INDEX`?**
+   <details><summary>Possível resposta</summary>Ambos criam uma estrutura de busca B-Tree acelerada, mas o `CREATE UNIQUE INDEX` impõe adicionalmente a restrição de integridade que impede a inserção de valores duplicados na(s) coluna(s).</details>
 
-2. **O que `SCAN` e `SEARCH ... USING INDEX` significam no plano do SQLite?**
-   <details><summary>Possível resposta</summary>`SCAN` é a leitura de todas as linhas da tabela; `SEARCH ... USING INDEX` é a busca direta pelo índice, lendo só as linhas que interessam.</details>
+2. **O que `SCAN` e `SEARCH ... USING INDEX` significam no plano de execução do SQLite?**
+   <details><summary>Possível resposta</summary>`SCAN` representa uma varredura sequencial completa por todas as linhas da tabela; `SEARCH ... USING INDEX` é a busca direta e eficiente na árvore de índice, lendo apenas o intervalo de linhas necessário.</details>
 
-3. **Cite três expressões que impedem o uso de um índice.**
-   <details><summary>Possível resposta</summary>Aritmética sobre a coluna (`col * 2`), função sobre a coluna (`LOWER(col)`) e `LIKE` com curinga inicial (`'%texto'`).</details>
+3. **Cite três expressões no `WHERE` que impedem o otimizador de utilizar um índice existente.**
+   <details><summary>Possível resposta</summary>Aritmética sobre a coluna (ex: `col * 2 > 100`), funções que envolvem o campo (ex: `LOWER(email) = '...'`) e buscas textuais com curinga no início (ex: `LIKE '%termo'`).</details>
 
-### Padrões
+### Padrões e Diagnóstico de Desempenho
 
-4. **Como um ORM evita o N+1?**
-   <details><summary>Possível resposta</summary>Com carregamento antecipado (`include`, *eager loading*), que transforma o laço de consultas em uma junção ou em uma segunda consulta com `IN`.</details>
+4. **Como um ORM evita o problema N+1?**
+   <details><summary>Possível resposta</summary>Através de carregamento antecipado (*eager loading* ou `include`), que converte o laço de requisições repetidas em uma única junção (`JOIN`) ou em uma consulta secundária em lote utilizando o operador `IN (...)`.</details>
 
-5. **Qual é a limitação da paginação por cursor?**
-   <details><summary>Possível resposta</summary>Só avança a partir do último item visto, e exige ordenação por uma coluna única e indexada; "ir direto para a página 37" não existe.</details>
+5. **Qual é a vantagem da paginação por cursor sobre a paginação por `LIMIT / OFFSET`?**
+   <details><summary>Possível resposta</summary>A paginação por cursor mantém tempo de resposta constante $O(\log n)$ mesmo em páginas profundas (`WHERE id > :ultimo`), enquanto o `OFFSET` degrada o desempenho ao forçar o banco a ler e descartar todas as linhas anteriores.</details>
 
-6. **Por que aumentar o servidor é a última opção?**
-   <details><summary>Possível resposta</summary>Porque esconde um `SCAN` ou um N+1 apenas até os dados dobrarem, quando o problema volta com o dobro do custo. A consulta, o índice e o modelo vêm antes.</details>
+6. **Por que adicionar mais hardware (CPU/RAM) deve ser a última opção em caso de lentidão?**
+   <details><summary>Possível resposta</summary>Porque o hardware adicional apenas mascara temporariamente um `SCAN` ineficiente ou um gargalo N+1. Conforme a base de dados cresce, o problema ressurge com custos exponenciais. A otimização de consultas, criação de índices corretos e revisão de modelagem resolvem a causa raiz.</details>
 
 ---
 
