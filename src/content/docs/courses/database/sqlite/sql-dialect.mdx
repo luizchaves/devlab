@@ -1,0 +1,187 @@
+---
+title: "SQLite: Dialeto e Peculiaridades"
+description: "Peculiaridades do dialeto SQL no SQLite: tipagem dinâmica e Type Affinity, modo STRICT, comandos PRAGMA, funções de data (strftime), JSON nativo, tabelas WITHOUT ROWID e limitações de schema."
+course: database
+sidebar:
+  label: "Dialeto e peculiaridades"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+O **SQLite** é famoso por sua simplicidade arquitetural embutida em um único arquivo de disco, mas possui peculiaridades de dialeto que o diferenciam de qualquer outro SGBD cliente-servidor: **tipagem dinâmica** por padrão, ausência de tipo `DATETIME` nativo, controle operacional via comandos `PRAGMA` e otimizações como tabelas `WITHOUT ROWID`.
+
+## Objetivo
+
+Compreender e dominar as regras sintáticas e comportamentais exclusivas do dialeto SQLite, aprendendo a gerenciar o sistema de *Type Affinity*, aplicar o modo rígido `STRICT`, manipular datas e documentos JSON, e utilizar pragmas para desempenho e integridade. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar como funciona a tipagem dinâmica e a afinidade de tipos (*Type Affinity*).
+- Declarar tabelas no modo `STRICT` para impor validação de tipos rígida (SQLite 3.37+).
+- Manipular datas e intervalos utilizando as funções `strftime()`, `datetime()` e `date()`.
+- Consultar campos formatados em JSON com `json_extract()` e o operador `->>`.
+- Configurar comandos `PRAGMA` essenciais (`foreign_keys = ON`, `journal_mode = WAL`).
+- Reconhecer as limitações de comandos `ALTER TABLE` no SQLite.
+
+---
+
+## O Domínio InvestApp no Dialeto SQLite
+
+O script `sqlite-dialect.sql` reúne os recursos e comandos específicos do SQLite:
+
+<SourceCode
+  path="examples/courses/database/invest-db/sqlite-dialect.sql"
+/>
+
+---
+
+## Peculiaridades Fundamentais do SQLite
+
+### 1. Tipagem Dinâmica e *Type Affinity*
+
+Por padrão histórico, o SQLite não impõe tipos rígidos: o tipo é uma propriedade do **valor**, e não da coluna. Você pode criar uma coluna `idade INTEGER` e gravar o texto `'vinte'` sem erro. O motor utiliza uma regra de "afinidade" para tentar converter valores compatíveis:
+
+A tabela abaixo resume as 5 classes de afinidade de tipos:
+
+| Afinidade de Tipo | Comportamento na Conversão | Exemplos de Declaração na Tabela |
+| :--- | :--- | :--- |
+| **`INTEGER`** | Converte números inteiros e strings numéricas para inteiro. | `INT`, `INTEGER`, `TINYINT`, `BIGINT` |
+| **`TEXT`** | Converte todos os dados para texto antes do armazenamento. | `TEXT`, `VARCHAR(255)`, `CLOB` |
+| **`REAL`** | Converte valores numéricos para ponto flutuante de 8 bytes. | `REAL`, `FLOAT`, `DOUBLE` |
+| **`BLOB`** | Mantém os bytes brutos exatamente como foram enviados. | `BLOB` ou coluna sem tipo declarado |
+| **`NUMERIC`** | Tenta converter para `INTEGER` ou `REAL`; se não conseguir, guarda como `TEXT`. | `NUMERIC`, `DECIMAL(10,2)`, `BOOLEAN`, `DATE` |
+
+### 2. O Modo `STRICT` (SQLite 3.37+)
+
+Para projetos modernos que desejam a mesma rigidez de tipos do PostgreSQL ou MySQL, o SQLite permite criar tabelas com a cláusula `STRICT`:
+
+```sql
+CREATE TABLE asset_strict (
+  ticker  TEXT PRIMARY KEY,
+  price   REAL NOT NULL,
+  amount  INTEGER NOT NULL
+) STRICT;
+```
+
+Em tabelas `STRICT`, qualquer tentativa de gravar um texto em uma coluna `INTEGER` é rejeitada imediatamente com o erro `cannot store TEXT value in INTEGER column`.
+
+### 3. Manipulação de Datas com `strftime()`
+
+O SQLite não possui uma estrutura de dados binária para datas; datas são gravadas como strings no padrão ISO-8601 (`'YYYY-MM-DD HH:MM:SS'`) ou números inteiros Unix epoch. Para realizar cálculos, utilizam-se funções embutidas:
+
+```sql
+-- Formatando data no padrão brasileiro
+SELECT strftime('%d/%m/%Y %H:%M', '2024-03-11 14:30:00') AS data_br;
+
+-- Calculando projeção de vencimento em 30 dias
+SELECT date('now', '+30 days') AS vencimento;
+```
+
+### 4. Otimização com `WITHOUT ROWID`
+
+Por padrão, toda tabela do SQLite cria uma coluna oculta de 64 bits chamada `rowid` e um índice B-Tree associado. Para tabelas com chaves primárias compostas ou strings (como `(user_id, asset_code)`), a cláusula `WITHOUT ROWID` elimina essa coluna oculta, reduzindo o tamanho do arquivo em disco e acelerando as consultas:
+
+```sql
+CREATE TABLE user_asset (
+  user_id     INTEGER NOT NULL,
+  asset_code  TEXT NOT NULL,
+  amount      REAL NOT NULL,
+  PRIMARY KEY (user_id, asset_code)
+) WITHOUT ROWID;
+```
+
+---
+
+## Comandos PRAGMA Essenciais
+
+Os comandos `PRAGMA` controlam os parâmetros internos do motor SQLite na conexão:
+
+- **`PRAGMA foreign_keys = ON;`**: **Obrigatório**. Por compatibilidade histórica, o SQLite inicializa com a validação de chaves estrangeiras desativada; cada nova conexão precisa emitir esse pragma.
+- **`PRAGMA journal_mode = WAL;`**: Ativa o modo *Write-Ahead Logging*, permitindo leituras simultâneas concorrentes sem bloquear escritas.
+- **`PRAGMA synchronous = NORMAL;`**: Otimiza a velocidade de gravação em disco no modo WAL mantendo integridade contra quedas.
+
+---
+
+## Executando
+
+Para executar o script `sqlite-dialect.sql` com o utilitário nativo do SQLite no terminal:
+
+```bash
+sqlite3 examples/courses/database/invest-db/invest.db < examples/courses/database/invest-db/sqlite-dialect.sql
+```
+
+A saída confirma a execução das instruções de Pragma, Strict, Upsert e operadores JSON:
+
+```text
+wal
+VALE3|65.2|11/03/2024 14:30:00|2024-04-10
+1|dark|1
+```
+
+---
+
+## Exercício
+
+Com base nas peculiaridades do SQLite:
+
+1. Por que toda aplicação conectada ao SQLite deve executar `PRAGMA foreign_keys = ON;` logo após abrir a conexão?
+2. Como funciona a cláusula `ON CONFLICT DO UPDATE` (Upsert) no SQLite?
+3. O que muda ao declarar uma tabela com o modificador `STRICT`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque, por motivos de retrocompatibilidade com versões antigas, o SQLite vem com o enforcement de chaves estrangeiras desabilitado por padrão. Sem esse pragma, inserções com chaves estrangeiras inválidas são aceitas sem erro.
+
+  2. Funciona de forma similar ao PostgreSQL: se a inserção colidir com uma restrição `UNIQUE` ou `PRIMARY KEY`, o SQLite redireciona a operação para um `UPDATE` dos campos da linha existente usando o prefixo `excluded.campo`.
+
+  3. Desativa a tipagem dinâmica e o *Type Affinity*, forçando o SQLite a recusar com erro qualquer valor cujo tipo de dado não coincida estritamente com a definição da coluna (`INT`, `TEXT`, `REAL`, `BLOB` ou `ANY`).
+</details>
+
+---
+
+## Desafio
+
+O comando `ALTER TABLE` no SQLite possui limitações históricas: ele não permite renomear ou remover colunas facilmente em versões antigas nem alterar tipos de colunas existentes.
+
+Qual é o procedimento padrão em 12 passos recomendado pela documentação do SQLite para alterar o esquema complexo de uma tabela existente em produção?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O procedimento canônico de migração de esquema no SQLite:
+  1. Iniciar uma transação (`BEGIN TRANSACTION;`).
+  2. Criar a nova tabela com a estrutura desejada (`CREATE TABLE new_table (...);`).
+  3. Copiar os dados da tabela antiga para a nova (`INSERT INTO new_table SELECT ... FROM old_table;`).
+  4. Apagar a tabela antiga (`DROP TABLE old_table;`).
+  5. Renomear a nova tabela para o nome original (`ALTER TABLE new_table RENAME TO old_table;`).
+  6. Recriar índices, visões e triggers associados.
+  7. Verificar a integridade das chaves estrangeiras (`PRAGMA foreign_key_check;`).
+  8. Confirmar a transação com `COMMIT;`.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual formato de data é recomendado para armazenamento no SQLite visando ordenação correta?**
+   <details><summary>Possível resposta</summary>Formato textual ISO-8601 (`YYYY-MM-DD HH:MM:SS`) ou inteiros Unix timestamp em segundos.</details>
+
+2. **O que é o modo WAL (*Write-Ahead Logging*) no SQLite?**
+   <details><summary>Possível resposta</summary>É o modo moderno de журнал onde alterações são gravadas em um arquivo `.wal` separado, permitindo que leitores não bloqueiem escritores e escritores não bloqueiem leitores.</details>
+
+3. **Qual função nativa verifica se uma string possui formato JSON válido no SQLite?**
+   <details><summary>Possível resposta</summary>`json_valid(coluna)`.</details>
+
+---
+
+## Referências
+
+- [SQLite Documentation: Datatypes in SQLite](https://www.sqlite.org/datatype3.html)
+- [SQLite STRICT Tables Specification](https://www.sqlite.org/stricttables.html)
+- [Pragma Statements Reference](https://www.sqlite.org/pragma.html)
+- [SQLite JSON Functions and Operators](https://www.sqlite.org/json1.html)
+
+---
+
+## Próximo tópico
+
+[Administração](../administration/): O banco em arquivo único, cópia de segurança em quente com `VACUUM INTO`, compactação e concorrência no modo WAL.

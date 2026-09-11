@@ -120,6 +120,7 @@
   - [x] `[TASK-040.6]` Escrever a seção do **Apache Cassandra** (Wide-Column): `index.mdx`, `setup.mdx`, `cql.mdx`
   - [x] `[TASK-040.7]` Atualizar sidebar em `astro.config.mjs`, índice em `src/content/docs/courses/database/index.mdx` e matriz em `basics/paradigms.mdx`
   - [x] `[TASK-040.8]` Validar com `pnpm validate`, mover a spec para `specs/executed/` e realizar commit e push
+  - [x] `[TASK-040.9]` Reorganizar a sidebar do Guia de Banco de Dados por paradigmas (`Banco Relacional`, `Banco de Documentos`, `Banco Chave-Valor`, etc.), aninhar as Linguagens de Consulta específicas de cada paradigma e criar tópicos de dialetos/peculiaridades SQL para SQLite, PostgreSQL e MySQL
 
 ### Concluídos (Conteúdo)
 

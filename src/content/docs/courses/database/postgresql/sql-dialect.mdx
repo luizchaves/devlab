@@ -1,0 +1,201 @@
+---
+title: "PostgreSQL: Dialeto e Recursos Avançados"
+description: "Peculiaridades do dialeto SQL no PostgreSQL: cláusula RETURNING, upsert com ON CONFLICT, JSONB com indexação GIN, arrays nativos, ILIKE, DISTINCT ON e expressões de tabela comuns graváveis."
+course: database
+sidebar:
+  label: "Dialeto e recursos avançados"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+O **PostgreSQL** é amplamente reconhecido como o SGBD relacional open source com o motor SQL mais avançado e extensível do mercado. Além da estrita conformidade com o padrão ANSI SQL, ele oferece recursos exclusivos de linguagem que eliminam viagens extras de rede (*round-trips*), simplificam a lógica da aplicação e combinam o modelo relacional com documentos JSON e vetores.
+
+## Objetivo
+
+Compreender e aplicar os recursos específicos do dialeto SQL do PostgreSQL, dominando a cláusula `RETURNING`, estratégias de *Upsert* (`ON CONFLICT`), tipos estruturados `JSONB` e `ARRAY`, e operadores de busca textual e deduplicação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Utilizar a cláusula `RETURNING` para obter dados gerados em `INSERT`, `UPDATE` e `DELETE` sem consultas adicionais.
+- Escrever instruções de *Upsert* determinísticas com `ON CONFLICT (coluna) DO UPDATE / DO NOTHING`.
+- Manipular e consultar colunas `JSONB` com operadores de contenção (`@>`), existência (`?`) e extração (`->`, `->>`).
+- Utilizar `ILIKE` para comparações case-insensitive e `DISTINCT ON` para deduplicações seletivas por grupo.
+- Declarar e consultar arrays nativos (`TEXT[]`, `INTEGER[]`) com a cláusula `ANY`.
+
+---
+
+## O Domínio InvestApp no Dialeto PostgreSQL
+
+O script `dialect.sql` reúne os recursos avançados de linguagem aplicados ao domínio de investimentos:
+
+<SourceCode
+  path="examples/courses/database/servers/postgres-server/dialect.sql"
+/>
+
+---
+
+## Recursos Fundamentais do Dialeto
+
+### 1. A Cláusula `RETURNING`
+
+Em SGBDs tradicionais, após inserir uma linha que gera um ID auto-incremental, a aplicação precisa executar uma segunda chamada (`SELECT LAST_INSERT_ID()`) ou usar métodos de driver específicos. No PostgreSQL, qualquer comando de mutação (`INSERT`, `UPDATE`, `DELETE`) aceita `RETURNING`:
+
+```sql
+INSERT INTO investment (name, value, category)
+VALUES ('Tesouro Selic 2029', 10000.00, 'Pós')
+RETURNING id, created_at;
+```
+
+Essa instrução insere o registro e devolve imediatamente os campos calculados pelo servidor, economizando latência de rede.
+
+### 2. Upsert com `ON CONFLICT DO UPDATE`
+
+O padrão *Upsert* (inserir se não existir, atualizar se já existir) é resolvido de forma atômica no PostgreSQL especificando o alvo do conflito de chave única ou primária:
+
+```sql
+INSERT INTO asset_price (ticker, price)
+VALUES ('VALE3', 65.20)
+ON CONFLICT (ticker)
+DO UPDATE SET
+  price = EXCLUDED.price,
+  updated_at = now();
+```
+
+A palavra-chave `EXCLUDED` representa a linha que o comando tentou inserir, permitindo mapear os novos valores para a linha existente.
+
+### 3. `JSONB` e Indexação GIN
+
+Diferente do tipo `JSON` textual comum, o `JSONB` armazena o dado em formato binário decomposto, permitindo a criação de índices GIN (*Generalized Inverted Index*) que aceleram buscas internas dentro do JSON:
+
+```sql
+-- Criação de índice GIN sobre toda a estrutura do JSONB
+CREATE INDEX idx_investment_notes ON investment USING GIN (notes);
+
+-- Consulta que utiliza o índice GIN instantaneamente
+SELECT name FROM investment WHERE notes @> '{"broker": "XP"}';
+```
+
+| Operador | Significado | Exemplo |
+| :--- | :--- | :--- |
+| `->` | Extrai elemento como objeto/JSON | `notes -> 'broker'` |
+| `->>` | Extrai elemento como string de texto simples | `notes ->> 'broker'` |
+| `@>` | Testa se o JSON da esquerda contém o JSON da direita | `notes @> '{"fgc": true}'` |
+| `?` | Testa se uma chave em formato string existe | `notes ? 'ticker'` |
+
+### 4. `ILIKE` e `DISTINCT ON`
+
+- **`ILIKE`**: Operador nativo que executa buscas com curingas (`%`, `_`) ignorando diferenças entre maiúsculas e minúsculas (*case-insensitive*), sem precisar envolver as colunas em `LOWER(coluna)`:
+  ```sql
+  SELECT * FROM investment WHERE name ILIKE '%tesouro%';
+  ```
+- **`DISTINCT ON (expressão)`**: Devolve apenas a primeira linha de cada partição lógica definida na cláusula `ORDER BY`:
+  ```sql
+  -- Devolve o investimento de maior valor para cada categoria
+  SELECT DISTINCT ON (category) category, name, value
+  FROM investment
+  ORDER BY category, value DESC;
+  ```
+
+---
+
+## Executando
+
+Para executar as instruções do dialeto contra o contêiner do PostgreSQL:
+
+```bash
+docker exec -i postgres psql -U postgres -d invest < examples/courses/database/servers/postgres-server/dialect.sql
+```
+
+A saída no terminal exibe os resultados dos retornos atômicos e das consultas JSONB e arrays:
+
+```text
+ id |            name            |          created_at           
+----+----------------------------+-------------------------------
+  4 | Fundo Imobiliário XP Malls | 2024-03-11 12:30:00.000000+00
+(1 row)
+
+ ticker | price |          updated_at           
+--------+-------+-------------------------------
+ VALE3  | 65.20 | 2024-03-11 12:30:00.000000+00
+(1 row)
+```
+
+---
+
+## Exercício
+
+Com base no dialeto do PostgreSQL:
+
+1. Escreva uma instrução que remova investimentos com valor zerado e retorne os nomes dos itens que foram apagados.
+2. Como criar uma coluna que guarde uma lista de e-mails alternativos de um investidor como um array de textos?
+3. Qual é a diferença entre os operadores `->` e `->>` ao extrair valores de uma coluna `JSONB`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Comando `DELETE` com `RETURNING`:
+     ```sql
+     DELETE FROM investment
+     WHERE value = 0
+     RETURNING name;
+     ```
+
+  2. Declaração com tipo array:
+     ```sql
+     ALTER TABLE users ADD COLUMN secondary_emails TEXT[] DEFAULT '{}';
+     ```
+
+  3. O operador `->` devolve o valor encapsulado no tipo `JSONB` (preservando aspas e tipos JSON). O operador `->>` converte e devolve o valor diretamente como o tipo nativo `TEXT` do PostgreSQL.
+</details>
+
+---
+
+## Desafio
+
+No PostgreSQL, uma CTE (*Common Table Expression*) pode conter instruções de mutação (`INSERT`, `UPDATE`, `DELETE`) com `RETURNING`.
+
+Escreva uma única consulta SQL que mova registros de uma tabela `orders_pending` para `orders_archived` de forma estritamente atômica sem necessitar de uma transação manual com múltiplos comandos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Utiliza-se uma *Writable CTE*:
+
+  ```sql
+  WITH deleted_orders AS (
+    DELETE FROM orders_pending
+    WHERE status = 'CONCLUIDO'
+    RETURNING id, user_id, total, created_at
+  )
+  INSERT INTO orders_archived (id, user_id, total, created_at)
+  SELECT id, user_id, total, created_at
+  FROM deleted_orders;
+  ```
+
+  Essa construção garante que apenas as linhas efetivamente apagadas sejam inseridas na tabela de arquivo, em uma única viagem de rede.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que representa a palavra reservada `EXCLUDED` em um comando `ON CONFLICT`?**
+   <details><summary>Possível resposta</summary>Representa a linha proposta que causou o conflito de unicidade, permitindo reaproveitar os novos valores na cláusula `DO UPDATE SET`.</details>
+
+2. **Qual extensão do PostgreSQL é utilizada para trabalhar com busca vetorial de inteligência artificial?**
+   <details><summary>Possível resposta</summary>A extensão `pgvector`.</details>
+
+3. **Qual a vantagem do operador `ANY()` em arrays frente a múltiplas condições com `OR`?**
+   <details><summary>Possível resposta</summary>Permite testar se um elemento pertence a um array dinâmico armazenado na própria linha de forma concisa e com suporte a índices GIN.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: The RETURNING Clause](https://www.postgresql.org/docs/current/dml-returning.html)
+- [PostgreSQL: JSON Functions and Operators](https://www.postgresql.org/docs/current/functions-json.html)
+- [PostgreSQL: Array Types](https://www.postgresql.org/docs/current/arrays.html)
+
+---
+
+## Próximo tópico
+
+[Administração](../administration/): Criação de bancos, papéis de usuário, permissões com `GRANT`, backup e restauração com `pg_dump`.

@@ -1,0 +1,180 @@
+---
+title: "MySQL: Dialeto e Recursos Específicos"
+description: "Peculiaridades do dialeto SQL no MySQL 8+: tipos ENUM e SET, upsert com ON DUPLICATE KEY UPDATE, REPLACE INTO, INSERT IGNORE, JSON com operadores de extração e modos estritos de SQL."
+course: database
+sidebar:
+  label: "Dialeto e recursos específicos"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+O **MySQL** possui um conjunto histórico de extensões e convenções de linguagem que o tornaram o motor mais popular da web. Desde a versão 8.0, o MySQL refinou seu analisador sintático para manter compatibilidade com o padrão ANSI ao mesmo tempo em que oferece tipos nativos de enumeração (`ENUM`, `SET`), manipulação de documentos `JSON` e comandos especializados de inserção com tratamento de conflitos.
+
+## Objetivo
+
+Compreender e dominar os recursos exclusivos e peculiaridades sintáticas do dialeto SQL do MySQL, aprendendo a utilizar tipos enumerados, estratégias de inserção flexíveis (`ON DUPLICATE KEY UPDATE`, `REPLACE INTO`, `INSERT IGNORE`) e operadores de navegação em colunas JSON. Ao final do tópico, o leitor deve ser capaz de:
+
+- Utilizar os tipos `ENUM` e `SET` para validação e armazenamento compacto de opções estáticas.
+- Implementar o padrão *Upsert* no MySQL com `ON DUPLICATE KEY UPDATE` e a função `VALUES()`.
+- Explicar as diferenças práticas entre `INSERT IGNORE`, `REPLACE INTO` e `ON DUPLICATE KEY UPDATE`.
+- Consultar e filtrar colunas do tipo `JSON` com os operadores `->`, `->>` e `JSON_CONTAINS`.
+- Identificar como o modo de operação `sql_mode` impacta a rigidez das consultas.
+
+---
+
+## O Domínio InvestApp no Dialeto MySQL
+
+O script `dialect.sql` reúne as extensões de sintaxe do MySQL no contexto de investimentos:
+
+<SourceCode
+  path="examples/courses/database/servers/mysql-server/dialect.sql"
+/>
+
+---
+
+## Recursos Específicos do Dialeto
+
+### 1. Tipos `ENUM` e `SET`
+
+O MySQL permite declarar valores válidos diretamente na definição da coluna:
+
+- **`ENUM('Opção1', 'Opção2', ...)`**: Permite escolher exatamente **um** valor dentre a lista permitida. Internamente, o MySQL armazena o valor como um número inteiro de 1 byte, economizando espaço em disco.
+- **`SET('Op1', 'Op2', ...)`**: Permite escolher **zero ou mais** valores da lista (uma combinação de opções). A consulta utiliza a função `FIND_IN_SET()`:
+
+```sql
+CREATE TABLE alert_settings (
+  id        INT AUTO_INCREMENT PRIMARY KEY,
+  channels  SET('Email', 'SMS', 'WhatsApp', 'Push') NOT NULL
+) ENGINE = InnoDB;
+
+-- Inserindo múltiplas opções válidas
+INSERT INTO alert_settings (channels) VALUES ('Email,Push');
+
+-- Filtrando registros que contenham 'Push' ativo
+SELECT * FROM alert_settings WHERE FIND_IN_SET('Push', channels) > 0;
+```
+
+### 2. Estratégias de Conflito de Chaves
+
+O MySQL oferece três abordagens distintas para lidar com colisões de chaves primárias ou únicas em inserções:
+
+A tabela abaixo compara o comportamento de cada instrução:
+
+| Instrução | O que faz quando encontra chave duplicada | Efeito colateral / Risco |
+| :--- | :--- | :--- |
+| **`ON DUPLICATE KEY UPDATE`** | Atualiza as colunas especificadas na linha existente mantendo o mesmo ID primário. | Abordagem recomendada para *Upsert* seguro. |
+| **`INSERT IGNORE`** | Descarta silenciosamente a nova linha e não gera erro. | Pode mascarar erros de violação de regras de integridade não previstos. |
+| **`REPLACE INTO`** | Executa um `DELETE` físico da linha antiga e em seguida um novo `INSERT`. | Incrementa o `AUTO_INCREMENT` e pode disparar remoções em cascata indesejadas em chaves estrangeiras. |
+
+### 3. Suporte a JSON Nativo
+
+No MySQL 8+, documentos JSON são validados na inserção e manipulados com sintaxe simplificada de setas:
+
+```sql
+-- O operador -> extrai com aspas; ->> extrai o texto puro (unquoted)
+SELECT
+  name,
+  notes->>'$.broker' AS corretora,
+  notes->'$.liquidity' AS liquidez_bruta
+FROM investment;
+```
+
+---
+
+## O Impacto do `sql_mode`
+
+O comportamento do MySQL é governado pela variável global e de sessão `sql_mode`. Desde a versão 8.0, o modo padrão é estrito (`STRICT_TRANS_TABLES`), que recusa valores inválidos (como datas zeradas `'0000-00-00'` ou valores fora de um `ENUM`) em vez de truncá-los com avisos como ocorria em versões legadas:
+
+```sql
+-- Verificar os modos ativos na sessão
+SELECT @@SESSION.sql_mode;
+```
+
+---
+
+## Executando
+
+Para executar o script `dialect.sql` contra o contêiner do MySQL:
+
+```bash
+docker exec -i mysql mysql -u root -psecret invest < examples/courses/database/servers/mysql-server/dialect.sql
+```
+
+A saída confirma a aplicação dos comandos de Upsert, tratamento de ENUM/SET e operadores JSON:
+
+```text
+name	risk_level	channels
+Lucas Chaves	Médio	Email,WhatsApp,Push
+id	name	corretora	tem_fgc
+1	Tesouro Selic 2029	Tesouro Direto	NULL
+3	CDB Banco X	Banco X	1
+```
+
+---
+
+## Exercício
+
+Com base no dialeto do MySQL:
+
+1. Qual é a principal desvantagem de utilizar `REPLACE INTO` em vez de `INSERT ... ON DUPLICATE KEY UPDATE`?
+2. Como consultar se uma propriedade booleana `{"fgc": true}` existe e é verdadeira dentro de uma coluna JSON no MySQL?
+3. O que acontece ao tentar inserir o valor `'Desconhecido'` em uma coluna `category ENUM('Pré', 'Pós')` no MySQL 8 com modo estrito ativo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O `REPLACE INTO` apaga a linha antiga e cria uma linha nova com um novo contador de chave primária, o que pode quebrar integridade referencial em tabelas filhas com chaves estrangeiras. O `ON DUPLICATE KEY UPDATE` atualiza os campos na linha existente preservando a chave primária intacta.
+
+  2. Utiliza-se a função `JSON_CONTAINS()` ou a extração direta com operador booleano:
+     ```sql
+     SELECT * FROM investment WHERE JSON_EXTRACT(notes, '$.fgc') = true;
+     ```
+
+  3. O MySQL emite um erro de validação e recusa a transação: `Data truncated for column 'category' at row 1`.
+</details>
+
+---
+
+## Desafio
+
+Em uma aplicação web com alta concorrência de escritas, como obter o valor numérico exato gerado para o `AUTO_INCREMENT` da última inserção de uma conexão específica sem correr o risco de ler o ID gerado por outra conexão paralela de outro usuário?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Utiliza-se a função `LAST_INSERT_ID()`:
+
+  ```sql
+  INSERT INTO users (name, email) VALUES ('Lucas', 'lucas@devlab.com');
+  SELECT LAST_INSERT_ID();
+  ```
+
+  A função `LAST_INSERT_ID()` é mantida na memória no contexto exclusivo da conexão cliente atual. Mesmo que milhares de outras conexões estejam inserindo linhas na mesma tabela simultaneamente, o valor devolvido para a sua sessão é exclusivamente o ID que a sua conexão acabou de gerar.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é o motor de armazenamento (*storage engine*) padrão e recomendado para tabelas no MySQL moderno?**
+   <details><summary>Possível resposta</summary>`InnoDB` (que garante transações ACID, chaves estrangeiras e integridade contra falhas de energia).</details>
+
+2. **Qual é o tipo de dado utilizado no MySQL para identificadores de data e hora com timezone automático?**
+   <details><summary>Possível resposta</summary>`TIMESTAMP` (converte para UTC no armazenamento e para o fuso da sessão na leitura, diferente de `DATETIME` que guarda o valor literal sem fuso).</details>
+
+3. **Qual função do MySQL permite verificar se uma string pertence a uma coluna do tipo `SET`?**
+   <details><summary>Possível resposta</summary>`FIND_IN_SET('valor', coluna)`.</details>
+
+---
+
+## Referências
+
+- [MySQL 8.4 Reference: Server SQL Modes](https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html)
+- [MySQL Documentation: The ENUM and SET Types](https://dev.mysql.com/doc/refman/8.4/en/enum.html)
+- [MySQL: JSON Functions Reference](https://dev.mysql.com/doc/refman/8.4/en/json-function-reference.html)
+
+---
+
+## Próximo tópico
+
+[Administração](../administration/): Criação de contas de usuário por origem (`'user'@'host'`), controle de privilégios e backup com `mysqldump`.

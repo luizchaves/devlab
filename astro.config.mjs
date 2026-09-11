@@ -1357,95 +1357,172 @@ export default defineConfig({
               ],
             },
             {
-              label: 'SQL',
+              label: 'Banco Relacional',
               items: [
-                { label: 'SQL DDL e DML', link: '/courses/database/sql/fundamentals/' },
                 {
-                  label: 'Junções e Agregações',
-                  link: '/courses/database/sql/joins-aggregations/',
+                  label: 'Linguagem SQL',
+                  items: [
+                    { label: 'SQL DDL e DML', link: '/courses/database/sql/fundamentals/' },
+                    {
+                      label: 'Junções e Agregações',
+                      link: '/courses/database/sql/joins-aggregations/',
+                    },
+                    { label: 'Transações', link: '/courses/database/sql/transactions/' },
+                    { label: 'Desempenho', link: '/courses/database/sql/performance/' },
+                  ],
                 },
-                { label: 'Transações', link: '/courses/database/sql/transactions/' },
-                { label: 'Desempenho', link: '/courses/database/sql/performance/' },
-              ],
-            },
-            {
-              label: 'SQLite',
-              items: [
-                { label: 'Visão geral do SQLite', link: '/courses/database/sqlite/' },
-                { label: 'Instalação e cliente', link: '/courses/database/sqlite/setup/' },
-                { label: 'Administração', link: '/courses/database/sqlite/administration/' },
-              ],
-            },
-            {
-              label: 'PostgreSQL',
-              items: [
-                { label: 'Visão geral do PostgreSQL', link: '/courses/database/postgresql/' },
-                { label: 'Instalação e cliente', link: '/courses/database/postgresql/setup/' },
-                { label: 'Administração', link: '/courses/database/postgresql/administration/' },
-              ],
-            },
-            {
-              label: 'MySQL',
-              items: [
-                { label: 'Visão geral do MySQL', link: '/courses/database/mysql/' },
-                { label: 'Instalação e cliente', link: '/courses/database/mysql/setup/' },
-                { label: 'Administração', link: '/courses/database/mysql/administration/' },
-              ],
-            },
-            {
-              label: 'MongoDB',
-              items: [
-                { label: 'Visão geral do MongoDB', link: '/courses/database/mongodb/' },
-                { label: 'Instalação e cliente', link: '/courses/database/mongodb/setup/' },
-                { label: 'CRUD e agregação', link: '/courses/database/mongodb/crud/' },
-              ],
-            },
-            {
-              label: 'Redis',
-              items: [
-                { label: 'Visão geral do Redis', link: '/courses/database/redis/' },
-                { label: 'Instalação e cliente', link: '/courses/database/redis/setup/' },
-                { label: 'Estruturas e comandos', link: '/courses/database/redis/commands/' },
-              ],
-            },
-            {
-              label: 'Neo4j',
-              items: [
-                { label: 'Visão geral do Neo4j', link: '/courses/database/neo4j/' },
-                { label: 'Instalação e cliente', link: '/courses/database/neo4j/setup/' },
-                { label: 'Modelagem e Cypher', link: '/courses/database/neo4j/cypher/' },
-              ],
-            },
-            {
-              label: 'InfluxDB',
-              items: [
-                { label: 'Visão geral do InfluxDB', link: '/courses/database/influxdb/' },
-                { label: 'Instalação e cliente', link: '/courses/database/influxdb/setup/' },
                 {
-                  label: 'Line Protocol e séries temporais',
-                  link: '/courses/database/influxdb/time-series/',
+                  label: 'SQLite',
+                  items: [
+                    { label: 'Visão geral do SQLite', link: '/courses/database/sqlite/' },
+                    { label: 'Instalação e cliente', link: '/courses/database/sqlite/setup/' },
+                    {
+                      label: 'Dialeto e peculiaridades',
+                      link: '/courses/database/sqlite/sql-dialect/',
+                    },
+                    { label: 'Administração', link: '/courses/database/sqlite/administration/' },
+                  ],
+                },
+                {
+                  label: 'PostgreSQL',
+                  items: [
+                    { label: 'Visão geral do PostgreSQL', link: '/courses/database/postgresql/' },
+                    { label: 'Instalação e cliente', link: '/courses/database/postgresql/setup/' },
+                    {
+                      label: 'Dialeto e recursos avançados',
+                      link: '/courses/database/postgresql/sql-dialect/',
+                    },
+                    {
+                      label: 'Administração',
+                      link: '/courses/database/postgresql/administration/',
+                    },
+                  ],
+                },
+                {
+                  label: 'MySQL',
+                  items: [
+                    { label: 'Visão geral do MySQL', link: '/courses/database/mysql/' },
+                    { label: 'Instalação e cliente', link: '/courses/database/mysql/setup/' },
+                    {
+                      label: 'Dialeto e recursos específicos',
+                      link: '/courses/database/mysql/sql-dialect/',
+                    },
+                    { label: 'Administração', link: '/courses/database/mysql/administration/' },
+                  ],
                 },
               ],
             },
             {
-              label: 'Elasticsearch',
+              label: 'Banco de Documentos',
               items: [
                 {
-                  label: 'Visão geral do Elasticsearch',
-                  link: '/courses/database/elasticsearch/',
+                  label: 'MongoDB',
+                  items: [
+                    { label: 'Visão geral do MongoDB', link: '/courses/database/mongodb/' },
+                    {
+                      label: 'Instalação e cliente (mongosh)',
+                      link: '/courses/database/mongodb/setup/',
+                    },
+                    {
+                      label: 'Linguagem MQL e Agregação',
+                      link: '/courses/database/mongodb/crud/',
+                    },
+                  ],
                 },
-                { label: 'Instalação e cliente', link: '/courses/database/elasticsearch/setup/' },
-                { label: 'Índices e consultas', link: '/courses/database/elasticsearch/search/' },
               ],
             },
             {
-              label: 'Cassandra',
+              label: 'Banco Chave-Valor',
               items: [
-                { label: 'Visão geral do Cassandra', link: '/courses/database/cassandra/' },
-                { label: 'Instalação e cliente', link: '/courses/database/cassandra/setup/' },
                 {
-                  label: 'Modelagem CQL e particionamento',
-                  link: '/courses/database/cassandra/cql/',
+                  label: 'Redis',
+                  items: [
+                    { label: 'Visão geral do Redis', link: '/courses/database/redis/' },
+                    {
+                      label: 'Instalação e cliente (redis-cli)',
+                      link: '/courses/database/redis/setup/',
+                    },
+                    {
+                      label: 'Comandos e Estruturas',
+                      link: '/courses/database/redis/commands/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Banco em Grafos',
+              items: [
+                {
+                  label: 'Neo4j',
+                  items: [
+                    { label: 'Visão geral do Neo4j', link: '/courses/database/neo4j/' },
+                    {
+                      label: 'Instalação e cliente (cypher-shell)',
+                      link: '/courses/database/neo4j/setup/',
+                    },
+                    { label: 'Linguagem Cypher', link: '/courses/database/neo4j/cypher/' },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Banco de Séries Temporais',
+              items: [
+                {
+                  label: 'InfluxDB',
+                  items: [
+                    { label: 'Visão geral do InfluxDB', link: '/courses/database/influxdb/' },
+                    {
+                      label: 'Instalação e cliente (CLI e Web)',
+                      link: '/courses/database/influxdb/setup/',
+                    },
+                    {
+                      label: 'Linguagem Flux e Line Protocol',
+                      link: '/courses/database/influxdb/time-series/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Motor de Busca',
+              items: [
+                {
+                  label: 'Elasticsearch',
+                  items: [
+                    {
+                      label: 'Visão geral do Elasticsearch',
+                      link: '/courses/database/elasticsearch/',
+                    },
+                    {
+                      label: 'Instalação e cliente (Dev Tools)',
+                      link: '/courses/database/elasticsearch/setup/',
+                    },
+                    {
+                      label: 'Linguagem Query DSL e Busca',
+                      link: '/courses/database/elasticsearch/search/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Banco Colunar Amplo',
+              items: [
+                {
+                  label: 'Cassandra',
+                  items: [
+                    { label: 'Visão geral do Cassandra', link: '/courses/database/cassandra/' },
+                    {
+                      label: 'Instalação e cliente (cqlsh)',
+                      link: '/courses/database/cassandra/setup/',
+                    },
+                    {
+                      label: 'Linguagem CQL e Particionamento',
+                      link: '/courses/database/cassandra/cql/',
+                    },
+                  ],
                 },
               ],
             },
