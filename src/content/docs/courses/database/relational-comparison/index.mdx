@@ -1,0 +1,298 @@
+---
+title: "Banco Relacional: Comparativo de Motores"
+description: "Comparativo aprofundado entre SQLite, PostgreSQL, MySQL, Oracle Database e Amazon RDS/Aurora: arquitetura, concorrência, rotinas armazenadas (Procedures e Triggers) e matriz de decisão de quando usar ou evitar."
+course: database
+sidebar:
+  label: "Comparativo de Motores"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta um comparativo técnico e arquitetural aprofundado entre os cinco principais motores e plataformas relacionais do mercado: **SQLite**, **PostgreSQL**, **MySQL**, **Oracle Database** e **Amazon RDS / Aurora**. Você aprenderá a avaliar características de execução, modelos de concorrência, suporte a lógica de negócios no banco (Stored Procedures, Functions e Triggers), custos e critérios objetivos de decisão para saber exatamente quando adotar ou evitar cada tecnologia.
+
+---
+
+## Objetivo
+
+Compreender as diferenças arquiteturais, limitações e pontos fortes dos principais bancos de dados relacionais e serviços gerenciados em nuvem, capacitando o desenvolvedor e o arquiteto de software a selecionar a ferramenta ideal para cada cenário de negócio. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar as premissas arquiteturais de motores embutidos (*embedded*), servidores cliente-servidor tradicionais e plataformas de dados nativas da nuvem (*Cloud-Native*).
+- Comparar as capacidades de concorrência de leitura e escrita (travas de arquivo, MVCC, *row-level locks* e armazenamento distribuído baseado em *quorum*).
+- Avaliar o suporte e os dialetos para execução de lógica procedural no banco de dados (*Stored Procedures*, *User-Defined Functions* e *Triggers*).
+- Analisar a matriz de *trade-offs*, custos de licenciamento e complexidade operacional de cada motor.
+- Aplicar uma árvore de decisão técnica para determinar quando usar e quando **não** usar SQLite, PostgreSQL, MySQL, Oracle Database e Amazon RDS/Aurora.
+
+---
+
+## Panorama dos Cinco Motores e Plataformas
+
+Embora todos implementem a álgebra relacional e suportem dialetos da linguagem SQL com propriedades ACID, esses cinco sistemas foram concebidos com propósitos e modelos de operação radicalmente diferentes:
+
+<Mermaid title="Espectro dos motores relacionais: do embutido local à nuvem distribuída">
+{`
+flowchart LR
+    M1["1. SQLite<br/>Embutido no App<br/>Zero Configuração"] --> M2["2. MySQL<br/>Cliente-Servidor Web<br/>InnoDB / Réplicas"]
+    M2 --> M3["3. PostgreSQL<br/>Objeto-Relacional<br/>Extensível / Avançado"]
+    M3 --> M4["4. Oracle DB<br/>Corporativo Missão Crítica<br/>PL/SQL / RAC"]
+    M4 --> M5["5. RDS / Aurora<br/>Nuvem Gerenciada<br/>Storage Distribuído"]
+`}
+</Mermaid>
+
+1. **SQLite**: Motor relacional leve e embutido (*in-process / embedded*). Não é um processo servidor autônomo e não escuta em portas de rede; o código do SGBD é compilado diretamente dentro da aplicação e persiste as tabelas em um único arquivo comum no sistema de arquivos local.
+2. **PostgreSQL**: O mais avançado SGBD relacional e objeto-relacional de código aberto (*open-source*). Focado em estrita conformidade com os padrões SQL internacionais, integridade de dados, suporte a tipos complexos (`JSONB`, geométricos, vetores) e extensibilidade profunda (`CREATE EXTENSION`).
+3. **MySQL**: O SGBD relacional de código aberto mais utilizado no ecossistema web global. Conhecido pela sua facilidade de uso, ecossistema gigantesco (WordPress, LAMP stack) e arquitetura modular de motores de armazenamento (*storage engines* como InnoDB).
+4. **Oracle Database**: SGBD relacional corporativo de alta performance e missão crítica desenvolvido para suportar os maiores volumes transacionais corporativos do planeta. Destaca-se pela linguagem **PL/SQL**, particionamento massivo, segurança militar e clusters ativos com *Oracle RAC (Real Application Clusters)*.
+5. **Amazon RDS e Aurora**: Plataformas gerenciadas de banco de dados como serviço (*DBaaS*). O **RDS** automatiza a operação de instâncias convencionais de PostgreSQL, MySQL, MariaDB e Oracle; o **Aurora** redesenha o PostgreSQL e o MySQL para a nuvem com um sistema de arquivos de armazenamento distribuído em 6 vias auto-reparável e tolerante a falhas.
+
+---
+
+## Matriz Comparativa Consolidada
+
+A tabela abaixo cruza as características essenciais de arquitetura, execução e recursos entre os cinco sistemas:
+
+| Dimensão | SQLite | PostgreSQL | MySQL | Oracle Database | Amazon RDS / Aurora |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Tipo de Arquitetura** | Biblioteca Embutida (*In-Process*) | Servidor Dedicado (*Multi-Process*) | Servidor Dedicado (*Multi-Threaded*) | Servidor Corporativo Dedicado / RAC | DBaaS Gerenciado / Aurora Cloud-Native |
+| **Acesso e Rede** | Chamadas diretas em C / Arquivo local | Conexões TCP (Porta `5432`) | Conexões TCP (Porta `3306`) | Conexões TCP (Porta `1521`) | Endpoint de nuvem (VPC / DNS gerenciado) |
+| **Tipagem de Dados** | Dinâmica (*Type Affinity*) | Estrita e rica (com `NUMERIC`, `JSONB`) | Estrita padrão SQL (`DECIMAL`, `JSON`) | Estrita corporativa (`NUMBER`, `VARCHAR2`) | Herda do motor base (Postgres/MySQL/Oracle) |
+| **Controle de Concorrência** | Trava em nível de arquivo único | MVCC completo sem bloqueio de leitura | MVCC via motor InnoDB (*Row-Locks*) | MVCC avançado com *Undo Segments* | MVCC no compute + I/O assíncrono em storage |
+| **Escala de Escrita** | Um escritor por arquivo (`WAL mode`) | Nó primário com escala vertical | Nó primário com replicação assíncrona | Cluster ativo-ativo (*Oracle RAC*) | Nó primário (Aurora: 15 réplicas com lag de 10ms) |
+| **Lógica no Banco** | Apenas Triggers e funções C/Host | PL/pgSQL, PL/Python, Triggers | Stored Procedures e Triggers SQL | PL/SQL maduro e compilado nativo | Total compatibilidade com o motor escolhido |
+| **Extensibilidade** | Funções C customizadas | Extensões nativas (`pgvector`, `PostGIS`) | Plugins de storage e autenticação | Packages corporativos e Cartridges | Suporte a extensões homologadas pela AWS |
+| **Custo e Licença** | Domínio Público (100% gratuito) | Open Source livre (Licença PostgreSQL) | GPL / Comercial (Oracle) | Licença comercial cara por núcleo de CPU | Pagamento sob demanda (*Pay-as-you-go*) |
+
+---
+
+## Stored Procedures, Functions e Triggers
+
+Um dos divisores de águas na escolha de um banco relacional é a decisão sobre **onde a lógica de negócios deve residir**: na camada de aplicação (Node.js, Python, Java, Go) ou dentro do próprio SGBD através de rotinas armazenadas:
+
+<Mermaid title="Lógica na aplicação vs Lógica procedural no banco de dados">
+{`
+flowchart TD
+    subgraph AppLogic ["Abordagem 1: Lógica na Aplicação (Microsserviços Modernos)"]
+        direction TB
+        A1["API Backend (TypeScript / Go / Python)"] -->|"1. Executa validações de negócio"| A1
+        A1 -->|"2. Envia comandos SQL CRUD puros"| DB1[("Banco Relacional")]
+    end
+
+    subgraph DBLogic ["Abordagem 2: Lógica no Banco (Monólitos Corporativos / Legado)"]
+        direction TB
+        A2["API Backend / Front-end"] -->|"1. Chama CALL processar_faturamento()"| DB2[("Banco Relacional")]
+        DB2 -->|"2. Executa Stored Procedure / PL-SQL"| DB2
+        DB2 -->|"3. Dispara Triggers de Auditoria e Estoque"| DB2
+    end
+`}
+</Mermaid>
+
+A capacidade e o suporte a rotinas procedurais variam fortemente entre os cinco sistemas:
+
+### 1. SQLite
+- **Suporte**: **Não possui** suporte a `CREATE PROCEDURE` nem a linguagens procedurais com blocos `IF/LOOP`.
+- **Triggers**: Suporta triggers SQL padrão (`BEFORE`/`AFTER` em `INSERT`, `UPDATE`, `DELETE`), ideais para atualizar carimbos `updated_at` ou impedir deleções ilegais.
+- **Funções Personalizadas**: Permite registrar funções escritas na linguagem da aplicação (C, JavaScript, Python) vinculadas à conexão ativa via API do driver.
+
+### 2. PostgreSQL
+- **Linguagens**: Suporte nativo completo a **PL/pgSQL**, com capacidade de instalar compiladores para **PL/Python**, **PL/Perl** e **PL/v8 (JavaScript)**.
+- **Procedures vs Functions**: Distingue claramente `CREATE FUNCTION` (retorna valor, executada dentro de consultas `SELECT`) de `CREATE PROCEDURE` (executada via `CALL`, capaz de gerenciar e confirmar transações com `COMMIT` interno).
+- **Triggers Avançados**: Suporta triggers a nível de linha (`FOR EACH ROW`) ou de instrução (`FOR EACH STATEMENT`), além de triggers `INSTEAD OF` em visões (*views*) e triggers de eventos DDL.
+
+### 3. MySQL
+- **Rotinas**: Suporta `CREATE PROCEDURE` e `CREATE FUNCTION` com sintaxe procedural própria baseada em blocos `BEGIN ... END`, loops `WHILE` e cursores.
+- **Triggers**: Executa gatilhos disparados em eventos DML (`BEFORE/AFTER INSERT/UPDATE/DELETE`).
+- **Limitações**: Não suporta linguagens externas (como Python/JS) e possui menos recursos de depuração e inspeção que o PostgreSQL ou Oracle.
+
+### 4. Oracle Database
+- **PL/SQL**: O ambiente de programação procedural em banco de dados mais sofisticado do mercado. O **PL/SQL** compila nativamente em bytecode ou código de máquina C, com suporte a pacotes modulares (*Packages*), tipos abstratos de dados e tratamento de exceções robusto.
+- **Triggers Compostos (*Compound Triggers*)**: Permite centralizar lógicas de `BEFORE`, `AFTER`, por linha e por instrução em um único bloco de código com estado compartilhado, eliminando o erro clássico de tabelas mutantes (*Mutating Table Error*).
+- **Transações Autônomas**: Permite que uma procedure ou trigger execute e confirme uma transação (`PRAGMA AUTONOMOUS_TRANSACTION`) sem afetar a transação principal em andamento (essencial para gravação incondicional de logs de auditoria e segurança).
+
+### 5. Amazon RDS e Aurora
+- Executa fielmente todas as procedures, functions e triggers do motor subjacente selecionado (PostgreSQL, MySQL ou Oracle).
+- **Extensões de Nuvem**: No Aurora, triggers podem disparar chamadas assíncronas para funções **AWS Lambda** ou publicar eventos no **Amazon SNS/SQS**, integrando eventos do banco diretamente a arquiteturas serverless orientadas a eventos.
+
+<Aside type="tip" title="Boas Práticas Modernas: Onde colocar a lógica?">
+  Em arquiteturas de microsserviços modernas, a boa prática recomenda manter as **regras de negócio na camada de aplicação** (onde são fáceis de versionar no Git, testar com testes unitários automatizados e escalar horizontalmente sem sobrecarregar a CPU do banco) e reservar Stored Procedures/Triggers apenas para integridade estrita de dados ou operações em lote onde o tráfego de rede entre a aplicação e o banco seria proibitivo.
+</Aside>
+
+---
+
+## Quando Usar e Quando Evitar
+
+Cada motor resolve com maestria uma classe de problemas e torna-se um obstáculo em outra. Analise as diretrizes técnicas:
+
+### 1. SQLite
+
+<Mermaid title="Cenários de decisão para SQLite">
+{`
+flowchart TD
+    Q1{"A aplicação roda em um único dispositivo ou processo?"}
+    Q1 -- Sim --> Q2{"Há altíssimo volume de escritas concorrentes simultâneas?"}
+    Q2 -- Não --> USE["✅ Adote SQLite (Simplicidade máxima, zero rede)"]
+    Q2 -- Sim --> AVOID["❌ Evite SQLite (Prefira PostgreSQL ou MySQL)"]
+    Q1 -- Não --> AVOID
+`}
+</Mermaid>
+
+- **Quando Usar**:
+  - Aplicativos móveis (Android e iOS), desktops (Electron, Tauri) e sistemas embarcados (IoT).
+  - Ambientes de teste automatizado (testes unitários e de integração locais instantâneos).
+  - Bancos na borda (*Edge / Local-First*) com tecnologias como Turso (libSQL) e Cloudflare D1.
+  - Microsserviços e ferramentas CLI onde cada instância opera um banco isolado e independente.
+- **Quando Evitar**:
+  - Aplicações web escaladas horizontalmente com múltiplos nós servidores gravando simultaneamente.
+  - Sistemas com necessidade de controle granular de usuários e permissões de rede.
+  - Bancos com dados superiores a alguns gigabytes sob alta concorrência de escrita.
+
+### 2. PostgreSQL
+
+- **Quando Usar**:
+  - Aplicações web e corporativas modernas com modelos relacionais complexos.
+  - Projetos que demandam capacidades multiparadigma (`JSONB`, busca geoespacial com PostGIS, vetores para IA com `pgvector`).
+  - Sistemas financeiros e contábeis que exigem estrita conformidade ACID e precisão decimal arbitrária (`NUMERIC`).
+  - Quando a equipe busca o motor relacional open-source mais robusto, confiável e extensível do mercado.
+- **Quando Evitar**:
+  - Sistemas extremamente simples e estáticos onde a sobrecarga de operar um servidor TCP não se justifica (prefira SQLite).
+  - Cenários de leitura pura com chave-valor e altíssimo throughput (prefira Redis ou DynamoDB).
+  - Arquiteturas com necessidade de replicação ativo-ativo multi-mestre nativa sem ferramentas adicionais.
+
+### 3. MySQL
+
+- **Quando Usar**:
+  - Sistemas web tradicionais, portais de conteúdo (CMS como WordPress e Drupal) e aplicações PHP/Java consolidadas.
+  - Aplicações com padrão de tráfego fortemente dominado por leituras (*Read-Heavy*), onde a criação de réplicas de leitura assíncronas é o padrão da indústria.
+  - Equipes e infraestruturas com larga experiência operacional acumulada no ecossistema MySQL/LAMP.
+- **Quando Evitar**:
+  - Consultas analíticas pesadas com junções complexas e ordenações elaboradas (o PostgreSQL possui um otimizador de consultas mais sofisticado).
+  - Projetos que dependem de extensões avançadas de banco (como busca vetorial para LLMs ou recursos GIS complexos).
+  - Sistemas que dependem de tipagem estrita de datas com fusos horários precisos (`TIMESTAMPTZ` nativo).
+
+### 4. Oracle Database
+
+- **Quando Usar**:
+  - Grandes instituições financeiras, operadoras de telecomunicações, companhias aéreas e governos com infraestruturas legadas consolidadas.
+  - Sistemas com monólitos gigantescos cuja lógica de negócios inteira foi construída em pacotes e procedures **PL/SQL**.
+  - Ambientes corporativos que exigem clusters ativos de alta disponibilidade com compartilhamento de disco físico (*Oracle RAC*).
+- **Quando Evitar**:
+  - Startups, novos projetos e aplicações modernas baseadas em nuvem e microsserviços (o custo de licenciamento por CPU é proibitivo).
+  - Aplicações que priorizam portabilidade, automação ágil e contêineres Docker leves.
+  - Equipes que desenvolvem em stacks open-source modernas sem dependência de contratos legados da Oracle.
+
+### 5. Amazon RDS e Aurora
+
+- **Quando Usar**:
+  - Aplicações hospedadas na nuvem AWS que necessitam de alta disponibilidade, failover automático e backups contínuos sem esforço operacional.
+  - Ambientes de produção com crescimento imprevisível que se beneficiam da autoescala de armazenamento e computação do **Aurora Serverless**.
+  - Sistemas que exigem réplicas de leitura globais com latência de replicação insignificante (menos de 10 a 20 ms).
+- **Quando Evitar**:
+  - Aplicações locais (*on-premise*) ou projetos com restrição de hospedagem fora da nuvem pública da AWS.
+  - Projetos com orçamentos restritos onde o custo mínimo de uma instância de banco gerenciada 24/7 inviabiliza a operação (prefira bancos locais ou planos serverless free tier como Neon e Supabase).
+  - Ambientes de desenvolvimento local offline sem conexão com a internet (use Docker com PostgreSQL/MySQL local).
+
+---
+
+## Árvore de Decisão Arquitetural
+
+O fluxograma abaixo resume os critérios para guiar a escolha do motor ideal para o seu projeto:
+
+<Mermaid title="Fluxograma de escolha entre os motores relacionais">
+{`
+flowchart TD
+    Start["Novo Projeto Relacional"] --> Q1{"Onde o banco vai rodar?"}
+    
+    Q1 -- "Embutido no app / Mobile / CLI / Edge" --> SQLite["✅ SQLite (ou Turso / D1)"]
+    Q1 -- "Servidor Próprio / Docker / VPS" --> Q2{"Precisa de legado PL/SQL ou RAC corporativo?"}
+    Q1 -- "Nuvem Gerenciada (AWS)" --> Q3{"Exige autoescala de storage e failover instantâneo?"}
+    
+    Q2 -- Sim --> Oracle["✅ Oracle Database"]
+    Q2 -- Não --> Q4{"Precisa de extensões, JSONB, GIS e IA?"}
+    
+    Q4 -- Sim --> Postgres["✅ PostgreSQL"]
+    Q4 -- Não --> Q5{"Ecossistema Web / PHP / Read-Heavy?"}
+    Q5 -- Sim --> MySQL["✅ MySQL"]
+    Q5 -- Não --> Postgres
+    
+    Q3 -- Sim --> Aurora["✅ Amazon Aurora (PostgreSQL / MySQL)"]
+    Q3 -- Não --> RDS["✅ Amazon RDS (PostgreSQL / MySQL / Oracle)"]
+`}
+</Mermaid>
+
+---
+
+## Exercício
+
+Com base nas características comparadas dos motores relacionais:
+
+1. Qual é a principal diferença de arquitetura entre o SQLite e os outros quatro bancos?
+2. Por que o PostgreSQL é considerado a melhor opção para aplicações que combinam dados relacionais com busca semântica de IA e documentos flexíveis?
+3. O que é o *Oracle RAC* e qual sua vantagem em ambientes corporativos de missão crítica?
+4. Como o Amazon Aurora consegue entregar tempos de failover e atrasos de replicação muito menores que o RDS tradicional?
+5. Em que circunstâncias uma equipe deve evitar o uso de Stored Procedures para regras de negócio?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O SQLite é uma biblioteca embutida (*in-process*) que lê e grava diretamente em um arquivo no sistema operacional local, sem rodar como um processo servidor nem escutar em portas de rede TCP. Os outros quatro rodam como servidores autônomos acessíveis por rede.
+  2. Porque o PostgreSQL possui suporte nativo maduro a colunas `JSONB` com operadores de indexação e permite acoplar a extensão `pgvector` diretamente no motor SQL, permitindo consultas híbridas que unem filtros relacionais e busca por similaridade vetorial na mesma consulta ACID.
+  3. É o *Real Application Clusters*, que permite que múltiplas instâncias de servidores separadas acessem e gravem simultaneamente no mesmo conjunto de discos compartilhados em modo ativo-ativo, garantindo tolerância a falhas sem necessidade de transição de nós primários.
+  4. Porque o Aurora desacopla a computação do armazenamento, utilizando uma camada de storage distribuída em 6 cópias através de 3 zonas de disponibilidade (AZs) que se replica na camada de I/O em disco, sem exigir que os nós réplicas reexecutem os logs transacionais via SQL.
+  5. Quando a aplicação é construída com microsserviços modernos, onde a lógica precisa ser testada com testes automatizados, versionada no Git junto com o código da aplicação e escalada horizontalmente em instâncias leves de computação sem saturar a CPU cara do banco de dados.
+</details>
+
+---
+
+## Desafio
+
+Uma fintech em rápido crescimento opera um sistema monolítico em Oracle Database com centenas de procedures PL/SQL que realizam cálculo de juros e liquidação de contas. A diretoria técnica decidiu migrar a arquitetura para microsserviços em nuvem com contêineres e custos otimizados.
+
+1. Quais são os principais desafios técnicos de migrar a lógica PL/SQL do Oracle para PostgreSQL ou MySQL?
+2. Proponha uma estratégia técnica de migração gradual e indique qual plataforma em nuvem (RDS, Aurora ou PostgreSQL autogerenciado) deve ser escolhida para sustentar o novo modelo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. **Desafios**: O PL/SQL da Oracle possui sintaxe, pacotes nativos (`DBMS_*`), cursores e comportamento transacional autônomo que não são 100% compatíveis com o dialeto do PostgreSQL (`PL/pgSQL`) nem do MySQL. Além disso, a tipagem (`VARCHAR2`, `NUMBER`) e funções de data exigem conversões manuais ou com ferramentas de tradução (como *AWS Schema Conversion Tool - SCT*).
+  2. **Estratégia Recomendada**:
+     - **Fase 1 (Estrangulamento)**: Manter o banco Oracle como fonte transacional primária e extrair os novos microsserviços utilizando **Amazon Aurora PostgreSQL**, reescrevendo gradativamente as rotinas críticas de cálculo em código de aplicação (Node.js/Go/Java) coberto por testes unitários rigorosos.
+     - **Fase 2 (Replicação CDC)**: Utilizar *AWS Database Migration Service (DMS)* para sincronizar dados em tempo real do Oracle para o Aurora PostgreSQL.
+     - **Fase 3 (Virada de Chave)**: Redirecionar o tráfego de gravação para o Aurora PostgreSQL, aposentando as licenças do servidor Oracle legado e aproveitando o failover automático, autoescala de storage e custo por uso da nuvem.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Arquitetura e Execução
+
+1. **Como a tipagem dinâmica do SQLite (*Type Affinity*) difere da tipagem estrita do PostgreSQL?**
+   <details><summary>Possível resposta</summary>No SQLite, a coluna tem uma afinidade preferencial de tipo, mas aceita texto em uma coluna numérica sem erro (a menos que a tabela use a restrição `STRICT`). No PostgreSQL, a tipagem é estritamente estática e qualquer inserção com tipo incompatível gera erro imediato.</details>
+
+2. **O que é o mecanismo MVCC e como ele beneficia leituras concorrentes no PostgreSQL e MySQL (InnoDB)?**
+   <details><summary>Possível resposta</summary>O *Multi-Version Concurrency Control* mantém versões lógicas dos dados para transações abertas, permitindo que consultas de leitura (`SELECT`) leiam dados consistentes do passado sem bloquear escritores e sem serem bloqueadas por operações de `UPDATE/INSERT`.</details>
+
+3. **Qual a limitação de escrita do SQLite sob alta concorrência?**
+   <details><summary>Possível resposta</summary>Mesmo no modo WAL (*Write-Ahead Logging*), o SQLite suporta múltiplos leitores simultâneos, mas permite apenas um único escritor por vez no arquivo de banco de dados, enfileirando gravações concorrentes.</details>
+
+### Nuvem e Decisão
+
+4. **Por que o Amazon Aurora não é apenas uma máquina virtual rodando MySQL ou PostgreSQL?**
+   <details><summary>Possível resposta</summary>Porque o Aurora redesenhou o motor separando o processamento da camada de persistência: o armazenamento é um cluster distribuído em 6 vias gerenciado pela AWS com replicação na camada de logs, liberando os nós de computação para focar exclusivamente no processamento SQL.</details>
+
+5. **Em qual cenário o MySQL é preferível em relação ao PostgreSQL?**
+   <details><summary>Possível resposta</summary>Em aplicações web convencionais (como CMSs e e-commerces baseados em LAMP/PHP) com tráfego predominantemente de leitura (*read-heavy*), onde o ecossistema de réplicas e a simplicidade de operação do InnoDB já são amplamente dominados pelo time.</details>
+
+---
+
+## Referências
+
+- [SQLite: Appropriate Uses for SQLite](https://www.sqlite.org/whentouse.html)
+- [PostgreSQL: Feature Matrix and SQL Conformance](https://www.postgresql.org/about/featurematrix/)
+- [MySQL 8.4 Reference Manual: The InnoDB Storage Engine](https://dev.mysql.com/doc/refman/8.4/en/innodb-storage-engine.html)
+- [Oracle Database Documentation: PL/SQL Language Fundamentals](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/)
+- [AWS: Amazon Aurora Architecture and Storage](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.StorageReliability.html)
+
+---
+
+## Próximo tópico
+
+[Visão geral do SQLite](../sqlite/): Conheça a fundo o motor relacional embutido de instalação zero que roda dentro do próprio processo da aplicação.

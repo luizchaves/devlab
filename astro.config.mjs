@@ -1380,6 +1380,10 @@ export default defineConfig({
                   ],
                 },
                 {
+                  label: 'Comparativo de Motores',
+                  link: '/courses/database/relational-comparison/',
+                },
+                {
                   label: 'SQLite',
                   items: [
                     { label: 'Visão geral do SQLite', link: '/courses/database/sqlite/' },
