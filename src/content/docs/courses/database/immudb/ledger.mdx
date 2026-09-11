@@ -1,0 +1,183 @@
+---
+title: "immudb: Operações Imutáveis e Provas Criptográficas"
+description: "Modelagem de dados SQL em bancos ledger, comandos de verificação de não-repúdio, histórico de revisões e auditoria de integridade com immudb."
+course: database
+sidebar:
+  label: "Operações e Provas Criptográficas"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Além de operações em pares chave-valor, o **immudb** fornece suporte completo a **SQL Imutável**. Isso permite modelar esquemas relacionais com tabelas, colunas tipadas e chaves primárias, garantindo simultaneamente que qualquer inserção ou evolução de estado seja rastreada criptograficamente ao longo do tempo.
+
+---
+
+## Objetivo
+
+Dominar a modelagem e execução de operações relacionais imutáveis no immudb e verificar provas matemáticas de integridade forense. Ao final deste tópico, o leitor será capaz de:
+
+- Criar tabelas relacionais no immudb com restrições e chaves primárias.
+- Executar comandos DML (`INSERT`, `UPDATE`, `SELECT`) compreendendo o comportamento do versionamento imutável.
+- Consultar a linha do tempo completa de um registro via funções de auditoria temporal.
+- Validar a integridade criptográfica de transações contra ataques de adulteração de dados.
+
+---
+
+## Modelagem SQL Imutável
+
+O dialeto SQL do immudb suporta os tipos e restrições fundamentais da álgebra relacional:
+
+```sql title="DDL: Criação de tabelas de razão contábil e auditoria no immudb"
+CREATE TABLE accounts (
+    id INTEGER AUTO_INCREMENT,
+    account_number VARCHAR[32] NOT NULL,
+    holder_name VARCHAR[128] NOT NULL,
+    balance INTEGER NOT NULL, -- Valores em centavos
+    created_at TIMESTAMP,
+    PRIMARY KEY id
+);
+
+CREATE TABLE ledger_entries (
+    id INTEGER AUTO_INCREMENT,
+    account_id INTEGER NOT NULL,
+    entry_type VARCHAR[16] NOT NULL, -- 'DEBIT' ou 'CREDIT'
+    amount INTEGER NOT NULL,
+    description VARCHAR[255],
+    recorded_at TIMESTAMP,
+    PRIMARY KEY id
+);
+```
+
+---
+
+## O Comportamento do UPDATE em Bancos Ledger
+
+No immudb, o comando `UPDATE` não destrói o registro antigo. Ele cria uma nova revisão no topo da árvore de Merkle:
+
+```sql title="DML: Inserção e atualização de registros"
+-- Inserção de registro inicial
+INSERT INTO accounts (account_number, holder_name, balance, created_at)
+VALUES ('001-9482', 'Mariana Silva', 50000, NOW());
+
+-- Atualização de saldo após uma transação
+UPDATE accounts 
+SET balance = 45000 
+WHERE account_number = '001-9482';
+```
+
+Quando um `SELECT * FROM accounts` é executado, o immudb retorna o estado atual mais recente. No entanto, o estado anterior (`balance = 50000`) permanece gravado e consultável no histórico.
+
+---
+
+## Auditoria e Verificação Criptográfica
+
+Para auditorias contábeis ou investigações forenses, o immudb permite inspecionar cada transação que tocou determinada linha:
+
+<Mermaid title="Auditoria de revisões históricas no immudb">
+{`
+flowchart TD
+    subgraph LinhaDoTempo ["Linha do Tempo Criptográfica"]
+        direction LR
+        T1["Tx #1 (2026-01-10)<br/>Saldo: R$ 500,00<br/>Hash: 3a9f..."]
+        T2["Tx #4 (2026-02-15)<br/>Saldo: R$ 450,00<br/>Hash: 8b2c..."]
+        T3["Tx #9 (2026-03-01)<br/>Saldo: R$ 720,00<br/>Hash: e4d1..."]
+        
+        T1 --> T2 --> T3
+    end
+`}
+</Mermaid>
+
+Através do CLI ou dos SDKs, a auditoria é acionada via comandos de verificação:
+
+```bash title="Terminal: Inspecionar o histórico completo de uma chave no immuclient"
+history usuario:101
+```
+
+O comando exibe o identificador sequencial da transação (`tx`), o carimbo de data/hora exato, o valor daquela versão e a assinatura criptográfica correspondente.
+
+---
+
+## Verificação de Consistência e Prova de Estado (State Proof)
+
+A cada intervalo de tempo, o immudb assina o **Hash Raiz** da árvore de Merkle. Clientes externos podem armazenar esse hash assinado (*Trust Anchor*) e utilizá-lo como garantia jurídica irrefutável de que nenhum registro foi adulterado desde aquela data:
+
+```bash title="Terminal: Validar a integridade do banco contra o estado raiz"
+immuclient verify
+```
+
+Se algum byte tiver sido modificado diretamente nos arquivos físicos de armazenamento em disco, o comando de verificação falhará imediatamente acusando inconsistência de hash (*Data Tampered Detected*).
+
+---
+
+## Exercício
+
+Com base nos recursos de SQL e auditoria do immudb, responda:
+
+1. Como o immudb equilibra a facilidade de uso de consultas SQL padrão com as garantias de imutabilidade criptográfica?
+2. Em que circunstância um auditor externo usaria o comando `verify` em vez de um simples `SELECT`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Oferecendo uma interface SQL familiar (`CREATE TABLE`, `INSERT`, `UPDATE`, `SELECT`) onde, internamente, cada mutação lógica gera uma nova versão imutável associada a uma transação com hash em Árvore de Merkle, preservando todas as versões passadas.
+
+  2. Quando é necessário comprovar formalmente e matematicamente (não-repúdio) que os dados devolvidos pelo servidor não foram corrompidos ou fraudados retroativamente em relação ao hash raiz assinado no passado.
+</details>
+
+---
+
+## Desafio
+
+Projete um esquema SQL no immudb para um sistema de prontuário eletrônico médico de pacientes. Crie tabelas para pacientes e prescrições médicas, e explique como o histórico imutável protege médicos e hospitais contra alegações de alteração retroativa de dosagens de medicamentos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  CREATE TABLE patients (
+      id INTEGER AUTO_INCREMENT,
+      cpf VARCHAR[14] NOT NULL,
+      full_name VARCHAR[128] NOT NULL,
+      PRIMARY KEY id
+  );
+
+  CREATE TABLE medical_prescriptions (
+      id INTEGER AUTO_INCREMENT,
+      patient_id INTEGER NOT NULL,
+      doctor_crm VARCHAR[32] NOT NULL,
+      medication VARCHAR[128] NOT NULL,
+      dosage VARCHAR[64] NOT NULL,
+      issued_at TIMESTAMP NOT NULL,
+      PRIMARY KEY id
+  );
+  ```
+
+  Como cada prescrição gravada gera uma entrada imutável com carimbo temporal e hash criptográfico, qualquer tentativa posterior de alterar a dosagem gerará uma nova versão com data posterior ou quebrará o encadeamento se feita de forma clandestina no banco. Isso comprova de forma incontestável a dosagem exata prescrita na data original do atendimento.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que acontece se um desenvolvedor tentar rodar `DROP TABLE` em uma tabela protegida no immudb?**
+   <details><summary>Possível resposta</summary>O comando é rejeitado caso a tabela esteja sob políticas de retenção WORM ou modo de proteção de conformidade ativado.</details>
+
+2. **Como o immudb atinge alto desempenho em inserções mesmo calculando hashes criptográficos?**
+   <details><summary>Possível resposta</summary>Através de escrita sequencial em log (*Append-Only Log*), paralelização de cálculos de SHA-256 e compactação de árvores de Merkle em memória antes de sincronizar em disco.</details>
+
+3. **Por que valores monetários em tabelas SQL devem ser armazenados em centavos inteiros?**
+   <details><summary>Possível resposta</summary>Para evitar imprecisões e erros de arredondamento de ponto flutuante binário (`FLOAT`/`DOUBLE`), garantindo precisão matemática absoluta em cálculos contábeis.</details>
+
+---
+
+## Referências
+
+- [immudb SQL Reference](https://docs.immudb.io/master/sql/sql.html)
+- [immudb Cryptographic Verification Principles](https://docs.immudb.io/master/concepts/cryptography.html)
+- [Merkle Trees in Distributed Systems](https://en.wikipedia.org/wiki/Merkle_tree)
+
+---
+
+## Próximo tópico
+
+[Ledger e Blockchain em Nuvem](../../ledger-cloud/): Soluções gerenciadas de ledger confidencial (Azure Confidential Ledger, Managed Blockchain e Oracle Blockchain Tables).

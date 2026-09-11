@@ -1,0 +1,162 @@
+---
+title: "DuckDB e Iceberg: Consultas e Operações em Lakehouse"
+description: "Consultas analíticas em lote, leitura de formatos de tabela aberta Apache Iceberg, viagem no tempo (Time Travel) e exportação colunar com DuckDB."
+course: database
+sidebar:
+  label: "Consultas e Operações em Lakehouse"
+---
+import { Aside } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+A grande vantagem do padrão Data Lakehouse é a capacidade de realizar análises SQL profundas sobre terabytes de dados históricos sem a necessidade de ingerir ou copiar esses dados para um banco proprietário. Neste tópico, exploramos como o DuckDB executa consultas agregadas sobre arquivos Parquet e tabelas gerenciadas pelo Apache Iceberg.
+
+---
+
+## Objetivo
+
+Dominar as técnicas de consulta SQL sobre formatos colunares e tabelas de Data Lakehouse utilizando o DuckDB. Ao final deste tópico, o leitor será capaz de:
+
+- Consultar múltiplos arquivos Parquet com padrões *glob* e particionamento temporal.
+- Ler metadados e snapshots de tabelas Apache Iceberg com a função `iceberg_scan()`.
+- Executar consultas de viagem no tempo (*Time Travel*) para auditoria histórica.
+- Realizar transformações de dados em lote (*Batch ELT*) com exportação direta para Parquet particionado.
+
+---
+
+## Consultas em Arquivos Parquet Particionados
+
+Ao organizar arquivos em um Data Lake, a estrutura de diretórios geralmente segue o padrão de partições no estilo Hive (`ano=2026/mes=09/dia=11/dados.parquet`).
+
+O DuckDB lê e infere automaticamente os nomes das pastas como colunas da tabela:
+
+```sql title="Consulta analítica sobre múltiplos arquivos Parquet particionados"
+SELECT 
+    symbol,
+    year,
+    month,
+    avg(close_price) AS media_fechamento,
+    sum(volume) AS volume_total
+FROM read_parquet('s3://invest-lakehouse/market_data/year=*/month=*/*.parquet', hive_partitioning = true)
+WHERE year = 2026 AND symbol IN ('PETR4', 'VALE3', 'ITUB4')
+GROUP BY symbol, year, month
+ORDER BY symbol, year, month;
+```
+
+A cláusula `WHERE year = 2026` realiza a **poda de partições** (*Partition Pruning*): o DuckDB nem sequer faz requisições de rede para as pastas de outros anos, economizando tempo e custo de tráfego de dados.
+
+---
+
+## Leitura de Tabelas Apache Iceberg
+
+Quando os dados são estruturados sob o formato Apache Iceberg, o DuckDB utiliza a extensão oficial para navegar na árvore de snapshots e manifests:
+
+```sql title="Leitura de tabela Iceberg com DuckDB"
+-- Consulta a versão mais recente da tabela de transações
+SELECT 
+    account_id,
+    transaction_type,
+    sum(amount) AS total_movimentado
+FROM iceberg_scan('s3://invest-lakehouse/iceberg/financial_transactions')
+WHERE status = 'CONFIRMED'
+GROUP BY account_id, transaction_type;
+```
+
+---
+
+## Viagem no Tempo (Time Travel) com Iceberg
+
+Uma das capacidades mais poderosas do Iceberg é consultar o estado exato de uma tabela em um instante anterior, mesmo após sucessivas operações de `UPDATE` ou `DELETE`:
+
+```sql title="Consultas de Time Travel por Snapshot ID ou Timestamp"
+-- 1. Consultar a tabela no estado de um snapshot específico
+SELECT count(*) AS total_transacoes_passadas
+FROM iceberg_scan(
+    's3://invest-lakehouse/iceberg/financial_transactions', 
+    snapshot_id => 7389104810928301923
+);
+
+-- 2. Consultar a tabela no estado exato de 1º de janeiro de 2026
+SELECT avg(balance) AS media_saldo_virada_ano
+FROM iceberg_scan(
+    's3://invest-lakehouse/iceberg/financial_transactions', 
+    as_of => '2026-01-01 00:00:00Z'
+);
+```
+
+---
+
+## Exemplo Prático Integrado
+
+O script abaixo consolida as configurações de conexão ao MinIO local, leitura de dados analíticos e consultas temporais:
+
+<SourceCode path="examples/courses/database/servers/duckdb-lakehouse/query.sql" region="extensions" />
+<SourceCode path="examples/courses/database/servers/duckdb-lakehouse/query.sql" region="setup-s3" />
+<SourceCode path="examples/courses/database/servers/duckdb-lakehouse/query.sql" region="analytics-parquet" />
+
+---
+
+## Exercício
+
+Com base nos comandos apresentados, responda:
+
+1. O que é a técnica de *Partition Pruning* (poda de partições) e por que ela é crítica ao consultar um Data Lakehouse no S3?
+2. Como o recurso de *Time Travel* no Iceberg permite recuperar relatórios analíticos sem depender de restaurar backups completos de banco de dados?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. É o mecanismo em que o motor de consulta analisa os filtros do `WHERE` e ignora completamente arquivos e pastas que não contêm dados relevantes para a busca, reduzindo drasticamente o I/O de disco e o custo de requisições de rede HTTP no Object Storage.
+
+  2. Porque o Iceberg preserva os arquivos físicos históricos associados a snapshots antigos na árvore de metadados. Basta passar o `snapshot_id` ou o timestamp desejado na query SQL para ler o estado imutável daquela data instantaneamente.
+</details>
+
+---
+
+## Desafio
+
+Escreva uma consulta SQL no DuckDB que realize um `JOIN` entre um arquivo Parquet de transações financeiras localizado no S3 e uma tabela relacional de clientes residindo em um arquivo SQLite local, calculando o volume total negociado por estado/UF do cliente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  -- DuckDB conecta nativamente diferentes fontes sem importação prévia
+  ATTACH 'users.db' AS sqlite_db (TYPE SQLITE);
+
+  SELECT 
+      u.state,
+      count(t.id) AS total_operacoes,
+      sum(t.amount) AS volume_financeiro
+  FROM read_parquet('s3://invest-lakehouse/transactions/*.parquet') t
+  INNER JOIN sqlite_db.users u ON t.user_id = u.id
+  GROUP BY u.state
+  ORDER BY volume_financeiro DESC;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Como o DuckDB viabiliza junções entre formatos heterogêneos (ex: Parquet no S3 + SQLite local + CSV)?**
+   <details><summary>Possível resposta</summary>Através de sua arquitetura de drivers unificados e funções de leitura polimórficas (`read_parquet`, `read_csv`, comando `ATTACH`), permitindo combinar fontes externas em um único plano de execução SQL em memória.</details>
+
+2. **O que acontece quando novos dados são gravados em uma tabela Iceberg?**
+   <details><summary>Possível resposta</summary>Novos arquivos Parquet de dados são gerados e um novo arquivo de metadados com um novo `snapshot_id` é registrado atomicamente, sem sobrescrever os arquivos anteriores.</details>
+
+3. **Por que o DuckDB é preferido em relação ao Pandas para consultas analíticas pesadas em arquivos Parquet?**
+   <details><summary>Possível resposta</summary>Porque o DuckDB utiliza execução SQL vetorizada com instruções SIMD, processa conjuntos de dados maiores que a memória RAM (*out-of-core*) e lê apenas as colunas e blocos necessários via filtros de projeção e estatísticas min/max.</details>
+
+---
+
+## Referências
+
+- [DuckDB Iceberg Extension](https://duckdb.org/docs/extensions/iceberg)
+- [DuckDB Parquet Reader](https://duckdb.org/docs/data/parquet/overview)
+- [Apache Iceberg Table Spec](https://iceberg.apache.org/spec/)
+
+---
+
+## Próximo tópico
+
+[Databricks e Athena](../../lakehouse-cloud/): Arquiteturas gerenciadas de Data Lakehouse na nuvem, catálogos unificados e governança corporativa.

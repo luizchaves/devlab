@@ -1,0 +1,215 @@
+---
+title: "Ledger na Nuvem: Provisionamento e Clientes"
+description: "Provisionamento de instâncias de Ledger Confidencial, autenticação segura com certificados TLS e integração via SDKs em Node.js e Python."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O provisionamento de um Ledger Confidencial em nuvem (como o **Azure Confidential Ledger**) estabelece um ambiente seguro executado dentro de enclaves protegidos por hardware na infraestrutura em nuvem, acessível exclusivamente através de endpoints HTTPS com autenticação mútua TLS (mTLS) ou identidades do Azure Entra ID.
+
+---
+
+## Objetivo
+
+Aprender a provisionar um serviço de Ledger Confidencial em nuvem e interagir com ele através de scripts em Node.js e Python. Ao final deste tópico, o leitor será capaz de:
+
+- Provisionar um recurso de Confidential Ledger via Azure CLI / Portal.
+- Configurar papéis de segurança baseados em funções (*RBAC*) para leitores e administradores de auditoria.
+- Gravar entradas imutáveis e recuperar recibos criptográficos utilizando o SDK oficial do Azure em TypeScript.
+- Realizar operações de gravação e consulta em Python utilizando `azure-confidentialledger`.
+
+---
+
+## Provisionando o Ledger via Linha de Comando (Azure CLI)
+
+Você pode criar uma instância de ledger confidencial através da extensão oficial do Azure CLI:
+
+<Steps>
+1. **Instalar a extensão de Confidential Ledger**:
+   ```bash title="Terminal: Instalar extensão no Azure CLI"
+   az extension add --name confidentialledger
+   ```
+
+2. **Criar a instância de Ledger seguro**:
+   ```bash title="Terminal: Criar recurso de ledger"
+   az confidentialledger create \
+       --name "meu-audit-ledger" \
+       --resource-group "rg-financas" \
+       --location "eastus" \
+       --ledger-type "Public"
+   ```
+</Steps>
+
+---
+
+## Clientes de Programação: Node.js e Python
+
+### 1. Cliente Node.js / TypeScript
+
+Instale o SDK oficial do Azure Confidential Ledger e o gerenciador de identidades:
+
+<PackageManagerTabs command="install @azure/confidential-ledger @azure/identity" />
+
+O código abaixo autentica a aplicação utilizando credenciais do ambiente (*DefaultAzureCredential*) e grava um registro no log imutável:
+
+```typescript title="ledger-client.ts: Inserção de registro imutável no Azure Confidential Ledger"
+import { ConfidentialLedgerClient } from '@azure/confidential-ledger';
+import { DefaultAzureCredential } from '@azure/identity';
+
+const ledgerEndpoint = 'https://meu-audit-ledger.confidential-ledger.azure.com';
+
+async function recordAuditEvent() {
+  const credential = new DefaultAzureCredential();
+  const client = new ConfidentialLedgerClient(ledgerEndpoint, credential);
+
+  const payload = {
+    eventType: 'FINANCIAL_TRANSACTION_APPROVED',
+    transactionId: 'TX-948201',
+    amount: 15000.00,
+    approverId: 'USR-8821',
+    timestamp: new Date().toISOString(),
+  };
+
+  console.log('Gravando transação no Confidential Ledger...');
+
+  // Gravação na coleção padrão do ledger
+  const result = await client.path('/app/transactions').post({
+    body: {
+      contents: JSON.stringify(payload),
+    },
+  });
+
+  if (result.status !== '200') {
+    throw new Error(`Falha ao gravar no ledger: ${result.status}`);
+  }
+
+  const transactionId = result.body.transactionId;
+  console.log(`Transação gravada com sucesso! ID imutável: ${transactionId}`);
+}
+
+recordAuditEvent().catch(console.error);
+```
+
+### 2. Cliente Python
+
+Instale os pacotes oficiais via pip:
+
+```bash title="Terminal: Instalação dos pacotes Azure em Python"
+pip install azure-confidentialledger azure-identity
+```
+
+```python title="ledger_client.py: Gravação e leitura no Ledger em Python"
+import json
+from azure.confidentialledger import ConfidentialLedgerClient
+from azure.identity import DefaultAzureCredential
+
+ledger_endpoint = "https://meu-audit-ledger.confidential-ledger.azure.com"
+credential = DefaultAzureCredential()
+
+client = ConfidentialLedgerClient(ledger_endpoint, credential)
+
+# Prepara os dados de auditoria
+audit_data = {
+    "acao": "ALTERACAO_PERMISSAO_ROOT",
+    "usuario": "admin_marcos",
+    "ip": "192.168.1.105",
+    "resultado": "SUCESSO"
+}
+
+# Envia o registro para o log imutável
+post_poller = client.begin_post_ledger_entry(
+    entry={"contents": json.dumps(audit_data)}
+)
+entry_result = post_poller.result()
+
+print(f"Transação confirmada no Ledger ID: {entry_result['transactionId']}")
+
+# Leitura da entrada gravada
+entry = client.get_ledger_entry(transaction_id=entry_result['transactionId'])
+print("Conteúdo recuperado do Ledger:", entry['contents'])
+```
+
+---
+
+## Exercício
+
+Com base nas etapas de conexão ao Confidential Ledger, responda:
+
+1. Por que o SDK utiliza o `DefaultAzureCredential` em vez de uma chave de API fixa em código?
+2. O que representa o `transactionId` retornado após uma gravação no ledger?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o `DefaultAzureCredential` adota as melhores práticas de identidade gerenciada (*Managed Identities*) em nuvem, autenticando via certificados, variáveis de ambiente ou login do Azure CLI sem armazenar segredos estáticos no código fonte.
+
+  2. Representa o identificador sequencial da transação no bloco criptográfico imutável, que serve como chave primária para consultar o registro e solicitar o recibo de prova de Merkle.
+</details>
+
+---
+
+## Desafio
+
+Escreva uma rotina em TypeScript ou Python que envie uma lista de 3 assinaturas de contratos para o Confidential Ledger e capture os IDs de transação de cada uma, salvando um arquivo JSON local contendo os metadados para apresentação a auditores externos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript
+  import { ConfidentialLedgerClient } from '@azure/confidential-ledger';
+  import { DefaultAzureCredential } from '@azure/identity';
+  import * as fs from 'node:fs';
+
+  const client = new ConfidentialLedgerClient(
+    'https://meu-audit-ledger.confidential-ledger.azure.com',
+    new DefaultAzureCredential()
+  );
+
+  async function submitContracts() {
+    const contracts = ['Contrato A-101', 'Contrato B-202', 'Contrato C-303'];
+    const auditLog = [];
+
+    for (const item of contracts) {
+      const res = await client.path('/app/transactions').post({
+        body: { contents: JSON.stringify({ contract: item, date: new Date().toISOString() }) },
+      });
+      auditLog.push({ contract: item, txId: res.body.transactionId });
+    }
+
+    fs.writeFileSync('audit_report.json', JSON.stringify(auditLog, null, 2));
+    console.log('Relatório de auditoria gerado em audit_report.json');
+  }
+
+  submitContracts();
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a diferença entre o tipo de Ledger 'Public' e 'Private' no Azure Confidential Ledger?**
+   <details><summary>Possível resposta</summary>No modo 'Public', qualquer pessoa com o link pode verificar os recibos criptográficos publicamente, enquanto no modo 'Private' tanto a leitura de dados quanto a verificação de recibos exigem autenticação estrita no Azure Entra ID.</details>
+
+2. **Como a aplicação sabe se uma transação foi apenas recebida ou formalmente consolidada na árvore de Merkle?**
+   <details><summary>Possível resposta</summary>Através do status retornado pelos métodos de polling (`begin_post_ledger_entry` em Python ou checagem de recibo), que passa do estado 'Pending' para 'Committed'.</details>
+
+3. **Como revogar o acesso de um usuário ao Confidential Ledger?**
+   <details><summary>Possível resposta</summary>Removendo a atribuição de papel (*Role Assignment*) do usuário nas políticas de controle de acesso (IAM) do recurso de Ledger no portal da nuvem.</details>
+
+---
+
+## Referências
+
+- [Azure SDK for JavaScript: Confidential Ledger](https://learn.microsoft.com/javascript/api/@azure/confidential-ledger)
+- [Azure SDK for Python: Confidential Ledger](https://learn.microsoft.com/python/api/azure-confidentialledger)
+- [Azure Confidential Computing Overview](https://azure.microsoft.com/solutions/confidential-compute/)
+
+---
+
+## Próximo tópico
+
+[Recursos de Nuvem e Auditoria Criptográfica](../operations/): Validação de recibos criptográficos externos, trilhas forenses e conformidade WORM.

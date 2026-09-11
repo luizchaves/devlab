@@ -1,0 +1,223 @@
+---
+title: "immudb: Instalação e Clientes"
+description: "Inicialização do servidor immudb com Docker Compose, autenticação com o CLI immuclient e conexão via SDKs em Node.js e Python."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+A maneira mais rápida e reprodutível de executar o **immudb** em ambiente de desenvolvimento local é através de containers Docker. O pacote oficial inclui o motor do banco de dados na porta `3322` e uma interface web de métricas na porta `9497`.
+
+---
+
+## Objetivo
+
+Subir o servidor immudb via Docker Compose, conectar e executar comandos interativos com o CLI oficial `immuclient` e integrar o banco a scripts em Node.js e Python. Ao final deste tópico, o leitor será capaz de:
+
+- Configurar e iniciar o container do immudb com persistência de dados em volume.
+- Autenticar-se no servidor via linha de comando utilizando o `immuclient`.
+- Escrever scripts de inserção e verificação criptográfica em TypeScript/Node.js.
+- Conectar pipelines em Python utilizando a biblioteca oficial `immudb-py`.
+
+---
+
+## Ambiente Docker Compose
+
+O arquivo de configuração abaixo inicializa o servidor com persistência em disco:
+
+<SourceCode path="examples/courses/database/servers/immudb-server/docker-compose.yml" />
+
+<Steps>
+1. **Iniciar o servidor**:
+   ```bash title="Terminal: Subir o immudb em segundo plano"
+   docker compose up -d
+   ```
+
+2. **Verificar os logs de inicialização**:
+   ```bash title="Terminal: Conferir logs do serviço"
+   docker logs -f immudb-server
+   ```
+</Steps>
+
+---
+
+## Utilizando o CLI Oficial (immuclient)
+
+Você pode interagir com o immudb diretamente dentro do container ou instalando o binário `immuclient`:
+
+<Steps>
+1. **Abrir a sessão interativa via Docker**:
+   ```bash title="Terminal: Executar o immuclient no container"
+   docker exec -it immudb-server immuclient
+   ```
+
+2. **Autenticação**:
+   O usuário padrão de administração é `immudb` com a senha padrão `immudb`.
+
+3. **Comandos básicos chave-valor**:
+   ```text title="Sessão interativa do immuclient"
+   immudb 127.0.0.1:3322> login immudb
+   Password:
+   Logged in!
+
+   immudb 127.0.0.1:3322> set usuario:101 '{"nome": "Carlos", "saldo": 1500.00}'
+   tx: 1 | md5: b9...
+
+   immudb 127.0.0.1:3322> get usuario:101
+   key: usuario:101
+   value: {"nome": "Carlos", "saldo": 1500.00}
+   tx: 1
+   ```
+</Steps>
+
+---
+
+## Clientes de Programação: Node.js e Python
+
+### 1. Cliente Node.js / TypeScript
+
+Instale o SDK oficial do immudb para Node.js:
+
+<PackageManagerTabs command="install immudb-node" />
+
+O código a seguir realiza a autenticação, insere um registro e solicita a validação com prova criptográfica:
+
+```typescript title="client.ts: Inserção e validação segura no immudb com Node.js"
+import { ImmudbClient } from 'immudb-node';
+
+async function main() {
+  const client = new ImmudbClient({
+    address: '127.0.0.1',
+    port: 3322,
+  });
+
+  await client.login({
+    user: 'immudb',
+    password: 'immudb',
+  });
+
+  console.log('Autenticado com sucesso no immudb!');
+
+  // Inserção com gravação no log imutável
+  const tx = await client.set({
+    key: 'transacao:pix:9481',
+    value: JSON.stringify({
+      origem: '101',
+      destino: '202',
+      valor: 250.00,
+      data: new Date().toISOString(),
+    }),
+  });
+
+  console.log(`Transação confirmada no bloco ID: ${tx.id}`);
+
+  // Leitura com verificação criptográfica (Verified Get)
+  const entry = await client.verifiedGet({
+    key: 'transacao:pix:9481',
+  });
+
+  console.log('Dado verificado matematicamente:', entry.value.toString());
+}
+
+main().catch(console.error);
+```
+
+### 2. Cliente Python
+
+Instale o pacote oficial via pip:
+
+```bash title="Instalação do SDK Python"
+pip install immudb-py
+```
+
+```python title="client.py: Conexão e inserção em Python no immudb"
+from immudb.client import ImmudbClient
+import json
+
+client = ImmudbClient("127.0.0.1:3322")
+client.login("immudb", "immudb")
+
+# Inserção chave-valor
+payload = json.dumps({"evento": "TRANSFERENCIA", "valor": 500.0, "status": "APROVADO"})
+tx_header = client.set(b"auditoria:evento:1", payload.encode("utf-8"))
+print(f"Evento registrado na transação: {tx_header.id}")
+
+# Consulta com verificação de prova de inclusão (Verified Get)
+read_entry = client.verifiedGet(b"auditoria:evento:1")
+print(f"Valor verificado: {read_entry.value.decode('utf-8')}")
+```
+
+---
+
+## Exercício
+
+Pratique a inicialização e escrita no immudb:
+
+1. Suba o container do immudb utilizando o `docker-compose.yml`.
+2. Acesse o `immuclient` e grave uma chave `config:sistema` com um valor de teste.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Executar `docker compose up -d` na pasta do projeto.
+  2. Executar `docker exec -it immudb-server immuclient` e dentro do prompt executar `set config:sistema '{"versao": "2.0"}'`.
+</details>
+
+---
+
+## Desafio
+
+Crie um script em Python ou Node.js que grave 5 eventos de log de auditoria em sequência no immudb e, em seguida, utilize a função de histórico (`history`) para recuperar e imprimir todas as versões e timestamps da mesma chave.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python
+  from immudb.client import ImmudbClient
+
+  client = ImmudbClient("127.0.0.1:3322")
+  client.login("immudb", "immudb")
+
+  chave = b"status_servidor"
+
+  # Grava sucessivas alterações
+  for i in range(1, 6):
+      client.set(chave, f"Estado {i}".encode("utf-8"))
+
+  # Recupera o histórico imutável
+  historico = client.history(chave, offset=0, limit=10, desc=False)
+  print(f"Total de revisões históricas encontradas: {len(historico)}")
+  for entry in historico:
+      print(f"TxID: {entry.tx} | Valor: {entry.value.decode('utf-8')}")
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a diferença entre a operação `get` comum e a operação `verifiedGet` no immudb?**
+   <details><summary>Possível resposta</summary>O `get` comum apenas busca o valor no servidor. O `verifiedGet` solicita a prova criptográfica da Árvore de Merkle e valida localmente no cliente se o hash daquele valor corresponde ao estado confiável do banco.</details>
+
+2. **Qual a porta padrão gRPC utilizada pelo immudb?**
+   <details><summary>Possível resposta</summary>A porta padrão é a `3322`.</details>
+
+3. **Como o immudb protege a senha de administração padrão?**
+   <details><summary>Possível resposta</summary>Recomenda-se alterar a senha inicial com o comando `immuadmin user changepassword` ou definindo a variável de ambiente `IMMUDB_ADMIN_PASSWORD` no momento da inicialização.</details>
+
+---
+
+## Referências
+
+- [immudb CLI (immuclient) Guide](https://docs.immudb.io/master/immuclient.html)
+- [immudb Node.js SDK](https://github.com/codenotary/immudb-node)
+- [immudb Python SDK](https://github.com/codenotary/immudb-py)
+
+---
+
+## Próximo tópico
+
+[Operações Imutáveis e Provas Criptográficas](../ledger/): Linguagem SQL imutável, histórico de revisões, verificação de não-repúdio e auditoria forense.

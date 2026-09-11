@@ -1,0 +1,225 @@
+---
+title: "Data Lakehouse na Nuvem: Provisionamento e Clientes"
+description: "Criação de tabelas Apache Iceberg no Amazon Athena e AWS Glue, autenticação segura e execução de consultas analíticas via SDKs em Node.js e Python."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O provisionamento de um Lakehouse em nuvem moderna não exige a instalação de máquinas virtuais permanentes. No ecossistema AWS, por exemplo, o **Amazon Athena** combinado ao **AWS Glue Data Catalog** permite criar e consultar tabelas no formato Apache Iceberg diretamente sobre arquivos no Amazon S3 utilizando comandos SQL padronizados.
+
+---
+
+## Objetivo
+
+Aprender a criar tabelas Apache Iceberg no Amazon Athena, configurar o catálogo de metadados e conectar aplicações utilizando os SDKs oficiais em TypeScript/Node.js e Python. Ao final deste tópico, o leitor será capaz de:
+
+- Criar bancos de dados e tabelas Iceberg no Amazon Athena com particionamento temporal.
+- Configurar permissões de IAM para leitura e escrita no S3 e catálogo Glue.
+- Executar consultas analíticas assíncronas via SDK da AWS em Node.js (`@aws-sdk/client-athena`).
+- Integrar pipelines analíticos em Python via biblioteca `boto3` e `PyIceberg`.
+
+---
+
+## Criando Tabelas Apache Iceberg no Amazon Athena
+
+Para criar uma tabela gerenciada sob o formato Iceberg no Athena, especifica-se a propriedade `table_type = 'ICEBERG'`:
+
+```sql title="DDL: Criação de tabela Iceberg no Amazon Athena"
+CREATE DATABASE IF NOT EXISTS invest_lakehouse;
+
+CREATE TABLE invest_lakehouse.daily_quotes (
+    symbol string,
+    quote_date date,
+    open_price decimal(10,2),
+    close_price decimal(10,2),
+    volume bigint
+)
+PARTITIONED BY (year(quote_date), symbol)
+LOCATION 's3://meu-bucket-lakehouse/iceberg/daily_quotes/'
+TBLPROPERTIES (
+    'table_type' = 'ICEBERG',
+    'format' = 'parquet',
+    'write_compression' = 'zstd'
+);
+```
+
+---
+
+## Inserção e Mutação de Dados ACID
+
+Diferente de tabelas externas simples baseadas em arquivos Parquet soltos, tabelas Iceberg no Athena suportam operações completas de `INSERT`, `UPDATE`, `DELETE` e `MERGE`:
+
+```sql title="Comandos DML transacionais no Athena Iceberg"
+-- Inserção de novos registros
+INSERT INTO invest_lakehouse.daily_quotes 
+VALUES ('PETR4', DATE '2026-09-11', 37.50, 38.20, 1500000);
+
+-- Atualização pontual com garantia ACID
+UPDATE invest_lakehouse.daily_quotes
+SET close_price = 38.25
+WHERE symbol = 'PETR4' AND quote_date = DATE '2026-09-11';
+
+-- Deleção em conformidade legal (ex: LGPD)
+DELETE FROM invest_lakehouse.daily_quotes
+WHERE quote_date < DATE '2021-01-01';
+```
+
+---
+
+## Clientes de Programação: Node.js e Python
+
+Como o Athena executa consultas de forma assíncrona em um cluster distribuído, as aplicações disparam a query, recebem um `QueryExecutionId` e aguardam a conclusão para recuperar as páginas de resultados:
+
+### 1. Cliente Node.js / TypeScript
+
+Instale o cliente oficial do Athena no SDK v3 da AWS:
+
+<PackageManagerTabs command="install @aws-sdk/client-athena" />
+
+```typescript title="athena-client.ts: Execução de query assíncrona no Athena"
+import { 
+  AthenaClient, 
+  StartQueryExecutionCommand, 
+  GetQueryExecutionCommand, 
+  GetQueryResultsCommand 
+} from '@aws-sdk/client-athena';
+
+const client = new AthenaClient({ region: 'us-east-1' });
+
+async function runQuery(sql: string) {
+  // 1. Inicia a execução da consulta
+  const start = await client.send(new StartQueryExecutionCommand({
+    QueryString: sql,
+    QueryExecutionContext: { Database: 'invest_lakehouse' },
+    ResultConfiguration: { OutputLocation: 's3://meu-bucket-lakehouse/query-results/' }
+  }));
+
+  const queryId = start.QueryExecutionId;
+  console.log(`Consulta iniciada: ${queryId}`);
+
+  // 2. Aguarda até a query finalizar
+  let status = 'RUNNING';
+  while (status === 'RUNNING' || status === 'QUEUED') {
+    await new Promise((r) => setTimeout(r, 1000));
+    const check = await client.send(new GetQueryExecutionCommand({ QueryExecutionId: queryId }));
+    status = check.QueryExecution?.Status?.State || 'FAILED';
+  }
+
+  if (status !== 'SUCCEEDED') {
+    throw new Error(`Falha na execução da query: ${status}`);
+  }
+
+  // 3. Recupera os resultados
+  const results = await client.send(new GetQueryResultsCommand({ QueryExecutionId: queryId }));
+  console.log('Resultados obtidos com sucesso:', results.ResultSet?.Rows?.length);
+}
+
+runQuery('SELECT symbol, avg(close_price) FROM daily_quotes GROUP BY symbol;');
+```
+
+### 2. Cliente Python
+
+Em Python, a biblioteca `boto3` permite disparar consultas no Athena ou utilizar `PyIceberg` para ler os metadados diretamente:
+
+```python title="athena_query.py: Execução de consulta no Athena em Python"
+import boto3
+import time
+
+athena = boto3.client('athena', region_name='us-east-1')
+
+def execute_athena_query(query: str, database: str, output_s3: str):
+    response = athena.start_query_execution(
+        QueryString=query,
+        QueryExecutionContext={'Database': database},
+        ResultConfiguration={'OutputLocation': output_s3}
+    )
+    query_id = response['QueryExecutionId']
+    
+    while True:
+        state = athena.get_query_execution(QueryExecutionId=query_id)['QueryExecution']['Status']['State']
+        if state in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
+            break
+        time.sleep(1)
+        
+    if state == 'SUCCEEDED':
+        results = athena.get_query_results(QueryExecutionId=query_id)
+        return results['ResultSet']['Rows']
+    else:
+        raise RuntimeError(f"Query finalizou com status: {state}")
+
+rows = execute_athena_query(
+    "SELECT symbol, sum(volume) FROM daily_quotes GROUP BY symbol",
+    "invest_lakehouse",
+    "s3://meu-bucket-lakehouse/query-results/"
+)
+print(f"Total de linhas retornadas: {len(rows)}")
+```
+
+---
+
+## Exercício
+
+Com base nas etapas de configuração, responda:
+
+1. Por que o Amazon Athena exige a configuração de um caminho de saída no S3 (`OutputLocation`) antes de executar consultas?
+2. Qual a função da cláusula `TBLPROPERTIES ('table_type' = 'ICEBERG')` na criação de tabelas no Athena?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o Athena é um motor serverless que descarrega os arquivos resultantes da consulta (em formato CSV ou metadados) diretamente em um bucket S3 para permitir o download paginado dos dados pelo cliente.
+
+  2. Ela instrui o AWS Glue Data Catalog e o motor Athena a gerenciar a tabela através das especificações e árvores de metadados transacionais do Apache Iceberg, habilitando garantias ACID e comandos como `UPDATE` e `DELETE`.
+</details>
+
+---
+
+## Desafio
+
+Configure um pipeline em Python que utilize a biblioteca `pyiceberg` para conectar diretamente a um catálogo REST de Iceberg, inspecionar os snapshots históricos de uma tabela e imprimir a data e o ID de cada alteração confirmada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python
+  from pyiceberg.catalog import load_catalog
+
+  # Carrega o catálogo configurado
+  catalog = load_catalog("glue_catalog", **{"type": "glue"})
+  table = catalog.load_table("invest_lakehouse.daily_quotes")
+
+  print("Histórico de Snapshots da Tabela:")
+  for snapshot in table.snapshots():
+      print(f"Snapshot ID: {snapshot.snapshot_id} | Data: {snapshot.timestamp_ms} | Operação: {snapshot.summary.operation}")
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Como o particionamento `PARTITIONED BY (year(quote_date), symbol)` no Iceberg melhora a performance de queries?**
+   <details><summary>Possível resposta</summary>Permite transformar datas em anos automaticamente sem criar colunas artificiais (*Partition Transforms*), podando arquivos inteiros fora do escopo de tempo da consulta.</details>
+
+2. **Por que o modelo assíncrono do Athena (`StartQueryExecution` $\rightarrow$ `GetQueryResults`) é adequado para Big Data?**
+   <details><summary>Possível resposta</summary>Porque consultas analíticas em petabytes de dados podem levar de segundos a minutos, evitando manter conexões HTTP bloqueadas e facilitando o cancelamento ou verificação sob demanda.</details>
+
+3. **Qual a vantagem de usar o AWS Glue Data Catalog como metastore unificado?**
+   <details><summary>Possível resposta</summary>Centraliza esquemas, tipos e permissões para múltiplos motores da AWS (Athena, EMR, Redshift Spectrum, SageMaker) sem necessidade de redefinir as tabelas em cada ferramenta.</details>
+
+---
+
+## Referências
+
+- [AWS SDK for JavaScript v3: Athena Client](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/client/athena/)
+- [Boto3: Athena Client Documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/athena.html)
+- [PyIceberg: Python Library for Apache Iceberg](https://py.iceberg.apache.org/)
+
+---
+
+## Próximo tópico
+
+[Recursos de Nuvem e Operações](../operations/): Compactação de arquivos, governança de dados, otimização de custos e *Data Lineage*.

@@ -1,0 +1,159 @@
+---
+title: "Data Lakehouse na Nuvem: Recursos de Nuvem e Operações"
+description: "Governança corporativa, compactação de arquivos (Compaction), controle de custos em Big Data, segurança em nível de coluna e linhagem de dados."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A operação de um Data Lakehouse em escala corporativa envolve desafios contínuos de desempenho, custo e conformidade regulatória. Conforme milhares de micro-lotes de dados são ingeridos diariamente no *Object Storage*, rotinas de manutenção preventiva tornam-se indispensáveis para evitar a degradação de performance conhecida como o "problema dos pequenos arquivos" (*Small Files Problem*).
+
+---
+
+## Objetivo
+
+Dominar as práticas operacionais de manutenção, governança e otimização financeira de um Data Lakehouse gerenciado na nuvem. Ao final deste tópico, o leitor será capaz de:
+
+- Executar rotinas de compactação de pequenos arquivos (*Compaction / Optimize*) em tabelas Iceberg e Delta Lake.
+- Gerenciar o ciclo de vida e expurgo de snapshots históricos (*Snapshot Expiration / VACUUM*).
+- Aplicar políticas de segurança em nível de linha e mascaramento de colunas (*RLS / CLS*).
+- Otimizar o custo de consultas reduzindo o volume de dados escaneados no S3.
+
+---
+
+## O Problema dos Pequenos Arquivos e Compactação (Compaction)
+
+Quando sistemas de streaming ou processos de ingestão contínua gravam dados a cada poucos segundos, o Lakehouse acumula milhões de arquivos Parquet minúsculos (com poucos kilobytes cada):
+
+<Mermaid title="Processo de Compactação (Compaction / Rewriting) em tabelas de Lakehouse">
+{`
+flowchart LR
+    subgraph Fragmented ["1. Estado Fragmentado (Iniciado)"]
+        direction TB
+        F1["file_1.parquet (50 KB)"]
+        F2["file_2.parquet (80 KB)"]
+        F3["file_3.parquet (120 KB)"]
+        F4["file_4.parquet (40 KB)"]
+    end
+
+    subgraph CompactionJob ["2. Job de Compactação (Athena / Spark)"]
+        direction TB
+        J1["Reescreve arquivos contíguos<br/>sem alterar dados lógicos"]
+    end
+
+    subgraph Optimized ["3. Estado Otimizado (Consolidado)"]
+        direction TB
+        O1["target_optimized_block_1.parquet<br/>(Tamanho Ideal: 128 MB a 512 MB)"]
+    end
+
+    Fragmented --> CompactionJob --> Optimized
+`}
+</Mermaid>
+
+A proliferação de arquivos pequenos gera sobrecarga extrema de chamadas HTTP `GET` de metadados no S3. A **Compactação** (*Compaction* ou `OPTIMIZE`) reúne múltiplos arquivos minúsculos em blocos consolidados com o tamanho ideal de 128 MB a 512 MB:
+
+```sql title="Comando de otimização de tabela Iceberg no Amazon Athena"
+-- Executa a compactação de arquivos fragmentados
+OPTIMIZE invest_lakehouse.daily_quotes REWRITE DATA
+USING BIN_PACK;
+```
+
+---
+
+## Expurgo de Snapshots Antigos e Limpeza de Lixo (VACUUM)
+
+Como tabelas Iceberg preservam o histórico de alterações para permitir *Time Travel*, arquivos excluídos ou substituídos continuam ocupando espaço e gerando custos de armazenamento até serem formalmente purgados:
+
+```sql title="Expurgo de snapshots históricos no Athena Iceberg"
+-- Remove snapshots anteriores a 7 dias e deleta arquivos físicos órfãos
+VACUUM invest_lakehouse.daily_quotes;
+```
+
+<Aside type="caution" title="Cuidado com a Janela de Retenção">
+  Ao executar o `VACUUM`, todas as versões históricas anteriores à janela configurada são eliminadas fisicamente do S3. Certifique-se de que nenhum modelo de machine learning ou relatório de auditoria dependa de snapshots mais antigos antes de executar a limpeza definitiva.
+</Aside>
+
+---
+
+## Governança e Segurança: RLS e Mascaramento de Dados
+
+Em ambientes corporativos regidos pela LGPD ou GDPR, analistas de negócios não devem ter acesso indiscriminado a dados pessoais (como CPF ou saldo financeiro total).
+
+Através do **AWS Lake Formation** ou **Databricks Unity Catalog**, definem-se políticas de segurança sem duplicar as tabelas físicas:
+
+```sql title="Exemplo de política de mascaramento de dados (Data Masking)"
+-- Usuários do grupo 'marketing' enxergam apenas o domínio do e-mail
+-- Ex: 'carlos@example.com' vira '*****@example.com'
+-- Saldo financeiro é omitido ou arredondado
+```
+
+---
+
+## Estratégias para Redução de Custos em Consultas
+
+Como provedores como AWS Athena e Google BigQuery cobram pelo volume de dados escaneados em cada consulta SQL, aplicar boas práticas reduz a fatura em mais de 90%:
+
+1. **Evite `SELECT *`**: Sempre projete apenas as colunas estritamente necessárias. Como o formato Parquet é colunar, selecionar 2 colunas em uma tabela de 50 colunas lê apenas 4% do volume de dados em disco.
+2. **Utilize Colunas de Partição no `WHERE`**: Inclua filtros baseados na chave de particionamento (ex: `WHERE year = 2026 AND month = 09`) para acionar a poda de partições (*Partition Pruning*).
+3. **Adote Compressão ZSTD ou Snappy**: Garante compactação agressiva dos blocos binários de dados no S3.
+
+---
+
+## Exercício
+
+Com base nas práticas de governança e operações em Lakehouse, responda:
+
+1. O que acontece com a performance de consultas analíticas quando um Data Lakehouse acumula milhões de arquivos com menos de 100 KB?
+2. Qual a diferença entre a operação de `OPTIMIZE` e a operação de `VACUUM` em uma tabela Iceberg?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A performance degrada significativamente, pois o motor gasta a maior parte do tempo abrindo e fechando conexões HTTP no S3 para ler metadados de arquivos minúsculos em vez de processar dados em alta velocidade com vetorização.
+
+  2. O `OPTIMIZE` reescreve arquivos fragmentados em blocos maiores sem apagar o histórico de snapshots. O `VACUUM` expurga permanentemente arquivos de dados antigos e metadados que já não pertencem à janela de retenção ativa, liberando espaço físico no disco.
+</details>
+
+---
+
+## Desafio
+
+Uma organização ingere 10 GB de eventos financeiros por dia em tabelas Iceberg no S3. Crie um plano de governança operacional semanal automatizado contendo as etapas de compactação, expurgo de snapshots e auditoria de acessos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O plano semanal executa:
+  1. **Domingo às 02:00**: Job agendado via AWS EventBridge/Step Functions disparando `OPTIMIZE invest_lakehouse.transactions REWRITE DATA USING BIN_PACK` para consolidar os arquivos da semana.
+  2. **Domingo às 04:00**: Execução de `VACUUM invest_lakehouse.transactions` com retenção configurada para 30 dias para expurgar dados órfãos.
+  3. **Segunda-feira às 06:00**: Relatório automatizado de auditoria via AWS CloudTrail/Lake Formation validando que apenas perfis autorizados acessaram colunas sensíveis durante a semana.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Por que a operação `BIN_PACK` é eficiente na compactação de tabelas Iceberg?**
+   <details><summary>Possível resposta</summary>Porque agrupa arquivos pequenos em arquivos de tamanho alvo uniforme rapidamente sem recalcular chaves de ordenação caras.</details>
+
+2. **Como a poda de partições (*Partition Pruning*) economiza dinheiro no Amazon Athena?**
+   <details><summary>Possível resposta</summary>Evita a leitura de diretórios inteiros no S3 que não correspondem aos filtros da consulta, reduzindo diretamente a quantidade de terabytes escaneados cobrados pelo serviço.</details>
+
+3. **O que é Segurança em Nível de Coluna (*Column-Level Security - CLS*)?**
+   <details><summary>Possível resposta</summary>É o controle de acesso que permite liberar a tabela para um usuário, mas ocultar ou mascarar automaticamente colunas sensíveis (como salários, senhas e CPFs) de acordo com o papel do usuário.</details>
+
+---
+
+## Referências
+
+- [AWS: Optimizing Apache Iceberg Tables in Amazon Athena](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-optimizing-tables.html)
+- [Databricks: Compact and Vacuum Delta Tables](https://docs.databricks.com/delta/vacuum.html)
+- [Apache Iceberg Maintenance Operations](https://iceberg.apache.org/docs/latest/maintenance-operations/)
+
+---
+
+## Próximo tópico
+
+[Visão geral do immudb](../../immudb/): Fundamentos de bancos de dados imutáveis e ledger com verificação criptográfica SHA-256 e árvores de Merkle.

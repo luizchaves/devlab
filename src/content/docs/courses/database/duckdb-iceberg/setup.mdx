@@ -1,0 +1,233 @@
+---
+title: "DuckDB e Iceberg: Instalação e Clientes"
+description: "Guia prático de instalação do DuckDB CLI, carregamento de extensões para nuvem e Iceberg, e conexão através de bibliotecas em Node.js e Python."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O DuckDB destaca-se pela simplicidade de configuração: por ser um motor embutido (*in-process*), não requer a inicialização de um daemon servidor permanente ou configuração complexa de portas de rede. Você pode utilizá-lo via utilitário de linha de comando (*CLI*) ou embutido diretamente nas bibliotecas de Node.js e Python.
+
+---
+
+## Objetivo
+
+Instalar o utilitário DuckDB CLI, habilitar as extensões essenciais para consumo de *Object Storage* e tabelas abertas (*httpfs* e *iceberg*), e executar consultas analíticas via scripts em Node.js e Python. Ao final deste tópico, o leitor será capaz de:
+
+- Instalar o DuckDB CLI em diferentes sistemas operacionais.
+- Instalar e carregar extensões dinâmicas no DuckDB.
+- Conectar o DuckDB a baldes S3 e MinIO locais com credenciais de acesso.
+- Escrever scripts analíticos em TypeScript/Node.js e Python.
+
+---
+
+## Instalação do DuckDB CLI
+
+O utilitário oficial de linha de comando é um binário único e autocontido com suporte a auto-completar e renderização formatada de tabelas no terminal:
+
+<Steps>
+1. **Instalação no macOS / Linux / Windows**:
+   ```bash title="Instalação via gerenciadores de pacotes"
+   # macOS (Homebrew)
+   brew install duckdb
+
+   # Windows (Winget)
+   winget install DuckDB.cli
+
+   # Linux (Download direto do binário)
+   curl -LO https://github.com/duckdb/duckdb/releases/latest/download/duckdb_cli-linux-amd64.zip
+   unzip duckdb_cli-linux-amd64.zip && sudo mv duckdb /usr/local/bin/
+   ```
+
+2. **Iniciando a sessão interativa**:
+   ```bash title="Iniciar sessão em memória ou com persistência"
+   # Sessão temporária em memória RAM
+   duckdb
+
+   # Sessão persistida em arquivo local
+   duckdb lakehouse.duckdb
+   ```
+</Steps>
+
+---
+
+## Gerenciamento de Extensões
+
+O DuckDB adota uma arquitetura modular onde recursos avançados de conectividade são instalados sob demanda:
+
+```sql title="Instalação e carregamento de extensões no DuckDB CLI"
+-- Extensão para leitura de URLs HTTP/HTTPS e Object Storage (S3 / MinIO)
+INSTALL httpfs;
+LOAD httpfs;
+
+-- Extensão para leitura de tabelas no formato Apache Iceberg
+INSTALL iceberg;
+LOAD iceberg;
+
+-- Extensão para suporte nativo a credenciais AWS IAM
+INSTALL aws;
+LOAD aws;
+```
+
+---
+
+## Conexão ao MinIO e Amazon S3
+
+Para permitir que o DuckDB leia e grave arquivos Parquet em *Object Storage*, configuram-se as variáveis de ambiente ou parâmetros de sessão:
+
+```sql title="Configuração de credenciais S3 / MinIO dentro do DuckDB"
+-- Parâmetros para MinIO local na porta 9000
+SET s3_endpoint = '127.0.0.1:9000';
+SET s3_use_ssl = false;
+SET s3_url_style = 'path';
+SET s3_access_key_id = 'admin';
+SET s3_secret_access_key = 'admin123';
+```
+
+---
+
+## Clientes de Programação: Node.js e Python
+
+A integração com aplicações ocorre importando as bibliotecas oficiais do DuckDB:
+
+### 1. Cliente Node.js / TypeScript
+
+Instale o pacote oficial `@duckdb/node-api` ou `duckdb`:
+
+<PackageManagerTabs command="install duckdb" />
+
+O código abaixo executa uma consulta analítica agregada diretamente em arquivos Parquet:
+
+```typescript title="client.ts: Consulta analítica em Node.js com DuckDB"
+import { Database } from 'duckdb';
+
+const db = new Database(':memory:');
+
+db.all(`
+  SELECT 
+    symbol,
+    count(*) AS total_trades,
+    avg(price) AS avg_price
+  FROM read_parquet('https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet')
+  GROUP BY symbol
+  LIMIT 5;
+`, (err, res) => {
+  if (err) {
+    console.error('Erro na consulta:', err);
+    return;
+  }
+  console.table(res);
+});
+```
+
+### 2. Cliente Python
+
+O ecossistema Python oferece integração perfeita com Pandas, Polars e PyArrow:
+
+```bash title="Instalação dos pacotes em Python"
+pip install duckdb pyarrow
+```
+
+```python title="client.py: Consulta analítica em Python com DuckDB"
+import duckdb
+
+# Conexão em memória com extensões carregadas
+con = duckdb.connect()
+con.execute("INSTALL httpfs; LOAD httpfs;")
+
+# Leitura e agregação analítica direta
+df = con.execute("""
+    SELECT 
+        date_trunc('month', quote_date) AS month,
+        avg(close_price) AS avg_close,
+        max(high_price) AS max_high
+    FROM read_parquet('s3://invest-lakehouse/market_data/*.parquet')
+    GROUP BY 1
+    ORDER BY 1
+""").df()
+
+print(df.head())
+```
+
+---
+
+## Exercício
+
+Pratique a inicialização e configuração de extensões:
+
+1. Inicie o DuckDB no terminal e carregue a extensão `httpfs`.
+2. Escreva um comando SQL no DuckDB para inspecionar o esquema de um arquivo Parquet remoto via `DESCRIBE SELECT * FROM read_parquet('...')`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Executar `duckdb` e digitar `INSTALL httpfs; LOAD httpfs;`.
+  2. Executar `DESCRIBE SELECT * FROM read_parquet('https://duckdb.org/data/prices.parquet');`.
+</details>
+
+---
+
+## Desafio
+
+Crie um script em Python que leia múltiplos arquivos Parquet locais de cotações financeiras, calcule a média móvel dos preços de fechamento por ativo e salve o resultado em um novo arquivo Parquet particionado por ano e mês.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```python
+  import duckdb
+
+  con = duckdb.connect()
+  con.execute("""
+      COPY (
+          SELECT 
+              symbol,
+              quote_date,
+              close_price,
+              avg(close_price) OVER (
+                  PARTITION BY symbol 
+                  ORDER BY quote_date 
+                  ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+              ) AS moving_avg_7d,
+              year(quote_date) AS year,
+              month(quote_date) AS month
+          FROM read_parquet('data/raw_quotes/*.parquet')
+      ) TO 'data/processed_lakehouse' (
+          FORMAT PARQUET, 
+          PARTITION_BY (year, month), 
+          OVERWRITE_OR_IGNORE
+      );
+  """)
+  print("Processamento concluído e salvo em data/processed_lakehouse.")
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Por que o DuckDB não requer a configuração de usuários, senhas e portas de rede para rodar localmente?**
+   <details><summary>Possível resposta</summary>Porque o DuckDB é uma biblioteca embutida (*in-process*), operando diretamente no espaço de memória da aplicação ou do processo CLI, semelhante ao SQLite.</details>
+
+2. **Qual a função da extensão `httpfs` no DuckDB?**
+   <details><summary>Possível resposta</summary>Permite realizar requisições HTTP e comunicar-se nativamente com protocolos de armazenamento de objetos compatíveis com S3, GCS e Azure Blob Storage.</details>
+
+3. **Como o DuckDB exporta os resultados de uma consulta analítica diretamente para arquivos Parquet particionados?**
+   <details><summary>Possível resposta</summary>Através da cláusula `COPY (SELECT ...) TO 'caminho' (FORMAT PARQUET, PARTITION_BY (coluna1, coluna2))`.</details>
+
+---
+
+## Referências
+
+- [DuckDB CLI Documentation](https://duckdb.org/docs/api/cli/overview)
+- [DuckDB Node.js API](https://duckdb.org/docs/api/nodejs/overview)
+- [DuckDB Python API](https://duckdb.org/docs/api/python/overview)
+- [DuckDB S3 / Httpfs Extension](https://duckdb.org/docs/extensions/httpfs/s3api)
+
+---
+
+## Próximo tópico
+
+[Consultas e Operações em Lakehouse](../queries/): Leitura em lote de arquivos Parquet, metadados do Iceberg, junções analíticas e *Time Travel*.

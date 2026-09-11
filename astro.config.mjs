@@ -1693,6 +1693,84 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Data Lakehouse e Big Data',
+              items: [
+                {
+                  label: 'DuckDB e Apache Iceberg',
+                  items: [
+                    {
+                      label: 'Visão geral do Lakehouse',
+                      link: '/courses/database/duckdb-iceberg/',
+                    },
+                    {
+                      label: 'Instalação e cliente',
+                      link: '/courses/database/duckdb-iceberg/setup/',
+                    },
+                    {
+                      label: 'Consultas e Operações em Lakehouse',
+                      link: '/courses/database/duckdb-iceberg/queries/',
+                    },
+                  ],
+                },
+                {
+                  label: 'Databricks e Athena',
+                  items: [
+                    {
+                      label: 'Visão geral de Databricks e Athena',
+                      link: '/courses/database/lakehouse-cloud/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/lakehouse-cloud/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/lakehouse-cloud/operations/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              label: 'Banco Imutável (Ledger)',
+              items: [
+                {
+                  label: 'immudb',
+                  items: [
+                    {
+                      label: 'Visão geral do immudb',
+                      link: '/courses/database/immudb/',
+                    },
+                    {
+                      label: 'Instalação e cliente',
+                      link: '/courses/database/immudb/setup/',
+                    },
+                    {
+                      label: 'Operações e Provas Criptográficas',
+                      link: '/courses/database/immudb/ledger/',
+                    },
+                  ],
+                },
+                {
+                  label: 'Ledger na Nuvem',
+                  items: [
+                    {
+                      label: 'Visão geral de Ledger na Nuvem',
+                      link: '/courses/database/ledger-cloud/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/ledger-cloud/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Auditoria Criptográfica',
+                      link: '/courses/database/ledger-cloud/operations/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
               label: 'Armazenamento de Objetos',
               items: [
                 {

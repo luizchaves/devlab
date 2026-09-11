@@ -1,0 +1,149 @@
+---
+title: "Banco Imutável (Ledger): immudb"
+description: "Visão geral do immudb, banco de dados imutável de código aberto de altíssimo desempenho com garantias criptográficas baseadas em árvores de Merkle e modo estritamente append-only."
+course: database
+sidebar:
+  label: "Visão geral do immudb"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **immudb** é um banco de dados de código aberto escrito em Go, desenhado especificamente para fornecer **imutabilidade com prova criptográfica** e altíssima vazão de escrita (capaz de ultrapassar milhões de transações por segundo). Diferente dos bancos de dados relacionais e NoSQL tradicionais, no immudb registros históricos não podem ser alterados, sobrescritos ou apagados, nem mesmo por administradores de sistema com privilégios de superusuário (*root*).
+
+---
+
+## Objetivo
+
+Compreender os princípios de funcionamento de bancos de dados imutáveis (*Ledger Databases*) e a arquitetura criptográfica do immudb. Ao final deste tópico, o leitor será capaz de:
+
+- Explicar o modelo de dados estritamente *append-only* e como ele difere de transações destrutivas em bancos convencionais.
+- Descrever a estrutura de **Árvores de Merkle** (*Merkle Trees*) e o cálculo contínuo de hashes SHA-256 para detecção de fraudes.
+- Entender o conceito de **Provas Criptográficas** (*Merkle Proofs*) para validação de integridade no lado do cliente (*Trust-No-One Architecture*).
+- Avaliar cenários de negócio onde bancos ledger são indispensáveis (auditoria contábil, registros médicos, cadeias de custódia e conformidade regulatória).
+
+---
+
+## O Problema da Confiança em Bancos Tradicionais
+
+Em bancos de dados relacionais padrão (como PostgreSQL, MySQL ou Oracle), o modelo relacional clássico permite a execução de comandos destrutivos `UPDATE` e `DELETE`. Se um atacante obtiver acesso às credenciais de administrador ou um operador interno mal-intencionado alterar o valor de uma transferência bancária direto na tabela, a alteração se torna o novo estado oficial sem deixar evidências matemáticas de violação.
+
+O **immudb** elimina essa vulnerabilidade tratando os dados como fatos históricos inalteráveis:
+
+<Mermaid title="Detecção matemática de adulteração via Árvore de Merkle no immudb">
+{`
+flowchart TD
+    subgraph MerkleTree ["Raiz da Árvore de Merkle (State Root Hash)"]
+        direction TB
+        R["Hash Raiz: 9f8a... (Assinado Criptograficamente)"]
+        H12["Hash(H1 + H2)"] --> R
+        H34["Hash(H3 + H4)"] --> R
+        
+        H1["Hash Tx 1"] --> H12
+        H2["Hash Tx 2"] --> H12
+        H3["Hash Tx 3"] --> H34
+        H4["Hash Tx 4"] --> H34
+    end
+
+    subgraph DataBlocks ["Registros em Disco (Append-Only)"]
+        direction LR
+        D1["Tx 1: Depósito R$ 100"]
+        D2["Tx 2: Transferência R$ 50"]
+        D3["Tx 3: Pagamento R$ 30"]
+        D4["Tx 4: PIX R$ 20"]
+    end
+
+    D1 --> H1
+    D2 --> H2
+    D3 --> H3
+    D4 --> H4
+`}
+</Mermaid>
+
+Qualquer tentativa de alterar retroativamente um único caractere na transação `D1` altera o `Hash H1`, que invalida o `Hash H12`, que por sua vez quebra o `Hash Raiz R`. A fraude é detectada imediatamente em tempo real por qualquer cliente conectado.
+
+---
+
+## Como o immudb Funciona
+
+O immudb combina simplicidade operacional com rigor matemático através de quatro pilares fundamentais:
+
+### 1. Modelo Híbrido: Chave-Valor e SQL Completo
+O immudb permite armazenar dados tanto no modelo chave-valor simples (`SET`, `GET`) quanto através de tabelas relacionais estruturadas com comandos SQL padrão (`CREATE TABLE`, `INSERT`, `SELECT`, `JOIN`).
+
+### 2. Histórico Completo de Versões (Time Travel Nativo)
+Quando uma "atualização" é executada em uma chave ou registro SQL, o immudb não substitui os bytes antigos em disco. Ele grava uma nova entrada no topo do log com um novo identificador de transação (`txID`). Comandos nativos como `HISTORY` e `ZScan` permitem consultar todas as versões históricas que uma entidade já teve desde a criação do banco.
+
+### 3. Prova Criptográfica no Cliente (Client-Side Verification)
+Os SDKs do immudb realizam verificação criptográfica no lado do cliente: a cada leitura importante, o cliente solicita uma prova matemática (*Audit Proof*) demonstrando que o dado retornado faz parte legítima do estado atual do log imutável, sem depender de "confiança cega" no servidor.
+
+### 4. Modo de Proteção WORM (Write Once, Read Many)
+Suporta períodos de retenção obrigatória onde nenhuma exclusão ou alteração de configurações é aceita pelo motor até o término do prazo estabelecido por normas legais.
+
+---
+
+## Quando usar, e quando não usar?
+
+A tabela abaixo resume os critérios de decisão para o uso de bancos ledger:
+
+| Critério | Recomendado | Não Recomendado |
+| :--- | :--- | :--- |
+| **Requisito de Auditoria** | Conformidade legal rígida (SOX, LGPD, HIPAA, ISO 27001), histórico fiscal e trilhas forenses. | Aplicações comuns onde logs simples em texto ou tabelas de histórico são suficientes. |
+| **Segurança contra Fraude** | Sistemas financeiros, rastreabilidade de pagamentos, custódia de contratos e votos digitais. | Dados temporários, caches em memória, contadores voláteis ou sessões web descartáveis. |
+| **Desempenho e Vazão** | Alta performance de inserção sequencial em disco com validação criptográfica em lote. | Cenários onde atualizações e deleções físicas frequentes no mesmo registro são a regra. |
+| **Arquitetura Operacional** | Banco centralizado e rápido com integridade comparável a blockchains corporativos sem a lentidão do consenso distribuído. | Sistemas abertos descentralizados que exigem consenso entre nós não confiáveis de múltiplas empresas (usar Blockchain pública/Web3). |
+
+---
+
+## Exercício
+
+Com base nos fundamentos de bancos imutáveis, responda:
+
+1. Por que um comando `UPDATE` no immudb não apaga nem sobrescreve o valor anterior gravado em disco?
+2. Como uma Árvore de Merkle permite comprovar que uma transação pertence ao histórico sem precisar recalcular o hash de todos os registros do banco?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o immudb opera em modo estritamente *append-only*. Toda modificação gera uma nova versão com um novo número de transação e timestamp no log, preservando o valor anterior intacto para fins de auditoria e recuperação histórica.
+
+  2. Porque a Árvore de Merkle organiza os hashes em uma estrutura hierárquica binária. Para provar a inclusão de uma folha, basta fornecer o caminho dos hashes irmãos (*Merkle Path*), exigindo apenas $O(\log N)$ hashes em vez de varrer todas as $N$ transações do banco.
+</details>
+
+---
+
+## Desafio
+
+Uma cooperativa de crédito necessita de um sistema de livro-razão (*ledger*) para registrar todos os lançamentos de débito e crédito das contas dos cooperados. Explique como o immudb garante que nenhum colaborador interno com privilégios de TI possa alterar o saldo de um cliente no passado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O sistema grava cada movimentação via `INSERT` em uma tabela imutável do immudb. O motor calcula o hash criptográfico encadeado de cada lançamento e atualiza a raiz da árvore de Merkle. Mesmo que um administrador acesse o servidor fisicamente ou tente modificar o arquivo de banco via script, a alteração quebra a assinatura matemática da árvore. Além disso, as aplicações clientes armazenam periodicamente o hash de estado (*State Root*) assinado, permitindo que qualquer auditor externo valide a integridade de todas as transações desde a origem.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual a diferença entre um banco Ledger como o immudb e uma blockchain como Bitcoin ou Ethereum?**
+   <details><summary>Possível resposta</summary>O immudb é um banco de dados de alto desempenho com integridade criptográfica gerenciado de forma centralizada ou distribuída, processando centenas de milhares de transações por segundo sem a lentidão, custo computacional e complexidade de mineração ou consenso de blockchains descentralizadas.</details>
+
+2. **O que é o `txID` (Transaction ID) no immudb?**
+   <details><summary>Possível resposta</summary>É o identificador sequencial monotônico gerado para cada bloco atômico de operações confirmado no log imutável.</details>
+
+3. **Como o immudb lida com o direito ao esquecimento previsto na LGPD?**
+   <details><summary>Possível resposta</summary>Através de recursos criptográficos de criptografia por chave descartável (*Crypto-Shredding*): os dados pessoais são gravados criptografados com uma chave exclusiva; para "apagar" o titular, descarta-se a chave de decodificação, tornando os dados ilegíveis no histórico imutável.</details>
+
+---
+
+## Referências
+
+- [immudb Official Documentation](https://docs.immudb.io/)
+- [Codenotary: Cryptographic Ledger for Enterprise](https://codenotary.com/)
+- [Ralph Merkle: Protocols for Public Key Cryptosystems (Merkle Trees Paper)](https://www.merkle.com/papers/Thesis1979.pdf)
+
+---
+
+## Próximo tópico
+
+[Instalação e Clientes](setup/): Execução do immudb com Docker Compose, uso do cliente `immuclient` e bibliotecas em Node.js e Python.

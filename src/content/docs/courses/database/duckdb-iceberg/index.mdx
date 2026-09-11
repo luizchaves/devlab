@@ -1,0 +1,160 @@
+---
+title: "Data Lakehouse: DuckDB e Apache Iceberg"
+description: "Visão geral da arquitetura de Data Lakehouse com DuckDB e formatos de tabela aberta como Apache Iceberg e Delta Lake sobre armazenamento de objetos colunar."
+course: database
+sidebar:
+  label: "Visão geral do Lakehouse"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Data Lakehouse** representa a convergência entre a flexibilidade de baixo custo dos *Data Lakes* (armazenamento de arquivos brutos no S3 ou MinIO) e as garantias transacionais ACID dos *Data Warehouses*. Motores analíticos modernos como o **DuckDB** atuam como o "SQLite dos dados analíticos", permitindo executar consultas SQL vetorizadas diretamente sobre arquivos colunares Parquet e tabelas abertas gerenciadas pelo **Apache Iceberg**.
+
+---
+
+## Objetivo
+
+Compreender os fundamentos da arquitetura de Data Lakehouse e o funcionamento de formatos de tabela aberta (Apache Iceberg) consultados via motores analíticos incorporados (DuckDB). Ao final deste tópico, o leitor será capaz de:
+
+- Explicar a separação arquitetural entre a camada de armazenamento de arquivos (*Parquet no Object Storage*), a camada de metadados transacionais (*Iceberg*) e a camada de computação (*DuckDB*).
+- Descrever os benefícios dos formatos de tabela aberta contra formatos de arquivos isolados (garantias ACID, *Time Travel* e evolução de esquemas).
+- Comparar o processamento analítico em memória do DuckDB com sistemas distribuídos massivos.
+- Avaliar quando adotar uma arquitetura de Data Lakehouse em comparação a bancos relacionais ou *Data Warehouses* tradicionais.
+
+---
+
+## O Conceito de Data Lakehouse
+
+Historicamente, as empresas mantinham dois ecossistemas analíticos separados: um Data Lake para armazenar terabytes de arquivos brutos sem governança e um Data Warehouse caro para carregar subconjuntos de dados estruturados.
+
+O Data Lakehouse unifica essas duas pontas através de três camadas totalmente desacopladas:
+
+<Mermaid title="Arquitetura desacoplada do Data Lakehouse moderno">
+{`
+flowchart TD
+    subgraph Compute ["1. Camada de Computação (Query Engine)"]
+        direction LR
+        C1["DuckDB (In-Process)"] ~~~ C2["ClickHouse"] ~~~ C3["Trino / Presto"]
+    end
+
+    subgraph Metadata ["2. Camada de Formato de Tabela Aberta"]
+        direction TB
+        M1["Metadados Transacionais ACID<br/>(Apache Iceberg / Delta Lake)"]
+        M2["Snapshots, Manifest Lists e Particionamento"]
+    end
+
+    subgraph Storage ["3. Camada de Armazenamento Físico"]
+        direction TB
+        S1[("Arquivos Colunares Parquet / ORC")]
+        S2["Amazon S3 / Google Cloud Storage / MinIO"]
+    end
+
+    Compute --> Metadata
+    Metadata --> Storage
+`}
+</Mermaid>
+
+Essa separação garante que nenhum motor possua controle exclusivo sobre os dados, permitindo trocar ou combinar ferramentas analíticas sem mover um único byte de armazenamento.
+
+---
+
+## Por Que o Apache Iceberg se Tornou o Padrão
+
+Armazenar apenas arquivos `.parquet` soltos em diretórios no S3 traz problemas graves: não há atomicidade em operações de escrita (se um job falhar no meio, leituras verão dados parciais corrompidos), renomear partições é lento e não existe histórico de modificações.
+
+O **Apache Iceberg** resolve essas limitações estruturando o catálogo em uma árvore de metadados imutáveis:
+
+### 1. Garantias ACID e Isolamento de Leituras
+As alterações produzem novos arquivos de metadados (*Snapshots*). Leitores consultam consistentemente o último snapshot confirmado, sem nunca travar ou enxergar arquivos temporários gravados por tarefas em andamento (*Snapshot Isolation*).
+
+### 2. Viagem no Tempo (Time Travel)
+Como cada transação cria um novo snapshot sem apagar os arquivos físicos antigos imediatamente, é possível executar consultas apontando para qualquer instante do passado (`AS OF '2026-01-01'`) ou comparar versões para auditoria e reprodução de modelos de machine learning.
+
+### 3. Evolução de Esquemas e Particionamento Oculto
+O Iceberg permite adicionar, renomear ou remover colunas sem reescrever tabelas inteiras. Além disso, o *Hidden Partitioning* evita que usuários precisem conhecer os detalhes físicos de diretórios em consultas SQL (como `year=2026/month=09`).
+
+---
+
+## O Papel do DuckDB no Ecossistema
+
+O **DuckDB** é um motor de banco de dados SQL analítico orientado a colunas, sem dependências externas, projetado para rodar incorporado no mesmo processo da aplicação (em Python, Node.js, Rust ou binário CLI independente):
+
+<Aside type="tip" title="O SQLite dos Dados Analíticos">
+Assim como o SQLite roda embutido em aplicações transacionais sem necessidade de servidor, o DuckDB roda embutido para cargas analíticas e de ciência de dados. Ele lê arquivos Parquet locais ou remotos no S3 com zero cópia de memória (*zero-copy*) e velocidade próxima ao C++.
+</Aside>
+
+O motor inclui recursos de alto nível:
+
+- **Execução Vetorizada**: Processa lotes de dados utilizando instruções SIMD dos processadores modernos.
+- **Processamento Acima da Memória (*Out-of-Core*)**: Capacidade de executar agregações e junções em conjuntos de dados maiores do que a memória RAM disponível na máquina, descarregando dados temporários em disco.
+- **Integração Nativa com Formatos Abertos**: Através de extensões oficiais (`iceberg`, `httpfs`, `aws`, `parquet`), o DuckDB consulta diretamente repositórios em nuvem pública ou local via protocolo S3.
+
+---
+
+## Quando usar, e quando não usar?
+
+A tabela abaixo sintetiza a matriz de decisão para adoção de arquiteturas baseadas em Data Lakehouse e DuckDB:
+
+| Critério | Recomendado | Não Recomendado |
+| :--- | :--- | :--- |
+| **Padrão de Consulta** | Agregações analíticas, relatórios, processamento ETL e exploração de dados em larga escala. | Transações interativas de baixa latência (*OLTP*) com milhares de inserções pontuais por segundo. |
+| **Formato de Dados** | Conjuntos massivos de dados colunares estruturados ou semiestruturados (*Parquet*). | Dados transacionais altamente mutáveis com dependência de chaves estrangeiras rígidas. |
+| **Volume de Armazenamento** | De gigabytes a petabytes no Object Storage com custo ultrabaixo. | Pequenos bancos locais com menos de 100 MB onde o SQLite é suficiente. |
+| **Governança e Portabilidade** | Múltiplas ferramentas (Python, BI, DuckDB, Trino) acessando a mesma fonte sem replicação. | Aplicações monolíticas fechadas que não compartilham dados analíticos com outros sistemas. |
+
+---
+
+## Exercício
+
+Analise o cenário e responda às perguntas conceituais:
+
+1. Qual é a função da camada de metadados do Apache Iceberg em relação aos arquivos Parquet gravados no S3?
+2. Por que o DuckDB é classificado como um motor analítico embutido (*in-process*) e em que ele se diferencia de um cluster Spark ou Trino?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A camada de metadados gerencia transações ACID, isolamento de leituras concorrentes, mapeamento de arquivos em snapshots imutáveis, controle de evolução de esquema e viagens no tempo (*Time Travel*), evitando a inconsistência de gerenciar arquivos Parquet soltos em pastas.
+
+  2. Porque o DuckDB roda diretamente dentro do processo da própria aplicação (como biblioteca ou CLI local), sem a necessidade de provisionar, configurar ou orquestrar um cluster distribuído com múltiplos nós e mestre/trabalhadores.
+</details>
+
+---
+
+## Desafio
+
+Uma equipe de dados precisa gerar relatórios diários de fechamento cruzando 50 milhões de cotações em Parquet com dados de clientes. Descreva como estruturar esse pipeline utilizando MinIO como Object Storage, Apache Iceberg para versionamento e DuckDB para geração dos relatórios.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O MinIO armazena os arquivos Parquet das cotações em um bucket dedicado. O Apache Iceberg organiza esses dados em uma tabela com snapshots diários. O script em Python ou Node.js importa a biblioteca do DuckDB, carrega as extensões `httpfs` e `iceberg`, conecta-se ao MinIO e executa as consultas analíticas de agrupamento e médias diretamente via SQL, salvando o resultado final em Parquet ou consumindo em dataframes para exportação.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que diferencia um Data Lakehouse de um Data Lake tradicional?**
+   <details><summary>Possível resposta</summary>O Data Lakehouse adiciona formatos de tabela aberta com suporte a transações ACID, governança, particionamento inteligente e histórico de snapshots sobre os arquivos brutos do Data Lake.</details>
+
+2. **Como o isolamento por snapshot do Iceberg impede que leitores vejam dados parciais?**
+   <details><summary>Possível resposta</summary>As leituras apontam para um ID de snapshot fixo já confirmado. Novas gravações geram arquivos novos e atualizam o ponteiro do snapshot atomicamente apenas quando toda a transação é finalizada.</details>
+
+3. **Qual a vantagem do formato Parquet para consultas analíticas?**
+   <details><summary>Possível resposta</summary>Organização colunar com compressão eficiente, estatísticas embutidas por bloco (min/max) e leitura seletiva apenas das colunas solicitadas no `SELECT` (*projection pushdown*).</details>
+
+---
+
+## Referências
+
+- [Apache Iceberg: Official Documentation](https://iceberg.apache.org/docs/latest/)
+- [DuckDB: An In-Process SQL OLAP Database Management System](https://duckdb.org/docs/)
+- [Delta Lake: Reliable Data Lakes](https://delta.io/)
+- [Apache Parquet: Columnar Storage Format](https://parquet.apache.org/)
+
+---
+
+## Próximo tópico
+
+[Instalação e Clientes](setup/): Instalação do DuckDB, configuração das extensões Iceberg e Httpfs, e conexão com Node.js e Python.
