@@ -1340,7 +1340,7 @@ export default defineConfig({
               items: [
                 { label: 'Conceito e SGBDs', link: '/courses/database/basics/introduction/' },
                 { label: 'Paradigmas de Dados', link: '/courses/database/basics/paradigms/' },
-                { label: 'Motores, Nuvem e Mercado', link: '/courses/database/basics/engines/' },
+                { label: 'SGBDs, Nuvem e Mercado', link: '/courses/database/basics/engines/' },
                 { label: 'Estratégias de Escala', link: '/courses/database/basics/scale/' },
                 { label: 'Administração', link: '/courses/database/basics/administration/' },
               ],
@@ -1390,7 +1390,7 @@ export default defineConfig({
                     },
                     { label: 'Desempenho', link: '/courses/database/sql/performance/' },
                     {
-                      label: 'Comparativo de Motores',
+                      label: 'Comparativo de SGBDs',
                       link: '/courses/database/sql/engines-comparison/',
                     },
                   ],
