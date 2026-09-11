@@ -1435,11 +1435,11 @@ export default defineConfig({
                       label: 'Dialeto e recursos específicos',
                       link: '/courses/database/mysql/sql-dialect/',
                     },
+                    { label: 'Administração', link: '/courses/database/mysql/administration/' },
                     {
                       label: 'Tutorial Prático (monitor_db)',
                       link: '/courses/database/mysql/tutorial/',
                     },
-                    { label: 'Administração', link: '/courses/database/mysql/administration/' },
                   ],
                 },
                 {
