@@ -1,0 +1,161 @@
+---
+title: "MinIO: Operações e API S3"
+description: "Comandos do utilitário mc, integração com o SDK oficial da AWS S3 em Node.js, upload de arquivos, metadados customizados, políticas de acesso e geração de URLs pré-assinadas."
+course: database
+sidebar:
+  label: "Operações e API S3"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+A interação com o **MinIO** ocorre tanto por utilitários de terminal (`mc`) quanto programaticamente através da API Amazon S3. Neste tópico, você aprenderá a executar operações essenciais de ciclo de vida de objetos, aplicar metadados e gerar URLs pré-assinadas (*Presigned URLs*) em aplicações Node.js e TypeScript.
+
+---
+
+## Objetivo
+
+Dominar as operações fundamentais de gerenciamento de objetos no MinIO via linha de comando e através do SDK oficial da AWS em aplicações backend. Ao final do tópico, o leitor deve ser capaz de:
+
+- Utilizar os comandos essenciais do cliente `mc` (`mb`, `cp`, `ls`, `rm`, `share`, `anonymous`).
+- Conectar uma aplicação Node.js ao MinIO utilizando a biblioteca `@aws-sdk/client-s3`.
+- Realizar uploads e downloads com associação de metadados e tipo MIME (`ContentType`).
+- Gerar URLs pré-assinadas (*Presigned URLs*) para upload e download direto pelo cliente.
+- Configurar políticas de acesso anônimo para baldes de conteúdo público.
+
+---
+
+## Comandos Essenciais do MinIO Client (mc)
+
+O script `examples/courses/database/servers/minio-server/commands.sh` reúne as operações mais recorrentes de administração:
+
+<SourceCode
+  path="examples/courses/database/servers/minio-server/commands.sh"
+/>
+
+A tabela abaixo sintetiza os principais comandos do `mc`:
+
+| Comando | Função | Exemplo |
+| :--- | :--- | :--- |
+| `mc mb` | Cria um novo balde (*Make Bucket*) | `mc mb local/fotos-perfil` |
+| `mc cp` | Copia arquivos locais para o bucket ou entre buckets | `mc cp foto.png local/fotos-perfil/u1.png` |
+| `mc ls` | Lista baldes ou objetos com detalhes de tamanho | `mc ls local/fotos-perfil/` |
+| `mc rm` | Remove objetos ou baldes inteiros | `mc rm local/fotos-perfil/u1.png` |
+| `mc share download` | Gera uma URL pré-assinada de download temporária | `mc share download --expire 1h local/fotos-perfil/u1.png` |
+| `mc anonymous set` | Define política de leitura pública anônima no bucket | `mc anonymous set download local/fotos-perfil` |
+
+---
+
+## Integração com Node.js e AWS SDK v3
+
+Como o MinIO implementa fielmente o protocolo S3, utiliza-se o cliente padrão da AWS (`@aws-sdk/client-s3`) apontando para o endpoint local:
+
+<Mermaid title="Fluxo de autenticação do SDK Node.js com o MinIO local">
+{`
+flowchart LR
+    App["Backend Node.js"] -->|"1. S3Client(endpoint: 'http://localhost:9000')"| MinIO[("MinIO Engine")]
+    App -->|"2. PutObjectCommand(Bucket, Key, Body)"| MinIO
+    MinIO -->|"3. Retorna ETag e status 200 OK"| App
+`}
+</Mermaid>
+
+O exemplo abaixo demonstra como configurar o cliente S3 para conversar com o MinIO local:
+
+```typescript
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+// Configuração do cliente apontando para o MinIO local
+const s3 = new S3Client({
+  endpoint: 'http://localhost:9000',
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: 'minioadmin',
+    secretAccessKey: 'miniopassword123',
+  },
+  forcePathStyle: true, // Obrigatório para MinIO e endpoints locais
+});
+```
+
+<Aside type="tip" title="Por que forcePathStyle é obrigatório?">
+  Na AWS S3 pública, a URL costuma usar o estilo virtual host (`https://bucket-name.s3.amazonaws.com`). No MinIO local, o formato deve ser baseado em caminho (`http://localhost:9000/bucket-name/key`), o que é ativado pela flag `forcePathStyle: true`.
+</Aside>
+
+---
+
+## Geração de URLs Pré-assinadas (Presigned URLs)
+
+Para uploads de arquivos pesados (como vídeos ou PDFs), a melhor prática arquitetural é gerar uma **Presigned URL** no backend para que o frontend faça o upload diretamente no MinIO:
+
+<Mermaid title="Arquitetura de upload direto com URL Pré-assinada">
+{`
+flowchart TD
+    Client["Navegador / App Mobile"] -->|"1. POST /api/upload-request (Solicita permissão)"| API["API Backend"]
+    API -->|"2. Gera Presigned URL (Válida por 15 min)"| S3["AWS SDK (@aws-sdk/s3-request-presigner)"]
+    API -->|"3. Retorna { uploadUrl, key }"| Client
+    Client -->|"4. PUT direto no MinIO com arquivo binário"| MinIO[("MinIO Storage")]
+`}
+</Mermaid>
+
+Exemplo de geração da URL de upload no backend:
+
+```typescript
+// Gerar URL temporária para o frontend fazer upload diretamente
+export async function generateUploadUrl(bucket: string, key: string): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: 'image/png',
+  });
+
+  // URL expira automaticamente em 15 minutos (900 segundos)
+  return await getSignedUrl(s3, command, { expiresIn: 900 });
+}
+```
+
+---
+
+## Exercício
+
+Pratique os comandos de manipulação de objetos:
+
+1. Crie um bucket chamado `relatorios-financeiros` com o comando `mc mb`.
+2. Faça o upload de dois arquivos de texto simulando relatórios mensais.
+3. Gere uma URL pré-assinada de download válida por 10 minutos para um dos arquivos e teste o download abrindo a URL no navegador.
+
+---
+
+## Desafio
+
+Implemente uma rota Express em TypeScript (`POST /investimentos/:id/comprovante`) que:
+- Não receba o arquivo no corpo da requisição (*multipart/form-data*), mas gere uma Presigned URL de upload para a chave `comprovantes/inv_<id>_<timestamp>.pdf`.
+- Salve o caminho da chave no banco de dados relacional (ex: SQLite ou PostgreSQL).
+- Retorne a URL pré-assinada para que o cliente realize o envio do PDF diretamente ao MinIO.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Qual é a vantagem do upload multipart (Multipart Upload) em arquivos grandes?</summary>
+O *Multipart Upload* fatia arquivos gigantes (acima de 100 MB ou até 5 TB) em partes menores que são enviadas em paralelo. Se uma parte falhar por oscilação de rede, apenas essa fração é retransmitida, sem a necessidade de recomeçar o upload do arquivo inteiro do início.
+</details>
+
+<details>
+<summary>2. Como o MinIO armazena os metadados de um objeto?</summary>
+Os metadados (como `Content-Type`, data de criação e tags customizadas `x-amz-meta-*`) são armazenados de forma atômica junto com o cabeçalho do objeto no armazenamento persistente, sendo retornados instantaneamente na resposta HTTP das operações `HEAD` e `GET`.
+</details>
+
+---
+
+## Referências
+
+- [MinIO JavaScript Client Guide](https://min.io/docs/minio/linux/developers/javascript/minio-javascript.html)
+- [AWS S3 Request Presigner Documentation](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-s3-request-presigner/)
+- [S3 API Reference Manual](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html)
+
+---
+
+## Próximo tópico
+
+Concluída a prática com o motor de armazenamento de objetos local, conheça os serviços em nuvem gerenciados com **[Amazon S3 e Cloud Storage](../../s3-blob-storage/)**.

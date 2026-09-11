@@ -1,0 +1,163 @@
+---
+title: "MinIO: Armazenamento de Objetos"
+description: "Visão geral do MinIO como motor de Object Storage de código aberto: compatibilidade total com a API Amazon S3, buckets, objetos, metadados, proteção por Erasure Coding e integração com aplicações web."
+course: database
+sidebar:
+  label: "Visão geral do MinIO"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **MinIO** é um servidor de armazenamento de objetos (*Object Storage*) de alto desempenho e código aberto projetado para ser 100% compatível com a API do **Amazon S3**. Ele viabiliza a construção de infraestruturas locais, privadas e em contêineres que operam exatamente com os mesmos SDKs e contratos de nuvem pública, sendo o padrão para desenvolvimento de pipelines de mídia, *Data Lakes* e aplicações nativas em nuvem.
+
+---
+
+## Objetivo
+
+Compreender a arquitetura de armazenamento de objetos com o MinIO, o modelo de endereçamento por baldes e chaves, as garantias de durabilidade e a integração com aplicações backend. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a diferença estrutural entre armazenamento em blocos, sistemas de arquivos hierárquicos e armazenamento de objetos.
+- Descrever o modelo de organização baseado em *Buckets*, *Objects*, prefixos e metadados customizados.
+- Compreender os mecanismos de proteção de dados contra corrupção (*Erasure Coding* e *Bitrot Protection*).
+- Identificar como o MinIO emula a API S3 da AWS permitindo portabilidade total de código.
+- Avaliar cenários de uso para desenvolvimento local, esteiras de testes e ambientes corporativos em Kubernetes.
+
+---
+
+## O Paradigma de Armazenamento de Objetos
+
+Diferente de sistemas de arquivos tradicionais que dependem de árvores profundas de pastas e chamadas de sistema operacionais (POSIX), o armazenamento de objetos trata cada arquivo como um binário atômico e imutável indexável por uma chave única:
+
+<Mermaid title="Comparativo: Sistema de Arquivos POSIX vs. Armazenamento de Objetos S3/MinIO">
+{`
+flowchart TD
+    subgraph POSIX ["1. Sistema de Arquivos Hierárquico (POSIX)"]
+        P1["/var/www/uploads/"] --> P2["subpasta-2026/"]
+        P2 --> P3["arquivo.pdf (Bloqueio de I/O em Nó Único)"]
+    end
+
+    subgraph ObjectStorage ["2. Armazenamento de Objetos (MinIO / S3)"]
+        B["Bucket: 'invest-docs'"]
+        O1["Chave: '2026/arquivo.pdf'"]
+        O2["Metadados: { 'author': 'Ana', 'content-type': 'application/pdf' }"]
+        O3["Payload: Binário Imutável (HTTP GET/PUT direto)"]
+        B --> O1
+        O1 --> O2
+        O1 --> O3
+    end
+`}
+</Mermaid>
+
+A eliminação da hierarquia física de diretórios permite que o MinIO escale horizontalmente para bilhões de objetos distribuídos por dezenas de discos sem degradação de desempenho.
+
+---
+
+## Arquitetura e Recursos do MinIO
+
+O MinIO foi construído em linguagem Go com foco em simplicidade operacional e velocidade extrema:
+
+<Mermaid title="Arquitetura interna e ecossistema de acesso do MinIO">
+{`
+flowchart LR
+    App["Backend Node.js / Python (AWS SDK S3)"] --> S3API["Porta 9000 (API S3 HTTP REST)"]
+    Browser["Navegador Web"] --> Console["Porta 9001 (MinIO Web Console)"]
+    CLI["Terminal / DevOps"] --> MC["MinIO Client (mc)"]
+
+    subgraph MinIOEngine ["Motor MinIO"]
+        S3API --> Core["Core Engine (Go)"]
+        Console --> Core
+        MC --> Core
+        Core --> EC["Erasure Coding (Reed-Solomon)"]
+        Core --> Bitrot["Bitrot Protection (Hashing SHA-256)"]
+    end
+
+    EC --> Disks[("Volumes de Armazenamento em Disco")]
+`}
+</Mermaid>
+
+Os principais diferenciais técnicos do MinIO incluem:
+
+1. **Compatibilidade Rigorosa com a API S3**: Qualquer código escrito com `@aws-sdk/client-s3` em Node.js, `boto3` em Python ou `aws-sdk-go` funciona com o MinIO apenas alterando a URL do *endpoint*.
+2. **Erasure Coding (Código de Eliminação)**: Divide cada objeto em blocos de dados e blocos de paridade (*Reed-Solomon*). Mesmo se metade dos discos falharem simultaneamente, nenhum dado é perdido.
+3. **Proteção contra Bitrot**: Detecta e corrige automaticamente a corrupção silenciosa de dados em nível de hardware através de somas de verificação criptográficas a cada leitura.
+4. **Console Web Integrado**: Interface gráfica intuitiva na porta 9001 para criação de buckets, upload visual, gerenciamento de usuários e auditoria.
+
+---
+
+## Como o Banco de Dados e o MinIO Colaboram
+
+Em arquiteturas modernas de software, o banco de dados e o armazenamento de objetos operam em conjunto:
+
+<Mermaid title="Fluxo de gravação de arquivos com banco de dados e MinIO">
+{`
+flowchart TD
+    Client["App Web / Mobile"] -->|"1. Envia formulário com foto de perfil"| Backend["API Express / Fastify"]
+    Backend -->|"2. Grava binário (avatar.png)"| MinIO[("MinIO / S3 Storage")]
+    MinIO -->|"3. Retorna chave: 'avatars/usr_1.png'"| Backend
+    Backend -->|"4. INSERT INTO users (nome, avatar_url)"| DB[("PostgreSQL / SQLite")]
+    Client -->|"5. GET /users/1 (Recebe URL pública ou pré-assinada)"| Backend
+    Client -->|"6. Download direto da imagem"| MinIO
+`}
+</Mermaid>
+
+Essa separação garante que o banco de dados transacional mantenha suas tabelas leves, rápidas e com backups reduzidos, enquanto o armazenamento de mídia escala independentemente.
+
+---
+
+## Quando usar, e quando não usar?
+
+A tabela abaixo orienta a escolha do MinIO frente a outras alternativas de armazenamento:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Desenvolvimento local e testes integrados de upload compatíveis com AWS S3 | **[MinIO](setup/)** | Sobe em 2 segundos via Docker Compose, sem custo de nuvem e com paridade de API. |
+| Armazenamento corporativo de objetos em nuvem privada (*On-Premise* ou Kubernetes) | **MinIO Enterprise** | Alta performance, resiliência com *Erasure Coding* e compatibilidade S3 nativa. |
+| Produção em nuvem pública (AWS, Azure, GCP) sem gestão de infraestrutura de storage | **[Amazon S3 / Azure Blob Storage](../s3-blob-storage/)** | Serviço 100% gerenciado (*Serverless*), durabilidade de 11 noves e integração global com CDNs. |
+| Dados transacionais com esquemas relacionais, junções e validações | **[PostgreSQL](../postgresql/) / [MySQL](../mysql/)** | O MinIO é para binários opacos; dados estruturados residem no SGBD relacional. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de armazenamento de objetos do MinIO:
+
+1. Por que o MinIO utiliza a API do Amazon S3 como padrão em vez de criar um protocolo proprietário?
+2. Como funciona a proteção por *Erasure Coding* e qual a vantagem frente ao espelhamento tradicional (*RAID 1*)?
+3. Em que porta padrão o MinIO atende requisições da API S3 e em qual porta ele disponibiliza o Console Web?
+
+---
+
+## Desafio
+
+Projete a estratégia de armazenamento para um sistema de gestão de notas fiscais eletrônicas em PDF:
+- A aplicação recebe 200.000 notas fiscais por mês (cerca de 500 KB por arquivo).
+- As notas precisam ficar disponíveis para auditoria fiscal por 5 anos.
+- Desenhe o esquema da tabela no PostgreSQL e descreva como a chave de caminho no MinIO (`bucket/ano/mes/cnpj_chave.pdf`) deve ser estruturada.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é uma URL Pré-assinada (Presigned URL) e por que ela melhora a performance do backend?</summary>
+Uma *Presigned URL* é um endereço web temporário gerado pelo backend com uma assinatura criptográfica de autenticação. Ela permite que o cliente faça upload ou download do arquivo diretamente no MinIO/S3 sem que os megabytes do arquivo trafeguem pelo servidor da API Node.js/Python, desonerando a CPU e a largura de banda do backend.
+</details>
+
+<details>
+<summary>2. O que é Bitrot e como o MinIO protege os arquivos contra ele?</summary>
+*Bitrot* é a degradação silenciosa de bits em discos magnéticos ou SSDs decorrente de desgaste eletromagnético sem que o sistema operacional emita um erro formal. O MinIO calcula somas de verificação SHA-256 e, ao detectar divergências durante uma leitura, reconstrói o bloco corrompido em tempo real utilizando os dados de paridade do *Erasure Coding*.
+</details>
+
+---
+
+## Referências
+
+- [MinIO Official Documentation](https://min.io/docs/minio/linux/index.html)
+- [AWS SDK for JavaScript v3 (S3 Client)](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-s3/)
+- [MinIO GitHub Repository](https://github.com/minio/minio)
+
+---
+
+## Próximo tópico
+
+Aprenda a subir o MinIO localmente com Docker Compose e a configurar o utilitário de terminal em **[MinIO: Instalação e Cliente (mc)](setup/)**.

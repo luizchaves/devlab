@@ -123,6 +123,7 @@
   - [x] `[TASK-040.9]` Reorganizar a sidebar do Guia de Banco de Dados por paradigmas (`Banco Relacional`, `Banco de Documentos`, `Banco Chave-Valor`, etc.), aninhar as Linguagens de Consulta específicas de cada paradigma e criar tópicos de dialetos/peculiaridades SQL para SQLite, PostgreSQL e MySQL
   - [x] `[TASK-040.10]` Expandir a seção 'Projeto e Modelagem' com modelagem não relacional (documentos, chave-valor, grafos, séries temporais e colunar) e padrões de modelagem/auditoria (soft delete com índice parcial, createdAt/updatedAt, colunas computadas/geradas, concorrência otimista e identificadores UUIDv7)
   - [x] `[TASK-040.11]` Criar páginas de visão geral de bancos gerenciados em nuvem (DBaaS) para todos os 7 paradigmas (`Amazon RDS e Aurora`, `MongoDB Atlas e Firestore`, `DynamoDB e Upstash`, `Neo4j AuraDB e Neptune`, `InfluxDB Cloud e Timestream`, `Elastic Cloud e OpenSearch`, `DataStax Astra DB e Keyspaces`), registrando-as na sidebar e no índice do curso
+  - [x] `[TASK-040.12]` Criar a seção de **Armazenamento de Objetos (Storage)** no Guia de Banco de Dados, com ambiente local Docker e utilitário `mc` para **MinIO** (`minio/`, `minio/setup`, `minio/s3-api`) e visão geral de **Amazon S3 e Cloud Storage** (`s3-blob-storage/`), registrando-os na sidebar, catálogo e matriz de decisão
 
 ### Concluídos (Conteúdo)
 

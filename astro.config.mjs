@@ -1598,6 +1598,34 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Armazenamento de Objetos',
+              items: [
+                {
+                  label: 'MinIO',
+                  items: [
+                    { label: 'Visão geral do MinIO', link: '/courses/database/minio/' },
+                    {
+                      label: 'Instalação e cliente (mc)',
+                      link: '/courses/database/minio/setup/',
+                    },
+                    {
+                      label: 'Operações e API S3',
+                      link: '/courses/database/minio/s3-api/',
+                    },
+                  ],
+                },
+                {
+                  label: 'Amazon S3 e Cloud Storage',
+                  items: [
+                    {
+                      label: 'Visão geral de S3 e Blob Storage',
+                      link: '/courses/database/s3-blob-storage/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
               label: 'Referência',
               items: [
                 {

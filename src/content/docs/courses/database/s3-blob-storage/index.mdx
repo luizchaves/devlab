@@ -1,0 +1,177 @@
+---
+title: "Banco de Dados: Amazon S3 e Cloud Storage"
+description: "Visão geral de armazenamento de objetos gerenciado na nuvem: Amazon S3, Azure Blob Storage, Google Cloud Storage, Cloudflare R2, camadas de ciclo de vida, versionamento, políticas de segurança e durabilidade de 11 noves."
+course: database
+sidebar:
+  label: "Visão geral de S3 e Blob Storage"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o ecossistema de armazenamento de objetos gerenciado na nuvem pública (*Managed Object Storage*), com ênfase no **Amazon S3** (o serviço pioneiro e padrão da indústria), no **Azure Blob Storage**, no **Google Cloud Storage (GCS)** e no **Cloudflare R2** (solução com eliminação total de taxas de transferência de saída de dados).
+
+---
+
+## Objetivo
+
+Compreender a arquitetura, as políticas de segurança e as estratégias de otimização de custo de plataformas de armazenamento de objetos em nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o conceito de durabilidade de 99,999999999% (*11 noves*) proporcionada pela replicação automática em múltiplas zonas de disponibilidade.
+- Identificar as diferentes classes de armazenamento (*Storage Classes*) e configurar regras de ciclo de vida (*Lifecycle Rules*) para transição e arquivamento de dados.
+- Diferenciar os modelos de precificação: custo por armazenamento em repouso versus tarifas de transferência de saída (*Egress Fees*).
+- Configurar políticas de balde (*Bucket Policies*), controle de acesso (*IAM / ACLs*) e compartilhamento de recursos entre origens (*CORS*).
+- Integrar o armazenamento em nuvem com redes de distribuição de conteúdo (*CDNs* como CloudFront, Cloudflare e Azure CDN) para entrega rápida na borda.
+
+---
+
+## A Nuvem de Armazenamento de Objetos
+
+O armazenamento de objetos na nuvem transformou a infraestrutura moderna ao oferecer capacidade teoricamente infinita sem necessidade de pré-alocação de volumes ou particionamento de discos:
+
+<Mermaid title="Ecossistema de armazenamento de objetos nas principais nuvens públicas">
+{`
+flowchart TD
+    subgraph MultiCloud ["Provedores de Armazenamento de Objetos"]
+        S3["Amazon S3 (AWS) - Padrão da Indústria"]
+        Blob["Azure Blob Storage (Microsoft Azure)"]
+        GCS["Google Cloud Storage (GCP)"]
+        R2["Cloudflare R2 (Zero Taxas de Egress)"]
+    end
+
+    subgraph Features ["Recursos Nativos Gerenciados"]
+        Tiering["Camadas Automáticas (Intelligent-Tiering)"]
+        Versioning["Versionamento e Proteção contra Exclusão"]
+        CDN["Distribuição Global por CDN (CloudFront / Cloudflare)"]
+        Lifecycle["Políticas de Ciclo de Vida e Expiração"]
+    end
+
+    MultiCloud --> Features
+`}
+</Mermaid>
+
+A durabilidade lendária de 11 noves (*99,999999999%*) significa que, se você armazenar 10.000.000 de objetos no S3, a perda estatística esperada é de apenas um único objeto a cada 10.000 anos.
+
+---
+
+## Camadas de Armazenamento e Ciclo de Vida de Dados
+
+Nem todos os arquivos precisam de acesso imediato em discos ultra-rápidos para sempre. Os provedores de nuvem oferecem **camadas de armazenamento (*Storage Classes*)** para reduzir drasticamente os custos conforme o dado envelhece:
+
+<Mermaid title="Transição de dados através de Políticas de Ciclo de Vida (Lifecycle Rules)">
+{`
+flowchart LR
+    Upload["1. Upload Inicial"] --> Standard["S3 Standard (Acesso Frequente: ~\$0,023/GB)"]
+    Standard -->|"Após 30 dias sem acesso"| IA["S3 Standard-IA (Infrequent Access: ~\$0,0125/GB)"]
+    IA -->|"Após 90 dias"| Glacier["S3 Glacier Flexible (Arquivamento: ~\$0,0036/GB)"]
+    Glacier -->|"Após 365 dias"| Deep["S3 Glacier Deep Archive (Longo Prazo: ~\$0,00099/GB)"]
+    Deep -->|"Após 5 anos"| Expire["Exclusão Automática Definitiva"]
+`}
+</Mermaid>
+
+Os pilares do ciclo de vida incluem:
+
+1. **Camada Quente (*Standard*)**: Projetada para dados ativos acessados com frequência (como fotos de perfil de usuários e arquivos estáticos de sites), entregando latência de milissegundos.
+2. **Camada Fria (*Infrequent Access / Cool*)**: Custo de armazenamento até 50% menor, mas com uma pequena tarifa por gigabyte recuperado, ideal para comprovantes de pagamento e backups mensais.
+3. **Camada de Arquivamento (*Glacier / Archive*)**: Redução de até 90% no custo de armazenamento para retenção de conformidade legal, com tempo de recuperação variando de alguns minutos a horas.
+4. **S3 Intelligent-Tiering**: Monitora os padrões de acesso dos arquivos e move automaticamente os objetos entre camadas quentes e frias sem taxas de recuperação ou necessidade de previsão manual.
+
+---
+
+## O Diferencial do Cloudflare R2: Zero Egress
+
+Um dos maiores custos operacionais em aplicações que distribuem arquivos pesados para milhões de usuários são as **tarifas de transferência de dados de saída (*Egress Fees*)** cobradas pelas nuvens tradicionais (geralmente cerca de \$0,09 por GB transferido para a internet).
+
+O **Cloudflare R2** revolucionou o mercado ao oferecer uma API compatível com o Amazon S3 com **custo zero de transferência de saída**:
+
+<Mermaid title="Comparativo de tráfego de saída: Nuvem Tradicional vs. Cloudflare R2">
+{`
+flowchart TD
+    subgraph Traditional ["Nuvens Tradicionais (AWS S3 / Azure Blob)"]
+        A1["Armazenamento: \$0,023 / GB"]
+        A2["Saída para Internet (Egress): \$0,09 / GB (Custo Elevado)"]
+        A1 ~~~ A2
+    end
+
+    subgraph R2Cloud ["Cloudflare R2"]
+        B1["Armazenamento: \$0,015 / GB"]
+        B2["Saída para Internet (Egress): \$0,00 / GB (GRATUITO)"]
+        B1 ~~~ B2
+    end
+`}
+</Mermaid>
+
+Isso torna o Cloudflare R2 a opção preferida para distribuição de vídeos, feeds de podcasts, assets de jogos e datasets públicos.
+
+---
+
+## Comparativo entre Plataformas de Armazenamento em Nuvem
+
+A tabela abaixo resume as características das principais ofertas de Object Storage:
+
+| Característica | Amazon S3 | Azure Blob Storage | Google Cloud Storage | Cloudflare R2 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Padrão de API** | S3 API (Referência) | Azure Storage REST | GCS XML/JSON API + compatibilidade S3 | S3 API compatível |
+| **Camada Gratuita** | 5 GB por 12 meses | 5 GB por 12 meses | 5 GB perpétuos (us-east1/west1) | 10 GB de armazenamento + 10M de leituras/mês perpétuas |
+| **Taxa de Saída (Egress)** | Paga (~$0,09/GB) | Paga (~$0,08/GB) | Paga (~$0,12/GB) | **Zero (Gratuito)** |
+| **Integração com CDN** | Amazon CloudFront | Azure CDN | Cloud CDN | Cloudflare Global CDN nativa |
+| **Arquivamento Profundo** | S3 Glacier Deep Archive | Azure Archive Storage | Archive Storage | Não possui (camada única quente) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A seleção da plataforma em nuvem depende do ecossistema e do volume de leitura pública:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Aplicação hospedada na AWS com necessidade de integração com IAM, Lambda e CloudFront | **Amazon S3** | Padrão nativo da AWS com maior ecossistema de integrações e *Intelligent-Tiering*. |
+| Streaming de vídeo, assets de jogos e arquivos públicos com alto tráfego de download | **Cloudflare R2** | Elimina completamente as faturas milionárias de *egress* de rede. |
+| Desenvolvimento local, testes automatizados e ambientes isolados *on-premise* | **[MinIO](../minio/)** | Instalação leve em contêiner com 100% de paridade com a API do S3. |
+| Dados com relacionamentos complexos, transações bancárias e validação de chaves | **[Amazon RDS / Aurora](../rds-aurora/)** | Arquivos binários ficam no S3; a consistência relacional reside no Aurora. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de armazenamento de objetos em nuvem:
+
+1. O que significa a garantia de durabilidade de *11 noves* no Amazon S3?
+2. Como o recurso *S3 Intelligent-Tiering* economiza custos de armazenamento sem intervenção manual do desenvolvedor?
+3. Por que o Cloudflare R2 se tornou uma alternativa muito adotada para distribuição de mídias pesadas?
+
+---
+
+## Desafio
+
+Você é o arquiteto de um portal de vídeos onde os usuários fazem upload de arquivos brutos em MP4:
+- O arquivo original em alta resolução (4K) é processado para gerar resoluções menores (1080p, 720p).
+- Os vídeos gerados são assistidos milhões de vezes no primeiro mês, mas raramente acessados após 180 dias.
+- Projete a estratégia de armazenamento utilizando S3 ou R2, definindo classes de armazenamento e regras de ciclo de vida adequadas para minimizar custos operacionais.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é a política de CORS em um balde S3 e quando ela é necessária?</summary>
+CORS (*Cross-Origin Resource Sharing*) é uma regra de segurança configurada no bucket para permitir que navegadores web executando em um domínio (ex: `https://meuapp.com`) façam requisições HTTP diretas de upload ou leitura para o domínio do S3 (`https://meubucket.s3.amazonaws.com`). Sem a política de CORS, o navegador bloqueia a requisição por segurança.
+</details>
+
+<details>
+<summary>2. Como o Versionamento de Objetos protege contra exclusões acidentais ou ataques de Ransomware?</summary>
+Com o versionamento habilitado, quando um arquivo é sobrescrito ou excluído, o S3 preserva todas as versões anteriores gravando um *Delete Marker*. Administradores podem recuperar qualquer versão anterior a qualquer momento ou habilitar o recurso *MFA Delete* (que exige autenticação em dois fatores para exclusão permanente de versões).
+</details>
+
+---
+
+## Referências
+
+- [Amazon S3 User Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html)
+- [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/)
+- [Azure Blob Storage Documentation](https://learn.microsoft.com/azure/storage/blobs/)
+
+---
+
+## Próximo tópico
+
+Agora que você domina os motores relacionais, não-relacionais e o armazenamento de objetos, avance para a modelagem estratégica de dados com **[Projeto Conceitual e Lógico](../modeling/conceptual-logical/)**.
