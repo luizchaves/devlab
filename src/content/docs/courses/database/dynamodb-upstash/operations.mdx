@@ -1,0 +1,163 @@
+---
+title: "DynamoDB e Upstash: Padrões Serverless e Eventos"
+description: "Padrões arquiteturais avançados: Single-Table Design no DynamoDB, Global Secondary Indexes (GSI), DynamoDB Streams com AWS Lambda, expiração com TTL e controle de taxa (Rate Limiting) na borda com Upstash."
+course: database
+sidebar:
+  label: "Padrões serverless e eventos"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A modelagem e operação de bancos chave-valor em nuvem exige padrões arquiteturais especializados. Enquanto bancos relacionais normalizam dados em dezenas de tabelas com `JOINs`, o **Amazon DynamoDB** atinge escala extrema através do **Single-Table Design** e do **DynamoDB Streams**. No ecossistema de borda, o **Upstash** viabiliza controle de taxa (*Rate Limiting*) instantâneo com algoritmos de janela deslizante.
+
+---
+
+## Objetivo
+
+Dominar as técnicas avançadas de modelagem em tabela única, criação de índices secundários, processamento reativo de eventos e limitação de requisições na borda. Ao final do tópico, o leitor deve ser capaz de:
+
+- Modelar entidades heterogêneas (Usuários, Pedidos e Itens) na mesma tabela através do padrão *Single-Table Design*.
+- Criar e consultar Índices Secundários Globais (*GSIs*) para habilitar novos padrões de acesso.
+- Processar alterações em tempo real via *DynamoDB Streams* conectado a funções AWS Lambda.
+- Habilitar o recurso de *Time-to-Live (TTL)* para expiração automática de dados sem custos de capacidade.
+- Implementar limitação de requisições (*Rate Limiting*) com o pacote `@upstash/ratelimit`.
+
+---
+
+## Single-Table Design no DynamoDB
+
+No DynamoDB, criar múltiplas tabelas e fazer consultas em cascata gera sobrecarga de rede e custos elevados. O padrão **Single-Table Design** consolida todas as entidades do sistema em uma única tabela utilizando chaves genéricas (`PK` e `SK`):
+
+<Mermaid title="Exemplo de Single-Table Design com entidades heterogêneas">
+{`
+flowchart TD
+    subgraph SingleTable ["Tabela Única do DynamoDB"]
+        Row1["PK: 'USER#ana' | SK: 'METADATA' | Nome: 'Ana Silva', Email: 'ana@dev.io'"]
+        Row2["PK: 'USER#ana' | SK: 'ORDER#2026-001' | Total: 450.00, Status: 'PAGO'"]
+        Row3["PK: 'USER#ana' | SK: 'ORDER#2026-002' | Total: 120.00, Status: 'PENDENTE'"]
+        Row4["PK: 'ORDER#2026-001' | SK: 'ITEM#LIVRO_JS' | Quantidade: 1, Preco: 80.00"]
+    end
+`}
+</Mermaid>
+
+Com essa estrutura:
+- Para buscar o usuário e todos os seus pedidos de uma só vez: `Query(PK = 'USER#ana', SK begins_with 'ORDER#')` — resolvido em **uma única requisição HTTP**.
+- Para buscar apenas o perfil do usuário: `GetItem(PK = 'USER#ana', SK = 'METADATA')`.
+
+---
+
+## Global Secondary Indexes (GSI)
+
+Quando você precisa consultar dados por um atributo que não faz parte da chave primária original (ex: buscar um pedido pelo seu código `ORDER#2026-001` sem saber qual usuário o comprou), cria-se um **Global Secondary Index (GSI)**:
+
+<Mermaid title="Inversão de chaves com Global Secondary Index (GSI)">
+{`
+flowchart LR
+    subgraph BaseTable ["Tabela Base"]
+        B1["PK: USER#ana | SK: ORDER#2026-001 | Status: PAGO"]
+    end
+
+    subgraph GSI1 ["GSI-1 (Chaves Invertidas)"]
+        G1["GSI1_PK: ORDER#2026-001 | GSI1_SK: USER#ana | Total: 450.00"]
+    end
+
+    B1 -.->|"Replicação Assíncrona Automática"| G1
+`}
+</Mermaid>
+
+O GSI mantém uma partição separada atualizada de forma eventualmente consistente sem impactar as gravações da tabela principal.
+
+---
+
+## Arquitetura Orientada a Eventos com DynamoDB Streams
+
+O **DynamoDB Streams** captura todas as operações de escrita (inserções, atualizações e exclusões) em um log estritamente ordenado e aciona funções AWS Lambda instantaneamente:
+
+<Mermaid title="Pipeline de processamento com DynamoDB Streams e AWS Lambda">
+{`
+flowchart LR
+    App["API"] -->|"1. Salva Pedido"| DDB[("Tabela DynamoDB")]
+    DDB -->|"2. Emite Evento de CDC"| Stream["DynamoDB Stream"]
+    Stream -->|"3. Aciona em Lote"| Lambda["AWS Lambda (Processador)"]
+    Lambda -->|"4. Envia Email / Atualiza Cache"| Services["Notificações / Upstash"]
+`}
+</Mermaid>
+
+---
+
+## Controle de Taxa na Borda (Upstash Rate Limiting)
+
+Para proteger APIs públicas contra abusos e ataques de negação de serviço (*DDoS*), utiliza-se o **Upstash Rate Limit** com o algoritmo *Sliding Window*:
+
+```typescript
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(20, '10 s'), // Permite 20 requisições a cada 10 segundos
+  analytics: true,
+});
+
+export async function handleRequest(ip: string) {
+  const { success, limit, remaining, reset } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return {
+      status: 429,
+      body: 'Limite de requisições excedido. Tente novamente em alguns segundos.',
+    };
+  }
+
+  return { status: 200, remaining };
+}
+```
+
+---
+
+## Exercício
+
+Responda com base nos padrões operacionais de DynamoDB e Upstash:
+
+1. Por que a modelagem *Single-Table Design* é mais eficiente para o DynamoDB do que normalizar entidades em várias tabelas relacionais?
+2. Como o recurso de *TTL (Time-to-Live)* do DynamoDB remove itens expirados sem consumir unidades de capacidade de gravação (*WCU*)?
+3. Qual a diferença entre o algoritmo de limitação *Fixed Window* e *Sliding Window* no controle de requisições?
+
+---
+
+## Desafio
+
+Projete o esquema de Single-Table Design para um sistema de comércio eletrônico:
+- Entidades: `Clientes`, `Endereços de Entrega` e `Pedidos`.
+- Defina a estrutura de `PK`, `SK`, `GSI1_PK` e `GSI1_SK` para permitir:
+  1. Buscar um cliente e todos os seus endereços em 1 leitura.
+  2. Listar todos os pedidos de um cliente ordenados por data.
+  3. Buscar um pedido pelo número da nota fiscal sem saber o ID do cliente.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que acontece se uma partição do DynamoDB sofrer sobrecarga (Hot Key)?</summary>
+Se uma chave de partição específica receber mais de 1.000 gravações por segundo ou 3.000 leituras por segundo, o DynamoDB pode emitir o erro `ProvisionedThroughputExceededException`. A solução arquitetural é aplicar técnicas de *Write Sharding* (adicionando um sufixo randômico à PK, como `EVENT#2026-09-11_N`).
+</details>
+
+<details>
+<summary>2. Como o Upstash QStash complementa o Redis em tarefas assíncronas serverless?</summary>
+O *Upstash QStash* é uma fila de mensagens e agendador de tarefas cron 100% serverless. Ele envia requisições HTTP para endpoints e garante entregas do tipo *At-Least-Once* com retentativas automáticas (*backoff exponencial*), dispensando servidores de workers permanentes.
+</details>
+
+---
+
+## Referências
+
+- [The DynamoDB Book por Alex DeBrie](https://www.dynamodbbook.com/)
+- [AWS DynamoDB Streams and Lambda Guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.html)
+- [Upstash Rate Limiting Documentation](https://docs.upstash.com/redis/sdks/ratelimit-ts/overview)
+
+---
+
+## Próximo tópico
+
+Concluídos os bancos chave-valor, explore a modelagem de conexões complexas e redes em **[Neo4j AuraDB e Amazon Neptune](../../auradb-neptune/)**.

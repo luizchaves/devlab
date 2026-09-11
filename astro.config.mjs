@@ -1425,6 +1425,14 @@ export default defineConfig({
                       label: 'Visão geral de RDS e Aurora',
                       link: '/courses/database/rds-aurora/',
                     },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/rds-aurora/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/rds-aurora/operations/',
+                    },
                   ],
                 },
               ],
@@ -1452,6 +1460,14 @@ export default defineConfig({
                     {
                       label: 'Visão geral de Atlas e Firestore',
                       link: '/courses/database/atlas-firestore/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/atlas-firestore/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/atlas-firestore/operations/',
                     },
                   ],
                 },
@@ -1481,6 +1497,14 @@ export default defineConfig({
                       label: 'Visão geral de DynamoDB e Upstash',
                       link: '/courses/database/dynamodb-upstash/',
                     },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/dynamodb-upstash/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/dynamodb-upstash/operations/',
+                    },
                   ],
                 },
               ],
@@ -1505,6 +1529,14 @@ export default defineConfig({
                     {
                       label: 'Visão geral de AuraDB e Neptune',
                       link: '/courses/database/auradb-neptune/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/auradb-neptune/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/auradb-neptune/operations/',
                     },
                   ],
                 },
@@ -1533,6 +1565,14 @@ export default defineConfig({
                     {
                       label: 'Visão geral de InfluxDB Cloud e Timestream',
                       link: '/courses/database/time-series-cloud/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/time-series-cloud/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/time-series-cloud/operations/',
                     },
                   ],
                 },
@@ -1565,6 +1605,14 @@ export default defineConfig({
                       label: 'Visão geral de Elastic Cloud e OpenSearch',
                       link: '/courses/database/elastic-cloud-opensearch/',
                     },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/elastic-cloud-opensearch/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/elastic-cloud-opensearch/operations/',
+                    },
                   ],
                 },
               ],
@@ -1593,6 +1641,14 @@ export default defineConfig({
                       label: 'Visão geral de Astra DB e Keyspaces',
                       link: '/courses/database/astradb-keyspaces/',
                     },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/astradb-keyspaces/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/astradb-keyspaces/operations/',
+                    },
                   ],
                 },
               ],
@@ -1620,6 +1676,14 @@ export default defineConfig({
                     {
                       label: 'Visão geral de S3 e Blob Storage',
                       link: '/courses/database/s3-blob-storage/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/s3-blob-storage/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/s3-blob-storage/operations/',
                     },
                   ],
                 },

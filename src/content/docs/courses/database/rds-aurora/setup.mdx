@@ -1,0 +1,192 @@
+---
+title: "RDS e Aurora: Provisionamento e Conexão"
+description: "Como provisionar instâncias Amazon RDS e clusters Aurora via AWS Management Console e AWS CLI, configurar grupos de segurança (Security Groups), subnets de VPC e conectar clientes psql e MySQL via TLS."
+course: database
+sidebar:
+  label: "Provisionamento e conexão"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O provisionamento de bancos de dados relacionais gerenciados na nuvem envolve a definição de motores (PostgreSQL ou MySQL), classes de computação, armazenamento e configurações de rede privada (*Virtual Private Cloud - VPC*). Neste tópico, você aprenderá a criar instâncias no **Amazon RDS** e clusters no **Amazon Aurora**, liberar portas com *Security Groups* e conectar clientes com criptografia TLS.
+
+---
+
+## Objetivo
+
+Aprender a provisionar instâncias relacionais gerenciadas na nuvem pública, isolar o acesso em redes virtuais privadas e conectar clientes e SDKs utilizando endpoints de cluster e certificados TLS. Ao final do tópico, o leitor deve ser capaz de:
+
+- Provisionar uma instância no Amazon RDS ou cluster no Amazon Aurora via AWS Console e AWS CLI.
+- Configurar *DB Subnet Groups* e regras de entrada em *Security Groups* para portas padrão (5432 para PostgreSQL e 3306 para MySQL).
+- Diferenciar o *Cluster Endpoint* (escrita e leitura) do *Reader Endpoint* (balanceamento entre réplicas) no Aurora.
+- Estabelecer conexões seguras exigindo certificados de Autoridade Certificadora (*CA*) e TLS.
+- Conectar utilitários de linha de comando (`psql`, `mysql`) e ferramentas visuais como DBeaver ao banco na nuvem.
+
+---
+
+## Topologia de Rede e Endpoints do Aurora
+
+Ao provisionar um cluster Aurora, o serviço cria automaticamente endpoints DNS inteligentes para gerenciar o tráfego da aplicação:
+
+<Mermaid title="Topologia de endpoints e instâncias em um cluster Amazon Aurora">
+{`
+flowchart TD
+    subgraph Clients ["Aplicações e Desenvolvedores"]
+        API["API Backend (Operações de Escrita)"]
+        Dash["Dashboard Analítico (Operações de Leitura)"]
+    end
+
+    subgraph AuroraEndpoints ["Endpoints DNS Gerenciados"]
+        WR_EP["Cluster Endpoint (Escrita - Aponta para o Primário)"]
+        RO_EP["Reader Endpoint (Leitura - Balanceamento Round-Robin)"]
+    end
+
+    subgraph Instances ["Instâncias no Cluster Aurora Multi-AZ"]
+        P[("Instância Primária (AZ-A)")]
+        R1[("Réplica de Leitura 1 (AZ-B)")]
+        R2[("Réplica de Leitura 2 (AZ-C)")]
+    end
+
+    API --> WR_EP --> P
+    Dash --> RO_EP --> R1
+    Dash --> RO_EP --> R2
+`}
+</Mermaid>
+
+Em caso de falha física na instância primária, o Aurora promove uma das réplicas a novo primário e atualiza o *Cluster Endpoint* em menos de 30 segundos, sem exigir alterações de código na aplicação.
+
+---
+
+## Passo a Passo de Provisionamento
+
+<Steps>
+1. **Definir o Security Group de Acesso:**
+
+   Crie um grupo de segurança na VPC autorizando a porta 5432 (PostgreSQL) apenas para o IP da sua aplicação ou faixa CIDR interna:
+
+   ```bash
+   aws ec2 create-security-group \
+     --group-name "db-access-sg" \
+     --description "Acesso restrito ao banco relacional" \
+     --vpc-id "vpc-0a1b2c3d4e5f6"
+   ```
+
+2. **Provisionar um cluster Amazon Aurora PostgreSQL via AWS CLI:**
+
+   Execute o comando de criação do cluster definindo o motor e as credenciais mestras:
+
+   ```bash
+   aws rds create-db-cluster \
+     --db-cluster-identifier "invest-db-cluster" \
+     --engine "aurora-postgresql" \
+     --engine-version "16.2" \
+     --master-username "dbadmin" \
+     --master-user-password "SuaSenhaForte123!" \
+     --vpc-security-group-ids "sg-0123456789abcdef0" \
+     --backup-retention-period 7
+   ```
+
+3. **Adicionar a instância primária de computação:**
+
+   Crie a instância que atuará como nó de escrita no cluster criado:
+
+   ```bash
+   aws rds create-db-instance \
+     --db-instance-identifier "invest-db-instance-1" \
+     --db-cluster-identifier "invest-db-cluster" \
+     --db-instance-class "db.t4g.medium" \
+     --engine "aurora-postgresql"
+   ```
+
+4. **Obter os Endpoints de Conexão:**
+
+   Consulte os endereços DNS gerados para escrita e leitura:
+
+   ```bash
+   aws rds describe-db-clusters \
+     --db-cluster-identifier "invest-db-cluster" \
+     --query "DBClusters[0].[Endpoint,ReaderEndpoint]"
+   ```
+</Steps>
+
+---
+
+## Conexão Segura com TLS/SSL
+
+Em bancos de dados na nuvem, conexões sem criptografia são vulneráveis a interceptações em trânsito. A AWS disponibiliza o pacote de certificados raiz globais para validar a identidade do servidor:
+
+```bash
+# Conectar via psql exigindo verificação de certificado TLS
+psql "host=invest-db-cluster.cluster-xyz.us-east-1.rds.amazonaws.com \
+      port=5432 \
+      dbname=postgres \
+      user=dbadmin \
+      sslmode=verify-full \
+      sslrootcert=global-bundle.pem"
+```
+
+Em aplicações Node.js utilizando `pg` ou Prisma:
+
+```typescript
+// Configuração de conexão no Node.js com SSL obrigatório
+import { Pool } from 'pg';
+import fs from 'node:fs';
+
+export const pool = new Pool({
+  host: process.env.DATABASE_HOST, // Cluster Endpoint
+  port: 5432,
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: 'invest_db',
+  ssl: {
+    rejectUnauthorized: true,
+    ca: fs.readFileSync('./certs/global-bundle.pem').toString(),
+  },
+});
+```
+
+---
+
+## Exercício
+
+Responda com base no provisionamento e conectividade de RDS/Aurora:
+
+1. Por que a aplicação backend deve apontar para o *Cluster Endpoint* e os relatórios analíticos para o *Reader Endpoint*?
+2. O que acontece se o *Security Group* do RDS não tiver uma regra de entrada (*Inbound Rule*) para a porta 5432?
+3. Qual é a finalidade do parâmetro `sslmode=verify-full` na string de conexão do PostgreSQL?
+
+---
+
+## Desafio
+
+Configure um arquivo `.env` para uma aplicação Express que precisa se conectar ao Amazon Aurora PostgreSQL:
+- A API realiza operações de CRUD nos usuários e precisa de consistência imediata.
+- Uma rota especial `GET /relatorios/investimentos-globais` executa uma agregação pesada e deve ser direcionada ao *Reader Endpoint* para não degradar as transações de escrita da API principal.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é um DB Subnet Group no Amazon RDS?</summary>
+Um *DB Subnet Group* é uma coleção de sub-redes privadas de uma VPC que engloba no mínimo duas Zonas de Disponibilidade distintas. Ele define em quais zonas físicas o RDS pode provisionar instâncias de computação e manter instâncias de reserva (*standby*) para alta disponibilidade.
+</details>
+
+<details>
+<summary>2. Como os grupos de parâmetros (DB Parameter Groups) controlam o comportamento do motor?</summary>
+Os *Parameter Groups* atuam como o arquivo de configuração (`postgresql.conf` ou `my.cnf`) do banco na nuvem. Eles permitem ajustar parâmetros globais como `max_connections`, `shared_buffers`, fuso horário e extensões sem acesso direto ao sistema operacional da máquina virtual.
+</details>
+
+---
+
+## Referências
+
+- [Amazon RDS Provisioning Documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SettingUp.html)
+- [Amazon Aurora Endpoints Guide](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html)
+- [Connecting to Amazon RDS with SSL/TLS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html)
+
+---
+
+## Próximo tópico
+
+Aprofunde-se nos recursos de sustentação operacional, autoescala e failover com **[RDS e Aurora: Alta Disponibilidade e Operações](../operations/)**.

@@ -1,0 +1,219 @@
+---
+title: "Amazon S3 e Cloud Storage: Provisionamento e Clientes"
+description: "Guia prático de provisionamento, configuração de baldes, permissões IAM e clientes para Amazon S3, Cloudflare R2 e Azure Blob Storage."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico detalha o provisionamento de baldes (*buckets*), configuração de segurança e integração com SDKs clientes para **Amazon S3**, **Cloudflare R2** e **Azure Blob Storage**, incluindo suporte a endpoints customizados e bibliotecas em TypeScript.
+
+---
+
+## Objetivo
+
+Aprender a provisionar baldes de armazenamento de objetos na nuvem, configurar credenciais seguras e integrar SDKs clientes para upload e download de arquivos. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar buckets via AWS CLI e configurar bloqueio de acesso público (*Public Access Block*).
+- Conectar aplicações Node.js e TypeScript utilizando o AWS SDK v3 (`@aws-sdk/client-s3` e `@aws-sdk/lib-storage`).
+- Configurar o AWS SDK v3 para interagir com o **Cloudflare R2** ou instâncias locais do MinIO usando endpoints customizados.
+- Realizar uploads multipart (*Multipart Upload*) com gerenciamento de buffer e concorrência.
+- Implementar operações básicas de listagem, download em stream e exclusão de objetos.
+
+---
+
+## Provisionamento de Baldes via AWS CLI
+
+No Amazon S3, os nomes de buckets devem ser universalmente únicos em toda a infraestrutura global da AWS:
+
+<Mermaid title="Fluxo de criação e proteção de baldes no Amazon S3">
+{`
+flowchart TD
+    CLI["AWS CLI / Terraform"] -->|"1. create-bucket"| S3[("Amazon S3 Global Storage")]
+    CLI -->|"2. put-public-access-block"| Security["Políticas de Bloqueio de Acesso Público"]
+    CLI -->|"3. put-bucket-encryption"| KMS["Criptografia em Repouso Padrão (SSE-S3 / KMS)"]
+    Security --> S3
+    KMS --> S3
+`}
+</Mermaid>
+
+### Comandos de Provisionamento
+
+```bash
+# 1. Cria o balde na região us-east-1
+aws s3api create-bucket \
+  --bucket meu-bucket-empresa-2026 \
+  --region us-east-1
+
+# 2. Bloqueia todo acesso público por padrão (boa prática de segurança)
+aws s3api put-public-access-block \
+  --bucket meu-bucket-empresa-2026 \
+  --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+# 3. Habilita criptografia automática em repouso
+aws s3api put-bucket-encryption \
+  --bucket meu-bucket-empresa-2026 \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+```
+
+---
+
+## Conexão com AWS SDK v3 em TypeScript
+
+O AWS SDK modular v3 divide os comandos em pacotes leves:
+
+```bash
+pnpm add @aws-sdk/client-s3 @aws-sdk/lib-storage
+```
+
+### Configurando o Cliente S3
+
+```typescript
+import { S3Client, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import fs from 'node:fs';
+
+// Inicialização com suporte a AWS S3 nativo ou Cloudflare R2 via endpoint customizado
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'auto',
+  endpoint: process.env.S3_ENDPOINT, // Opcional: ex. https://<account_id>.r2.cloudflarestorage.com
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+// Upload multipart resiliente para arquivos grandes
+async function enviarArquivo(caminhoArquivo: string, chaveDestino: string) {
+  const fileStream = fs.createReadStream(caminhoArquivo);
+
+  const parallelUpload = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: process.env.S3_BUCKET_NAME!,
+      Key: chaveDestino,
+      Body: fileStream,
+      ContentType: 'application/pdf',
+    },
+    queueSize: 4, // Concorrência de partes paralelas
+    partSize: 1024 * 1024 * 5, // 5 MB por parte mínima
+    leavePartsOnError: false, // Limpa partes abortadas automaticamente
+  });
+
+  parallelUpload.on('httpUploadProgress', (progress) => {
+    console.log(`Progresso: ${progress.loaded}/${progress.total} bytes`);
+  });
+
+  await parallelUpload.done();
+  console.log(`Arquivo ${chaveDestino} enviado com sucesso!`);
+}
+```
+
+<Aside type="tip">
+Utilize sempre a classe `Upload` do `@aws-sdk/lib-storage` em vez de `PutObjectCommand` direto para arquivos maiores que 5 MB. A classe divide o arquivo em partes de 5 MB enviadas concorrentemente com *retries* automáticos por pedaço.
+</Aside>
+
+---
+
+## Conexão com Cloudflare R2 e Azure Blob Storage
+
+### Compatibilidade S3 no Cloudflare R2
+
+Para usar o Cloudflare R2 com o mesmo `@aws-sdk/client-s3`, basta configurar o endpoint fornecido pelo painel da Cloudflare:
+
+```typescript
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+});
+```
+
+### Cliente Nativo Azure Blob Storage
+
+Se o seu ambiente estiver na Microsoft Azure, utilize o SDK `@azure/storage-blob`:
+
+```bash
+pnpm add @azure/storage-blob
+```
+
+```typescript
+import { BlobServiceClient } from '@azure/storage-blob';
+
+const blobServiceClient = BlobServiceClient.fromConnectionString(
+  process.env.AZURE_STORAGE_CONNECTION_STRING!
+);
+
+async function uploadAzureBlob(nomeContainer: string, nomeBlob: string, conteudo: Buffer) {
+  const containerClient = blobServiceClient.getContainerClient(nomeContainer);
+  const blockBlobClient = containerClient.getBlockBlobClient(nomeBlob);
+
+  await blockBlobClient.uploadData(conteudo, {
+    blobHTTPHeaders: { blobContentType: 'image/png' },
+  });
+
+  console.log(`Blob ${nomeBlob} gravado no Azure Blob Storage!`);
+}
+```
+
+---
+
+## Executando
+
+Para testar as operações de upload e download de arquivos:
+
+1. Clone o projeto e instale as dependências com `pnpm install`.
+2. Configure seu arquivo `.env` com suas chaves de API.
+3. Inicie o script de upload:
+   ```bash
+   pnpm dev
+   ```
+
+---
+
+## Exercício
+
+Com base nos tópicos de configuração de clientes de armazenamento:
+
+1. Qual a finalidade da configuração `BlockPublicAccess` no Amazon S3 e por que ela deve ser habilitada por padrão?
+2. Por que o `@aws-sdk/client-s3` pode ser usado diretamente com o Cloudflare R2 ou MinIO sem a necessidade de instalar uma biblioteca proprietária?
+3. O que é o *Multipart Upload* e qual o problema que ele resolve ao transferir arquivos de vários gigabytes?
+
+---
+
+## Desafio
+
+Implemente uma rota de API em Express/TypeScript que receba um upload de imagem via streaming, calcule a hash SHA-256 do arquivo durante a transmissão e grave o arquivo no S3/R2 utilizando a classe `Upload` do SDK v3 com metadados customizados (`x-amz-meta-hash-sha256`).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que acontece com partes inacabadas de um Multipart Upload se a conexão falhar?</summary>
+As partes enviadas com sucesso continuam armazenadas no balde consumindo espaço em disco e gerando cobrança mensal, a menos que sejam montadas com `CompleteMultipartUpload`, abortadas com `AbortMultipartUpload` ou limpas automaticamente por uma regra de ciclo de vida (*Lifecycle Rule*) que expira partes abortadas após 7 dias.
+</details>
+
+<details>
+<summary>2. Como o SDK v3 gerencia autenticação em ambientes AWS em produção (EC2, ECS, Lambda)?</summary>
+O SDK v3 utiliza a cadeia padrão de credenciais (*Default Credential Provider Chain*), que busca automaticamente as credenciais temporárias fornecidas pela Role do IAM associada à instância ou container sem exigir chaves hardcoded no código ou arquivos `.env`.
+</details>
+
+---
+
+## Referências
+
+- [AWS SDK for JavaScript v3 - S3 Client](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/clients/client-s3/)
+- [Cloudflare R2 S3 API Compatibility](https://developers.cloudflare.com/r2/api/s3/api/)
+- [Azure Blob Storage Client Library for JavaScript](https://learn.microsoft.com/javascript/api/@azure/storage-blob/)
+
+---
+
+## Próximo tópico
+
+Com os clientes configurados e operações de upload integradas, avance para URLs pré-assinadas, políticas de ciclo de vida e eventos em **[Recursos de Nuvem e Operações em S3 e Blob Storage](../operations/)**.

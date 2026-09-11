@@ -124,6 +124,7 @@
   - [x] `[TASK-040.10]` Expandir a seção 'Projeto e Modelagem' com modelagem não relacional (documentos, chave-valor, grafos, séries temporais e colunar) e padrões de modelagem/auditoria (soft delete com índice parcial, createdAt/updatedAt, colunas computadas/geradas, concorrência otimista e identificadores UUIDv7)
   - [x] `[TASK-040.11]` Criar páginas de visão geral de bancos gerenciados em nuvem (DBaaS) para todos os 7 paradigmas (`Amazon RDS e Aurora`, `MongoDB Atlas e Firestore`, `DynamoDB e Upstash`, `Neo4j AuraDB e Neptune`, `InfluxDB Cloud e Timestream`, `Elastic Cloud e OpenSearch`, `DataStax Astra DB e Keyspaces`), registrando-as na sidebar e no índice do curso
   - [x] `[TASK-040.12]` Criar a seção de **Armazenamento de Objetos (Storage)** no Guia de Banco de Dados, com ambiente local Docker e utilitário `mc` para **MinIO** (`minio/`, `minio/setup`, `minio/s3-api`) e visão geral de **Amazon S3 e Cloud Storage** (`s3-blob-storage/`), registrando-os na sidebar, catálogo e matriz de decisão
+  - [x] `[TASK-040.13]` Expandir as 8 seções de bancos em nuvem e storage (RDS/Aurora, Atlas/Firestore, DynamoDB/Upstash, AuraDB/Neptune, InfluxDB Cloud/Timestream, Elastic Cloud/OpenSearch, Astra DB/Keyspaces, S3/Blob Storage) com 3 páginas cada (Visão Geral, Provisionamento e Clientes, Recursos de Nuvem e Operações), registrando todos os 24 tópicos na sidebar
 
 ### Concluídos (Conteúdo)
 

@@ -1,0 +1,160 @@
+---
+title: "RDS e Aurora: Alta Disponibilidade e Operações"
+description: "Estratégias de operação corporativa: réplicas de leitura, Multi-AZ failover, Aurora Serverless v2, backups contínuos, restauração Point-In-Time e clones rápidos de banco."
+course: database
+sidebar:
+  label: "Alta disponibilidade e operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A operação de bancos de dados relacionais em produção exige garantias rigorosas de disponibilidade (99,99%), recuperação contra desastres (*Disaster Recovery*), escalabilidade elástica de tráfego e esteiras de teste ágeis. Neste tópico, você dominará o funcionamento prático do **Multi-AZ**, do **Aurora Serverless v2**, da restauração contínua **PITR** e da clonagem instantânea de bancos de dados (*Database Cloning*).
+
+---
+
+## Objetivo
+
+Compreender e aplicar as estratégias avançadas de resiliência, ajuste dinâmico de capacidade e rotinas operacionais no Amazon RDS e Aurora. Ao final do tópico, o leitor deve ser capaz de:
+
+- Configurar e testar o mecanismo de promoção automática em falhas (*Failover Multi-AZ*).
+- Dimensionar e otimizar custos utilizando o **Aurora Serverless v2** com unidades de capacidade dinâmica (*ACUs*).
+- Executar restaurações para qualquer segundo dos últimos 35 dias através do **Point-In-Time Recovery (PITR)**.
+- Utilizar a técnica de **Fast Database Cloning** (*Copy-on-Write*) para criar ambientes de teste instantâneos sem duplicar custo de armazenamento.
+- Monitorar gargalos de I/O e conexões com o *Performance Insights* e *Enhanced Monitoring*.
+
+---
+
+## Ciclo de Failover Automático no Aurora
+
+No Amazon Aurora, todas as réplicas de leitura compartilham a mesma camada de armazenamento distribuído (*Log-Structured Storage*). Quando a instância de escrita primária sofre uma pane física, o cluster executa o failover sem perda de transações:
+
+<Mermaid title="Etapas do failover automático no Amazon Aurora">
+{`
+flowchart TD
+    subgraph Step1 ["1. Estado Normal"]
+        P1["Primário Ativo (AZ-A)"] --> S[("Camada de Armazenamento (6 Cópias)")]
+        R1["Réplica 1 (AZ-B)"] --> S
+    end
+
+    subgraph Step2 ["2. Falha de Hardware Detectada"]
+        P2["Primário Inacessível (Falha)"] -.->|Alerta de Heartbeat| ClusterMgr["Cluster Manager (Control Plane)"]
+    end
+
+    subgraph Step3 ["3. Promoção Instantânea"]
+        ClusterMgr -->|"Promove Réplica 1 a Primário"| Promoted["Nova Instância Primária (AZ-B)"]
+        Promoted -->|"Cluster Endpoint atualizado via DNS"| App["Aplicações Reconectam Automaticamente"]
+    end
+
+    Step1 --> Step2 --> Step3
+`}
+</Mermaid>
+
+Como a réplica promovida já tem acesso imediato aos mesmos discos de 6 cópias, o processo de failover leva menos de 30 segundos (ou até sub-segundo se a aplicação utilizar drivers inteligentes com *AWS JDBC Driver*).
+
+---
+
+## Aurora Serverless v2: Autoescala em Frações de Segundo
+
+Em cargas de trabalho variáveis (como picos repentinos de acessos em promoções ou períodos noturnos de calmaria), o **Aurora Serverless v2** ajusta a capacidade de CPU e memória em tempo real sem desconectar clientes:
+
+<Mermaid title="Escalabilidade granular do Aurora Serverless v2">
+{`
+flowchart LR
+    Low["Tráfego Noturno (100 req/s)"] -->|"0.5 ACU (1 GB RAM)"| DB[("Cluster Aurora Serverless")]
+    High["Pico de Acesso (50.000 req/s)"] -->|"Escala em 200ms para 32 ACUs (64 GB RAM)"| DB
+    Low2["Fim do Pico"] -->|"Reduz gradualmente sem derrubar conexões"| DB
+`}
+</Mermaid>
+
+A capacidade é medida em **Aurora Capacity Units (ACUs)**, onde 1 ACU corresponde a aproximadamente 2 GB de memória RAM acompanhada de capacidade computacional e largura de banda de rede proporcionais.
+
+---
+
+## Fast Database Cloning (Clonagem Rápida)
+
+Em ambientes de desenvolvimento e homologação (*Staging*), criar cópias de bancos de produção de dezenas de terabytes normalmente leva horas e dobra os custos de armazenamento. O Aurora resolve esse problema com o **Fast Database Cloning** baseado em *Copy-on-Write*:
+
+<Mermaid title="Mecanismo de Copy-on-Write na clonagem de banco de dados do Aurora">
+{`
+flowchart LR
+    subgraph StorageBefore ["Armazenamento Compartilhado Inicial"]
+        BaseBlocks[("Páginas Originais de Produção (10 TB)")]
+    end
+
+    ProdCluster["Cluster de Produção"] --> BaseBlocks
+    StagingCluster["Cluster de Testes (Clone Criado em 10s)"] --> BaseBlocks
+
+    subgraph StorageAfter ["Após Alteração no Clone"]
+        DeltaBlocks[("Novas Páginas Modificadas no Clone (100 MB)")]
+    end
+
+    StagingCluster -->|"Grava apenas a diferença"| DeltaBlocks
+`}
+</Mermaid>
+
+O clone é instanciado em poucos segundos, independentemente do volume total de dados, e você só paga pelas páginas que forem modificadas ou adicionadas no novo cluster.
+
+---
+
+## Restauração Point-In-Time (PITR) e Backups
+
+O Amazon RDS e o Aurora realizam backups contínuos dos logs de transações (*Write-Ahead Logs / Redo Logs*) diretamente para o Amazon S3. Isso possibilita a restauração precisa para qualquer segundo dentro da janela de retenção:
+
+```bash
+# Restaurar um cluster para o estado exato de 11/09/2026 às 10:15:30 UTC
+aws rds restore-db-cluster-to-point-in-time \
+  --source-db-cluster-identifier "invest-db-cluster" \
+  --target-db-cluster-identifier "invest-db-restored" \
+  --restore-to-time "2026-09-11T10:15:30.000Z"
+```
+
+<Aside type="tip" title="Proteção contra exclusões acidentais">
+  Se um comando `DROP TABLE` ou `DELETE` sem `WHERE` for executado por engano às 10:15:32, o operador pode restaurar o banco para as 10:15:31, recuperando 100% dos dados anteriores à falha humana.
+</Aside>
+
+---
+
+## Exercício
+
+Responda com base nas operações de alta disponibilidade do Aurora e RDS:
+
+1. Qual é a principal vantagem do *Aurora Serverless v2* frente a modelos serverless tradicionais que congelam conexões (*cold starts*)?
+2. Como a técnica de *Fast Database Cloning* viabiliza a execução de testes de migração sem duplicar o custo financeiro do storage?
+3. O que acontece com os dados gravados no cluster original quando o clone de testes executa uma série de `UPDATEs` e `DROPs`?
+
+---
+
+## Desafio
+
+Uma instituição bancária opera um cluster Aurora PostgreSQL e precisa definir seu plano de continuidade de negócios (*BCP*):
+- O RPO (*Recovery Point Objective* - tolerância máxima de perda de dados) é de no máximo 5 segundos.
+- O RTO (*Recovery Time Objective* - tempo máximo para o sistema voltar a operar após falha catastrófica da AZ principal) é de até 1 minuto.
+- Explique como a combinação de Multi-AZ, Read Replicas automáticas e PITR atende rigorosamente a esses dois requisitos.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é o AWS Performance Insights e como ele diagnostica lentidões?</summary>
+O *Performance Insights* é uma ferramenta de monitoramento que visualiza a carga do banco de dados (*Database Load*) com base no tempo de espera de sessões ativas (*Average Active Sessions - AAS*). Ele divide a carga por tipo de espera (CPU, I/O de disco, travas de tabela) e aponta com exatidão as instruções SQL responsáveis pela lentidão.
+</details>
+
+<details>
+<summary>2. Como o recurso Aurora Global Database expande a resiliência para além de uma única região geográfica?</summary>
+O *Aurora Global Database* replica dados em nível de armazenamento de uma região primária para até 5 regiões secundárias com latência típica inferior a 1 segundo. Em caso de desastre regional total, uma região secundária pode ser promovida a cluster primário em menos de 1 minuto.
+</details>
+
+---
+
+## Referências
+
+- [Amazon Aurora High Availability and Replication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Concepts.AuroraHighAvailability.html)
+- [Aurora Serverless v2 Deep Dive](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html)
+- [Cloning Amazon Aurora DB Clusters](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Managing.Clone.html)
+
+---
+
+## Próximo tópico
+
+Agora que você domina as operações de bancos relacionais em nuvem, prossiga para a exploração de bancos de documentos gerenciados com **[MongoDB Atlas e Cloud Firestore](../../atlas-firestore/)**.

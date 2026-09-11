@@ -1,0 +1,224 @@
+---
+title: "Elastic Cloud e Amazon OpenSearch: Provisionamento e Clientes"
+description: "Guia prático de provisionamento, autenticação por API Key e SigV4, configuração de índices e clientes para Elastic Cloud e Amazon OpenSearch."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico aborda o provisionamento prático, autenticação segura e conexão com as bibliotecas oficiais para **Elastic Cloud** (usando Cloud ID e API Keys) e **Amazon OpenSearch Service** (com autenticação assinada via AWS SigV4 e coleções serverless).
+
+---
+
+## Objetivo
+
+Aprender a provisionar deployments de busca em nuvem, criar índices com tipagem explícita (*Mappings*) e conectar aplicações Node.js e TypeScript utilizando os clientes oficiais. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar deployments no Elastic Cloud e autenticar utilizando `cloud.id` e API Keys.
+- Configurar domínios e coleções serverless no Amazon OpenSearch Service.
+- Conectar aplicações utilizando `@elastic/elasticsearch` e `@opensearch-project/opensearch`.
+- Assinar requisições HTTP para o Amazon OpenSearch utilizando AWS SigV4.
+- Definir esquemas de indexação (*Mappings*), analisadores de texto e operações CRUD em lote (*Bulk API*).
+
+---
+
+## Provisionamento e Conexão no Elastic Cloud
+
+No Elastic Cloud, cada cluster é provisionado como um **Deployment**, expondo um identificador único chamado `Cloud ID` que encapsula o roteamento HTTPS e certificados TLS:
+
+<Mermaid title="Fluxo de conexão com o Elastic Cloud via Cloud ID e API Key">
+{`
+flowchart LR
+    App["Aplicação Node.js / Python"] -->|"HTTPS / REST (Porta 443)"| Gateway["Elastic Cloud Proxy"]
+    Gateway --> Cluster[("Elasticsearch Cluster")]
+
+    subgraph Credentials ["Variáveis de Ambiente (.env)"]
+        CID["ELASTIC_CLOUD_ID: deployment-name:dXMtZWFzdC..."]
+        KEY["ELASTIC_API_KEY: V3V4Y... (Base64)"]
+    end
+
+    App -.-> Credentials
+`}
+</Mermaid>
+
+### Configurando o Cliente Oficial em TypeScript
+
+Instale a biblioteca oficial `@elastic/elasticsearch`:
+
+```bash
+pnpm add @elastic/elasticsearch
+```
+
+Inicialize o cliente com `cloud.id` e `apiKey`:
+
+```typescript
+import { Client } from '@elastic/elasticsearch';
+
+// Inicialização com Cloud ID e API Key
+const client = new Client({
+  cloud: {
+    id: process.env.ELASTIC_CLOUD_ID!,
+  },
+  auth: {
+    apiKey: process.env.ELASTIC_API_KEY!,
+  },
+});
+
+async function criarIndiceProdutos() {
+  const indexName = 'catalogo_produtos';
+
+  // 1. Criação do índice com mapeamento explícito
+  const exists = await client.indices.exists({ index: indexName });
+  if (!exists) {
+    await client.indices.create({
+      index: indexName,
+      body: {
+        settings: {
+          number_of_shards: 2,
+          number_of_replicas: 1,
+        },
+        mappings: {
+          properties: {
+            id: { type: 'keyword' },
+            titulo: { type: 'text', analyzer: 'portuguese' },
+            descricao: { type: 'text', analyzer: 'portuguese' },
+            preco: { type: 'float' },
+            categoria: { type: 'keyword' },
+            estoque: { type: 'integer' },
+            criado_em: { type: 'date' },
+          },
+        },
+      },
+    });
+    console.log(`Índice ${indexName} criado com sucesso!`);
+  }
+}
+```
+
+---
+
+## Provisionamento e Acesso ao Amazon OpenSearch
+
+O Amazon OpenSearch Service pode ser provisionado como um domínio tradicional (instâncias EC2 gerenciadas) ou como uma coleção **OpenSearch Serverless**:
+
+<Mermaid title="Autenticação com AWS SigV4 no Amazon OpenSearch">
+{`
+flowchart LR
+    App["Aplicação Node.js"] -->|"1. Gera assinatura criptográfica SigV4"| Signer["AWS Request Signer"]
+    Signer -->|"2. Envia Header Authorization: AWS4-HMAC-SHA256"| Endpoint["OpenSearch Domain Endpoint (HTTPS)"]
+    Endpoint -->|"3. Valida credenciais no IAM"| Engine[("OpenSearch Cluster / Serverless")]
+`}
+</Mermaid>
+
+### Criando um Domínio via AWS CLI
+
+```bash
+# Criação de um domínio OpenSearch provisionado
+aws opensearch create-domain \
+  --domain-name catalogo-busca \
+  --engine-version OpenSearch_2.11 \
+  --cluster-config InstanceType=t3.small.search,InstanceCount=2 \
+  --ebs-options EBSEnabled=true,VolumeType=gp3,VolumeSize=20 \
+  --node-to-node-encryption-options Enabled=true \
+  --encryption-at-rest-options Enabled=true \
+  --domain-endpoint-options EnforceHTTPS=true
+```
+
+---
+
+## Conexão com OpenSearch Client e Assinatura SigV4
+
+Para interagir com o Amazon OpenSearch Service com controle de acesso baseado em AWS IAM, utilize o cliente `@opensearch-project/opensearch` com o adaptador `@aws-sdk/credential-provider-node`:
+
+```bash
+pnpm add @opensearch-project/opensearch @aws-sdk/credential-provider-node @opensearch-project/opensearch/aws
+```
+
+```typescript
+import { Client } from '@opensearch-project/opensearch';
+import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+
+const client = new Client({
+  ...AwsSigv4Signer({
+    region: 'us-east-1',
+    service: 'es', // ou 'aoss' para OpenSearch Serverless
+    getCredentials: defaultProvider(),
+  }),
+  node: 'https://search-catalogo-busca-xxx.us-east-1.es.amazonaws.com',
+});
+
+async function indexarEmLote(produtos: any[]) {
+  // Estrutura o payload no formato exigido pela Bulk API
+  const body = produtos.flatMap((doc) => [
+    { index: { _index: 'catalogo_produtos', _id: doc.id } },
+    doc,
+  ]);
+
+  const response = await client.bulk({ body });
+  if (response.body.errors) {
+    console.error('Erros durante a indexação em lote');
+  } else {
+    console.log(`${produtos.length} produtos indexados com sucesso no OpenSearch!`);
+  }
+}
+```
+
+---
+
+## Executando
+
+Para executar o exemplo de indexação e busca:
+
+1. Clone o projeto e instale as dependências com `pnpm install`.
+2. Configure o `.env` com seu `ELASTIC_CLOUD_ID` ou credenciais AWS.
+3. Execute o script de carga e teste de busca textual:
+   ```bash
+   pnpm dev
+   ```
+
+---
+
+## Exercício
+
+Com base nas configurações de conexão e clientes apresentadas:
+
+1. Qual é a finalidade do identificador `Cloud ID` no Elastic Cloud e quais informações ele encapsula?
+2. Por que o Amazon OpenSearch exige a assinatura AWS SigV4 quando as políticas de acesso do IAM estão ativadas?
+3. Qual é a vantagem de utilizar a `Bulk API` em vez de chamadas individuais `client.index()` ao inserir milhares de documentos?
+
+---
+
+## Desafio
+
+Escreva uma função em TypeScript que realize uma consulta de busca textual no índice `catalogo_produtos` utilizando `multi_match` com pesos diferenciados (*Field Boosting*), onde o termo buscado no campo `titulo` possui 3 vezes mais peso do que no campo `descricao` (`titulo^3`), com suporte a tolerância a erros de digitação (`fuzziness: 'AUTO'`).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Qual a diferença entre os tipos de dados text e keyword no Elasticsearch/OpenSearch?</summary>
+O tipo `text` passa pelo analisador de texto (tokenização, minúsculas, remoção de acentos e stopwords) e é inserido no índice invertido para buscas parciais e de relevância. O tipo `keyword` é armazenado exatamente como enviado (não analisado), sendo ideal para filtros exatos, ordenações, agregações e identificadores como IDs e códigos de barras.
+</details>
+
+<details>
+<summary>2. O que são coleções no OpenSearch Serverless?</summary>
+No OpenSearch Serverless, as coleções substituem os domínios tradicionais provisionados. Cada coleção agrupa índices de um mesmo padrão de carga de trabalho (ex: coleções do tipo `search`, `timeseries` ou `vectorsearch`), escalando automaticamente as unidades de computação (*OCUs*) sem necessidade de configurar instâncias EC2 ou gerenciar shards.
+</details>
+
+---
+
+## Referências
+
+- [Elasticsearch JavaScript Client Guide](https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/index.html)
+- [OpenSearch JavaScript Client with AWS SigV4](https://opensearch.org/docs/latest/clients/javascript/index/)
+- [Elasticsearch Index Mappings Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html)
+
+---
+
+## Próximo tópico
+
+Com os clientes configurados e índices criados, avance para o gerenciamento de ciclo de vida e busca vetorial com IA em **[Recursos de Nuvem e Operações em Elastic Cloud e OpenSearch](../operations/)**.

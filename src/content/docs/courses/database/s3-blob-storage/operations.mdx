@@ -1,0 +1,232 @@
+---
+title: "Amazon S3 e Cloud Storage: Recursos de Nuvem e Operações"
+description: "Recursos avançados de armazenamento em nuvem: URLs pré-assinadas (Presigned URLs), regras de ciclo de vida e arquivamento, políticas de bucket e notificações de eventos."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico aborda as operações avançadas de governança, segurança e automação em plataformas de armazenamento de objetos como **Amazon S3** e **Azure Blob Storage**, incluindo geração de URLs pré-assinadas para uploads diretos do navegador, políticas de transição de ciclo de vida (*Lifecycle Rules*), segurança com Bucket Policies e processamento assíncrono via notificações de eventos.
+
+---
+
+## Objetivo
+
+Dominar as práticas operacionais de segurança, automação e arquiteturas desacopladas com armazenamento de objetos na nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Gerar URLs pré-assinadas (*Presigned URLs*) seguras para permitir uploads e downloads diretos de clientes sem trafegar pelo servidor de aplicação.
+- Configurar regras de ciclo de vida (*Lifecycle Rules*) para transicionar objetos automaticamente para classes econômicas (Standard-IA, Glacier) ou expiração definitiva.
+- Criar políticas de balde (*Bucket Policies*) e regras de CORS (*Cross-Origin Resource Sharing*) para compartilhamento seguro entre domínios.
+- Configurar notificações de eventos no S3 (*S3 Event Notifications*) disparando filas SQS, tópicos SNS ou funções AWS Lambda.
+- Implementar proteção contra exclusão acidental através de versionamento de objetos e bloqueio de objetos (*Object Lock*).
+
+---
+
+## URLs Pré-Assinadas (Presigned URLs)
+
+Trafegar uploads pesados de vídeos ou imagens pelo servidor da sua API consome banda desnecessária e sobrecarrega a CPU do backend. O padrão ouro em arquiteturas em nuvem é gerar uma **URL Pré-Assinada** temporária:
+
+<Mermaid title="Fluxo de upload direto via Presigned URL">
+{`
+flowchart TD
+    Browser["Navegador / App Mobile"] -->|"1. Solicita autorização de upload"| API["API Backend (Node.js)"]
+    API -->|"2. Gera Presigned URL com prazo de 15 min"| S3Client["AWS S3 SDK"]
+    API -->|"3. Retorna URL assinada"| Browser
+    Browser -->|"4. PUT direto no S3 (Bypass do Backend)"| S3Bucket[("Amazon S3 Bucket")]
+    S3Bucket -->|"5. Evento: s3:ObjectCreated:Put"| Lambda["Função Lambda (Gera Thumbnails)"]
+`}
+</Mermaid>
+
+### Gerando Presigned URLs com TypeScript
+
+Instale o pacote de assinatura da AWS:
+
+```bash
+pnpm add @aws-sdk/s3-request-presigner
+```
+
+```typescript
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const s3 = new S3Client({ region: 'us-east-1' });
+
+// 1. Gera URL para o cliente fazer upload direto (PUT)
+async function gerarUrlUpload(nomeArquivo: string, mimeType: string): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: 'meu-bucket-empresa-2026',
+    Key: `uploads/${Date.now()}-${nomeArquivo}`,
+    ContentType: mimeType,
+  });
+
+  // URL expira em 900 segundos (15 minutos)
+  return await getSignedUrl(s3, command, { expiresIn: 900 });
+}
+
+// 2. Gera URL para download seguro de arquivo privado (GET)
+async function gerarUrlDownloadPrivado(chaveArquivo: string): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: 'meu-bucket-empresa-2026',
+    Key: chaveArquivo,
+  });
+
+  return await getSignedUrl(s3, command, { expiresIn: 300 });
+}
+```
+
+---
+
+## Políticas de Ciclo de Vida e Arquivamento (Lifecycle Rules)
+
+As regras de ciclo de vida automatizam a movimentação de arquivos para classes de armazenamento de custo decrescente:
+
+<Mermaid title="Regra de Ciclo de Vida para Redução de Custos no S3">
+{`
+flowchart LR
+    S3Std["S3 Standard\n(0 a 30 dias)"] -->|"Transição"| S3IA["S3 Standard-IA\n(31 a 90 dias)"]
+    S3IA -->|"Transição"| Glacier["Glacier Deep Archive\n(91 a 365 dias)"]
+    Glacier -->|"Expiração"| Deleted["Exclusão Permanente"]
+`}
+</Mermaid>
+
+### Configuração de Lifecycle via JSON
+
+```json
+{
+  "Rules": [
+    {
+      "ID": "MoverDocumentosFiscaisParaArquivo",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "notas_fiscais/" },
+      "Transitions": [
+        {
+          "Days": 30,
+          "StorageClass": "STANDARD_IA"
+        },
+        {
+          "Days": 90,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ],
+      "Expiration": {
+        "Days": 1825
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Políticas de Balde (Bucket Policies) e CORS
+
+### Política de Bloqueio de Tráfego não Criptografado (HTTPS)
+
+Para garantir conformidade de segurança e impedir acessos em HTTP puro:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EnforceHTTPSOnly",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::meu-bucket-empresa-2026",
+        "arn:aws:s3:::meu-bucket-empresa-2026/*"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Configuração de CORS para Uploads Web
+
+Para que uma SPA ou aplicação web envie requisições `PUT` ou `POST` via AJAX/Fetch:
+
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["PUT", "POST", "GET", "HEAD"],
+    "AllowedOrigins": ["https://meuapp.com.br", "https://*.meuapp.com.br"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+---
+
+## Notificações de Eventos e Processamento com Lambda
+
+O Amazon S3 pode disparar eventos assíncronos quando novos objetos são gravados ou excluídos:
+
+<Mermaid title="Pipeline de processamento de imagem orientado a eventos no S3">
+{`
+flowchart LR
+    Upload["Upload no S3 (bucket-bruto/foto.jpg)"] -->|"s3:ObjectCreated:*"| EventRouter["S3 Event Notification Engine"]
+    EventRouter -->|"Disparo Assíncrono"| Lambda["Função Lambda (Redimensionamento)"]
+    Lambda -->|"Grava Thumbnails"| ProcessedBucket[("bucket-processado/foto_thumb.jpg")]
+`}
+</Mermaid>
+
+---
+
+## Exercício
+
+Com base nas práticas operacionais de armazenamento em nuvem:
+
+1. Qual é o ganho de arquitetura e segurança ao utilizar URLs pré-assinadas para uploads de clientes em vez de intermediar os arquivos pelo servidor Express?
+2. Por que a regra de ciclo de vida deve incluir a diretiva `AbortIncompleteMultipartUpload`?
+3. Como uma política de *Bucket Policy* com a condição `aws:SecureTransport: false` atua na proteção dos dados?
+
+---
+
+## Desafio
+
+Desenhe a arquitetura de uma esteira de processamento de documentos PDF que receba uploads de até 500 MB:
+- O cliente requisita uma Presigned URL para a API backend.
+- O upload é realizado diretamente para o S3 no prefixo `incoming/`.
+- O S3 dispara uma notificação para uma fila Amazon SQS.
+- Um worker processa os PDFs da fila, extrai o texto com OCR e salva os dados no Elasticsearch / OpenSearch e os PDFs otimizados no prefixo `processed/`.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é o recurso S3 Object Lock (WORM)?</summary>
+O *S3 Object Lock* implementa o modelo WORM (*Write Once, Read Many*), impedindo que objetos sejam excluídos ou modificados por qualquer usuário (inclusive a conta root da AWS) durante um período de retenção fixo, atendendo a exigências regulatórias rigorosas (como SEC Rule 17a-4 e LGPD).
+</details>
+
+<details>
+<summary>2. Como o versionamento de objetos afeta o custo do bucket se as versões antigas não forem gerenciadas?</summary>
+Com o versionamento ativo, cada atualização de um arquivo mantém todas as versões anteriores armazenadas no bucket. Sem uma regra de ciclo de vida para transicionar ou apagar versões não atuais (*NoncurrentVersionExpiration*), o consumo de armazenamento cresce indefinidamente, multiplicando o custo da fatura.
+</details>
+
+---
+
+## Referências
+
+- [Amazon S3 Presigned URLs Guide](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+- [Amazon S3 Lifecycle Configuration](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html)
+- [Configuring S3 Event Notifications](https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventNotifications.html)
+
+---
+
+## Próximo tópico
+
+Agora que você domina todos os paradigmas de bancos de dados nativos, gerenciados em nuvem e armazenamento de objetos, avance para a modelagem estratégica de dados com **[Projeto Conceitual e Lógico](../../modeling/conceptual-logical/)**.

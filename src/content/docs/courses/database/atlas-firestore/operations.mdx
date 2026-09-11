@@ -1,0 +1,186 @@
+---
+title: "Atlas e Firestore: Recursos de Nuvem e Tempo Real"
+description: "Recursos avançados de nuvem: Atlas Vector Search, Atlas App Services e Triggers, Firestore Security Rules declarativas, listeners em tempo real (onSnapshot) e sincronização offline."
+course: database
+sidebar:
+  label: "Recursos de nuvem e tempo real"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Bancos de documentos na nuvem vão muito além de armazenar registros JSON: eles integram motores de inteligência artificial, reações a eventos e comunicação reativa com o cliente. Neste tópico, você dominará o **Atlas Vector Search** para aplicações de IA generativa (RAG), os **Triggers** do Atlas, as **Security Rules** declarativas do Firestore e a escuta de dados em tempo real com **Listeners WebSocket**.
+
+---
+
+## Objetivo
+
+Compreender e implementar recursos nativos de nuvem em bancos de documentos, incluindo busca semântica vetorial, automações reativas e controle de acesso direto no cliente. Ao final do tópico, o leitor deve ser capaz de:
+
+- Configurar índices de busca vetorial no MongoDB Atlas e executar consultas com o operador `$vectorSearch`.
+- Criar *Database Triggers* serverless no Atlas para reagir a alterações nos documentos (*Change Streams*).
+- Escrever regras de segurança declarativas (*Security Rules*) no Cloud Firestore para proteger coleções.
+- Implementar listeners em tempo real (`onSnapshot`) para sincronização automática de interfaces web e mobile.
+- Utilizar os recursos de persistência offline nos SDKs de cliente do Firestore.
+
+---
+
+## Atlas Vector Search: Busca Semântica em Documentos
+
+O **Atlas Vector Search** permite indexar representações numéricas (*embeddings*) geradas por modelos de linguagem (OpenAI, Gemini, Cohere) diretamente nos documentos BSON, eliminando a necessidade de manter um banco vetorial isolado:
+
+<Mermaid title="Pipeline de busca vetorial híbrida no MongoDB Atlas">
+{`
+flowchart LR
+    UserQuery["Pergunta do Usuário"] --> Embed["Modelo de Embedding (OpenAI / Gemini)"]
+    Embed -->|"Vetor [0.12, -0.84, ...]"| AtlasSearch["Operador $vectorSearch"]
+
+    subgraph AtlasCluster ["Cluster MongoDB Atlas"]
+        AtlasSearch --> Index["Índice Vetorial (HNSW)"]
+        Index --> Docs[("Documentos com Texto + Metadados + Embeddings")]
+    end
+
+    Docs --> TopK["Top K Documentos Semelhantes (Contexto para RAG)"]
+`}
+</Mermaid>
+
+Exemplo de consulta no pipeline de agregação do MongoDB Atlas:
+
+```javascript
+// Busca semântica por similaridade de cosseno com $vectorSearch
+db.artigos.aggregate([
+  {
+    $vectorSearch: {
+      index: "vector_index",
+      path: "embedding_texto",
+      queryVector: [0.024, -0.019, 0.445, /* ...1536 dimensões */],
+      numCandidates: 100,
+      limit: 5
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      titulo: 1,
+      categoria: 1,
+      score: { $meta: "vectorSearchScore" }
+    }
+  }
+]);
+```
+
+---
+
+## Firestore Security Rules: Segurança Declarativa na Borda
+
+No Cloud Firestore, quando clientes frontend interagem diretamente com o banco sem uma API intermediária, a autorização de leitura e escrita é garantida por **Security Rules**:
+
+<Mermaid title="Fluxo de validação de regras de segurança no Cloud Firestore">
+{`
+flowchart TD
+    Client["App React / Mobile"] -->|"Requisição de Escrita (Doc: 'investimentos/inv_123')"| Guard["Motor de Security Rules do Firestore"]
+
+    Guard -->|"Valida token de autenticação (request.auth)"| CheckAuth{"Usuário está logado?"}
+    CheckAuth -->|Não| Deny["403 Forbidden (Bloqueado)"]
+
+    CheckAuth -->|Sim| CheckOwner{"request.auth.uid == resource.data.usuarioId?"}
+    CheckOwner -->|Sim| Allow["200 OK (Gravação Concluída)"]
+    CheckOwner -->|Não| Deny
+`}
+</Mermaid>
+
+Exemplo de arquivo de regras `firestore.rules`:
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Regra para a coleção de carteiras de investimentos
+    match /carteiras/{carteiraId} {
+      // Qualquer usuário logado pode ler
+      allow read: if request.auth != null;
+
+      // Apenas o dono da carteira pode criar ou atualizar
+      allow write: if request.auth != null &&
+                      request.auth.uid == request.resource.data.usuarioId &&
+                      request.resource.data.saldo >= 0;
+    }
+  }
+}
+```
+
+---
+
+## Listeners em Tempo Real (`onSnapshot`)
+
+O Cloud Firestore estabelece uma conexão WebSocket persistente entre o SDK de cliente e os servidores do Google. Quando qualquer documento é alterado, o navegador recebe o evento instantaneamente:
+
+```typescript
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase-config';
+
+// Escutar atualizações de cotações em tempo real
+const q = query(collection(db, 'cotacoes'), where('ativo', '==', true));
+
+const unsubscribe = onSnapshot(q, (snapshot) => {
+  snapshot.docChanges().forEach((change) => {
+    if (change.type === 'added') {
+      console.log('Nova cotação:', change.doc.data());
+    }
+    if (change.type === 'modified') {
+      console.log('Cotação atualizada:', change.doc.data());
+    }
+  });
+});
+
+// Chamar unsubscribe() ao desmontar o componente na interface
+```
+
+---
+
+## Exercício
+
+Responda com base nos recursos de nuvem de Atlas e Firestore:
+
+1. Qual a vantagem arquitetural de utilizar o *Atlas Vector Search* no mesmo banco de dados onde residem os dados operacionais?
+2. Como a função `onSnapshot` do Firestore difere de uma requisição tradicional baseada em *Polling* HTTP?
+3. O que acontece com as gravações feitas pelo SDK do Firestore quando o dispositivo mobile fica temporariamente offline?
+
+---
+
+## Desafio
+
+Projete a arquitetura de um feed de notícias financeiras colaborativo:
+- Usuários autenticados podem postar notícias e votar em posts existentes.
+- Escreva a regra de segurança do Firestore (`firestore.rules`) garantindo que:
+  1. Qualquer pessoa (mesmo anônima) pode ler as notícias.
+  2. Apenas usuários logados podem criar posts.
+  3. O autor de um post não pode editar os votos recebidos (apenas o campo `conteudo`).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que são os Atlas Database Triggers e como eles se integram ao AWS Lambda ou funções serverless?</summary>
+Os *Atlas Triggers* escutam os Change Streams do cluster em tempo real. Quando um documento é inserido ou modificado, o trigger pode executar uma função JavaScript na nuvem da MongoDB (*Atlas App Services*) ou disparar um evento via webhook para um endpoint externo, fila AWS SQS ou função AWS Lambda.
+</details>
+
+<details>
+<summary>2. Como o Firestore gerencia conflitos de sincronização ao voltar do modo offline?</summary>
+O SDK do Firestore aplica uma estratégia determinística baseada na ordem cronológica de eventos (*Last Write Wins* em nível de documento). Para atualizações atômicas e contadores concorrentes, o Firestore disponibiliza a operação `FieldValue.increment()`, que resolve somas mesmo após períodos de desconexão.
+</details>
+
+---
+
+## Referências
+
+- [MongoDB Atlas Vector Search Documentation](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/)
+- [Firebase Security Rules Reference](https://firebase.google.com/docs/firestore/security/rules-structure)
+- [Firestore Realtime Listeners Guide](https://firebase.google.com/docs/firestore/query-data/listen)
+
+---
+
+## Próximo tópico
+
+Concluídos os bancos de documentos, avance para o armazenamento de altíssimo throughput com **[Amazon DynamoDB e Upstash](../../dynamodb-upstash/)**.

@@ -1,0 +1,157 @@
+---
+title: "InfluxDB Cloud e Amazon Timestream: Recursos de Nuvem e Operações"
+description: "Operações em escala com séries temporais: Apache Arrow Flight SQL, consultas agendadas (Scheduled Queries), amostragem descendente (Downsampling) e ciclo de vida de dados."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico explora as técnicas avançadas de sustentação e análise de dados temporais em nuvem no **InfluxDB Cloud** e **Amazon Timestream**, abrangendo o protocolo binário Flight SQL, consultas agendadas para consolidação de agregados (*Scheduled Queries*), compressão Parquet e integração com ferramentas de visualização.
+
+---
+
+## Objetivo
+
+Compreender o ciclo de vida completo de métricas temporais, otimização de consultas analíticas e governança de retenção em nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Utilizar consultas analíticas de alto desempenho via Apache Arrow Flight SQL no InfluxDB Cloud 3.0.
+- Criar *Scheduled Queries* no Amazon Timestream para materializar visões agregadas automaticamente.
+- Configurar políticas de ciclo de vida (*Data Lifecycle*) e movimentação de dados históricos para o Amazon S3.
+- Conectar dashboards do Grafana ao InfluxDB e Timestream para observabilidade em tempo real.
+- Analisar custos de leitura e escrita baseados em bytes escaneados e volume compactado.
+
+---
+
+## Apache Arrow Flight SQL no InfluxDB Cloud 3.0
+
+O protocolo **Apache Arrow Flight SQL** substitui conexões ODBC/JDBC lentas por fluxos binários padronizados em memória sobre gRPC. Os dados chegam à aplicação cliente diretamente na estrutura colunar Arrow sem serialização intermediária:
+
+<Mermaid title="Fluxo de leitura com Apache Arrow Flight SQL">
+{`
+flowchart LR
+    App["Aplicação / Driver BI"] -->|"Flight SQL Query (gRPC / Porta 443)"| Gateway["InfluxDB Cloud 3.0"]
+    
+    subgraph DataEngine ["DataFusion Engine"]
+        Storage["Arquivos Parquet no S3"] --> Buffer["Buffers Colunares Arrow em Memória"]
+    end
+    
+    Gateway --> DataEngine
+    Buffer -->|"Arrow RecordBatches (Sem conversão de tipos)"| App
+`}
+</Mermaid>
+
+Exemplo de consulta analítica temporal agregando dados com a função `DATE_BIN`:
+
+```sql
+-- Consulta SQL ANSI padrão suportada nativamente no InfluxDB 3.0
+SELECT
+    DATE_BIN(INTERVAL '15 minutes', time, TIMESTAMP '1970-01-01 00:00:00Z') AS janela_tempo,
+    sensor_id,
+    AVG(temperatura) AS temp_media,
+    MAX(temperatura) AS temp_maxima,
+    MIN(temperatura) AS temp_minima
+FROM leitura_clima
+WHERE time >= NOW() - INTERVAL '7 days'
+GROUP BY janela_tempo, sensor_id
+ORDER BY janela_tempo DESC;
+```
+
+---
+
+## Consultas Agendadas e Downsampling no Amazon Timestream
+
+Consultar bilhões de registros brutos repetidamente em painéis executivos gera lentidão e custos desnecessários. O Amazon Timestream resolve essa demanda através de **Scheduled Queries**, que executam agregações periódicas e gravam os resultados consolidados em uma tabela de destino:
+
+<Mermaid title="Pipeline de Downsampling com Scheduled Queries no Timestream">
+{`
+flowchart TD
+    RawTable[("Tabela Bruta (Retenção 7 dias)\n864 Milhões de pontos/dia")] -->|"Execução a cada 1 hora"| Scheduler["Timestream Scheduled Query Engine"]
+    
+    Scheduler --> AggTable[("Tabela Agregada (Retenção 5 anos)\nResumos de 5 minutos por veículo")]
+    
+    Grafana["Dashboards Executivos"] -->|"Consultas rápidas e baratas"| AggTable
+`}
+</Mermaid>
+
+### Criando uma Scheduled Query via AWS CLI
+
+```bash
+# Criação de consulta agendada que roda a cada 1 hora
+aws timestream-query create-scheduled-query \
+  --name "AgregacaoHorariaTelemetria" \
+  --query-string "SELECT bin(time, 5m) AS binned_time, veiculo_id, AVG(velocidade_kmh) AS avg_vel FROM \"TelemetriaFrota\".\"LeiturasGPS\" WHERE time BETWEEN @scheduled_runtime - 1h AND @scheduled_runtime GROUP BY bin(time, 5m), veiculo_id" \
+  --schedule-configuration "ScheduleExpression=rate(1 hour)" \
+  --target-configuration '{"TimestreamConfiguration":{"DatabaseName":"TelemetriaFrota","TableName":"MetricasAgregadas","TimeColumn":"binned_time","DimensionMappings":[{"Name":"veiculo_id","DimensionValueType":"VARCHAR"}]}}' \
+  --execution-role-arn "arn:aws:iam::123456789012:role/TimestreamScheduledQueryRole"
+```
+
+---
+
+## Ciclo de Vida e Integração com Dashboards
+
+Para manter custos previsíveis, a governança de dados temporais deve balancear velocidade e retenção econômica:
+
+<Mermaid title="Estratégia de ciclo de vida de métricas em camadas">
+{`
+flowchart LR
+    Ingest["Métricas Brutas (Sensores / Servidores)"] --> Hot["1. Camada Quente (1 a 7 dias)\nMemória RAM / SSD para Alertas Críticos"]
+    Hot --> Warm["2. Camada Tépida / Agregada (30 a 90 dias)\nMédias de 1 a 5 minutos"]
+    Warm --> Cold["3. Camada Fria / Arquivo (1 a 10 anos)\nFormato Parquet em Baldes S3 / Glacier"]
+`}
+</Mermaid>
+
+### Conexão com Grafana
+
+Ambas as tecnologias fornecem plugins oficiais e certificados para o Grafana:
+
+- **InfluxDB Plugin**: Conecta via linguagem SQL padrão selecionando o protocolo `Flight SQL` ou `InfluxQL`, permitindo desenhar gráficos de séries temporais com auto-refresh a cada 5 segundos.
+- **Amazon Timestream Plugin**: Utiliza permissões da AWS via credenciais IAM ou *AssumeRole*, convertendo macros `$__timeFilter(time)` diretamente para cláusulas `WHERE time >= from AND time <= to`.
+
+---
+
+## Exercício
+
+Com base nas práticas operacionais de séries temporais:
+
+1. Qual é a economia de computação e custo ao consultar uma tabela de *Downsampling* em vez da tabela de dados brutos para um relatório financeiro anual?
+2. Por que o Apache Arrow Flight SQL apresenta desempenho superior aos drivers JDBC/ODBC tradicionais ao transferir grandes volumes de dados?
+3. O que acontece com os dados armazenados na *Memory Store* do Timestream quando o período de retenção configurado é atingido?
+
+---
+
+## Desafio
+
+Projete uma política completa de retenção e agregação para um sistema de telemetria hospitalar que monitora 1.000 leitos com frequência de 1 leitura por segundo por paciente (frequência cardíaca, pressão e saturação de oxigênio):
+- Defina o tempo de retenção para dados brutos (ex: 72 horas para emergências médicas).
+- Programe as *Scheduled Queries* para médias de 1 minuto (mantidas por 60 dias) e médias diárias (mantidas por 5 anos para histórico médico).
+- Estime o volume de dados economizado após o downsampling.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Como o InfluxDB 3.0 persiste dados em Cloud Object Storage sem perder performance de leitura?</summary>
+Ele agrupa os lotes de dados em memória utilizando Apache Arrow e grava blocos no formato colunar aberto Apache Parquet no S3. Os arquivos Parquet possuem metadados embutidos com limites mínimos e máximos (*Min/Max statistics* por coluna), permitindo ao motor de consulta descartar blocos de arquivos inteiros (*Partition Pruning*) antes de baixá-los do disco.
+</details>
+
+<details>
+<summary>2. Como o Timestream precifica consultas analíticas?</summary>
+O Amazon Timestream cobra com base na quantidade de bytes escaneados pelo motor de consulta. Por isso, aplicar filtros de tempo rígidos (`WHERE time >= ...`) e consultar dimensões indexadas reduz drasticamente a fatura mensal.
+</details>
+
+---
+
+## Referências
+
+- [Apache Arrow Flight SQL Specification](https://arrow.apache.org/docs/format/FlightSql.html)
+- [Amazon Timestream Scheduled Queries](https://docs.aws.amazon.com/timestream/latest/developerguide/tq.html)
+- [Grafana InfluxDB Datasource Documentation](https://grafana.com/docs/grafana/latest/datasources/influxdb/)
+
+---
+
+## Próximo tópico
+
+Concluído o ciclo de séries temporais, avance para a busca textual avançada, relevância semântica e observabilidade corporativa com **[Visão geral de Elastic Cloud e Amazon OpenSearch](../../elastic-cloud-opensearch/)**.

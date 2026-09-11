@@ -1,0 +1,291 @@
+---
+title: "Neo4j AuraDB e Amazon Neptune: Provisionamento e Clientes"
+description: "Guia prático de provisionamento, configuração de rede, protocolos de conexão e clientes para Neo4j AuraDB e Amazon Neptune com Cypher, Gremlin e SigV4."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico aborda o provisionamento prático, as configurações de segurança de rede e a integração com bibliotecas clientes para o **Neo4j AuraDB** e o **Amazon Neptune**, conectando aplicações Node.js e Python a bancos de grafos em nuvem.
+
+---
+
+## Objetivo
+
+Aprender a provisionar instâncias de grafos gerenciados, configurar autenticação e estabelecer conexões seguras via drivers oficiais. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar instâncias no Neo4j AuraDB e obter a URI de conexão segura (`neo4j+s://`).
+- Conectar aplicações Node.js utilizando o driver oficial `neo4j-driver` com autenticação e sessões transacionais.
+- Provisionar clusters Amazon Neptune via AWS CLI e configurar grupos de segurança dentro de uma VPC.
+- Estabelecer conexão com o Amazon Neptune utilizando o protocolo Apache TinkerPop Gremlin e openCypher com assinatura AWS SigV4.
+- Diagnosticar falhas de conectividade, certificados TLS e restrições de firewall em ambientes de nuvem.
+
+---
+
+## Provisionamento e Conexão no Neo4j AuraDB
+
+O Neo4j AuraDB oferece instâncias gerenciadas que utilizam o protocolo binário criptografado Bolt (`neo4j+s://` ou `neo4j+ssc://` para certificados autoassinados):
+
+<Mermaid title="Fluxo de conexão segura da aplicação ao Neo4j AuraDB">
+{`
+flowchart LR
+    App["Aplicação Node.js / Python"] -->|"TLS / Bolt (Porta 7687)"| LB["Load Balancer AuraDB"]
+    LB --> Engine[("Instância Neo4j AuraDB (Memória + NVMe)")]
+    
+    subgraph AuthVault ["Credenciais de Acesso"]
+        URI["URI: neo4j+s://xxx.databases.neo4j.io"]
+        User["Usuário: neo4j"]
+        Pass["Senha / Credentials File (.env)"]
+    end
+    
+    App -.-> AuthVault
+`}
+</Mermaid>
+
+Para provisionar e conectar ao AuraDB:
+
+1. Acesse o [Neo4j Aura Console](https://console.neo4j.io/) e crie uma instância gratuita (*AuraDB Free*) ou profissional (*AuraDB Pro*).
+2. Salve o arquivo de credenciais gerado contendo o `NEO4J_URI`, `NEO4J_USERNAME` e `NEO4J_PASSWORD`.
+3. Configure as variáveis em seu arquivo `.env`:
+
+```bash
+NEO4J_URI=neo4j+s://a1b2c3d4.databases.neo4j.io
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=sua-senha-gerada-pelo-aura
+```
+
+### Conexão via Cypher Shell
+
+O utilitário de linha de comando `cypher-shell` permite executar scripts e queries interativas diretamente contra o AuraDB:
+
+```bash
+# Conexão interativa via cypher-shell com TLS habilitado
+cypher-shell -a neo4j+s://a1b2c3d4.databases.neo4j.io -u neo4j -p sua-senha-gerada-pelo-aura
+
+# Execução de uma query inicial no terminal
+neo4j@a1b2c3d4> CREATE (u:User {id: 'usr-1', name: 'Alice'}) RETURN u;
+```
+
+---
+
+## Conexão via Driver Oficial Neo4j
+
+Em aplicações Node.js / TypeScript, utilize o pacote oficial `neo4j-driver` para gerenciar pools de conexões e sessões transacionais:
+
+```bash
+# Instalação do driver oficial em TypeScript / Node.js
+pnpm add neo4j-driver
+```
+
+Abaixo está o exemplo de inicialização de driver e execução de consultas com controle de transação:
+
+```typescript
+import neo4j, { Driver, Session } from 'neo4j-driver';
+
+// Inicialização do singleton do driver com pool de conexões
+const driver: Driver = neo4j.driver(
+  process.env.NEO4J_URI!,
+  neo4j.auth.basic(process.env.NEO4J_USER!, process.env.NEO4J_PASSWORD!)
+);
+
+async function criarRelacionamento(userId1: string, userId2: string) {
+  const session: Session = driver.session({ database: 'neo4j' });
+  try {
+    const result = await session.executeWrite(async (tx) => {
+      return await tx.run(
+        `
+        MATCH (a:User {id: $id1}), (b:User {id: $id2})
+        MERGE (a)-[r:FOLLOWS]->(b)
+        RETURN a.name AS remetente, b.name AS destinatario, type(r) AS tipo
+        `,
+        { id1: userId1, id2: userId2 }
+      );
+    });
+
+    const record = result.records[0];
+    console.log(`Relacionamento criado: ${record.get('remetente')} segue ${record.get('destinatario')}`);
+  } finally {
+    // É obrigatório fechar a sessão para devolver o socket ao pool
+    await session.close();
+  }
+}
+```
+
+<Aside type="tip">
+Utilize sempre `executeRead()` e `executeWrite()`. O driver do Neo4j gerencia tentativas automáticas (*retries*) com backoff exponencial caso ocorram falhas transitórias de rede ou rebalanceamentos de nós.
+</Aside>
+
+---
+
+## Provisionamento e Acesso ao Amazon Neptune
+
+O Amazon Neptune é implantado obrigatoriamente dentro de uma Amazon VPC (Virtual Private Cloud). O acesso a partir da internet pública requer Bastion Hosts, túneis SSH, AWS Client VPN ou Application Load Balancers (ALB).
+
+<Mermaid title="Topologia de rede do cluster Amazon Neptune em VPC privada">
+{`
+flowchart TD
+    subgraph VPC ["Amazon VPC (10.0.0.0/16)"]
+        subgraph PublicSubnet ["Sub-rede Pública"]
+            Bastion["Bastion Host / EC2 Jumpbox"]
+            ALB["Application Load Balancer"]
+        end
+        
+        subgraph PrivateSubnet ["Sub-redes Privadas (Multi-AZ)"]
+            Primary[("Neptune Primary Writer\n(neptune-cluster.xxx.us-east-1.neptune.amazonaws.com)")]
+            Replica[("Neptune Read Replica\n(neptune-cluster-ro.xxx.us-east-1.neptune.amazonaws.com)")]
+        end
+    end
+    
+    Dev["Desenvolvedor / Terminal"] -->|"SSH Tunnel (Porta 8182)"| Bastion
+    Bastion --> Primary
+    Bastion --> Replica
+    App["Microsserviço ECS / Lambda na VPC"] --> Primary
+`}
+</Mermaid>
+
+### Criando um Cluster Neptune via AWS CLI
+
+O comando a seguir cria o grupo de sub-redes e o cluster gerenciado:
+
+```bash
+# 1. Cria o grupo de sub-redes de banco
+aws neptune create-db-subnet-group \
+  --db-subnet-group-name neptune-subnet-group \
+  --db-subnet-group-description "Subnets para o cluster Neptune" \
+  --subnet-ids subnet-01a2b3c4 subnet-05d6e7f8
+
+# 2. Cria o cluster Neptune
+aws neptune create-db-cluster \
+  --db-cluster-identifier graph-prod-cluster \
+  --engine neptune \
+  --engine-version 1.3.1.0 \
+  --db-subnet-group-name neptune-subnet-group \
+  --vpc-security-group-ids sg-0123456789abcdef0
+
+# 3. Cria a instância primária (escrita)
+aws neptune create-db-instance \
+  --db-instance-identifier graph-prod-instance-1 \
+  --db-cluster-identifier graph-prod-cluster \
+  --db-instance-class db.t4g.medium \
+  --engine neptune
+```
+
+---
+
+## Conexão com Gremlin e openCypher no Neptune
+
+O endpoint HTTPS/WebSocket do Neptune escuta na porta `8182`.
+
+### Cliente Apache TinkerPop Gremlin em Node.js
+
+Para executar travessias imperativas Gremlin:
+
+```bash
+pnpm add gremlin
+```
+
+```typescript
+import gremlin from 'gremlin';
+
+const { traversal } = gremlin.process.AnonymousTraversalSource;
+const { DriverRemoteConnection } = gremlin.driver;
+
+// Criação do canal WebSocket remoto com o endpoint Neptune
+const connection = new DriverRemoteConnection(
+  'wss://graph-prod-cluster.cluster-xxx.us-east-1.neptune.amazonaws.com:8182/gremlin',
+  {
+    mimeType: 'application/vnd.gremlin-v3.0+json',
+    rejectUnauthorized: true,
+  }
+);
+
+const g = traversal().withRemote(connection);
+
+async function buscarConexoes(nomeUsuario: string) {
+  try {
+    const amigos = await g
+      .V()
+      .has('User', 'name', nomeUsuario)
+      .out('FRIEND')
+      .values('name')
+      .toList();
+
+    console.log(`Amigos de ${nomeUsuario}:`, amigos);
+  } finally {
+    await connection.close();
+  }
+}
+```
+
+### Consultas openCypher via HTTP no Neptune
+
+O Amazon Neptune também aceita consultas declarativas openCypher por meio do endpoint REST HTTPS:
+
+```bash
+# Executando openCypher via cURL contra o endpoint Neptune
+curl -X POST https://graph-prod-cluster.cluster-xxx.us-east-1.neptune.amazonaws.com:8182/openCypher \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "query=MATCH (u:User)-[:FRIEND]->(f) RETURN u.name, f.name LIMIT 5"
+```
+
+---
+
+## Executando
+
+Para testar localmente uma aplicação que consome o AuraDB ou Neptune:
+
+1. Clone o projeto e instale as dependências:
+   ```bash
+   pnpm install
+   ```
+2. Defina as variáveis de ambiente no arquivo `.env`.
+3. Inicie o script de validação de conectividade:
+   ```bash
+   pnpm dev
+   ```
+
+---
+
+## Exercício
+
+Com base nas etapas de conexão e configuração apresentadas:
+
+1. Qual é o papel do protocolo `neo4j+s://` no Neo4j AuraDB e qual porta TCP padrão ele utiliza?
+2. Por que o Amazon Neptune não expõe um IP público por padrão e quais estratégias podem ser adotadas para acessá-lo a partir de máquinas locais durante o desenvolvimento?
+3. O que acontece com a integridade das conexões em uma aplicação Node.js se o desenvolvedor esquecer de invocar `session.close()` após executar uma query no Neo4j?
+
+---
+
+## Desafio
+
+Implemente um script em TypeScript que se conecte ao Neo4j AuraDB (ou Neo4j local) utilizando `neo4j-driver`, leia um arquivo JSON com 50 usuários e crie transacionalmente os nós e relacionamentos de amizade utilizando o operador `UNWIND` do Cypher para minimizar o número de requisições de rede (*network roundtrips*).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Qual a diferença entre os protocolos neo4j+s:// e neo4j+ssc://?</summary>
+O protocolo `neo4j+s://` exige certificados TLS emitidos por autoridades certificadoras confiáveis públicas (padrão em instâncias de produção do AuraDB). Já o `neo4j+ssc://` (*Self-Signed Certificate*) aceita certificados autoassinados, comum em instâncias de desenvolvimento locais ou ambientes privados corporativos.
+</details>
+
+<details>
+<summary>2. Como o Amazon Neptune garante alta disponibilidade em caso de falha da instância primária?</summary>
+O Neptune promove automaticamente uma das réplicas de leitura existentes na sub-rede privada para o papel de primária em menos de 30 segundos, atualizando o ponteiro DNS do Cluster Endpoint sem exigir alterações na configuração de conexão das aplicações clientes.
+</details>
+
+---
+
+## Referências
+
+- [Neo4j JavaScript Driver Manual](https://neo4j.com/docs/javascript-manual/current/)
+- [Connecting to Amazon Neptune via Gremlin](https://docs.aws.amazon.com/neptune/latest/userguide/access-graph-gremlin-node-js.html)
+- [Managing AuraDB Connections & Security](https://neo4j.com/docs/aura/auradb/connecting/)
+
+---
+
+## Próximo tópico
+
+Com os clientes e clusters configurados, avance para os recursos avançados de inteligência em grafos em **[Recursos de Nuvem e Operações em AuraDB e Neptune](../operations/)**.

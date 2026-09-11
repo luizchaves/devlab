@@ -1,0 +1,267 @@
+---
+title: "InfluxDB Cloud e Amazon Timestream: Provisionamento e Clientes"
+description: "Guia prático de provisionamento, configuração de tokens, protocolos de ingestão e bibliotecas clientes para InfluxDB Cloud e Amazon Timestream."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico detalha o processo de provisionamento em nuvem, configuração de credenciais e conexão de aplicações clientes utilizando **InfluxDB Cloud** (via InfluxDB Line Protocol e Flight SQL) e **Amazon Timestream** (via AWS SDKs em Node.js e Python).
+
+---
+
+## Objetivo
+
+Capacitar o desenvolvedor a configurar contas em nuvem, criar bancos e tabelas temporais e integrar bibliotecas clientes de alta vazão para ingestão e consulta. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar baldes (*buckets*), organizações e tokens de autenticação no InfluxDB Cloud.
+- Ingerir métricas em lote via InfluxDB Line Protocol utilizando bibliotecas em TypeScript e Python.
+- Provisionar bancos de dados e tabelas no Amazon Timestream definindo limites de retenção na memória e camada magnética.
+- Escrever e consultar registros no Amazon Timestream utilizando o AWS SDK v3 (`@aws-sdk/client-timestream-write` e `@aws-sdk/client-timestream-query`).
+- Estruturar medidas escalares e multivariadas (*Multi-Measure Records*) para otimizar custo e eficiência.
+
+---
+
+## Provisionamento e Conexão no InfluxDB Cloud
+
+No InfluxDB Cloud (incluindo InfluxDB Serverless 3.0), as métricas são agrupadas em uma **Organização** e persistidas em **Buckets** (bancos de dados temporais):
+
+<Mermaid title="Fluxo de autenticação e ingestão no InfluxDB Cloud">
+{`
+flowchart LR
+    App["Coletor / Microsserviço"] -->|"HTTPS / Token (Porta 443)"| Gateway["InfluxDB Cloud API Gateway"]
+    Gateway --> Ingest["Engine de Ingestão InfluxDB 3.0"]
+
+    subgraph Config ["Parâmetros de Conexão (.env)"]
+        Host["INFLUX_HOST: https://us-east-1-1.aws.cloud2.influxdata.com"]
+        Org["INFLUX_ORG: minha-empresa"]
+        Bucket["INFLUX_BUCKET: telemetria-sensores"]
+        Token["INFLUX_TOKEN: token-com-permissao-write-read"]
+    end
+
+    App -.-> Config
+`}
+</Mermaid>
+
+### Formato InfluxDB Line Protocol
+
+O Line Protocol é o formato de texto padrão para ingestão em altíssima velocidade:
+
+```text
+# Sintaxe: <measurement>[,<tag_key>=<tag_value>] <field_key>=<field_value> [<timestamp_nanos>]
+servidor_status,host=servidor-01,regiao=us-east cpu_usage=45.2,mem_free=1024i 1718000000000000000
+```
+
+### Ingestão com o Driver Oficial em Node.js
+
+Utilize a biblioteca `@influxdata/influxdb-client` com a API de escrita em lote (*WriteApi*):
+
+```bash
+pnpm add @influxdata/influxdb-client
+```
+
+```typescript
+import { InfluxDB, Point } from '@influxdata/influxdb-client';
+
+const url = process.env.INFLUX_HOST!;
+const token = process.env.INFLUX_TOKEN!;
+const org = process.env.INFLUX_ORG!;
+const bucket = process.env.INFLUX_BUCKET!;
+
+const client = new InfluxDB({ url, token });
+const writeApi = client.getWriteApi(org, bucket, 'ns'); // precisão em nanossegundos
+
+// Configuração padrão de tags globais adicionadas a todos os pontos
+writeApi.useDefaultTags({ ambiente: 'producao' });
+
+async function registrarMetricasSensor(sensorId: string, temperatura: number, umidade: number) {
+  const ponto = new Point('leitura_clima')
+    .tag('sensor_id', sensorId)
+    .tag('localizacao', 'galpao-a')
+    .floatField('temperatura', temperatura)
+    .floatField('umidade', umidade)
+    .timestamp(new Date());
+
+  writeApi.writePoint(ponto);
+  
+  // O buffer interno faz o flush automático de acordo com a configuração em lote
+  console.log(`Ponto gravado no buffer para o sensor ${sensorId}`);
+}
+
+// Fechamento gracioso enviando todos os dados pendentes no buffer
+async function encerrarColeta() {
+  await writeApi.close();
+}
+```
+
+---
+
+## Provisionamento e Acesso ao Amazon Timestream
+
+No Amazon Timestream, cria-se um **Database** e uma ou mais **Tables**, configurando o tempo de permanência na *Memory Store* e na *Magnetic Store*.
+
+<Mermaid title="Estrutura de retenção de tabela no Amazon Timestream">
+{`
+flowchart TD
+    subgraph TimestreamDB ["Banco: TelemetriaFrota"]
+        subgraph Table ["Tabela: LeiturasGPS"]
+            Memory["Memory Store Retention: 24 Horas\n(Consultas ultra-rápidas recentes)"]
+            Magnetic["Magnetic Store Retention: 365 Dias\n(Histórico consolidado de baixo custo)"]
+            Memory -->|"Migração Automática"| Magnetic
+        end
+    end
+`}
+</Mermaid>
+
+### Criando Banco e Tabela via AWS CLI
+
+```bash
+# 1. Cria o banco de dados Timestream
+aws timestream-write create-database \
+  --database-name TelemetriaFrota
+
+# 2. Cria a tabela com retenção de 24h na memória e 1 ano no magnético
+aws timestream-write create-table \
+  --database-name TelemetriaFrota \
+  --table-name LeiturasGPS \
+  --retention-properties "MemoryStoreRetentionPeriodInHours=24,MagneticStoreRetentionPeriodInDays=365" \
+  --magnetic-store-write-properties "EnableMagneticStoreWrites=true"
+```
+
+---
+
+## Conexão e Ingestão com AWS SDK v3 no Timestream
+
+Para interagir com o Timestream em Node.js/TypeScript:
+
+```bash
+pnpm add @aws-sdk/client-timestream-write @aws-sdk/client-timestream-query
+```
+
+### Escrevendo Registros Multivariados (Multi-Measure Records)
+
+Os registros multivariados permitem gravar múltiplos campos em uma única linha no mesmo carimbo de data/hora, reduzindo custos de escrita:
+
+```typescript
+import {
+  TimestreamWriteClient,
+  WriteRecordsCommand,
+  Record as TimestreamRecord,
+  MeasureValueType
+} from '@aws-sdk/client-timestream-write';
+
+const writeClient = new TimestreamWriteClient({ region: 'us-east-1' });
+
+async function gravarTelemetriaVeiculo(veiculoId: string, velocidade: number, combustivel: number) {
+  const currentTime = Date.now().toString();
+
+  const record: TimestreamRecord = {
+    Dimensions: [
+      { Name: 'veiculo_id', Value: veiculoId },
+      { Name: 'frota', Value: 'sudeste' }
+    ],
+    MeasureName: 'metricas_veiculo',
+    MeasureValueType: MeasureValueType.MULTI,
+    MeasureValues: [
+      { Name: 'velocidade_kmh', Value: velocidade.toString(), Type: 'DOUBLE' },
+      { Name: 'nivel_combustivel', Value: combustivel.toString(), Type: 'DOUBLE' }
+    ],
+    Time: currentTime,
+    TimeUnit: 'MILLISECONDS'
+  };
+
+  const command = new WriteRecordsCommand({
+    DatabaseName: 'TelemetriaFrota',
+    TableName: 'LeiturasGPS',
+    Records: [record]
+  });
+
+  await writeClient.send(command);
+  console.log(`Métricas enviadas para o veículo ${veiculoId}`);
+}
+```
+
+### Consultando Dados com SQL no Timestream
+
+```typescript
+import {
+  TimestreamQueryClient,
+  QueryCommand
+} from '@aws-sdk/client-timestream-query';
+
+const queryClient = new TimestreamQueryClient({ region: 'us-east-1' });
+
+async function consultarVelocidadeMedia(veiculoId: string) {
+  const sql = `
+    SELECT bin(time, 5m) AS intervalo,
+           AVG(velocidade_kmh) AS velocidade_media
+    FROM "TelemetriaFrota"."LeiturasGPS"
+    WHERE veiculo_id = '${veiculoId}'
+      AND time >= ago(2h)
+    GROUP BY bin(time, 5m)
+    ORDER BY intervalo DESC
+  `;
+
+  const response = await queryClient.send(new QueryCommand({ QueryString: sql }));
+  console.log('Linhas retornadas:', response.Rows);
+}
+```
+
+---
+
+## Executando
+
+Para executar os exemplos práticos de ingestão:
+
+1. Clone o projeto e instale as dependências com `pnpm install`.
+2. Configure o `.env` com suas credenciais do InfluxDB ou configure as credenciais AWS via `aws configure`.
+3. Execute o script de envio de telemetria simulada:
+   ```bash
+   pnpm dev
+   ```
+
+---
+
+## Exercício
+
+Com base nos tópicos de configuração e clientes:
+
+1. Qual a diferença fundamental entre uma *Tag* e um *Field* no InfluxDB Line Protocol no que diz respeito à indexação?
+2. O que acontece com um ponto gravado no Amazon Timestream com um *timestamp* de 48 horas atrás quando a retenção da *Memory Store* está configurada para 24 horas?
+3. Qual é a vantagem de utilizar registros multivariados (*Multi-Measure Records*) em vez de registros de medida única (*Single-Measure*) no Timestream?
+
+---
+
+## Desafio
+
+Crie um simulador de gerador de dados IoT em TypeScript que crie 10 sensores virtuais e envie simultaneamente 100 medições a cada segundo para o InfluxDB Cloud utilizando o padrão de *batch write* (acumulando 500 pontos no buffer antes de disparar a requisição HTTPS).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Por que nunca devemos colocar valores de alta cardinalidade (como UUIDs de requisições) como Tags no InfluxDB 1.x/2.x?</summary>
+Nas versões legadas do InfluxDB (1.x e 2.x com TSI), cada combinação única de tags cria uma série temporal distinta mantida em índices na memória RAM. Valores de alta cardinalidade geravam a explosão de séries temporais (*series cardinality explosion*), exaurindo toda a memória do servidor. O InfluxDB 3.0 resolve isso com o motor colunar Apache Arrow.
+</details>
+
+<details>
+<summary>2. Como o InfluxDB WriteApi trata falhas transitórias de conexão de rede?</summary>
+O `WriteApi` do cliente oficial possui um buffer em memória com lógica de repetição (*retry*) automática e backoff exponencial com jitter, reenviando os lotes com falha assim que a conectividade for restabelecida.
+</details>
+
+---
+
+## Referências
+
+- [InfluxDB JavaScript Client Library](https://github.com/influxdata/influxdb-client-js)
+- [Amazon Timestream Developer Guide - Writing Data](https://docs.aws.amazon.com/timestream/latest/developerguide/writing-data.html)
+- [InfluxDB Line Protocol Reference](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/)
+
+---
+
+## Próximo tópico
+
+Com os clientes e pipelines de ingestão funcionando, avance para o gerenciamento analítico e políticas de retenção em **[Recursos de Nuvem e Operações em InfluxDB e Timestream](../operations/)**.

@@ -1,0 +1,183 @@
+---
+title: "Elastic Cloud e Amazon OpenSearch: Recursos de Nuvem e Operações"
+description: "Operações avançadas em motores de busca: ciclo de vida de índices (ILM/ISM), busca vetorial híbrida (k-NN + BM25), replicação entre clusters e tuning de shards."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico explora as operações de governança e escalabilidade em **Elastic Cloud** e **Amazon OpenSearch Service**, abordando o ciclo de vida automatizado de índices (*ILM / ISM*), busca híbrida que combina relevância textual e vetorial com IA (*Vector Search*), replicação geográfica e afinação de fragmentos (*shards*).
+
+---
+
+## Objetivo
+
+Compreender a gestão operacional de grandes volumes de documentos, otimização de infraestrutura em camadas e busca semântica em nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Configurar políticas de ciclo de vida de índices (*ILM* no Elastic e *ISM* no OpenSearch) entre as fases *Hot*, *Warm*, *Cold* e *Frozen*.
+- Implementar busca vetorial aproximada (*k-NN*) utilizando grafos HNSW e embeddings de inteligência artificial.
+- Desenhar arquiteturas de busca híbrida combinando pontuações BM25 com similaridade por cosseno via *Reciprocal Rank Fusion (RRF)*.
+- Configurar políticas de backup contínuo (*Snapshot Lifecycle Management - SLM*) enviando dados para o Amazon S3 ou Google Cloud Storage.
+- Diagnosticar e prevenir pressão excessiva na memória da JVM (*JVM Heap Pressure*) e balancear o tamanho ideal de shards.
+
+---
+
+## Ciclo de Vida de Índices em Camadas (ILM / ISM)
+
+Para logs de observabilidade e eventos de segurança, o volume de dados cresce continuamente. Manter todos os dados em discos SSD NVMe caros é financeiramente insustentável. As políticas de ciclo de vida automatizam a movimentação dos índices:
+
+<Mermaid title="Fases do ciclo de vida de índices (ILM / ISM)">
+{`
+flowchart LR
+    Ingest["Novos Documentos"] --> Hot["1. Hot Tier (0-7 dias)\nEscritas rápidas e leituras frequentes em SSD NVMe"]
+    Hot -->|"Rollover / Idade > 7d"| Warm["2. Warm Tier (8-30 dias)\nSomente leitura, shards mesclados (Force Merge)"]
+    Warm -->|"Idade > 30d"| Cold["3. Cold Tier (31-90 dias)\nÍndices montados diretamente de Snapshots no S3"]
+    Cold -->|"Idade > 90d"| Delete["4. Exclusão Programada\nOu arquivamento definitivo no Glacier"]
+`}
+</Mermaid>
+
+### Exemplo de Política ILM no Elasticsearch
+
+```json
+PUT _ilm/policy/logs_observabilidade_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "50gb",
+            "max_age": "7d"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "7d",
+        "actions": {
+          "forcemerge": { "max_num_segments": 1 },
+          "allocate": { "number_of_replicas": 1 }
+        }
+      },
+      "cold": {
+        "min_age": "30d",
+        "actions": {
+          "searchable_snapshot": {
+            "snapshot_repository": "backup_s3_repo"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "90d",
+        "actions": { "delete": {} }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Busca Híbrida: Léxica (BM25) + Vetorial (k-NN)
+
+A busca híbrida combina a precisão de palavras-chave do algoritmo BM25 com o entendimento contextual de modelos de linguagem vetoriais (*Dense Vectors*):
+
+<Mermaid title="Fluxo de Busca Híbrida com Reciprocal Rank Fusion (RRF)">
+{`
+flowchart TD
+    UserQuery["Query do Usuário: 'tênis de corrida leve para maratona'"] --> Splitter["Processador de Consulta"]
+    
+    Splitter --> BM25["1. Busca Léxica (BM25)\nFiltra por palavras exatas ('tênis', 'maratona')"]
+    Splitter --> Embedding["2. Modelo de Embedding (ex: text-embedding-3)\nGera Vetor denso de 1536 dimensões"]
+    
+    Embedding --> KNN["3. Busca Vetorial (k-NN / HNSW)\nEncontra proximidade semântica no hiperespaço"]
+    
+    BM25 --> RRF["Reciprocal Rank Fusion (RRF)\nNormaliza e funde os dois rankings de relevância"]
+    KNN --> RRF
+    
+    RRF --> FinalResults["Lista Final de Produtos Mais Relevantes"]
+`}
+</Mermaid>
+
+Exemplo de consulta híbrida no Elasticsearch / OpenSearch:
+
+```json
+POST catalogo_produtos/_search
+{
+  "query": {
+    "match": {
+      "descricao": "tênis de corrida leve"
+    }
+  },
+  "knn": {
+    "field": "vetor_descricao",
+    "query_vector": [0.024, -0.156, 0.412, "..."],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "rank": {
+    "rrf": {
+      "window_size": 50,
+      "rank_constant": 20
+    }
+  }
+}
+```
+
+---
+
+## Governança Operacional e Tuning de Shards
+
+Para manter clusters com alta disponibilidade e baixa latência:
+
+1. **Dimensionamento de Shards**: Mantenha o tamanho dos shards primários entre **20 GB e 50 GB**. Shards menores que 10 GB geram sobrecarga excessiva de metadados na memória JVM (*Shard Overhead*).
+2. **Pressão de Heap da JVM (*JVM Heap Pressure*)**: Monitore para que o uso de Heap não ultrapasse 75% constantemente. Acima desse limiar, coletas de lixo (*Garbage Collection pauses*) causam desconexão de nós e instabilidade.
+3. **Ajuste de Refresh Interval**: Em cenários de indexação massiva de logs, aumente o `refresh_interval` de `1s` (padrão) para `30s` ou `60s`, reduzindo drasticamente o I/O de criação de pequenos segmentos Lucene.
+
+---
+
+## Exercício
+
+Com base nas práticas operacionais de motores de busca:
+
+1. Por que a fase *Warm* de uma política ILM executa o comando `forcemerge` para compactar segmentos Lucene?
+2. Como o algoritmo *Reciprocal Rank Fusion (RRF)* equilibra os resultados de uma busca tradicional por palavras-chave e de uma busca vetorial sem que uma pontuação ofusque a outra?
+3. O que acontece com o desempenho de escrita quando um índice possui centenas de pequenos shards de 500 MB em vez de 2 shards consolidados de 25 GB?
+
+---
+
+## Desafio
+
+Projete a arquitetura de busca e observabilidade para uma empresa de pagamentos que processa 200 milhões de logs por dia:
+- Defina a estratégia de rollover por tamanho e tempo para os índices diários (`logs-transacoes-YYYY.MM.DD`).
+- Descreva as etapas da política ISM/ILM para mover os dados para armazenamento frio no S3 após 14 dias e apagá-los após 180 dias.
+- Calcule a quantidade estimada de shards primários necessários por dia considerando um volume diário descompactado de 100 GB.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que são Searchable Snapshots no Elastic Cloud?</summary>
+Os *Searchable Snapshots* permitem que os nós da camada *Cold* e *Frozen* consultem diretamente os arquivos de snapshot compactados no armazenamento de objetos (Amazon S3 ou GCS), mantendo apenas um cache local mínimo de blocos frequentemente lidos em disco, barateando os custos de retenção em até 80%.
+</details>
+
+<details>
+<summary>2. O que é o algoritmo HNSW na busca vetorial do OpenSearch?</summary>
+HNSW (*Hierarchical Navigable Small World*) é uma estrutura de dados baseada em grafos multicamadas que permite realizar buscas vetoriais aproximadas dos vizinhos mais próximos (*Approximate Nearest Neighbor - ANN*) em complexidade logarítmica O(log N), viabilizando buscas em milhões de vetores em menos de 10 milissegundos.
+</details>
+
+---
+
+## Referências
+
+- [Elasticsearch Index Lifecycle Management Guide](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html)
+- [OpenSearch k-NN Vector Search Documentation](https://opensearch.org/docs/latest/search-plugins/knn/index/)
+- [Elasticsearch Hybrid Search & RRF](https://www.elastic.co/guide/en/elasticsearch/reference/current/rrf.html)
+
+---
+
+## Próximo tópico
+
+Com a busca textual e vetorial dominada, finalize a trilha de bancos gerenciados conhecendo os bancos colunares amplos de altíssima escala com **[Visão geral de DataStax Astra DB e Amazon Keyspaces](../../astradb-keyspaces/)**.

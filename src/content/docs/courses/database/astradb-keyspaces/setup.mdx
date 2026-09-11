@@ -1,0 +1,228 @@
+---
+title: "DataStax Astra DB e Amazon Keyspaces: Provisionamento e Clientes"
+description: "Guia prático de provisionamento, Secure Connect Bundle, certificados TLS e clientes Node.js para DataStax Astra DB e Amazon Keyspaces."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico aborda o provisionamento em nuvem, configuração de pacotes de segurança criptográfica e conexão de clientes em Node.js e TypeScript para o **DataStax Astra DB** (via Secure Connect Bundle e Astra Data API) e para o **Amazon Keyspaces** (via certificados TLS e credenciais de serviço).
+
+---
+
+## Objetivo
+
+Aprender a criar keyspaces em nuvem, baixar credenciais seguras e integrar drivers oficiais do Apache Cassandra e SDKs modernos de documentos. Ao final do tópico, o leitor deve ser capaz de:
+
+- Provisionar bancos de dados serverless no DataStax Astra DB e gerar tokens de aplicação (*Application Tokens*).
+- Conectar aplicações utilizando o *Secure Connect Bundle* com o driver oficial `cassandra-driver`.
+- Utilizar o SDK TypeScript `@datastax/astra-db-ts` para operações com a Data API (formato JSON).
+- Criar keyspaces e tabelas no Amazon Keyspaces via AWS CLI e console AWS.
+- Configurar autenticação TLS e credenciais de serviço específicas do Cassandra para o Amazon Keyspaces.
+
+---
+
+## Provisionamento e Conexão no DataStax Astra DB
+
+O Astra DB oferece duas formas principais de acesso: via protocolo binário CQL (utilizando o *Secure Connect Bundle*) e via HTTP REST/JSON utilizando a **Data API**:
+
+<Mermaid title="Modelos de conexão com o DataStax Astra DB">
+{`
+flowchart LR
+    App["Aplicação Node.js"] --> Router["Astra DB Gateway"]
+
+    subgraph AuthMechanisms ["Opções de Integração"]
+        SCB["1. cassandra-driver\n(Secure Connect Bundle zip + Token)"]
+        DataAPI["2. @datastax/astra-db-ts\n(Endpoint HTTPS + Token)"]
+    end
+
+    App --> SCB --> Router
+    App --> DataAPI --> Router
+    Router --> Cluster[("Astra DB Serverless Storage")]
+`}
+</Mermaid>
+
+### Conexão via Driver Oficial Cassandra com Secure Connect Bundle
+
+1. No console do Astra DB, gere um **Application Token** com a role `Database Administrator` e baixe o arquivo `secure-connect-database.zip`.
+2. Instale o driver oficial:
+   ```bash
+   pnpm add cassandra-driver
+   ```
+3. Conecte sua aplicação:
+
+```typescript
+import { Client } from 'cassandra-driver';
+import path from 'node:path';
+
+const client = new Client({
+  cloud: {
+    secureConnectBundle: path.resolve('./secure-connect-meubanco.zip'),
+  },
+  credentials: {
+    username: 'token', // literal "token"
+    password: process.env.ASTRA_DB_APPLICATION_TOKEN!, // ex: AstraCS:xxx...
+  },
+  keyspace: 'ecommerce',
+});
+
+async function consultarHistoricoUsuario(usuarioId: string) {
+  await client.connect();
+
+  const query = 'SELECT item_id, data_evento, tipo_acao FROM historico_eventos WHERE usuario_id = ?';
+  const result = await client.execute(query, [usuarioId], { prepare: true });
+
+  console.log(`Eventos encontrados para o usuário ${usuarioId}:`, result.rows);
+  await client.shutdown();
+}
+```
+
+### Conexão via Astra Data API (@datastax/astra-db-ts)
+
+Para manipular coleções JSON sem escrever queries CQL:
+
+```bash
+pnpm add @datastax/astra-db-ts
+```
+
+```typescript
+import { DataAPIClient } from '@datastax/astra-db-ts';
+
+const client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN!);
+const db = client.db(process.env.ASTRA_DB_API_ENDPOINT!);
+
+async function inserirDocumento() {
+  const collection = db.collection('carrinhos_compras');
+
+  // Inserção direta de objeto JSON nativo
+  await collection.insertOne({
+    usuario_id: 'usr-501',
+    itens: [
+      { sku: 'NOTE-01', quantidade: 1, preco: 4500 },
+      { sku: 'MOUSE-02', quantidade: 2, preco: 150 },
+    ],
+    atualizado_em: new Date(),
+  });
+
+  console.log('Documento gravado via Astra Data API!');
+}
+```
+
+---
+
+## Provisionamento e Conexão no Amazon Keyspaces
+
+O Amazon Keyspaces escuta no protocolo CQL padrão na porta criptografada **9142** e exige o certificado raiz digital *Starfield*:
+
+<Mermaid title="Conexão segura com Amazon Keyspaces via TLS">
+{`
+flowchart LR
+    App["Aplicação (cassandra-driver)"] -->|"TLS / Porta 9142"| Endpoint["cassandra.us-east-1.amazonaws.com"]
+    
+    subgraph SecurityProfile ["Parâmetros de Segurança"]
+        Cert["Certificado Digital Starfield CA"]
+        Creds["Credenciais de Serviço do IAM"]
+    end
+    
+    App -.-> SecurityProfile
+    Endpoint --> KeyspacesEngine[("Amazon Keyspaces Storage")]
+`}
+</Mermaid>
+
+### Criando Keyspace e Tabela via AWS CLI
+
+```bash
+# 1. Criação do Keyspace
+aws keyspaces create-keyspace \
+  --keyspace-name telemetria_logistica
+
+# 2. Criação da tabela CQL com Partition Key e Clustering Key
+aws keyspaces create-table \
+  --keyspace-name telemetria_logistica \
+  --table-name leituras_caminhao \
+  --schema-definition 'allColumns=[{name=caminhao_id,type=text},{name=data_hora,type=timestamp},{name=temperatura,type=double}],partitionKeys=[{name=caminhao_id}],clusteringKeys=[{name=data_hora,orderBy=DESC}]' \
+  --capacity-specification throughputMode=PAY_PER_REQUEST
+```
+
+### Conectando ao Amazon Keyspaces com Node.js
+
+```typescript
+import { Client, auth } from 'cassandra-driver';
+import fs from 'node:fs';
+
+const authProvider = new auth.PlainTextAuthProvider(
+  process.env.AWS_KEYSPACES_USER!, // Gerado no console IAM > "Service-specific credentials for Amazon Keyspaces"
+  process.env.AWS_KEYSPACES_PASSWORD!
+);
+
+const client = new Client({
+  contactPoints: ['cassandra.us-east-1.amazonaws.com'],
+  protocolOptions: { port: 9142 },
+  authProvider: authProvider,
+  localDataCenter: 'us-east-1',
+  sslOptions: {
+    ca: [fs.readFileSync('./sf-class2-root.crtr.pem', 'utf-8')],
+    host: 'cassandra.us-east-1.amazonaws.com',
+    rejectUnauthorized: true,
+  },
+});
+```
+
+---
+
+## Executando
+
+Para executar o script de teste de inserção e consulta colunar:
+
+1. Clone o repositório e instale as dependências com `pnpm install`.
+2. Configure seu arquivo `.env` com o token do Astra DB ou credenciais do Keyspaces.
+3. Inicie o script de validação:
+   ```bash
+   pnpm dev
+   ```
+
+---
+
+## Exercício
+
+Com base nas técnicas de conexão e provisionamento:
+
+1. Qual é a função do arquivo *Secure Connect Bundle* (`secure-connect-*.zip`) no DataStax Astra DB?
+2. Por que o Amazon Keyspaces utiliza a porta `9142` em vez da porta padrão `9042` do Apache Cassandra tradicional?
+3. O que é a *Astra Data API* e por que ela permite a desenvolvedores utilizar o Astra DB como se fosse um banco de documentos JSON?
+
+---
+
+## Desafio
+
+Escreva um script em TypeScript utilizando o `cassandra-driver` que crie transacionalmente uma tabela de log de auditoria, utilize declarações preparadas (`{ prepare: true }`) e execute uma inserção em lote assíncrona para 100 registros utilizando `Promise.all()` com controle de concorrência.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Por que é essencial utilizar declarações preparadas (prepared statements) no driver do Cassandra?</summary>
+As declarações preparadas fazem o driver compilar e registrar a query nos nós do cluster uma única vez. Nas execuções subsequentes, apenas os parâmetros binários são enviados pela rede, reduzindo o tráfego e permitindo que o driver saiba exatamente qual partição física receberá a gravação (*Token-Aware Routing*), evitando nós intermediários (*Coordinators*).
+</details>
+
+<details>
+<summary>2. Como são geradas as credenciais de autenticação no Amazon Keyspaces?</summary>
+Diferente das credenciais comuns do IAM (Access Key ID e Secret Access Key), o Keyspaces exige a geração de "Credenciais específicas de serviço para Amazon Keyspaces" na aba de credenciais de segurança do usuário IAM no console da AWS, ou o uso do plugin oficial de autenticação AWS SigV4.
+</details>
+
+---
+
+## Referências
+
+- [DataStax Astra DB JavaScript/TypeScript Drivers](https://docs.datastax.com/en/astra-db-serverless/get-started/connect.html)
+- [Amazon Keyspaces (for Apache Cassandra) Connection Guide](https://docs.aws.amazon.com/keyspaces/latest/devguide/using-nodejs-driver.html)
+- [DataStax Astra Data API Documentation](https://docs.datastax.com/en/astra-db-serverless/api-reference/overview.html)
+
+---
+
+## Próximo tópico
+
+Com os clientes configurados e keyspaces criados, avance para os recursos avançados de busca vetorial, replicação global e Point-in-Time Recovery em **[Recursos de Nuvem e Operações em Astra DB e Keyspaces](../operations/)**.

@@ -1,0 +1,183 @@
+---
+title: "DataStax Astra DB e Amazon Keyspaces: Recursos de Nuvem e Operações"
+description: "Operações em escala com bancos colunares amplos: busca vetorial (Astra Vector Search), replicação global, Point-in-Time Recovery (PITR) e governança de partições."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico explora os recursos avançados de nuvem e as práticas operacionais de alta disponibilidade no **DataStax Astra DB** e **Amazon Keyspaces**, abrangendo a indexação vetorial para IA (*Vector Search*), replicação multirregião, restauração contínua de dados (*PITR*) e boas práticas de modelagem colunar para evitar degradação de leitura.
+
+---
+
+## Objetivo
+
+Dominar as estratégias de sustentação em larga escala, indexação de alta dimensionalidade e resiliência operacional para bancos baseados em Cassandra. Ao final do tópico, o leitor deve ser capaz de:
+
+- Configurar coleções e índices vetoriais no Astra DB para aplicações de IA Generativa e RAG.
+- Implementar e gerenciar *Point-in-Time Recovery (PITR)* no Amazon Keyspaces para recuperação de desastres.
+- Desenhar arquiteturas de replicação multirregião ativa-ativa com tolerância a falhas continentais.
+- Monitorar a taxa de consumo de capacidade sob demanda (*Read/Write Capacity Units*).
+- Prevenir a formação excessiva de marcadores de exclusão (*Tombstones*) e dimensionar o limite seguro de tamanho por partição.
+
+---
+
+## Astra Vector Search e Aplicações RAG
+
+O Astra DB adicionou suporte a tipos de dados vetoriais (`vector<float, N>`) e índices baseados em grafos HNSW diretamente na estrutura de armazenamento do Cassandra:
+
+<Mermaid title="Fluxo de Busca Semântica e RAG com Astra Vector Search">
+{`
+flowchart TD
+    Prompt["Pergunta do Usuário: 'Como emitir nota fiscal eletrônica?'"] --> AI["Modelo de Embeddings (OpenAI / Cohere)"]
+    AI -->|"Vetor de 1536 dimensões"| VectorQuery["Query Vetorial de Similaridade"]
+    
+    subgraph AstraStorage ["Astra DB Vector Engine"]
+        VectorQuery --> HNSW["Índice HNSW (Approximate Nearest Neighbor)"]
+        HNSW --> MatchDocs[("Documentos e Trechos Relevantes Recuperados")]
+    end
+    
+    MatchDocs --> LLM["LLM (Contexto Enriquecido)"]
+    LLM --> Answer["Resposta Precisa com Citações"]
+`}
+</Mermaid>
+
+Exemplo de criação de coleção com suporte vetorial na Astra Data API:
+
+```typescript
+import { DataAPIClient, VectorSimilarityMethod } from '@datastax/astra-db-ts';
+
+const client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN!);
+const db = client.db(process.env.ASTRA_DB_API_ENDPOINT!);
+
+async function criarColecaoVetorial() {
+  const collection = await db.createCollection('base_conhecimento', {
+    vector: {
+      dimension: 1536,
+      metric: VectorSimilarityMethod.COSINE,
+    },
+  });
+
+  // Busca vetorial dos 5 documentos mais similares ao vetor de consulta
+  const resultados = await collection.find(
+    {},
+    {
+      sort: { $vector: [0.012, -0.045, 0.089, /* ... */] },
+      limit: 5,
+      includeSimilarity: true,
+    }
+  ).toArray();
+
+  console.log('Documentos mais relevantes:', resultados);
+}
+```
+
+---
+
+## Replicação Multirregião e Point-in-Time Recovery no Keyspaces
+
+O Amazon Keyspaces oferece restauração contínua de dados com zero impacto na performance de escrita da aplicação em produção:
+
+<Mermaid title="Restauração contínua com Point-in-Time Recovery (PITR)">
+{`
+flowchart LR
+    subgraph ProductionKeyspace ["Keyspace de Produção"]
+        Writes["Milhões de Inserções/Seg"] --> Table[("Tabela: transacoes_bancarias")]
+    end
+
+    Table -->|"Backup Contínuo Automático (35 dias)"| ContinuousLog["Log Contínuo de Transações no S3"]
+
+    subgraph DisasterRecovery ["Cenário de Restauração"]
+        Incident["Erro Humano / Script Acidental às 14:32:10"]
+        ContinuousLog -->|"Restaura para 14:32:00"| RestoredTable[("Nova Tabela: transacoes_restauradas")]
+    end
+`}
+</Mermaid>
+
+### Habilitando o PITR via AWS CLI
+
+```bash
+# Ativação do Point-In-Time Recovery para a tabela
+aws keyspaces update-table \
+  --keyspace-name telemetria_logistica \
+  --table-name leituras_caminhao \
+  --point-in-time-recovery-status Status=ENABLED
+```
+
+---
+
+## Boas Práticas Operacionais: Tombstones e Partições
+
+Em motores colunares derivados do Cassandra, operações de `DELETE` ou inserção de valores nulos gravam um marcador chamado **Tombstone** em vez de apagar fisicamente o dado na hora:
+
+<Mermaid title="Degradação de leitura por excesso de Tombstones">
+{`
+flowchart LR
+    Query["SELECT * FROM tabela WHERE id = 'xyz'"] --> Engine["Cassandra Engine"]
+    
+    subgraph SSTables ["Varredura no Disco"]
+        Engine --> T1["[Tombstone: deleted_at 10:00]"]
+        T1 --> T2["[Tombstone: deleted_at 10:01]"]
+        T2 --> T3["[Tombstone: deleted_at 10:02]"]
+        T3 --> RealData["[Dado Válido: registro 100]"]
+    end
+`}
+</Mermaid>
+
+<Aside type="caution">
+Quando uma consulta precisa ler mais de **100.000 tombstones** para encontrar uma linha válida, o driver emite um aviso ou falha por timeout (*TombstoneOverwhelmingException*). Evite usar bancos colunares para filas de mensagens de rápida rotatividade (*Work Queues*) onde itens são inseridos e apagados constantemente; utilize Redis ou SQS para essa finalidade.
+</Aside>
+
+### Regras de Ouro para Modelagem Colunar
+
+1. **Limite de Tamanho da Partição**: Mantenha cada partição física (*Partition Key*) abaixo de **100 MB** de dados e menos de 100.000 células.
+2. **Cardinalidade da Partition Key**: Evite chaves com poucos valores únicos (como status `'ativo'` ou país `'BR'`); use combinações como `(empresa_id, ano_mes)`.
+3. **Evite Atualizações com Valores Nulos**: Gravar campos com `null` cria novos tombstones na partição.
+
+---
+
+## Exercício
+
+Com base nas técnicas operacionais de bancos colunares amplos:
+
+1. Por que o Astra Vector Search utiliza a métrica de similaridade por cosseno (*Cosine Similarity*) para busca semântica em textos?
+2. O que são *Tombstones* em bancos baseados no Cassandra e por que eles degradam a performance de leitura se não forem gerenciados?
+3. Qual é a diferença no Amazon Keyspaces entre restaurar uma tabela via PITR e restaurar um snapshot estático tradicional?
+
+---
+
+## Desafio
+
+Projete uma estratégia de particionamento no Cassandra/Keyspaces para um sistema de telemetria de 1 milhão de hidrômetros inteligentes:
+- Cada hidrômetro envia a leitura de consumo a cada 1 hora.
+- Defina a chave primária composta `((hidrometro_id, ano_mes), dia_hora)` de modo que os dados fiquem distribuídos uniformemente em partições de tamanho controlado (menos de 2 MB por partição mensal).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Como o Astra DB lida com a compactação de dados na arquitetura serverless?</summary>
+Na arquitetura desacoplada do Astra DB, a compactação de arquivos SSTable é executada por processos de segundo plano independentes e assíncronos na nuvem, sem disputar recursos de CPU ou memória RAM com os gateways que respondem às consultas da aplicação.
+</details>
+
+<details>
+<summary>2. O que acontece com a consistência de leitura em replicação multirregião ativa-ativa no Cassandra?</summary>
+O cliente pode configurar o nível de consistência desejado por consulta (`LOCAL_QUORUM` para confirmação pela maioria dos nós da região local mais próxima com baixa latência, ou `QUORUM` global para garantir consistência estrita em todas as regiões).
+</details>
+
+---
+
+## Referências
+
+- [Astra DB Vector Search Quickstart](https://docs.datastax.com/en/astra-db-serverless/databases/vector-search.html)
+- [Amazon Keyspaces Point-in-Time Recovery Guide](https://docs.aws.amazon.com/keyspaces/latest/devguide/PointInTimeRecovery.html)
+- [Cassandra Anti-Patterns and Tombstone Management](https://cassandra.apache.org/_/quickstart.html)
+
+---
+
+## Próximo tópico
+
+Concluída a exploração dos bancos de dados gerenciados, avance para o armazenamento de arquivos binários e objetos não estruturados com **[MinIO: Armazenamento de Objetos](../../minio/)**.

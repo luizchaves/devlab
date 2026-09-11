@@ -1,0 +1,176 @@
+---
+title: "Atlas e Firestore: Provisionamento e Clientes"
+description: "Como criar clusters no MongoDB Atlas, obter a connection string SRV, conectar via mongosh remoto, inicializar projetos Firebase com a CLI e configurar SDKs de cliente e credenciais de serviço."
+course: database
+sidebar:
+  label: "Provisionamento e clientes"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Conectar aplicações a bancos de documentos em nuvem envolve gerenciar credenciais seguras e protocolos otimizados. No **MongoDB Atlas**, utilizamos strings de conexão DNS SRV autenticadas pelo utilitário `mongosh`. No **Google Cloud Firestore / Firebase**, a autenticação ocorre via Firebase CLI e contas de serviço (*Service Account Keys*).
+
+---
+
+## Objetivo
+
+Aprender a provisionar e conectar instâncias gerenciadas de documentos em nuvem, configurar listas de permissão de IP e inicializar SDKs para Node.js e navegadores. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar um cluster gratuito (M0) no MongoDB Atlas e configurar usuários e lista de IPs permitidos (*IP Access List*).
+- Conectar-se ao cluster remoto do Atlas utilizando a string de conexão SRV via `mongosh` e MongoDB Compass.
+- Inicializar um projeto com o Firebase CLI (`firebase-tools`) e provisionar o Cloud Firestore.
+- Configurar o SDK administrativo (`firebase-admin`) no backend e o SDK de cliente no frontend.
+- Proteger credenciais sensíveis através de variáveis de ambiente.
+
+---
+
+## Arquitetura de Conexão: Atlas vs. Firestore
+
+A forma como as aplicações se autenticam e dialogam com o Atlas e o Firestore reflete seus modelos de implantação:
+
+<Mermaid title="Fluxos de conexão no MongoDB Atlas e no Cloud Firestore">
+{`
+flowchart TD
+    subgraph AtlasConn ["1. Conexão com MongoDB Atlas (SRV + TLS)"]
+        API["Backend Node.js (Mongoose / MongoClient)"] -->|"mongodb+srv://user:pass@cluster.mongodb.net"| SRV["DNS SRV Lookup (Resolve nós do Replica Set)"]
+        SRV --> Primary["Nó Primário do Atlas"]
+    end
+
+    subgraph FirestoreConn ["2. Conexão com Cloud Firestore (gRPC / HTTPS)"]
+        ServerApp["Servidor Backend"] -->|"Service Account JSON"| AdminSDK["firebase-admin (Acesso Total)"]
+        BrowserApp["Frontend React / Mobile"] -->|"Firebase Auth Token"| ClientSDK["firebase/firestore (Acesso com Security Rules)"]
+        AdminSDK --> FS[("Cloud Firestore Engine")]
+        ClientSDK --> FS
+    end
+`}
+</Mermaid>
+
+---
+
+## Passo a Passo: MongoDB Atlas e mongosh
+
+<Steps>
+1. **Configurar Usuário e IP no MongoDB Atlas:**
+
+   No painel do Atlas (*Database Access*), crie um usuário com privilégios `readWriteAnyDatabase`. Em *Network Access*, adicione o endereço IP da sua máquina ou `0.0.0.0/0` (apenas para testes iniciais).
+
+2. **Obter a Connection String SRV:**
+
+   Copie a string no formato `mongodb+srv`:
+
+   ```text
+   mongodb+srv://devlab_user:SenhaForte123@cluster0.abcde.mongodb.net/invest_db?retryWrites=true&w=majority
+   ```
+
+3. **Conectar via terminal com `mongosh`:**
+
+   Execute o cliente oficial passando a URI completa:
+
+   ```bash
+   mongosh "mongodb+srv://cluster0.abcde.mongodb.net/invest_db" --apiVersion 1 --username devlab_user
+   ```
+
+4. **Testar gravação remota:**
+
+   Dentro da sessão interativa do `mongosh`:
+
+   ```javascript
+   db.carteiras.insertOne({
+     usuario: "Ana Silva",
+     ativos: ["Tesouro Selic", "FII HGLG11"],
+     atualizadoEm: new Date()
+   });
+   ```
+</Steps>
+
+---
+
+## Passo a Passo: Cloud Firestore e Firebase SDK
+
+<Steps>
+1. **Instalar a Firebase CLI globalmente:**
+
+   ```bash
+   npm install -g firebase-tools
+   ```
+
+2. **Autenticar e inicializar o Firestore no projeto:**
+
+   ```bash
+   firebase login
+   firebase init firestore
+   ```
+
+3. **Conectar no Backend Node.js com `firebase-admin`:**
+
+   ```typescript
+   import { initializeApp, cert } from 'firebase-admin/app';
+   import { getFirestore } from 'firebase-admin/firestore';
+   import serviceAccount from './service-account-key.json';
+
+   initializeApp({
+     credential: cert(serviceAccount),
+   });
+
+   export const db = getFirestore();
+
+   // Inserir documento no Firestore
+   await db.collection('investimentos').add({
+     ticker: 'PETR4',
+     quantidade: 100,
+     precoMedio: 38.50,
+     dataCriacao: new Date(),
+   });
+   ```
+</Steps>
+
+<Aside type="caution" title="Nunca exponha Service Accounts no Frontend">
+  O arquivo `service-account-key.json` concede controle administrativo total sobre o projeto Firebase. No frontend (React, Vue, mobile), utilize sempre o SDK público (`firebase/firestore`) e proteja os dados com **Security Rules**.
+</Aside>
+
+---
+
+## Exercício
+
+Responda com base na configuração e conexão com Atlas e Firestore:
+
+1. O que significa o prefixo `mongodb+srv://` na string de conexão do Atlas e por que ele dispensa listar o IP de cada nó do replica set?
+2. Qual é a finalidade da lista de permissão de IP (*Network Access*) no MongoDB Atlas?
+3. Por que o SDK `firebase-admin` não deve ser importado em aplicações executadas no navegador do usuário?
+
+---
+
+## Desafio
+
+Crie um script TypeScript que:
+- Conecte-se a um cluster MongoDB Atlas via Mongoose ou driver nativo oficial.
+- Crie uma coleção chamada `alertas_mercado` com validação de esquema JSON (*JSON Schema Validation*).
+- Insira 3 documentos de alertas financeiros e liste-os ordenados pela data de expiração.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Como o MongoDB Compass auxilia no diagnóstico de consultas no Atlas?</summary>
+O MongoDB Compass é a interface gráfica oficial do MongoDB. Ele permite inspecionar documentos, analisar a distribuição de tipos de campos, construir pipelines de agregação visualmente e visualizar o plano de execução de consultas (*Visual Explain Plan*) para identificar índices ausentes.
+</details>
+
+<details>
+<summary>2. Como emular o Cloud Firestore localmente para testes automatizados sem gastar cota na nuvem?</summary>
+A Firebase CLI inclui o **Firebase Local Emulator Suite** (`firebase emulators:start --only firestore`), que sobe um servidor local em memória compatível com a API do Firestore, permitindo rodar testes de integração com `pnpm test` sem custos.
+</details>
+
+---
+
+## Referências
+
+- [MongoDB Atlas Connection Guide](https://www.mongodb.com/docs/atlas/connect-to-database-deployment/)
+- [Firebase Admin SDK Setup](https://firebase.google.com/docs/admin/setup)
+- [Firebase Local Emulator Suite](https://firebase.google.com/docs/emulator-suite)
+
+---
+
+## Próximo tópico
+
+Conheça os recursos avançados de busca vetorial, triggers e regras de segurança com **[Atlas e Firestore: Recursos de Nuvem e Tempo Real](../operations/)**.

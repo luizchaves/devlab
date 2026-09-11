@@ -1,0 +1,206 @@
+---
+title: "Neo4j AuraDB e Amazon Neptune: Recursos de Nuvem e Operações"
+description: "Recursos operacionais avançados em bancos de grafos: Graph Data Science (GDS), Neptune Analytics, Neptune Streams, réplicas de leitura, PITR e tuning de travessias."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico explora as operações avançadas e os recursos nativos de computação em nuvem para **Neo4j AuraDB** e **Amazon Neptune**, cobrindo algoritmos de ciência de dados de grafos (*Graph Data Science*), streaming de eventos de alteração (*CDC*), alta disponibilidade com réplicas distribuídas e otimização de consultas de travessia.
+
+---
+
+## Objetivo
+
+Dominar as estratégias operacionais, algoritmos de grafos em grande escala e resiliência de ambientes de grafos em nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Projetar subgrafos em memória e executar algoritmos de centralidade e agrupamento via Neo4j Graph Data Science (GDS).
+- Utilizar o Neptune Analytics para análises em lote sobre bilhões de relacionamentos com baixa latência.
+- Configurar captura de dados de alteração (*Change Data Capture - CDC*) com Neptune Streams e AWS Lambda.
+- Implementar estratégias de leitura distribuída através de réplicas e entender os mecanismos de *Point-in-Time Recovery (PITR)*.
+- Analisar planos de execução de consultas Cypher e Gremlin (`PROFILE` e `EXPLAIN`) para otimizar travessias complexas.
+
+---
+
+## Graph Data Science (GDS) no Neo4j AuraDB
+
+O Neo4j AuraDB integra a biblioteca **Graph Data Science (GDS)**, que executa algoritmos analíticos em projeções de memória isoladas do banco transacional:
+
+<Mermaid title="Fluxo de execução do Graph Data Science (GDS) em projeções de memória">
+{`
+flowchart LR
+    subgraph AuraStorage ["Armazenamento Transacional (Disco/NVMe)"]
+        RawGraph[("Grafo Completo\n(Transações OLTP)")]
+    end
+
+    subgraph GDSMemory ["Espaço de Projeção em Memória RAM (OLAP)"]
+        ProjectedGraph["Subgrafo Projetado (Nós + Arestas)"]
+        Algo["Algoritmo: PageRank / Louvain / Node2Vec"]
+        ProjectedGraph --> Algo
+    end
+
+    RawGraph -->|"gds.graph.project()"| ProjectedGraph
+    Algo -->|"gds.writeback() ou Stream"| RawGraph
+`}
+</Mermaid>
+
+O fluxo padrão envolve projetar um subgrafo relevante, rodar o algoritmo e retornar os resultados em streaming ou persisti-los como novas propriedades:
+
+```cypher
+// 1. Projeta o grafo de transações bancárias em memória
+CALL gds.graph.project(
+  'redeTransferencias',
+  'Conta',
+  'TRANSFERIU',
+  { relationshipProperties: 'valor' }
+);
+
+// 2. Executa o algoritmo PageRank para identificar contas com maior centralidade
+CALL gds.pageRank.stream('redeTransferencias')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).numeroConta AS conta, score
+ORDER BY score DESC
+LIMIT 10;
+
+// 3. Libera a memória alocada para a projeção
+CALL gds.graph.drop('redeTransferencias');
+```
+
+---
+
+## Neptune Analytics e Neptune Streams
+
+Para ambientes corporativos que demandam reações em tempo real ou análises massivas, o Amazon Neptune oferece dois motores complementares:
+
+<Mermaid title="Arquitetura de eventos em tempo real com Neptune Streams">
+{`
+flowchart LR
+    Client["Transações Cypher / Gremlin"] --> Neptune[("Amazon Neptune DB")]
+    
+    subgraph StreamingEngine ["Neptune Streams (CDC)"]
+        StreamLog["Log Ordenado de Operações (JSON)"]
+    end
+    
+    Neptune --> StreamLog
+    StreamLog --> Poller["AWS Lambda / Poller Service"]
+    Poller --> OpenSearch["Amazon OpenSearch (Busca Semântica)"]
+    Poller --> SNS["Amazon SNS (Alertas de Fraude)"]
+`}
+</Mermaid>
+
+### Neptune Streams
+
+O **Neptune Streams** atua como uma trilha de auditoria e fila de eventos sequenciais que registra todas as alterações em nós e propriedades. Um consumidor Lambda lê o fluxo via HTTP e propaga as alterações para bancos de busca textual ou mecanismos de notificação:
+
+```typescript
+// Exemplo de payload consumido a partir do Neptune Streams via Lambda
+interface NeptuneStreamRecord {
+  commitNum: number;
+  opNum: number;
+  operationType: 'insert' | 'delete' | 'update';
+  data: {
+    id: string;
+    type: 'node' | 'relationship';
+    label: string;
+    properties: Record<string, any>;
+  };
+}
+```
+
+---
+
+## Alta Disponibilidade, Réplicas e PITR
+
+Tanto o AuraDB quanto o Neptune separam computação de armazenamento para garantir resiliência contra falhas de hardware e zonas inteiras:
+
+<Mermaid title="Separação entre instâncias de escrita/leitura e armazenamento distribuído">
+{`
+flowchart TD
+    subgraph ComputeLayer ["Camada de Computação"]
+        Writer["Instância Primária (Escrita/Leitura)"]
+        Reader1["Réplica de Leitura 1 (AZ-a)"]
+        Reader2["Réplica de Leitura 2 (AZ-b)"]
+    end
+
+    subgraph StorageLayer ["Camada de Armazenamento Compartilhada"]
+        StorageCluster[("Volume de Armazenamento Replicado (6 cópias em 3 AZs)")]
+    end
+
+    Writer --> StorageCluster
+    Reader1 --> StorageCluster
+    Reader2 --> StorageCluster
+`}
+</Mermaid>
+
+Os pilares operacionais de resiliência compreendem:
+
+1. **Endpoints de Leitura e Escrita**: O *Cluster Endpoint* encaminha automaticamente para o nó primário (escrita), enquanto o *Reader Endpoint* balanceia a carga entre as réplicas de leitura com lag de replicação inferior a 100ms.
+2. **Point-in-Time Recovery (PITR)**: O Amazon Neptune e o AuraDB Enterprise mantêm backups contínuos no S3/Cloud Storage, permitindo restaurar o grafo para qualquer segundo dos últimos 35 dias.
+3. **Clonagem Rápida (*Fast Cloning*)**: Criação de cópias idênticas do banco de dados em segundos sem custo adicional de armazenamento inicial (*Copy-on-Write*), ideal para testes de carga e validações de migração.
+
+---
+
+## Otimização de Consultas: PROFILE e EXPLAIN
+
+O diagnóstico de gargalos em grafos requer a análise das operações de expansão de relacionamentos. No Cypher, utilize o comando `PROFILE` para inspecionar os operadores físicos e contadores de acessos à memória (*db hits*):
+
+```cypher
+// Análise detalhada de plano de execução com contadores de DbHits reais
+PROFILE
+MATCH (u:User {id: 'usr-999'})-[:FOLLOWS*1..2]->(f:User)
+WHERE f.status = 'ativo'
+RETURN f.name, count(*) AS conexoes;
+```
+
+<Aside type="caution">
+Evite consultas com expansões de profundidade ilimitada como `-[:FOLLOWS*]->`. Em grafos altamente conectados (*supernodes* com milhões de arestas), isso causa explosão combinatória na memória RAM e pode derrubar a instância. Especifique sempre um limite máximo (ex: `*1..3`) ou utilize algoritmos de caminho mais curto com poda de busca.
+</Aside>
+
+---
+
+## Exercício
+
+Responda com base nos conceitos operacionais de bancos de grafos:
+
+1. Qual é a principal vantagem de executar algoritmos como o Louvain ou PageRank no Neo4j GDS em vez de rodar consultas Cypher normais no banco transacional?
+2. Como o recurso *Neptune Streams* simplifica a sincronização de dados entre um banco de grafos e um cluster de busca textual como o Elasticsearch?
+3. O que são os *DbHits* reportados pelo comando `PROFILE` no Neo4j e por que devemos minimizá-los ao criar índices de nós?
+
+---
+
+## Desafio
+
+Você foi encarregado de criar um pipeline de detecção de fraudes em tempo real:
+- Quando uma transação acima de R\$ 10.000 for registrada no Neptune, o *Neptune Streams* deve disparar uma função Lambda.
+- A função consulta os nós vizinhos do cliente até o segundo grau para verificar se há alguma conta com o atributo `status: 'bloqueada_por_fraude'`.
+- Caso haja, a Lambda emite um alerta de risco crítico para o SNS. Desenhe a arquitetura desse pipeline com diagramas conceituais.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é um "Supernode" em bancos de grafos e como mitigá-lo?</summary>
+Um *Supernode* é um nó que possui uma quantidade massiva de relacionamentos (dezenas de milhares ou milhões de arestas conectadas a ele, como uma celebridade em uma rede social). Travessias que passam por ele sofrem lentidão severa. Para mitigar, utilizam-se técnicas de particionamento de relacionamentos tipados com direção, indexação de propriedades nas arestas ou nós intermediários agrupadores.
+</details>
+
+<details>
+<summary>2. Como funciona o failover automático no Amazon Neptune?</summary>
+Se a instância primária falhar, o serviço monitora o evento através de heartbeats de saúde, elege a réplica de leitura com maior prioridade de failover e a promove para primária. O registro DNS do Cluster Endpoint é remapeado em menos de 30 segundos, sem perda de dados na camada de armazenamento compartilhada.
+</details>
+
+---
+
+## Referências
+
+- [Neo4j Graph Data Science Documentation](https://neo4j.com/docs/graph-data-science/current/)
+- [Amazon Neptune Streams Developer Guide](https://docs.aws.amazon.com/neptune/latest/userguide/streams.html)
+- [Tuning Cypher Queries Performance](https://neo4j.com/docs/cypher-manual/current/query-tuning/)
+
+---
+
+## Próximo tópico
+
+Concluído o estudo de grafos em nuvem, avance para a ingestão contínua de telemetria e métricas de infraestrutura com **[Visão geral de InfluxDB Cloud e Amazon Timestream](../../time-series-cloud/)**.
