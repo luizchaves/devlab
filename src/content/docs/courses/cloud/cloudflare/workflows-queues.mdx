@@ -1,0 +1,129 @@
+---
+title: "Nuvem: Cloudflare Workflows e Queues"
+description: "Workflows e Queues na Cloudflare: filas, produtores, consumidores, execução durável, retries e quando sair do modelo request-response."
+course: cloud
+sidebar:
+  label: "Workflows e Queues"
+---
+import { Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+**Queues** e **Workflows** entram quando uma requisição não deve fazer todo o trabalho na hora. Queues desacopla produtor e consumidor; Workflows organiza processos duráveis com etapas, retries e estado persistido por mais tempo.
+
+## Objetivo
+
+Compreender quando sair do modelo request-response em Workers e usar fila ou workflow. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar execução síncrona, fila e workflow.
+- Explicar produtor, consumidor, retry e idempotência.
+- Reconhecer tarefas que não cabem em uma requisição HTTP curta.
+- Planejar processos longos sem prender o usuário esperando.
+- Comparar Workflows com cron jobs e background workers de PaaS.
+
+## Do Request ao Trabalho Assíncrono
+
+Uma requisição HTTP curta deve responder rápido. Se ela precisa importar arquivo, chamar vários serviços ou repetir uma etapa em caso de falha, é melhor registrar o trabalho e processar depois.
+
+<Mermaid title="Fila e workflow fora do request HTTP">
+{`
+flowchart TD
+  User["Usuário"] --> Worker["Worker HTTP"]
+  Worker --> Queue["Queue<br/>mensagem"]
+  Queue --> Consumer["Consumer<br/>processa lote"]
+  Worker --> Workflow["Workflow<br/>etapas duráveis"]
+  Workflow --> Step1["Etapa 1"]
+  Workflow --> Step2["Retry e estado"]
+`}
+</Mermaid>
+
+Esse desenho melhora experiência e confiabilidade. O usuário recebe uma resposta de aceite, e o processamento continua com controle de tentativa, erro e retomada.
+
+## Queues ou Workflows?
+
+Os dois recursos lidam com trabalho assíncrono, mas em níveis diferentes.
+
+| Necessidade | Escolha | Motivo |
+| --- | --- | --- |
+| Enfileirar eventos independentes | **Queues** | Produtor publica mensagens e consumidor processa. |
+| Consumir lotes de trabalho | **Queues** | O consumidor pode tratar várias mensagens. |
+| Processo com etapas e retries duráveis | **Workflows** | Cada etapa pode persistir estado e ser retomada. |
+| Agendamento simples | **Cron Trigger ou scheduler externo** | Nem todo processo agendado precisa de workflow. |
+| Worker que roda o tempo todo | **PaaS** | Render, Railway ou Heroku podem ser mais naturais. |
+
+## Idempotência
+
+Fila e workflow exigem uma palavra séria: **idempotência**. Se uma mensagem for processada duas vezes, o resultado não pode duplicar cobrança, e-mail, lançamento ou efeito externo.
+
+| Operação | Risco sem idempotência | Defesa |
+| --- | --- | --- |
+| Enviar e-mail | Usuário recebe duplicado. | Chave única por evento enviado. |
+| Gerar relatório | Vários arquivos iguais. | Nome determinístico por período e usuário. |
+| Registrar pagamento | Cobrança duplicada. | Idempotency key no provedor e no banco. |
+| Importar CSV | Linhas repetidas. | Identificador único por registro importado. |
+
+## Critérios de Uso
+
+Use fila ou workflow quando o trabalho precisa sobreviver ao request, lidar com falha ou processar em segundo plano.
+
+| Cenário | Recurso provável |
+| --- | --- |
+| Webhook que dispara processamento posterior | Queue. |
+| Importação de arquivo com várias etapas | Workflow. |
+| Sincronização diária curta | Cron Trigger. |
+| Processo contínuo com consumidor dedicado | Worker em PaaS. |
+
+## Executando
+
+Projete o trabalho assíncrono antes de escolher a ferramenta.
+
+<Steps>
+1. Defina o evento que inicia o trabalho.
+2. Decida se ele é mensagem independente ou processo com etapas.
+3. Escreva uma chave de idempotência.
+4. Planeje retry, falha final e observabilidade.
+5. Separe resposta ao usuário do processamento em segundo plano.
+</Steps>
+
+## Exercício
+
+Por que um webhook de pagamento não deve depender apenas de resposta síncrona ao usuário?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a confirmação pode falhar, atrasar ou precisar de retry. O webhook deve registrar o evento e processar de forma idempotente, sem depender da aba do usuário continuar aberta.
+</details>
+
+## Desafio
+
+Modele a importação de uma planilha de investimentos com Queue ou Workflow. Explique onde entram retry e idempotência.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um Workflow combina melhor se houver etapas: validar arquivo, normalizar linhas, gravar registros e gerar relatório. Cada linha deve ter chave idempotente para evitar duplicação se uma etapa for repetida.
+</details>
+
+## Perguntas de revisão
+
+1. **Qual é a diferença entre Queue e Workflow?**
+   <details>
+     <summary>Possível resposta</summary>
+     Queue transporta mensagens para consumidores. Workflow organiza processos duráveis em etapas, com estado e retry.
+   </details>
+
+2. **Por que idempotência é obrigatória em trabalho assíncrono?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque retries e reprocessamentos podem acontecer. A operação precisa produzir o mesmo efeito quando executada mais de uma vez.
+   </details>
+
+## Referências
+
+- [Cloudflare Queues](https://developers.cloudflare.com/queues/)
+- [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
+- [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
+
+## Próximo tópico
+
+[Cloudflare Workers AI](../workers-ai/): inferência serverless e integração de IA em Workers.

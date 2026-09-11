@@ -1,0 +1,136 @@
+---
+title: "Nuvem: Cloudflare Workers"
+description: "Cloudflare Workers para aplicações web: runtime de borda, Request e Response, bindings, APIs curtas, proxy, cache e limites em relação ao Node.js."
+course: cloud
+sidebar:
+  label: "Workers"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+**Cloudflare Workers** executa código serverless na rede da Cloudflare. Em vez de manter um servidor sempre ligado, o projeto publica uma função que recebe `Request`, devolve `Response` e acessa recursos por bindings, como D1, R2, KV, Queues e Workers AI.
+
+## Objetivo
+
+Compreender Workers como runtime de borda para lógica curta e distribuída. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o contrato `fetch(request, env, ctx)`.
+- Diferenciar Worker de servidor Node.js tradicional.
+- Usar bindings como fronteira para dados, storage e segredos.
+- Reconhecer bons casos para proxy, cache e APIs curtas.
+- Identificar quando um PaaS ou container é mais adequado.
+
+## Modelo de Execução
+
+O Worker fica no caminho da requisição. Ele pode responder diretamente, chamar um serviço externo, acessar dados por binding ou deixar a requisição seguir.
+
+<Mermaid title="Worker no caminho da requisição">
+{`
+flowchart TD
+  Request["Request"] --> Worker["Worker"]
+  Worker --> Env["Bindings e secrets"]
+  Worker --> Data["D1, R2, KV, Queues"]
+  Worker --> External["API externa"]
+  Worker --> Response["Response"]
+`}
+</Mermaid>
+
+Esse modelo favorece APIs pequenas e decisões de borda. Ele não deve ser lido como "Node.js hospedado em outro lugar", porque o runtime, o acesso a dependências e a forma de conectar recursos são diferentes.
+
+## Trecho Mínimo
+
+O contrato abaixo mostra a anatomia de um Worker. O ambiente chega por `env`, não por uma variável global de Node.
+
+```js title="Worker mínimo com binding"
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (url.pathname !== '/api/health') {
+      return new Response('Not found', { status: 404 });
+    }
+
+    return Response.json({
+      status: 'ok',
+      project: env.PROJECT_NAME,
+    });
+  },
+};
+```
+
+O detalhe importante é a fronteira: valores e serviços vinculados ao Worker chegam como bindings. Isso torna explícito o que a função pode acessar.
+
+## Critérios de Uso
+
+Workers é forte quando a lógica é curta, stateless e se beneficia de rodar perto do usuário ou da rede.
+
+| Cenário | Bom uso de Worker | Atenção |
+| --- | --- | --- |
+| Proxy com segredo | Sim | O segredo fica em binding ou secret. |
+| API pequena com baixa latência | Sim | Mantenha contrato e validação simples. |
+| Cache programático | Sim | Defina invalidação e chave de cache. |
+| Integração com D1, R2 ou KV | Sim | Escolha o storage pelo tipo de dado. |
+| API Express grande | Cuidado | Middlewares e bibliotecas Node podem não encaixar. |
+| Job longo com várias etapas | Use Workflows ou outro serviço | Worker puro não é orquestrador de processo longo. |
+
+<Aside type="caution" title="Dica de IA: Peça revisão do runtime antes do deploy">
+  Código gerado para Workers pode importar módulos Node ou usar `process.env` sem perceber. O erro real aparece tarde, quando a plataforma executa o bundle.
+
+  **Prompt:** *"Revise este Worker e aponte todo uso de APIs de Node.js, `process.env` ou estado em memória que não seja adequado ao runtime de Cloudflare Workers."*
+</Aside>
+
+## Executando
+
+Projete um Worker como contrato pequeno de rede.
+
+<Steps>
+1. Defina rota, método e resposta esperada.
+2. Liste bindings necessários: secrets, D1, R2, KV, Queue ou AI.
+3. Valide entrada antes de chamar serviços externos.
+4. Escreva erros com status HTTP previsível.
+5. Teste localmente e em preview antes de apontar tráfego real.
+</Steps>
+
+## Exercício
+
+Por que `env` é uma fronteira importante em Workers?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele explicita quais segredos e recursos o Worker pode acessar. Em vez de depender de variáveis globais, a função recebe bindings da plataforma.
+</details>
+
+## Desafio
+
+Escreva o contrato de um Worker que recebe `/api/quote?symbol=PETR4`, consulta uma API externa com segredo e devolve JSON. Liste os erros obrigatórios.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O Worker deve validar método `GET`, exigir `symbol`, ler o token em `env`, chamar o provedor, normalizar a resposta e devolver `200`. Erros: `400` sem símbolo, `405` método inválido, `500` segredo ausente e `502` falha do provedor.
+</details>
+
+## Perguntas de revisão
+
+1. **Qual é a diferença entre Worker e servidor Express?**
+   <details>
+     <summary>Possível resposta</summary>
+     Worker é uma função de borda com contrato `Request` e `Response`. Express é um processo Node.js com rotas, middlewares e estado de processo mais tradicional.
+   </details>
+
+2. **Quando um Worker deve acessar KV em vez de D1?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o dado é chave-valor, lido com frequência e não exige consulta relacional.
+   </details>
+
+## Referências
+
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [Workers bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/)
+- [Workers runtime APIs](https://developers.cloudflare.com/workers/runtime-apis/)
+
+## Próximo tópico
+
+[Cloudflare Dados e Storage](../data-storage/): D1, R2, KV e Durable Objects por tipo de estado.

@@ -1,0 +1,145 @@
+---
+title: "Nuvem: Cloudflare Dados e Storage"
+description: "Dados e storage na Cloudflare: D1, R2, KV, Durable Objects, cache e critérios para escolher persistência em aplicações de borda."
+course: cloud
+sidebar:
+  label: "Dados e Storage"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A Cloudflare oferece várias formas de estado para aplicações de borda: **D1** para SQL serverless, **R2** para objetos, **KV** para chave-valor distribuído, **Durable Objects** para coordenação com estado e cache para respostas temporárias. A escolha depende do tipo de dado, não do entusiasmo pela plataforma.
+
+## Objetivo
+
+Compreender as opções de dados da Cloudflare e escolher cada uma pelo formato do estado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar D1, R2, KV, Durable Objects e cache.
+- Identificar quando SQL, objeto, chave-valor ou coordenação são necessários.
+- Reconhecer limites de consistência e consulta.
+- Planejar dados principais fora da borda quando o domínio exigir.
+- Combinar Cloudflare com Supabase, Firebase ou API própria.
+
+## Escolha Pelo Tipo de Estado
+
+Cada produto existe para um formato de persistência. Forçar o dado no produto errado cria consultas frágeis e regras difíceis de explicar.
+
+<Mermaid title="Escolha de dados na Cloudflare">
+{`
+flowchart TD
+  State["Tipo de estado"] --> SQL["D1<br/>SQL"]
+  State --> Object["R2<br/>objetos"]
+  State --> KV["KV<br/>chave-valor"]
+  State --> Durable["Durable Objects<br/>coordenação"]
+  State --> Cache["Cache<br/>resposta temporária"]
+`}
+</Mermaid>
+
+O primeiro filtro é simples: entidade consultável vai para banco, arquivo vai para storage, configuração distribuída vai para chave-valor, coordenação em tempo real pede objeto durável.
+
+## Produtos
+
+A tabela abaixo coloca os produtos lado a lado. A coluna "não use para" é tão importante quanto a coluna de uso.
+
+| Produto | Use para | Não use para |
+| --- | --- | --- |
+| **D1** | Dados relacionais leves, consultas SQL, protótipos com Workers. | Domínio financeiro crítico sem avaliar limites e migrações. |
+| **R2** | Imagens, exports, anexos e objetos grandes. | Linhas consultáveis e relações entre entidades. |
+| **KV** | Configuração, flags, cache distribuído e leitura frequente por chave. | Transações, busca por campos e consistência forte imediata. |
+| **Durable Objects** | Estado coordenado, salas, contadores e colaboração. | Armazenamento genérico de arquivos ou banco relacional comum. |
+| **Cache** | Respostas derivadas e temporárias. | Fonte canônica de dados. |
+
+## Exemplo de Binding
+
+Em Workers, recursos de dados chegam como bindings. O trecho abaixo mostra a ideia de acessar um banco D1 sem criar conexão manual.
+
+```js title="Consulta D1 em Worker"
+export default {
+  async fetch(request, env) {
+    const result = await env.DB.prepare(
+      'select id, name from portfolios where user_id = ?'
+    )
+      .bind('user-123')
+      .all();
+
+    return Response.json(result.results);
+  },
+};
+```
+
+O exemplo é propositalmente pequeno. Em um produto real, o `user_id` viria de autenticação validada no servidor, e não de um valor fixo.
+
+<Aside type="caution" title="Dica de IA: Não confunda dado canônico com cache">
+  Assistentes tendem a usar KV para qualquer dado simples. Para dados que precisam de consulta, histórico, autorização por usuário ou transação, peça uma justificativa de modelo antes de aceitar.
+
+  **Prompt:** *"Classifique estes dados entre D1, R2, KV, Durable Objects e cache; para cada escolha, explique o que quebraria se o produto errado fosse usado."*
+</Aside>
+
+## Critérios de Uso
+
+Use dados da Cloudflare quando eles ficam próximos da lógica de borda e têm formato compatível com os produtos.
+
+| Cenário | Escolha provável | Motivo |
+| --- | --- | --- |
+| Flags de feature por chave | KV | Leitura rápida e simples. |
+| Export PDF do usuário | R2 | Arquivo é objeto, não linha. |
+| Pequena tabela consultável por Worker | D1 | SQL serverless perto do runtime. |
+| Sala colaborativa ou contador coordenado | Durable Objects | Estado com coordenação. |
+| Carteira financeira com RLS | Supabase ou API própria | Autorização e modelo relacional precisam ser centrais. |
+
+## Executando
+
+Modele estado antes de criar storage.
+
+<Steps>
+1. Separe entidade, objeto, configuração, coordenação e cache.
+2. Defina quem lê e quem escreve cada dado.
+3. Escolha binding por tipo de estado.
+4. Escreva invalidação quando houver cache.
+5. Revise migração e plano de saída para dados canônicos.
+</Steps>
+
+## Exercício
+
+Por que R2 é melhor para relatórios exportados do que D1?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque relatório exportado é um objeto, como PDF ou CSV. D1 modela linhas consultáveis, enquanto R2 guarda arquivos e objetos.
+</details>
+
+## Desafio
+
+Classifique cinco dados do InvestApp: carteira, avatar, flag de experimento, relatório exportado e presença em sala colaborativa.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Carteira fica em Supabase ou banco relacional com autorização. Avatar e relatório exportado cabem em R2 ou storage de BaaS. Flag cabe em KV. Presença colaborativa pode usar Durable Objects.
+</details>
+
+## Perguntas de revisão
+
+1. **Quando D1 é uma escolha natural?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o Worker precisa de consultas SQL sobre dados estruturados e o domínio cabe no modelo operacional do D1.
+   </details>
+
+2. **Por que KV não substitui banco relacional?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque KV lê por chave e não oferece relações, junções, consultas por múltiplos campos e transações como um banco relacional.
+   </details>
+
+## Referências
+
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [Cloudflare R2](https://developers.cloudflare.com/r2/)
+- [Cloudflare KV](https://developers.cloudflare.com/kv/)
+- [Durable Objects](https://developers.cloudflare.com/durable-objects/)
+
+## Próximo tópico
+
+[Cloudflare Workflows e Queues](../workflows-queues/): execução assíncrona, filas e processos duráveis.
