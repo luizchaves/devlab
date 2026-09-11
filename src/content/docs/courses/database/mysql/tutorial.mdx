@@ -1,0 +1,597 @@
+---
+title: "Tutorial Prático: Monitoramento de Rede com MySQL"
+description: "Tutorial prático e didático de SQL no MySQL utilizando o dataset de telemetria de rede (monitor_db): normalização DDL, carga DML, consultas analíticas com funções de data e agregação, visões e procedimentos."
+course: database
+sidebar:
+  label: "Tutorial Prático (monitor_db)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tutorial prático conduz você pela construção, carga e exploração analítica de um banco de dados real de monitoramento de infraestrutura de rede, o **`monitor_db`**. Inspirado no estudo de caso clássico do MonitorApp e nas diretrizes de formação do IFPB, você aprenderá a estruturar tabelas normalizadas no MySQL, realizar consultas analíticas com funções avançadas de data, texto e matemática, e automatizar tarefas com visões (*Views*) e rotinas armazenadas (*Stored Procedures*).
+
+---
+
+## Objetivo
+
+Aplicar os fundamentos teóricos de modelagem relacional e da linguagem SQL em um cenário prático de engenharia de infraestrutura, capacitando o desenvolvedor a extrair métricas de desempenho de rede e responder a perguntas críticas de negócio no MySQL. Ao final do tutorial, o leitor deve ser capaz de:
+
+- Projetar e criar o esquema físico normalizado de um banco de dados de monitoramento de rede (`monitor_db`) com chaves primárias, chaves estrangeiras e índices.
+- Carregar dados de amostra utilizando scripts SQL estruturados (`database.sql`).
+- Responder a perguntas analíticas de disponibilidade e latência com junções múltiplas (`JOIN`), agrupamentos (`GROUP BY`) e filtros condicionais (`HAVING`).
+- Utilizar funções nativas do MySQL para manipulação de cadeias de caracteres, operações aritméticas e formatação de datas e horas.
+- Criar visões analíticas (*Views*) para simplificar relatórios e *dashboards*.
+- Desenvolver procedimentos armazenados (*Stored Procedures*) e gatilhos (*Triggers*) para automação de alertas de instabilidade na rede.
+
+---
+
+## O Cenário e o Dataset (`monitor_db`)
+
+Imagine um serviço de telemetria que dispara pacotes ICMP (*pings*) periódicos para servidores e portais corporativos na internet para verificar a estabilidade das conexões. 
+
+Em uma planilha ou arquivo de log bruto desnormalizado, cada medição conteria dados redundantes repetidos a cada linha:
+
+| host_name | ip_address | transmitted | received | rtt_time_ms | ping_timestamp |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `portal.ifrn.edu.br` | `10.0.0.100` | 4 | 4 | 74.7 | `2024-03-05 09:15:00` |
+| `portal.ifrn.edu.br` | `10.0.0.100` | 8 | 4 | 80.2 | `2024-03-05 09:20:00` |
+| `www.ifpb.edu.br` | `200.10.10.10` | 5 | 5 | 43.5 | `2024-03-05 10:00:00` |
+| `www.ifpb.edu.br` | `200.10.10.12` | 5 | 3 | 72.5 | `2024-03-05 14:30:00` |
+
+Para eliminar anomalias de redundância e atender à Terceira Forma Normal (3FN), decompomos esses dados em entidades relacionais conectadas:
+- **`hosts`**: Servidores monitorados com nome de domínio e endereço IP.
+- **`users`**: Usuários ou agentes coletores responsáveis pelos testes.
+- **`tags` e `tag_hosts`**: Classificação taxonômica N:M dos servidores (ex: "Portal", "Educacional", "DNS").
+- **`pings`**: Cabeçalho de cada rodada de medição, registrando o host alvo, o usuário e a data/hora do teste.
+- **`stats`**: Resumo da rodada com total de pacotes transmitidos, pacotes recebidos e tempo total decorrido.
+- **`icmps`**: Detalhe individual de cada pacote recebido, com número de sequência (`seq`), TTL e tempo de ida e volta (`time`).
+
+O diagrama Entidade-Relacionamento abaixo demonstra o modelo normalizado:
+
+<Mermaid title="Modelo Lógico Relacional do monitor_db">
+{`
+erDiagram
+  users ||--o{ pings : "executa (1:N)"
+  hosts ||--o{ pings : "e_alvo (1:N)"
+  hosts ||--o{ tag_hosts : "possui (1:N)"
+  tags ||--o{ tag_hosts : "classifica (1:N)"
+  pings ||--|| stats : "consolida (1:1)"
+  pings ||--o{ icmps : "contem_pacotes (1:N)"
+
+  users {
+    INT id PK "AUTO_INCREMENT"
+    VARCHAR name "Nome do operador"
+    VARCHAR email UK "E-mail exclusivo"
+    VARCHAR password "Senha"
+  }
+  hosts {
+    INT id PK "AUTO_INCREMENT"
+    VARCHAR name "Nome do host (FQDN)"
+    VARCHAR address "Endereço IP"
+  }
+  tags {
+    INT id PK "AUTO_INCREMENT"
+    VARCHAR name "Nome da categoria"
+  }
+  tag_hosts {
+    INT id PK "AUTO_INCREMENT"
+    INT host_id FK "Chave estrangeira para hosts"
+    INT tag_id FK "Chave estrangeira para tags"
+  }
+  pings {
+    INT id PK "AUTO_INCREMENT"
+    INT host_id FK "Servidor testado"
+    INT user_id FK "Agente executor"
+    DATETIME created_at "Data e hora do teste"
+  }
+  stats {
+    INT id PK "AUTO_INCREMENT"
+    INT ping_id FK "Sessão de ping relacionada"
+    INT transmitted "Pacotes enviados"
+    INT received "Pacotes respondidos com sucesso"
+    FLOAT time "Tempo total em milissegundos"
+  }
+  icmps {
+    INT id PK "AUTO_INCREMENT"
+    INT ping_id FK "Sessão pai"
+    INT seq "Número sequencial do pacote"
+    INT ttl "Time-To-Live do cabeçalho IP"
+    FLOAT time "Latência do pacote individual em ms"
+  }
+`}
+</Mermaid>
+
+---
+
+## Questões a Serem Respondidas
+
+Ao longo deste tutorial, construiremos instruções SQL para responder às seguintes perguntas operacionais sobre a infraestrutura:
+
+1. **Quantos pacotes foram transmitidos e recebidos no total pelo sistema de monitoramento?**
+2. **Qual é a taxa percentual de pacotes perdidos por host e quais servidores apresentam instabilidade?**
+3. **Qual é o tempo médio de resposta (RTT) e a variação de latência dos pings por servidor?**
+4. **Qual é a porcentagem de pacotes perdidos dos servidores do IFPB em uma janela de horário específica (ex: horário comercial das 09:00 às 18:00)?**
+5. **Quais servidores classificados com a tag "Portal" registraram perda de pacotes superior a 15%?**
+
+---
+
+## DDL: Criação do Banco e Estrutura das Tabelas
+
+Para iniciar o projeto no MySQL, criamos o banco de dados `monitor_db` e suas tabelas associadas com o motor `InnoDB`:
+
+```sql title="Estrutura DDL do monitor_db no MySQL"
+-- 1. Criação do Banco de Dados com codificação UTF-8 moderna
+CREATE DATABASE IF NOT EXISTS monitor_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_0900_ai_ci;
+
+USE monitor_db;
+
+-- 2. Tabela de Servidores (Hosts)
+CREATE TABLE IF NOT EXISTS hosts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  address VARCHAR(100) NOT NULL
+) ENGINE = InnoDB;
+
+-- 3. Tabela de Usuários / Agentes Coletadores
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  password VARCHAR(100) NOT NULL,
+  email VARCHAR(100) UNIQUE
+) ENGINE = InnoDB;
+
+-- 4. Tabela de Tags (Categorias de Servidores)
+CREATE TABLE IF NOT EXISTS tags (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+) ENGINE = InnoDB;
+
+-- 5. Tabela Associativa N:M entre Tags e Hosts
+CREATE TABLE IF NOT EXISTS tag_hosts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  host_id INT NOT NULL,
+  tag_id INT NOT NULL,
+  CONSTRAINT fk_th_host FOREIGN KEY (host_id) REFERENCES hosts (id) ON DELETE CASCADE,
+  CONSTRAINT fk_th_tag FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+-- 6. Tabela de Sessões de Ping
+CREATE TABLE IF NOT EXISTS pings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  host_id INT NOT NULL,
+  user_id INT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ping_host FOREIGN KEY (host_id) REFERENCES hosts (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_ping_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
+) ENGINE = InnoDB;
+
+-- 7. Tabela de Estatísticas Consolidadas
+CREATE TABLE IF NOT EXISTS stats (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ping_id INT NOT NULL,
+  transmitted INT NOT NULL,
+  received INT NOT NULL,
+  time FLOAT NOT NULL,
+  CONSTRAINT fk_stat_ping FOREIGN KEY (ping_id) REFERENCES pings (id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+-- 8. Tabela de Detalhamento dos Pacotes ICMP
+CREATE TABLE IF NOT EXISTS icmps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ping_id INT NOT NULL,
+  seq INT NOT NULL,
+  ttl INT NOT NULL,
+  time FLOAT NOT NULL,
+  CONSTRAINT fk_icmp_ping FOREIGN KEY (ping_id) REFERENCES pings (id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+```
+
+---
+
+## DML: Carga do Dataset de Amostra
+
+O script completo com a carga de dados para reprodução prática está disponível no arquivo do repositório:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/database.sql" />
+
+Para inserir manualmente algumas linhas de teste representativas:
+
+```sql title="Inserção de Dados de Teste no MySQL"
+-- Inserindo Servidores
+INSERT INTO hosts (name, address) VALUES
+  ('www.ifpb.edu.br', '200.10.10.10'),
+  ('portal.ifrn.edu.br', '200.10.10.11'),
+  ('suap.ifpb.edu.br', '200.10.10.12');
+
+-- Inserindo Tags
+INSERT INTO tags (name) VALUES ('Portal'), ('Educacional'), ('Sistema');
+
+-- Associando Tags aos Hosts
+INSERT INTO tag_hosts (host_id, tag_id) VALUES
+  (1, 1), (1, 2), -- www.ifpb é Portal e Educacional
+  (2, 1), (2, 2), -- portal.ifrn é Portal e Educacional
+  (3, 3);         -- suap.ifpb é Sistema
+
+-- Inserindo Usuário Coletor
+INSERT INTO users (name, password, email) VALUES
+  ('Agente Monitor', 'hash_secret', 'monitor@ifpb.edu.br');
+
+-- Registrando Pings e Estatísticas
+INSERT INTO pings (id, host_id, user_id, created_at) VALUES
+  (1, 1, 1, '2024-03-05 09:30:00'),
+  (2, 2, 1, '2024-03-05 10:15:00'),
+  (3, 3, 1, '2024-03-05 14:00:00'),
+  (4, 1, 1, '2024-03-05 16:45:00');
+
+INSERT INTO stats (ping_id, transmitted, received, time) VALUES
+  (1, 10, 10, 42.5),  -- 0% de perda
+  (2, 10, 7, 85.0),   -- 30% de perda
+  (3, 10, 9, 31.2),   -- 10% de perda
+  (4, 10, 8, 55.4);   -- 20% de perda
+```
+
+---
+
+## DQL: Respondendo às Questões com Consultas Analíticas
+
+Agora vamos construir passo a passo as consultas SQL para extrair métricas do banco de dados.
+
+### Questão 1: Total de pacotes transmitidos e recebidos
+Utilizamos as funções agregadoras `SUM()` e `COUNT()` sobre a tabela `stats`:
+
+```sql title="Total de Pacotes Transmitidos, Recebidos e Perdidos"
+SELECT
+  SUM(transmitted) AS total_transmitidos,
+  SUM(received) AS total_recebidos,
+  SUM(transmitted - received) AS total_perdidos,
+  COUNT(id) AS total_testes_executados
+FROM stats;
+```
+
+```txt title="Resultado"
+total_transmitidos | total_recebidos | total_perdidos | total_testes_executados
+-------------------+-----------------+----------------+------------------------
+40                 | 34              | 6              | 4
+```
+
+### Questão 2: Taxa percentual de pacotes perdidos por host
+Para obter o desempenho de cada servidor individualmente, realizamos uma junção (`INNER JOIN`) entre `hosts`, `pings` e `stats`, calculando a proporção com `ROUND()`:
+
+```sql title="Taxa de Perda por Host"
+SELECT
+  h.name AS host_name,
+  h.address AS ip_address,
+  SUM(s.transmitted) AS total_enviados,
+  SUM(s.received) AS total_recebidos,
+  SUM(s.transmitted - s.received) AS pacotes_perdidos,
+  ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2) AS taxa_perda_pct
+FROM hosts h
+INNER JOIN pings p ON h.id = p.host_id
+INNER JOIN stats s ON p.id = s.ping_id
+GROUP BY h.id, h.name, h.address
+ORDER BY taxa_perda_pct DESC;
+```
+
+```txt title="Resultado"
+host_name          | ip_address   | total_enviados | total_recebidos | pacotes_perdidos | taxa_perda_pct
+-------------------+--------------+----------------+-----------------+------------------+---------------
+portal.ifrn.edu.br | 200.10.10.11 | 10             | 7               | 3                | 30.00
+www.ifpb.edu.br    | 200.10.10.10 | 20             | 18              | 2                | 10.00
+suap.ifpb.edu.br   | 200.10.10.12 | 10             | 9               | 1                | 10.00
+```
+
+### Questão 3: Tempo médio de resposta (RTT) e latência
+Avaliamos o tempo de resposta médio (`AVG`), a menor latência (`MIN`) e o pico (`MAX`) registrado por servidor:
+
+```sql title="Métricas de Latência por Host"
+SELECT
+  h.name AS host_name,
+  ROUND(AVG(s.time), 2) AS rtt_medio_ms,
+  MIN(s.time) AS rtt_minimo_ms,
+  MAX(s.time) AS rtt_maximo_ms
+FROM hosts h
+INNER JOIN pings p ON h.id = p.host_id
+INNER JOIN stats s ON p.id = s.ping_id
+GROUP BY h.id, h.name
+ORDER BY rtt_medio_ms ASC;
+```
+
+### Questão 4: Perda de pacotes do IFPB em horário específico
+Filtramos servidores pelo domínio do IFPB usando o operador `LIKE`, restringindo a data e o horário comercial através das funções `DATE()` e `HOUR()`:
+
+```sql title="Filtro Temporal e de Domínio"
+SELECT
+  h.name AS host_name,
+  DATE_FORMAT(p.created_at, '%d/%m/%Y %H:%i') AS data_hora_teste,
+  s.transmitted,
+  s.received,
+  ROUND(((s.transmitted - s.received) / s.transmitted) * 100, 2) AS taxa_perda_pct
+FROM hosts h
+INNER JOIN pings p ON h.id = p.host_id
+INNER JOIN stats s ON p.id = s.ping_id
+WHERE h.name LIKE '%ifpb.edu.br%'
+  AND DATE(p.created_at) = '2024-03-05'
+  AND HOUR(p.created_at) BETWEEN 9 AND 18
+ORDER BY p.created_at ASC;
+```
+
+### Questão 5: Hosts com tag "Portal" e perda superior a 15%
+Combinamos múltiplas junções com as tabelas de tags e aplicamos o filtro de agregação pós-agrupamento através da cláusula `HAVING`:
+
+```sql title="Consulta Multidimensional com Tags e HAVING"
+SELECT
+  h.name AS host_name,
+  t.name AS tag_name,
+  SUM(s.transmitted) AS total_enviados,
+  SUM(s.received) AS total_recebidos,
+  ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2) AS perda_pct
+FROM hosts h
+INNER JOIN tag_hosts th ON h.id = th.host_id
+INNER JOIN tags t ON th.tag_id = t.id
+INNER JOIN pings p ON h.id = p.host_id
+INNER JOIN stats s ON p.id = s.ping_id
+WHERE t.name = 'Portal'
+GROUP BY h.id, h.name, t.name
+HAVING perda_pct > 15.00;
+```
+
+---
+
+## Funções Nativas do MySQL no Dataset
+
+O MySQL possui uma rica biblioteca de funções nativas para tratar dados de telemetria.
+
+### 1. Funções de Texto e Strings
+- **`CONCAT()` e `CONCAT_WS()`**: Concatena informações para compor identificadores formatados.
+- **`SUBSTRING_INDEX()`**: Extrai partes de um domínio ou endereço IP.
+- **`UPPER()` / `LOWER()`**: Normaliza nomes de servidores.
+
+```sql title="Exemplos de Funções de String"
+SELECT
+  h.name,
+  UPPER(h.name) AS nome_maiusculo,
+  -- Extrai apenas o prefixo do subdomínio (ex: 'www', 'portal', 'suap')
+  SUBSTRING_INDEX(h.name, '.', 1) AS subdominio,
+  -- Mascara o endereço IP ocultando o último octeto
+  CONCAT(SUBSTRING_INDEX(h.address, '.', 3), '.xxx') AS ip_mascarado
+FROM hosts h;
+```
+
+### 2. Funções de Data e Hora
+- **`NOW()` / `CURRENT_TIMESTAMP`**: Data e hora corrente do servidor.
+- **`DATE_FORMAT(data, formato)`**: Formata datas no padrão brasileiro (`'%d/%m/%Y'`).
+- **`DATEDIFF(data1, data2)`**: Retorna a diferença em dias entre duas datas.
+- **`TIMEDIFF(hora1, hora2)`**: Retorna a diferença de tempo entre dois carimbos.
+- **`DAYNAME(data)`**: Retorna o dia da semana em texto (ex: `'Tuesday'`).
+
+```sql title="Exemplos de Funções de Data/Hora"
+SELECT
+  p.id AS ping_id,
+  p.created_at,
+  DATE_FORMAT(p.created_at, '%d/%m/%Y às %H:%i:%s') AS data_formatada_br,
+  DAYNAME(p.created_at) AS dia_da_semana,
+  TIMESTAMPDIFF(MINUTE, p.created_at, NOW()) AS minutos_atras
+FROM pings p;
+```
+
+### 3. Funções Condicionais: `IF()`, `IFNULL()` e `CASE`
+Permitem classificar a saúde da rede dinamicamente na saída da consulta:
+
+```sql title="Classificação de Saúde da Conexão com CASE e IF"
+SELECT
+  h.name,
+  s.time AS rtt_ms,
+  ROUND(((s.transmitted - s.received) / s.transmitted) * 100, 1) AS perda_pct,
+  -- Classificação semântica do estado do link
+  CASE
+    WHEN s.received = 0 THEN 'FORA DO AR (CRÍTICO)'
+    WHEN (s.transmitted - s.received) > 0 THEN 'INSTÁVEL (PERDA DE PACOTES)'
+    WHEN s.time > 80.0 THEN 'LENTO (ALTA LATÊNCIA)'
+    ELSE 'ESTÁVEL (NORMAL)'
+  END AS status_conexao
+FROM hosts h
+INNER JOIN pings p ON h.id = p.host_id
+INNER JOIN stats s ON p.id = s.ping_id;
+```
+
+---
+
+## Automação: Visões e Stored Procedures
+
+Para transformar consultas analíticas repetitivas em objetos reutilizáveis, criamos visões e procedimentos armazenados.
+
+### 1. Criando uma Visão Analítica (*View*)
+A visão `v_host_health_summary` consolida a situação corrente de cada host:
+
+```sql title="Criação da View de Saúde dos Hosts"
+CREATE OR REPLACE VIEW v_host_health_summary AS
+SELECT
+  h.id AS host_id,
+  h.name AS host_name,
+  h.address AS ip_address,
+  COUNT(p.id) AS total_amostras,
+  ROUND(AVG(s.time), 2) AS latencia_media_ms,
+  ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2) AS perda_media_pct,
+  MAX(p.created_at) AS ultima_verificacao
+FROM hosts h
+LEFT JOIN pings p ON h.id = p.host_id
+LEFT JOIN stats s ON p.id = s.ping_id
+GROUP BY h.id, h.name, h.address;
+```
+
+Para consultar a visão simplificada:
+
+```sql title="Consultando a View"
+SELECT * FROM v_host_health_summary WHERE perda_media_pct > 0;
+```
+
+### 2. Criando uma Stored Procedure no MySQL
+No MySQL, utilizamos o comando `DELIMITER` para redefinir o caractere de término durante a criação de procedimentos com múltiplos blocos:
+
+```sql title="Stored Procedure para Diagnóstico de Host"
+DELIMITER //
+
+CREATE PROCEDURE sp_avaliar_host(
+  IN p_host_id INT,
+  OUT p_diagnostico VARCHAR(50)
+)
+BEGIN
+  DECLARE v_taxa_perda DECIMAL(5, 2);
+
+  -- Calcula a taxa média de perda do host
+  SELECT ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2)
+    INTO v_taxa_perda
+    FROM pings p
+   INNER JOIN stats s ON p.id = s.ping_id
+   WHERE p.host_id = p_host_id;
+
+  -- Define o diagnóstico com base na perda
+  IF v_taxa_perda IS NULL THEN
+    SET p_diagnostico = 'SEM DADOS SUFICIENTES';
+  ELSIF v_taxa_perda = 0 THEN
+    SET p_diagnostico = 'EXCELENTE (0% PERDA)';
+  ELSIF v_taxa_perda <= 15 THEN
+    SET p_diagnostico = 'ACEITÁVEL (INSTABILIDADE LEVE)';
+  ELSE
+    SET p_diagnostico = 'CRÍTICO (ALTA DEGRADAÇÃO)';
+  END IF;
+END //
+
+DELIMITER ;
+```
+
+Para invocar a procedure e ler o parâmetro `OUT`:
+
+```sql title="Executando a Procedure"
+CALL sp_avaliar_host(1, @diagnostico);
+SELECT @diagnostico AS resultado_avaliacao;
+```
+
+---
+
+## Executando no Docker
+
+Para rodar o ambiente completo do `monitor_db` localmente:
+
+<Steps>
+1. Acesse o diretório do servidor MySQL no repositório:
+
+   ```bash title="Terminal"
+   cd examples/courses/database/servers/mysql-server
+   ```
+
+2. Suba o container MySQL com Docker Compose:
+
+   ```bash title="Terminal"
+   docker compose up -d
+   ```
+
+3. Carregue o banco de dados e as tabelas executando o script `database.sql`:
+
+   ```bash title="Terminal"
+   docker compose exec -T mysql mysql -uroot -psecret monitor_db < database.sql
+   ```
+
+4. Abra o console interativo do MySQL e execute as consultas deste tutorial:
+
+   ```bash title="Terminal"
+   docker compose exec mysql mysql -uroot -psecret monitor_db
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base no esquema do `monitor_db`:
+
+1. Escreva uma consulta SQL que retorne o nome do host e o total de pings executados para cada um, incluindo na listagem até mesmo os hosts que nunca foram testados (com contagem zero).
+2. Escreva uma consulta que liste todos os pacotes da tabela `icmps` cujo tempo de resposta (`time`) seja superior à média geral de todos os pacotes registrados.
+3. Qual é a utilidade prática da cláusula `ON DELETE CASCADE` configurada na tabela `icmps` ao excluir uma linha da tabela `pings`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Consulta utilizando `LEFT JOIN` e `COUNT(p.id)`:
+     ```sql
+     SELECT h.name, COUNT(p.id) AS total_testes
+     FROM hosts h
+     LEFT JOIN pings p ON h.id = p.host_id
+     GROUP BY h.id, h.name;
+     ```
+
+  2. Consulta com subconsulta escalar no `WHERE`:
+     ```sql
+     SELECT id, ping_id, seq, time
+     FROM icmps
+     WHERE time > (SELECT AVG(time) FROM icmps);
+     ```
+
+  3. A restrição `ON DELETE CASCADE` garante que, ao apagar uma sessão de ping da tabela `pings`, todos os registros filhos correspondentes na tabela `icmps` (e `stats`) sejam automaticamente removidos pelo SGBD, mantendo a integridade referencial sem deixar registros órfãos.
+</details>
+
+---
+
+## Desafio
+
+O time de operações de redes solicitou um relatório semanal que apresente o ranking dos 3 servidores mais lentos (com maior tempo médio RTT) nos últimos 7 dias, mas considerando apenas servidores que tiveram pelo menos 5 medições realizadas.
+
+Escreva a consulta SQL completa utilizando as funções de data, agregações, filtros com `HAVING` e limite de registros do MySQL.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  SELECT
+    h.name AS host_name,
+    COUNT(p.id) AS total_medicoes,
+    ROUND(AVG(s.time), 2) AS latencia_media_ms,
+    ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2) AS taxa_perda_pct
+  FROM hosts h
+  INNER JOIN pings p ON h.id = p.host_id
+  INNER JOIN stats s ON p.id = s.ping_id
+  WHERE p.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  GROUP BY h.id, h.name
+  HAVING total_medicoes >= 5
+  ORDER BY latencia_media_ms DESC
+  LIMIT 3;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelagem e Análise
+
+1. **Por que a tabela `stats` foi separada da tabela `hosts` em vez de armazenar o total de pacotes diretamente na tabela de servidores?**
+   <details><summary>Possível resposta</summary>Porque a medição de pacotes varia ao longo do tempo (relação 1:N). Armazenar na tabela `hosts` permitiria guardar apenas uma medição estática ou exigiria colunas duplicadas, violando a 1FN e a 2FN.</details>
+
+2. **Qual é a diferença entre filtrar dados com `WHERE` e com `HAVING` ao calcular a taxa de perda de pacotes?**
+   <details><summary>Possível resposta</summary>O `WHERE` filtra linhas individuais antes do agrupamento (por exemplo, filtrando por data ou nome do host). O `HAVING` filtra os grupos consolidados após as funções de agregação (por exemplo, filtrando grupos onde `SUM(perda) > 10`).</details>
+
+### Recursos Avançados no MySQL
+
+3. **Para que serve o comando `DELIMITER //` antes de criar uma Stored Procedure no cliente MySQL?**
+   <details><summary>Possível resposta</summary>Ele altera temporariamente o delimitador padrão de instrução (de ponto e vírgula `;` para `//`), permitindo que os blocos internos `BEGIN ... END` contenham múltiplos comandos terminados em `;` sem disparar a execução prematura do comando `CREATE PROCEDURE`.</details>
+
+4. **Qual é o ganho de utilizar uma Visão (`VIEW`) para o relatório de saúde da rede?**
+   <details><summary>Possível resposta</summary>Encapsula junções complexas em uma interface simples de consultar, padroniza as regras de negócio para todas as aplicações/dashboards e permite conceder permissões de leitura sem expor as tabelas base.</details>
+
+---
+
+## Referências
+
+- [IFPB: Guia de Desenvolvimento Web - Banco de Dados e SQL](https://ifpb.github.io/dw/database/sql/)
+- [MySQL 8.4 Reference Manual: Date and Time Functions](https://dev.mysql.com/doc/refman/8.4/en/date-and-time-functions.html)
+- [MySQL 8.4 Reference Manual: String Functions and Operators](https://dev.mysql.com/doc/refman/8.4/en/string-functions.html)
+- [MySQL 8.4 Reference Manual: Stored Procedures and Views](https://dev.mysql.com/doc/refman/8.4/en/stored-programs-views.html)
+
+---
+
+## Próximo tópico
+
+[Administração](../administration/): Criação de contas de usuário por origem (`'user'@'host'`), controle de privilégios (`GRANT`/`REVOKE`) e rotinas de backup com `mysqldump`.
