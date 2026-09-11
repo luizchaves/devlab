@@ -14,12 +14,106 @@ Este tópico responde à pergunta que vem antes de escolher um motor: **que form
 
 Compreender os paradigmas fundamentais e especializados de banco de dados como modelos estruturais distintos, com garantias, formas de indexação e consultas próprias, para escolher a família arquitetural adequada antes do motor e reconhecer quando um projeto está usando o modelo errado. Ao final do tópico, o leitor deve ser capaz de:
 
+- Classificar dados em estruturados, semiestruturados e não estruturados, identificando os repositórios adequados para cada formato.
+- Compreender o papel do armazenamento de objetos (*Object Storage* como Amazon S3, Google Cloud Storage, Azure Blob Storage, Cloudflare R2 e MinIO) na persistência de dados não estruturados e sua integração com bancos de dados.
 - Descrever o modelo de dados de cada paradigma e a unidade elementar que ele armazena.
 - Identificar as consultas que cada modelo faz com eficiência nativa e as que ele não atende.
 - Explicar o que a sigla "NoSQL" agrupa historicamente e como os motores modernos se tornaram multiparadigma.
 - Diferenciar os modelos clássicos dos paradigmas especializados (séries temporais, vetores, busca textual e geoespacial).
 - Aplicar o teorema CAP como critério para sistemas distribuídos, sem exagerar o seu alcance.
 - Escolher o paradigma de um projeto a partir da forma dos dados, dos requisitos de consulta e da escala.
+
+---
+
+## Tipos de Estrutura de Dados: Estruturados, Semiestruturados e Não Estruturados
+
+Antes de decidir entre uma tabela relacional, uma coleção de documentos NoSQL ou um balde de armazenamento em nuvem, é essencial categorizar os dados de acordo com o seu grau de formatação e previsibilidade:
+
+<Mermaid title="O espectro de estruturação dos dados e seus repositórios">
+{`
+flowchart TD
+    subgraph Structured ["1. Dados Estruturados (Schema-on-Write)"]
+        S1["Tabelas Relacionais (Linhas e Colunas Rígidas)"]
+        S2["Tipagem estrita, chaves primárias e SQL"]
+        S3[("PostgreSQL, MySQL, SQLite, Oracle")]
+        S1 --> S2 --> S3
+    end
+
+    subgraph SemiStructured ["2. Dados Semiestruturados (Self-Describing)"]
+        SS1["Documentos com Tags e Atributos Variáveis"]
+        SS2["JSON, BSON, XML, YAML (Esquema Flexível)"]
+        SS3[("MongoDB, Firestore, DynamoDB, Redis")]
+        SS1 --> SS2 --> SS3
+    end
+
+    subgraph Unstructured ["3. Dados Não Estruturados (BLOBs Binários)"]
+        U1["Arquivos sem modelo tabular ou delimitadores internos"]
+        U2["Imagens, Vídeos, Áudios, PDFs, Backups, Logs Brutos"]
+        U3[("Object Storage: Amazon S3, Blob Storage, Cloudflare R2, MinIO")]
+        U1 --> U2 --> U3
+    end
+`}
+</Mermaid>
+
+A compreensão dessa classificação evita o erro clássico de tentar forçar arquivos binários pesados dentro de bancos relacionais ou de dispensar esquemas onde a integridade é mandatória.
+
+### Dados Estruturados (Structured Data)
+
+Os **dados estruturados** seguem um esquema fixo e estrito definido previamente antes de qualquer gravação (*Schema-on-Write*). Todas as linhas de uma mesma tabela compartilham exatamente as mesmas colunas e tipos de dados (inteiros, datas, strings com tamanho delimitado):
+
+- **Características**: Alta consistência, facilidade de indexação com árvores B-Tree, suporte completo à álgebra relacional e consultas declarativas com SQL.
+- **Exemplos típicos**: Registros financeiros, transações bancárias, cadastros de clientes com CPF/CNPJ, tabelas contábeis e itens de pedidos.
+- **Motores representativos**: PostgreSQL, MySQL, SQLite, MariaDB, SQL Server e Oracle Database.
+
+### Dados Semiestruturados (Semi-Structured Data)
+
+Os **dados semiestruturados** não possuem uma tabela rígida bidimensional, mas contêm marcadores, rótulos, tags ou estruturas de pares chave-valor que separam os elementos internamente (*Self-Describing Data*):
+
+- **Características**: Esquema flexível ou dinâmico (*Schema-on-Read*), suporte a listas aninhadas, objetos embutidos e coexistência de registros com campos diferentes na mesma coleção.
+- **Formatos universais**: JSON (*JavaScript Object Notation*), BSON (*Binary JSON*), XML, YAML e colunas `JSONB` em bancos relacionais.
+- **Exemplos típicos**: Catálogos de comércio eletrônico (onde uma camiseta tem "tamanho" e "cor", enquanto um celular tem "processador" e "bateria"), feeds de redes sociais, mensagens de eventos em Kafka e configurações de sistemas.
+- **Motores representativos**: MongoDB, Google Cloud Firestore, Amazon DynamoDB, Couchbase e Elasticsearch.
+
+### Dados Não Estruturados e Armazenamento de Objetos (Object Storage)
+
+Os **dados não estruturados** não possuem uma estrutura interna previsível ou delimitadores conceituais que um motor de banco de dados possa indexar diretamente através de campos de texto ou números:
+
+- **Características**: São armazenados em blocos binários opacos (*Binary Large Objects - BLOBs*), consumindo de alguns megabytes a vários gigabytes por unidade.
+- **Exemplos típicos**: Fotografias digitais (JPEG, PNG), transmissões de vídeo (MP4, HLS), gravações de áudio, documentos digitalizados em PDF, modelos de machine learning e arquivos de backup de infraestrutura.
+- **Repositórios adequados (Object Storage / Blob Storage)**: **Amazon S3 (Simple Storage Service)**, **Azure Blob Storage**, **Google Cloud Storage (GCS)**, **Cloudflare R2** e **MinIO** (solução de código aberto compatível com a API do S3 para ambientes locais e Kubernetes).
+
+<Mermaid title="Padrão arquitetural: Banco de Dados Relacional/Documentos + Object Storage (S3)">
+{`
+flowchart LR
+    User["Usuário / App"] -->|"1. Upload do Arquivo (PDF / Imagem)"| S3[("Object Storage (Amazon S3 / R2)")]
+    S3 -->|"2. Retorna URL / Chave do Objeto"| API["API Backend"]
+    API -->|"3. Salva Metadados + URL da Foto"| DB[("Banco de Dados (PostgreSQL / MongoDB)")]
+    User -->|"4. Consulta perfil (Lê URL)"| DB
+    User -->|"5. Baixa imagem via CDN"| S3
+`}
+</Mermaid>
+
+<Aside type="caution" title="Por que NÃO salvar BLOBs (imagens e PDFs) dentro do Banco de Dados?">
+  Embora bancos relacionais possuam o tipo `BLOB` / `BYTEA`, gravar arquivos pesados diretamente na tabela causa degradação crítica:
+  1. **Poluição de Memória RAM**: Cada varredura de tabela ou leitura carrega dezenas de megabytes inúteis no pool de buffers do SGBD.
+  2. **Backups Lentos e Gigantescos**: O dump lógico (`pg_dump`, `mysqldump`) e as réplicas de streaming sofrem gargalos desnecessários de I/O de rede e disco.
+  3. **Custo Financeiro Desproporcional**: O gigabyte em SSD provisionado para banco de dados (ex: EBS gp3/io2) custa de 5 a 10 vezes mais do que o gigabyte em *Object Storage* (como Amazon S3 ou Cloudflare R2 com zero custo de saída).
+
+  **A boa prática universal**: Salve o arquivo no **Amazon S3 / Blob Storage** e guarde no banco de dados relacional apenas o endereço URL (`https://...`), tamanho em bytes, MIME type e identificador do objeto.
+</Aside>
+
+### Matriz Comparativa de Estruturas de Dados
+
+A tabela abaixo resume as propriedades fundamentais dos três tipos de estrutura:
+
+| Dimensão | Dados Estruturados | Dados Semiestruturados | Dados Não Estruturados |
+| :--- | :--- | :--- | :--- |
+| **Esquema (*Schema*)** | Rígido e pré-definido (*Schema-on-Write*) | Flexível e auto-descritivo (*Schema-on-Read*) | Inexistente no conteúdo (apenas metadados externos) |
+| **Formato Principal** | Linhas e colunas tabulares | JSON, BSON, XML, YAML | Binários puros (JPEG, MP4, PDF, ZIP) |
+| **Linguagem / Protocolo** | SQL declarativo | MQL, Query DSL, APIs REST/JSON | Protocolo HTTP REST (S3 API: `PUT`, `GET`, `DELETE`) |
+| **Mecanismo de Consulta** | Índices B-Tree, Hash, Junções relacionais | Índices em caminhos de atributos, inversão | Chave de caminho do objeto (*Bucket / Key*) e tags de metadados |
+| **Repositório Primário** | PostgreSQL, MySQL, SQLite, Oracle | MongoDB, Firestore, DynamoDB, Redis | Amazon S3, Azure Blob Storage, Cloudflare R2, MinIO |
+| **Custo por Gigabyte** | Mais alto (disco transacional de alta velocidade) | Médio (armazenamento NoSQL indexado) | Ultrabaixo (camadas Standard, Glacier e Archive) |
 
 ---
 
@@ -140,6 +234,7 @@ A escolha do paradigma parte de três perguntas: qual é a forma natural dos dad
 | Busca semântica, agentes inteligentes e RAG para LLMs | **Vetorial** (pgvector/Qdrant) | Busca por proximidade de conceitos e similaridade em vetores. |
 | Busca em e-commerce com tolerância a erros e filtros facetados | **Busca Textual ([Elasticsearch](../../elasticsearch/))** | Índices invertidos, relevância e autocompletar instantâneo. |
 | Rotas de entrega, geofencing e proximidade de motoristas | **Geoespacial** (PostGIS/SpatiaLite) | Tipos geométricos nativos e índices espaciais (R-Tree/GiST). |
+| Arquivos de mídia (imagens, vídeos, PDFs) e backups brutos | **[Object Storage](../../../cloud/resources/file-storage/) (Amazon S3 / Blob Storage / MinIO)** | Custo por GB ultrabaixo, CDN na borda e não sobrecarrega a RAM do banco. |
 | *Data Warehouse*, análise histórica de métricas e BI | **Colunar / OLAP** (ClickHouse/DuckDB) | Varreduras e somas sobre bilhões de linhas em frações de segundo. |
 | Escrita distribuída em escala massiva de bilhões de eventos | **Colunar Amplo ([Cassandra](../../cassandra/))** | Arquitetura *masterless* de alta vazão sem ponto único de falha. |
 | Recomendação, rede social profunda, detecção de fraude por conexões | **Grafos ([Neo4j](../../neo4j/))** | "Amigos de amigos até o quarto nível" é um percurso em grafo. |
@@ -158,20 +253,23 @@ A última linha é o conselho padrão do guia: começar no relacional não é co
 
 ## Exercício
 
-Responda com base na tabela de paradigmas e na seção sobre NoSQL:
+Responda com base na tabela de paradigmas e nas seções de estrutura e NoSQL:
 
-1. Por que "NoSQL" não é um critério de escolha?
-2. O que o relacional abre mão que os NoSQL ganham, e o que ele garante que eles não garantem?
-3. Um projeto roda em um único servidor de banco. O teorema CAP se aplica a ele?
+1. Qual a diferença fundamental entre dados estruturados, semiestruturados e não estruturados?
+2. Por que é considerado um antipadrão gravar imagens e arquivos PDF pesados diretamente em colunas `BLOB` de um banco relacional?
+3. O que o relacional abre mão que os NoSQL ganham, e o que ele garante que eles não garantem?
+4. Um projeto roda em um único servidor de banco. O teorema CAP se aplica a ele?
 
 <details>
   <summary>Possível resposta</summary>
 
-  1. Porque agrupa quatro paradigmas com modelos de dados e garantias diferentes entre si. "Não relacional" diz o que o banco não é, não o que ele faz bem.
+  1. Dados estruturados possuem esquema rígido e tipado na escrita (*schema-on-write*, como tabelas SQL). Semiestruturados possuem marcadores e flexibilidade interna (*schema-on-read*, como JSON/BSON). Não estruturados são binários opacos sem estrutura delimitada pelo banco (como vídeos, fotos e PDFs).
 
-  2. Abre mão da escala horizontal fácil, que exige particionar tabelas entre servidores. Garante junções, restrições entre tabelas e transações entre tabelas, que os outros paradigmas oferecem parcialmente ou não oferecem.
+  2. Porque degrada a performance do pool de memória RAM do banco, infla os tempos de backup/dump, encarece o custo de armazenamento (SSD transacional vs Object Storage) e sobrecarrega a rede do SGBD. A boa prática é guardar o binário no Object Storage (S3/Blob Storage) e apenas a URL/metadados no banco.
 
-  3. Não. O CAP trata do comportamento durante uma partição de rede entre servidores; com um servidor só, não há partição possível, e as garantias são as ACID do próprio motor.
+  3. Abre mão da escala horizontal fácil, que exige particionar tabelas entre servidores. Garante junções, restrições entre tabelas e transações entre tabelas, que os outros paradigmas oferecem parcialmente ou não oferecem.
+
+  4. Não. O CAP trata do comportamento durante uma partição de rede entre servidores; com um servidor só, não há partição possível, e as garantias são as ACID do próprio motor.
 </details>
 
 ---
@@ -194,10 +292,10 @@ Depois responda: em qual paradigma ela é natural, em qual é possível e cara, 
 
 ## Perguntas de revisão
 
-### Paradigmas
+### Estrutura e Paradigmas
 
-1. **Qual é a unidade de armazenamento de cada paradigma?**
-   <details><summary>Possível resposta</summary>Relacional: linha em tabela. Documentos: documento em coleção. Chave-valor: valor por chave. Colunar: colunas por família e chave de linha. Grafos: nós e arestas.</details>
+1. **Qual é a unidade de armazenamento de cada paradigma e onde residem os dados não estruturados?**
+   <details><summary>Possível resposta</summary>Relacional: linha em tabela. Documentos: documento em coleção. Chave-valor: valor por chave. Colunar: colunas por família. Grafos: nós e arestas. Não estruturados: objetos binários em Object Storage (S3, Azure Blob, GCS, MinIO).</details>
 
 2. **Por que o colunar é rápido para somar uma coluna e lento para ler uma linha inteira?**
    <details><summary>Possível resposta</summary>Porque guarda cada coluna separada: somar uma coluna lê só ela, em sequência; ler uma linha inteira exige reunir o valor de cada coluna, espalhado.</details>
@@ -205,21 +303,27 @@ Depois responda: em qual paradigma ela é natural, em qual é possível e cara, 
 3. **Que consulta define o paradigma de grafos?**
    <details><summary>Possível resposta</summary>O percurso de relações em profundidade arbitrária, como "amigos de amigos de amigos", que no relacional exige uma junção por nível.</details>
 
-### Escolha
+### Escolha e Arquitetura
 
 4. **O que o `JSONB` do PostgreSQL absorveu do paradigma de documentos, e o que não absorveu?**
    <details><summary>Possível resposta</summary>Absorveu o documento consultável e indexável dentro da linha. Não absorveu a partição horizontal por documento nem a sincronização com o cliente.</details>
 
-5. **O que os sistemas AP fazem durante uma partição, e o que isso custa?**
+5. **Como um banco de dados relacional e um balde S3 colaboram na gestão de uploads de usuários?**
+   <details><summary>Possível resposta</summary>O arquivo binário é enviado ao S3/Blob Storage (frequentemente via URLs pré-assinadas), e a API salva no banco relacional apenas o registro com metadados (ID do usuário, nome original, tamanho, data e a URL/chave do objeto no S3).</details>
+
+6. **O que os sistemas AP fazem durante uma partição, e o que isso custa?**
    <details><summary>Possível resposta</summary>Continuam respondendo em todos os servidores, aceitando que as respostas divirjam até a reconciliação. Custa consistência eventual: uma leitura pode devolver um valor antigo por um tempo.</details>
 
-6. **Por que o guia recomenda começar no relacional?**
+7. **Por que o guia recomenda começar no relacional?**
    <details><summary>Possível resposta</summary>Porque abrange mais casos, e um chave-valor para cache ou um documento para um campo podem ser acrescentados depois sem migrar o modelo. A troca de paradigma, se vier, terá um motivo medido.</details>
 
 ---
 
 ## Referências
 
+- [AWS: O que é armazenamento de objetos (Amazon S3)?](https://aws.amazon.com/s3/)
+- [MinIO: High Performance Object Storage](https://min.io/)
+- [Microsoft Azure: O que é o Armazenamento de Blobs do Azure?](https://learn.microsoft.com/azure/storage/blobs/storage-blobs-introduction)
 - [Martin Fowler: NoSQL Distilled (resumo)](https://martinfowler.com/books/nosql.html)
 - [DB-Engines: Database Models](https://db-engines.com/en/ranking_categories)
 - [PostgreSQL: JSON Types](https://www.postgresql.org/docs/current/datatype-json.html)
