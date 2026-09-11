@@ -17,6 +17,7 @@ Este tópico apresenta os comandos e conceitos do **DCL** (*Data Control Languag
 Compreender o papel da segurança declarativa em bancos de dados relacionais através do DCL, capacitando o desenvolvedor e o administrador a estruturar usuários e papéis com o princípio do privilégio mínimo para evitar vulnerabilidades e vazamentos de dados. Ao final do tópico, o leitor deve ser capaz de:
 
 - Diferenciar os comandos DCL (`GRANT`, `REVOKE`, `DENY`) das demais instruções SQL (DDL, DML, TCL).
+- Criar contas de usuários dedicadas e aplicar protocolos de endurecimento (*Hardening*) contra opções e credenciais padrão vulneráveis.
 - Aplicar privilégios granulares sobre esquemas, tabelas, sequências e colunas específicas.
 - Projetar uma hierarquia de papéis (*roles*) e usuários com herança de permissões (*RBAC*).
 - Implementar políticas de segurança em nível de linha (*Row-Level Security - RLS*) para isolamento de dados *multi-tenant*.
@@ -149,6 +150,47 @@ GRANT app_readonly TO dashboard_user;
 
 ---
 
+## Criação de Usuários e Cuidados com Opções Padrão (*Hardening*)
+
+A instalação padrão de um SGBD é projetada para facilitar o desenvolvimento local, trazendo contas e privilégios pré-configurados que representam vulnerabilidades críticas se mantidos em produção:
+
+<Mermaid title="Riscos de manter as configurações e credenciais padrão do SGBD">
+{`
+flowchart TD
+    D1["1. Conta Superusuário (root / postgres)"] -->|"Vulnerabilidade"| R1["Destruição total de dados (DROP DATABASE) e acesso ao SO"]
+    D2["2. Senhas Padrão ou Autenticação Trust"] -->|"Vulnerabilidade"| R2["Invasão por força bruta ou conexões locais sem autenticação"]
+    D3["3. Portas Padrão Expostas (0.0.0.0/0)"] -->|"Vulnerabilidade"| R3["Varredura contínua de portas 5432/3306 por robôs na internet"]
+    D4["4. Permissões Amplas no Esquema public"] -->|"Vulnerabilidade"| R4["Usuários comuns criam e alteram tabelas no esquema global"]
+`}
+</Mermaid>
+
+### 1. Criação Segura de Contas de Aplicação
+
+Em vez de reaproveitar credenciais administrativas, cada aplicação ou microsserviço deve possuir sua própria conta isolada com senha forte:
+
+```sql title="Criação segura de usuários no PostgreSQL e MySQL"
+-- PostgreSQL: Cria usuário de aplicação sem privilégios de administração global
+CREATE ROLE api_user WITH LOGIN PASSWORD 'Senha_Forte_Complexa_#2026' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+
+-- MySQL: Cria usuário restrito à sub-rede interna da aplicação (VPC)
+CREATE USER 'api_user'@'10.0.1.%' IDENTIFIED BY 'Senha_Forte_Complexa_#2026';
+```
+
+### 2. Checklist de Hardening contra Configurações Padrão
+
+Antes de conectar uma aplicação ao banco em produção, execute o seguinte protocolo de endurecimento (*Hardening*):
+
+1. **Trocar Senhas e Desativar Métodos sem Autenticação**: Nunca mantenha senhas triviais (`postgres`, `root`, `admin`). No PostgreSQL, ajuste o arquivo `pg_hba.conf` para desativar o método `trust` e exigir criptografia forte (`scram-sha-256`).
+2. **Restringir Interfaces de Rede**: Não vincule o banco ao endereço público `0.0.0.0` sem regras estritas de firewall. O banco deve aceitar conexões apenas em `127.0.0.1` ou na sub-rede privada da aplicação (*VPC / Private Subnet*).
+3. **Revogar Permissão de Criação no Esquema `public`**: Em versões legadas do PostgreSQL, qualquer usuário autenticado podia criar tabelas no esquema `public` por padrão. Bloqueie essa permissão:
+   ```sql
+   REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+   ```
+4. **Remover Bancos e Contas de Teste**: No MySQL, execute o assistente de segurança para remover o banco `test` e contas anônimas.
+5. **Isolar Credenciais por Microsserviço**: Cada microsserviço deve acessar exclusivamente as suas próprias tabelas ou esquema. Se um serviço for comprometido, os demais bancos e dados da empresa permanecem seguros.
+
+---
+
 ## Segurança em Nível de Linha (Row-Level Security - RLS)
 
 Os comandos `GRANT` tradicionais controlam o acesso a tabelas inteiras ou colunas, mas **não filtram linhas**. Se um usuário tem `SELECT` na tabela `accounts`, ele pode ler todas as contas.
@@ -228,6 +270,7 @@ Com base nos fundamentos de DCL e controle de acesso:
 3. Para que serve o comando `ALTER DEFAULT PRIVILEGES` no PostgreSQL?
 4. Como o *Row-Level Security (RLS)* protege aplicações *multi-tenant* contra vazamento acidental de dados?
 5. Por que o comando `GRANT` não funciona no SQLite?
+6. Quais são os principais cuidados de segurança (*Hardening*) ao criar usuários para uma nova aplicação em vez de manter as opções padrão do banco?
 
 <details>
   <summary>Possível resposta</summary>
@@ -237,6 +280,7 @@ Com base nos fundamentos de DCL e controle de acesso:
   3. Ele define quais privilégios serão atribuídos automaticamente a novos objetos (tabelas, sequências, visões) que vierem a ser criados no futuro dentro de um esquema, evitando que novas tabelas fiquem inacessíveis para os papéis da aplicação.
   4. O RLS impõe o filtro de tenant diretamente no motor do banco de dados. Mesmo que um desenvolvedor esqueça de incluir `WHERE tenant_id = ?` no código da aplicação, o SGBD barra e esconde automaticamente as linhas de outros clientes.
   5. Porque o SQLite é um motor embutido (*embedded*) que roda dentro do processo da aplicação e não possui sistema de autenticação, usuários ou portas de rede; o controle de acesso é delegado às permissões de arquivo do sistema operacional.
+  6. Deve-se criar uma conta de usuário exclusiva para cada aplicação (`CREATE ROLE ... WITH LOGIN`) com senha forte e sem atributos de superusuário (`NOSUPERUSER`), revogar a permissão pública de criação de objetos no esquema padrão (`public`), desativar métodos de autenticação fracos (como `trust` no `pg_hba.conf`) e restringir as conexões à sub-rede privada (*VPC*), jamais expondo as portas padrão do banco para a internet pública (`0.0.0.0/0`).
 </details>
 
 ---
@@ -299,6 +343,11 @@ Você foi encarregado de projetar a segurança de banco de dados de um sistema d
 
 5. **O que acontece se uma consulta tentar inserir uma linha que viola a cláusula `WITH CHECK` de uma política de RLS?**
    <details><summary>Possível resposta</summary>O banco de dados recusa a operação com um erro de violação de política de segurança de linha (*row-level security policy violation*), impedindo a gravação de dados pertencentes a outro tenant.</details>
+
+### Hardening e Segurança de Defaults
+
+6. **Por que manter o SGBD na configuração padrão escutando em `0.0.0.0` com o usuário `postgres/root` é um dos erros mais graves de infraestrutura?**
+   <details><summary>Possível resposta</summary>Porque ferramentas automatizadas de varredura na internet buscam continuamente as portas `5432` e `3306` abertas. Se as credenciais forem fracas ou o método `trust` estiver habilitado, atacantes obtêm controle imediato do servidor, podendo extrair todos os dados, instalar ransomware ou apagar o banco por completo.</details>
 
 ---
 
