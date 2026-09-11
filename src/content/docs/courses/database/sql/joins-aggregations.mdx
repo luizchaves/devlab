@@ -7,7 +7,7 @@ sidebar:
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
 import SourceCode from '@components/SourceCode.astro';
-import Mermaid from '@components/Mermaid.astro';
+import JoinVennDiagram from '@components/diagrams/JoinVennDiagram.astro';
 
 Este tópico apresenta o poder das consultas relacionais avançadas em **SQL**. Você aprenderá como combinar registros de múltiplas tabelas usando diferentes tipos de **JOINs**, resumir grandes volumes de dados através de **Funções de Agregação** e aplicar agrupamentos condicionais com `GROUP BY` e `HAVING`.
 
@@ -29,40 +29,36 @@ Dominar as consultas que cruzam e resumem dados, executando cada uma contra o bl
 
 Em um banco de dados relacional normalizado, as informações sobre entidades relacionadas ficam divididas em tabelas separadas. A cláusula `JOIN` permite combinar dados dessas tabelas em um único conjunto de resultados (*result set*), conectando chaves primárias e chaves estrangeiras.
 
-O diagrama a seguir resume a lógica de conjuntos dos quatro principais tipos de junção:
+Os diagramas de Venn a seguir resumem a lógica de conjuntos das junções. Cada círculo é uma tabela, e a área preenchida é o conjunto de linhas que a consulta devolve. Os quatro primeiros são os tipos de `JOIN`; os três de baixo são os mesmos `LEFT`, `RIGHT` e `FULL` com a interseção removida por um `WHERE ... IS NULL`, que é a técnica para achar o que existe em uma tabela e não na outra:
 
-<Mermaid title="Comportamento dos tipos de JOIN relacionais">
-{`
-flowchart TD
-    subgraph IJ ["INNER JOIN"]
-        direction LR
-        A1[A] ---|Apenas Interseção A ∩ B| B1[B]
-    end
-
-    subgraph LJ ["LEFT JOIN"]
-        direction LR
-        A2[Tudo de A] --->|Mais correspondentes de B| B2[B]
-    end
-
-    subgraph RJ ["RIGHT JOIN"]
-        direction LR
-        A3[A] <---|Mais tudo de B| B3[Tudo de B]
-    end
-
-    subgraph FJ ["FULL JOIN"]
-        direction LR
-        A4[Tudo de A] <--->|Mais tudo de B| B4[Tudo de B]
-    end
-
-    IJ ~~~ LJ ~~~ RJ ~~~ FJ
-`}
-</Mermaid>
+<JoinVennDiagram />
 
 ---
 
 ## Tipos de JOIN na Prática
 
-As consultas usam as tabelas `User` (autores) e `Post` (publicações) do `schema.sql`, com os dados do `seed.sql`: quatro usuários, dos quais Diego não escreveu nada, e seis posts, um deles não publicado.
+As consultas usam as tabelas `User` (autores) e `Post` (publicações) do `schema.sql`, com os dados do `seed.sql`. Antes de qualquer junção, vale olhar as duas tabelas como estão, porque é entre elas que cada `JOIN` vai casar linhas:
+
+<SourceCode path="examples/courses/database/invest-db/joins.sql" region="tables" />
+
+```txt title="Output" frame="terminal"
+id | name
+---+------------
+1  | Ana Silva
+2  | Bruno Costa
+3  | Carla Souza
+4  | Diego Lima
+id | title                   | published | authorId
+---+-------------------------+-----------+---------
+1  | Introdução ao SQL       | 1         | 1
+2  | Junções explicadas      | 1         | 1
+3  | Rascunho sobre índices  | 0         | 1
+4  | Receita de pão          | 1         | 2
+5  | Viagem ao litoral       | 1         | 2
+6  | Normalização na prática | 1         | 3
+```
+
+Dois detalhes desses dados explicam todas as saídas a seguir: o `authorId` de cada post aponta para o `id` de um usuário, e é por essa coluna que as junções casam; e há um usuário sem post (Diego, `id` 4, que nenhum `authorId` referencia) e um post não publicado (o rascunho, `published = 0`). São essas duas linhas que aparecem ou somem conforme o tipo de `JOIN`.
 
 ### 1. `INNER JOIN` (Interseção Exata)
 
@@ -100,24 +96,58 @@ Carla Souza | Normalização na prática
 Diego Lima  | NULL
 ```
 
-<Aside type="tip" title="Identificando Registros Sem Relacionamento">
-  O `LEFT JOIN` combinado com `WHERE Post.id IS NULL` é a técnica padrão para encontrar autores que **nunca** escreveram nenhum post. Na saída acima, é a linha de Diego.
-</Aside>
+### 3. `LEFT JOIN` Sem a Interseção
 
-### 3. `RIGHT JOIN` e `FULL OUTER JOIN`
+O `LEFT JOIN` combinado com `WHERE Post.id IS NULL` é a técnica padrão para encontrar autores que **nunca** escreveram nenhum post: das linhas que o `LEFT JOIN` devolve, o filtro da linha 19 fica só com as que não tinham par:
 
-As duas junções restantes espelham e combinam o `LEFT JOIN`:
+<SourceCode path="examples/courses/database/invest-db/joins.sql" region="left-excluding" mark={[19]} />
 
-- `RIGHT JOIN`: Retorna todas as linhas da tabela da direita, trazendo `NULL` para a esquerda quando não houver correspondência.
-- `FULL OUTER JOIN`: Combina o efeito do `LEFT` e do `RIGHT JOIN`, trazendo todas as linhas de ambas as tabelas, vinculadas ou não.
+```txt title="Output" frame="terminal"
+autor
+----------
+Diego Lima
+```
+
+É o quinto diagrama de Venn: a parte de `A` fora da interseção. A mesma pergunta com `INNER JOIN` devolveria zero linhas, porque a junção interna descarta Diego antes de o `WHERE` o ver.
+
+### 4. `RIGHT JOIN` e `FULL OUTER JOIN`
+
+As duas junções restantes espelham e combinam o `LEFT JOIN`. O `RIGHT JOIN` retorna todas as linhas da tabela da direita, com `NULL` à esquerda quando não há correspondência, e todo `RIGHT JOIN` pode ser reescrito como `LEFT JOIN` invertendo a ordem das tabelas. O `FULL OUTER JOIN` traz todas as linhas dos dois lados, vinculadas ou não.
+
+Para o `FULL` mostrar algo que o `LEFT` não mostra, a condição de junção da linha 26 exige `published = 1`: o rascunho deixa de casar com a autora e aparece como um post sem autor, ao lado de Diego, o autor sem post:
+
+<SourceCode path="examples/courses/database/invest-db/joins.sql" region="full" mark={[26]} />
+
+```txt title="Output" frame="terminal"
+autor       | titulo
+------------+------------------------
+NULL        | Rascunho sobre índices
+Ana Silva   | Introdução ao SQL
+Ana Silva   | Junções explicadas
+Bruno Costa | Receita de pão
+Bruno Costa | Viagem ao litoral
+Carla Souza | Normalização na prática
+Diego Lima  | NULL
+```
+
+Filtrar pelas duas colunas nulas na linha 35 deixa só as pontas sem par, o sétimo diagrama de Venn:
+
+<SourceCode path="examples/courses/database/invest-db/joins.sql" region="full-excluding" mark={[35]} />
+
+```txt title="Output" frame="terminal"
+autor      | titulo
+-----------+-----------------------
+Diego Lima | NULL
+NULL       | Rascunho sobre índices
+```
 
 <Aside type="note" title="Suporte no SQLite">
-  O SQLite suporta nativamente `INNER JOIN` e `LEFT JOIN`. O suporte a `RIGHT JOIN` e `FULL OUTER JOIN` foi adicionado nas versões mais recentes (3.39+). Na prática, todo `RIGHT JOIN` pode ser reescrito como `LEFT JOIN` invertendo a ordem das tabelas.
+  O SQLite suporta `RIGHT JOIN` e `FULL OUTER JOIN` desde a versão 3.39, e é a versão embutida no Node.js 22 que executa esses arquivos. Em versões antigas, o `FULL` se obtém com a união de um `LEFT` e de um `RIGHT` reescrito como `LEFT`.
 </Aside>
 
-### 4. `CROSS JOIN` (Produto Cartesiano)
+### 5. `CROSS JOIN` (Produto Cartesiano)
 
-O `CROSS JOIN` combina cada linha da primeira tabela com todas as linhas da segunda tabela, gerando o **produto cartesiano** ($M \times N$ linhas). É útil para gerar matrizes de combinações (por exemplo, todos os tamanhos combinados com todas as cores de um produto):
+O `CROSS JOIN` combina cada linha da primeira tabela com todas as linhas da segunda tabela, gerando o **produto cartesiano** (M × N linhas). É útil para gerar matrizes de combinações (por exemplo, todos os tamanhos combinados com todas as cores de um produto):
 
 ```sql
 SELECT User.name, Product.name AS produto
