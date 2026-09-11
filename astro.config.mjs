@@ -1388,6 +1388,10 @@ export default defineConfig({
                       label: 'Procedures, Functions e Triggers',
                       link: '/courses/database/sql/procedures-triggers/',
                     },
+                    {
+                      label: 'PL/SQL e PL/pgSQL',
+                      link: '/courses/database/sql/plsql/',
+                    },
                     { label: 'Desempenho', link: '/courses/database/sql/performance/' },
                     {
                       label: 'Comparativo de SGBDs',

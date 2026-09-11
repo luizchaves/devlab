@@ -1,0 +1,497 @@
+---
+title: "Linguagens Procedurais: PL/SQL e PL/pgSQL"
+description: "Programação procedural em bancos de dados relacionais: blocos anônimos, tipos %TYPE e %ROWTYPE, controle de fluxo, tratamento de exceções, cursores com parâmetros e pacotes corporativos."
+course: database
+sidebar:
+  label: "PL/SQL e PL/pgSQL"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Enquanto a linguagem SQL padrão é declarativa e orientada a conjuntos, as extensões procedurais como o **PL/SQL** (*Procedural Language for SQL*, do ecossistema Oracle) e o **PL/pgSQL** (do PostgreSQL) permitem a escrita de algoritmos estruturados complexos, manipulação de variáveis em memória, controle de fluxo condicional, tratamento robusto de exceções e encapsulamento em módulos corporativos diretamente dentro do motor do banco de dados.
+
+---
+
+## Objetivo
+
+Dominar a estrutura, a sintaxe e os padrões de desenvolvimento em linguagens procedurais de banco de dados, capacitando o desenvolvedor a criar rotinas corporativas de alta performance, gerenciar erros com segurança e identificar quando utilizar recursos avançados de banco ou da aplicação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Estruturar blocos procedurais anônimos e nomeados utilizando as seções `DECLARE`, `BEGIN`, `EXCEPTION` e `END;`.
+- Aplicar atributos de tipagem dinâmica (`%TYPE` e `%ROWTYPE`) para desacoplar variáveis do esquema físico.
+- Implementar fluxos de controle condicionais (`IF/ELSIF/ELSE`, `CASE`) e estruturas de repetição (`LOOP`, `WHILE`, `FOR`).
+- Manipular cursores explícitos com parâmetros e iteradores automáticos de cursor.
+- Construir blocos de tratamento de exceções pré-definidas e customizadas com lançamento de erros orientados ao negócio.
+- Compreender a arquitetura de pacotes (*Packages*) para modularização, isolamento de escopo e sobrecarga de funções.
+- Mapear as correspondências e diferenças sintáticas entre Oracle PL/SQL, PostgreSQL PL/pgSQL e SQL Server T-SQL.
+
+---
+
+## Arquitetura de um Bloco Procedural
+
+A unidade fundamental do PL/SQL e do PL/pgSQL é o **bloco**. Um bloco agrupa declarações de variáveis, comandos executáveis de lógica e manipuladores de erros em uma estrutura delimitada:
+
+<Mermaid title="Fluxo de execução de um bloco procedural">
+{`
+flowchart TD
+    D["1. DECLARE (Opcional)<br/>Alocação de variáveis, constantes, tipos e cursores"] --> B["2. BEGIN (Obrigatório)<br/>Execução sequencial de instruções SQL e controle de fluxo"]
+    B --> E{"Ocorreu erro / exceção?"}
+    E -- Não --> F["4. END; (Finalização com Sucesso)"]
+    E -- Sim --> EX["3. EXCEPTION (Opcional)<br/>Captura e tratamento de erros específicos ou genéricos"]
+    EX --> F
+`}
+</Mermaid>
+
+Um bloco procedural pode ser executado de duas formas no SGBD:
+- **Bloco Anônimo**: Enviado dinamicamente pela aplicação ou executado em um cliente interativo (como SQL Developer ou psql). É compilado e executado imediatamente na memória, sem ser salvo no dicionário de dados do banco.
+- **Subprograma Nomeado**: Criado via comandos `CREATE FUNCTION`, `CREATE PROCEDURE` ou `CREATE PACKAGE`. O código fonte é compilado, otimizado e armazenado de forma permanente no catálogo do banco de dados.
+
+O exemplo a seguir demonstra a estrutura clássica de um bloco anônimo com cálculo de desconto e tratamento de ausência de dados:
+
+```sql title="Estrutura de Bloco Anônimo PL/SQL"
+DECLARE
+  -- 1. Seção declarativa: variáveis locais
+  v_cliente_id  NUMBER := 1042;
+  v_total_gasto NUMBER(10, 2);
+  v_desconto    NUMBER(10, 2);
+BEGIN
+  -- 2. Seção executável: busca dados com SQL embutido
+  SELECT SUM(total)
+    INTO v_total_gasto
+    FROM pedidos
+   WHERE cliente_id = v_cliente_id;
+
+  IF v_total_gasto > 5000 THEN
+    v_desconto := v_total_gasto * 0.15;
+  ELSIF v_total_gasto > 2000 THEN
+    v_desconto := v_total_gasto * 0.08;
+  ELSE
+    v_desconto := 0;
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE('Desconto concedido: R$ ' || v_desconto);
+
+EXCEPTION
+  -- 3. Seção de tratamento de exceções
+  WHEN NO_DATA_FOUND THEN
+    DBMS_OUTPUT.PUT_LINE('Cliente sem compras cadastradas.');
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('Erro inesperado: ' || SQLERRM);
+END;
+/
+```
+
+No PostgreSQL com **PL/pgSQL**, a sintaxe equivalente utiliza `$$` como delimitador de corpo de função ou de bloco anônimo executado via `DO $$ ... $$;`, e a função de saída em console é `RAISE NOTICE`.
+
+---
+
+## Tipagem Dinâmica e de Linha: `%TYPE` e `%ROWTYPE`
+
+Declarar tipos fixos e manuais (como `VARCHAR2(50)` ou `NUMERIC(10,2)`) cria um acoplamento perigoso: se o tamanho de uma coluna da tabela for expandido no DDL, a rotina procedural pode estourar o limite de tamanho em tempo de execução (*buffer overflow*).
+
+Para eliminar esse acoplamento, as linguagens procedurais disponibilizam dois atributos de reflexão de tipo:
+
+### 1. Atributo `%TYPE` (Tipo de Coluna)
+O atributo `%TYPE` vincula o tipo da variável diretamente à definição da coluna de uma tabela ou ao tipo de outra variável declarada previamente.
+
+```sql title="Declaração com %TYPE"
+DECLARE
+  -- Herda dinamicamente o tipo e a precisão da coluna no banco
+  v_nome_cliente  clientes.nome%TYPE;
+  v_saldo_conta   contas.saldo%TYPE;
+BEGIN
+  SELECT nome INTO v_nome_cliente FROM clientes WHERE id = 1;
+END;
+```
+
+Se a coluna `nome` for alterada de `VARCHAR2(60)` para `VARCHAR2(120)` na tabela `clientes`, a variável `v_nome_cliente` adotará a nova precisão automaticamente na próxima compilação, sem exigir modificações manuais no código procedural.
+
+### 2. Atributo `%ROWTYPE` (Tipo de Registro Completo)
+O atributo `%ROWTYPE` cria uma estrutura de registro composta que espelha exatamente todos os campos e tipos de uma tabela ou de um cursor explícito.
+
+```sql title="Declaração de Registro com %ROWTYPE"
+DECLARE
+  -- v_pedido contém todos os campos da tabela pedidos (id, data, cliente_id, total...)
+  v_pedido pedidos%ROWTYPE;
+BEGIN
+  SELECT *
+    INTO v_pedido
+    FROM pedidos
+   WHERE id = 9981;
+
+  -- Acesso aos campos via notação de ponto
+  DBMS_OUTPUT.PUT_LINE('Pedido ID: ' || v_pedido.id);
+  DBMS_OUTPUT.PUT_LINE('Total: R$ ' || v_pedido.total);
+END;
+```
+
+---
+
+## Estruturas de Controle de Fluxo
+
+As rotinas procedurais oferecem controle algorítmico completo para tomadas de decisão e repetições.
+
+### 1. Condicionais: `IF-THEN-ELSIF` e `CASE`
+A avaliação condicional suporta ramificações múltiplas com a palavra-chave `ELSIF` (note a ausência da letra "E" intermediária em PL/SQL):
+
+```sql title="Estrutura Condicional IF e CASE"
+-- Estrutura IF-ELSIF-ELSE
+IF v_categoria = 'PREMIUM' THEN
+  v_taxa := 0.01;
+ELSIF v_categoria = 'STANDARD' THEN
+  v_taxa := 0.05;
+ELSE
+  v_taxa := 0.10;
+END IF;
+
+-- Expressão CASE procedural
+v_descricao := CASE v_status
+  WHEN 'A' THEN 'Ativo'
+  WHEN 'P' THEN 'Pendente'
+  WHEN 'C' THEN 'Cancelado'
+  ELSE 'Desconhecido'
+END;
+```
+
+### 2. Laços de Repetição (`LOOP`, `WHILE`, `FOR`)
+Existem três modelos principais de iteração procedural:
+
+```sql title="Modelos de Laços de Repetição"
+-- 1. Loop Básico com cláusula de saída explícita
+LOOP
+  v_contador := v_contador + 1;
+  EXIT WHEN v_contador > 10;
+END LOOP;
+
+-- 2. Laço condicional WHILE
+WHILE v_saldo < 1000 LOOP
+  v_saldo := v_saldo * 1.05;
+END LOOP;
+
+-- 3. Laço numérico FOR (limite inferior e superior inclusivos)
+FOR i IN 1..5 LOOP
+  DBMS_OUTPUT.PUT_LINE('Iteração: ' || i);
+END LOOP;
+```
+
+---
+
+## Cursores Explícitos e Cursores com Parâmetros
+
+Quando uma consulta SQL retorna múltiplas linhas, ela não pode ser atribuída diretamente a variáveis escalares simples com `SELECT INTO` (o que dispararia a exceção `TOO_MANY_ROWS`). Para processar conjuntos linha por linha, utilizam-se **Cursores**.
+
+### 1. Ciclo Manual de um Cursor Explícito
+O ciclo tradicional envolve quatro etapas obrigatórias: declarar (`CURSOR`), abrir (`OPEN`), recuperar dados (`FETCH`) e fechar (`CLOSE`):
+
+```sql title="Cursor Explícito Manual com Parâmetro"
+DECLARE
+  -- Declaração do cursor com parâmetro de filtro
+  CURSOR cur_produtos (p_categoria_id NUMBER) IS
+    SELECT id, nome, preco
+      FROM produtos
+     WHERE categoria_id = p_categoria_id
+     ORDER BY preco DESC;
+
+  v_prod_id    produtos.id%TYPE;
+  v_prod_nome  produtos.nome%TYPE;
+  v_prod_preco produtos.preco%TYPE;
+BEGIN
+  -- 1. Abre alocando recursos de memória na SGA
+  OPEN cur_produtos(3);
+
+  LOOP
+    -- 2. Recupera a próxima linha
+    FETCH cur_produtos INTO v_prod_id, v_prod_nome, v_prod_preco;
+    
+    -- 3. Atributo %NOTFOUND indica o fim do conjunto
+    EXIT WHEN cur_produtos%NOTFOUND;
+
+    DBMS_OUTPUT.PUT_LINE('Item: ' || v_prod_nome || ' - R$ ' || v_prod_preco);
+  END LOOP;
+
+  -- 4. Libera a memória do cursor
+  CLOSE cur_produtos;
+END;
+```
+
+### 2. Cursor FOR LOOP (Iterador Automático)
+O padrão mais elegante e seguro nas linguagens procedurais modernas é o **Cursor FOR LOOP**. Ele gerencia a abertura, o fetch, a criação da variável de registro `%ROWTYPE` e o fechamento do cursor de forma 100% automática:
+
+```sql title="Cursor FOR LOOP Automático"
+DECLARE
+  CURSOR cur_ativos IS
+    SELECT id, codigo, saldo
+      FROM investimentos
+     WHERE status = 'ATIVO';
+BEGIN
+  -- cur_ativos abre automaticamente e aloca a variável 'reg'
+  FOR reg IN cur_ativos LOOP
+    DBMS_OUTPUT.PUT_LINE('Investimento: ' || reg.codigo || ' Saldo: ' || reg.saldo);
+  END LOOP;
+  -- O cursor é fechado automaticamente ao sair do loop
+END;
+```
+
+---
+
+## Tratamento de Exceções
+
+O tratamento de exceções intercepta falhas de execução impedindo que o processo seja interrompido de forma inesperada ou deixe transações em estado inconsistente.
+
+<Mermaid title="Hierarquia de captura de exceções em bloco procedural">
+{`
+flowchart TD
+    ERR["Ocorrência de Erro em tempo de execução"] --> C1{"É NO_DATA_FOUND?"}
+    C1 -- Sim --> H1["WHEN NO_DATA_FOUND THEN<br/>(Ajusta valor default ou ignora)"]
+    C1 -- Não --> C2{"É DUP_VAL_ON_INDEX?"}
+    C2 -- Sim --> H2["WHEN DUP_VAL_ON_INDEX THEN<br/>(Trata colisão de chave primária/única)"]
+    C2 -- Não --> C3{"É Exceção Customizada de Negócio?"}
+    C3 -- Sim --> H3["WHEN ex_saldo_insuficiente THEN<br/>(Emite mensagem de domínio)"]
+    C3 -- Não --> H4["WHEN OTHERS THEN<br/>(Captura genérica de segurança: grava log e re-emite)"]
+`}
+</Mermaid>
+
+### 1. Exceções Pré-definidas do Sistema
+Os SGBDs fornecem nomes prontos para os erros relacionais mais frequentes:
+- **`NO_DATA_FOUND`**: Um comando `SELECT INTO` não localizou nenhum registro correspondente.
+- **`TOO_MANY_ROWS`**: Um comando `SELECT INTO` encontrou mais de uma linha para variáveis escalares.
+- **`DUP_VAL_ON_INDEX`**: Tentativa de inserir chave duplicada em restrição `PRIMARY KEY` ou `UNIQUE`.
+- **`ZERO_DIVIDE`**: Tentativa de divisão por zero.
+- **`VALUE_ERROR`**: Erro de truncamento ou conversão incompatível de tipos.
+
+### 2. Exceções Definidas pelo Desenvolvedor e Códigos de Erro
+Para validar regras de negócio que não violam diretamente restrições estruturais de integridade, é possível declarar exceções nominais ou emitir erros customizados com códigos HTTP ou corporativos:
+
+```sql title="Exceção Customizada com Lançamento de Erro"
+DECLARE
+  v_saldo_atual      NUMBER := 150.00;
+  v_valor_saque      NUMBER := 500.00;
+  ex_saldo_insuficiente EXCEPTION;
+BEGIN
+  IF v_valor_saque > v_saldo_atual THEN
+    RAISE ex_saldo_insuficiente;
+  END IF;
+
+  -- Prossegue com a operação se houver saldo
+  v_saldo_atual := v_saldo_atual - v_valor_saque;
+
+EXCEPTION
+  WHEN ex_saldo_insuficiente THEN
+    -- Emite erro com código customizado (faixa -20000 a -20999 em Oracle)
+    RAISE_APPLICATION_ERROR(-20001, 'Operação recusada: saldo insuficiente para saque.');
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('Código: ' || SQLCODE || ' - Mensagem: ' || SQLERRM);
+    RAISE; -- Repassa o erro para a aplicação chamadora
+END;
+```
+
+No PostgreSQL com **PL/pgSQL**, a emissão equivalente utiliza `RAISE EXCEPTION 'Saldo insuficiente: %', v_saldo_atual USING ERRCODE = 'check_violation';`.
+
+---
+
+## Pacotes Corporativos (*Packages*)
+
+No Oracle PL/SQL, um **Pacote (*Package*)** é um objeto de esquema que encapsula procedimentos, funções, variáveis globais, tipos customizados e cursores correlatos em uma unidade modular coerente.
+
+A arquitetura de pacotes é dividida estritamente em duas partes:
+
+### 1. Especificação do Pacote (*Package Specification*)
+A especificação declara a interface pública visível para outros programas. Tudo o que é declarado na especificação é acessível publicamente por aplicações e outros subprogramas autorizados.
+
+```sql title="Especificação do Pacote (Header)"
+CREATE OR REPLACE PACKAGE pkg_gestao_contas AS
+  -- Constante pública
+  c_taxa_manutencao CONSTANT NUMBER := 12.50;
+
+  -- Assinaturas de procedimentos e funções públicas
+  PROCEDURE creditar(p_conta_id IN NUMBER, p_valor IN NUMBER);
+  PROCEDURE debitar(p_conta_id IN NUMBER, p_valor IN NUMBER);
+  FUNCTION obter_saldo(p_conta_id IN NUMBER) RETURN NUMBER;
+END pkg_gestao_contas;
+/
+```
+
+### 2. Corpo do Pacote (*Package Body*)
+O corpo contém a implementação de todos os subprogramas declarados na especificação, além de variáveis privadas, tipos internos e funções auxiliares invisíveis para o exterior (*encapsulamento de código*).
+
+```sql title="Corpo do Pacote (Body)"
+CREATE OR REPLACE PACKAGE BODY pkg_gestao_contas AS
+
+  -- Função auxiliar privada (visível apenas dentro deste pacote)
+  FUNCTION conta_bloqueada(p_conta_id IN NUMBER) RETURN BOOLEAN IS
+    v_status contas.status%TYPE;
+  BEGIN
+    SELECT status INTO v_status FROM contas WHERE id = p_conta_id;
+    RETURN (v_status = 'BLOQUEADA');
+  END conta_bloqueada;
+
+  -- Implementação do procedimento público creditar
+  PROCEDURE creditar(p_conta_id IN NUMBER, p_valor IN NUMBER) IS
+  BEGIN
+    IF conta_bloqueada(p_conta_id) THEN
+      RAISE_APPLICATION_ERROR(-20005, 'Conta informada encontra-se bloqueada.');
+    END IF;
+
+    UPDATE contas
+       SET saldo = saldo + p_valor
+     WHERE id = p_conta_id;
+  END creditar;
+
+  -- Implementação do procedimento público debitar
+  PROCEDURE debitar(p_conta_id IN NUMBER, p_valor IN NUMBER) IS
+  BEGIN
+    UPDATE contas
+       SET saldo = saldo - p_valor
+     WHERE id = p_conta_id;
+  END debitar;
+
+  -- Implementação da função pública obter_saldo
+  FUNCTION obter_saldo(p_conta_id IN NUMBER) RETURN NUMBER IS
+    v_saldo contas.saldo%TYPE;
+  BEGIN
+    SELECT saldo INTO v_saldo FROM contas WHERE id = p_conta_id;
+    RETURN v_saldo;
+  END obter_saldo;
+
+END pkg_gestao_contas;
+/
+```
+
+<Aside type="tip" title="Vantagens de Pacotes">
+  Além da modularidade e do encapsulamento, os pacotes melhoram o desempenho do banco: quando qualquer subprograma do pacote é invocado pela primeira vez, o pacote inteiro é carregado de forma contígua na memória compartilhada (*Shared Pool*), evitando acessos subsequentes a disco para rotinas irmãs.
+</Aside>
+
+---
+
+## Comparativo: PL/SQL vs PL/pgSQL vs T-SQL
+
+A tabela abaixo compara os recursos e as sintaxes procedurais equivalentes entre os principais motores relacionais corporativos:
+
+| Recurso / Conceito | Oracle PL/SQL | PostgreSQL PL/pgSQL | SQL Server Transact-SQL (T-SQL) |
+| :--- | :--- | :--- | :--- |
+| **Delimitador de Bloco** | `DECLARE ... BEGIN ... END;` | `DO $$ DECLARE ... BEGIN ... END $$;` | `BEGIN ... END` |
+| **Atribuição de Variável** | `v_var := 10;` | `v_var := 10;` ou `v_var = 10;` | `SET @var = 10;` |
+| **Tipo Dinâmico** | `coluna%TYPE` e `tabela%ROWTYPE` | `coluna%TYPE` e `tabela%ROWTYPE` | Não possui nativo (usa `AS`) |
+| **Impressão em Console** | `DBMS_OUTPUT.PUT_LINE('msg');` | `RAISE NOTICE 'msg %', valor;` | `PRINT 'msg';` |
+| **Tratamento de Exceções** | `EXCEPTION WHEN ... THEN` | `EXCEPTION WHEN ... THEN` | `BEGIN TRY ... END TRY BEGIN CATCH ... END CATCH` |
+| **Emissão de Erro Customizado**| `RAISE_APPLICATION_ERROR(-20001, 'msg');` | `RAISE EXCEPTION 'msg';` | `THROW 50001, 'msg', 1;` |
+| **Iterador Automático** | `FOR reg IN cur LOOP ... END LOOP;` | `FOR reg IN cur LOOP ... END LOOP;` | Requer loop `WHILE` com `FETCH NEXT` |
+| **Modularização** | `PACKAGE` (Spec e Body) | `SCHEMA` com funções agrupadas | `SCHEMA` ou Assemblies CLR |
+
+---
+
+## Exercício
+
+Com base nas linguagens procedurais e seus componentes de engenharia:
+
+1. Qual é a vantagem de utilizar o atributo `%TYPE` em vez de definir tipos primitivos estáticos nas variáveis de um bloco procedural?
+2. O que acontece quando uma instrução `SELECT ... INTO` não encontra nenhum registro correspondente em PL/SQL, e qual é a exceção disparada?
+3. Explique a diferença entre um cursor explícito manual (`OPEN`, `FETCH`, `CLOSE`) e um `Cursor FOR LOOP`.
+4. Por que a arquitetura de pacotes (*Packages*) separa a Especificação (*Specification*) do Corpo (*Body*)?
+5. Como o tratamento de erros do SQL Server (T-SQL) se diferencia estruturalmente do modelo adotado por PL/SQL e PL/pgSQL?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O atributo `%TYPE` desacopla a rotina do esquema físico. Se o tamanho ou tipo da coluna da tabela for modificado no DDL (por exemplo, de `VARCHAR2(50)` para `VARCHAR2(100)`), as variáveis procedurais adotam a alteração automaticamente na recompilação sem risco de estouro de buffer.
+  2. O SGBD interrompe a execução imediata do bloco `BEGIN` e desvia o fluxo para o manipulador de erros da seção `EXCEPTION`, disparando a exceção nativa `NO_DATA_FOUND`.
+  3. No cursor manual, o programador é obrigado a codificar explicitamente os comandos `OPEN`, `FETCH` com controle de saída (`EXIT WHEN %NOTFOUND`) e `CLOSE`. No `Cursor FOR LOOP`, o motor gerencia o ciclo completo automaticamente, incluindo alocação e liberação de memória.
+  4. Para implementar encapsulamento e ocultamento de informação: a especificação define a interface pública contratual acessível por chamadores externos, enquanto o corpo esconde detalhes internos de implementação, algoritmos e funções privadas.
+  5. O T-SQL adota a estrutura estruturada em blocos `BEGIN TRY ... END TRY` combinada com `BEGIN CATCH ... END CATCH` (similar a linguagens como Java e C#), enquanto o PL/SQL e o PL/pgSQL usam uma seção `EXCEPTION` declarativa ao final do bloco com cláusulas condicionais `WHEN <nome_excecao> THEN`.
+</details>
+
+---
+
+## Desafio
+
+Um sistema financeiro precisa processar o fechamento de juros mensais sobre contas correntes de clientes.
+
+Escreva a estrutura de um bloco procedural (ou procedimento) que:
+1. Declare um cursor parametrizado por `p_tipo_conta` para buscar todas as contas ativas do tipo especificado.
+2. Itere sobre as contas calculando o novo saldo com acréscimo de 0,5% de rendimento.
+3. Atualize o saldo de cada conta na tabela física `contas`.
+4. Capture eventuais falhas durante o processamento de registros individuais, garantindo que o erro seja registrado em uma tabela de log (`log_erros_processamento`) sem abortar o processamento dos demais clientes do lote.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  CREATE OR REPLACE PROCEDURE prc_fechamento_juros (
+    p_tipo_conta IN contas.tipo%TYPE
+  ) IS
+    CURSOR cur_contas IS
+      SELECT id, saldo
+        FROM contas
+       WHERE tipo = p_tipo_conta
+         AND status = 'ATIVA';
+  BEGIN
+    FOR reg IN cur_contas LOOP
+      -- Bloco aninhado interno para isolar falhas por registro
+      BEGIN
+        UPDATE contas
+           SET saldo = saldo * 1.005
+         WHERE id = reg.id;
+         
+      EXCEPTION
+        WHEN OTHERS THEN
+          -- Grava o erro isolado sem interromper as outras contas do loop
+          INSERT INTO log_erros_processamento (
+            conta_id,
+            codigo_erro,
+            mensagem_erro,
+            data_evento
+          ) VALUES (
+            reg.id,
+            SQLCODE,
+            SQLERRM,
+            SYSDATE
+          );
+      END;
+    END LOOP;
+    
+    COMMIT;
+  END prc_fechamento_juros;
+  /
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Fundamentos e Estrutura
+
+1. **Quais são as quatro seções possíveis de um bloco PL/SQL e quais são obrigatórias?**
+   <details><summary>Possível resposta</summary>As seções são `DECLARE` (opcional), `BEGIN` (obrigatória), `EXCEPTION` (opcional) e `END;` (obrigatória).</details>
+
+2. **Qual a diferença entre uma variável declarada com `%TYPE` e outra com `%ROWTYPE`?**
+   <details><summary>Possível resposta</summary>`%TYPE` espelha o tipo de uma coluna individual ou variável. `%ROWTYPE` espelha um registro composto completo contendo todas as colunas de uma tabela, visão ou cursor.</details>
+
+3. **Como funciona a palavra-chave `ELSIF` no controle condicional?**
+   <details><summary>Possível resposta</summary>Ela permite testar condições alternativas sucessivas quando o `IF` anterior é falso, sem a necessidade de aninhar múltiplos blocos `IF ... END IF` separados.</details>
+
+### Recursos Avançados e Robustez
+
+4. **Por que colocar um bloco `BEGIN ... EXCEPTION ... END;` dentro de um loop é uma prática recomendada em rotinas de lote?**
+   <details><summary>Possível resposta</summary>Porque o bloco aninhado captura exceções da linha atual e permite que o laço prossiga para os próximos registros, evitando que uma falha pontual interrompa o lote inteiro.</details>
+
+5. **Para que serve a função `RAISE_APPLICATION_ERROR` em PL/SQL?**
+   <details><summary>Possível resposta</summary>Permite que o desenvolvedor lance uma exceção customizada com um código numérico de erro de aplicação (na faixa -20000 a -20999) e uma mensagem explicativa formatada para o cliente.</details>
+
+6. **O que representa a variável especial `SQLERRM` dentro de uma cláusula `EXCEPTION`?**
+   <details><summary>Possível resposta</summary>Ela retorna a mensagem de texto descritiva associada ao último erro ocorrido no banco de dados.</details>
+
+---
+
+## Referências
+
+- [Oracle Documentation: Database PL/SQL Language Reference](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/index.html)
+- [PostgreSQL Documentation: PL/pgSQL — SQL Procedural Language](https://www.postgresql.org/docs/current/plpgsql.html)
+- [Microsoft Learn: Transact-SQL Reference (Database Engine)](https://learn.microsoft.com/en-us/sql/t-sql/language-reference)
+- [Feuerstein, S., & Pribyl, B. Oracle PL/SQL Programming (O'Reilly Media)](https://www.oreilly.com/library/view/oracle-plsql-programming/9781449324469/)
+- [IFPB: Guia de Desenvolvimento Web - Banco de Dados e SQL](https://ifpb.github.io/dw/database/sql/)
+
+---
+
+## Próximo tópico
+
+[Desempenho](../performance/): Planos de execução, índices B-Tree, otimização de consultas SQL e estratégias de paginação de alta eficiência.
