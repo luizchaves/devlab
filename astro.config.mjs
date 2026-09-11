@@ -1377,6 +1377,10 @@ export default defineConfig({
                     },
                     { label: 'Transações', link: '/courses/database/sql/transactions/' },
                     { label: 'SQL DCL e Permissões', link: '/courses/database/sql/dcl/' },
+                    {
+                      label: 'Procedures, Functions e Triggers',
+                      link: '/courses/database/sql/procedures-triggers/',
+                    },
                     { label: 'Desempenho', link: '/courses/database/sql/performance/' },
                   ],
                 },

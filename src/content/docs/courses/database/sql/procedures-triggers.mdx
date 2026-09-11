@@ -1,0 +1,306 @@
+---
+title: "Banco de Dados: Stored Procedures, Functions e Triggers"
+description: "Rotinas armazenadas e automação em SQL: diferenças entre Functions e Stored Procedures, parâmetros, cursores, gatilhos (Triggers) e o debate arquitetural entre lógica no banco e na aplicação."
+course: database
+sidebar:
+  label: "Procedures, Functions e Triggers"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta os conceitos, estruturas e casos de uso de **Stored Procedures**, **User-Defined Functions (UDFs)** e **Triggers** (gatilhos). Você aprenderá a diferenciar funções de procedimentos, manipular parâmetros e cursores, automatizar regras de auditoria e integridade com gatilhos orientados a eventos e avaliar criticamente o dilema arquitetural entre processar regras de negócio dentro do banco ou na camada de aplicação.
+
+---
+
+## Objetivo
+
+Compreender o papel da programação procedural e da automação orientada a eventos no banco de dados, capacitando o desenvolvedor e o arquiteto de software a estruturar rotinas armazenadas eficientes e aplicar critérios objetivos para decidir onde a lógica do sistema deve residir. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar *User-Defined Functions (UDFs)* de *Stored Procedures* quanto ao retorno de valores, forma de invocação e controle transacional.
+- Estruturar rotinas procedurais utilizando blocos de controle de fluxo (`IF/ELSE`, `WHILE/LOOP`), declaração de variáveis e tratamento de exceções.
+- Compreender o ciclo de vida e a execução de gatilhos (*Triggers*), distinguindo os momentos `BEFORE`, `AFTER` e `INSTEAD OF`.
+- Utilizar variáveis de contexto (`NEW` e `OLD`) em triggers de linha (`FOR EACH ROW`) para validação e auditoria.
+- Avaliar os *trade-offs* de desempenho, escalabilidade, testabilidade e manutenibilidade entre lógica no banco versus lógica na aplicação.
+
+---
+
+## Funções (UDFs) vs Stored Procedures
+
+A linguagem SQL padrão é declarativa (você descreve *o que* deseja obter, e não *como* calcular). No entanto, todos os SGBDs relacionais avançados incorporam extensões procedurais que permitem encapsular algoritmos complexos dentro do catálogo do banco de dados:
+
+<Mermaid title="Comparação de invocação: Functions vs Stored Procedures">
+{`
+flowchart TD
+    subgraph Func ["1. User-Defined Function (UDF)"]
+        direction TB
+        Q1["Consulta SQL:<br/>SELECT id, calcular_imposto(valor) FROM vendas"] --> F1["Executa Função inline"]
+        F1 --> R1["Retorna Valor Escalar ou Tabela"]
+    end
+
+    subgraph Proc ["2. Stored Procedure"]
+        direction TB
+        Q2["Comando Explícito:<br/>CALL fechar_mes_fiscal(2026, 9)"] --> P1["Executa Procedimento em Lote"]
+        P1 --> T1["Pode executar COMMIT / ROLLBACK interno"]
+        P1 --> R2["Retorna via Parâmetros OUT ou Status"]
+    end
+`}
+</Mermaid>
+
+A tabela abaixo sintetiza as distinções fundamentais entre as duas rotinas:
+
+| Característica | User-Defined Function (UDF) | Stored Procedure |
+| :--- | :--- | :--- |
+| **Comando de Criação** | `CREATE FUNCTION` | `CREATE PROCEDURE` |
+| **Forma de Invocação** | Embutida em expressões SQL (`SELECT`, `WHERE`, `ORDER BY`) | Instrução de chamada explícita (`CALL nome_procedure(...)` ou `EXEC`) |
+| **Retorno de Dados** | **Obrigatório**: retorna um valor escalar único ou conjunto de linhas (`TABLE`) | **Opcional**: retorna status ou valores através de parâmetros `OUT` / `INOUT` |
+| **Controle de Transações** | **Não pode** iniciar ou confirmar transações (`COMMIT`/`ROLLBACK`) internamente | **Pode** gerenciar transações autônomas e executar múltiplos `COMMIT`/`ROLLBACK` |
+| **Propósito Típico** | Cálculos matemáticos, transformações de texto, formatações e filtros | Processamento de lote em massa (*batch*), fechamentos contábeis e esteiras ETL |
+
+---
+
+## Estrutura Procedural e Controle de Fluxo
+
+Enquanto o SQL puro processa conjuntos inteiros de registros de forma atômica, as rotinas armazenadas utilizam construções procedurais estruturadas:
+
+### 1. Parâmetros de Entrada e Saída
+As rotinas podem declarar três modos de parâmetros:
+- **`IN`** (padrão): O valor é passado pela aplicação e lido pela rotina (somente leitura).
+- **`OUT`**: A rotina calcula um valor e o atribui ao parâmetro para que a aplicação possa lê-lo após a execução.
+- **`INOUT`**: O parâmetro recebe um valor inicial, a rotina o modifica e devolve o novo valor modificado.
+
+### 2. Controle de Fluxo e Variáveis
+As rotinas permitem declarar variáveis locais e executar bifurcações condicionais e iterações:
+
+```sql title="Estrutura conceitual de uma Stored Procedure"
+-- Exemplo de procedimento com parâmetros IN e OUT
+CREATE PROCEDURE calcular_bonificacao(
+  IN p_funcionario_id INT,
+  IN p_percentual NUMERIC,
+  OUT p_valor_bonus NUMERIC
+)
+BEGIN
+  DECLARE v_salario NUMERIC;
+
+  -- 1. Busca o salário atual
+  SELECT salario INTO v_salario 
+  FROM funcionarios 
+  WHERE id = p_funcionario_id;
+
+  -- 2. Controle condicional
+  IF v_salario IS NULL THEN
+    SET p_valor_bonus = 0;
+  ELSEIF v_salario < 3000.00 THEN
+    -- Bônus com piso mínimo garantido
+    SET p_valor_bonus = (v_salario * p_percentual) + 200.00;
+  ELSE
+    SET p_valor_bonus = v_salario * p_percentual;
+  END IF;
+END;
+```
+
+### 3. Cursores (Cursors)
+Quando uma operação não pode ser resolvida de forma vetorial por uma única instrução `UPDATE/SELECT`, as procedures podem declarar **Cursores** para iterar linha por linha sobre o resultado de uma consulta:
+
+<Mermaid title="Ciclo de vida de um Cursor em Stored Procedure">
+{`
+flowchart LR
+    DECLARE["1. DECLARE Cursor<br/>Define a query"] --> OPEN["2. OPEN<br/>Executa e aloca memória"]
+    OPEN --> FETCH["3. FETCH<br/>Lê linha atual para variáveis"]
+    FETCH --> CHECK{"Fim dos registros?"}
+    CHECK -- Não --> PROCESS["Processa linha"] --> FETCH
+    CHECK -- Sim --> CLOSE["4. CLOSE<br/>Libera recursos"]
+`}
+</Mermaid>
+
+<Aside type="caution" title="Cuidado com Cursores">
+  Cursores processam dados linha por linha (*Row-By-Row*), degradando a performance do banco ao anular a otimização de conjuntos do SGBD. Sempre prefira comandos SQL baseados em conjuntos (`UPDATE ... WHERE ...`) antes de recorrer a cursores procedurais.
+</Aside>
+
+---
+
+## Gatilhos (Triggers): Automação Orientada a Eventos
+
+Um **Trigger** (gatilho) é um bloco de código procedural associado a uma tabela ou visão que o SGBD executa de forma automática sempre que um evento específico de modificação de dados ocorre:
+
+<Mermaid title="Ciclo de execução de Triggers DML">
+{`
+flowchart TD
+    DML["Comando DML (INSERT, UPDATE ou DELETE)"] --> B_TRG{"Existe Trigger BEFORE?"}
+    B_TRG -- Sim --> EXEC_B["Executa BEFORE Trigger<br/>(Pode validar, formatar ou abortar com erro)"]
+    B_TRG -- Não --> WRITE["Grava / Modifica Dados na Tabela Física"]
+    EXEC_B --> WRITE
+    WRITE --> A_TRG{"Existe Trigger AFTER?"}
+    A_TRG -- Sim --> EXEC_A["Executa AFTER Trigger<br/>(Grava log de auditoria, atualiza agregados)"]
+    A_TRG -- Não --> END_OP["Operação Concluída com Sucesso"]
+    EXEC_A --> END_OP
+`}
+</Mermaid>
+
+### 1. Momentos de Disparo
+- **`BEFORE`**: Executado **antes** de os dados serem gravados no disco. Permite validar restrições complexas, normalizar dados (como forçar e-mails para minúsculas) ou abortar a transação com erro antes de qualquer alteração física.
+- **`AFTER`**: Executado **depois** de a gravação na tabela ter sido concluída com sucesso. É o momento ideal para alimentar tabelas de auditoria, atualizar totais em tabelas de sumário ou enfileirar notificações.
+- **`INSTEAD OF`**: Substitui a operação original. Utilizado principalmente sobre **Visões (*Views*) complexas** com junções que normalmente não aceitariam comandos `INSERT` ou `UPDATE` diretos.
+
+### 2. Variáveis de Contexto: `NEW` e `OLD`
+Em gatilhos executados para cada linha (`FOR EACH ROW`), o motor disponibiliza duas estruturas especiais com o estado dos dados:
+
+| Operação | Objeto `OLD` | Objeto `NEW` | Uso Típico |
+| :--- | :--- | :--- | :--- |
+| **`INSERT`** | Indisponível (`NULL`) | Contém a nova linha sendo inserida | Validar campos novos e preencher carimbos de data/hora (`created_at`). |
+| **`UPDATE`** | Contém a linha original antes da alteração | Contém a linha com as modificações propostas | Comparar `OLD.preco != NEW.preco` para gravar histórico de alterações. |
+| **`DELETE`** | Contém a linha prestes a ser removida | Indisponível (`NULL`) | Salvar cópia do registro apagado em tabela de auditoria ou lixeira lógica. |
+
+```sql title="Exemplo conceitual de Trigger de auditoria"
+-- Trigger que registra alterações de salário em tabela de auditoria
+CREATE TRIGGER trg_auditoria_salario
+AFTER UPDATE OF salario ON funcionarios
+FOR EACH ROW
+BEGIN
+  IF OLD.salario != NEW.salario THEN
+    INSERT INTO historico_salarios (
+      funcionario_id, 
+      salario_antigo, 
+      salario_novo, 
+      data_alteracao
+    ) VALUES (
+      OLD.id, 
+      OLD.salario, 
+      NEW.salario, 
+      CURRENT_TIMESTAMP
+    );
+  END IF;
+END;
+```
+
+---
+
+## Lógica no Banco vs. Lógica na Aplicação
+
+A decisão de onde posicionar as regras de processamento é um dos debates arquiteturais mais relevantes da engenharia de software:
+
+<Mermaid title="Trade-offs: Regras na aplicação vs Regras no banco de dados">
+{`
+flowchart TD
+    subgraph AppApproach ["Abordagem Moderna: Lógica na Aplicação"]
+        APP_PRO["✅ Testes unitários automatizados simples (Jest, PyTest)<br/>✅ Versionamento direto no repositório Git da API<br/>✅ Escala horizontal barata (adicionar nós de API/Containers)<br/>❌ Múltiplas idas e vindas na rede (Network Round-trips)"]
+    end
+
+    subgraph DBApproach ["Abordagem Tradicional: Lógica no Banco (Procedures)"]
+        DB_PRO["✅ Processamento ultrarrápido ao lado dos dados físicos<br/>✅ Redução extrema de tráfego de rede (envia só o resultado)<br/>✅ Integridade garantida para qualquer cliente SQL ou BI<br/>❌ Escala vertical cara (a CPU do banco vira o gargalo)"]
+    end
+`}
+</Mermaid>
+
+A matriz abaixo orienta a distribuição ideal de responsabilidades:
+
+| Tipo de Lógica | Onde Deve Residir | Justificativa Técnica |
+| :--- | :--- | :--- |
+| **Regras de Negócio e Validações de Domínio** | **Aplicação (Backend)** | Fácil de testar, versionar, debugar e escalar horizontalmente sem onerar a CPU do banco. |
+| **Integridade Estrutural e Restrições Básicas** | **Banco de Dados (DDL)** | `NOT NULL`, `UNIQUE`, `CHECK` e chaves estrangeiras (`FK`) garantem consistência universal. |
+| **Trilhas de Auditoria e Imutabilidade** | **Banco de Dados (Triggers)** | Garante que nenhuma alteração direta via console ou ferramenta de BI escape do registro histórico. |
+| **Fechamentos em Lote com Alto Volume (ETL)** | **Banco de Dados (Procedures)** | Processa milhões de linhas em memória local sem trafegar gigabytes de dados pela rede até a API. |
+
+---
+
+## Comparativo de Suporte nos Motores
+
+| Motor | Stored Procedures | Functions (UDFs) | Linguagens Suportadas | Triggers |
+| :--- | :--- | :--- | :--- | :--- |
+| **PostgreSQL** | `CREATE PROCEDURE` (com transações) | `CREATE FUNCTION` | PL/pgSQL, PL/Python, PL/v8 (JS), C | `BEFORE`, `AFTER`, `INSTEAD OF`, por linha e por instrução |
+| **MySQL** | `CREATE PROCEDURE` | `CREATE FUNCTION` | Dialeto procedural próprio (SQL/PSM) | `BEFORE`, `AFTER` por linha (`FOR EACH ROW`) |
+| **Oracle Database** | `CREATE PROCEDURE` | `CREATE FUNCTION` | **PL/SQL** nativo e Java Stored Procedures | `BEFORE`, `AFTER`, *Compound Triggers*, transações autônomas |
+| **SQLite** | **Não suporta** | Funções registradas via host (C, JS) | C / Linguagem do driver | `BEFORE`, `AFTER`, `INSTEAD OF` simples |
+
+---
+
+## Exercício
+
+Com base nos conceitos de rotinas armazenadas e gatilhos:
+
+1. Qual a diferença fundamental entre uma *User-Defined Function (UDF)* e uma *Stored Procedure* quanto ao controle de transações?
+2. Em que situação um Trigger deve ser configurado como `BEFORE` em vez de `AFTER`?
+3. Para que servem as variáveis de contexto `OLD` e `NEW` em um Trigger de `UPDATE`?
+4. Por que a utilização excessiva de cursores procedurais dentro do banco de dados é considerada um antipadrão de desempenho?
+5. Cite duas desvantagens de concentrar todas as regras de negócio de um sistema moderno em Stored Procedures.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. As *Functions (UDFs)* não podem gerenciar transações nem executar `COMMIT` ou `ROLLBACK` internamente, pois devem ser determinísticas dentro de consultas `SELECT`. As *Stored Procedures* podem gerenciar transações autônomas e confirmar ou desfazer etapas durante sua execução.
+  2. Quando a rotina precisa **validar dados** antes da gravação (e abortar com erro caso estejam incorretos) ou **modificar/normalizar valores** diretamente na linha (por exemplo, preencher `NEW.email = LOWER(NEW.email)`) antes que o registro atinja o disco.
+  3. `OLD` representa os valores dos campos antes da alteração, enquanto `NEW` contém os novos valores propostos. Elas permitem comparar mudanças (ex: `OLD.status != NEW.status`) e gravar históricos precisos de auditoria.
+  4. Porque cursores forçam o SGBD a iterar registro por registro sequencialmente em memória, anulando a capacidade do otimizador de consultas de paralelizar e processar operações em massa sobre blocos contíguos de dados (*set-based processing*).
+  5. Dificuldade de escalabilidade horizontal (a CPU do servidor de banco vira o gargalo central do sistema) e complexidade de manutenção/testes automatizados (testes unitários e pipelines CI/CD tornam-se mais lentos e difíceis de isolar em comparação com código de aplicação).
+</details>
+
+---
+
+## Desafio
+
+Um sistema de comércio eletrônico precisa garantir que:
+1. Sempre que um pedido for cancelado (`status` alterado para `'CANCELADO'`), a quantidade de itens comprados seja automaticamente devolvida ao estoque da tabela `produtos`.
+2. O sistema armazene em uma tabela de log o usuário que realizou o cancelamento e a data/hora exata do evento.
+
+Proponha a estrutura conceitual de um Trigger (`AFTER UPDATE`) e explique por que essa abordagem é mais segura do que depender exclusivamente do backend da aplicação.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  CREATE TRIGGER trg_cancelamento_pedido
+  AFTER UPDATE OF status ON pedidos
+  FOR EACH ROW
+  WHEN (OLD.status != 'CANCELADO' AND NEW.status = 'CANCELADO')
+  BEGIN
+    -- 1. Devolve os itens ao estoque
+    UPDATE produtos p
+    SET quantidade_estoque = p.quantidade_estoque + ip.quantidade
+    FROM itens_pedido ip
+    WHERE ip.pedido_id = NEW.id AND p.id = ip.produto_id;
+
+    -- 2. Grava log de auditoria
+    INSERT INTO log_cancelamentos (pedido_id, status_anterior, data_hora)
+    VALUES (NEW.id, OLD.status, CURRENT_TIMESTAMP);
+  END;
+  ```
+
+  **Por que é mais seguro**: Mesmo que um administrador altere o status diretamente pelo DBeaver/Adminer ou que uma falha de rede interrompa a execução da API após o update do pedido, o gatilho garante atomicidade no nível do próprio motor do banco, impedindo inconsistências entre o status do pedido e o estoque físico.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Funções e Procedimentos
+
+1. **É possível invocar uma Stored Procedure dentro de uma cláusula `WHERE` de um comando `SELECT`?**
+   <details><summary>Possível resposta</summary>Não. Apenas Funções (UDFs) que retornam valores escalares podem ser utilizadas em expressões `WHERE` ou projeções `SELECT`. Procedures exigem a instrução `CALL`.</details>
+
+2. **O que é um parâmetro `INOUT` em uma Stored Procedure?**
+   <details><summary>Possível resposta</summary>É um parâmetro bidirecional que recebe um valor inicial da aplicação no momento da chamada, pode ser lido e alterado internamente pela procedure, e devolve o valor modificado para quem o invocou.</details>
+
+3. **Qual a diferença entre uma função escalar e uma *Table-Valued Function (TVF)*?**
+   <details><summary>Possível resposta</summary>A função escalar devolve um único valor primitivo (número, texto ou data). A *Table-Valued Function* devolve uma tabela virtual com linhas e colunas, podendo ser consultada na cláusula `FROM` com `JOIN`.</details>
+
+### Triggers e Arquitetura
+
+4. **O que é uma tabela mutante (*Mutating Table*) e em que situação ela gera erro em Triggers?**
+   <details><summary>Possível resposta</summary>É uma tabela que está sendo modificada pelo comando DML que disparou o próprio Trigger. Em motores como Oracle, tentar executar um `SELECT` ou `UPDATE` na mesma tabela dentro de um trigger de linha gera erro para evitar inconsistências recursivas infinitas.</details>
+
+5. **Para que serve um Trigger do tipo `INSTEAD OF`?**
+   <details><summary>Possível resposta</summary>Ele intercepta e substitui a operação DML original, sendo utilizado primariamente sobre Visões (*Views*) não atualizáveis para traduzir comandos `INSERT/UPDATE/DELETE` nas tabelas base subjacentes.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: PL/pgSQL - SQL Procedural Language](https://www.postgresql.org/docs/current/plpgsql.html)
+- [PostgreSQL Documentation: Triggers Overview](https://www.postgresql.org/docs/current/triggers.html)
+- [MySQL 8.4 Reference Manual: Stored Objects (Procedures and Functions)](https://dev.mysql.com/doc/refman/8.4/en/stored-objects.html)
+- [Oracle Documentation: PL/SQL Packages and Triggers Guide](https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/index.html)
+
+---
+
+## Próximo tópico
+
+[Desempenho](../performance/): Planos de execução, índices, otimização de consultas SQL e o custo de paginação por `OFFSET`.
