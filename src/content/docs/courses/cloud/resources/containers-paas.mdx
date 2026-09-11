@@ -1,0 +1,219 @@
+---
+title: "Nuvem: Containers e PaaS"
+description: "Processo sempre no ar para aplicações web: PaaS por build automático, container como unidade de deploy, porta e variáveis de ambiente, health check, escala e comparação entre Render, Railway, Heroku, Fly.io e Google Cloud Run."
+course: cloud
+sidebar:
+  label: "Containers e PaaS"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico fecha a seção com o recurso mais antigo e ainda o mais direto: um processo seu, sempre no ar, respondendo em uma porta. É onde a API Express do [Guia de Express.js](../../../expressjs/) vai morar quando ela existe de verdade, com muitas rotas, estado compartilhado e conexão permanente com o banco. O que a nuvem mudou não foi o processo, e sim como ele chega lá e quem o mantém rodando.
+
+## Objetivo
+
+Compreender o PaaS e o container como as duas formas de publicar um processo permanente, para levar uma API própria à nuvem com o mínimo de operação e reconhecer o que essa forma de execução exige do código. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir PaaS por build automático de deploy por container, e escolher pelo controle necessário.
+- Preparar uma aplicação para a plataforma: porta pela variável de ambiente, configuração por ambiente, *health check* e encerramento limpo.
+- Explicar o que muda quando a plataforma escala para mais de uma instância.
+- Ler o modelo de cobrança de um processo permanente e compará-lo ao de funções.
+- Comparar Render, Railway, Heroku, Fly.io e Google Cloud Run pelo modelo de deploy e pela escala.
+
+---
+
+## Dois Caminhos até o Processo
+
+Um PaaS recebe o repositório, detecta a linguagem, executa o build e inicia o processo. Um deploy por container recebe uma imagem que você construiu, com tudo dentro, e a executa. Os dois terminam no mesmo lugar, um processo respondendo em uma porta, mas partem de compromissos diferentes.
+
+O diagrama abaixo coloca os dois caminhos lado a lado:
+
+<Mermaid title="Build pela plataforma e imagem construída por você">
+{`
+flowchart LR
+  subgraph PaaS["PaaS por build automático"]
+    direction LR
+    R1["Repositório"] --> B1["Plataforma detecta<br/>e constrói"] --> P1["Processo na porta"]
+  end
+  subgraph Ctr["Deploy por container"]
+    direction LR
+    R2["Dockerfile"] --> B2["Você constrói<br/>a imagem"] --> P2["Processo na porta"]
+  end
+`}
+</Mermaid>
+
+A tabela abaixo mostra o que cada caminho troca:
+
+| Aspecto | PaaS por build automático | Deploy por container |
+| --- | --- | --- |
+| **O que você entrega** | O repositório, com `package.json` e scripts | Uma imagem, com runtime e dependências dentro |
+| **Controle do ambiente** | O da plataforma: versão do Node, sistema base | Total: qualquer binário, qualquer versão |
+| **Reprodutibilidade** | Depende do *buildpack* da plataforma | A mesma imagem roda igual em qualquer lugar |
+| **Curva de entrada** | Conectar o repositório e publicar | Escrever e manter um `Dockerfile` |
+| **Portabilidade entre plataformas** | Reconfigurar o build em cada uma | Levar a imagem |
+
+Render e Railway aceitam os dois caminhos; Fly.io e Cloud Run partem do container. A etapa 12 da trilha TaskAPI do Guia de Express.js mostra como a imagem é construída e o que ela revelou que a leitura não pegava.
+
+---
+
+## O Que a Plataforma Espera do Processo
+
+Um processo publicado em PaaS ou container precisa de quatro comportamentos que a maioria das aplicações não tem no primeiro `npm start`.
+
+<Steps>
+1. **Escutar na porta que a plataforma indica.** A porta vem em `process.env.PORT`, e uma aplicação com `3000` fixo simplesmente não recebe tráfego. É o primeiro erro de todo primeiro deploy.
+2. **Ler toda configuração do ambiente.** URL do banco, chaves, modo de execução: nada fixo no código, nada em arquivo versionado. A plataforma injeta as variáveis, e cada ambiente (preview, produção) tem as suas.
+3. **Responder a um *health check*.** Uma rota `GET /health` que devolve `200` quando a aplicação está pronta. A plataforma só envia tráfego depois que ela responde, e reinicia o processo quando ela para de responder.
+4. **Encerrar de forma limpa.** Ao receber `SIGTERM`, parar de aceitar conexões, terminar as requisições em andamento e fechar o banco. Sem isso, cada deploy derruba requisições no meio.
+</Steps>
+
+<Aside type="caution" title="Dica de IA: A porta e o encerramento são o que o exemplo local não testa">
+  Código gerado para "uma API Express" funciona no `localhost` com porta fixa e sem tratamento de sinal, porque nada disso importa na máquina local. Na plataforma, o processo não recebe tráfego ou é morto no meio das requisições a cada deploy.
+
+  **Prompt:** *"Ajuste este servidor Express para ler a porta de `process.env.PORT`, expor `GET /health`, e encerrar de forma limpa em `SIGTERM` fechando o servidor HTTP e a conexão com o banco; mostre como testar o encerramento localmente com `kill -TERM`."*
+</Aside>
+
+---
+
+## Mais de Uma Instância
+
+Enquanto há um único processo, tudo o que ele guarda em memória é "o estado da aplicação". No momento em que a plataforma sobe uma segunda instância, para escalar ou para fazer um deploy sem interrupção, essa premissa quebra em silêncio.
+
+| O que estava em memória | O que acontece com duas instâncias | Onde deveria estar |
+| --- | --- | --- |
+| Sessão do usuário | Metade das requisições não reconhece o login | Cookie assinado, token ou armazenamento compartilhado |
+| Cache de consulta | Cada instância tem o seu, e eles divergem | Cache dedicado ou aceitar a divergência |
+| Contador, limite de requisições | Cada instância conta a sua parte | Armazenamento compartilhado com incremento atômico |
+| Arquivo gravado em disco local | Só existe na instância que gravou; some no deploy | [Object storage](../file-storage/) |
+| Tarefa agendada com `setInterval` | Roda uma vez por instância | [*Job* agendado](../workers-jobs/) da plataforma |
+
+A regra que resume a tabela é a mesma das funções *serverless*, só que aparece mais tarde: **o processo é descartável**. Ele pode ser reiniciado, duplicado ou movido a qualquer momento, e tudo o que precisa sobreviver a isso mora fora dele.
+
+---
+
+## O Que Cada Plataforma Entrega
+
+Cinco plataformas do guia executam processos permanentes, com modelos de escala e de cobrança bem distintos:
+
+| Plataforma | Deploy | Escala | Cobrança | Página do guia |
+| --- | --- | --- | --- | --- |
+| **Render** | Build automático ou `Dockerfile` | Instâncias manuais ou automáticas por plano | Por instância e hora; gratuito dorme sem tráfego | [Render](../../render/) |
+| **Railway** | Build automático ou `Dockerfile` | Réplicas por serviço | Por uso de CPU, memória e rede | [Railway](../../railway/) |
+| **Heroku** | *Buildpacks* e `Procfile` | *Dynos* por tipo de processo | Por *dyno* e hora | [Outras Plataformas](../../reference/other-platforms/) |
+| **Fly.io** | Container, em máquinas leves por região | Máquinas por região, com parada em ociosidade | Por máquina e hora, com região escolhida | [Outras Plataformas](../../reference/other-platforms/) |
+| **Google Cloud Run** | Container | Instâncias sob demanda, até zero | Por tempo de CPU e requisição | [Outras Plataformas](../../reference/other-platforms/) |
+
+O Cloud Run merece uma nota: ele executa containers, mas escala até zero e cobra por requisição, o que o coloca a meio caminho entre este recurso e as funções *serverless*. A diferença é que o container pode manter estado entre requisições enquanto viver, e o limite de tempo é bem mais alto.
+
+---
+
+## Quando usar, e quando não usar?
+
+O processo permanente é a escolha certa quando a aplicação já é um servidor, e a errada quando ela é um punhado de funções que passam o dia ociosas.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| API com dezenas de rotas, middleware, camadas e testes | **PaaS ou container** | Um processo único organiza melhor do que dezenas de funções soltas. |
+| Conexão permanente com banco relacional | **PaaS ou container** | O *pool* clássico funciona; funções esgotariam as conexões. |
+| WebSocket, tempo real sem serviço dedicado | **PaaS ou container** | Funções não mantêm conexão aberta. |
+| Tráfego alto e constante | **PaaS ou container** | Sem ociosidade a economizar, a cobrança por execução perde. |
+| Dependência de binário ou versão específica do sistema | **Container** | O PaaS oferece o ambiente dele; a imagem oferece o seu. |
+| Uma ou duas rotas chamadas de vez em quando | **[Função serverless](../serverless-functions/)** | Pagar um processo o mês inteiro por isso não compensa. |
+| Site sem servidor, dados em BaaS | **[Hospedagem estática](../static-hosting/)** | Não há processo para manter. |
+
+---
+
+## Exercício
+
+Responda com base nos quatro comportamentos esperados do processo e na tabela de instâncias:
+
+1. Por que uma aplicação com a porta fixa em `3000` não recebe tráfego na plataforma?
+2. O que acontece com uma sessão guardada em memória quando a plataforma sobe uma segunda instância?
+3. Qual é a diferença entre entregar o repositório e entregar uma imagem, quanto ao controle do ambiente?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a plataforma encaminha o tráfego para a porta que ela definiu em `process.env.PORT`, e o processo está escutando em outra. Ele sobe, parece saudável nos logs, e nunca é alcançado.
+
+  2. Metade das requisições cai na instância que não tem a sessão, e o usuário parece deslogado de forma intermitente. A sessão precisa viver em cookie assinado, token ou armazenamento compartilhado.
+
+  3. Com o repositório, a plataforma escolhe o sistema base, a versão do runtime e o processo de build. Com a imagem, tudo isso está dentro dela, e a mesma imagem roda igual em qualquer plataforma que execute containers.
+</details>
+
+---
+
+## Desafio
+
+A TaskAPI da trilha do Guia de Express.js, na etapa com Prisma e SQLite, vai ser publicada em um PaaS. O SQLite grava em um arquivo local, a API tem `uploads/` em disco, o `.env` guarda o segredo do JWT e o `npm start` sobe na porta 3000.
+
+Liste o que precisa mudar para o primeiro deploy funcionar, o que precisa mudar para a segunda instância não quebrar nada, e o que você faria antes de publicar para descobrir os dois conjuntos de problemas sem esperar pela plataforma.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para o primeiro deploy: porta por `process.env.PORT`, segredo e configuração por variáveis da plataforma em vez de `.env`, uma rota `/health`, e o encerramento em `SIGTERM`. O SQLite ainda funciona com uma instância, desde que o arquivo esteja em um volume persistente e não no disco efêmero, que some a cada deploy.
+
+  Para a segunda instância: o SQLite deixa de servir, porque duas instâncias não compartilham o arquivo, e o banco vai para um [relacional gerenciado](../relational-database/); `uploads/` vai para [object storage](../file-storage/); e qualquer estado em memória (limite de requisições, cache) vai para um armazenamento compartilhado. Para descobrir tudo isso antes, a etapa 12 da TaskAPI dá o método: construir a imagem e subi-la com `docker compose`, com o banco em outro container. Foi esse build, e não a leitura, que revelou os cinco defeitos que a página daquela etapa relata.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo
+
+1. **O que um PaaS faz entre o `git push` e o processo no ar?**
+   <details>
+     <summary>Possível resposta</summary>
+     Detecta a linguagem, executa o build com o *buildpack* correspondente, injeta as variáveis de ambiente e inicia o comando de start, encaminhando tráfego depois que o *health check* responde.
+   </details>
+
+2. **Quando o container compensa o custo de manter um `Dockerfile`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando a aplicação depende de binário, versão de sistema ou runtime que o PaaS não oferece, ou quando a mesma imagem precisa rodar em mais de uma plataforma.
+   </details>
+
+3. **Em que o Cloud Run difere de um PaaS clássico?**
+   <details>
+     <summary>Possível resposta</summary>
+     Executa containers, mas escala até zero e cobra por requisição e tempo de CPU, como uma função. Mantém estado enquanto a instância vive, com limite de tempo maior que o de funções.
+   </details>
+
+### Operação
+
+4. **Por que a plataforma precisa de um *health check*?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para saber quando o processo está pronto para receber tráfego e quando parou de responder e precisa ser reiniciado. Sem ele, o deploy envia requisições a um processo que ainda está subindo.
+   </details>
+
+5. **O que o encerramento limpo em `SIGTERM` evita?**
+   <details>
+     <summary>Possível resposta</summary>
+     Que requisições em andamento sejam cortadas a cada deploy ou reinício. O processo para de aceitar conexões, termina o que estava atendendo e fecha o banco antes de sair.
+   </details>
+
+6. **Qual é a regra que resume o que pode ficar em memória do processo?**
+   <details>
+     <summary>Possível resposta</summary>
+     O processo é descartável: pode ser reiniciado, duplicado ou movido a qualquer momento. Tudo o que precisa sobreviver a isso mora fora dele.
+   </details>
+
+---
+
+## Referências
+
+- [Render: Web Services](https://render.com/docs/web-services)
+- [Railway: Deploying](https://docs.railway.com/guides/deployments)
+- [Fly.io: Launch](https://fly.io/docs/launch/)
+- [Google Cloud Run](https://cloud.google.com/run/docs)
+- [The Twelve-Factor App](https://12factor.net/)
+- [Node.js: Process signal events](https://nodejs.org/api/process.html#signal-events)
+
+---
+
+## Próximo tópico
+
+[Visão geral do Supabase](../../supabase/): Com os recursos mapeados, a primeira plataforma em detalhe, a partir do PostgreSQL que sustenta tudo.

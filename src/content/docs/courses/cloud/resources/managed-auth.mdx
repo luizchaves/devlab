@@ -1,0 +1,208 @@
+---
+title: "Nuvem: Autenticação Gerenciada"
+description: "Autenticação como serviço em aplicações web: provedores de login, emissão e renovação de tokens, sessão no cliente, integração com políticas de dados, verificação no servidor e comparação entre Supabase Auth, Firebase Auth, Amplify Auth, Appwrite e PocketBase."
+course: cloud
+sidebar:
+  label: "Autenticação Gerenciada"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do serviço que cadastra usuários, valida senhas, fala com provedores sociais e emite o token que identifica quem está usando a aplicação. É a parte de um back-end que mais vale a pena terceirizar, porque é a mais fácil de errar, e ao mesmo tempo a que mais confunde: autenticar alguém não decide o que essa pessoa pode fazer.
+
+## Objetivo
+
+Compreender a autenticação gerenciada como um serviço de identidade, separando o que ele entrega (quem é o usuário) do que continua sendo da aplicação (o que ele pode fazer), para integrá-lo ao banco e ao servidor sem criar brechas. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir autenticação de autorização e localizar cada uma na arquitetura.
+- Descrever o ciclo do token: emissão, armazenamento no cliente, envio, renovação e expiração.
+- Explicar como o token chega às políticas do banco e o que acontece quando ele é enviado a uma API própria.
+- Escolher entre e-mail e senha, *magic link*, provedores sociais e login anônimo pelo tipo de aplicação.
+- Comparar Supabase Auth, Firebase Auth, Amplify Auth, Appwrite e PocketBase pelo modelo de token e pela integração com dados.
+
+---
+
+## Identidade e Permissão São Duas Coisas
+
+A confusão mais comum em aplicações com autenticação gerenciada é tratar "está logado" como sinônimo de "pode acessar". O serviço responde à primeira pergunta e ignora a segunda por completo.
+
+O diagrama abaixo separa os dois momentos:
+
+<Mermaid title="Autenticação pelo serviço e autorização pela aplicação">
+{`
+flowchart TD
+  User["Usuário"] -->|"credenciais"| Auth["Serviço de autenticação"]
+  Auth -->|"token com uid"| Client["Cliente<br/>guarda o token"]
+  Client -->|"token em cada chamada"| Policy["Autorização<br/>política no banco ou<br/>verificação no servidor"]
+  Policy --> Data[(Dados)]
+`}
+</Mermaid>
+
+O serviço cuida de tudo à esquerda: formulário, hash de senha, e-mail de confirmação, provedor social, emissão e renovação do token. Tudo à direita é seu: a política RLS que compara `auth.uid()` com a coluna de dono, a regra por caminho do banco de documentos, ou o middleware que verifica o token na sua API. Um token válido nas mãos de um usuário sem política é uma porta aberta com um crachá pendurado.
+
+---
+
+## O Ciclo do Token
+
+Depois do login, o serviço devolve um token, quase sempre um JWT: um objeto assinado que carrega o identificador do usuário, a expiração e alguns dados extras. O cliente o guarda e o envia em cada chamada, e a plataforma o verifica pela assinatura, sem consultar o serviço de novo.
+
+A tabela abaixo percorre o ciclo e aponta o que costuma dar errado em cada etapa:
+
+| Etapa | O que acontece | Armadilha |
+| --- | --- | --- |
+| **Emissão** | O serviço assina o token com a chave do projeto. | Token de longa duração sem renovação vira senha permanente. |
+| **Armazenamento** | O SDK guarda no `localStorage` ou em cookie. | `localStorage` é legível por qualquer script da página; cookie `HttpOnly` não é. |
+| **Envio** | Cabeçalho `Authorization: Bearer` a cada requisição. | Enviar o token a domínios de terceiros o entrega a eles. |
+| **Renovação** | Um *refresh token* obtém um novo *access token* antes de expirar. | Sessão que "cai" de repente é renovação que falhou em silêncio. |
+| **Verificação** | Quem recebe confere a assinatura e a expiração. | Confiar no `uid` sem verificar a assinatura aceita qualquer token forjado. |
+
+A última linha é a que importa quando a aplicação tem uma API própria além do BaaS. O banco da plataforma verifica o token sozinho, mas o seu servidor Express não sabe nada sobre ele até você ensiná-lo: é preciso obter a chave pública do projeto e validar a assinatura em um middleware, como no [Guia de Express.js](../../../expressjs/). O `uid` decodificado sem verificação é apenas texto que o cliente enviou.
+
+<Aside type="caution" title="Dica de IA: Decodificar não é verificar">
+  Ao pedir "leia o usuário do JWT no Express", assistentes frequentemente entregam um `JSON.parse(atob(token.split('.')[1]))` e seguem em frente. Isso lê o conteúdo sem conferir a assinatura, e qualquer pessoa consegue montar um token com o `uid` que quiser.
+
+  **Prompt:** *"Escreva o middleware que verifica a assinatura deste JWT com a chave pública do projeto usando `node:crypto` ou `jose`, rejeita token expirado, e mostre um teste com um token forjado que precisa receber 401."*
+</Aside>
+
+---
+
+## Métodos de Login
+
+O serviço oferece vários caminhos de entrada, e a escolha é de produto, não de tecnologia. Cada um tem um custo de atrito para o usuário e um custo de configuração para a equipe.
+
+| Método | Melhor para | Custo |
+| --- | --- | --- |
+| **E-mail e senha** | Aplicações internas e ferramentas de trabalho | Fluxo de recuperação de senha e confirmação de e-mail. |
+| ***Magic link*** | Produtos em que o usuário entra pouco e esquece a senha | Depende da entrega de e-mail; sem e-mail, sem login. |
+| **Provedor social** (Google, GitHub) | Público amplo, cadastro em um clique | Configurar o aplicativo OAuth em cada provedor; dependência deles. |
+| **Telefone** | Aplicativos móveis em mercados onde e-mail é raro | Custo por SMS e fraude de número. |
+| **Anônimo** | Experimentar antes de cadastrar, com conversão depois | Migrar os dados do anônimo para a conta real. |
+
+Um detalhe que costuma passar despercebido: com provedores sociais, o e-mail do usuário vem do provedor, e duas contas em provedores diferentes com o mesmo e-mail podem ou não ser a mesma pessoa, conforme a configuração de vinculação de contas. É uma decisão que precisa ser tomada antes do primeiro usuário, porque separar ou unir contas depois é migração de dados.
+
+---
+
+## O Que Cada Plataforma Entrega
+
+Cinco plataformas do guia oferecem autenticação, e a diferença que mais pesa é com que dados o token se integra sem esforço:
+
+| Plataforma | Serviço | Token e sessão | Integração nativa | Página do guia |
+| --- | --- | --- | --- | --- |
+| **Supabase** | Supabase Auth (GoTrue) | JWT, renovado pelo SDK | `auth.uid()` nas políticas RLS do PostgreSQL | [Supabase Auth](../../supabase/auth/) |
+| **Firebase** | Firebase Auth | ID token, renovado pelo SDK | `request.auth.uid` nas *Security Rules* do Firestore e do Storage | [Firebase Auth](../../firebase/auth/) |
+| **AWS Amplify** | Amplify Auth (Cognito) | JWT do Cognito, com grupos | Autorização por usuário e grupo em Data e Storage | [Amplify Auth](../../amplify/auth/) |
+| **Appwrite** | Appwrite Auth | Sessão gerenciada pelo servidor | Permissões por usuário e por papel nas coleções | [Outras Plataformas](../../reference/other-platforms/) |
+| **PocketBase** | Auth collections | JWT emitido pelo binário | Regras por coleção com o registro do usuário | [Outras Plataformas](../../reference/other-platforms/) |
+| **Vercel, Netlify, Cloudflare** | Sem serviço próprio | Integração com provedor externo | Verificação em functions e na borda | [Funções de Borda](../edge-functions/) |
+
+A regra prática é escolher a autenticação da mesma plataforma que guarda os dados. Cruzar, por exemplo autenticar no Firebase e guardar no Supabase, é possível, mas o token de um não é reconhecido pelas políticas do outro, e a integração que era gratuita vira código seu.
+
+---
+
+## Quando usar, e quando não usar?
+
+A autenticação gerenciada é a escolha certa na maioria dos projetos, e as exceções aparecem quando a identidade é o produto ou quando a sessão precisa de regras que o serviço não expressa.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Aplicação com BaaS que já guarda os dados | **Auth da mesma plataforma** | O token chega às políticas sem integração extra. |
+| Login social, *magic link*, confirmação de e-mail | **Autenticação gerenciada** | Fluxos prontos e provedores configurados no console. |
+| API própria que precisa reconhecer o usuário do BaaS | **Gerenciada + verificação no servidor** | O serviço emite; o seu middleware verifica a assinatura. |
+| SSO corporativo, SAML, MFA com políticas complexas | **Provedor de identidade dedicado** | Fluxos federados são o produto desses provedores, não um recurso lateral. |
+| Sessão com regras próprias e dados sob controle total | **Autenticação própria** ([Guia de Express.js](../../../expressjs/)) | Vale quando a identidade é o domínio, e raramente fora disso. |
+
+---
+
+## Exercício
+
+Responda com base no ciclo do token e na separação entre identidade e permissão:
+
+1. Um usuário está autenticado, com token válido, e a tabela de investimentos não tem política de acesso. O que ele consegue ler?
+2. Por que o seu servidor Express não pode confiar no `uid` lido de dentro do JWT sem verificar a assinatura?
+3. Qual é a vantagem de usar a autenticação da mesma plataforma que guarda os dados?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Tudo o que a ausência de política permitir, o que em geral significa a tabela inteira. O token prova quem ele é; sem política, ninguém decide o que ele pode fazer.
+
+  2. Porque o conteúdo do JWT é apenas codificado, não cifrado, e qualquer pessoa consegue montar um token com o `uid` que quiser. Só a assinatura, verificada com a chave pública do projeto, prova que o serviço emitiu aquele token.
+
+  3. O token é reconhecido diretamente pelas políticas do banco e do storage, sem código de integração. Cruzar plataformas transforma essa integração em código seu.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação usa Supabase Auth e Supabase como banco, e agora ganhou uma API própria em Express para gerar relatórios em PDF, que precisa saber qual usuário está pedindo e devolver apenas os dados dele.
+
+Projete a integração completa: como o front-end envia o token à API, como a API o verifica sem chamar o Supabase a cada requisição, como ela consulta o banco em nome do usuário sem usar a chave administrativa, e o que precisa acontecer quando o token expira no meio de um relatório demorado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O front-end envia o *access token* da sessão no cabeçalho `Authorization: Bearer`. A API verifica a assinatura com a chave pública do projeto (obtida uma vez do endpoint JWKS e guardada em cache), confere a expiração e extrai o `sub`, que é o `uid`. Nada disso exige chamada ao Supabase por requisição.
+
+  Para consultar o banco em nome do usuário, a API repassa o mesmo token ao cliente Supabase criado no servidor, em vez de usar a `service_role`: assim as políticas RLS continuam valendo, e a API não precisa reimplementar a autorização. Quanto à expiração, um relatório que demora mais do que a vida do token precisa ser tratado como trabalho assíncrono: a API valida o token na entrada, enfileira o trabalho com o `uid` já verificado, e o resultado fica disponível por um identificador. Tentar "manter o token vivo" durante o processamento é resolver o problema errado.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Identidade e permissão
+
+1. **O que o serviço de autenticação entrega, e o que ele não decide?**
+   <details>
+     <summary>Possível resposta</summary>
+     Entrega quem é o usuário: cadastro, login, provedores e o token assinado. Não decide o que esse usuário pode ler ou escrever; isso é política no banco ou verificação no servidor.
+   </details>
+
+2. **Onde a autorização acontece em uma aplicação com BaaS, e onde acontece com API própria?**
+   <details>
+     <summary>Possível resposta</summary>
+     Com BaaS, na política do banco (RLS ou regras por caminho), que lê o `uid` do token. Com API própria, no middleware do servidor, depois de verificar a assinatura do token.
+   </details>
+
+3. **Qual é a diferença entre guardar o token em `localStorage` e em cookie `HttpOnly`?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `localStorage` é legível por qualquer script que rode na página, então um XSS rouba o token. O cookie `HttpOnly` não é acessível por JavaScript, e o navegador o envia sozinho nas requisições ao mesmo domínio.
+   </details>
+
+### Métodos e plataformas
+
+4. **Por que o *magic link* depende de uma decisão de infraestrutura que o e-mail e senha não exige?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o login inteiro depende da entrega do e-mail. Sem um remetente confiável e sem tratar caixa de spam, o usuário simplesmente não consegue entrar.
+   </details>
+
+5. **O que precisa ser decidido antes do primeiro usuário quando há mais de um provedor social?**
+   <details>
+     <summary>Possível resposta</summary>
+     Se contas de provedores diferentes com o mesmo e-mail são a mesma conta ou contas separadas. Mudar isso depois é migração de dados de usuários.
+   </details>
+
+6. **Como uma API própria consulta o banco do BaaS em nome do usuário sem a chave administrativa?**
+   <details>
+     <summary>Possível resposta</summary>
+     Repassando o token do usuário ao cliente da plataforma criado no servidor. As políticas de acesso continuam valendo, e a API não reimplementa a autorização.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase Auth](https://supabase.com/docs/guides/auth)
+- [Firebase Authentication](https://firebase.google.com/docs/auth)
+- [AWS Amplify: Authentication](https://docs.amplify.aws/react/build-a-backend/auth/)
+- [JSON Web Token (RFC 7519)](https://www.rfc-editor.org/rfc/rfc7519)
+- [OWASP: Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+
+---
+
+## Próximo tópico
+
+[Storage de Arquivos](../file-storage/): Onde os arquivos dos usuários ficam, como o navegador os envia sem passar pelo servidor e o que uma URL assinada protege.

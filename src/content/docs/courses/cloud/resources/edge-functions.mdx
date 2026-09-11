@@ -1,0 +1,207 @@
+---
+title: "Nuvem: Funções de Borda"
+description: "Funções de borda em aplicações web: execução no ponto de presença mais próximo do usuário, runtime restrito a APIs web, casos de uso antes da origem e comparação entre Cloudflare Workers, Netlify Edge Functions e Vercel Edge Runtime."
+course: cloud
+sidebar:
+  label: "Funções de Borda"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata da variante mais restrita e mais rápida das funções *serverless*: as que rodam na borda da rede, no mesmo ponto de presença que serve o site estático, antes de qualquer requisição chegar à origem. O que se ganha em latência se paga em um runtime menor, e é essa troca que decide onde uma função de borda cabe.
+
+## Objetivo
+
+Compreender o que distingue uma função de borda de uma função *serverless* comum, para reconhecer as decisões que precisam acontecer antes da origem e as que não sobrevivem ao runtime restrito. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que a borda reduz latência e o que ela deixa de oferecer em troca.
+- Identificar os casos de uso típicos: reescrita de rota, cabeçalhos, personalização por região e verificação leve de sessão.
+- Reconhecer o que não roda na borda: dependências do Node.js, conexões longas com banco e trabalho pesado.
+- Comparar Cloudflare Workers, Netlify Edge Functions e Vercel Edge Runtime pelo modelo de execução e pelo acesso a dados.
+- Decidir entre borda, função *serverless* comum e servidor próprio para uma mesma tarefa.
+
+---
+
+## Antes da Origem
+
+Uma função *serverless* comum roda em uma região, normalmente a mesma do banco de dados. Uma função de borda roda em dezenas ou centenas de pontos de presença, e a requisição do usuário é atendida no mais próximo. A diferença de latência é a mesma que separa uma CDN de um servidor único: dezenas de milissegundos contra centenas.
+
+O diagrama abaixo mostra a posição da borda no caminho de uma requisição:
+
+<Mermaid title="Posição da função de borda entre o usuário e a origem">
+{`
+flowchart TD
+  User["Usuário"] --> Edge["Ponto de presença<br/>função de borda + cache"]
+  Edge -->|"decide na borda"| Fast["Resposta imediata<br/>redirect, header, cache"]
+  Edge -->|"precisa da origem"| Origin["Origem<br/>função serverless, API, banco"]
+  Origin --> Edge
+`}
+</Mermaid>
+
+O que torna a borda útil é o ramo de cima: decisões que não precisam da origem. Reescrever uma rota, escolher o idioma pelo cabeçalho `Accept-Language`, bloquear um país, checar se um cookie de sessão existe, servir uma variante de teste A/B. Nada disso exige banco, e tudo isso fica mais barato e mais rápido quando acontece antes de sair do ponto de presença.
+
+O preço aparece no ramo de baixo. Quando a função de borda precisa da origem, a requisição faz o caminho inteiro do mesmo jeito, e a borda apenas acrescentou uma etapa.
+
+---
+
+## O Runtime Restrito
+
+A borda é rápida porque o ambiente é pequeno. Em vez de um processo Node.js completo, a função roda em um isolado com as APIs padrão da plataforma web: `Request`, `Response`, `fetch`, `URL`, `crypto.subtle`, `TextEncoder`. A partida a frio cai para poucos milissegundos, e é isso que permite espalhar a execução por centenas de locais.
+
+A tabela abaixo lista o que muda em relação a uma função comum:
+
+| Aspecto | Função serverless comum | Função de borda |
+| --- | --- | --- |
+| **Runtime** | Node.js completo | APIs web padrão, sem `fs` nem módulos nativos |
+| **Partida a frio** | Dezenas a centenas de milissegundos | Poucos milissegundos |
+| **Localização** | Uma região | Todos os pontos de presença |
+| **Tempo de execução** | Segundos a minutos | Milissegundos a poucos segundos |
+| **Acesso a banco** | Conexão direta ou pooler | Por HTTP ou por serviço da própria plataforma |
+| **Dependências** | Qualquer pacote npm | Só pacotes que não tocam APIs do Node |
+
+A restrição de runtime é o erro mais comum de quem começa: o código funciona no `node` local, passa no editor e falha na publicação porque importou `fs`, `path` ou uma biblioteca que usa `Buffer` por baixo.
+
+<Aside type="caution" title="Dica de IA: Peça código escrito só com APIs web">
+  Assistentes escrevem funções de borda como se fossem funções Node, com `process.env`, `Buffer.from()` e bibliotecas de banco que abrem conexão TCP. O erro não aparece na máquina local, porque o Node tem tudo isso, e sim no primeiro deploy.
+
+  **Prompt:** *"Reescreva esta função usando apenas `Request`, `Response`, `fetch`, `URL` e `crypto.subtle`; aponte cada trecho que dependia do Node.js e diga como fica o acesso ao banco sem conexão TCP."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+As três plataformas com produto de borda maduro fazem escolhas diferentes sobre o que a função pode alcançar. A tabela liga cada uma à página que a detalha:
+
+| Plataforma | Produto | O que a função alcança | Página do guia |
+| --- | --- | --- | --- |
+| **Cloudflare** | Workers | KV, D1, R2, Durable Objects e Queues por *bindings* nativos | [Cloudflare Workers](../../cloudflare/workers/) |
+| **Netlify** | Edge Functions | Contexto da requisição, geolocalização, Blobs e reescrita antes do CDN | [Netlify Edge Functions](../../netlify/edge-functions/) |
+| **Vercel** | Edge Runtime | Middleware de rota, geolocalização, KV e integração com o framework | [Vercel Functions](../../vercel/functions/) |
+| **Supabase** | Edge Functions | Banco e Auth do próprio projeto por HTTP; roda em Deno, com foco no BaaS | [Supabase Edge Functions](../../supabase/edge-functions/) |
+
+A diferença que mais pesa é a primeira linha. Na Cloudflare, a borda é o produto central, e os serviços de dados nasceram para serem acessados dela. Nas outras, a borda é uma camada antes de um sistema que vive em outro lugar, e o acesso a dados é sempre uma chamada HTTP para fora do ponto de presença.
+
+---
+
+## Decisões que Importam
+
+Três decisões separam um uso bom de borda de um uso que só adiciona latência.
+
+<Steps>
+1. **A resposta pode ser decidida sem a origem?** Se sim, a borda ganha. Se a função sempre precisa consultar o banco, ela apenas acrescentou um salto antes de uma função comum.
+2. **O que a função lê está replicado na borda?** Um KV ou um cache replicado é rápido de ler no ponto de presença; um banco relacional em uma região é uma viagem de ida e volta a cada chamada.
+3. **O código cabe no runtime?** Sem `fs`, sem módulos nativos, sem conexão TCP. Se a resposta é "só trocando a biblioteca", vale trocar; se é "reescrevendo a lógica", a tarefa é de função comum.
+</Steps>
+
+---
+
+## Quando usar, e quando não usar?
+
+A borda é excelente para decisões rápidas, repetidas e locais, e ruim para tudo o que depende de estado central ou de trabalho longo.
+
+A tabela abaixo confronta os cenários:
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Reescrever rotas, redirecionar por país ou idioma | **Função de borda** | Decisão local, sem origem, em milissegundos. |
+| Adicionar ou remover cabeçalhos de segurança e cache | **Função de borda** | A resposta já passa pela borda; alterá-la ali é gratuito. |
+| Verificar a existência de um cookie de sessão antes de servir | **Função de borda** | Checagem leve; a validação completa continua na origem. |
+| Consultar um banco relacional a cada requisição | **[Função serverless comum](../serverless-functions/)** | A borda faria a viagem até a região do banco de qualquer forma. |
+| Processar upload, gerar PDF, redimensionar imagem | **Função comum ou [worker](../workers-jobs/)** | Tempo e memória excedem o que o runtime de borda oferece. |
+| Usar biblioteca que depende do Node.js | **Função serverless comum** | O runtime de borda não tem `fs`, `net` nem módulos nativos. |
+
+---
+
+## Exercício
+
+Responda com base na tabela de diferenças entre os runtimes:
+
+1. Por que uma função de borda tem partida a frio de poucos milissegundos, enquanto uma função Node comum leva dezenas ou centenas?
+2. Uma função de borda que consulta o PostgreSQL da aplicação a cada requisição fica mais rápida do que a mesma função em uma região? Justifique.
+3. Qual é a plataforma em que os serviços de dados foram projetados para serem acessados da borda, e o que isso muda?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o ambiente é um isolado pequeno, com apenas as APIs web, e não um processo Node.js com módulos, `node_modules` e inicialização de runtime.
+
+  2. Não. A consulta continua viajando até a região do banco, então a latência total é a mesma ou maior, porque a borda acrescentou uma etapa. A borda só ganha quando a decisão dispensa a origem.
+
+  3. A Cloudflare. Workers acessam KV, D1, R2 e Durable Objects por *bindings*, sem sair do ponto de presença, o que permite manter estado leve na própria borda.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação publicada como site estático tem uma área restrita, e hoje o front-end esconde o menu quando não há sessão. Isso é interface, não proteção: o HTML da área restrita continua sendo servido a qualquer um que digite a URL.
+
+Projete uma função de borda que intercepte as rotas `/app/*`, verifique a presença e o formato do cookie de sessão sem consultar o banco, e redirecione para `/login` quando ele faltar. Depois responda: o que essa função **não** garante, e onde a verificação completa precisa acontecer?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A função lê o cookie na `Request`, confere se ele existe e se tem o formato esperado (um JWT com três partes, por exemplo), e devolve um redirecionamento `302` para `/login` quando falha. Como tudo isso é leitura de cabeçalho, roda na borda em milissegundos e evita servir o HTML da área restrita a quem não tem sessão alguma.
+
+  O que ela não garante é que o cookie seja válido. Verificar a assinatura exige a chave, e verificar a revogação exige o banco; nenhum dos dois pertence à borda. A verificação completa acontece na origem, na função ou API que serve os dados da área restrita. A borda reduz o tráfego inútil; a origem decide o acesso.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo de execução
+
+1. **O que diferencia uma função de borda de uma função serverless comum?**
+   <details>
+     <summary>Possível resposta</summary>
+     O local e o runtime. A função de borda roda em todos os pontos de presença, em um ambiente restrito às APIs web, com partida a frio de milissegundos. A função comum roda em uma região, com Node.js completo.
+   </details>
+
+2. **Por que o runtime de borda não oferece `fs` nem módulos nativos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o ambiente é um isolado leve, sem sistema de arquivos nem processo de sistema operacional dedicado. É essa leveza que permite iniciar em milissegundos e replicar a execução em centenas de locais.
+   </details>
+
+3. **Em que caso uma função de borda piora a latência em vez de melhorá-la?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando ela sempre precisa da origem. A requisição faz o caminho completo de qualquer forma, e a função acrescentou um salto antes disso.
+   </details>
+
+### Uso e plataformas
+
+4. **Cite três decisões que cabem bem na borda.**
+   <details>
+     <summary>Possível resposta</summary>
+     Reescrita ou redirecionamento de rotas, alteração de cabeçalhos de resposta e escolha de variante por região, idioma ou cookie.
+   </details>
+
+5. **Como a Cloudflare permite manter estado na borda, e por que isso é diferente das outras plataformas?**
+   <details>
+     <summary>Possível resposta</summary>
+     Por *bindings* para KV, D1, R2 e Durable Objects, acessados sem sair do ponto de presença. Nas outras plataformas o dado vive fora da borda e é alcançado por HTTP.
+   </details>
+
+6. **Uma função de borda que confere a presença de um cookie protege a área restrita?**
+   <details>
+     <summary>Possível resposta</summary>
+     Reduz o tráfego inútil e evita servir HTML a quem não tem sessão alguma, mas não valida a assinatura nem a revogação. A proteção real está na origem, onde os dados são servidos.
+   </details>
+
+---
+
+## Referências
+
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [Netlify Edge Functions](https://docs.netlify.com/edge-functions/overview/)
+- [Vercel Edge Runtime](https://vercel.com/docs/functions/runtimes/edge)
+- [WinterCG: Minimum Common Web Platform API](https://wintercg.org/)
+
+---
+
+## Próximo tópico
+
+[Banco Relacional Gerenciado](../relational-database/): O PostgreSQL que você não opera, e o que muda quando a política de acesso vira parte do esquema.

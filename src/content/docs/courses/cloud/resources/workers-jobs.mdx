@@ -1,0 +1,205 @@
+---
+title: "Nuvem: Workers e Jobs Agendados"
+description: "Trabalho em segundo plano em aplicações web na nuvem: filas e consumidores, jobs agendados por cron, funções acionadas por evento, idempotência, retries e comparação entre Render, Railway, Cloudflare Queues, Firebase Scheduled Functions e Amplify."
+course: cloud
+sidebar:
+  label: "Workers e Jobs Agendados"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do trabalho que não cabe no ciclo de requisição e resposta: enviar mil e-mails, gerar um relatório noturno, reprocessar cotações, limpar arquivos órfãos. Uma [função *serverless*](../serverless-functions/) tem limite de tempo e encerra ao responder; um site estático não executa nada. Quando a aplicação precisa de algo que continua depois que o usuário fechou a aba, o recurso é este.
+
+## Objetivo
+
+Compreender os três mecanismos de trabalho em segundo plano que as plataformas oferecem, com suas garantias e falhas típicas, para tirar da requisição o que não deveria estar nela e projetar tarefas que sobrevivem a repetição e a interrupção. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir *worker* de fila, *job* agendado e função acionada por evento.
+- Reconhecer o que sai da requisição: trabalho longo, em lote, agendado ou que pode falhar e ser repetido.
+- Projetar tarefas idempotentes, que podem ser executadas mais de uma vez sem efeito duplicado.
+- Explicar retries, *dead letter* e o que acontece quando um consumidor morre no meio.
+- Comparar Render, Railway, Cloudflare Queues e Workflows, Firebase Scheduled Functions e Amplify pelos mecanismos disponíveis.
+
+---
+
+## Fora da Requisição
+
+A regra que define este recurso é uma pergunta sobre cada operação da aplicação: **o usuário precisa esperar por isso?** Se a resposta for não, a operação não deveria estar no caminho da requisição.
+
+O diagrama abaixo mostra o padrão que separa os dois caminhos:
+
+<Mermaid title="A requisição registra a intenção; o trabalho acontece depois">
+{`
+flowchart TD
+  Req["Requisição<br/>POST /reports"] --> Enq["Enfileira a tarefa<br/>e responde 202"]
+  Enq --> Q[("Fila")]
+  Q --> W["Worker<br/>consome e executa"]
+  W --> Done["Resultado gravado<br/>ou notificação enviada"]
+  Req -.->|"consulta depois"| Status["GET /reports/:id"]
+`}
+</Mermaid>
+
+A resposta `202 Accepted` é o sinal desse padrão: a requisição diz "recebi, vou fazer", e o cliente consulta o resultado depois ou é avisado. O usuário deixa de esperar, o servidor deixa de segurar uma conexão, e a tarefa ganha o que a requisição nunca teria: tempo, repetição e isolamento.
+
+---
+
+## Três Mecanismos
+
+As plataformas oferecem o trabalho em segundo plano em três formas, e cada uma responde a um gatilho diferente:
+
+| Mecanismo | Gatilho | Garantia típica | Exemplo |
+| --- | --- | --- | --- |
+| ***Worker* de fila** | Uma mensagem chega à fila | Pelo menos uma entrega; ordem não garantida | Enviar e-mail, processar upload, chamar API externa |
+| ***Job* agendado (cron)** | Um horário | Uma execução por disparo, se o serviço estiver no ar | Relatório noturno, limpeza, renovação de cache |
+| **Função por evento** | Escrita no banco, upload, novo usuário | Pelo menos uma execução por evento | Redimensionar imagem enviada, criar perfil ao cadastrar |
+
+A coluna de garantia esconde a decisão mais importante do recurso. "Pelo menos uma" significa que a mesma mensagem **pode ser entregue duas vezes**: o consumidor a processou, morreu antes de confirmar, e a fila a reentregou. Toda tarefa em segundo plano precisa ser escrita sabendo disso.
+
+---
+
+## Idempotência e Falha
+
+Uma tarefa idempotente produz o mesmo resultado quando executada uma ou dez vezes com a mesma entrada. Enviar um e-mail não é idempotente; "enviar o e-mail de boas-vindas ao usuário 42, se ainda não foi enviado" é. A diferença está em um registro do que já foi feito, consultado antes de agir.
+
+<Steps>
+1. **Dê identidade à tarefa.** Cada mensagem carrega um identificador estável (o `id` do pedido, do usuário, do arquivo). Sem ele, não há como saber se "esta" tarefa já rodou.
+2. **Registre antes de agir com efeito externo.** Grave "processando 42" no banco, faça o trabalho, grave "concluído 42". Uma segunda entrega encontra o registro e para.
+3. **Trate o retry como o caso normal.** A plataforma vai reentregar em falha. Decida quantas vezes, com que intervalo, e o que fazer com a mensagem que falhou todas: a *dead letter queue* existe para que ela não se perca nem trave a fila.
+4. **Divida o trabalho longo.** Um *job* de duas horas que morre na hora e meia recomeça do zero. Em lotes de mil linhas com o progresso gravado, ele recomeça do último lote.
+</Steps>
+
+<Aside type="caution" title="Dica de IA: Peça a versão que sobrevive à segunda entrega">
+  Assistentes escrevem consumidores de fila como se cada mensagem chegasse exatamente uma vez: leem, enviam o e-mail, terminam. Na primeira reentrega, o usuário recebe dois e-mails, e no primeiro pico, centenas.
+
+  **Prompt:** *"Reescreva este consumidor para ser idempotente por `orderId`, com registro de estado no banco antes do efeito externo; mostre o que acontece se o processo morrer entre o envio do e-mail e a gravação do estado, e como reduzir essa janela."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+As plataformas de PaaS oferecem o processo permanente que consome a fila; as de *serverless* oferecem o gatilho sem processo. A tabela liga cada uma ao mecanismo e à página:
+
+| Plataforma | *Worker* de fila | *Job* agendado | Função por evento | Página do guia |
+| --- | --- | --- | --- | --- |
+| **Render** | Background Workers (processo sempre no ar) | Cron Jobs | Não nativo | [Render](../../render/) |
+| **Railway** | Serviço dedicado do projeto | Serviço com agendamento | Não nativo | [Railway](../../railway/) |
+| **Cloudflare** | Queues com consumidor em Worker; Workflows para execução durável | Cron Triggers em Workers | Por eventos do R2 e de filas | [Workflows e Queues](../../cloudflare/workflows-queues/) |
+| **Firebase** | Por Cloud Tasks e Functions | Scheduled Functions | Gatilhos de Auth, Firestore e Storage | [Cloud Functions](../../firebase/functions/) |
+| **AWS Amplify** | Por SQS e Lambda | Por EventBridge e Lambda | Gatilhos de Auth, Data e Storage | [Amplify Functions](../../amplify/functions/) |
+| **Supabase** | Por Edge Functions e `pg_cron` com filas em tabela | `pg_cron` no PostgreSQL | Webhooks do banco para Edge Functions | [Edge Functions](../../supabase/edge-functions/) |
+| **Vercel e Netlify** | Não nativo; fila externa | Cron em Functions (chamada agendada) | Não nativo | [Vercel Functions](../../vercel/functions/), [Netlify Functions](../../netlify/functions/) |
+
+Duas observações separam as linhas. Nas plataformas de PaaS, o *worker* é um processo seu, sempre no ar, que você escreve com a biblioteca de fila que preferir; a plataforma só o mantém rodando. Nas plataformas *serverless*, o *worker* é uma função acionada pela fila, sem processo, sujeita ao limite de tempo da função, e por isso a Cloudflare separou os Workflows: execução durável, com passos que sobrevivem a falhas, para o que não cabe em uma invocação.
+
+---
+
+## Quando usar, e quando não usar?
+
+Trabalho em segundo plano resolve uma classe precisa de problemas e cria complexidade onde não é necessário.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Efeito externo que pode falhar (e-mail, API de terceiros) | ***Worker* de fila** | A requisição não depende do terceiro, e a falha vira retry. |
+| Processamento de arquivo enviado (imagem, planilha) | **Função por evento ou fila** | Dispara no upload, sem que a requisição espere. |
+| Tarefa periódica sem usuário (relatório, limpeza, sincronização) | ***Job* agendado** | Não há requisição para pendurar o trabalho. |
+| Operação de segundos que o usuário está esperando | **Na própria requisição** | Fila e status adicionam latência e código para nada. |
+| Cálculo que precisa ser consistente com a escrita | **Transação no banco** | Um *worker* que roda depois deixa uma janela de inconsistência. |
+| Tempo real para quem está com a página aberta | **[Realtime](../realtime/)** | O evento vai ao cliente, não a um consumidor. |
+
+---
+
+## Exercício
+
+Responda com base no padrão de fila e na seção sobre idempotência:
+
+1. O que a resposta `202 Accepted` comunica ao cliente, e o que ela exige que exista em seguida?
+2. Por que "pelo menos uma entrega" obriga a tarefa a ser idempotente?
+3. Qual é a diferença entre um *worker* em um PaaS e um *worker* em uma plataforma *serverless*?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Que a tarefa foi aceita e será executada depois. Exige um caminho para o cliente saber o resultado: uma rota de status por identificador, uma notificação ou um evento em tempo real.
+
+  2. Porque a fila pode reentregar uma mensagem já processada, se o consumidor morreu antes de confirmar. Sem idempotência, o efeito (um e-mail, uma cobrança) acontece duas vezes.
+
+  3. No PaaS, o *worker* é um processo seu, sempre no ar, sem limite de tempo por tarefa. No *serverless*, é uma função acionada por mensagem, sem processo, sujeita ao limite de tempo da invocação.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação de investimentos precisa atualizar a cotação de todos os ativos cadastrados a cada 15 minutos, consultando uma API externa que cobra por chamada, aceita no máximo 60 chamadas por minuto e falha com frequência.
+
+Projete a solução com um *job* agendado que enfileira e um *worker* que consome. Defina: o que cada mensagem carrega, como o *worker* respeita o limite de 60 por minuto, o que acontece quando a API externa falha, como evitar que dois disparos do *job* (por atraso do anterior) dupliquem o trabalho, e como o front-end sabe quando uma cotação foi atualizada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O *job* de 15 minutos não chama a API: ele apenas enfileira uma mensagem por ativo, com `symbol` e o carimbo do disparo. O *worker* consome com concorrência 1 e um intervalo mínimo de um segundo entre chamadas, o que respeita o limite sem coordenação entre instâncias; em plataformas que escalam consumidores, o limite precisa ficar em um lugar compartilhado, como um contador com expiração.
+
+  Cada mensagem é idempotente pelo par `symbol` e carimbo: se a cotação daquele ativo já tem `updated_at` posterior ao carimbo, o *worker* descarta. Isso resolve também o disparo duplicado do *job*: as mensagens do segundo disparo encontram o trabalho feito. A falha da API vira retry com intervalo crescente, com um máximo de tentativas e uma *dead letter* para o que persistir falhando, para que um ativo problemático não segure os demais. O front-end descobre a atualização pela mudança em `updated_at`, por [Realtime](../realtime/) ou por revalidação periódica, o que for proporcional ao uso.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Mecanismos
+
+1. **Qual pergunta decide se uma operação deve sair da requisição?**
+   <details>
+     <summary>Possível resposta</summary>
+     Se o usuário precisa esperar por ela. Se não precisa, a requisição registra a intenção e responde, e o trabalho acontece depois.
+   </details>
+
+2. **Quais são os três mecanismos de trabalho em segundo plano, e qual o gatilho de cada um?**
+   <details>
+     <summary>Possível resposta</summary>
+     *Worker* de fila, acionado por mensagem; *job* agendado, acionado por horário; função por evento, acionada por uma escrita, upload ou cadastro.
+   </details>
+
+3. **O que é uma *dead letter queue* e por que ela existe?**
+   <details>
+     <summary>Possível resposta</summary>
+     A fila para onde vai a mensagem que falhou todas as tentativas. Existe para que ela não se perca nem bloqueie as demais, e possa ser inspecionada e reprocessada.
+   </details>
+
+### Projeto
+
+4. **O que torna uma tarefa idempotente?**
+   <details>
+     <summary>Possível resposta</summary>
+     Uma identidade estável por tarefa e um registro do que já foi feito, consultado antes de qualquer efeito externo, para que a segunda execução encontre o trabalho concluído e pare.
+   </details>
+
+5. **Por que um *job* longo deve gravar o progresso em lotes?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque, se o processo morrer no meio, ele recomeça do último lote gravado em vez de do zero, e a reexecução não repete o que já foi feito.
+   </details>
+
+6. **Por que a Cloudflare separou Workflows de Queues?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o consumidor de fila é uma função com limite de tempo. Os Workflows oferecem execução durável em passos, que sobrevivem a falhas e a esperas longas, para o que não cabe em uma invocação.
+   </details>
+
+---
+
+## Referências
+
+- [Render: Background Workers](https://render.com/docs/background-workers)
+- [Render: Cron Jobs](https://render.com/docs/cronjobs)
+- [Cloudflare Queues](https://developers.cloudflare.com/queues/)
+- [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
+- [Cloud Functions for Firebase: Schedule functions](https://firebase.google.com/docs/functions/schedule-functions)
+- [Supabase: pg_cron](https://supabase.com/docs/guides/database/extensions/pg_cron)
+
+---
+
+## Próximo tópico
+
+[Containers e PaaS](../containers-paas/): O processo sempre no ar, empacotado ou não, para a API que não cabe em funções.

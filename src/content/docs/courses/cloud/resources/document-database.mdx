@@ -1,0 +1,209 @@
+---
+title: "Nuvem: Banco de Documentos"
+description: "Banco de documentos gerenciado em aplicações web: modelagem a partir das telas, desnormalização, regras de acesso por caminho, sincronização em tempo real e offline, cobrança por leitura e comparação entre Firestore, Amplify Data, Appwrite e PocketBase."
+course: cloud
+sidebar:
+  label: "Banco de Documentos"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do banco que guarda documentos em vez de linhas: objetos aninhados, agrupados em coleções, lidos e escritos por caminho. O modelo nasceu para aplicações em que a tela define o dado, e é forte exatamente onde o relacional é fraco: sincronização entre dispositivos, uso offline e leitura de um bloco inteiro de uma vez.
+
+## Objetivo
+
+Compreender o modelo de documentos como uma forma de modelagem diferente, e não como um relacional sem esquema, para projetar coleções a partir das telas e reconhecer as consultas que esse modelo não faz. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever coleções, documentos, subcoleções e a identificação por caminho.
+- Modelar dados a partir das leituras da interface, aceitando duplicação onde ela reduz consultas.
+- Explicar como as regras de acesso por caminho substituem as políticas por linha.
+- Reconhecer o que o modelo não faz: junções, agregações e busca textual.
+- Comparar Firestore, Amplify Data, Appwrite Databases e PocketBase pelo modelo e pela portabilidade.
+
+---
+
+## O Documento e o Caminho
+
+Em um banco de documentos, a unidade é um objeto com campos aninhados, identificado por um caminho: `users/ana/investments/inv-42`. A coleção é apenas o agrupamento, e um documento pode conter subcoleções, o que dá ao banco uma forma de árvore.
+
+O diagrama abaixo mostra a hierarquia típica de uma aplicação de investimentos:
+
+<Mermaid title="Hierarquia de coleções e documentos de uma carteira">
+{`
+flowchart TB
+  Users["users (coleção)"] --> Ana["ana (documento)"]
+  Ana --> Inv["investments (subcoleção)"]
+  Inv --> I1["inv-42<br/>name, value, lastQuote"]
+  Inv --> I2["inv-43<br/>name, value, lastQuote"]
+`}
+</Mermaid>
+
+O caminho não é um detalhe de armazenamento: ele é a chave de tudo. A leitura mais barata é "me dê o documento neste caminho"; a regra de acesso é escrita sobre o caminho; e a modelagem começa perguntando **que caminho a tela vai ler**.
+
+---
+
+## Modelar a Partir das Telas
+
+No relacional, a modelagem parte das entidades e das relações entre elas, e a consulta junta o que for preciso na hora. No modelo de documentos, a junção não existe, e cada leitura é cobrada por documento. Por isso a modelagem parte da pergunta inversa: **quais telas existem, e quantos documentos cada uma precisa ler?**
+
+A tabela abaixo compara as duas mentalidades com o mesmo exemplo:
+
+| Decisão | Relacional | Documentos |
+| --- | --- | --- |
+| Última cotação de cada ativo | Tabela `quotes`, junção na consulta | Campo `lastQuote` copiado no documento do ativo |
+| Total da carteira | `SUM(value)` na hora | Campo `total` mantido no documento do usuário a cada escrita |
+| Lista de ativos de um usuário | `WHERE user_id = ?` | Subcoleção sob o documento do usuário |
+| Ativo que pertence a dois usuários | Tabela de associação | Documento duplicado em duas subcoleções, ou referência com leitura extra |
+
+O padrão que atravessa todas as linhas é a **desnormalização**: gravar o mesmo dado em mais de um lugar para que a tela leia um só. Ela não é gambiarra, é a técnica central do modelo, e vem com um custo próprio: cada escrita precisa atualizar todas as cópias, e uma escrita que falha no meio deixa os dados inconsistentes até alguém reconciliar.
+
+<Aside type="caution" title="Dica de IA: Peça a modelagem a partir das telas, não das entidades">
+  Pedir "modele um banco de investimentos no Firestore" costuma render uma tradução literal de tabelas em coleções, com referências cruzadas que exigem uma leitura por relação. O resultado funciona e custa uma leitura por linha da tela, o que só aparece na fatura.
+
+  **Prompt:** *"Dadas estas três telas (lista de ativos com última cotação, detalhe do ativo com histórico, total da carteira), proponha as coleções do Firestore minimizando leituras por tela; diga qual dado fica duplicado e como cada escrita mantém as cópias consistentes."*
+</Aside>
+
+---
+
+## Regras por Caminho
+
+O relacional protege dados com políticas por linha, comparando colunas com o usuário autenticado. O banco de documentos protege por caminho: a regra declara quem pode ler e escrever em `users/{uid}/investments/{id}`, e o próprio caminho carrega o dono.
+
+Isso tem uma consequência de modelagem que costuma surpreender: **a estrutura das coleções é escolhida também pela regra de acesso**. Colocar os investimentos como subcoleção do usuário torna a regra "só o dono lê" trivial; colocá-los em uma coleção raiz com um campo `ownerId` exige que a regra leia o documento antes de decidir, o que é possível, mas mais caro e mais fácil de errar.
+
+As regras costumam ser escritas em uma linguagem própria da plataforma, e valem para todo acesso feito pelo SDK do cliente. Como no BaaS relacional, o SDK administrativo ignora as regras, e por isso nunca vai ao navegador.
+
+---
+
+## Tempo Real e Offline
+
+A força que mais distingue esse modelo é a sincronização. Um cliente pode assinar um documento ou uma consulta e receber cada mudança sem consultar de novo, e o SDK mantém uma cópia local que continua funcionando sem rede e reconcilia as escritas quando a conexão volta.
+
+Isso muda a arquitetura do front-end: em vez de "buscar dados, renderizar, buscar de novo", a tela passa a reagir a um fluxo. O tema é tratado em [Realtime](../realtime/); aqui basta registrar que a sincronização é o motivo pelo qual aplicativos móveis e colaborativos gravitam para esse modelo, e que ela também é cobrada: cada documento que chega por uma assinatura conta como leitura.
+
+---
+
+## O Que Cada Plataforma Entrega
+
+Quatro plataformas do guia oferecem banco de documentos, com premissas distintas sobre onde rodam e como exportam:
+
+| Plataforma | Serviço | Modelo | Acesso e regras | Portabilidade | Página do guia |
+| --- | --- | --- | --- | --- | --- |
+| **Firebase** | Cloud Firestore | Coleções, documentos e subcoleções | SDK direto, *Security Rules* por caminho | Export proprietário; só na nuvem do Google | [Cloud Firestore](../../firebase/firestore/) |
+| **AWS Amplify** | Amplify Data | Modelos tipados sobre DynamoDB | API gerada, autorização por usuário e grupo | Export do DynamoDB; ecossistema AWS | [Amplify Data](../../amplify/data/) |
+| **Appwrite** | Databases | Coleções com atributos tipados | SDK direto, permissões por documento e papel | Auto-hospedável; export JSON | [Outras Plataformas](../../reference/other-platforms/) |
+| **PocketBase** | Collections | Coleções tipadas sobre SQLite | API gerada, regras por coleção | Arquivo SQLite; você opera | [Outras Plataformas](../../reference/other-platforms/) |
+| **Supabase** | JSONB no PostgreSQL | Coluna de documento em tabela relacional | RLS como em qualquer tabela | `pg_dump` padrão | [Database API](../../supabase/api/) |
+
+A última linha é um lembrete útil: um banco relacional guarda documentos muito bem em uma coluna JSONB, com consultas sobre os campos internos. O que ele não entrega é a sincronização em tempo real e o cache offline do SDK, que são o motivo real para escolher um banco de documentos.
+
+---
+
+## Quando usar, e quando não usar?
+
+O banco de documentos ganha quando o dado tem a forma da tela e precisa estar em vários lugares ao mesmo tempo, e perde quando as perguntas ao dado não estão definidas de antemão.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Aplicativo móvel com uso offline | **Banco de documentos** | O SDK guarda a cópia local e reconcilia sozinho. |
+| Estado compartilhado ao vivo entre usuários | **Banco de documentos** | Assinaturas entregam as mudanças sem infraestrutura própria. |
+| Dados hierárquicos lidos em bloco por tela | **Banco de documentos** | Um documento com subcoleções mapeia a tela sem junção. |
+| Relatórios, agregações e consultas exploratórias | **[Relacional](../relational-database/)** | Agrupar e somar é nativo em SQL e caro em documentos. |
+| Busca textual no conteúdo | **Serviço de busca dedicado** | Bancos de documentos comparam valores; não indexam texto livre. |
+| Exigência de portabilidade ou auto-hospedagem | **Appwrite, PocketBase ou relacional** | O export do Firestore é proprietário e não roda fora do Google. |
+
+---
+
+## Exercício
+
+Responda com base na comparação entre as duas mentalidades de modelagem:
+
+1. Por que a modelagem de um banco de documentos começa pelas telas, e não pelas entidades?
+2. O que é desnormalização nesse modelo, e qual é o custo que ela cobra?
+3. Como o caminho de um documento participa da regra de acesso?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque não há junção e cada documento lido é cobrado. A pergunta que decide o custo é quantos documentos cada tela precisa ler, então as coleções são desenhadas para responder às telas com o mínimo de leituras.
+
+  2. É gravar o mesmo dado em mais de um documento para que a tela leia um só. O custo é que toda escrita precisa atualizar todas as cópias, e uma falha no meio deixa inconsistência até uma reconciliação.
+
+  3. A regra é escrita sobre o caminho, como `users/{uid}/investments/{id}`, e o próprio caminho carrega o dono. Por isso a estrutura das coleções é escolhida também pela regra que se quer escrever.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação de investimentos precisa mostrar, na tela inicial, o total da carteira de cada usuário e a quantidade de ativos por categoria. No relacional isso é uma consulta com `SUM` e `GROUP BY`. Em um banco de documentos, percorrer todos os ativos a cada abertura da tela é o que se quer evitar.
+
+Projete a solução com contadores mantidos em um documento de resumo do usuário, descreva o que acontece em cada escrita de ativo (criação, alteração de valor, mudança de categoria, remoção), e responda: o que acontece se a escrita do ativo tiver sucesso e a atualização do resumo falhar, e como você descobriria?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O documento `users/{uid}/summary` guarda `total` e um mapa `byCategory`. Cada escrita de ativo vira uma transação ou um lote atômico que grava o ativo e ajusta o resumo: a criação soma `value` ao total e incrementa a categoria; a alteração de valor soma a diferença; a mudança de categoria decrementa uma e incrementa outra; a remoção subtrai e decrementa. Sem a transação, a segunda escrita pode falhar depois da primeira, e o resumo passa a mentir sem que nenhum erro apareça na tela.
+
+  A descoberta é o ponto instrutivo: a inconsistência é silenciosa, e a única forma de pegá-la é uma reconciliação periódica que recalcula o resumo a partir dos ativos, exatamente a varredura que o contador foi criado para evitar. Rodar essa reconciliação em uma função agendada, com alerta quando o valor recalculado diverge, é o preço de ter o total sem ler todos os documentos.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo
+
+1. **O que é a unidade de armazenamento em um banco de documentos, e como ela é identificada?**
+   <details>
+     <summary>Possível resposta</summary>
+     Um documento: um objeto com campos aninhados, identificado por um caminho que passa pelas coleções e subcoleções até ele.
+   </details>
+
+2. **Por que um banco relacional com coluna JSONB não substitui um banco de documentos em todos os casos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele guarda e consulta documentos bem, mas não entrega a sincronização em tempo real nem o cache offline do SDK, que são as razões principais para escolher o modelo.
+   </details>
+
+3. **Cite duas consultas que o modelo de documentos não faz nativamente.**
+   <details>
+     <summary>Possível resposta</summary>
+     Junções entre coleções e agregações como soma e agrupamento; busca textual no conteúdo também fica de fora.
+   </details>
+
+### Acesso e plataformas
+
+4. **Como as regras de acesso influenciam a estrutura das coleções?**
+   <details>
+     <summary>Possível resposta</summary>
+     Como a regra é escrita sobre o caminho, colocar o dado sob o documento do dono torna a regra trivial; uma coleção raiz com campo de dono exige que a regra leia o documento antes de decidir.
+   </details>
+
+5. **Qual é a diferença de portabilidade entre Firestore e PocketBase?**
+   <details>
+     <summary>Possível resposta</summary>
+     O Firestore exporta em formato proprietário e só roda na nuvem do Google. O PocketBase guarda tudo em um arquivo SQLite que você mesmo opera e copia.
+   </details>
+
+6. **Por que uma assinatura em tempo real também aparece na fatura?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque cada documento entregue por uma assinatura conta como leitura, do mesmo modo que uma consulta.
+   </details>
+
+---
+
+## Referências
+
+- [Cloud Firestore: Data model](https://firebase.google.com/docs/firestore/data-model)
+- [Cloud Firestore: Structure data](https://firebase.google.com/docs/firestore/manage-data/structure-data)
+- [Firebase Security Rules](https://firebase.google.com/docs/rules)
+- [AWS Amplify: Data](https://docs.amplify.aws/react/build-a-backend/data/)
+- [Appwrite Databases](https://appwrite.io/docs/products/databases)
+
+---
+
+## Próximo tópico
+
+[Autenticação Gerenciada](../managed-auth/): Identidade como serviço, o token que chega ao banco e a autorização que continua sendo sua.

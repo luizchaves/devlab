@@ -55,6 +55,11 @@ export default defineConfig({
     '/courses/npm/baas/firebase': withBase('/courses/cloud/firebase/'),
     '/courses/npm/baas/firebase-firestore': withBase('/courses/cloud/firebase/firestore/'),
     '/courses/npm/baas/firebase-auth': withBase('/courses/cloud/firebase/auth/'),
+    // As paginas de hospedagem viraram a secao "Recursos", organizada por recurso de nuvem.
+    '/courses/cloud/hosting/static-hosting': withBase('/courses/cloud/resources/static-hosting/'),
+    '/courses/cloud/hosting/serverless-functions': withBase(
+      '/courses/cloud/resources/serverless-functions/'
+    ),
     // Redirecionamento legado do Guia de Express para expressjs.
     '/courses/express': withBase('/courses/expressjs/'),
     // Persistencia migrou do Guia de Banco de Dados para o Guia de Express.js.
@@ -1480,6 +1485,36 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Recursos',
+              items: [
+                { label: 'Hospedagem Estática', link: '/courses/cloud/resources/static-hosting/' },
+                {
+                  label: 'Funções Serverless',
+                  link: '/courses/cloud/resources/serverless-functions/',
+                },
+                { label: 'Funções de Borda', link: '/courses/cloud/resources/edge-functions/' },
+                {
+                  label: 'Banco Relacional Gerenciado',
+                  link: '/courses/cloud/resources/relational-database/',
+                },
+                {
+                  label: 'Banco de Documentos',
+                  link: '/courses/cloud/resources/document-database/',
+                },
+                {
+                  label: 'Autenticação Gerenciada',
+                  link: '/courses/cloud/resources/managed-auth/',
+                },
+                { label: 'Storage de Arquivos', link: '/courses/cloud/resources/file-storage/' },
+                { label: 'Realtime', link: '/courses/cloud/resources/realtime/' },
+                {
+                  label: 'Workers e Jobs Agendados',
+                  link: '/courses/cloud/resources/workers-jobs/',
+                },
+                { label: 'Containers e PaaS', link: '/courses/cloud/resources/containers-paas/' },
+              ],
+            },
+            {
               label: 'Supabase',
               items: [
                 { label: 'Visão geral do Supabase', link: '/courses/cloud/supabase/' },
@@ -1526,27 +1561,34 @@ export default defineConfig({
             },
             {
               label: 'Cloudflare',
-              link: '/courses/cloud/cloudflare/',
+              items: [
+                { label: 'Visão geral da Cloudflare', link: '/courses/cloud/cloudflare/' },
+                { label: 'Pages', link: '/courses/cloud/cloudflare/pages/' },
+                { label: 'Workers', link: '/courses/cloud/cloudflare/workers/' },
+                { label: 'Dados e Storage', link: '/courses/cloud/cloudflare/data-storage/' },
+                {
+                  label: 'Workflows e Queues',
+                  link: '/courses/cloud/cloudflare/workflows-queues/',
+                },
+                { label: 'Workers AI', link: '/courses/cloud/cloudflare/workers-ai/' },
+              ],
             },
             {
               label: 'AWS Amplify',
-              link: '/courses/cloud/amplify/',
+              items: [
+                { label: 'Visão geral do Amplify', link: '/courses/cloud/amplify/' },
+                { label: 'Hosting', link: '/courses/cloud/amplify/hosting/' },
+                { label: 'Auth', link: '/courses/cloud/amplify/auth/' },
+                { label: 'Data', link: '/courses/cloud/amplify/data/' },
+                { label: 'Storage', link: '/courses/cloud/amplify/storage/' },
+                { label: 'Functions', link: '/courses/cloud/amplify/functions/' },
+              ],
             },
             {
               label: 'PaaS e Containers',
               items: [
                 { label: 'Render', link: '/courses/cloud/render/' },
                 { label: 'Railway', link: '/courses/cloud/railway/' },
-              ],
-            },
-            {
-              label: 'Hospedagem e Execução',
-              items: [
-                { label: 'Hospedagem Estática', link: '/courses/cloud/hosting/static-hosting/' },
-                {
-                  label: 'Funções Serverless',
-                  link: '/courses/cloud/hosting/serverless-functions/',
-                },
               ],
             },
             {

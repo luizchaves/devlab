@@ -1,0 +1,207 @@
+---
+title: "Nuvem: Storage de Arquivos"
+description: "Armazenamento de arquivos em aplicações web: object storage, buckets e objetos, upload direto do navegador, URLs públicas e assinadas, políticas de acesso por caminho, custo de saída e comparação entre Supabase Storage, Firebase Storage, Amplify Storage, Cloudflare R2 e Netlify Blobs."
+course: cloud
+sidebar:
+  label: "Storage de Arquivos"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata de onde os arquivos dos usuários ficam: fotos de perfil, comprovantes, anexos, exportações. Eles não cabem no banco, não devem passar pelo servidor da aplicação e precisam de um controle de acesso próprio, e a nuvem resolve isso com um serviço dedicado, o *object storage*, que todas as plataformas do guia oferecem de alguma forma.
+
+## Objetivo
+
+Compreender o armazenamento de objetos como um serviço separado do banco e do servidor, com modelo, fluxo de upload e controle de acesso próprios, para integrá-lo a uma aplicação sem transformar o servidor em intermediário de bytes. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever o modelo de *buckets*, objetos e chaves, e por que ele não é um sistema de arquivos.
+- Explicar o upload direto do navegador para o storage e o papel do servidor nele.
+- Diferenciar URL pública, URL assinada e acesso por política, e escolher entre elas.
+- Relacionar o arquivo ao registro do banco sem duplicar a autorização.
+- Comparar Supabase Storage, Firebase Storage, Amplify Storage, Cloudflare R2 e Netlify Blobs pelo modelo de acesso e pelo custo de saída.
+
+---
+
+## Buckets, Objetos e Chaves
+
+O *object storage* guarda objetos, não arquivos. Um objeto é um conjunto de bytes com uma chave (o nome, que pode conter barras) e metadados, dentro de um *bucket*. As barras na chave dão a aparência de pastas, mas não existe diretório: `avatars/ana.png` é uma chave inteira, e "listar a pasta `avatars/`" é listar objetos cujo prefixo é esse.
+
+Essa diferença explica o comportamento que surpreende quem vem do sistema de arquivos:
+
+| No sistema de arquivos | No object storage |
+| --- | --- |
+| Renomear é instantâneo | Renomear é copiar e apagar |
+| Anexar ao fim do arquivo | Substituir o objeto inteiro |
+| Pasta vazia existe | Prefixo sem objetos não existe |
+| Permissão por pasta | Política por chave ou prefixo |
+
+Em troca, o serviço entrega o que um disco não entrega: durabilidade replicada, entrega por CDN, tamanho praticamente ilimitado e cobrança por gigabyte guardado e por gigabyte transferido.
+
+---
+
+## Upload Direto do Navegador
+
+O erro de arquitetura mais comum com arquivos é fazer o navegador enviar o arquivo ao servidor, e o servidor reenviá-lo ao storage. Isso dobra o tráfego, ocupa a memória do servidor com bytes que ele não vai usar e estoura o limite de tamanho de corpo das funções *serverless*.
+
+O caminho certo é o navegador falar direto com o storage, e o servidor apenas autorizar. O diagrama abaixo numera as etapas, e os bytes só aparecem na terceira:
+
+<Mermaid title="Upload direto do navegador, com autorização separada dos bytes">
+{`
+flowchart TD
+  B["Navegador"] -->|"1. pedido"| A["Autorização<br/>política ou função"]
+  A -->|"2. ok ou URL assinada"| B
+  B -->|"3. bytes"| S["Storage"]
+  S -->|"4. chave"| B
+  B -->|"5. grava a chave"| D[("Banco")]
+`}
+</Mermaid>
+
+Nas plataformas de BaaS, a autorização é uma política sobre o caminho, e o SDK faz o upload direto com o token do usuário. Nas demais, o servidor gera uma **URL assinada de upload**, válida por poucos minutos para uma chave específica, e o navegador envia os bytes para ela. Nos dois casos, o servidor nunca vê o arquivo.
+
+A quinta etapa do diagrama é a que se esquece: o storage não sabe a quem o objeto pertence. É o registro no banco, com a chave do objeto em uma coluna, que liga o arquivo ao usuário e ao restante dos dados.
+
+---
+
+## Três Formas de Acesso
+
+Quem pode ler um objeto depende de como a URL é obtida, e as três formas atendem a necessidades diferentes.
+
+| Forma | Como funciona | Quando usar |
+| --- | --- | --- |
+| **URL pública** | O bucket ou o prefixo é público; a URL é permanente e pode ser cacheada pela CDN. | Imagens de produto, avatares, qualquer coisa que a página exibe sem login. |
+| **URL assinada** | O servidor assina uma URL com validade curta; quem a tiver acessa até ela expirar. | Comprovante, exportação, download que um usuário específico pediu agora. |
+| **Acesso por política** | O SDK envia o token do usuário e a política decide pela chave. | Arquivos privados de cada usuário em uma aplicação com BaaS. |
+
+<Aside type="caution" title="Dica de IA: Uma URL pública não fica privada por ser difícil de adivinhar">
+  Ao pedir "deixe os comprovantes acessíveis só para o dono", assistentes às vezes sugerem manter o bucket público e usar chaves com UUID, contando com a improbabilidade de alguém adivinhar a URL. Uma URL pública compartilhada por engano, indexada ou vazada em um log fica pública para sempre.
+
+  **Prompt:** *"Reescreva o acesso aos comprovantes com URLs assinadas de 5 minutos geradas no servidor após verificar o dono, ou com política por caminho no storage; mostre o que acontece com uma URL antiga depois de expirar."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+O storage está presente em quase todas as plataformas do guia, com diferenças no modelo de acesso e, principalmente, no custo de tirar os arquivos de lá:
+
+| Plataforma | Serviço | Acesso | Custo de saída (*egress*) | Página do guia |
+| --- | --- | --- | --- | --- |
+| **Supabase** | Supabase Storage | Políticas RLS sobre bucket e caminho; URLs públicas e assinadas | Cobrado acima do plano | [Supabase Storage](../../supabase/storage/) |
+| **Firebase** | Cloud Storage for Firebase | *Security Rules* por caminho, com `request.auth` | Cobrado acima do plano | [Cloud Storage](../../firebase/storage/) |
+| **AWS Amplify** | Amplify Storage (S3) | Níveis público, protegido e privado ligados ao Auth | Cobrado, tabela da AWS | [Amplify Storage](../../amplify/storage/) |
+| **Cloudflare** | R2 | Compatível com S3; acesso por Workers ou URL pública | **Sem cobrança de saída** | [Dados e Storage](../../cloudflare/data-storage/) |
+| **Netlify** | Blobs | Chave e valor a partir de functions; não é para arquivo de usuário em escala | Dentro do plano | [Data e Storage](../../netlify/data-storage/) |
+| **Vercel** | Blob | Upload direto com token; URLs públicas ou privadas | Cobrado acima do plano | [Vercel Storage](../../vercel/storage/) |
+
+A coluna de saída merece o destaque. Guardar é barato em todas; **servir** é onde a conta cresce, e um site com imagens grandes e muitos acessos paga mais por transferência do que por armazenamento. É o motivo pelo qual o R2 se tornou uma escolha frequente mesmo em projetos que não usam mais nada da Cloudflare.
+
+---
+
+## Quando usar, e quando não usar?
+
+O object storage é a resposta para quase todo arquivo, e as exceções são os casos em que o "arquivo" na verdade é dado.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Arquivos enviados por usuários: imagens, PDFs, anexos | **Object storage** | Durável, servido por CDN, fora do servidor. |
+| Imagens públicas do site, exibidas sem login | **Object storage com URL pública** | Cache na CDN, sem assinatura por requisição. |
+| Arquivo privado que só o dono baixa | **Política por caminho ou URL assinada** | O acesso é decidido por requisição, não pela URL. |
+| Dado estruturado pequeno, consultado por campo | **[Banco de dados](../relational-database/)** | Storage não filtra nem consulta conteúdo. |
+| Cache de resposta ou valor por chave | **KV ou cache dedicado** | Latência de leitura menor e sem custo de objeto. |
+| Muitos acessos a arquivos grandes, custo de saída relevante | **R2 ou CDN na frente do storage** | A transferência é a linha que cresce. |
+
+---
+
+## Exercício
+
+Responda com base no fluxo de upload direto e nas três formas de acesso:
+
+1. Por que o servidor da aplicação não deve receber o arquivo e reenviá-lo ao storage?
+2. O que uma URL assinada garante, e o que ela não garante?
+3. Como o arquivo fica associado ao usuário que o enviou, se o storage não guarda essa informação?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque dobra o tráfego, ocupa memória do servidor com bytes que ele não usa e esbarra no limite de tamanho de corpo das funções *serverless*. O servidor deve apenas autorizar; os bytes vão direto ao storage.
+
+  2. Garante que apenas quem tem a URL acessa, e só até ela expirar. Não garante que a pessoa com a URL seja o dono: quem receber o link o usa dentro do prazo.
+
+  3. Pela chave do objeto gravada em uma coluna do registro no banco. É o banco, com sua política, que liga o arquivo ao usuário e ao restante dos dados.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação de investimentos permite anexar o comprovante em PDF de cada aporte. O comprovante só pode ser visto pelo dono do investimento e por um perfil de auditor, e a aplicação usa Supabase Auth com PostgreSQL.
+
+Projete o armazenamento: a estrutura de chaves no bucket, a política de acesso que atende às duas regras, a coluna que liga o comprovante ao aporte, e o que acontece com o arquivo quando o aporte é apagado. Depois responda: por que a política não pode ser escrita só sobre a chave do objeto neste caso?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  As chaves seguem o padrão `receipts/{user_id}/{investment_id}.pdf`, o que torna a regra do dono trivial: a política do bucket compara o primeiro segmento do caminho com `auth.uid()`. A tabela `investments` ganha uma coluna `receipt_key` com a chave, e a política da tabela já garante que só o dono lê a linha.
+
+  O auditor é o que muda tudo. Ele não é dono de nenhum caminho, então a política precisa consultar algo além da chave: um papel na tabela de perfis, ou uma claim no token. A política passa a ser "o primeiro segmento é o meu `uid`, **ou** existe uma linha em `profiles` com meu `uid` e papel `auditor`". Quanto à remoção, o storage não tem chave estrangeira: apagar o aporte deixa o objeto órfão, e a limpeza precisa ser feita na mesma operação, por um gatilho do banco ou por uma função que trate o evento de exclusão.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo
+
+1. **Por que o object storage não é um sistema de arquivos, e qual consequência prática isso tem?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele guarda objetos identificados por chave, sem diretórios reais. Renomear é copiar e apagar, anexar é substituir o objeto inteiro e "pasta vazia" não existe.
+   </details>
+
+2. **Onde a cobrança do storage costuma crescer mais: guardar ou servir?**
+   <details>
+     <summary>Possível resposta</summary>
+     Servir. A transferência de saída é cobrada por gigabyte na maioria das plataformas e cresce com o tráfego, enquanto o armazenamento cresce apenas com o volume guardado.
+   </details>
+
+3. **Qual é a diferença entre URL pública e URL assinada quanto ao cache?**
+   <details>
+     <summary>Possível resposta</summary>
+     A URL pública é permanente e a CDN pode cacheá-la. A URL assinada muda a cada emissão e expira, então cada acesso tende a ir ao storage.
+   </details>
+
+### Acesso e integração
+
+4. **Qual é o papel do servidor no upload direto?**
+   <details>
+     <summary>Possível resposta</summary>
+     Autorizar: avaliar a política ou emitir uma URL assinada de upload para uma chave específica. Os bytes vão do navegador ao storage sem passar por ele.
+   </details>
+
+5. **Como uma política de storage decide o acesso em uma plataforma de BaaS?**
+   <details>
+     <summary>Possível resposta</summary>
+     Pelo caminho do objeto combinado com a identidade do token: o `uid` no primeiro segmento da chave, no Supabase, ou `request.auth.uid` nas regras do Firebase.
+   </details>
+
+6. **O que acontece com um objeto quando o registro que o referencia é apagado?**
+   <details>
+     <summary>Possível resposta</summary>
+     Nada, por padrão. O storage não conhece o banco, e o objeto fica órfão até que a aplicação o remova na mesma operação, por gatilho ou por função de evento.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase Storage](https://supabase.com/docs/guides/storage)
+- [Cloud Storage for Firebase](https://firebase.google.com/docs/storage)
+- [AWS Amplify: Storage](https://docs.amplify.aws/react/build-a-backend/storage/)
+- [Cloudflare R2](https://developers.cloudflare.com/r2/)
+- [Amazon S3: Presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+
+---
+
+## Próximo tópico
+
+[Realtime](../realtime/): Assinaturas, canais e presença, e o que muda no front-end quando o dado chega em vez de ser buscado.

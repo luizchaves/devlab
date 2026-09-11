@@ -1,0 +1,228 @@
+---
+title: "Nuvem: Banco Relacional Gerenciado"
+description: "Banco de dados relacional gerenciado em aplicações web: PostgreSQL como serviço, acesso direto do cliente por política contra acesso por API própria, pooler de conexões, backups, migrações e comparação entre Supabase, Render, Railway, Cloudflare D1 e PocketBase."
+course: cloud
+sidebar:
+  label: "Banco Relacional Gerenciado"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do banco relacional que a aplicação usa sem instalar, atualizar ou fazer backup: um PostgreSQL, ou um SQLite servido pela plataforma, entregue como serviço. O SQL é o mesmo do [Guia de Banco de Dados](../../../database/); o que muda é quem opera o servidor e, principalmente, **quem fala com ele**.
+
+## Objetivo
+
+Compreender o banco relacional gerenciado como uma decisão em duas partes, a operação que se terceiriza e o caminho de acesso que se escolhe, para reconhecer o que cada plataforma entrega e onde a escolha se torna difícil de reverter. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir o banco acessado diretamente pelo cliente, protegido por política, do banco acessado apenas por uma API própria.
+- Explicar o problema de conexões em funções *serverless* e o papel do *pooler*.
+- Reconhecer o que "gerenciado" inclui de fato: backups, atualizações, réplicas e o que fica de fora.
+- Comparar Supabase, Render, Railway, Cloudflare D1 e PocketBase pelo modelo de acesso e pela portabilidade.
+- Planejar migrações de esquema em um banco que a equipe não administra.
+
+---
+
+## Dois Caminhos até o Banco
+
+Um banco relacional gerenciado pode ser consumido de duas formas que parecem iguais no SQL e são opostas na arquitetura. Na primeira, o navegador fala com o banco por uma API gerada, e a segurança é a política de linha. Na segunda, só a sua API fala com o banco, e o navegador nunca o alcança.
+
+O diagrama abaixo coloca os dois lado a lado:
+
+<Mermaid title="Acesso direto por política e acesso por API própria">
+{`
+flowchart LR
+  subgraph Direct["Acesso direto (BaaS)"]
+    direction LR
+    B1["Navegador"] --> P["API gerada + RLS"] --> DB1[(PostgreSQL)]
+  end
+  subgraph Api["Acesso por API própria (PaaS)"]
+    direction LR
+    B2["Navegador"] --> API["Sua API<br/>Express"] --> DB2[(PostgreSQL)]
+  end
+`}
+</Mermaid>
+
+No caminho de cima, a plataforma gera a API a partir do esquema e o RLS decide linha a linha, como visto em [Backend as a Service](../../foundations/baas/). No caminho de baixo, o banco é apenas um endereço com credencial, e toda a lógica mora no servidor, como no [Guia de Express.js](../../../expressjs/). A escolha entre eles é a decisão central deste recurso, e a tabela abaixo mostra o que cada caminho troca:
+
+| Aspecto | Acesso direto por política | Acesso por API própria |
+| --- | --- | --- |
+| **Código de servidor** | Nenhum para o CRUD básico | Uma rota por operação |
+| **Autorização** | Política RLS no banco | Middleware e consultas com filtro |
+| **Credencial no cliente** | Chave pública do projeto | Nenhuma; o cliente só conhece a API |
+| **Regra de negócio** | Limitada ao que a política e as funções SQL expressam | Qualquer lógica, testável na aplicação |
+| **Lugar típico** | Supabase, PocketBase | Render, Railway, Heroku, Fly.io |
+
+---
+
+## O Que "Gerenciado" Inclui
+
+Terceirizar a operação do banco tira da equipe um conjunto de tarefas que raramente é visível até faltar. Vale saber o que entra no pacote e o que continua sendo seu.
+
+| Tarefa | Quem cuida | Observação |
+| --- | --- | --- |
+| Instalação, atualização de versão, patches | Plataforma | Versões maiores podem exigir ação sua. |
+| Backup automático e restauração pontual | Plataforma | A retenção depende do plano; a gratuita costuma ser curta. |
+| Réplicas e failover | Plataforma, nos planos pagos | No plano gratuito, indisponibilidade é indisponibilidade. |
+| Esquema, índices e migrações | **Você** | O banco não sabe o que a aplicação precisa. |
+| Políticas de acesso e usuários do banco | **Você** | É parte do modelo de dados. |
+| Limites de conexão e de armazenamento | **Você**, dentro do plano | Estourar o limite pausa ou degrada o serviço. |
+
+<Aside type="caution" title="Pausa por inatividade">
+Planos gratuitos costumam pausar o banco depois de alguns dias sem tráfego, e a primeira requisição depois da pausa demora vários segundos ou falha. Em projeto de estudo é aceitável; em qualquer coisa exposta a usuários, é o primeiro motivo para sair do plano gratuito.
+</Aside>
+
+---
+
+## Conexões e Funções Serverless
+
+Um banco relacional tradicional aceita um número fixo de conexões simultâneas, tipicamente algumas dezenas no plano de entrada. Um servidor sempre no ar abre um *pool* pequeno e o reaproveita. Uma [função *serverless*](../serverless-functions/) faz o oposto: cada instância abre a própria conexão e pode ser criada aos milhares sob carga.
+
+O resultado é o erro mais frequente ao combinar os dois modelos: `too many connections`. As saídas são conhecidas, e cada plataforma escolhe uma:
+
+<Steps>
+1. **Pooler de conexões.** Um intermediário que mantém poucas conexões reais com o banco e as empresta às funções. O Supabase expõe um endereço de pooler ao lado do endereço direto, e a escolha entre eles é a primeira decisão de quem conecta de uma função.
+2. **Acesso por HTTP.** Em vez de conexão TCP, a função faz requisições HTTP à API gerada. É o que o PostgREST do Supabase e o D1 da Cloudflare fazem, e é o único caminho que funciona na [borda](../edge-functions/).
+3. **Servidor sempre no ar.** Quando a aplicação já tem um processo permanente em um PaaS, o *pool* clássico resolve, e a função *serverless* deixa de ser o cliente do banco.
+</Steps>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+As plataformas abaixo oferecem banco relacional com modelos bem diferentes. A tabela liga cada uma à página que a detalha:
+
+| Plataforma | Serviço | Modelo de acesso | Portabilidade | Página do guia |
+| --- | --- | --- | --- | --- |
+| **Supabase** | PostgreSQL gerenciado | Direto por PostgREST e RLS, ou conexão via pooler | `pg_dump` padrão; auto-hospedável | [Database API](../../supabase/api/) |
+| **Render** | Render Postgres | Só por API própria, com URL de conexão | `pg_dump` padrão | [Render](../../render/) |
+| **Railway** | Postgres como serviço do projeto | Só por API própria, com variáveis injetadas | `pg_dump` padrão | [Railway](../../railway/) |
+| **Cloudflare** | D1 (SQLite distribuído) | Por *binding* em Workers, sem conexão TCP | Export SQL; formato próprio de réplica | [Dados e Storage](../../cloudflare/data-storage/) |
+| **PocketBase** | SQLite embutido no binário | Direto por API gerada e regras por coleção | Arquivo SQLite; você opera | [Outras Plataformas](../../reference/other-platforms/) |
+| **Vercel e Netlify** | Por Marketplace ou integração | Depende do provedor conectado | Depende do provedor | [Vercel Storage](../../vercel/storage/), [Netlify Data](../../netlify/data-storage/) |
+
+Duas linhas merecem atenção. O D1 é relacional, mas não é PostgreSQL: é SQLite servido da borda, com limites de tamanho e um modelo de consistência próprio, e a página da Cloudflare trata disso. E Vercel e Netlify não têm banco relacional próprio: elas conectam um provedor externo e injetam as variáveis, o que é conveniente e ao mesmo tempo significa que o contrato é com o provedor, não com a plataforma.
+
+---
+
+## Migrações Sem Acesso ao Servidor
+
+Em um banco gerenciado não existe `ssh` para a máquina, e a evolução do esquema precisa acontecer por um caminho reproduzível. Três práticas resolvem quase tudo:
+
+| Prática | Motivo |
+| --- | --- |
+| Migrações versionadas no repositório (Prisma Migrate, SQL numerado) | O esquema evolui com o código, e o histórico explica cada tabela. |
+| Aplicação das migrações no deploy, nunca à mão no console | O console é ótimo para ler, e péssimo como fonte de verdade. |
+| Migração compatível com a versão anterior da aplicação | Durante o deploy, as duas versões coexistem por alguns segundos. |
+
+A terceira é a que se aprende tarde. Renomear uma coluna em uma única migração quebra a versão antiga da aplicação enquanto a nova ainda sobe; o caminho seguro é adicionar a coluna nova, migrar os dados, trocar a aplicação e só então remover a antiga.
+
+---
+
+## Quando usar, e quando não usar?
+
+O banco relacional gerenciado é a escolha padrão para dados com relações, e as exceções são poucas e bem delimitadas.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Dados com relações, relatórios, agregações | **Relacional gerenciado** | Junções e SQL resolvem o que documentos custam caro para emular. |
+| Front-end sem servidor, CRUD por usuário | **Supabase** (acesso direto por RLS) | A política substitui a API para o caso comum. |
+| API própria em Express que precisa de banco | **Render, Railway ou similar** | Banco como endereço, aplicação como cliente único. |
+| Dados de borda, pequenos e lidos com frequência | **Cloudflare D1** | Relacional e próximo do usuário, dentro dos limites de tamanho. |
+| Dados hierárquicos, sincronização e uso offline | **[Banco de documentos](../document-database/)** | O modelo de documentos serve melhor telas e dispositivos móveis. |
+| Cache, sessões, contadores | **KV ou cache dedicado** | Chave e valor sem esquema batem o relacional em custo e latência. |
+
+---
+
+## Exercício
+
+Responda com base nos dois caminhos de acesso e na seção sobre conexões:
+
+1. Em que caminho de acesso a chave que o navegador carrega é pública, e o que protege os dados nesse caso?
+2. Por que uma função *serverless* que abre uma conexão por chamada esgota o banco, e qual intermediário resolve?
+3. O D1 da Cloudflare é PostgreSQL? O que ele é, e qual consequência isso tem?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. No acesso direto, típico do Supabase. A chave pública apenas identifica o projeto; o que protege os dados é a política RLS avaliada pelo banco em cada consulta.
+
+  2. Porque cada instância da função abre a própria conexão, e sob carga surgem centenas ou milhares de instâncias contra algumas dezenas de conexões permitidas. O *pooler* mantém poucas conexões reais e as empresta às funções.
+
+  3. Não. É SQLite servido da borda por *binding* em Workers, sem conexão TCP. Isso o torna rápido e próximo do usuário, com limites de tamanho e um modelo de consistência próprios, e sem compatibilidade total de SQL com o PostgreSQL.
+</details>
+
+---
+
+## Desafio
+
+Uma aplicação tem a tabela `investments` com a coluna `value` em centavos, e o time decidiu migrar para uma coluna `amount` do tipo `numeric(14,2)`. A aplicação está publicada, com usuários ativos, e o deploy sobe a nova versão enquanto a antiga ainda atende por alguns segundos.
+
+Escreva a sequência de migrações e de deploys que faz essa troca sem nenhum momento em que uma das duas versões da aplicação encontre um esquema que não entende. Indique em qual passo os dados são copiados e em qual a coluna antiga deixa de existir.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A troca leva quatro passos, e nenhum deles quebra a versão que estiver no ar. **Primeiro**, uma migração adiciona `amount` como coluna opcional; a versão antiga a ignora. **Segundo**, sobe uma versão da aplicação que escreve nas duas colunas e continua lendo de `value`; junto dela, ou logo depois, uma migração copia `value / 100` para `amount` nas linhas existentes. **Terceiro**, sobe a versão que lê de `amount` e ainda escreve nas duas, agora com `amount` obrigatória. **Quarto**, uma versão que só usa `amount`, seguida da migração que remove `value`.
+
+  Os dados são copiados no segundo passo, e a coluna antiga só some no quarto, quando nenhuma versão em execução a conhece. Parece burocrático para uma coluna, e é exatamente o que evita a janela de erro `column "value" does not exist` que uma migração única produziria.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo de acesso
+
+1. **Qual é a diferença entre acessar o banco por política e acessá-lo por API própria?**
+   <details>
+     <summary>Possível resposta</summary>
+     No acesso por política, o navegador fala com uma API gerada e o banco decide linha a linha com RLS. No acesso por API própria, só o seu servidor conhece o banco, e a autorização é código na aplicação.
+   </details>
+
+2. **O que a plataforma assume ao gerenciar o banco, e o que continua sendo seu?**
+   <details>
+     <summary>Possível resposta</summary>
+     A plataforma cuida de instalação, atualizações, backups e, nos planos pagos, réplicas. O esquema, os índices, as migrações, as políticas de acesso e os limites do plano continuam com você.
+   </details>
+
+3. **Por que a pausa por inatividade do plano gratuito importa?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a primeira requisição depois da pausa demora vários segundos ou falha, o que é aceitável em estudo e inaceitável com usuários reais.
+   </details>
+
+### Operação
+
+4. **Quais são as três saídas para o problema de conexões em funções serverless?**
+   <details>
+     <summary>Possível resposta</summary>
+     Um *pooler* de conexões, o acesso por HTTP em vez de TCP, ou manter um servidor sempre no ar com *pool* clássico como único cliente do banco.
+   </details>
+
+5. **Por que migrações devem ser aplicadas no deploy, e não no console?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o esquema precisa evoluir junto com o código, de forma versionada e reproduzível. O console não deixa histórico nem garante que outro ambiente receba a mesma alteração.
+   </details>
+
+6. **O que torna uma migração compatível com a versão anterior da aplicação, e por que isso importa?**
+   <details>
+     <summary>Possível resposta</summary>
+     Adicionar antes de remover, e nunca renomear em um passo só. Importa porque, durante o deploy, a versão antiga e a nova coexistem por alguns segundos contra o mesmo banco.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase: Connect to your database](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Supabase: Connection pooling](https://supabase.com/docs/guides/database/connection-management)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [Render: PostgreSQL](https://render.com/docs/postgresql-creating-connecting)
+- [Prisma: Deploying database changes](https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production)
+
+---
+
+## Próximo tópico
+
+[Banco de Documentos](../document-database/): O modelo que parte das telas, sincroniza dispositivos e cobra por documento lido.

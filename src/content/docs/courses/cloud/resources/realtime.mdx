@@ -1,0 +1,222 @@
+---
+title: "Nuvem: Realtime"
+description: "Tempo real em aplicações web com plataformas de nuvem: assinaturas a mudanças no banco, broadcast, presença, WebSocket gerenciado, custo por evento e comparação entre Firestore, Supabase Realtime, Appwrite, PocketBase e Durable Objects."
+course: cloud
+sidebar:
+  label: "Realtime"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do recurso que inverte o sentido da comunicação: em vez de o navegador perguntar se algo mudou, a plataforma avisa. O [Guia de Web APIs](../../../web-api/http/websockets/) mostra como um WebSocket funciona; aqui o assunto é o serviço que mantém milhares dessas conexões abertas por você e decide o que enviar por cada uma.
+
+## Objetivo
+
+Compreender o tempo real gerenciado como três serviços diferentes atrás de uma mesma conexão, com custos e garantias distintos, para escolher o mecanismo certo e projetar um front-end que reage a um fluxo em vez de buscar dados. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir assinatura a mudanças de dados, *broadcast* e presença.
+- Explicar como a plataforma aplica a autorização a cada evento entregue.
+- Reconhecer o custo por evento e por conexão, e o que faz uma conta crescer.
+- Projetar a interface para reconciliar o estado local com os eventos recebidos, inclusive após reconexão.
+- Comparar Firestore, Supabase Realtime, Appwrite, PocketBase e Durable Objects pelo modelo.
+
+---
+
+## Três Serviços em Uma Conexão
+
+"Realtime" nomeia coisas diferentes conforme a plataforma, e misturá-las leva a escolher o mecanismo errado. Os três padrões abaixo aparecem, com nomes variados, em todas elas.
+
+<Mermaid title="Os três padrões de tempo real de uma plataforma">
+{`
+flowchart LR
+  subgraph Changes["Mudanças de dados"]
+    direction LR
+    DB[(Banco)] -->|"INSERT, UPDATE, DELETE"| C1["Clientes assinantes"]
+  end
+  subgraph Broadcast["Broadcast"]
+    direction LR
+    P["Um cliente"] -->|"mensagem efêmera"| C2["Demais clientes do canal"]
+  end
+  subgraph Presence["Presença"]
+    direction LR
+    S["Estado de cada cliente"] -->|"quem está aqui"| C3["Todos do canal"]
+  end
+`}
+</Mermaid>
+
+A tabela abaixo separa o que cada padrão garante e o que ele custa:
+
+| Padrão | O que entrega | Passa pelo banco? | Uso típico |
+| --- | --- | --- | --- |
+| **Mudanças de dados** | Cada escrita no banco vira um evento para quem assinou | Sim, a escrita é a origem | Lista que se atualiza sozinha, painel, chat persistido |
+| **Broadcast** | Mensagem enviada de um cliente aos demais, sem persistir | Não | Cursor do colega, "fulano está digitando", ponteiro de apresentação |
+| **Presença** | Estado compartilhado de quem está conectado ao canal | Não | Lista de usuários online, avatares na tela |
+
+A pergunta que separa o primeiro dos outros dois é simples: **o evento precisa sobreviver a quem não estava conectado?** Se sim, é mudança de dados, porque o banco guarda. Se não, *broadcast* ou presença bastam, e são bem mais baratos, porque não tocam o banco.
+
+---
+
+## Autorização por Evento
+
+Um evento de mudança de dados carrega a linha ou o documento que mudou, e a plataforma só pode entregá-lo a quem tem permissão de lê-lo. Isso significa que a autorização roda **por evento e por assinante**, não apenas na assinatura.
+
+Nas plataformas de BaaS, a política é a mesma da leitura: o Firestore avalia as *Security Rules* para cada documento entregue, e o Supabase aplica o RLS antes de encaminhar a mudança. O efeito prático é que uma tabela sem política não apenas expõe a leitura, como transmite cada escrita a qualquer assinante.
+
+<Aside type="caution" title="Dica de IA: Confira o filtro do lado do servidor, não só do cliente">
+  Ao pedir "assine apenas os investimentos do usuário", assistentes costumam devolver uma assinatura à tabela inteira com um `filter()` no callback. Funciona na tela e transmite ao navegador todas as linhas de todos os usuários, que a política deveria ter barrado.
+
+  **Prompt:** *"Reescreva esta assinatura para que o filtro por `user_id` seja aplicado pela plataforma antes da entrega (filtro na assinatura e política RLS), e mostre como confirmar pelo painel de rede que só as linhas do usuário chegam."*
+</Aside>
+
+---
+
+## O Front-end Que Reage
+
+Uma tela alimentada por eventos precisa de um modelo diferente de uma tela que busca dados. Três situações aparecem em toda aplicação e costumam ser esquecidas na primeira versão.
+
+<Steps>
+1. **Carga inicial e assinatura.** A assinatura entrega mudanças a partir de agora; o que já existia precisa ser carregado antes. Entre a carga e o início da assinatura há uma janela em que eventos podem se perder, e as plataformas resolvem isso de formas diferentes (o Firestore entrega o estado atual como primeiro evento; no Supabase, carrega-se e assina-se em sequência).
+2. **Reconciliação.** Um evento de atualização precisa encontrar o item no estado local e substituí-lo; um de exclusão precisa removê-lo; um de inserção pode chegar para um item que a própria tela acabou de criar. Sem uma chave estável por item, a lista duplica ou desalinha.
+3. **Reconexão.** A conexão cai, e ao voltar os eventos perdidos não são reenviados na maioria das plataformas. A saída segura é recarregar o estado ao reconectar, e os SDKs expõem o evento de reconexão exatamente para isso.
+</Steps>
+
+---
+
+## Custo por Evento e por Conexão
+
+O tempo real é cobrado em duas dimensões que não aparecem em uma API HTTP: conexões simultâneas e mensagens entregues. Uma assinatura a uma lista de cem itens que muda dez vezes por minuto, aberta por mil usuários, gera um milhão de eventos por minuto, cada um contado.
+
+| Dimensão | O que conta | Onde dói |
+| --- | --- | --- |
+| **Conexões simultâneas** | Cada aba aberta com assinatura ativa | Planos têm teto; excedê-lo recusa novas conexões. |
+| **Mensagens entregues** | Cada evento multiplicado pelo número de assinantes | Tabela muito escrita e muito assinada multiplica rápido. |
+| **Leituras** (Firestore) | Cada documento entregue por uma assinatura | Uma assinatura a uma consulta larga custa como consultá-la a cada mudança. |
+
+A defesa é assinar o menor recorte possível: um documento em vez de uma coleção, uma linha filtrada por `id` em vez de uma tabela, um canal por sala em vez de um canal global.
+
+---
+
+## O Que Cada Plataforma Entrega
+
+As plataformas de BaaS trazem tempo real integrado ao banco; a Cloudflare oferece um mecanismo mais baixo, para quem constrói o próprio protocolo:
+
+| Plataforma | Serviço | Mudanças de dados | Broadcast e presença | Página do guia |
+| --- | --- | --- | --- | --- |
+| **Firebase** | Firestore `onSnapshot` | Nativo, com estado inicial e cache offline | Por documentos efêmeros; não há canal separado | [Cloud Firestore](../../firebase/firestore/) |
+| **Supabase** | Realtime | Mudanças do PostgreSQL filtradas por RLS | Canais com *broadcast* e *presence* | [Supabase Realtime](../../supabase/realtime/) |
+| **Appwrite** | Realtime | Eventos de documentos, arquivos e sessões | Sem canal efêmero dedicado | [Outras Plataformas](../../reference/other-platforms/) |
+| **PocketBase** | Realtime | Eventos de coleção por SSE | Sem canal efêmero dedicado | [Outras Plataformas](../../reference/other-platforms/) |
+| **Cloudflare** | Durable Objects | Você implementa sobre WebSocket | Você implementa; coordenação forte por objeto | [Dados e Storage](../../cloudflare/data-storage/) |
+| **Vercel, Netlify, Render** | Sem serviço próprio | Por provedor externo ou WebSocket na sua API | Idem | [Containers e PaaS](../containers-paas/) |
+
+A última linha lembra uma regra do modelo *serverless*: funções não mantêm conexão aberta. Tempo real em uma plataforma sem serviço dedicado significa um processo sempre no ar, ou um provedor externo de WebSocket.
+
+---
+
+## Quando usar, e quando não usar?
+
+O tempo real é sedutor e caro. Ele vale a pena quando a informação perde valor em segundos, e sai caro quando um recarregamento resolveria.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Painel que várias pessoas veem e editam ao mesmo tempo | **Mudanças de dados** | O evento é a escrita; todos veem o mesmo estado. |
+| Indicador de quem está online, cursor, "digitando" | **Presença e broadcast** | Efêmero, sem tocar o banco, barato. |
+| Chat com histórico | **Mudanças de dados** | A mensagem precisa persistir para quem não estava lá. |
+| Lista que muda algumas vezes por dia | **Recarregar ou revalidar** | Uma conexão aberta o dia inteiro para meia dúzia de eventos não compensa. |
+| Notificação ao usuário que não está com a página aberta | **[Função ou worker](../workers-jobs/) com push ou e-mail** | Sem conexão, não há tempo real; é entrega assíncrona. |
+| Processamento que dura minutos | **Fila e consulta de status** | Manter a conexão esperando é frágil; o resultado chega quando estiver pronto. |
+
+---
+
+## Exercício
+
+Responda com base nos três padrões e na seção sobre custo:
+
+1. Qual é a pergunta que separa mudança de dados de *broadcast*, e por que ela afeta o custo?
+2. Por que uma tabela sem política de acesso é mais grave com tempo real ligado do que sem?
+3. O que uma aplicação deve fazer ao detectar reconexão, e por quê?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Se o evento precisa sobreviver a quem não estava conectado. Se precisa, passa pelo banco e é cobrado como escrita mais entrega; se não, o *broadcast* entrega sem persistir, sem custo de banco.
+
+  2. Porque, além de qualquer um poder ler a tabela, cada escrita passa a ser transmitida a todos os assinantes, o que expõe os dados de forma contínua e multiplica o custo por evento.
+
+  3. Recarregar o estado, porque os eventos perdidos durante a queda não são reenviados na maioria das plataformas, e o estado local pode estar defasado sem que nenhum erro apareça.
+</details>
+
+---
+
+## Desafio
+
+Um painel de investimentos mostra a carteira do usuário com as cotações atualizadas a cada poucos segundos. A primeira versão assinou a tabela `quotes` inteira e filtrou no cliente, e a fatura do primeiro mês mostrou milhões de eventos entregues.
+
+Redesenhe a solução para que cada usuário receba apenas as cotações dos ativos que possui, com o menor número de eventos possível, e trate os três momentos do front-end: carga inicial, reconciliação e reconexão. Depois estime: com 500 usuários, 10 ativos cada e uma cotação a cada 5 segundos por ativo, quantos eventos por minuto a nova solução entrega, contra a original?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A assinatura passa a ser por ativo, com filtro aplicado pela plataforma (`symbol=in.(…)` no Supabase, ou um documento por ativo no Firestore), e a política garante que o filtro não seja contornável. A carga inicial busca as cotações atuais, a assinatura substitui cada item pelo `symbol` como chave estável, e a reconexão dispara nova carga inicial.
+
+  Na estimativa, a original entregava toda a tabela a todos: com, digamos, 200 ativos no total, 200 × 12 eventos por minuto × 500 usuários = 1,2 milhão de eventos por minuto. A nova entrega 10 × 12 × 500 = 60 mil, vinte vezes menos. E se o requisito real for "atualizado a cada poucos segundos", um *polling* leve a cada 10 segundos por usuário custaria 3 mil requisições por minuto, sem conexão aberta: o tempo real nem sempre é a resposta mais barata para "quase tempo real".
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Padrões
+
+1. **Quais são os três padrões de tempo real, e qual deles passa pelo banco?**
+   <details>
+     <summary>Possível resposta</summary>
+     Mudanças de dados, *broadcast* e presença. Só o primeiro passa pelo banco: a escrita é a origem do evento, e por isso ele persiste.
+   </details>
+
+2. **Como a autorização é aplicada a um evento de mudança de dados?**
+   <details>
+     <summary>Possível resposta</summary>
+     Por evento e por assinante: a plataforma avalia a política de leitura (RLS ou *Security Rules*) para cada linha ou documento antes de entregá-lo a cada cliente.
+   </details>
+
+3. **Por que funções serverless não servem para manter tempo real?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque encerram ao responder e não mantêm conexão aberta. Tempo real exige um processo sempre no ar ou um serviço dedicado da plataforma.
+   </details>
+
+### Front-end e custo
+
+4. **O que é reconciliação, e o que ela exige de cada item?**
+   <details>
+     <summary>Possível resposta</summary>
+     É aplicar cada evento ao estado local: substituir, remover ou inserir o item correspondente. Exige uma chave estável por item para encontrá-lo sem duplicar.
+   </details>
+
+5. **Como o custo de uma assinatura cresce, e qual é a defesa?**
+   <details>
+     <summary>Possível resposta</summary>
+     Multiplicando eventos pelo número de assinantes, mais o teto de conexões simultâneas. A defesa é assinar o menor recorte possível: um documento, uma linha filtrada, um canal por sala.
+   </details>
+
+6. **Em que caso recarregar a página vence o tempo real?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o dado muda poucas vezes ao dia. Manter uma conexão aberta o dia inteiro para meia dúzia de eventos custa mais do que uma revalidação periódica.
+   </details>
+
+---
+
+## Referências
+
+- [Supabase Realtime](https://supabase.com/docs/guides/realtime)
+- [Cloud Firestore: Get realtime updates](https://firebase.google.com/docs/firestore/query-data/listen)
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
+- [MDN: WebSocket API](https://developer.mozilla.org/docs/Web/API/WebSockets_API)
+
+---
+
+## Próximo tópico
+
+[Workers e Jobs Agendados](../workers-jobs/): O trabalho que não cabe em uma requisição, e onde ele roda quando não há servidor.

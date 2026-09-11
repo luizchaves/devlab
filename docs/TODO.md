@@ -104,6 +104,7 @@
   - [x] `[TASK-038.3]` Normalizar as 7 páginas migradas: `## Objetivo` bipartido de **0 para 7**, `## Quando usar, e quando não usar?` de **0 para 7**, `## Desafio` de **0 para 7** e um aside `Dica de IA:` nas 5 páginas que escrevem código; `<SourceCode>` de **13 para 20** recortes, com `storage.js` das duas trilhas deixando de ser bloco escrito à mão
   - [x] `[TASK-038.4]` Escrever as **5 páginas novas**: `foundations/cloud-computing`, `foundations/baas`, `hosting/static-hosting` e `hosting/serverless-functions` (com projetos executáveis em `examples/courses/cloud/`) e `reference/platform-map`
   - [x] `[TASK-038.5]` Revisar com a `devlab-content-reviewer`: 4 títulos interrogativos sem `?` reescritos, 11 parágrafos de entrada ausentes, 2 subseções solitárias e 1 anglicismo (`deletar`); `check-code-blocks` com 21 blocos e 0 erro, e `pnpm validate` limpo
+  - [x] `[TASK-038.6]` Criar a seção **Recursos** do guia, logo após Fundamentos, com uma página por linha-chave da matriz de comparação: `hosting/` virou `resources/` (2 redirecionamentos) e ganhou **8 páginas novas** (funções de borda, banco relacional, banco de documentos, autenticação, storage, realtime, workers e jobs, containers e PaaS), cada uma cruzando as plataformas e apontando para as páginas específicas; matriz de comparação, mapa de plataformas e índice do guia ligados a elas; 8 diagramas medidos entre 230 e 677 px
 
 ### Concluídos (Conteúdo)
 
