@@ -1437,8 +1437,8 @@ export default defineConfig({
                     },
                     { label: 'Administração', link: '/courses/database/mysql/administration/' },
                     {
-                      label: 'Tutorial Prático (monitor_db)',
-                      link: '/courses/database/mysql/tutorial/',
+                      label: 'Prática de SQL (monitor_db)',
+                      link: '/courses/database/mysql/practice/',
                     },
                   ],
                 },
