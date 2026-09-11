@@ -1,0 +1,274 @@
+---
+title: "HTTPS e Certificados TLS na Nuvem"
+description: "Criptografia em trânsito, certificados SSL/TLS automatizados com ACME/Let's Encrypt, terminação TLS na borda, modos de SSL da Cloudflare e HSTS."
+course: cloud
+sidebar:
+  label: HTTPS e Certificados
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta como a segurança de transporte (HTTPS) e a gestão de certificados SSL/TLS funcionam no ambiente de nuvem moderno. A configuração manual de certificados, chaves privadas e renovações anuais foi substituída por pipelines automatizados que emitem, instalam e renovam certificados na borda sem intervenção humana.
+
+---
+
+## Objetivo
+
+Compreender os princípios de criptografia em trânsito com TLS, dominando o funcionamento do protocolo ACME para emissão automática de certificados, os modelos de terminação TLS na borda e a aplicação de políticas estritas de segurança como HSTS em arquiteturas de nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o papel do protocolo TLS 1.3 na garantia de confidencialidade, integridade e autenticidade do tráfego web.
+- Descrever o funcionamento do protocolo ACME e os tipos de desafios (`HTTP-01` e `DNS-01`) usados pelo Let's Encrypt.
+- Comparar os modelos de terminação TLS na borda (*Edge Termination*) e criptografia ponta a ponta (*End-to-End Encryption*).
+- Identificar as diferenças e os riscos de segurança entre os modos de SSL da Cloudflare (*Flexible*, *Full* e *Full Strict*).
+- Configurar redirecionamentos seguros de HTTP para HTTPS e aplicar cabeçalhos HSTS (*HTTP Strict Transport Security*).
+
+---
+
+## Criptografia em Trânsito e o Handshake TLS
+
+O protocolo HTTPS (*Hypertext Transfer Protocol Secure*) nada mais é do que o tráfego HTTP convencional encapsulado em uma camada segura de criptografia fornecida pelo protocolo TLS (*Transport Layer Security*).
+
+Antes que qualquer dado da requisição HTTP (como cookies de autenticação, cabeçalhos ou corpo JSON) seja transmitido, o cliente e o servidor realizam um aperto de mãos (*handshake*) para autenticar a identidade do servidor e derivar chaves simétricas de criptografia temporárias.
+
+O diagrama a seguir resume o fluxo do Handshake no TLS 1.3, que estabelece uma sessão segura em apenas uma viagem de ida e volta (*1-RTT*):
+
+<Mermaid title="Handshake TLS 1.3 em uma viagem de ida e volta">
+{`
+flowchart TD
+  Client["Navegador / Cliente"] -->|"1. ClientHello<br/>(Versões, Cifras e Parâmetros de Chave)"| Server["Borda / Servidor na Nuvem"]
+  Server -->|"2. ServerHello + Certificado TLS<br/>+ Assinatura Digital + Chave de Sessão"| Client
+  Client -->|"3. Valida Autoridade Certificadora (CA)"| Client
+  Client -->|"4. Dados Cifrados da Aplicação (HTTP/2 ou HTTP/3)"| Server
+  Server -->|"5. Resposta Cifrada"| Client
+`}
+</Mermaid>
+
+No TLS 1.3, a troca de chaves é baseada em algoritmos de curvas elípticas que garantem *Forward Secrecy* (segurança futura): mesmo que a chave privada do servidor seja comprometida no futuro, gravações do tráfego passado não poderão ser descriptografadas.
+
+---
+
+## Emissão Automatizada com ACME e Let's Encrypt
+
+No passado, obter um certificado SSL envolvia gerar um CSR (*Certificate Signing Request*), pagar taxas anuais a uma Autoridade Certificadora (CA) comercial e copiar arquivos de certificados para servidores via SSH.
+
+Na nuvem moderna, a emissão e a renovação de certificados acontecem de forma programática por meio do protocolo ACME (*Automated Certificate Management Environment*), popularizado pela entidade pública Let's Encrypt.
+
+A tabela a seguir compara os dois principais tipos de desafios utilizados por provedores de nuvem para validar a propriedade do domínio:
+
+| Tipo de Desafio | Como Funciona | Vantagens | Limitações |
+| :--- | :--- | :--- | :--- |
+| **`HTTP-01`** | A CA requisita um arquivo temporário em `http://dominio.com/.well-known/acme-challenge/token` | Rápido, dispensa acesso à API de DNS | Não emite certificados curinga (*wildcard* `*.dominio.com`), exige porta 80 aberta |
+| **`DNS-01`** | A plataforma cria um registro `TXT` temporário em `_acme-challenge.dominio.com` | Suporta certificados *wildcard*, funciona em servidores internos | Exige permissão de escrita ou API na zona de DNS |
+
+Plataformas de hospedagem como Vercel, Netlify e Render executam o desafio `HTTP-01` assim que o registro DNS aponta para a infraestrutura deles. Provedores com gestão integrada de DNS (como Cloudflare e AWS Route 53) utilizam o desafio `DNS-01` nos bastidores, emitindo certificados mesmo antes de o tráfego começar a fluir.
+
+---
+
+## Terminação TLS na Borda vs Ponta a Ponta
+
+Quando uma aplicação utiliza uma CDN ou rede de borda, surge a questão arquitetural de onde a criptografia deve ser encerrada:
+
+<Steps>
+1. **Terminação TLS na Borda (Edge Termination)**: O navegador estabelece a conexão TLS segura diretamente com o ponto de presença mais próximo da CDN. A borda descriptografa a requisição, analisa cabeçalhos, aplica regras de firewall/WAF e repassa o tráfego para a origem por conexões internas otimizadas.
+2. **Criptografia Ponta a Ponta (End-to-End Encryption)**: A borda mantém o tráfego criptografado também no trajeto entre a CDN e o servidor de origem, utilizando certificados públicos ou certificados de origem dedicados.
+</Steps>
+
+A terminação na borda é essencial para a performance na web: o cliente negocia o aperto de mãos TLS com um servidor localizado a poucos milissegundos de distância geográfica, reduzindo drasticamente o tempo até o primeiro byte (*TTFB*).
+
+---
+
+## Modos de SSL da Cloudflare e Seus Riscos
+
+Ao utilizar a Cloudflare como proxy reverso, o painel de controle oferece quatro modos de criptografia SSL/TLS que definem como o tráfego é tratado entre o cliente, a Cloudflare e o servidor de origem.
+
+A tabela a seguir detalha cada modo e destaca os riscos envolvidos:
+
+| Modo de SSL | Navegador $\to$ Cloudflare | Cloudflare $\to$ Origem | Avaliação de Segurança |
+| :--- | :--- | :--- | :--- |
+| **Off** | HTTP sem criptografia | HTTP sem criptografia | **Inseguro**: nenhum tráfego é protegido. |
+| **Flexible** | HTTPS com certificado | HTTP não criptografado (porta 80) | **Falsa segurança**: o tráfego no trecho intermediário fica exposto na internet aberta. |
+| **Full** | HTTPS com certificado | HTTPS (sem validar se o certificado da origem é confiável) | **Aceitável para testes**: protege contra escuta, mas aceita certificados autoassinados ou expirados. |
+| **Full (Strict)** | HTTPS com certificado | HTTPS (com validação estrita de certificado emitido por CA confiável) | **Recomendado em produção**: garante autenticidade e criptografia ponta a ponta. |
+
+<Aside type="danger" title="Evite o modo Flexible em produção">
+  O modo *Flexible* exibe o cadeado verde de segurança no navegador do usuário, mas envia dados sensíveis (senhas, tokens e dados pessoais) em texto puro entre a Cloudflare e o servidor de origem. Além do risco de interceptação (*Man-in-the-Middle*), esse modo costuma causar loops infinitos de redirecionamento quando a aplicação tenta forçar HTTPS.
+</Aside>
+
+---
+
+## Redirecionamento HTTPS e HSTS
+
+Garantir que os usuários acessem a aplicação apenas por canais seguros exige duas etapas complementares:
+
+### Redirecionamento HTTP 301 Permanente
+
+Quando um visitante digita `exemplo.com` no navegador sem especificar o protocolo, a conexão inicial é feita em HTTP na porta 80. A infraestrutura de borda deve responder imediatamente com um redirecionamento `301 Moved Permanently` apontando para a versão HTTPS na porta 443:
+
+```http title="Resposta do servidor de borda"
+HTTP/1.1 301 Moved Permanently
+Location: https://exemplo.com.br/
+```
+
+### Cabeçalho HSTS (*HTTP Strict Transport Security*)
+
+O redirecionamento 301 inicial ainda é vulnerável a ataques de remoção de SSL (*SSL Stripping*), onde um invasor na mesma rede intercepta o primeiro pacote HTTP antes que o redirecionamento ocorra.
+
+Para eliminar essa vulnerabilidade, o servidor deve enviar o cabeçalho `Strict-Transport-Security`. Esse cabeçalho instrui o navegador a **nunca mais** tentar conexões HTTP para aquele domínio pelo tempo estipulado:
+
+```http title="Cabeçalho HSTS de alta segurança"
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+```
+
+A diretiva `max-age=63072000` fixa a política por dois anos. A opção `includeSubDomains` estende a proteção para todos os subdomínios, e `preload` qualifica o domínio para entrar na lista embutida diretamente nos navegadores (como Chrome, Firefox e Safari), garantindo que mesmo o primeiríssimo acesso da história daquele dispositivo já seja feito em HTTPS.
+
+<Aside type="caution" title="Dica de IA: Não ative HSTS com preload antes de validar todos os subdomínios">
+  Assistentes de IA costumam sugerir o cabeçalho HSTS com a diretiva `includeSubDomains; preload` de imediato. Uma vez que o domínio entra na lista de pré-carregamento dos navegadores, a remoção pode levar meses, e qualquer subdomínio interno (como um sistema legado sem HTTPS) ficará inacessível para todos os visitantes do mundo.
+
+  **Prompt:** *"Analise a estrutura de subdomínios do projeto e forneça uma estratégia gradual de adoção de HSTS, iniciando com max-age de 5 minutos até atingir o requisito de submissão da lista de preload com segurança."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+Todas as plataformas modernas de nuvem abstraem a complexidade da gestão de certificados, mas diferem nos certificados suportados e nas opções de personalização:
+
+| Plataforma | Provedor de Certificado | Certificados Customizados | Renovação Automática | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **Cloudflare** | Universal SSL (DigiCert, Google Trust, Let's Encrypt) | Suportado em planos empresariais | Sim, totalmente transparente na borda | [Cloudflare Pages](../../cloudflare/pages/) |
+| **Vercel** | Let's Encrypt | Automático para todos os domínios | Sim, gerenciado a cada 60 dias | [Deployments Vercel](../../vercel/deployments/) |
+| **Netlify** | Let's Encrypt | Permite importar certificado próprio | Sim, com fallback automático | [Deployments Netlify](../../netlify/deployments/) |
+| **AWS Amplify** | AWS Certificate Manager (ACM) | Integração com certificados privados/públicos do ACM | Sim, validação por DNS automática | [Amplify Hosting](../../amplify/hosting/) |
+| **Firebase** | Google Trust Services | Gerenciado automaticamente pela Google Cloud | Sim, renovado automaticamente | [Firebase Hosting](../../firebase/hosting/) |
+| **Render / Railway** | Let's Encrypt | Automático no primeiro apontamento DNS | Sim, sem custo adicional | [Render](../../render/), [Railway](../../railway/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+O uso de HTTPS é obrigatório em 100% das aplicações públicas na web moderna. A decisão não é se deve usar, mas qual nível de rigor aplicar.
+
+A tabela a seguir orienta as decisões arquiteturais:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Produção pública de qualquer site ou API | **HTTPS com HSTS ativado** | Protege credenciais, melhora ranqueamento SEO e previne ataques de interceptação. |
+| Desenvolvimento local (`localhost`) | **HTTP simples ou certificados locais (mkcert)** | Evita avisos de certificado inválido no navegador durante o desenvolvimento. |
+| Integração entre CDN e VPS de origem | **Modo Full (Strict) com Let's Encrypt** | Garante que o tráfego que cruza a internet pública entre a CDN e a VPS permaneça protegido. |
+| Subdomínios corporativos dinâmicos | **Certificado Wildcard (`*.meusite.com`)** | Um único certificado cobre múltiplos subdomínios sem emitir novas requisições ACME. |
+
+---
+
+## Resumo e Boas Práticas
+
+A tabela a seguir sintetiza as práticas essenciais para a segurança de transporte na nuvem:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Forçar redirecionamento 301 de HTTP para HTTPS | Garante que acessos desatentos sejam migrados imediatamente para o túnel cifrado. |
+| Adotar TLS 1.3 como protocolo padrão | Oferece a melhor performance de handshake e elimina cifras criptográficas vulneráveis do TLS 1.0/1.1. |
+| Configurar HSTS gradualmente | Permite testar se todos os recursos carregam via HTTPS antes de fixar uma política de longo prazo. |
+| Utilizar certificados de origem dedicados ao usar proxy | Protege a comunicação entre a rede de distribuição (CDN) e seu servidor de banco de dados ou backend. |
+
+---
+
+## Exercício
+
+Com base nos conceitos de segurança TLS e certificados gerenciados:
+
+1. Qual é a principal diferença de desempenho de conexão entre o TLS 1.2 e o TLS 1.3 durante o aperto de mãos (*handshake*)?
+2. Como o protocolo ACME valida a posse de um domínio através do desafio `HTTP-01`?
+3. Por que o modo de SSL *Flexible* da Cloudflare é desaconselhado para aplicações que trafegam dados sensíveis?
+4. Qual é a função do cabeçalho `Strict-Transport-Security` (HSTS)?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O TLS 1.3 reduz o tempo do handshake de duas viagens de ida e volta (2-RTT) para apenas uma viagem (1-RTT), permitindo que os dados da aplicação sejam enviados muito mais rápido, além de eliminar algoritmos de criptografia obsoletos e inseguros.
+
+  2. A Autoridade Certificadora (como o Let's Encrypt) solicita que o servidor disponibilize um arquivo de texto específico contendo um token sob o caminho `http://seudominio.com/.well-known/acme-challenge/<token>`. A CA faz uma requisição HTTP para essa URL e, se o arquivo contiver a assinatura esperada, o certificado é emitido.
+
+  3. Porque no modo *Flexible* a criptografia só existe entre o navegador do usuário e os servidores da Cloudflare. A comunicação entre a Cloudflare e o servidor de origem onde o backend está hospedado trafega em HTTP puro e desprotegido pela internet aberta, sujeita a escuta e adulteração.
+
+  4. O HSTS instrui o navegador a transformar automaticamente todas as futuras requisições HTTP para aquele domínio em requisições HTTPS antes mesmo de enviar qualquer pacote para a rede, protegendo o usuário contra ataques de remoção de SSL (*SSL stripping*).
+</details>
+
+---
+
+## Desafio
+
+Um desenvolvedor configurou uma aplicação Express em uma máquina virtual no provedor Render com redirecionamento forçado para HTTPS no código da aplicação (`if (req.protocol !== 'https') res.redirect(...)`). Em seguida, ativou o proxy da Cloudflare no modo *Flexible*.
+
+Ao acessar o site no navegador, a página não abre e exibe o erro `ERR_TOO_MANY_REDIRECTS`.
+
+Explique a causa exata desse loop de redirecionamento e demonstre como corrigir o problema tanto na configuração da Cloudflare quanto no código do servidor.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **Causa do Loop:**
+  1. O navegador requisita `https://exemplo.com` para a Cloudflare.
+  2. Como o modo está definido como *Flexible*, a Cloudflare se conecta ao servidor de origem em HTTP puro (`http://exemplo.com:80`).
+  3. A aplicação Express recebe a requisição na porta 80 e verifica que `req.protocol === 'http'`. Por regra, ela emite um redirecionamento `301` para `https://exemplo.com`.
+  4. O navegador segue o redirecionamento e pede novamente `https://exemplo.com` para a Cloudflare, que por sua vez pede novamente em HTTP para a origem, repetindo o ciclo indefinidamente até o navegador estourar o limite de saltos.
+
+  **Correção:**
+  1. **Na Cloudflare**: Mude o modo de SSL para **Full** ou **Full (Strict)**, garantindo que a Cloudflare se conecte ao servidor de origem via HTTPS na porta 443.
+  2. **Na aplicação Express**: Atrás de um proxy reverso, o protocolo original do cliente é encaminhado no cabeçalho `X-Forwarded-Proto`. A aplicação deve habilitar a confiança no proxy (`app.set('trust proxy', true)`) e inspecionar esse cabeçalho em vez de apenas a porta local da conexão.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Criptografia e Protocolos
+
+1. **O que é o conceito de Forward Secrecy (*Segurança Futura*) e por que ele é obrigatório no TLS 1.3?**
+   <details>
+     <summary>Possível resposta</summary>
+     É a propriedade criptográfica que garante que, se a chave privada mestra do servidor vazar no futuro, as comunicações passadas que foram interceptadas continuam ilegíveis. Isso ocorre porque cada sessão utiliza chaves efêmeras e temporárias derivadas no momento do aperto de mãos, que são descartadas logo em seguida.
+   </details>
+
+2. **Qual é a vantagem do desafio `DNS-01` sobre o desafio `HTTP-01` na emissão de certificados?**
+   <details>
+     <summary>Possível resposta</summary>
+     O desafio `DNS-01` permite a emissão de certificados curinga (*wildcard*, cobrindo `*.dominio.com`), valida domínios cujos servidores web ainda não estão publicamente acessíveis na porta 80 e funciona perfeitamente para serviços em redes privadas ou em ambientes de pré-lançamento.
+   </details>
+
+3. **Por que certificados emitidos pelo Let's Encrypt possuem validade de apenas 90 dias?**
+   <details>
+     <summary>Possível resposta</summary>
+     O prazo curto limita o tempo de exposição caso uma chave privada seja comprometida sem revogação formal e força a automação completa do ciclo de vida dos certificados via protocolo ACME, eliminando a falha humana de esquecer de renovar certificados manuais anuais.
+   </details>
+
+### Gestão e Operação na Nuvem
+
+4. **O que significa *Terminação TLS* em um balanceador de carga ou CDN de borda?**
+   <details>
+     <summary>Possível resposta</summary>
+     Significa que o aperto de mãos e a descriptografia do tráfego acontecem no balanceador/borda, liberando os servidores de backend internos da sobrecarga computacional de processar criptografia para cada requisição recebida.
+   </details>
+
+5. **Qual é o risco de submeter um domínio para a lista de HSTS Preload sem testar adequadamente?**
+   <details>
+     <summary>Possível resposta</summary>
+     A inclusão na lista de *preload* é rígida e distribuída no código-fonte dos principais navegadores. Se algum subdomínio da organização não tiver suporte a HTTPS configurado, ele será bloqueado categoricamente pelos navegadores do mundo inteiro, e o processo para ser removido da lista oficial pode levar meses.
+   </details>
+
+---
+
+## Referências
+
+- [RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3](https://datatracker.ietf.org/doc/html/rfc8446)
+- [RFC 8555: Automatic Certificate Management Environment (ACME)](https://datatracker.ietf.org/doc/html/rfc8555)
+- [Let's Encrypt: How It Works](https://letsencrypt.org/howitworks/)
+- [MDN: Strict-Transport-Security (HSTS)](https://developer.mozilla.org/docs/Web/HTTP/Headers/Strict-Transport-Security)
+- [Cloudflare: SSL/TLS Encryption Modes](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/)
+
+---
+
+## Próximo tópico
+
+[Funções Serverless](../serverless-functions/): Execução de lógica de negócio e APIs sob demanda, cobradas por fração de segundo e sem servidores permanentes.

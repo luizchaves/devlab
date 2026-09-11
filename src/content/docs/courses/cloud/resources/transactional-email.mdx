@@ -1,0 +1,277 @@
+---
+title: "E-mails Transacionais na Nuvem"
+description: "Envio programático de e-mails em arquiteturas cloud/serverless, entregabilidade com SPF, DKIM, DMARC e MX, APIs HTTP vs SMTP e webhooks de eventos."
+course: cloud
+sidebar:
+  label: E-mails Transacionais
+  order: 8
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta como integrar serviços de envio de e-mails transacionais (como recuperação de senhas, confirmações de cadastro, recibos de pagamento e notificações críticas de segurança) em aplicações hospedadas na nuvem. Enviar e-mails a partir de servidores modernos exige provedores dedicados, autenticação criptográfica no DNS e tratamento de eventos assíncronos.
+
+---
+
+## Objetivo
+
+Compreender a arquitetura de envio de e-mails transacionais na nuvem, dominando a configuração de registros de autenticação e entregabilidade (SPF, DKIM, DMARC e MX), a integração com APIs HTTP modernas em ambientes serverless e o tratamento de eventos de retorno e rejeições via webhooks. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que provedores de nuvem bloqueiam conexões SMTP tradicionais na porta 25 e exigem serviços de envio dedicados.
+- Configurar e validar os registros DNS essenciais para entregabilidade: `SPF`, `DKIM`, `DMARC` e `MX`.
+- Comparar o envio de e-mails via conexões SMTP clássicas versus requisições HTTP REST em funções *serverless*.
+- Integrar provedores modernos de e-mail transacional (como Resend ou AWS SES) utilizando bibliotecas de cliente seguras.
+- Tratar eventos de entrega, rejeição (*bounce*) e denúncia de spam através de webhooks para manter a reputação do remetente.
+
+---
+
+## Por Que a Nuvem Não Envia E-mails pela Porta 25?
+
+Em servidores locais antigos, era comum instalar um daemon como Postfix ou Sendmail e despachar e-mails diretamente para a internet conectando-se na porta `25/TCP` dos servidores de destino.
+
+Na nuvem moderna (AWS, Google Cloud, Azure, Vercel, Hetzner, DigitalOcean), **a porta 25 de saída é bloqueada por padrão para todos os servidores e instâncias**.
+
+Existem três razões estruturais para esse bloqueio:
+
+<Steps>
+1. **Prevenção contra spam**: Plataformas de computação sob demanda poderiam ser exploradas por bots maliciosos para criar milhares de instâncias descartáveis e disparar spam em massa.
+2. **Reputação de IP volátil**: Endereços IP em nuvem pública são constantemente reciclados. Um IP recém-alocado para sua máquina pode ter sido utilizado anteriormente por um servidor malicioso, constando em listas negras globais (*RBL - Real-time Blackhole Lists*).
+3. **Complexidade de entregabilidade**: Provedores como Google Workspace, Outlook e Yahoo exigem validações criptográficas rigorosas e histórico de volume estável para não encaminhar mensagens direto para a caixa de lixo eletrônico.
+</Steps>
+
+Por esses motivos, aplicações na nuvem utilizam **provedores especializados de e-mail transacional** (como Resend, AWS SES, Postmark ou SendGrid), que operam sobre pools de IPs limpos e com alta reputação estabelecida.
+
+---
+
+## Os Quatro Pilares da Entregabilidade: SPF, DKIM, DMARC e MX
+
+Para que um servidor de destino (como o Gmail) confie que um e-mail com remetente `@suaempresa.com` foi realmente autorizado por você e não forjado por um invasor (*spoofing*), quatro registros no DNS do seu domínio são consultados.
+
+O diagrama a seguir ilustra o processo de verificação realizado pelo servidor de e-mail do destinatário:
+
+<Mermaid title="Fluxo de validação de entregabilidade e autenticação de e-mail">
+{`
+flowchart TD
+  App["Aplicação na Nuvem"] -->|"1. Envio via API HTTP"| Provider["Provedor de E-mail<br/>(Resend / SES / Postmark)"]
+  Provider -->|"2. Assina com Chave Privada DKIM e envia"| MailServer["Servidor de Destino<br/>(ex: Gmail / Outlook)"]
+  MailServer -->|"3. Consulta DNS do Remetente"| DNS["Zona DNS do seu Domínio"]
+  DNS -->|"4. Retorna SPF + Chave Pública DKIM + DMARC"| MailServer
+  MailServer -->|"5. Validações Aprovadas"| Inbox["Caixa de Entrada Principal"]
+`}
+</Mermaid>
+
+A tabela a seguir detalha o propósito e a sintaxe de cada um dos quatro registros:
+
+| Registro DNS | Nome / Host | Tipo | Valor Típico | O que valida? |
+| :--- | :--- | :--- | :--- | :--- |
+| **`SPF`** | `@` (raiz) | `TXT` | `v=spf1 include:amazonses.com ~all` | Lista quais servidores IP ou provedores têm autorização para enviar mensagens em nome do domínio. |
+| **`DKIM`** | `resend._domainkey` | `CNAME` ou `TXT` | `dkim.resend.com` (chave pública) | Assinatura criptográfica que garante que a mensagem não foi alterada durante o trajeto. |
+| **`DMARC`** | `_dmarc` | `TXT` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@exemplo.com` | Instrução de como o destinatário deve agir caso SPF ou DKIM falhem (`none`, `quarantine` ou `reject`). |
+| **`MX`** | `@` ou subdomínio | `MX` | `10 feedback-smtp.us-east-1.amazonses.com` | Define qual servidor deve receber respostas, cancelamentos e notificações de erro. |
+
+---
+
+## APIs HTTP Modernas vs Conexões SMTP em Serverless
+
+No desenvolvimento de software tradicional, o envio de e-mails utiliza bibliotecas baseadas no protocolo SMTP (como Nodemailer conectando em `smtp.provedor.com:587`).
+
+Em arquiteturas serverless e de borda (como Vercel Functions, Cloudflare Workers e Supabase Edge Functions), conexões SMTP apresentam sérios gargalos:
+
+A tabela a seguir compara o envio via protocolo SMTP clássico com o envio por APIs HTTP REST:
+
+| Critério | Protocolo SMTP (Porta 587/465) | API HTTP REST (Porta 443) |
+| :--- | :--- | :--- |
+| **Abertura de conexão** | Múltiplos passos de handshake TCP e TLS a cada e-mail | Conexão HTTPS padrão, compatível com HTTP/2 e *keep-alive* |
+| **Compatibilidade Serverless** | Conexões de socket persistentes costumam sofrer timeout na inicialização | Perfeita: executa como uma chamada `fetch()` comum |
+| **Compatibilidade de Borda** | Incompatível com runtimes que não expõem sockets TCP puros | Totalmente compatível com Cloudflare Workers e Deno |
+| **Segurança e Chaves** | Requer login e senha SMTP em variáveis | Utiliza Bearer Tokens / API Keys com permissões refinadas |
+
+O exemplo a seguir demonstra o envio de um e-mail transacional a partir de uma função serverless utilizando a API HTTP moderna do Resend:
+
+```javascript title="api/send-welcome.js"
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export async function sendWelcomeEmail(userEmail, userName) {
+  const { data, error } = await resend.emails.send({
+    from: 'DevLab <notificacoes@devlab.com.br>',
+    to: [userEmail],
+    subject: `Bem-vindo ao DevLab, ${userName}!`,
+    html: `<p>Olá <strong>${userName}</strong>, sua conta foi ativada com sucesso.</p>`,
+  });
+
+  if (error) {
+    throw new Error(`Falha no envio de e-mail: ${error.message}`);
+  }
+
+  return data.id;
+}
+```
+
+---
+
+## Tratamento de Eventos e Webhooks
+
+O envio de um e-mail é uma operação assíncrona. Quando a API HTTP responde com código `200 OK`, ela confirma apenas que a mensagem foi enfileirada e aceita pelo provedor.
+
+A entrega real ao usuário e as interações posteriores são comunicadas por meio de **webhooks** emitidos pelo provedor para a sua aplicação:
+
+<Steps>
+1. **`delivered` (Entregue)**: O servidor do destinatário aceitou a mensagem e a depositou na caixa do usuário.
+2. **`bounced` (Rejeitado)**: O e-mail não pôde ser entregue. Pode ser um *soft bounce* (caixa cheia ou servidor temporariamente fora) ou *hard bounce* (endereço inexistente ou domínio inválido).
+3. **`complained` (Denúncia de Spam)**: O destinatário clicou no botão "Marcar como spam".
+4. **`opened` / `clicked` (Abertura e Cliques)**: Métricas de engajamento rastreadas por pixels e redirecionamento de links.
+</Steps>
+
+<Aside type="danger" title="Trate rejeições (bounces) para não ter a conta suspensa">
+  Continuar enviando e-mails para endereços que geraram *hard bounce* ou ignorar denúncias de spam destrói a reputação do seu domínio e faz com que provedores como AWS SES e Resend suspendam o envio da sua conta automaticamente. Sua aplicação deve escutar o webhook de `bounced` e desativar o envio para aquele usuário no banco de dados.
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+O mercado de e-mail na nuvem divide-se entre serviços de infraestrutura pura de baixo custo e plataformas focadas na experiência do desenvolvedor com APIs amigáveis:
+
+| Provedor | Modelo Principal | Destaque Técnico | Integração com BaaS | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **Resend** | API REST e React Email | Criação de templates em React e TS; suporte nativo a Next.js/Vercel | Suporte direto em Edge Functions | [Vercel Functions](../../vercel/functions/) |
+| **AWS SES** | Infraestrutura em escala | Custo extremamente baixo (\$0,10 por 1.000 e-mails); IPs dedicados | Integração nativa com AWS Amplify e Lambda | [Amplify Functions](../../amplify/functions/) |
+| **Postmark** | Alta entregabilidade transacional | Foco exclusivo em e-mails transacionais rápidos com latência sub-segundo | Webhooks detalhados e templates versionados | [Outras Plataformas](../../reference/other-platforms/) |
+| **SendGrid** | Transacional e Marketing | Tradicional no mercado, grande volume e editor visual integrado | Webhooks com assinatura de segurança | [Outras Plataformas](../../reference/other-platforms/) |
+| **Supabase Auth** | SMTP configurável | Permite plugar Resend/SES para e-mails de confirmação e *magic link* | Nativo no painel do Supabase | [Supabase Auth](../../supabase/auth/) |
+| **Firebase Auth** | SMTP ou extensões | Permite configurar servidor SMTP próprio ou usar extensões do Mailgun/SendGrid | Nativo no console do Firebase | [Firebase Auth](../../firebase/auth/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha da estratégia de e-mail depende do volume, da necessidade de templates visuais e da tolerância a latência.
+
+A tabela a seguir resume as recomendações:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Confirmação de cadastro, reset de senha, 2FA | **E-mail Transacional via API (Resend/Postmark)** | Entrega imediata em poucos segundos e alta prioridade na fila. |
+| Newsletter, campanhas promocionais, marketing | **Plataforma de E-mail Marketing (Mailchimp, Brevo)** | Gerencia listas de descadastro (opt-out), segmentação e regras de consentimento (LGPD). |
+| Envio de milhões de notificações diárias com custo mínimo | **AWS SES (Simple Email Service)** | Preço por volume imbatível e controle granular de infraestrutura. |
+| Mensagens internas do sistema que não exigem e-mail | **[Filas](../workers-jobs/) ou Notificações Push** | E-mail é caro e poluído para eventos puramente operacionais entre serviços. |
+
+---
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as recomendações essenciais para gestão de e-mails transacionais:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Utilizar subdomínio dedicado para envios (ex: `mail.exemplo.com`) | Isola a reputação de envio do domínio corporativo principal da organização. |
+| Configurar DMARC com política de quarentena (`p=quarantine`) | Impede que cibercriminosos enviem e-mails falsos em nome da sua marca. |
+| Monitorar a taxa de rejeição (*Bounce Rate*) abaixo de 2% | Taxas acima de 5% colocam a conta em quarentena nos principais provedores de nuvem. |
+| Nunca enviar credenciais ou senhas em texto puro | E-mails trafegam por múltiplos servidores intermediários e não são canais de armazenamento seguro. |
+
+---
+
+## Exercício
+
+Com base nos princípios de entregabilidade e arquitetura de e-mail na nuvem:
+
+1. Por que conexões HTTP REST são preferíveis a conexões SMTP em funções *serverless*?
+2. Qual é a função do registro `DKIM` e onde sua chave pública fica armazenada?
+3. O que diferencia um *soft bounce* de um *hard bounce*?
+4. Por que é uma boa prática configurar um subdomínio como `notificacoes.meusite.com` para os envios em vez de usar diretamente `meusite.com`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque requisições HTTP REST executam de forma rápida através de chamadas convencionais via porta 443 sem a sobrecarga de negociação de múltiplos passos do protocolo SMTP em conexões de socket que são frequentemente interrompidas no ciclo de vida curto das instâncias serverless.
+
+  2. O DKIM insere uma assinatura criptográfica no cabeçalho do e-mail gerada pela chave privada do provedor. A chave pública correspondente fica publicada em um registro `TXT`/`CNAME` no DNS do seu domínio, permitindo que o servidor de destino confirme matematicamente que o e-mail não foi forjado nem alterado.
+
+  3. *Soft bounce* é uma falha temporária de entrega (como caixa do destinatário cheia ou servidor temporariamente indisponível). *Hard bounce* é uma falha permanente e definitiva (como conta de e-mail inexistente ou domínio incorreto), exigindo a desativação imediata daquele endereço.
+
+  4. Porque o uso de um subdomínio isola a reputação de envio. Caso ocorra um pico inesperado de rejeições ou denúncias de spam nas notificações da aplicação, a reputação e a entrega das mensagens corporativas dos funcionários no domínio principal (`meusite.com`) não serão prejudicadas.
+</details>
+
+---
+
+## Desafio
+
+Uma empresa de comércio eletrônico está enfrentando problemas de entregabilidade: as mensagens de recuperação de senha estão caindo na caixa de spam do Gmail. Ao analisar o painel do Google Postmaster, nota-se que a autenticação DMARC está falhando com `dmarc=fail (p=none)`.
+
+Apresente um plano de diagnóstico em três passos para identificar a causa da falha entre SPF e DKIM, e mostre a configuração DNS exata para implementar uma política DMARC estrita com relatórios semanais agregados.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **Plano de Diagnóstico:**
+  1. **Inspecionar os cabeçalhos brutos da mensagem**: Abra um e-mail recebido no Gmail e clique em *"Exibir original"*. Verifique as linhas `Authentication-Results` para identificar se a falha ocorreu no alinhamento de SPF, no alinhamento de DKIM ou em ambos.
+  2. **Validar o registro SPF no DNS**: Certifique-se de que o provedor de envio atual está explicitamente incluído no registro TXT da raiz (ex: `include:resend.com` ou `include:amazonses.com`) e que o domínio do remetente (*Return-Path*) corresponde ao domínio visível (*From*).
+  3. **Validar os seletores DKIM**: Confirme via `dig TXT <seletor>._domainkey.seudominio.com` se o registro com a chave pública está respondendo sem erros de digitação.
+
+  **Registro DMARC com Política Estrita e Relatórios:**
+  Crie o seguinte registro `TXT` no host `_dmarc.seudominio.com`:
+
+  ```txt title="Registro DNS TXT"
+  v=DMARC1; p=quarantine; pct=100; rua=mailto:dmarc-reports@seudominio.com; ruf=mailto:dmarc-failures@seudominio.com; fo=1
+  ```
+
+  Essa configuração instrui todos os servidores globais a enviarem para quarentena (caixa de spam) 100% das mensagens que não passarem em SPF/DKIM em nome da sua empresa, enviando relatórios periódicos de conformidade para o endereço especificado.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Entregabilidade e Autenticação
+
+1. **Qual é o papel do alinhamento DMARC entre o endereço do cabeçalho `From` e os domínios validados por SPF e DKIM?**
+   <details>
+     <summary>Possível resposta</summary>
+     O DMARC exige que o domínio exibido no campo visual "De:" (*Header From*) coincida com o domínio autenticado pelo registro SPF (*Envelope From*) ou pela assinatura DKIM (*d=domain*), impedindo que um invasor autentique um domínio próprio qualquer para se passar pela sua marca.
+   </details>
+
+2. **Por que o envio direto via SMTP a partir de um servidor VPS próprio costuma ter baixa taxa de entrega no Gmail e no Outlook?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque IPs de VPS públicas não possuem histórico positivo de reputação, pertencem a blocos frequentemente associados a spammers residenciais/descartáveis e carecem de acordos de *feedback loop* com os grandes provedores de e-mail.
+   </details>
+
+3. **O que é o mecanismo `~all` (*SoftFail*) comparado ao `-all` (*HardFail*) em um registro SPF?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `~all` instrui o receptor a aceitar a mensagem, mas marcá-la como suspeita caso o IP remetente não esteja listado. O `-all` instrui o receptor a rejeitar categoricamente a mensagem no nível do protocolo.
+   </details>
+
+### Arquitetura e Nuvem
+
+4. **Por que é crucial processar webhooks de `bounced` em vez de apenas registrar o envio bem-sucedido?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a aceitação inicial da API não garante entrega na caixa de entrada. O webhook informa se o endereço era inválido, permitindo que a aplicação marque o usuário como inativo e evite novos disparos prejudiciais à reputação do domínio.
+   </details>
+
+5. **Como o uso do React Email e do Resend simplifica a manutenção de templates transacionais?**
+   <details>
+     <summary>Possível resposta</summary>
+     O React Email permite criar layouts de e-mail utilizando componentes tipados em React e Tailwind CSS que são compilados automaticamente para tabelas HTML compatíveis com clientes antigos como o Microsoft Outlook, eliminando a escrita manual de HTML legado.
+   </details>
+
+---
+
+## Referências
+
+- [RFC 7208: Sender Policy Framework (SPF)](https://datatracker.ietf.org/doc/html/rfc7208)
+- [RFC 6376: DomainKeys Identified Mail (DKIM) Signatures](https://datatracker.ietf.org/doc/html/rfc6376)
+- [RFC 7489: Domain-based Message Authentication, Reporting, and Conformance (DMARC)](https://datatracker.ietf.org/doc/html/rfc7489)
+- [Resend Documentation](https://resend.com/docs)
+- [AWS Simple Email Service (SES) Developer Guide](https://docs.aws.amazon.com/ses/latest/dg/Welcome.html)
+- [Postmark: Email Deliverability Guide](https://postmarkapp.com/guides/email-deliverability)
+
+---
+
+## Próximo tópico
+
+[Storage de Arquivos](../file-storage/): Armazenamento durável de arquivos, documentos e mídias em buckets na nuvem com controle de acesso por políticas.

@@ -2052,6 +2052,14 @@ export default defineConfig({
               items: [
                 { label: 'Hospedagem Estática', link: '/courses/cloud/resources/static-hosting/' },
                 {
+                  label: 'Domínios e DNS',
+                  link: '/courses/cloud/resources/custom-domains-dns/',
+                },
+                {
+                  label: 'HTTPS e Certificados',
+                  link: '/courses/cloud/resources/https-certificates/',
+                },
+                {
                   label: 'Funções Serverless',
                   link: '/courses/cloud/resources/serverless-functions/',
                 },
@@ -2067,6 +2075,10 @@ export default defineConfig({
                 {
                   label: 'Autenticação Gerenciada',
                   link: '/courses/cloud/resources/managed-auth/',
+                },
+                {
+                  label: 'E-mails Transacionais',
+                  link: '/courses/cloud/resources/transactional-email/',
                 },
                 { label: 'Storage de Arquivos', link: '/courses/cloud/resources/file-storage/' },
                 { label: 'Realtime', link: '/courses/cloud/resources/realtime/' },

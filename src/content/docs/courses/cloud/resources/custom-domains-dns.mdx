@@ -1,0 +1,273 @@
+---
+title: "Domínios Customizados e DNS na Nuvem"
+description: "Como conectar domínios próprios a aplicações na nuvem, tipos de registros DNS (A, AAAA, CNAME, ALIAS, TXT), zona apex, CNAME flattening e propagação."
+course: cloud
+sidebar:
+  label: Domínios e DNS
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta os fundamentos de resolução de nomes e a configuração de domínios customizados em plataformas de nuvem modernas. Ao publicar um serviço, a plataforma fornece um subdomínio padrão (como `app.vercel.app` ou `projeto.pages.dev`), mas aplicações profissionais exigem um domínio próprio associado a certificados válidos e roteamento confiável.
+
+---
+
+## Objetivo
+
+Compreender o funcionamento do Sistema de Nomes de Domínio (DNS) no ecossistema de nuvem moderno, dominando as estratégias de apontamento de registros, delegação de zonas autoritativas e tratamento de restrições na raiz do domínio para publicar aplicações com alta disponibilidade e baixa latência. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o ciclo de resolução hierárquico do DNS entre registradores, servidores de nomes autoritativos e resolvedores recursivos.
+- Configurar registros fundamentais (`A`, `AAAA`, `CNAME`, `ALIAS/ANAME`, `TXT` e `NS`) de acordo com os requisitos de cada provedor de nuvem.
+- Solucionar a limitação da zona ápice (*zone apex*) utilizando *CNAME flattening* ou registros `ALIAS`.
+- Comparar as vantagens e desvantagens entre a delegação completa de zona (troca de *nameservers*) e o apontamento de registros pontuais.
+- Diagnosticar falhas de propagação e validar respostas de DNS utilizando comandos de terminal como `dig` e `nslookup`.
+
+---
+
+## O Papel do DNS na Arquitetura em Nuvem
+
+O DNS (*Domain Name System*) é uma base de dados distribuída e hierárquica responsável por traduzir nomes legíveis por humanos (como `exemplo.com.br`) em endereços IP roteáveis na internet (como `198.51.100.10` ou `2001:db8::1`).
+
+Quando uma aplicação é publicada na nuvem, o tráfego precisa ser direcionado para a infraestrutura do provedor, que pode ser um endereço IP fixo, um balanceador de carga ou uma rede de distribuição de conteúdo (CDN) distribuída globalmente.
+
+O diagrama a seguir ilustra a sequência de consultas realizadas por um resolvedor recursivo até descobrir o servidor autoritativo da aplicação:
+
+<Mermaid title="Fluxo de resolução hierárquica de DNS">
+{`
+flowchart TD
+  Client["Navegador / Cliente"] -->|"1. Consulta exemplo.com.br"| Resolver["Resolvedor DNS Recursivo<br/>(ISP / 1.1.1.1 / 8.8.8.8)"]
+  Resolver -->|"2. Onde está .br?"| Root["Servidores Raiz (Root Servers)"]
+  Root -->|"3. Aponta autoridade do .br"| TLD["Servidor TLD (.br)"]
+  Resolver -->|"4. Onde está exemplo.com.br?"| TLD
+  TLD -->|"5. Aponta Nameservers do domínio"| Auth["Servidor Autoritativo<br/>(Cloudflare / Route 53 / Vercel)"]
+  Resolver -->|"6. Qual o IP de exemplo.com.br?"| Auth
+  Auth -->|"7. Retorna IP / CNAME"| Resolver
+  Resolver -->|"8. Resposta com IP"| Client
+`}
+</Mermaid>
+
+A resposta recebida pelo cliente inclui um tempo de vida útil denominado TTL (*Time To Live*). Durante esse período, o cliente e os servidores intermediários mantêm a resposta em cache sem consultar a autoridade novamente.
+
+---
+
+## Tipos de Registros Fundamentais
+
+A conexão de serviços na nuvem exige o uso combinado de diferentes tipos de registros na tabela da sua zona DNS.
+
+A tabela a seguir resume os tipos de registros mais utilizados em arquiteturas de nuvem:
+
+| Tipo de Registro | Função Principal | Exemplo de Destino | Uso Comum na Nuvem |
+| :--- | :--- | :--- | :--- |
+| **`A`** | Mapeia um nome para um endereço IPv4 de 32 bits | `198.51.100.10` | Servidores com IP estático em VPS ou balanceadores fixos. |
+| **`AAAA`** | Mapeia um nome para um endereço IPv6 de 128 bits | `2001:db8::1` | Servidores modernos compatíveis com IPv6 nativo. |
+| **`CNAME`** | Cria um apelido (*canonical name*) apontando para outro domínio | `cname.vercel-dns.com` | Subdomínios em CDNs, PaaS e serviços serverless. |
+| **`ALIAS` / `ANAME`** | Pseudo-registro que emula CNAME resolvendo IPs na raiz | `projeto.pages.dev` | Zona ápice (*apex*) em provedores de DNS modernos. |
+| **`TXT`** | Armazena texto arbitrário para validação e segurança | `vercel-verification=abc123` | Validação de posse de domínio e registros de e-mail (SPF/DKIM). |
+| **`NS`** | Define quais servidores de nomes são autoritativos para o domínio | `ns1.cloudflare.com` | Delegação do controle do domínio para outro provedor. |
+
+Registros `A` e `AAAA` exigem que o provedor garanta um IP estático que nunca muda. Em ambientes serverless e de hospedagem estática, os nós de borda mudam continuamente, motivo pelo qual os provedores exigem registros `CNAME` ou `ALIAS` apontando para o domínio da plataforma.
+
+---
+
+## O Desafio da Zona Ápice (*Apex Domain*)
+
+A zona ápice (também conhecida como *root domain*, *naked domain* ou domínio raiz, como `meusite.com`) impõe uma restrição clássica definida pela especificação original do DNS (RFC 1034 e RFC 1035): **nenhum domínio que possua um registro `CNAME` pode conter outros registros de tipos diferentes**.
+
+Como a raiz de um domínio obrigatoriamente precisa conter registros `NS` e `SOA` (e frequentemente registros `MX` para receber e-mails), criar um `CNAME` diretamente na raiz viola o padrão e impede o recebimento de e-mails ou a correta delegação de nomes.
+
+As plataformas de nuvem contornam esse problema com três estratégias distintas:
+
+<Steps>
+1. **Redirecionamento HTTP no nível de borda**: A raiz `meusite.com` aponta para um IP fixo do provedor apenas para emitir um redirecionamento `301 Moved Permanently` para `www.meusite.com`, onde o registro `CNAME` funciona sem restrições.
+2. **CNAME Flattening (Achatamento de CNAME)**: Provedores autoritativos inteligentes (como Cloudflare) interceptam a consulta na raiz, resolvem internamente o destino do CNAME em tempo real e respondem ao cliente diretamente com uma lista de registros `A`/`AAAA`.
+3. **Pseudo-registros `ALIAS` ou `ANAME`**: Serviços de DNS como AWS Route 53 e DNSimple oferecem um tipo de registro sintético que atua exatamente como o achatamento de CNAME, permitindo associar balanceadores de carga diretamente ao ápice.
+</Steps>
+
+---
+
+## Delegação de Zona vs Apontamento Pontual
+
+Ao configurar um domínio registrado em uma entidade como o Registro.br, existem dois modelos de integração com a infraestrutura na nuvem:
+
+A tabela a seguir compara as características entre manter a zona no registrador e delegar a autoridade:
+
+| Critério | Apontamento Pontual de Registros | Delegação Completa (*Nameservers*) |
+| :--- | :--- | :--- |
+| **Onde a zona é gerenciada?** | No painel do próprio registrador (ex: Registro.br) | No painel do provedor de nuvem (ex: Cloudflare, Route 53) |
+| **Configuração de registros** | Você cria manualmente registros `A`, `CNAME` e `TXT` | A plataforma pode criar e sincronizar registros automaticamente |
+| **Suporte a CNAME na raiz** | Depende do registrador (geralmente não suportado) | Suportado nativamente via *flattening* ou *ALIAS* |
+| **Proteção DDoS e WAF na borda** | Limitada ou inexistente | Ativa no nível da zona DNS (ex: Cloudflare Proxy) |
+| **Risco operacional** | Baixo: falhas afetam apenas o subdomínio apontado | Médio: erros na zona podem afetar e-mails e outros serviços |
+
+Se o projeto precisa apenas publicar uma página estática em `app.exemplo.com.br`, o apontamento de um único `CNAME` no registrador costuma ser suficiente. Se o objetivo é utilizar o domínio raiz, recursos de proteção na borda ou automações completas de deploy, a delegação de *nameservers* para um provedor especializado é a escolha recomendada.
+
+---
+
+## Propagação, TTL e Diagnóstico de Rede
+
+O TTL (*Time To Live*) define por quantos segundos os resolvedores de DNS e servidores intermediários na internet podem manter um registro em memória cache antes de consultar a fonte autoritativa novamente.
+
+Um TTL alto (como `86400` segundos, equivalente a 24 horas) reduz a carga sobre os servidores e acelera as consultas dos clientes. No entanto, se o endereço de um servidor mudar, clientes que guardaram o valor em cache continuarão acessando o IP antigo até que o tempo expire.
+
+Para realizar diagnósticos confiáveis de resolução DNS diretamente no terminal, utilize os utilitários `dig` ou `nslookup`:
+
+```bash title="Terminal"
+dig +short A exemplo.com.br @1.1.1.1
+dig +short CNAME app.exemplo.com.br
+dig +noall +answer TXT exemplo.com.br
+```
+
+```txt title="Output" frame="terminal"
+198.51.100.10
+cname.vercel-dns.com.
+exemplo.com.br. 300 IN TXT "vercel-verification=987654321"
+```
+
+O comando `dig` permite especificar diretamente o servidor DNS consultado (usando a sintaxe `@servidor`), o que permite testar se a alteração já reflete no servidor autoritativo antes mesmo que os provedores locais de internet tenham atualizado seus caches.
+
+<Aside type="caution" title="Dica de IA: Não confunda propagação de DNS com cache do navegador">
+  Assistentes de código frequentemente sugerem que a propagação de DNS falhou quando, na verdade, o navegador local ou o sistema operacional mantém registros antigos em cache de sockets (como a tabela interna do Chrome em `chrome://net-internals/#dns`).
+
+  **Prompt:** *"Forneça uma sequência de comandos com `dig` consultando quatro servidores autoritativos globais distintos para provar se a alteração de um registro CNAME já foi propagada mundialmente."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+As plataformas de nuvem tratam o ciclo de vida de domínios customizados de formas variadas, oferecendo desde zonas DNS completas até verificação simplificada por registros TXT:
+
+| Plataforma | Gestão de DNS | Suporte à Zona Ápice | Emissão de SSL | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **Cloudflare** | Zona autoritativa completa com proxy e WAF | *CNAME Flattening* nativo em qualquer plano | Automático (Universal SSL na borda) | [Cloudflare Pages](../../cloudflare/pages/) |
+| **Vercel** | Vercel DNS ou apontamento externo | Registros `A` com Anycast e `ALIAS` | Automático via Let's Encrypt | [Deployments Vercel](../../vercel/deployments/) |
+| **Netlify** | Netlify DNS ou apontamento externo | Netlify DNS com suporte a *apex* ou CNAME | Automático via Let's Encrypt | [Deployments Netlify](../../netlify/deployments/) |
+| **Firebase** | Apenas apontamento externo | Registros `A` fornecidos para a raiz | Automático via Google Trust Services | [Firebase Hosting](../../firebase/hosting/) |
+| **AWS Amplify** | Integração nativa com Route 53 | *Alias records* apontando para o CloudFront | Automático via AWS Certificate Manager | [Amplify Hosting](../../amplify/hosting/) |
+| **Render / Railway** | Apenas apontamento externo | Registro `A` com IP fixo ou instrução CNAME | Automático via Let's Encrypt | [Render](../../render/), [Railway](../../railway/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha entre gerenciar a zona DNS em um provedor dedicado ou manter os registros no registrador original depende do nível de controle e da complexidade da infraestrutura.
+
+A tabela a seguir orienta a decisão:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Aplicação que usa domínio raiz (`meusite.com`) com CDN | **Zona delegada (ex: Cloudflare)** | O *CNAME flattening* resolve a restrição de CNAME na raiz sem quebrar e-mails. |
+| Subdomínio isolado para novo serviço (`api.meusite.com`) | **Apontamento pontual no registrador** | Criação rápida de um registro `CNAME` sem alterar a gestão dos demais serviços. |
+| Múltiplos ambientes na mesma empresa (preview, staging, prod) | **DNS da própria plataforma (Vercel/Netlify DNS)** | Subdomínios de preview e certificados são criados e renovados automaticamente. |
+| Domínio corporativo com servidores de e-mail e regras legadas | **Manter DNS no provedor corporativo** | Evita o risco de interrupção em serviços críticos ao migrar *nameservers*. |
+
+---
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as principais recomendações para gerenciamento seguro de DNS na nuvem:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Reduzir o TTL para 300 segundos antes de migrações | Permite reverter rapidamente o apontamento caso o novo servidor apresente falhas. |
+| Nunca remover a configuração antiga antes de validar a nova | Garante continuidade de serviço enquanto caches globais ainda expiram. |
+| Utilizar registros TXT para validação prévia de domínio | Prova a propriedade do domínio para a plataforma antes de chavear o tráfego de produção. |
+| Evitar múltiplos registros CNAME apontando para o mesmo host | Conflitos de registros CNAME são rejeitados pelos servidores autoritativos conforme a RFC. |
+
+---
+
+## Exercício
+
+Com base nos conceitos de registros e hierarquia de DNS apresentados:
+
+1. Por que um registro `CNAME` não pode ser configurado diretamente na raiz de um domínio (`meudominio.com`) de acordo com as normas originais da internet?
+2. O que é o *CNAME Flattening* e qual provedor o executa nativamente?
+3. Qual é a utilidade prática de diminuir o TTL de um registro DNS dias antes de uma migração de infraestrutura planejada?
+4. Em que situação um registro `TXT` é exigido por provedores como Vercel ou Google Cloud ao adicionar um domínio?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a especificação do DNS (RFC 1034) proíbe a coexistência de um registro `CNAME` com qualquer outro registro no mesmo nó. Como a raiz de um domínio obrigatoriamente contém registros `NS` e `SOA`, adicionar um `CNAME` viola a regra e causa conflito com outros serviços (como registros `MX` de e-mail).
+
+  2. É um mecanismo no qual o servidor DNS autoritativo intercepta a consulta na raiz, resolve a cadeia de CNAME internamente em tempo de execução e responde ao cliente com registros de IP (`A` ou `AAAA`), contornando a restrição da RFC. A Cloudflare executa isso nativamente.
+
+  3. Reduzir o TTL faz com que os servidores e clientes em todo o mundo mantenham o IP antigo em cache por menos tempo (ex: 5 minutos em vez de 24 horas). Quando o novo apontamento for publicado no dia da migração, a mudança é reconhecida quase imediatamente, minimizando o tempo de transição.
+
+  4. Para validar a posse e autoridade sobre o domínio sem interferir no tráfego existente. A plataforma gera um valor aleatório que deve ser inserido em um registro `TXT`; ao consultar o valor publicamente, o provedor confirma que quem está configurando o painel tem acesso administrativo ao DNS.
+</details>
+
+---
+
+## Desafio
+
+Imagine que você precisa migrar um site corporativo que recebe milhões de acessos diários de um servidor dedicado tradicional para uma plataforma moderna de borda (como Cloudflare Pages ou Vercel), sem gerar qualquer minuto de indisponibilidade e sem perder mensagens de e-mail enviadas ao domínio.
+
+Elabore um plano de migração em quatro etapas, especificando a manipulação de TTL, a ordem de criação dos registros de verificação e o momento exato da troca de tráfego.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um plano de transição com tolerância a falhas segue estas etapas:
+
+  1. **Preparação e redução de TTL (48 a 72 horas antes)**: Reduza o TTL de todos os registros `A` e `CNAME` atuais para 300 segundos (5 minutos), mantendo os IPs atuais. Isso garante que, no dia da troca, os caches globais expirem rapidamente.
+  2. **Configuração e validação na nova plataforma**: Cadastre o domínio no novo provedor (Vercel ou Cloudflare) e crie os registros `TXT` solicitados para validar a propriedade do domínio e permitir a pré-emissão dos certificados SSL/TLS antes do tráfego começar a chegar.
+  3. **Validação do novo ambiente com arquivo hosts**: Teste a aplicação no novo destino apontando manualmente o domínio no arquivo `/etc/hosts` local, garantindo que o build e as rotas funcionam perfeitamente.
+  4. **Chaveamento e restauração de TTL**: Altere os registros `A`/`CNAME` para a nova infraestrutura. Acompanhe os logs de acesso por 24 horas. Após confirmar a estabilidade e a cessação de tráfego no servidor antigo, aumente novamente o TTL para um valor padrão (ex: `3600` ou `86400` segundos). Os registros `MX` de e-mail permanecem inalterados durante todo o processo.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Conceitos e Estrutura de DNS
+
+1. **Qual é a diferença fundamental entre um resolvedor recursivo e um servidor autoritativo de DNS?**
+   <details>
+     <summary>Possível resposta</summary>
+     O resolvedor recursivo recebe a pergunta do cliente e percorre a hierarquia da internet até encontrar a resposta, guardando o resultado em cache. O servidor autoritativo é a fonte da verdade oficial que possui a tabela de registros cadastrada para aquele domínio específico.
+   </details>
+
+2. **Por que serviços de nuvem serverless raramente fornecem um endereço IP fixo para configuração de registros `A`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a infraestrutura serverless opera sobre dezenas ou centenas de nós de borda com balanceamento de carga dinâmico e proteção Anycast. Utilizar um nome canônico (`CNAME`) permite que o provedor redirecione o tráfego para os nós mais saudáveis e geograficamente mais próximos sem exigir alteração de DNS por parte do usuário.
+   </details>
+
+3. **O que acontece se uma consulta DNS solicitar um registro `AAAA` para um domínio que só possui registro `A` configurado?**
+   <details>
+     <summary>Possível resposta</summary>
+     O servidor autoritativo responde com código `NOERROR`, mas com a seção de resposta vazia. O cliente que opera em pilha dupla (IPv4/IPv6) então realiza uma nova consulta para obter o registro `A` correspondente e estabelecer a conexão IPv4.
+   </details>
+
+### Operação e Nuvem
+
+4. **Por que o uso de `www.meusite.com` ainda é amplamente adotado em vez de apenas `meusite.com`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque `www` é um subdomínio comum que pode receber livremente registros `CNAME` apontando diretamente para CDNs e balanceadores de carga sem violar a RFC de DNS, facilitando integrações com qualquer provedor de nuvem sem depender de recursos proprietários como *CNAME flattening*.
+   </details>
+
+5. **Como o registro `NS` permite transferir a gestão de DNS para a Cloudflare mantendo o domínio registrado no Registro.br?**
+   <details>
+     <summary>Possível resposta</summary>
+     O Registro.br guarda os registros `NS` que indicam para todo o mundo que a autoridade sobre aquele domínio passou a ser os servidores de nomes da Cloudflare. As consultas subsequentes são respondidas diretamente pelos servidores da Cloudflare.
+   </details>
+
+---
+
+## Referências
+
+- [RFC 1034: Domain Concepts and Facilities](https://datatracker.ietf.org/doc/html/rfc1034)
+- [RFC 1035: Domain Implementation and Specification](https://datatracker.ietf.org/doc/html/rfc1035)
+- [Cloudflare: O que é DNS?](https://www.cloudflare.com/pt-br/learning/dns/what-is-dns/)
+- [Vercel: Custom Domains Configuration](https://vercel.com/docs/projects/domains)
+- [Registro.br: Tutoriais e Documentação](https://registro.br/ajuda/)
+
+---
+
+## Próximo tópico
+
+[HTTPS e Certificados](../https-certificates/): Como funciona a criptografia TLS em trânsito, emissão automatizada de certificados na nuvem e os modos de terminação segura na borda.
