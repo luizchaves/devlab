@@ -1376,6 +1376,7 @@ export default defineConfig({
                       link: '/courses/database/sql/joins-aggregations/',
                     },
                     { label: 'Transações', link: '/courses/database/sql/transactions/' },
+                    { label: 'SQL DCL e Permissões', link: '/courses/database/sql/dcl/' },
                     { label: 'Desempenho', link: '/courses/database/sql/performance/' },
                   ],
                 },

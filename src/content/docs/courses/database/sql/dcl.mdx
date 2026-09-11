@@ -1,0 +1,316 @@
+---
+title: "Banco de Dados: SQL DCL e Permissões"
+description: "Data Control Language (DCL) no SQL: controle de acesso e privilégios com GRANT e REVOKE, gerenciamento de papéis (roles), privilégio mínimo e Row-Level Security (RLS)."
+course: database
+sidebar:
+  label: "SQL DCL e Permissões"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta os comandos e conceitos do **DCL** (*Data Control Language*), o subconjunto da linguagem SQL responsável por administrar privilégios, controle de acesso e segurança de dados nos sistemas gerenciadores de banco de dados. Você aprenderá a conceder e revogar permissões granulares com `GRANT` e `REVOKE`, estruturar o controle de acesso baseado em papéis (*RBAC*) e aplicar segurança em nível de linha (*Row-Level Security - RLS*).
+
+---
+
+## Objetivo
+
+Compreender o papel da segurança declarativa em bancos de dados relacionais através do DCL, capacitando o desenvolvedor e o administrador a estruturar usuários e papéis com o princípio do privilégio mínimo para evitar vulnerabilidades e vazamentos de dados. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar os comandos DCL (`GRANT`, `REVOKE`, `DENY`) das demais instruções SQL (DDL, DML, TCL).
+- Aplicar privilégios granulares sobre esquemas, tabelas, sequências e colunas específicas.
+- Projetar uma hierarquia de papéis (*roles*) e usuários com herança de permissões (*RBAC*).
+- Implementar políticas de segurança em nível de linha (*Row-Level Security - RLS*) para isolamento de dados *multi-tenant*.
+- Avaliar as diferenças de implementação de controle de acesso entre PostgreSQL, MySQL e SQLite.
+
+---
+
+## O Papel do DCL e o Princípio do Privilégio Mínimo
+
+Em ambientes de produção, uma aplicação web **nunca** deve conectar ao banco de dados utilizando a conta de superusuário (`postgres` ou `root`). O superusuário possui permissões irrestritas para apagar bancos inteiros (`DROP DATABASE`), criar usuários, desabilitar logs e alterar configurações globais de hardware.
+
+O **DCL (Data Control Language)** fornece os mecanismos declarativos para aplicar o **Princípio do Privilégio Mínimo** (*Principle of Least Privilege*): cada aplicação, usuário ou processo deve receber estritamente apenas as permissões necessárias para cumprir sua tarefa, e nada mais.
+
+<Mermaid title="Hierarquia granular de privilégios em um banco relacional">
+{`
+flowchart TD
+    DB["1. Nível de Banco de Dados<br/>(CONNECT, CREATE)"] --> SC["2. Nível de Esquema / Schema<br/>(USAGE, CREATE)"]
+    SC --> TB["3. Nível de Tabela / Objeto<br/>(SELECT, INSERT, UPDATE, DELETE)"]
+    TB --> COL["4. Nível de Coluna<br/>(UPDATE em email, SELECT em status)"]
+    TB --> ROW["5. Nível de Linha (RLS)<br/>(Apenas registros do próprio tenant_id)"]
+`}
+</Mermaid>
+
+---
+
+## Comandos Fundamentais: GRANT e REVOKE
+
+Os dois comandos centrais do DCL no padrão ANSI SQL são `GRANT` (conceder) e `REVOKE` (revogar):
+
+### 1. O Comando GRANT
+Concede privilégios específicos para um ou mais usuários ou papéis (*roles*):
+
+```sql title="Concessão de privilégios com GRANT"
+-- Permite que a aplicação conecte ao banco e use o esquema public
+GRANT CONNECT ON DATABASE invest_db TO app_user;
+GRANT USAGE ON SCHEMA public TO app_user;
+
+-- Concede apenas leitura e inserção na tabela de investimentos
+GRANT SELECT, INSERT ON TABLE investments TO app_user;
+
+-- Concede atualização apenas em colunas específicas (privilégio de coluna)
+GRANT UPDATE (status, notes) ON TABLE investments TO app_user;
+
+-- Permite consumir a sequência de IDs gerados por identity/serial
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+```
+
+### 2. O Comando REVOKE
+Remove privilégios previamente concedidos:
+
+```sql title="Revogação de privilégios com REVOKE"
+-- Remove a permissão de exclusão (DELETE) do usuário da aplicação
+REVOKE DELETE ON TABLE investments FROM app_user;
+
+-- Revoga todos os privilégios do esquema de relatórios
+REVOKE ALL PRIVILEGES ON SCHEMA analytics FROM reporting_user;
+```
+
+A tabela abaixo sintetiza os principais privilégios e seus escopos de aplicação:
+
+| Privilégio | Onde se aplica | O que autoriza |
+| :--- | :--- | :--- |
+| `CONNECT` | Banco de Dados | Abrir sessão TCP e autenticar no banco de dados. |
+| `USAGE` | Esquema / Sequência | Acessar objetos contidos no esquema ou ler valores da sequência (`nextval`). |
+| `SELECT` | Tabela / Visão / Coluna | Executar consultas de leitura de dados. |
+| `INSERT` | Tabela / Coluna | Inserir novos registros na tabela. |
+| `UPDATE` | Tabela / Coluna | Modificar valores de linhas existentes (pode ser restrito a colunas). |
+| `DELETE` | Tabela | Excluir registros da tabela. |
+| `TRUNCATE` | Tabela | Esvaziar rapidamente toda a tabela sem disparar triggers de linha. |
+| `REFERENCES` | Tabela / Coluna | Criar chaves estrangeiras apontando para a tabela. |
+| `ALL PRIVILEGES` | Qualquer Objeto | Concede todos os privilégios aplicáveis sobre o objeto de uma só vez. |
+
+---
+
+## Controle de Acesso Baseado em Papéis (RBAC)
+
+Gerenciar permissões concedendo privilégios diretamente a cada usuário individual torna-se inviável conforme a equipe e o número de microsserviços crescem. O padrão da indústria adota **Controle de Acesso Baseado em Papéis** (*Role-Based Access Control - RBAC*):
+
+<Mermaid title="Arquitetura de permissões baseada em papéis (RBAC)">
+{`
+flowchart TD
+    subgraph Roles ["Papéis Lógicos (Permissões Compartilhadas)"]
+        R_RO["Role: app_readonly<br/>(SELECT em todas as tabelas)"]
+        R_RW["Role: app_readwrite<br/>(SELECT, INSERT, UPDATE)"]
+        R_ADM["Role: schema_admin<br/>(CREATE, ALTER, DROP)"]
+    end
+
+    subgraph Users ["Contas de Usuários / Conexões de APIs"]
+        U_API["user: api_backend"]
+        U_REP["user: bi_dashboard"]
+        U_MIG["user: ci_cd_deploy"]
+    end
+
+    U_API -->|"Herda"| R_RW
+    U_REP -->|"Herda"| R_RO
+    U_MIG -->|"Herda"| R_ADM
+`}
+</Mermaid>
+
+### Estruturação de Papéis no PostgreSQL
+
+No PostgreSQL, usuários e grupos são unificados sob o conceito de **Role** (`CREATE ROLE`):
+
+```sql title="Estruturação de papéis e usuários no PostgreSQL"
+-- 1. Cria os papéis lógicos (sem permissão de login direto)
+CREATE ROLE app_readonly;
+CREATE ROLE app_readwrite;
+
+-- 2. Concede privilégios aos papéis
+GRANT USAGE ON SCHEMA public TO app_readonly, app_readwrite;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_readonly;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO app_readwrite;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO app_readwrite;
+
+-- 3. Garante que tabelas criadas no futuro herdem as mesmas permissões
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+GRANT SELECT ON TABLES TO app_readonly;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+GRANT SELECT, INSERT, UPDATE ON TABLES TO app_readwrite;
+
+-- 4. Cria os usuários reais de conexão com senha (LOGIN)
+CREATE ROLE api_service WITH LOGIN PASSWORD 'senha_forte_api' INHERIT;
+CREATE ROLE dashboard_user WITH LOGIN PASSWORD 'senha_forte_bi' INHERIT;
+
+-- 5. Atribui os papéis aos usuários
+GRANT app_readwrite TO api_service;
+GRANT app_readonly TO dashboard_user;
+```
+
+---
+
+## Segurança em Nível de Linha (Row-Level Security - RLS)
+
+Os comandos `GRANT` tradicionais controlam o acesso a tabelas inteiras ou colunas, mas **não filtram linhas**. Se um usuário tem `SELECT` na tabela `accounts`, ele pode ler todas as contas.
+
+O recurso de **Row-Level Security (RLS)** permite criar políticas de segurança declarativas que filtram automaticamente as linhas visíveis para cada sessão SQL, sem exigir que a aplicação lembre de escrever `WHERE tenant_id = ...` em cada query:
+
+<Mermaid title="Como o Row-Level Security (RLS) intercepta as consultas">
+{`
+flowchart LR
+    App["Aplicação / Sessão SQL<br/>(current_user = 'tenant_42')"] -->|"SELECT * FROM documents"| RLS["Motor de RLS do Banco"]
+    RLS -->|"Aplica Política:<br/>WHERE tenant_id = 'tenant_42'"| Filtered[("Apenas Linhas do Tenant 42")]
+`}
+</Mermaid>
+
+### Implementação de RLS no PostgreSQL
+
+O RLS é amplamente utilizado em arquiteturas *multi-tenant* e em plataformas como Supabase:
+
+```sql title="Configuração de Row-Level Security (RLS) no PostgreSQL"
+-- 1. Cria a tabela de documentos com a coluna de tenant
+CREATE TABLE user_documents (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL
+);
+
+-- 2. Habilita a proteção de RLS na tabela
+ALTER TABLE user_documents ENABLE ROW LEVEL SECURITY;
+
+-- 3. Cria a política de isolamento por sessão
+CREATE POLICY tenant_isolation_policy ON user_documents
+  FOR ALL
+  USING (tenant_id = current_setting('app.current_tenant', true))
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true));
+```
+
+Quando a aplicação abre uma transação para um cliente específico, ela define a variável de sessão:
+
+```sql title="Uso da sessão com RLS ativo"
+BEGIN;
+-- Define o identificador do cliente para a transação atual
+SET LOCAL app.current_tenant = 'empresa_abc';
+
+-- O SELECT abaixo devolve estritamente apenas as linhas da 'empresa_abc'
+SELECT * FROM user_documents;
+COMMIT;
+```
+
+<Aside type="caution" title="RLS e o Superusuário">
+  Por padrão, o superusuário (`postgres`) e os proprietários da tabela ignoram (*bypass*) as políticas de RLS. Para testar ou garantir que o RLS funcione em produção, certifique-se de conectar com o usuário da aplicação e nunca com o superusuário.
+</Aside>
+
+---
+
+## Diferenças de DCL entre os Motores
+
+Nem todo motor relacional implementa DCL da mesma forma:
+
+| Motor | Suporte a DCL | Modelo de Usuários | Row-Level Security (RLS) |
+| :--- | :--- | :--- | :--- |
+| **PostgreSQL** | Completo (`GRANT`, `REVOKE`, `ALTER DEFAULT PRIVILEGES`) | Papéis unificados (`CREATE ROLE` com/sem `LOGIN`) | **Nativo completo** (`ENABLE ROW LEVEL SECURITY`) |
+| **MySQL** | Completo (`GRANT`, `REVOKE`) | Contas com host (`'user'@'192.168.1.%'`) e roles | Não nativo (exige visões ou triggers) |
+| **Oracle Database** | Avançado corporativo | Esquemas associados a usuários e roles | **Nativo completo** (*Virtual Private Database - VPD*) |
+| **SQLite** | **Sem suporte nativo a DCL** | Não existem usuários ou papéis no motor | Inexistente (segurança é do sistema de arquivos) |
+
+No **SQLite**, a segurança depende inteiramente das permissões de leitura e escrita do arquivo `.db` no sistema operacional (permissões POSIX `chmod 600 arquivo.db`).
+
+---
+
+## Exercício
+
+Com base nos fundamentos de DCL e controle de acesso:
+
+1. Qual a diferença fundamental entre as instruções `DML` e as instruções `DCL`?
+2. Por que conceder permissões a papéis (*roles*) é superior a conceder privilégios diretamente a usuários individuais?
+3. Para que serve o comando `ALTER DEFAULT PRIVILEGES` no PostgreSQL?
+4. Como o *Row-Level Security (RLS)* protege aplicações *multi-tenant* contra vazamento acidental de dados?
+5. Por que o comando `GRANT` não funciona no SQLite?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O DML (`INSERT`, `UPDATE`, `DELETE`) manipula os dados armazenados nas tabelas. O DCL (`GRANT`, `REVOKE`) gerencia os direitos de acesso e privilégios de quem pode executar operações sobre esses objetos.
+  2. Porque o modelo RBAC centraliza as permissões por função lógica (ex: leitor, editor, administrador). Quando um novo usuário é contratado ou uma nova API é criada, basta associar o papel correspondente, sem precisar reexecutar dezenas de concessões em tabelas individuais.
+  3. Ele define quais privilégios serão atribuídos automaticamente a novos objetos (tabelas, sequências, visões) que vierem a ser criados no futuro dentro de um esquema, evitando que novas tabelas fiquem inacessíveis para os papéis da aplicação.
+  4. O RLS impõe o filtro de tenant diretamente no motor do banco de dados. Mesmo que um desenvolvedor esqueça de incluir `WHERE tenant_id = ?` no código da aplicação, o SGBD barra e esconde automaticamente as linhas de outros clientes.
+  5. Porque o SQLite é um motor embutido (*embedded*) que roda dentro do processo da aplicação e não possui sistema de autenticação, usuários ou portas de rede; o controle de acesso é delegado às permissões de arquivo do sistema operacional.
+</details>
+
+---
+
+## Desafio
+
+Você foi encarregado de projetar a segurança de banco de dados de um sistema de prontuário eletrônico hospitalar com as tabelas `pacientes`, `consultas` e `laudos_medicos`.
+
+1. Crie uma estrutura de papéis no PostgreSQL com:
+   - Um papel `medico_role` com permissão total de leitura e escrita.
+   - Um papel `recepcao_role` que pode cadastrar pacientes e ver consultas, mas **não pode** ler a coluna `diagnostico` nem a tabela `laudos_medicos`.
+2. Escreva os comandos SQL (`CREATE ROLE`, `GRANT`) correspondentes.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  -- 1. Criação dos papéis
+  CREATE ROLE medico_role;
+  CREATE ROLE recepcao_role;
+
+  GRANT USAGE ON SCHEMA public TO medico_role, recepcao_role;
+
+  -- 2. Permissões do médico (acesso total)
+  GRANT SELECT, INSERT, UPDATE ON pacientes, consultas, laudos_medicos TO medico_role;
+  GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO medico_role;
+
+  -- 3. Permissões da recepção (acesso restrito)
+  -- Pacientes: pode ler e cadastrar
+  GRANT SELECT, INSERT, UPDATE ON pacientes TO recepcao_role;
+
+  -- Consultas: pode ler apenas colunas não confidenciais (excluindo diagnóstico)
+  GRANT SELECT (id, paciente_id, data_hora, medico_id, status) ON consultas TO recepcao_role;
+  GRANT INSERT (paciente_id, data_hora, medico_id, status) ON consultas TO recepcao_role;
+
+  -- Laudos médicos: nenhum privilégio é concedido para recepcao_role
+  GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO recepcao_role;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Princípios e Comandos
+
+1. **Qual é o risco de uma API em produção utilizar o usuário `postgres` ou `root`?**
+   <details><summary>Possível resposta</summary>Uma falha de injeção de SQL (*SQL Injection*) ou bug na aplicação pode permitir que um atacante execute `DROP DATABASE`, acesse credenciais de outros sistemas, altere configurações do servidor ou leia dados sigilosos sem qualquer barreira de autorização.</details>
+
+2. **Como revogar um privilégio que foi concedido com `WITH GRANT OPTION`?**
+   <details><summary>Possível resposta</summary>Executando `REVOKE ... CASCADE`, o que revoga o privilégio do usuário e também de todos os outros usuários a quem ele concedeu a permissão por consequência.</details>
+
+3. **É possível conceder privilégio de `UPDATE` apenas em colunas específicas de uma tabela?**
+   <details><summary>Possível resposta</summary>Sim, especificando as colunas entre parênteses logo após o comando: `GRANT UPDATE (coluna1, coluna2) ON tabela TO usuario;`.</details>
+
+### RBAC e RLS
+
+4. **Qual a diferença entre uma Role criada com `LOGIN` e uma Role criada sem `LOGIN` no PostgreSQL?**
+   <details><summary>Possível resposta</summary>Uma Role com `LOGIN` funciona como um usuário de conexão (pode autenticar via senha ou certificado). Uma Role sem `LOGIN` atua puramente como um grupo ou papel abstrato de permissões, destinado a ser herdado por outros usuários.</details>
+
+5. **O que acontece se uma consulta tentar inserir uma linha que viola a cláusula `WITH CHECK` de uma política de RLS?**
+   <details><summary>Possível resposta</summary>O banco de dados recusa a operação com um erro de violação de política de segurança de linha (*row-level security policy violation*), impedindo a gravação de dados pertencentes a outro tenant.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: Database Roles and Privileges](https://www.postgresql.org/docs/current/user-manag.html)
+- [PostgreSQL Documentation: Row Security Policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
+- [MySQL 8.4 Reference Manual: Account Management Statements (GRANT/REVOKE)](https://dev.mysql.com/doc/refman/8.4/en/account-management-statements.html)
+- [OWASP: Database Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Database_Security_Cheat_Sheet.html)
+
+---
+
+## Próximo tópico
+
+[Desempenho](../performance/): O plano de execução, índices e otimização de consultas SQL.
