@@ -1,0 +1,190 @@
+---
+title: "ClickHouse: Família MergeTree e SQL Analítico"
+description: "Motores da família MergeTree no ClickHouse: particionamento, ordenação primária, views materializadas e funções analíticas avançadas (quantis, cardinalidade exata e arrays)."
+course: database
+sidebar:
+  label: "Família MergeTree e SQL Analítico"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico aprofunda o motor de armazenamento principal do ClickHouse (**Família MergeTree**), as regras de particionamento e ordenação física, a materialização contínua de agregados e as funções analíticas de alta performance que diferenciam o dialeto SQL do ClickHouse.
+
+---
+
+## Objetivo
+
+Dominar a modelagem colunar analítica com motores MergeTree, a criação de visões materializadas automáticas e o uso de funções estatísticas avançadas. Ao final do tópico, o leitor deve ser capaz de:
+
+- Escolher e configurar adequadamente a chave primária (`ORDER BY`) e a chave de particionamento (`PARTITION BY`) no motor `MergeTree`.
+- Utilizar os motores especializados `ReplacingMergeTree`, `SummingMergeTree` e `AggregatingMergeTree`.
+- Criar *Materialized Views* conectadas a tabelas de resumo para pré-computação com custo zero em tempo de consulta.
+- Escrever consultas analíticas com funções estatísticas de alta velocidade (`quantilesExact`, `uniqExact`, `argMax`, `argMin`).
+- Manipular arrays e estruturas aninhadas com funções de alta ordem (`arrayJoin`, `arrayMap`).
+
+---
+
+## Anatomia de uma Tabela MergeTree
+
+No ClickHouse, o comando `CREATE TABLE` com `ENGINE = MergeTree()` exige a definição cuidadosa de duas cláusulas estruturais fundamentais:
+
+<Mermaid title="Estrutura de dados física do motor MergeTree">
+{`
+flowchart TD
+    Table["Tabela MergeTree"] --> Partition["PARTITION BY toYYYYMM(data) (Separa diretórios físicos por mês)"]
+    Table --> Order["ORDER BY (tipo, ativo, data) (Ordenação física contígua dos dados e índice esparso)"]
+
+    Partition --> P1["Partição 202601/"]
+    Partition --> P2["Partição 202602/"]
+    Partition --> P3["Partição 202603/"]
+
+    Order --> SparseIndex["Índice Esparso Primário (1 marcação a cada 8.192 linhas)"]
+`}
+</Mermaid>
+
+### Regras de Ouro para PARTITION BY e ORDER BY
+
+1. **`PARTITION BY`**: Define como os dados são isolados em pastas físicas no disco. A convenção padrão para dados temporais é particionar por mês (`toYYYYMM(data)`).
+   <Aside type="caution">
+   Nunca particione por dia (`toDate(data)`) ou por campos de alta cardinalidade (como ID de usuário). Ter dezenas de milhares de partições degrada o sistema de arquivos.
+   </Aside>
+2. **`ORDER BY`**: Define a ordenação física dos dados dentro de cada partição. As colunas mais utilizadas em filtros de igualdade (`WHERE coluna = ...`) e com menor cardinalidade devem vir primeiro na tupla de ordenação.
+
+---
+
+## Variações da Família MergeTree
+
+O ClickHouse disponibiliza variações do motor MergeTree para automatizar tarefas analíticas comuns:
+
+<Mermaid title="Variações especializadas da família MergeTree">
+{`
+flowchart TD
+    MergeTree["MergeTree (Padrão)"]
+    
+    Replacing["ReplacingMergeTree\nRemove duplicatas retendo a versão mais nova"]
+    Summing["SummingMergeTree\nSoma colunas numéricas automaticamente na mesclagem"]
+    Aggregating["AggregatingMergeTree\nArmazena estados intermediários de funções complexas"]
+    
+    MergeTree --> Replacing
+    MergeTree --> Summing
+    MergeTree --> Aggregating
+`}
+</Mermaid>
+
+Exemplo de tabela com `ReplacingMergeTree` para manter apenas o status mais recente de um ativo:
+
+```sql
+CREATE TABLE cotacoes_tempo_real (
+    ativo LowCardinality(String),
+    preco Decimal(18, 2),
+    volume UInt64,
+    atualizado_em DateTime
+) ENGINE = ReplacingMergeTree(atualizado_em)
+ORDER BY ativo;
+```
+
+---
+
+## Views Materializadas e Agregação Contínua
+
+Ao contrário de bancos relacionais onde uma view materializada precisa ser atualizada manualmente com `REFRESH MATERIALIZED VIEW`, no ClickHouse ela atua como um **gatilho de inserção contínuo** (*insert trigger*):
+
+<Mermaid title="Fluxo de ingestão e pré-agregação com Materialized Views no ClickHouse">
+{`
+flowchart LR
+    App["Ingestão de Transações"] --> RawTable[("Tabela Bruta: transacoes_investimentos")]
+    RawTable -->|"Disparo Automático no INSERT"| MV["Materialized View"]
+    MV --> AggTable[("Tabela Agregada: resumo_diario_ativos (SummingMergeTree)")]
+    
+    Dashboard["Dashboards Executivos"] -->|"Consulta instantânea com 0 custo de CPU"| AggTable
+`}
+</Mermaid>
+
+---
+
+## Funções Analíticas Especiais do ClickHouse
+
+O ClickHouse possui operadores analíticos que não existem no SQL padrão:
+
+### 1. Cálculo de Percentis e Quantis
+
+```sql
+-- Calcula a mediana (P50), percentil 90 (P90) e percentil 99 (P99) de preços
+SELECT
+    tipo_ativo,
+    quantilesExact(0.5, 0.9, 0.99)(preco_unitario) AS percentis_preco
+FROM transacoes_investimentos
+GROUP BY tipo_ativo;
+```
+
+### 2. Contagem Única Exata vs. Aproximada
+
+```sql
+-- uniqExact: contagem exata (consome mais RAM)
+-- uniq / uniqHLL12: estimativa com HyperLogLog (erro < 1%, quase instantâneo)
+SELECT
+    tipo_ativo,
+    uniqExact(usuario_id) AS investidores_exatos,
+    uniq(usuario_id) AS investidores_aproximados
+FROM transacoes_investimentos
+GROUP BY tipo_ativo;
+```
+
+### 3. Recuperação Condicional com argMax e argMin
+
+```sql
+-- Encontra qual foi o último preço praticado e em qual corretora
+SELECT
+    ativo,
+    argMax(preco_unitario, data_operacao) AS ultimo_preco,
+    argMax(corretora, data_operacao) AS ultima_corretora
+FROM transacoes_investimentos
+GROUP BY ativo;
+```
+
+---
+
+## Exercício
+
+Com base nos motores MergeTree e funções analíticas:
+
+1. Por que a ordem das colunas na cláusula `ORDER BY` de uma tabela MergeTree afeta a velocidade de buscas com `WHERE`?
+2. Como uma *Materialized View* no ClickHouse difere do comando tradicional de views materializadas do PostgreSQL ou Oracle?
+3. Para que serve a função `argMax(coluna_valor, coluna_criterio)` no ClickHouse?
+
+---
+
+## Desafio
+
+Uma rede de varejo armazena 500 milhões de registros de cupons fiscais:
+- Escreva a definição da tabela de cupons brutos utilizando `MergeTree` com particionamento mensal e ordenação por `(loja_id, categoria_produto, data_venda)`.
+- Crie uma `SummingMergeTree` e uma `MATERIALIZED VIEW` que agregue o total faturado e a quantidade de itens vendidos por dia e por loja.
+- Escreva uma consulta que utilize a view agregada para listar as 5 lojas com maior faturamento no último mês.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que acontece quando você executa OPTIMIZE TABLE no ClickHouse?</summary>
+O comando `OPTIMIZE TABLE tabela FINAL;` força o motor MergeTree a executar a mesclagem imediata de todas as partes pendentes de uma partição, aplicando regras de consolidação (como a soma no `SummingMergeTree` ou a desduplicação no `ReplacingMergeTree`). Deve ser usado com cautela em produção, pois consome muitos recursos de I/O.
+</details>
+
+<details>
+<summary>2. Como o ClickHouse armazena colunas do tipo Array?</summary>
+O ClickHouse armazena colunas do tipo `Array(T)` de forma contígua em disco em dois arquivos separados: um contendo todos os elementos ordenados do array e outro contendo os *offsets* (tamanhos de cada lista), permitindo varreduras vetorizadas sobre listas sem degradação de performance.
+</details>
+
+---
+
+## Referências
+
+- [ClickHouse MergeTree Engine Family](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree)
+- [ClickHouse Aggregate Functions Reference](https://clickhouse.com/docs/en/sql-reference/aggregate-functions)
+- [Materialized Views in ClickHouse](https://clickhouse.com/docs/en/guides/developer/materialized-views)
+
+---
+
+## Próximo tópico
+
+Compreendido o ClickHouse nativo, avance para as plataformas analíticas de nuvem em **[Visão geral de ClickHouse Cloud e BigQuery](../../clickhouse-cloud-bigquery/)**.

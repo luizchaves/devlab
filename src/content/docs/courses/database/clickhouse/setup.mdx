@@ -1,0 +1,207 @@
+---
+title: "ClickHouse: Instalação e cliente"
+description: "Guia prático de instalação do ClickHouse com Docker Compose, conexão via clickhouse-client no terminal, interface HTTP e cliente oficial em TypeScript."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico ensina a inicializar uma instância local do **ClickHouse** utilizando o Docker Compose fornecido no repositório, conectar-se ao servidor através do utilitário interativo `clickhouse-client`, consultar dados via interface HTTP e integrar aplicações Node.js e TypeScript com a biblioteca oficial `@clickhouse/client`.
+
+---
+
+## Objetivo
+
+Aprender a subir um ambiente de desenvolvimento do ClickHouse, executar consultas pelo terminal e conectar drivers de aplicação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Subir o contêiner do ClickHouse Server utilizando o Docker Compose e verificar seu status de saúde.
+- Conectar ao servidor com o utilitário nativo de linha de comando `clickhouse-client`.
+- Executar comandos SQL utilizando diferentes formatos de saída (`Pretty`, `JSONEachRow`, `TSV`).
+- Realizar consultas e inserções via protocolo HTTP REST na porta `8123`.
+- Integrar uma aplicação TypeScript utilizando o cliente oficial `@clickhouse/client`.
+
+---
+
+## Subindo o Servidor com Docker Compose
+
+O repositório disponibiliza uma configuração pronta em `examples/courses/database/servers/clickhouse-server/`:
+
+<Mermaid title="Estrutura de portas e serviços do ClickHouse local">
+{`
+flowchart LR
+    Dev["Desenvolvedor / Terminal"] -->|"clickhouse-client (Porta 9000)"| Server[("ClickHouse Server 24.3")]
+    App["Aplicação Node.js / Python"] -->|"HTTP REST / JSON (Porta 8123)"| Server
+    DBeaver["DBeaver / DataGrip"] -->|"JDBC / HTTP (Porta 8123)"| Server
+`}
+</Mermaid>
+
+Para iniciar o servidor:
+
+```bash
+# 1. Navegue até o diretório do servidor ClickHouse
+cd examples/courses/database/servers/clickhouse-server
+
+# 2. Inicialize o contêiner em segundo plano
+docker compose up -d
+
+# 3. Verifique se o serviço está em execução
+docker compose ps
+```
+
+---
+
+## Conexão com clickhouse-client
+
+O `clickhouse-client` é o cliente de terminal oficial que suporta auto-completar inteligente, realce de sintaxe e métricas de desempenho em tempo real (tempo de execução, linhas processadas e vazão de leitura em MB/s):
+
+```bash
+# Conexão direta dentro do contêiner Docker
+docker compose exec clickhouse clickhouse-client --database invest_olap -u default --password clickhouse123
+```
+
+Ao entrar no terminal interativo, você verá o prompt do ClickHouse:
+
+```sql
+clickhouse-client :) SELECT count() FROM transacoes_investimentos;
+
+┌─count()─┐
+│       8 │
+└─────────┘
+
+1 row in set. Elapsed: 0.002 sec.
+```
+
+### Formatações de Saída no Terminal
+
+O ClickHouse permite alterar o formato de exibição dos dados dinamicamente usando a cláusula `FORMAT`:
+
+```sql
+-- Exibição tabular colorida com bordas Unicode
+SELECT ativo, sum(valor_total) AS total
+FROM transacoes_investimentos
+GROUP BY ativo
+ORDER BY total DESC
+FORMAT PrettyCompact;
+
+-- Exportação direta em formato JSON compacto
+SELECT ativo, preco_unitario
+FROM transacoes_investimentos
+LIMIT 2
+FORMAT JSONEachRow;
+```
+
+---
+
+## Conexão via Interface HTTP
+
+O ClickHouse expõe um endpoint HTTP completo na porta `8123`, permitindo executar qualquer consulta via `curl` sem necessidade de instalar clientes adicionais:
+
+```bash
+# Executando consulta via HTTP com cURL
+curl -u default:clickhouse123 'http://localhost:8123/?query=SELECT+ativo,+valor_total+FROM+invest_olap.transacoes_investimentos+LIMIT+3+FORMAT+JSON'
+```
+
+---
+
+## Conexão com o Cliente Oficial em TypeScript
+
+Para integrar projetos Node.js e TypeScript, instale o pacote oficial `@clickhouse/client`:
+
+```bash
+pnpm add @clickhouse/client
+```
+
+Exemplo de inicialização e consulta analítica:
+
+```typescript
+import { createClient } from '@clickhouse/client';
+
+const client = createClient({
+  url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
+  username: process.env.CLICKHOUSE_USER || 'default',
+  password: process.env.CLICKHOUSE_PASSWORD || 'clickhouse123',
+  database: process.env.CLICKHOUSE_DB || 'invest_olap',
+});
+
+async function consultarVolumePorTipoAtivo() {
+  const resultSet = await client.query({
+    query: `
+      SELECT
+        tipo_ativo,
+        count() AS total_operacoes,
+        sum(valor_total) AS volume_financeiro,
+        round(avg(preco_unitario), 2) AS preco_medio
+      FROM transacoes_investimentos
+      GROUP BY tipo_ativo
+      ORDER BY volume_financeiro DESC
+    `,
+    format: 'JSONEachRow',
+  });
+
+  const rows = await resultSet.json<{
+    tipo_ativo: string;
+    total_operacoes: number;
+    volume_financeiro: number;
+    preco_medio: number;
+  }>();
+
+  console.table(rows);
+  await client.close();
+}
+```
+
+---
+
+## Executando
+
+Para testar localmente:
+
+1. Suba o servidor com `docker compose up -d`.
+2. Acesse o terminal interativo com `docker compose exec clickhouse clickhouse-client`.
+3. Valide os scripts executando consultas analíticas contra a tabela `transacoes_investimentos`.
+
+---
+
+## Exercício
+
+Com base nos métodos de conexão e ferramentas apresentadas:
+
+1. Qual a diferença entre a porta `9000` (protocolo nativo) e a porta `8123` (interface HTTP) no ClickHouse Server?
+2. Por que a métrica de "linhas processadas por segundo" exibida pelo `clickhouse-client` é fundamental ao analisar consultas analíticas?
+3. Como a cláusula `FORMAT` auxilia na integração de consultas do ClickHouse com pipelines de dados que esperam saídas em JSON ou Parquet?
+
+---
+
+## Desafio
+
+Crie um script em TypeScript que gere 10.000 registros sintéticos de cliques de usuários (*clickstream*) com campos `usuario_id`, `pagina`, `ip`, `tempo_permanencia_seg` e `data_hora`, e insira todos os registros no ClickHouse em um único lote (*single batch insert*) utilizando o método `client.insert()` com formato JSON.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é a configuração LowCardinality no ClickHouse e quando utilizá-la?</summary>
+O tipo `LowCardinality(T)` é um modificador de coluna que cria um dicionário interno de inteiros para tipos de dados que possuem poucos valores distintos (como siglas de estados, categorias de produtos ou tipos de ativos). Isso reduz o espaço em disco em até 80% e acelera enormemente comparações e agrupamentos `GROUP BY`.
+</details>
+
+<details>
+<summary>2. Como o ClickHouse lida com autenticação e controle de acesso baseado em funções (RBAC)?</summary>
+O ClickHouse suporta autenticação por senha (com hash SHA256/bcrypt), certificados TLS, Kerberos e integração com LDAP. Ele implementa RBAC completo através de comandos SQL padrão (`CREATE USER`, `CREATE ROLE`, `GRANT SELECT ON database.* TO role_analista`).
+</details>
+
+---
+
+## Referências
+
+- [ClickHouse Command-Line Client Documentation](https://clickhouse.com/docs/en/interfaces/cli)
+- [Official ClickHouse JavaScript/TypeScript Client](https://github.com/ClickHouse/clickhouse-js)
+- [ClickHouse HTTP Interface Reference](https://clickhouse.com/docs/en/interfaces/http)
+
+---
+
+## Próximo tópico
+
+Com o ambiente em execução e o cliente conectado, avance para os motores de tabela e agregação analítica em **[Família MergeTree e SQL Analítico](../queries/)**.

@@ -1,0 +1,178 @@
+---
+title: "Banco de Dados: ClickHouse Cloud e Google BigQuery"
+description: "Visão geral de bancos de dados analíticos (OLAP) e Data Warehouses gerenciados na nuvem: ClickHouse Cloud, Google BigQuery, Snowflake, Amazon Redshift e formatos de Data Lake."
+course: database
+sidebar:
+  label: "Visão geral de ClickHouse Cloud e BigQuery"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o panorama de bancos de dados analíticos e plataformas de *Data Warehouse / Lakehouse* gerenciados na nuvem (*Managed OLAP & Cloud Data Warehouses*), com foco no **ClickHouse Cloud** (a versão serverless multinuvem do ClickHouse), no **Google BigQuery** (o data warehouse serverless em hiperescala do Google Cloud), no **Snowflake** e no **Amazon Redshift**.
+
+---
+
+## Objetivo
+
+Compreender a arquitetura de desacoplamento entre armazenamento e computação em plataformas analíticas na nuvem, comparando modelos de precificação e ecossistemas de dados. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a arquitetura moderna de separação de *Compute* e *Storage* (Object Storage S3/GCS) em bancos OLAP em nuvem.
+- Comparar as soluções líderes de mercado: ClickHouse Cloud, Google BigQuery, Snowflake e Amazon Redshift.
+- Compreender os modelos de cobrança: por computação provisionada (slots/warehouses) versus cobrança por bytes escaneados em consultas sob demanda.
+- Identificar as vantagens de integração direta com formatos colunares abertos de *Data Lake* (Apache Parquet, Apache Iceberg e Delta Lake).
+- Avaliar quando escolher uma plataforma analítica em nuvem para BI, inteligência de dados e relatórios corporativos.
+
+---
+
+## A Revolução do Desacoplamento Compute / Storage
+
+Bancos analíticos tradicionais exigiam alocação de servidores físicos com discos locais acoplados. As soluções modernas em nuvem adotam arquiteturas que separam completamente a camada de processamento (*Compute*) da camada de armazenamento (*Storage*):
+
+<Mermaid title="Arquitetura de separação de Computação e Armazenamento em bancos OLAP de nuvem">
+{`
+flowchart TD
+    subgraph ComputeLayer ["Camada de Computação Elástica (Stateless Workers)"]
+        W1["Workers de Consulta (ClickHouse Cloud / BigQuery Slots)"]
+        W2["Workers de Ingestão e Carga"]
+        W3["Dashboards / Consultas BI Concorrentes"]
+    end
+
+    subgraph StorageLayer ["Camada de Armazenamento Central Compartilhada (Object Storage)"]
+        S3[("Amazon S3 / Google Cloud Storage\n(Arquivos Parquet / Blocos Colunares)")]
+    end
+
+    ComputeLayer -->|"Leitura sob demanda + Cache local em NVMe"| StorageLayer
+`}
+</Mermaid>
+
+Essa arquitetura viabiliza duas grandes vantagens:
+1. **Escala Independente**: Você pode armazenar petabytes de dados pagando apenas o custo residual do S3/GCS e alocar computação apenas durante a execução de consultas.
+2. **Zero-Copy Cloning e Concorrência**: Centenas de analistas e relatórios podem consultar a mesma base de dados simultaneamente sem que uma consulta pesada trave as demais.
+
+---
+
+## ClickHouse Cloud: Alta Vazão e Baixa Latência em Nuvem
+
+O **ClickHouse Cloud** é a plataforma SaaS oficial mantida pelos criadores do ClickHouse, disponível na AWS, Google Cloud e Microsoft Azure:
+
+<Mermaid title="Arquitetura do ClickHouse Cloud com Cloud Storage">
+{`
+flowchart LR
+    App["Aplicações / BI"] --> Gateway["ClickHouse Cloud Gateway"]
+    
+    subgraph ServiceInstance ["Serviço ClickHouse Cloud"]
+        Gateway --> Engine["Nós de Computação com Auto-scaling"]
+        Engine --> LocalCache["Cache Local em SSD NVMe Rápido"]
+    end
+    
+    Engine --> CloudStorage[("Armazenamento Central em Objeto (S3 / GCS)")]
+`}
+</Mermaid>
+
+Os principais diferenciais do ClickHouse Cloud incluem:
+
+1. **Auto-scaling Real com Scale-to-Zero**: Redimensiona a computação automaticamente com base na carga e suspende nós ociosos para economizar recursos.
+2. **Shared Storage Architecture**: Os dados gravados são persistidos diretamente em baldes de armazenamento de objetos resilientes com múltiplos nós de computação sem necessidade de replicação manual.
+3. **Integração com Ferramentas Modernas de Dados**: Conectores nativos para Kafka, dbt, Grafana, Superset, Tableau e Metabase.
+
+---
+
+## Google BigQuery: Hiperescala Serverless
+
+O **Google BigQuery** é o serviço de Data Warehouse corporativo totalmente gerenciado da Google Cloud, pioneiro no modelo *serverless* para análise de dados:
+
+<Mermaid title="Processamento de consultas em árvore com BigQuery Dremel">
+{`
+flowchart TD
+    Query["Consulta SQL do Usuário"] --> Root["Nó Raiz (Valida e Planeja a Consulta)"]
+    
+    Root --> Intermediate1["Nó Intermediário 1"]
+    Root --> Intermediate2["Nó Intermediário 2"]
+    
+    Intermediate1 --> Leaf1["Worker Slot (Lê Coluna A no Colossus)"]
+    Intermediate1 --> Leaf2["Worker Slot (Lê Coluna B no Colossus)"]
+    Intermediate2 --> Leaf3["Worker Slot (Agregações Parciais)"]
+    Intermediate2 --> Leaf4["Worker Slot (Agregações Parciais)"]
+    
+    Leaf1 & Leaf2 & Leaf3 & Leaf4 --> Colossus[("Google Colossus Storage (Formato Capacitor)")]
+`}
+</Mermaid>
+
+Os pilares do Google BigQuery abrangem:
+
+1. **Arquitetura Dremel / Colossus**: Executa consultas particionadas em milhares de nós de processamento (*Slots*) em paralelo em frações de segundo.
+2. **BigQuery ML (Machine Learning em SQL)**: Permite treinar e executar modelos preditivos de inteligência artificial (regressão, classificação, LLMs via Vertex AI) utilizando comandos SQL convencionais.
+3. **BI Engine**: Acelerador em memória integrado que entrega respostas com latência inferior a 1 segundo para painéis interativos no Looker e Power BI.
+4. **Camada Gratuita Generosa**: 10 GB de armazenamento e 1 TB de consultas analisadas por mês gratuitamente.
+
+---
+
+## Comparativo: ClickHouse Cloud vs. BigQuery vs. Snowflake vs. Redshift
+
+A tabela abaixo resume as características das quatro plataformas analíticas de maior destaque:
+
+| Característica | ClickHouse Cloud | Google BigQuery | Snowflake | Amazon Redshift Serverless |
+| :--- | :--- | :--- | :--- | :--- |
+| **Ponto Mais Forte** | Latência ultrabaixa para dashboards em tempo real | Modelo serverless sem infraestrutura e BigQuery ML | Governança corporativa e facilidade multi-nuvem | Integração com ecossistema AWS (S3, EMR, Glue) |
+| **Modelo de Faturamento** | Horas de computação ativas + GB de storage | Preço por TB escaneado ou capacidade por Slot | Preço por créditos de computação (Virtual Warehouses) | Preço por Redshift Processing Units (RPUs) consumidas |
+| **Tempo Típico de Resposta** | 5ms a 200ms (tempo real) | 1s a 5s (analítico em lote) | 500ms a 3s | 500ms a 3s |
+| **Ingestão em Tempo Real** | Centenas de milhares de linhas/segundo | Streaming Insert API (com custo adicional) | Snowpipe / Streaming API | Kinesis / MSK streaming direto |
+| **Camada Gratuita / Trial** | Trial gratuito de 30 dias | **1 TB de consultas/mês + 10 GB de storage perpétuo** | Trial de US$ 400 em créditos | US$ 300 em créditos de trial |
+
+---
+
+## Quando usar, e quando não usar?
+
+A seleção da plataforma analítica em nuvem deve considerar o volume de dados e a exigência de latência:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Painéis de usuário voltados ao cliente (*Customer-Facing Analytics*) com milhares de requisições por segundo | **ClickHouse Cloud** | Latência de milissegundos e alto throughput de consultas concorrentes. |
+| Data Warehouse corporativo com consultas esporádicas e integração com IA | **Google BigQuery** | Custo sob demanda baseado apenas em dados processados, sem pagar por servidores ociosos. |
+| Banco de dados transacional para operações de e-commerce e pagamentos | **[Amazon Aurora / RDS](../rds-aurora/)** | OLTP exige integridade referencial, bloqueios de linha e transações ACID. |
+| Cache de chave-valor simples com persistência leve | **[Upstash Redis](../dynamodb-upstash/)** | Menor complexidade e latência de microssegundos para leituras por chave direta. |
+
+---
+
+## Exercício
+
+Com base nas plataformas analíticas gerenciadas:
+
+1. Qual a principal vantagem econômica da arquitetura que separa a camada de computação da camada de armazenamento em nuvem?
+2. Por que o ClickHouse Cloud é mais indicado que o BigQuery para painéis voltados a clientes finais (*Customer-Facing Dashboards*)?
+3. Como o modelo de precificação sob demanda do BigQuery (cobrança por TB escaneado) incentiva os desenvolvedores a particionar e clusterizar tabelas?
+
+---
+
+## Desafio
+
+Uma empresa possui uma tabela no BigQuery com 10 bilhões de registros de vendas (500 GB no total). Sem particionamento, cada consulta `SELECT sum(valor) FROM vendas WHERE data = '2026-03-01'` escaneia todos os 500 GB (custando US$ 3,12 por execução).
+- Proponha a estratégia de particionamento (`PARTITION BY DATE(data)`) e clusterização (`CLUSTER BY categoria_produto, loja_id`) para reduzir o volume escaneado por consulta para menos de 2 GB (reduzindo o custo em 99,6%).
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que são os Slots no Google BigQuery?</summary>
+Os *Slots* são unidades virtuais de computação (CPU e memória) que o BigQuery aloca dinamicamente para executar consultas SQL. No modelo sob demanda, o BigQuery aloca automaticamente até 2.000 slots por projeto para executar operações massivas em paralelo em frações de segundo.
+</details>
+
+<details>
+<summary>2. O que é Zero-Copy Cloning no Snowflake e no ClickHouse Cloud?</summary>
+É a capacidade de criar clones instantâneos de tabelas, esquemas ou bancos de dados inteiros sem duplicar os dados físicos subjacentes em disco (*Copy-on-Write*). Novas gravações gravam apenas os deltas, permitindo criar ambientes de teste com dados reais de produção com custo zero de armazenamento inicial.
+</details>
+
+---
+
+## Referências
+
+- [ClickHouse Cloud Documentation](https://clickhouse.com/docs/en/cloud)
+- [Google BigQuery Architecture and Documentation](https://cloud.google.com/bigquery/docs/introduction)
+- [Snowflake Architecture Overview](https://docs.snowflake.com/en/user-guide/architecture-overview)
+
+---
+
+## Próximo tópico
+
+Compreendidos os conceitos de Data Warehouses em nuvem, avance para o provisionamento e integração de clientes em **[Provisionamento e Clientes ClickHouse Cloud e BigQuery](setup/)**.

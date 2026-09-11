@@ -1,0 +1,231 @@
+---
+title: "ClickHouse Cloud e Google BigQuery: Provisionamento e Clientes"
+description: "Guia prático de provisionamento, configuração de contas de serviço e clientes oficiais para ClickHouse Cloud, Google BigQuery e Snowflake em TypeScript."
+course: database
+sidebar:
+  label: "Provisionamento e Clientes"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico detalha o provisionamento de serviços analíticos em nuvem, configuração de autenticação segura e conexão com as bibliotecas oficiais para o **ClickHouse Cloud** (via TLS/HTTPS) e para o **Google BigQuery** (utilizando contas de serviço GCP e o SDK `@google-cloud/bigquery`).
+
+---
+
+## Objetivo
+
+Aprender a criar serviços e conjuntos de dados analíticos em nuvem, configurar credenciais seguras e integrar drivers clientes em Node.js e TypeScript. Ao final do tópico, o leitor deve ser capaz de:
+
+- Provisionar um serviço gerenciado no ClickHouse Cloud e obter a URL de conexão criptografada.
+- Conectar aplicações ao ClickHouse Cloud utilizando a biblioteca oficial `@clickhouse/client`.
+- Criar projetos, *datasets* e tabelas no Google BigQuery utilizando o Google Cloud SDK (`bq` CLI).
+- Autenticar e executar consultas analíticas utilizando o SDK oficial `@google-cloud/bigquery`.
+- Estruturar inserções em lote e streaming de dados para bancos analíticos em nuvem.
+
+---
+
+## Provisionamento e Conexão no ClickHouse Cloud
+
+No ClickHouse Cloud, os serviços expõem endpoints HTTPS nativos na porta `8443` com certificado TLS gerenciado:
+
+<Mermaid title="Fluxo de conexão com o ClickHouse Cloud">
+{`
+flowchart LR
+    App["Aplicação Node.js / Python"] -->|"TLS / HTTPS (Porta 8443)"| Gateway["ClickHouse Cloud Gateway"]
+    Gateway --> Service[("Serviço ClickHouse Cloud (Auto-scaling)")]
+
+    subgraph EnvVars ["Credenciais de Acesso (.env)"]
+        Host["CLICKHOUSE_HOST: https://xxx.us-east-1.aws.clickhouse.cloud:8443"]
+        User["CLICKHOUSE_USER: default"]
+        Pass["CLICKHOUSE_PASSWORD: sua-senha-gerada"]
+    end
+
+    App -.-> EnvVars
+`}
+</Mermaid>
+
+### Conectando com o Cliente TypeScript
+
+```bash
+pnpm add @clickhouse/client
+```
+
+```typescript
+import { createClient } from '@clickhouse/client';
+
+const client = createClient({
+  url: process.env.CLICKHOUSE_CLOUD_URL!, // ex: https://xxx.us-east-1.aws.clickhouse.cloud:8443
+  username: process.env.CLICKHOUSE_USER || 'default',
+  password: process.env.CLICKHOUSE_PASSWORD!,
+  database: 'default',
+});
+
+async function executarConsultaCloud() {
+  const result = await client.query({
+    query: 'SELECT ativo, sum(valor_total) AS volume FROM transacoes_investimentos GROUP BY ativo',
+    format: 'JSONEachRow',
+  });
+
+  const dados = await result.json();
+  console.log('Resultados do ClickHouse Cloud:', dados);
+  await client.close();
+}
+```
+
+---
+
+## Provisionamento e Conexão no Google BigQuery
+
+No BigQuery, os dados são organizados na hierarquia: **Projeto GCP** $\rightarrow$ **Dataset** $\rightarrow$ **Tabelas**:
+
+<Mermaid title="Hierarquia estrutural do Google BigQuery">
+{`
+flowchart TD
+    GCPProject["Projeto GCP (ex: meu-projeto-invest-2026)"] --> Dataset["Dataset (Região: us-central1 / southamerica-east1)"]
+    Dataset --> T1["Tabela: transacoes_acoes (Particionada por Data)"]
+    Dataset --> T2["Tabela: transacoes_renda_fixa"]
+`}
+</Mermaid>
+
+### Criando Dataset e Tabela via Google Cloud CLI (`bq`)
+
+```bash
+# 1. Cria o dataset analítico
+bq --location=southamerica-east1 mk --dataset meu-projeto-invest-2026:invest_analytics
+
+# 2. Cria a tabela particionada por data de transação
+bq mk --table \
+  --time_partitioning_field data_operacao \
+  --time_partitioning_type DAY \
+  --clustering_fields tipo_ativo,ativo \
+  meu-projeto-invest-2026:invest_analytics.transacoes \
+  id:INTEGER,usuario_id:INTEGER,ativo:STRING,tipo_ativo:STRING,valor_total:NUMERIC,data_operacao:TIMESTAMP
+```
+
+---
+
+## Conexão com o SDK Oficial do BigQuery em TypeScript
+
+Instale a biblioteca cliente do Google Cloud:
+
+```bash
+pnpm add @google-cloud/bigquery
+```
+
+Exemplo de execução de consulta SQL parametrizada no BigQuery:
+
+```typescript
+import { BigQuery } from '@google-cloud/bigquery';
+
+// O SDK busca automaticamente o arquivo JSON de credenciais definido em GOOGLE_APPLICATION_CREDENTIALS
+const bigquery = new BigQuery({
+  projectId: process.env.GCP_PROJECT_ID,
+  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+});
+
+async function consultarVolumePorMes(ano: number) {
+  const query = `
+    SELECT
+      EXTRACT(MONTH FROM data_operacao) AS mes,
+      tipo_ativo,
+      SUM(valor_total) AS faturamento_total,
+      COUNT(1) AS total_pedidos
+    FROM \`meu-projeto-invest-2026.invest_analytics.transacoes\`
+    WHERE EXTRACT(YEAR FROM data_operacao) = @anoParam
+    GROUP BY mes, tipo_ativo
+    ORDER BY mes ASC, faturamento_total DESC
+  `;
+
+  const options = {
+    query: query,
+    params: { anoParam: ano },
+    location: 'southamerica-east1',
+  };
+
+  // Executa o job de consulta no BigQuery
+  const [rows] = await bigquery.query(options);
+
+  console.log(`Relatório de faturamento para o ano ${ano}:`);
+  console.table(rows);
+}
+```
+
+---
+
+## Ingestão em Lote e Streaming Inserts
+
+### BigQuery Streaming Insert
+
+Para enviar eventos individuais em tempo real sem esperar fechamento de arquivos em disco:
+
+```typescript
+async function inserirTransacaoStream(transacao: any) {
+  await bigquery
+    .dataset('invest_analytics')
+    .table('transacoes')
+    .insert([transacao]);
+
+  console.log('Registro inserido via BigQuery Streaming API!');
+}
+```
+
+<Aside type="tip">
+Para volumes massivos de gigabytes ou terabytes diários, utilize o carregamento em lote de arquivos Parquet a partir do Google Cloud Storage (`bigquery.table.load()`), que é gratuito no BigQuery e não consome cotas da API de streaming.
+</Aside>
+
+---
+
+## Executando
+
+Para testar a integração:
+
+1. Clone o projeto e instale as dependências com `pnpm install`.
+2. Configure o arquivo `.env` com suas credenciais do ClickHouse Cloud ou GCP.
+3. Execute o script de validação:
+   ```bash
+   pnpm dev
+   ```
+
+---
+
+## Exercício
+
+Com base nas práticas de conexão e provisionamento:
+
+1. Como o SDK `@google-cloud/bigquery` localiza automaticamente as credenciais de autenticação em ambientes de produção (como Cloud Run ou Google Kubernetes Engine)?
+2. Qual a diferença fundamental entre carregar dados via *Batch Load* (arquivos no GCS) e enviar dados via *Streaming Insert* no BigQuery?
+3. Por que consultas no BigQuery devem utilizar parâmetros nomeados (`@parametro`) em vez de interpolação direta de strings?
+
+---
+
+## Desafio
+
+Escreva um script em TypeScript que leia um arquivo local `investimentos.csv` contendo 50.000 linhas, faça o upload do arquivo para um balde no Google Cloud Storage (ou S3) e execute um Job de carga assíncrono no BigQuery (`table.load()`) no formato CSV com cabeçalho ignorado e detecção automática de esquema.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é o recurso Dry Run no BigQuery e por que devemos utilizá-lo antes de queries pesadas?</summary>
+O modo *Dry Run* (`dryRun: true` no SDK) valida a sintaxe da consulta e retorna a quantidade exata de bytes que a consulta escaneia **sem executá-la** e **sem gerar custos**. Isso permite estimar o custo financeiro da consulta antes de enviá-la para processamento real.
+</details>
+
+<details>
+<summary>2. Como o ClickHouse Cloud isola o tráfego de rede para segurança empresarial?</summary>
+O ClickHouse Cloud permite configurar regras estritas de lista de IPs permitidos (*IP Access List*), emparelhamento de rede privada (*VPC Peering*) e pontos de extremidade privados (*AWS PrivateLink / Azure Private Link*), garantindo que o tráfego nunca trafegue pela internet pública.
+</details>
+
+---
+
+## Referências
+
+- [ClickHouse Cloud Connection Guide](https://clickhouse.com/docs/en/cloud/get-started/connect)
+- [BigQuery Node.js Client Library](https://cloud.google.com/nodejs/docs/reference/bigquery/latest)
+- [BigQuery Best Practices: Cost and Performance](https://cloud.google.com/bigquery/docs/best-practices-costs)
+
+---
+
+## Próximo tópico
+
+Com os clientes e datasets provisionados, avance para os recursos avançados de otimização, clusterização e data lakes em **[Recursos de Nuvem e Operações em ClickHouse Cloud e BigQuery](../operations/)**.

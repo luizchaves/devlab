@@ -1654,6 +1654,45 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Banco Analítico (OLAP)',
+              items: [
+                {
+                  label: 'ClickHouse',
+                  items: [
+                    {
+                      label: 'Visão geral do ClickHouse',
+                      link: '/courses/database/clickhouse/',
+                    },
+                    {
+                      label: 'Instalação e cliente',
+                      link: '/courses/database/clickhouse/setup/',
+                    },
+                    {
+                      label: 'Família MergeTree e SQL Analítico',
+                      link: '/courses/database/clickhouse/queries/',
+                    },
+                  ],
+                },
+                {
+                  label: 'ClickHouse Cloud e BigQuery',
+                  items: [
+                    {
+                      label: 'Visão geral de ClickHouse Cloud e BigQuery',
+                      link: '/courses/database/clickhouse-cloud-bigquery/',
+                    },
+                    {
+                      label: 'Provisionamento e Clientes',
+                      link: '/courses/database/clickhouse-cloud-bigquery/setup/',
+                    },
+                    {
+                      label: 'Recursos de Nuvem e Operações',
+                      link: '/courses/database/clickhouse-cloud-bigquery/operations/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
               label: 'Armazenamento de Objetos',
               items: [
                 {

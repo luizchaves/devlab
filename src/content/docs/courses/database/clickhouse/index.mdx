@@ -1,0 +1,147 @@
+---
+title: "Banco de Dados: ClickHouse (OLAP)"
+description: "Visão geral do ClickHouse: banco de dados colunar analítico de altíssima performance, execução vetorial SIMD, compactação colunar e processamento OLAP."
+course: database
+sidebar:
+  label: "Visão geral do ClickHouse"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o **ClickHouse**, o banco de dados orientado a colunas de código aberto (*Open Source Column-Oriented DBMS*) mais rápido do mercado para processamento analítico em tempo real (*Online Analytical Processing - OLAP*). Ele é projetado para varrer centenas de milhões de linhas por segundo por núcleo de CPU para gerar relatórios e métricas instantâneas.
+
+---
+
+## Objetivo
+
+Compreender os fundamentos da arquitetura colunar pura, as vantagens da execução vetorial e os casos de uso ideais do ClickHouse. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar a disposição física de dados orientada a linhas (*Row-Oriented / OLTP*) da disposição orientada a colunas (*Column-Oriented / OLAP*).
+- Explicar como a compactação colunar (LZ4, ZSTD) e a execução vetorial SIMD aceleram agregações analíticas.
+- Compreender o funcionamento do motor de armazenamento principal **MergeTree** e suas variações.
+- Identificar as diferenças de modelagem entre um banco relacional transacional e um Data Warehouse analítico.
+- Avaliar os cenários adequados para adoção do ClickHouse frente a bancos relacionais e NoSQL.
+
+---
+
+## O Paradigma Colunar vs. Baseado em Linhas
+
+Em bancos relacionais transacionais tradicionais (como PostgreSQL ou MySQL), os dados de uma mesma linha são gravados sequencialmente em disco. Isso é ideal para operações de escrita e leitura de registros pontuais, mas ineficiente para agregações que analisam apenas poucas colunas de bilhões de linhas:
+
+<Mermaid title="Comparativo físico de armazenamento: Linhas (OLTP) vs. Colunas (OLAP)">
+{`
+flowchart TD
+    subgraph RowBased ["1. Banco Baseado em Linhas (PostgreSQL / MySQL)"]
+        direction LR
+        R1["Linha 1: [ID, Data, Ativo, Preço, Quantidade]"]
+        R2["Linha 2: [ID, Data, Ativo, Preço, Quantidade]"]
+        R3["Linha 3: [ID, Data, Ativo, Preço, Quantidade]"]
+    end
+
+    subgraph ColBased ["2. Banco Orientado a Colunas (ClickHouse / OLAP)"]
+        direction LR
+        C1["Coluna Ativo: ['PETR4', 'VALE3', 'AAPL', ...]"]
+        C2["Coluna Preço: [38.50, 68.20, 95.00, ...]"]
+        C3["Coluna Quantidade: [100, 50, 15, ...]"]
+    end
+`}
+</Mermaid>
+
+Quando você executa uma consulta como `SELECT avg(preco) FROM transacoes`, o ClickHouse lê do disco **estritamente os bytes da coluna `preco`**, ignorando todas as demais colunas. Em tabelas com 50 colunas, isso representa uma redução de até **98% no volume de I/O de disco**.
+
+---
+
+## Por Que o ClickHouse é Tão Rápido?
+
+O desempenho extraordinário do ClickHouse resulta da combinação de quatro pilares de engenharia:
+
+<Mermaid title="Pilares de alta performance do motor ClickHouse">
+{`
+flowchart LR
+    Vector["1. Execução Vetorial SIMD (Processa arrays de dados por ciclo)"]
+    Compress["2. Compressão Colunar Específica (LZ4, ZSTD, Gorilla, DoubleDelta)"]
+    Merge["3. Família MergeTree (Ordenação contígua em partes imutáveis)"]
+    Parallel["4. Paralelismo Massivo (Multi-core e Multi-server transparente)"]
+
+    Vector --> Engine[("Motor ClickHouse (C++)")]
+    Compress --> Engine
+    Merge --> Engine
+    Parallel --> Engine
+`}
+</Mermaid>
+
+Os principais mecanismos de aceleração incluem:
+
+1. **Execução Vetorializada SIMD**: As operações matemáticas não são calculadas linha por linha. O motor envia blocos vetoriais inteiros para as instruções SIMD (*Single Instruction, Multiple Data*) dos processadores modernos.
+2. **Compactação de Alta Densidade**: Como todos os valores de uma coluna possuem o mesmo tipo de dado e frequentemente valores repetidos ou ordenados, a taxa de compressão chega a **90%**, permitindo manter muito mais dados úteis no cache de memória RAM.
+3. **Escritas em Lote Imutáveis**: Os dados são gravados em pequenos blocos ordenados imutáveis (*parts*) que são mesclados em segundo plano pelo motor MergeTree.
+4. **Dialeto SQL Rico e Amigável**: Suporte a SQL padrão ANSI estendido com centenas de funções analíticas, manipulação nativa de arrays, quantis e funções de janelamento.
+
+---
+
+## Família de Motores MergeTree
+
+O motor de tabela mais importante do ClickHouse é o **MergeTree**:
+
+- **`MergeTree`**: O motor padrão robusto para tabelas analíticas com chave primária de ordenação e particionamento por data/mês.
+- **`SummingMergeTree`**: Soma automaticamente colunas numéricas durante as mesclagens de segundo plano para pré-computar agregados.
+- **`AggregatingMergeTree`**: Mantém estados intermediários de funções de agregação complexas (como `uniqExact` ou percentis).
+- **`ReplacingMergeTree`**: Remove linhas duplicadas com a mesma chave primária retendo a versão mais recente.
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha pelo ClickHouse deve ser guiada pelo perfil analítico da carga de trabalho:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Painéis de Business Intelligence (BI) e dashboards com agregações em tempo real | **ClickHouse** | Responde em milissegundos para consultas que varrem dezenas de milhões de linhas. |
+| Centralização e consulta analítica de logs de servidores e telemetria de rede | **ClickHouse** | Compactação agressiva de texto e números, barateando custos de infraestrutura. |
+| Cadastro transacional de usuários com updates constantes linha a linha | **[PostgreSQL](../postgresql/) / [MySQL](../mysql/)** | Bancos OLTP lidam com atualizações pontuais sem degradar o motor de armazenamento. |
+| Acesso a dados indexados por chave única com latência sub-milissegundo | **[Redis](../redis/) / [DynamoDB](../dynamodb-upstash/)** | Chave-valor em memória é mais adequado para leitura direta de uma chave isolada. |
+
+---
+
+## Exercício
+
+Com base nos conceitos fundamentais de bancos OLAP:
+
+1. Por que uma consulta de agregação (`SELECT avg(valor) FROM vendas`) é dezenas de vezes mais rápida em um banco colunar do que em um banco relacional orientado a linhas?
+2. Como a compressão colunar se beneficia do fato de todos os valores de uma mesma coluna possuírem o mesmo tipo de dado?
+3. O que é o processo de *Merge* no motor MergeTree do ClickHouse e por que as gravações devem ser feitas preferencialmente em lotes (*batch writes*)?
+
+---
+
+## Desafio
+
+Imagine uma plataforma de comércio eletrônico que registra 500 compras por segundo:
+- Explique como seria desenhada uma arquitetura híbrida onde o **PostgreSQL** recebe as transações financeiras transacionais ACID (pedidos, pagamentos) e o **ClickHouse** recebe uma réplica assíncrona dessas transações para alimentar painéis em tempo real de faturamento por estado, produto e categoria.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O ClickHouse suporta transações ACID completas e chaves estrangeiras com CASCADE?</summary>
+Não. Como banco OLAP projetado para máxima velocidade de varredura e ingestão analítica, o ClickHouse não implementa transações multi-tabela ACID tradicionais nem restrições de chave estrangeira com deleção em cascata. Ele foca em inserções em lote (*append-only*) e consultas analíticas massivas.
+</details>
+
+<details>
+<summary>2. O que acontece se uma aplicação tentar fazer 1.000 INSERTs individuais de 1 linha por segundo no ClickHouse?</summary>
+O ClickHouse criará 1.000 pequenas partes (*parts*) de dados no disco por segundo. Isso causa sobrecarga extrema no sistema de arquivos e dispara o erro *Too many parts in all data in table*. A boa prática mandatória no ClickHouse é agrupar as inserções em lotes (*batches*) de pelo menos 1.000 a 100.000 linhas por requisição.
+</details>
+
+---
+
+## Referências
+
+- [ClickHouse Official Documentation](https://clickhouse.com/docs)
+- [ClickHouse Architecture Overview](https://clickhouse.com/docs/en/development/architecture)
+- [Designing Data-Intensive Applications (Martin Kleppmann) - Column-Oriented Storage](https://dataintensive.net/)
+
+---
+
+## Próximo tópico
+
+Com a arquitetura colunar compreendida, avance para a instalação e ferramentas clientes em **[Instalação e cliente ClickHouse](setup/)**.

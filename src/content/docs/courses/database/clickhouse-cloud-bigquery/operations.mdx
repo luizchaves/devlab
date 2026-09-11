@@ -1,0 +1,158 @@
+---
+title: "ClickHouse Cloud e Google BigQuery: Recursos de Nuvem e Operações"
+description: "Recursos avançados e governança operacional em Data Warehouses: particionamento e clusterização no BigQuery, tabelas externas com Iceberg/Parquet e BI Engine."
+course: database
+sidebar:
+  label: "Recursos de Nuvem e Operações"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico explora as operações de governança, controle de custos e aceleração analítica no **ClickHouse Cloud** e **Google BigQuery**, cobrindo estratégias de particionamento e clusterização de tabelas, consultas federadas sobre *Data Lakes* em formatos abertos (Apache Iceberg, Delta Lake, Apache Parquet) e aceleração de dashboards com o **BigQuery BI Engine**.
+
+---
+
+## Objetivo
+
+Dominar as técnicas de redução de custos de varredura, otimização de consultas sobre petabytes de dados e integração com data lakes em nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Implementar estratégias de particionamento (*Partitioning*) e clusterização (*Clustering*) para minimizar os bytes escaneados no BigQuery.
+- Consultar arquivos externos em formatos colunares (Parquet, ORC, Iceberg) armazenados no Amazon S3 ou GCS sem ingerir os dados (*Zero-ETL / External Tables*).
+- Utilizar o BigQuery BI Engine para acelerar consultas de dashboards para tempos de resposta inferiores a 1 segundo.
+- Configurar políticas de armazenamento em camadas (*Tiered Storage*) no ClickHouse Cloud combinando discos locais NVMe e baldes S3.
+- Monitorar e auditar o consumo financeiro de consultas através de logs de auditoria e limites de cota por usuário.
+
+---
+
+## Particionamento e Clusterização no BigQuery
+
+No modelo de precificação sob demanda do BigQuery, o custo financeiro é proporcional ao volume de bytes lidos do disco Colossus. O particionamento e a clusterização são as duas principais técnicas para podar dados (*Data Pruning*):
+
+<Mermaid title="Como o Particionamento e Clusterização eliminam blocos de dados desnecessários">
+{`
+flowchart TD
+    Query["Consulta: WHERE data = '2026-03-01' AND categoria = 'Ações'"] --> Pruner["BigQuery Query Optimizer"]
+    
+    subgraph Partitions ["Tabela Particionada por Dia"]
+        PJan["Partições de Janeiro (Descartadas Automaticamente)"]
+        PFev["Partições de Fevereiro (Descartadas Automaticamente)"]
+        
+        subgraph PMar ["Partição '2026-03-01'"]
+            C1["Cluster: Ações (LIDO DO DISCO)"]
+            C2["Cluster: Renda Fixa (Descartado)"]
+            C3["Cluster: FII (Descartado)"]
+        end
+    end
+    
+    Pruner --> PMar
+    PMar --> C1
+`}
+</Mermaid>
+
+### Diferença Prática entre Particionamento e Clusterização
+
+- **Particionamento (`PARTITION BY`)**: Divide a tabela fisicamente em blocos independentes baseados em uma coluna de data/hora ou intervalo de inteiros. O BigQuery suporta até 4.000 partições por tabela.
+- **Clusterização (`CLUSTER BY`)**: Ordena os dados dentro de cada partição com base em até 4 colunas de alta ou média cardinalidade (como `cliente_id`, `ativo`, `status`), agrupando dados similares no mesmo bloco de arquivo.
+
+```sql
+-- Criação de tabela analítica otimizada para custo e performance no BigQuery
+CREATE OR REPLACE TABLE `invest_analytics.ordens_executadas`
+(
+    id INT64,
+    cliente_id INT64,
+    ativo STRING,
+    tipo_ativo STRING,
+    valor_total NUMERIC,
+    data_ordem TIMESTAMP
+)
+PARTITION BY DATE(data_ordem)
+CLUSTER BY tipo_ativo, ativo;
+```
+
+---
+
+## Consultas Federadas e Data Lakes (Zero-ETL)
+
+Tanto o BigQuery quanto o ClickHouse Cloud permitem consultar arquivos brutos diretamente no Cloud Storage / S3 sem a necessidade de duplicar ou importar os dados para o banco:
+
+<Mermaid title="Arquitetura de Lakehouse com Tabelas Externas sobre S3 / GCS">
+{`
+flowchart LR
+    S3[("Data Lake (Amazon S3 / GCS)\nMilhões de arquivos .parquet")] -->|"Leitura Direta sem Carga (Zero-ETL)"| Engine["BigQuery / ClickHouse Cloud Engine"]
+    Engine --> BI["Dashboards / Consultas SQL"]
+`}
+</Mermaid>
+
+### Exemplo de Consulta Externa no ClickHouse Cloud
+
+O ClickHouse pode consultar arquivos Parquet ou Iceberg diretamente no S3 utilizando a função de tabela `s3()`:
+
+```sql
+-- Consulta SQL instantânea sobre um arquivo Parquet remoto no S3
+SELECT
+    tipo_ativo,
+    count() AS total,
+    sum(valor_total) AS volume
+FROM s3(
+    'https://meu-bucket-lake.s3.amazonaws.com/transacoes/*.parquet',
+    'AWS_KEY_ID',
+    'AWS_SECRET_KEY',
+    'Parquet'
+)
+GROUP BY tipo_ativo;
+```
+
+---
+
+## BigQuery BI Engine e Cache de Consultas
+
+Para relatórios e painéis interativos no Looker, Power BI ou Tableau que atualizam com frequência:
+
+1. **BI Engine**: Reserva de memória RAM dedicada e transparente no BigQuery que pré-carrega as colunas mais consultadas e avalia expressões matemáticas em microssegundos com zero custo adicional por consulta.
+2. **Query Cache**: O BigQuery armazena o resultado exato de cada consulta gratuitamente por 24 horas. Se a tabela não foi modificada e a consulta for idêntica, a execução subsequente retorna instantaneamente com **0 bytes escaneados e custo R$ 0,00**.
+
+---
+
+## Exercício
+
+Com base nas práticas operacionais de Data Warehouses em nuvem:
+
+1. Qual é a redução típica de custo financeiro ao executar uma consulta filtrada por data em uma tabela particionada no BigQuery em comparação com uma tabela não particionada?
+2. Por que a clusterização por até 4 colunas complementa o particionamento em tabelas do BigQuery?
+3. O que são tabelas externas (*External Tables*) e qual a vantagem de consultar arquivos Parquet diretamente no S3/GCS sem ingestão prévia?
+
+---
+
+## Desafio
+
+Você gerencia um Data Warehouse no BigQuery com 50 TB de logs de navegação de usuários:
+- Os desenvolvedores executam consultas analíticas no terminal e algumas consultas mal formatadas (sem cláusula `WHERE` de data) custam mais de US$ 300 em uma única execução.
+- Configure a política de tabela `require_partition_filter = true` para forçar que toda consulta contenha obrigatoriamente um filtro na coluna de partição temporal, impedindo varreduras completas acidentais na tabela inteira.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que acontece quando você ativa require_partition_filter em uma tabela do BigQuery?</summary>
+Qualquer consulta enviada contra a tabela que não inclua uma cláusula de filtro explícita na coluna de partição (ex: `WHERE data_ordem >= '2026-01-01'`) será rejeitada imediatamente pelo otimizador antes da execução, evitando faturamentos acidentais por varredura completa (*Full Table Scan*).
+</details>
+
+<details>
+<summary>2. Como o ClickHouse Cloud gerencia o armazenamento em camadas com o S3?</summary>
+O ClickHouse Cloud mantém os dados recentemente inseridos ou mais acessados em uma camada quente (*Hot Cache*) em discos locais SSD NVMe de altíssima velocidade. Conforme os dados envelhecem, eles permanecem disponíveis no balde de armazenamento de objetos S3/GCS subjacente, sendo baixados dinamicamente apenas quando requisitados por consultas históricas.
+</details>
+
+---
+
+## Referências
+
+- [BigQuery Partitioned Tables Guide](https://cloud.google.com/bigquery/docs/partitioned-tables)
+- [BigQuery Clustered Tables Guide](https://cloud.google.com/bigquery/docs/clustered-tables)
+- [Querying External Data in S3 with ClickHouse](https://clickhouse.com/docs/en/integrations/s3)
+
+---
+
+## Próximo tópico
+
+Concluído o estudo de bancos analíticos e Data Warehouses, avance para a persistência de arquivos binários e objetos não estruturados com **[MinIO: Armazenamento de Objetos](../../minio/)**.
