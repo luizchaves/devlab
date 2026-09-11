@@ -1,0 +1,270 @@
+---
+title: "Banco de Dados: Modelagem Não Relacional e Multiparadigma"
+description: "Modelagem orientada a consultas (Query-Driven Design), embutimento versus referência em documentos, padrões para chave-valor, grafos, séries temporais e bancos colunares."
+course: database
+sidebar:
+  label: "Modelagem Não Relacional"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico apresenta as estratégias de modelagem para bancos de dados não relacionais (NoSQL). Ao contrário do modelo relacional, onde o esquema é normalizado a partir das entidades do mundo real, no ecossistema NoSQL a modelagem é orientada pelos padrões de acesso e pelas consultas que a aplicação precisa executar com alta performance.
+
+---
+
+## Objetivo
+
+Compreender os princípios do design orientado a consultas (*Query-Driven Design*) e dominar as técnicas de estruturação de dados nos paradigmas de documentos, chave-valor, grafos, séries temporais e colunar amplo. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a diferença fundamental entre modelagem relacional orientada a entidades e modelagem NoSQL orientada a consultas.
+- Decidir tecnicamente entre embutir (*embedding*) ou referenciar (*referencing*) dados em bancos de documentos.
+- Aplicar padrões arquiteturais avançados de documentos, como *Subset Pattern*, *Bucket Pattern* e *Extended Reference*.
+- Estruturar espaços de nomes e escolher estruturas de dados otimizadas no Redis.
+- Modelar domínios densamente conectados no modelo de grafos com propriedades (*Property Graph*).
+- Projetar esquemas eficientes para séries temporais e tabelas orientadas a consultas no Apache Cassandra.
+
+---
+
+## Do Modelo de Entidades ao Design Orientado a Consultas
+
+No paradigma relacional clássico, o arquiteto analisa os requisitos do negócio, mapeia entidades e aplica regras de normalização (1FN a 3FN) para eliminar redundâncias, deixando a composição dos dados para o momento da consulta através de junções (`JOIN`).
+
+Em bancos de dados não relacionais e distribuídos, as junções entre nós da rede são computacionalmente proibitivas. Por essa razão, a modelagem segue o princípio de **Query-Driven Design** (Design Orientado a Consultas): o formato de armazenamento é desenhado sob medida para atender às perguntas exatas que a interface ou a API fará com maior frequência.
+
+<Mermaid title="Comparação de fluxo de modelagem: Relacional vs NoSQL">
+{`
+flowchart LR
+    subgraph Relacional ["Modelagem Relacional (Entity-First)"]
+        R1[Requisitos de Negócio] --> R2[Entidades e Relacionamentos]
+        R2 --> R3[Normalização 1FN/2FN/3FN]
+        R3 --> R4[Esquema de Tabelas]
+        R4 --> R5[Consultas com JOINs]
+    end
+
+    subgraph NoSQL ["Modelagem NoSQL (Query-First)"]
+        N1[Requisitos de Negócio] --> N2[Padrões de Acesso e Queries]
+        N2 --> N3[Design de Documentos / Chaves / Agregados]
+        N3 --> N4[Esquema Otimizado por Consulta]
+    end
+`}
+</Mermaid>
+
+A transição de mentalidade exige planejar o volume de leituras e escritas antes de fechar a estrutura de dados. A tabela abaixo sintetiza a diferença de postura entre os modelos:
+
+| Critério | Modelagem Relacional | Modelagem Não Relacional |
+| :--- | :--- | :--- |
+| **Ponto de partida** | Entidades e relacionamentos do domínio | Padrões de acesso e consultas da aplicação |
+| **Composição de dados** | Em tempo de leitura, via `JOIN` | Em tempo de escrita, via desnormalização |
+| **Integridade referencial** | Garantida nativamente pelo SGBD | Gerenciada pela aplicação ou desnecessária |
+| **Custo de novas consultas** | Baixo: tabelas normalizadas atendem novas junções | Médio/Alto: pode exigir replicação ou nova tabela |
+| **Escalabilidade horizontal** | Complexa devido ao acoplamento relacional | Nativa pelo particionamento de agregados independentes |
+
+---
+
+## Modelagem de Documentos (MongoDB)
+
+Em bancos orientados a documentos como o MongoDB, o dado atômico é um documento JSON/BSON. A grande decisão arquitetural resume-se a duas opções: **Embutir** (*Embedding*) ou **Referenciar** (*Referencing*).
+
+<SourceCode path="examples/courses/database/invest-db/modeling/nosql-patterns.mjs" region="nosql-embedding" mark={[3, 7, 12]} />
+
+### 1. Embutir (Embedding / Desnormalização)
+
+Embutir significa armazenar dados relacionados dentro do mesmo documento pai como um subdocumento ou array. Essa abordagem oferece leitura atômica em uma única operação de disco/rede:
+
+- **Relacionamentos 1:1 fortes**: O endereço de entrega que pertence exclusivamente a um pedido.
+- **Relacionamentos 1:N limitados (*bounded*)**: Um pedido com 2 a 10 itens; um artigo com 3 tags.
+- **Dados lidos juntos**: Quando a aplicação quase nunca consulta o pai sem os filhos correspondentes.
+
+### 2. Referenciar (Referencing / Normalização)
+
+Referenciar significa salvar documentos em coleções separadas e armazenar apenas o identificador (`_id`) de ligação entre eles:
+
+- **Relacionamentos 1:N infinitos (*unbounded*)**: Uma conta de influenciador com milhões de seguidores. Se embutidos em um array, ultrapassariam o limite rígido de 16 MB por documento do MongoDB.
+- **Relacionamentos N:M frequentes**: Alunos e Cursos matriculados, onde os dados de ambos mudam de forma independente.
+- **Dados atualizados com alta frequência**: Evita que atualizações em um elemento exijam reescrever documentos gigantescos.
+
+### 3. Padrões Avançados de Design de Documentos
+
+A engenharia de dados em documentos consagrou padrões para contornar desafios de performance:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/nosql-patterns.mjs" region="nosql-subset-bucket" mark={[3, 15]} />
+
+- **Subset Pattern**: Quando um produto possui milhares de avaliações, embutir todas estoura o documento, enquanto referenciar todas exige busca externa para carregar a página inicial. O padrão armazena as 5 avaliações mais recentes no documento principal para exibição imediata e move o histórico completo para outra coleção.
+- **Bucket Pattern**: Em telemetria e IoT, agrupa medições por intervalo de tempo (ex: 1 hora de leituras de temperatura por documento) em vez de gravar 1 documento por segundo. Isso reduz o overhead de metadados em até 90%.
+- **Extended Reference Pattern**: Em vez de copiar todo o cliente no pedido ou apenas o `id`, copia somente o `id` e o `nome`. Reduz buscas adicionais na listagem de pedidos e aceita a desnormalização do nome do cliente.
+- **Computed Pattern**: Pré-calcula agregações durante a escrita (como a soma total de itens ou média de notas de um produto), evitando agregações caras no momento da leitura.
+
+---
+
+## Modelagem Chave-Valor (Redis)
+
+O paradigma chave-valor trata o banco como uma gigantesca tabela hash distribuída em memória. Toda a inteligência da modelagem reside na convenção de nomenclatura das chaves e na escolha da estrutura de dados adequada para cada finalidade.
+
+<SourceCode path="examples/courses/database/invest-db/modeling/nosql-patterns.mjs" region="nosql-redis-graph" mark={[3, 4, 5, 6]} />
+
+A convenção universal de nomenclatura utiliza dois-pontos (`:`) para delimitar escopos hierárquicos: `entidade:identificador:subrecurso`.
+
+| Estrutura Redis | Quando Usar na Modelagem | Exemplo de Aplicação |
+| :--- | :--- | :--- |
+| **String** | Valores simples, contadores atômicos (`INCR`), JSON serializado com expiração (TTL). | `session:token_98f:data` com TTL de 3600s. |
+| **Hash (`HSET`)** | Objetos com múltiplos campos que precisam ser alterados ou lidos individualmente. | `user:1001:profile` com campos `name`, `email` e `role`. |
+| **List (`LPUSH`/`RPOP`)** | Filas de mensagens (FIFO), feeds de atividades e histórico ordenado por inserção. | `queue:email:pending`, `user:1001:timeline`. |
+| **Set (`SADD`)** | Conjuntos sem duplicatas e operações de interseção/união matemática. | `post:402:tags`, `user:1001:followers`. |
+| **Sorted Set (`ZADD`)** | Itens com pontuação (*score*) para rankings em tempo real e limites por tempo. | `leaderboard:monthly:2026-09`, limitação de taxa (*Rate Limiter*). |
+
+<Aside type="tip" title="Estratégia de Expiração (TTL)">
+  No Redis, chaves temporárias como sessões, tokens de validação e caches de relatórios devem sempre receber um tempo de vida (*Time To Live*) via `EXPIRE`. Isso evita que a memória RAM do servidor se esgote com registros esquecidos.
+</Aside>
+
+---
+
+## Modelagem em Grafos (Neo4j)
+
+Enquanto os bancos relacionais sofrem com junções recursivas e tabelas associativas intermediárias, os bancos em grafos implementam o modelo **Property Graph Model** (Nós, Relações e Propriedades).
+
+<Mermaid title="Modelagem em Grafos: Nós e Arestas Direcionadas com Propriedades">
+{`
+flowchart LR
+    U1["(:Person {name: 'Lucas', xp: 5})"]
+    U2["(:Person {name: 'Marina', xp: 12})"]
+    P["(:Project {name: 'DevLab', status: 'active'})"]
+
+    U1 -->|:COLLABORATES_WITH {since: 2024}| U2
+    U1 -->|:CONTRIBUTES_TO {role: 'author'}| P
+    U2 -->|:MAINTAINS {role: 'lead'}| P
+`}
+</Mermaid>
+
+Os princípios de modelagem em grafos incluem:
+
+1. **Nós (Nodes)**: Representam as entidades de negócio. Possuem rótulos (*Labels*) que funcionam como tipos (ex: `:Person`, `:Product`) e um mapa de propriedades.
+2. **Relacionamentos (Relationships)**: Conectam dois nós, possuem obrigatoriamente um tipo (ex: `:COMPROU`, `:AMIGO_DE`), uma direção e podem conter propriedades ricas (ex: `{data: '2026-09-11', valor: 450.00}`).
+3. **Index-Free Adjacency (Adjacência Livre de Índices)**: Cada nó guarda ponteiros diretos em memória para seus nós vizinhos. Percorrer relacionamentos consome tempo proporcional ao número de conexões locais, e não ao tamanho total do banco de dados (tempo constante $O(k)$ por salto).
+
+---
+
+## Modelagem de Séries Temporais e Colunar Amplo
+
+Bancos especializados em séries temporais (InfluxDB) e colunares amplos (Cassandra) exigem regras de particionamento estritas para garantir throughput massivo de escrita:
+
+### Séries Temporais (InfluxDB)
+
+A modelagem de telemetria e métricas organiza-se em quatro componentes fundamentais:
+
+- **Measurement**: Nome da métrica monitorada (ex: `cpu_usage`, `stock_ticker`).
+- **Tag Set (Índices)**: Metadados textuais de **baixa cardinalidade** (ex: `host=server-01`, `region=us-east`). São indexados na memória invertida. Cuidado com *Tag Cardinality Explosion*: nunca use identificadores únicos como UUIDs em tags.
+- **Field Set (Métricas)**: Valores numéricos ou textuais que não recebem índices de busca direta (ex: `usage_percent=78.4`, `temperature=22.5`).
+- **Timestamp**: O instante temporal exato do evento, usado como eixo de ordenação e partição natural.
+
+### Colunar Amplo (Apache Cassandra)
+
+No Cassandra, você **não pode** realizar consultas flexíveis com filtros arbitrários. Cada tabela deve ser modelada exatamente para uma consulta específica:
+
+- **Chave de Partição (Partition Key)**: Determina em qual nó do anel o dado reside fisicamente. Deve distribuir os dados uniformemente entre os servidores da rede.
+- **Colunas de Agrupamento (Clustering Columns)**: Determinam a ordem física em que os registros são gravados sequencialmente no disco dentro de uma mesma partição.
+
+---
+
+## Executando
+
+Os passos abaixo executam o script de demonstração de padrões de modelagem NoSQL:
+
+<Steps>
+1. Na pasta `examples/courses/database/invest-db/`, execute o script de padrões NoSQL:
+
+   ```bash title="Terminal"
+   node modeling/nosql-patterns.mjs
+   ```
+
+2. Observe a saída no terminal confirmando a criação das estruturas em memória:
+
+   ```txt title="Output"
+   Modelos e padrões NoSQL validados com sucesso:
+   - Pedido com itens embutidos: ORD-9021 (2 itens)
+   - Produto com Subset Pattern: PROD-101 (2 reviews embutidas de 4820 totais)
+   - Grafo: 3 nós e 3 relacionamentos com index-free adjacency
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de modelagem não relacional desta página:
+
+1. Por que em bancos de documentos um relacionamento 1:N com crescimento ilimitado (*unbounded*) não deve ser modelado com embutimento simples?
+2. Em um banco Redis, qual estrutura de dados você utilizaria para construir um ranking de pontuação de usuários em tempo real e por quê?
+3. O que significa a propriedade de *Index-Free Adjacency* em bancos de grafos como o Neo4j?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque documentos em bancos como o MongoDB possuem limite rígido de tamanho (16 MB). Se o array crescer indefinidamente (como logs, comentários ou seguidores de um influenciador), a gravação falhará ao atingir o limite e causará alto custo de realocação de memória. Nesses casos, deve-se usar referência externa ou o *Subset/Bucket Pattern*.
+
+  2. A estrutura **Sorted Set (`ZADD`)**, porque ela associa cada elemento a uma pontuação numérica (*score*) e mantém os elementos internamente ordenados via *Skip List*, permitindo recuperar intervalos de ranking e posições com complexidade logarítmica $O(\log N)$.
+
+  3. Significa que cada nó armazena referências diretas de ponteiro para os nós vizinhos aos quais está conectado. Dessa forma, percorrer um relacionamento não exige buscar em uma tabela de índices globais nem executar junções em memória: o motor apenas segue os ponteiros diretamente.
+</details>
+
+---
+
+## Desafio
+
+Uma plataforma de cursos online possui Alunos, Cursos, Módulos, Aulas e Progresso de Visualização (percentual assistido por aula). A plataforma espera 500 mil alunos simultâneos no lançamento de um módulo.
+
+Proponha a estratégia de modelagem híbrida (Poliglota) para este sistema, indicando qual paradigma de banco deve armazenar cada parte do domínio e como os documentos ou chaves devem ser desenhados.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma arquitetura de persistência poliglota ideal para este cenário:
+
+  1. **Catálogo de Cursos, Módulos e Aulas (Banco de Documentos - MongoDB)**:
+     - Os Cursos embutem a lista ordenada de Módulos e os metadados das Aulas (vídeo URL, duração, título), pois são dados lidos juntos na abertura da página e possuem cardinalidade limitada e baixa taxa de alteração.
+
+  2. **Controle Transacional de Matrículas e Pagamentos (Banco Relacional - PostgreSQL)**:
+     - Tabelas normalizadas para Alunos, Compras, Faturas e Matrículas, com garantias ACID estritas para impedir duplicação de cobranças ou acessos indevidos.
+
+  3. **Progresso de Aulas em Tempo Real e Sessões (Chave-Valor - Redis)**:
+     - O progresso em segundos de cada aula é salvo em um Hash Redis (`user:42:course:10:progress`), atualizado a cada 5 segundos pelo player de vídeo. Ao finalizar a aula, o percentual consolidado é enviado de forma assíncrona para o banco principal.
+
+  4. **Recomendação de Próximos Cursos e Trilhas (Banco em Grafos - Neo4j)**:
+     - Nós do tipo `(:User)` e `(:Course)`, conectados por relacionamentos como `(:User)-[:COMPLETOU]->(:Course)` e `(:Course)-[:REQUISITO_DE]->(:Course)` para algoritmos de recomendação social.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelagem em Documentos
+
+1. **Qual a regra básica para escolher entre embutir ou referenciar?**
+   <details><summary>Possível resposta</summary>Embutir quando os dados são acessados juntos, possuem ciclo de vida compartilhado e cardinalidade finita; referenciar quando os dados crescem indefinidamente, são acessados de forma independente ou exigem atualizações atômicas frequentes.</details>
+
+2. **Para que serve o *Bucket Pattern*?**
+   <details><summary>Possível resposta</summary>Para agrupar várias medições ou eventos temporais em um único documento delimitado por tempo, reduzindo o número total de documentos e o consumo de metadados em disco.</details>
+
+### Outros Paradigmas
+
+3. **Como o Redis evita o uso excessivo de memória RAM com dados voláteis?**
+   <details><summary>Possível resposta</summary>Através da configuração de tempo de vida (*TTL - Time To Live*) por chave e políticas automáticas de despejo de memória (*eviction policies* como LRU e LFU).</details>
+
+4. **Por que a cardinalidade de tags no InfluxDB deve ser mantida baixa?**
+   <details><summary>Possível resposta</summary>Porque cada combinação única de tags gera uma nova série temporal indexada na memória RAM. Valores com alta cardinalidade (como UUIDs ou timestamps) causam explosão de memória (*Tag Cardinality Explosion*) e travam o servidor.</details>
+
+---
+
+## Referências
+
+- [MongoDB Data Model Design](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
+- [Building with Patterns: A Summary (MongoDB Engineering Blog)](https://www.mongodb.com/blog/post/building-with-patterns-a-summary)
+- [Redis Data Structures Documentation](https://redis.io/docs/latest/develop/data-types/)
+- [Neo4j Graph Data Modeling Guidelines](https://neo4j.com/docs/getting-started/data-modeling/)
+- [Apache Cassandra Data Modeling Principles](https://cassandra.apache.org/doc/latest/cassandra/data_modeling/)
+
+---
+
+## Próximo tópico
+
+[Padrões de Modelagem e Auditoria](../patterns/): Exclusão lógica (*soft delete*), timestamps de auditoria, colunas computadas, controle de concorrência e identificadores modernos.

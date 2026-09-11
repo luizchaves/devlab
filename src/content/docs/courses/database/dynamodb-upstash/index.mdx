@@ -1,0 +1,176 @@
+---
+title: "Banco de Dados: Amazon DynamoDB e Upstash"
+description: "Visão geral de bancos chave-valor gerenciados em nuvem: Amazon DynamoDB, Upstash Redis, AWS ElastiCache, escalabilidade serverless, latência de milissegundo e arquiteturas orientadas a eventos."
+course: database
+sidebar:
+  label: "Visão geral de DynamoDB e Upstash"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o panorama de bancos de dados chave-valor gerenciados na nuvem (*Managed Key-Value DBaaS*), com ênfase no **Amazon DynamoDB** (banco NoSQL de hiperescala e latência de dígito único de milissegundo), no **Upstash Redis** (Redis serverless otimizado para ambientes Edge/Serverless via HTTP/REST) e no **AWS ElastiCache** (clusters gerenciados de cache in-memory em redes privadas).
+
+---
+
+## Objetivo
+
+Compreender a arquitetura, o modelo de modelagem baseada em chaves de partição e as estratégias de escalabilidade de bancos chave-valor na nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o funcionamento da chave de partição (*Partition Key - PK*) e chave de ordenação (*Sort Key - SK*) no particionamento do DynamoDB.
+- Diferenciar os modos de capacidade provisionada (*Provisioned Throughput*) e sob demanda (*On-Demand Serverless*).
+- Descrever o ecossistema de índices secundários globais (*GSI*) e locais (*LSI*) no DynamoDB.
+- Compreender a integração do Upstash Redis em arquiteturas *Edge Computing* (Cloudflare Workers, Vercel Edge Functions) via API REST HTTP.
+- Avaliar quando empregar um banco de cache em memória (ElastiCache/Upstash) versus um armazenamento persistente de chave-valor (DynamoDB).
+
+---
+
+## O Paradigma Chave-Valor em Hiperescala
+
+Bancos chave-valor em nuvem resolvem o gargalo de concorrência massiva desacoplando leituras e escritas por nós de armazenamento independentes calculados via funções de *hash*:
+
+<Mermaid title="Particionamento de dados baseado em Hash Key no Amazon DynamoDB">
+{`
+flowchart LR
+    Client["Aplicação / API"] -->|"PUT / GET (PK = user#123)"| Router["Request Router (DynamoDB Engine)"]
+
+    subgraph StorageNodes ["Partições Físicas Independentes (SSD NVMe)"]
+        Router -->|"Hash(PK) = 0x0A"| P1[("Partição 1 (IDs 0x00 - 0x3F)")]
+        Router -->|"Hash(PK) = 0x8F"| P2[("Partição 2 (IDs 0x40 - 0x7F)")]
+        Router -->|"Hash(PK) = 0xC2"| P3[("Partição 3 (IDs 0x80 - 0xFF)")]
+    end
+`}
+</Mermaid>
+
+A previsibilidade de latência (geralmente entre 1ms e 9ms) decorre do fato de que o motor nunca realiza varreduras completas em disco para buscas por chave primária.
+
+---
+
+## Amazon DynamoDB: Persistência e Single-Table Design
+
+O **Amazon DynamoDB** é um serviço NoSQL totalmente gerenciado da AWS projetado para cargas de trabalho de qualquer escala com tolerância a falhas multi-AZ automática:
+
+<Mermaid title="Arquitetura de recursos do Amazon DynamoDB">
+{`
+flowchart TD
+    App["Microsserviços AWS Lambda / ECS"] --> DDB[("Tabela DynamoDB (PK + SK)")]
+
+    DDB --> GSI["Global Secondary Index (GSI)"]
+    DDB --> Streams["DynamoDB Streams (Change Data Capture)"]
+    DDB --> TTL["Time-to-Live (Expiração Automática Gratuita)"]
+
+    Streams --> Lambda["Função Lambda (Processamento em Tempo Real)"]
+`}
+</Mermaid>
+
+Os principais mecanismos do DynamoDB incluem:
+
+1. **Chave Primária Composta (PK + SK)**: Permite relacionamentos de 1:N dentro de uma mesma partição física, viabilizando o padrão *Single-Table Design* onde múltiplas entidades coabitam a mesma tabela.
+2. **DynamoDB Streams**: Captura sequencial de todas as alterações (inserções, atualizações e exclusões) em um fluxo de eventos em tempo real, acionando reações orientadas a eventos via AWS Lambda.
+3. **Time-to-Live (TTL)**: Remove itens expirados de forma assíncrona sem consumir unidades de leitura ou escrita (*RCU/WCU*), ideal para carrinhos de compras e sessões de usuários temporárias.
+4. **Capacidade On-Demand vs. Provisionada**: Permite pagar exatamente pelo número de requisições de leitura e escrita efetuadas, ou contratar capacidade fixa com auto-scaling para cargas previsíveis.
+
+---
+
+## Upstash Redis: Redis Serverless para a Borda
+
+Em arquiteturas serverless modernas (Next.js no Vercel, Cloudflare Workers), manter pools de conexões TCP persistentes com o Redis tradicional é inviável devido ao ciclo de vida efémero das funções. O **Upstash Redis** resolve essa limitação expondo o protocolo Redis nativo e uma **API REST HTTP**:
+
+<Mermaid title="Comunicação HTTP vs TCP com Upstash Redis em Edge Functions">
+{`
+flowchart LR
+    subgraph Edge ["Edge Functions / Lambdas"]
+        F1["Edge Worker 1"]
+        F2["Edge Worker 2"]
+        F3["Edge Worker 3"]
+    end
+
+    subgraph Upstash ["Upstash Redis Serverless"]
+        Gateway["HTTP REST API Gateway (Sem TCP Pool)"]
+        Engine[("Motor Redis em Memória Multi-Zona")]
+        Gateway --> Engine
+    end
+
+    F1 -->|"fetch('https://.../set/key')"| Gateway
+    F2 -->|"fetch('https://.../get/key')"| Gateway
+    F3 -->|"fetch('https://.../incr/limit')"| Gateway
+`}
+</Mermaid>
+
+Os diferenciais do Upstash abrangem:
+
+- **Conexões sem estado (*Stateless HTTP*)**: As funções realizam requisições HTTP normais (`fetch`), eliminando o esgotamento de conexões (*Connection Exhaustion*).
+- **Scale-to-Zero Real**: Cobrança baseada no número de comandos executados (ex: \$0,20 por 100.000 comandos), sem custo fixo de instâncias ociosas.
+- **Ratelimiting e Filas na Borda**: SDKs prontos para limitar requisições de APIs (*Rate Limiting*) e gerenciar filas de mensagens (*Upstash QStash*).
+
+---
+
+## Comparativo: DynamoDB vs. Upstash vs. ElastiCache
+
+A tabela abaixo sintetiza os papéis dos principais motores chave-valor e cache em nuvem:
+
+| Característica | Amazon DynamoDB | Upstash Redis | AWS ElastiCache (Redis/Valkey) |
+| :--- | :--- | :--- | :--- |
+| **Persistência Principal** | Permanente em SSD NVMe com 3 AZs | Persistência assíncrona com foco em cache | Em memória RAM (volátil ou com replicação) |
+| **Protocolo de Acesso** | SDK AWS via HTTPS / gRPC | REST HTTP e protocolo Redis padrão | Protocolo TCP nativo Redis em VPC privada |
+| **Estruturas de Dados** | Documentos JSON, Atributos Escalares, Sets | Hashes, Lists, Sets, Sorted Sets, Bitmaps, Geospatial | Todas as estruturas de dados nativas do Redis |
+| **Modelo de Cobrança** | Por requisições (On-Demand) ou RCU/WCU | Por comando HTTP executado (Serverless) | Por hora de instância provisionada (ex: `cache.t4g.micro`) |
+| **Ideal para** | Banco NoSQL de produção primário | Rate limiting, sessões em Next.js e Edge | Cache de alta vazão para bancos relacionais em VPC |
+
+---
+
+## Quando usar, e quando não usar?
+
+A seleção da tecnologia chave-valor deve considerar persistência, tempo de resposta e topologia de rede:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Banco de dados primário serverless com milhões de acessos simultâneos por chave | **Amazon DynamoDB** | Alta disponibilidade multi-AZ, latência constante independente do volume de dados. |
+| Controle de taxa (*Rate Limiting*) e sessões em rotas serverless / Edge | **Upstash Redis** | Acesso via HTTP `fetch` sem manter conexões TCP ativas, precificação serverless. |
+| Cache de segundo nível de alta frequência para acelerar consultas PostgreSQL/MySQL | **[Redis Nativo](../redis/) / AWS ElastiCache** | Latência de microssegundos em memória dentro da mesma rede virtual (VPC). |
+| Consultas com relacionamentos dinâmicos (*JOINs*), agregações analíticas e ordenações variáveis | **[PostgreSQL](../postgresql/) ou [Aurora](../rds-aurora/)** | Flexibilidade relacional, chaves estrangeiras e índices B-Tree compostos. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de bancos chave-valor gerenciados:
+
+1. O que acontece com a latência de uma consulta por chave primária no DynamoDB quando a tabela cresce de 10 GB para 100 TB?
+2. Por que arquiteturas baseadas em AWS Lambda ou Cloudflare Workers se beneficiam do Upstash Redis via HTTP em vez de conexões TCP tradicionais?
+3. O que são os índices *GSI (Global Secondary Index)* no DynamoDB e por que a consistência deles é eventualmente consistente por padrão?
+
+---
+
+## Desafio
+
+Você precisa implementar um sistema de controle de limite de requisições (*API Rate Limiter*) que permita até 60 requisições por minuto por chave de API:
+- Desenhe a estratégia utilizando comandos atômicos do Redis (`INCR` e `EXPIRE` ou algoritmo *Sliding Window Log* com Sorted Sets).
+- Explique se você implementaria essa solução no DynamoDB ou no Upstash Redis, comparando custos e latência de processamento na borda.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. O que é o fenômeno de "Hot Partition" no DynamoDB e como preveni-lo?</summary>
+Uma *Hot Partition* ocorre quando uma chave de partição específica recebe uma concentração desproporcional de tráfego de leitura ou escrita, excedendo os limites físicos da partição (1.000 WCU ou 3.000 RCU). Para preveni-la, deve-se projetar chaves com alta cardinalidade (como UUIDs ou combinações de ID + data) ou aplicar técnicas de *write sharding* (adicionando um sufixo aleatório à chave).
+</details>
+
+<details>
+<summary>2. Como o DynamoDB garante transações atômicas entre múltiplos itens?</summary>
+O DynamoDB oferece a operação `TransactWriteItems`, que permite executar até 100 ações de gravação/atualização de forma atômica em itens de partições diferentes com garantia *All-or-Nothing*, consumindo o dobro de unidades de capacidade de escrita.
+</details>
+
+---
+
+## Referências
+
+- [Amazon DynamoDB Developer Guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html)
+- [The DynamoDB Book por Alex DeBrie](https://www.dynamodbbook.com/)
+- [Upstash Redis Documentation](https://docs.upstash.com/redis)
+
+---
+
+## Próximo tópico
+
+Compreendido o armazenamento chave-valor elástico, avance para a análise de conexões complexas e redes sociais com **[Neo4j AuraDB e Amazon Neptune](../auradb-neptune/)**.

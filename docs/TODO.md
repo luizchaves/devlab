@@ -121,6 +121,8 @@
   - [x] `[TASK-040.7]` Atualizar sidebar em `astro.config.mjs`, índice em `src/content/docs/courses/database/index.mdx` e matriz em `basics/paradigms.mdx`
   - [x] `[TASK-040.8]` Validar com `pnpm validate`, mover a spec para `specs/executed/` e realizar commit e push
   - [x] `[TASK-040.9]` Reorganizar a sidebar do Guia de Banco de Dados por paradigmas (`Banco Relacional`, `Banco de Documentos`, `Banco Chave-Valor`, etc.), aninhar as Linguagens de Consulta específicas de cada paradigma e criar tópicos de dialetos/peculiaridades SQL para SQLite, PostgreSQL e MySQL
+  - [x] `[TASK-040.10]` Expandir a seção 'Projeto e Modelagem' com modelagem não relacional (documentos, chave-valor, grafos, séries temporais e colunar) e padrões de modelagem/auditoria (soft delete com índice parcial, createdAt/updatedAt, colunas computadas/geradas, concorrência otimista e identificadores UUIDv7)
+  - [x] `[TASK-040.11]` Criar páginas de visão geral de bancos gerenciados em nuvem (DBaaS) para todos os 7 paradigmas (`Amazon RDS e Aurora`, `MongoDB Atlas e Firestore`, `DynamoDB e Upstash`, `Neo4j AuraDB e Neptune`, `InfluxDB Cloud e Timestream`, `Elastic Cloud e OpenSearch`, `DataStax Astra DB e Keyspaces`), registrando-as na sidebar e no índice do curso
 
 ### Concluídos (Conteúdo)
 

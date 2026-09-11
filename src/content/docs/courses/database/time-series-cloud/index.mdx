@@ -1,0 +1,176 @@
+---
+title: "Banco de Dados: InfluxDB Cloud e Amazon Timestream"
+description: "Visão geral de bancos de séries temporais gerenciados em nuvem: InfluxDB Cloud Serverless, InfluxDB 3.0, Apache Arrow, Amazon Timestream, armazenamento em camadas (Memory e Magnetic) e compressão colunar."
+course: database
+sidebar:
+  label: "Visão geral de InfluxDB Cloud e Timestream"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta as principais plataformas de bancos de dados de séries temporais gerenciadas na nuvem (*Managed Time-Series DBaaS*): o **InfluxDB Cloud Serverless** (baseado no motor InfluxDB 3.0 sobre o ecossistema colunar Apache Arrow e Apache Parquet) e o **Amazon Timestream** (serviço de séries temporais serverless da AWS com arquitetura de armazenamento em camadas automáticas de memória e disco magnético).
+
+---
+
+## Objetivo
+
+Compreender a arquitetura de ingestão massiva, compressão colunar e ciclo de vida de retenção de dados temporais na nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a arquitetura moderna do InfluxDB 3.0 baseada em Apache Arrow, Apache Parquet e consultas SQL/DataFusion.
+- Descrever o funcionamento do armazenamento em camadas (*Tiered Storage*) do Amazon Timestream entre *Memory Store* (quente) e *Magnetic Store* (frio).
+- Compreender as políticas de retenção automática (*Retention Policies*), amostragem descendente (*Downsampling*) e expiração de dados.
+- Avaliar a taxa de ingestão de milhões de eventos por segundo e os mecanismos de compressão temporal (*Delta-of-delta* e *Gorilla*).
+- Escolher a solução ideal para telemetria de IoT, observabilidade de microsserviços e métricas financeiras.
+
+---
+
+## O Desafio de Escalar Séries Temporais
+
+Aplicações modernas de IoT e observabilidade geram fluxos contínuos de dados indexados por carimbo de data/hora (*timestamp*). Em bancos relacionais comuns, a indexação de bilhões de linhas por tempo satura a memória RAM e fragmenta as árvores B-Tree:
+
+<Mermaid title="Ingestão colunar e compressão de séries temporais na nuvem">
+{`
+flowchart LR
+    Sensors["Milhares de Sensores IoT / Servidores"] -->|"1. Ingestão Massiva (Line Protocol / JSON)"| Ingestion["Buffer de Ingestão em Memória"]
+
+    subgraph StorageEngine ["Camada de Compressão e Retenção"]
+        Ingestion -->|"2. Escrita em Lote Colunar"| Fast["Camada Quente (Últimas 24h em Memória/SSD)"]
+        Fast -->|"3. Decaimento / Compressão Parquet"| Cold["Camada Fria (Armazenamento em Objeto S3 / Parquet)"]
+    end
+
+    Queries["Dashboards Grafana / Consultas SQL"] --> StorageEngine
+`}
+</Mermaid>
+
+Ao desacoplar a ingestão rápida da camada analítica de longo prazo, os bancos de séries temporais em nuvem alcançam taxas de compressão de até 90% no volume total em disco.
+
+---
+
+## InfluxDB Cloud Serverless: O Poder do Apache Arrow e Parquet
+
+O **InfluxDB Cloud** é a evolução serverless da InfluxData. Em sua terceira geração (InfluxDB 3.0), o motor foi totalmente reescrito em Rust sobre os padrões de mercado da fundação Apache:
+
+<Mermaid title="Arquitetura interna do InfluxDB 3.0 Serverless">
+{`
+flowchart TD
+    Ingest["Ingestão via InfluxDB Line Protocol / Telegraf"] --> Wal["Write-Ahead Log (WAL)"]
+
+    subgraph Engine3 ["Motor InfluxDB 3.0 (Rust)"]
+        Wal --> Arrow["Apache Arrow (Processamento Colunar em Memória)"]
+        Arrow --> DataFusion["Apache DataFusion (Otimizador de Consultas SQL)"]
+        Arrow --> Parquet["Apache Parquet (Arquivos Colunares Persistidos no S3)"]
+    end
+
+    SQL["Consultas SQL Padrão / InfluxQL"] --> DataFusion
+    Parquet --> CloudStorage[("Cloud Object Storage (AWS S3 / GCS)")]
+`}
+</Mermaid>
+
+Os principais diferenciais do InfluxDB Cloud 3.0 incluem:
+
+1. **Consultas em SQL Padrão**: Permite utilizar a sintaxe SQL convencional para agregações temporais (`DATE_BIN`), além de compatibilidade com InfluxQL.
+2. **Cardinalidade Quase Ilimitada**: Graças à estrutura colunar do Apache Arrow e Parquet, o banco suporta milhões de séries temporais únicas sem estouro de memória (*High Cardinality*).
+3. **Persistência Direta em Object Storage**: Os dados históricos são gravados diretamente em arquivos Parquet compactados em baldes de armazenamento de objetos (como S3), barateando o custo em até 95%.
+4. **Sem Servidores para Gerenciar**: Modelo puramente serverless que escala automaticamente a capacidade de ingestão e leitura sem interrupções.
+
+---
+
+## Amazon Timestream: Armazenamento em Camadas Automáticas
+
+O **Amazon Timestream** é o serviço serverless de séries temporais da AWS projetado para ingestão de trilhões de eventos diários sem provisionamento de infraestrutura:
+
+<Mermaid title="Arquitetura de armazenamento em duas camadas do Amazon Timestream">
+{`
+flowchart TD
+    Apps["Aplicações AWS / IoT Core"] -->|"WriteRecords"| TS[("Amazon Timestream")]
+
+    subgraph Tiers ["Ciclo de Vida de Dados do Timestream"]
+        TS --> Mem["1. Memory Store (Alta Taxa de Escrita e Leituras Recentes: 2 horas a 1 ano)"]
+        Mem -->|"Migração Automática Assíncrona"| Mag["2. Magnetic Store (Custo Ultrabaixo para Dados Históricos: até 200 anos)"]
+    end
+
+    Query["Motor de Consulta SQL Único"] -->|"Lê de forma transparente de ambas as camadas"| Tiers
+`}
+</Mermaid>
+
+Os pilares do Amazon Timestream abrangem:
+
+1. **Duas Camadas de Armazenamento (*Memory e Magnetic*)**: Configura-se uma janela de tempo para manter os dados mais recentes na memória para consultas de baixa latência; após essa janela, o Timestream move os dados automaticamente para a camada magnética econômica.
+2. **Motor de Consulta Adaptativo**: Uma única consulta SQL varre tanto os dados recém-chegados na memória quanto anos de histórico na camada magnética de forma totalmente transparente.
+3. **Funções Analíticas Temporais Embutidas**: Suporte a interpolações, suavizações por média móvel, detecção de sazonalidade e aproximação de percentis nativas em SQL.
+4. **Criptografia e Segurança Integradas**: Dados criptografados em repouso via AWS KMS e integrados ao IAM e CloudTrail por padrão.
+
+---
+
+## Comparativo: InfluxDB Cloud vs. Amazon Timestream
+
+A tabela abaixo resume os pontos fortes de cada motor:
+
+| Característica | InfluxDB Cloud 3.0 | Amazon Timestream |
+| :--- | :--- | :--- |
+| **Formato de Armazenamento** | Apache Parquet / Apache Arrow colunar | Camada proprietária de Memória e Disco Magnético |
+| **Linguagens de Consulta** | SQL padrão ANSI, InfluxQL e Flux (legado) | SQL padrão com extensões analíticas de séries temporais |
+| **Ecossistema de Ingestão** | Telegraf, Python, Node.js, REST, Kafka, Vector | AWS SDKs, AWS IoT Core, Kinesis Data Firehose |
+| **Suporte Multinuvem** | AWS, Google Cloud Platform e Microsoft Azure | Exclusivo da Amazon Web Services (AWS) |
+| **Resolução de Cardinalidade** | Otimizado para séries de altíssima cardinalidade | Gerenciado automaticamente pelo motor serverless |
+| **Integração com Grafana** | Plugin oficial InfluxDB SQL/FlightSQL | Plugin oficial Amazon Timestream |
+
+---
+
+## Quando usar, e quando não usar?
+
+A decisão entre InfluxDB Cloud e Timestream depende do ecossistema de nuvem e da esteira de observabilidade:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Telemetria de servidores e aplicações com Telegraf e painéis Grafana | **[InfluxDB Cloud](../influxdb/)** | Padrão da indústria de observabilidade, ecossistema Telegraf e Apache Arrow. |
+| Pipeline de IoT nativo da AWS utilizando AWS IoT Core e Kinesis | **Amazon Timestream** | Integração direta sem código intermediário e retenção de até 200 anos. |
+| Dados relacionais transacionais com updates frequentes em linhas individuais | **[PostgreSQL / TimescaleDB](../postgresql/)** | Bancos de séries temporais puros são otimizados para *append-only*, não updates pontuais. |
+| Busca textual completa em logs de aplicações | **[Elasticsearch](../elasticsearch/) / [OpenSearch](../elastic-cloud-opensearch/)** | Motores de busca invertida são superiores para textos e mensagens de log não estruturadas. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de bancos de séries temporais gerenciados:
+
+1. Por que a arquitetura do InfluxDB 3.0 adotou o Apache Arrow e arquivos Parquet em vez de motores de armazenamento tradicionais em disco?
+2. Como o Amazon Timestream equilibra alto desempenho de escrita imediata e baixo custo de armazenamento para históricos de anos?
+3. O que é o conceito de *Downsampling* e por que ele é crucial para visualização de métricas em painéis de longo prazo?
+
+---
+
+## Desafio
+
+Uma frota de 50.000 veículos conectados envia a cada 5 segundos métricas de telemetria (velocidade, temperatura do motor, coordenadas GPS e nível da bateria):
+- Calcule a ordem de grandeza de pontos gerados por dia (50.000 veículos × 17.280 pontos/dia ≈ 864 milhões de registros/dia).
+- Modele a política de retenção ideal (ex: dados brutos mantidos por 7 dias; médias agregadas de 5 minutos mantidas por 1 ano).
+- Proponha uma arquitetura de ingestão em nuvem para essa carga de trabalho.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Por que bancos de séries temporais geralmente rejeitam ou desestimulam atualizações (UPDATEs) em registros passados?</summary>
+O motor de compressão temporal baseia-se na imutabilidade dos dados (*Append-Only*) para aplicar algoritmos de alta densidade (como compressão delta de carimbos de data/hora). Modificar uma linha no meio de um bloco compactado exigiria descompactar e recompactar todo o segmento colunar, destruindo a vazão de gravação.
+</details>
+
+<details>
+<summary>2. O que é Flight SQL no InfluxDB e qual sua vantagem para ferramentas de BI?</summary>
+O Apache Arrow Flight SQL é um protocolo de comunicação binário de alta velocidade sobre gRPC que transfere conjuntos de dados tabulares em memória sem serialização ou conversão de tipos de dados, acelerando drasticamente a carga de milhões de pontos em ferramentas de BI e dashboards.
+</details>
+
+---
+
+## Referências
+
+- [InfluxDB Cloud 3.0 Architecture Overview](https://docs.influxdata.com/influxdb/cloud-serverless/)
+- [Amazon Timestream Developer Guide](https://docs.aws.amazon.com/timestream/latest/developerguide/what-is-timestream.html)
+- [Apache Arrow and Parquet Documentation](https://arrow.apache.org/)
+
+---
+
+## Próximo tópico
+
+Compreendido o armazenamento temporal, avance para a indexação de texto completo e observabilidade analítica com **[Elastic Cloud e Amazon OpenSearch](../elastic-cloud-opensearch/)**.

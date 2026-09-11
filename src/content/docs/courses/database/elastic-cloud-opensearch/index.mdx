@@ -1,0 +1,191 @@
+---
+title: "Banco de Dados: Elastic Cloud e Amazon OpenSearch"
+description: "Visão geral de motores de busca textual e analítica gerenciados em nuvem: Elastic Cloud, Amazon OpenSearch Service, OpenSearch Serverless, Kibana, índices invertidos, busca vetorial e observabilidade."
+course: database
+sidebar:
+  label: "Visão geral de Elastic Cloud e OpenSearch"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta as principais plataformas de busca textual distribuída e observabilidade gerenciadas na nuvem (*Managed Search & Analytics DBaaS*): o **Elastic Cloud** (plataforma oficial da Elastic que inclui Elasticsearch, Kibana e o modelo de busca semântica ELSER) e o **Amazon OpenSearch Service** (serviço gerenciado da AWS baseado no fork de código aberto OpenSearch com opção puramente serverless).
+
+---
+
+## Objetivo
+
+Compreender a arquitetura de indexação distribuída, o ciclo de vida de índices e a busca híbrida (textual + vetorial) em motores de busca na nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever o funcionamento dos nós mestres, nós de dados (*Data Nodes*) e nós coordenadores em clusters de busca em nuvem.
+- Compreender as políticas de ciclo de vida de índices (*Index Lifecycle Management - ILM / ISM*) entre camadas *Hot*, *Warm*, *Cold* e *Frozen*.
+- Diferenciar as capacidades de busca textual com índice invertido da busca semântica vetorial (*k-NN / Vector Search*).
+- Comparar as ofertas do Elastic Cloud com o Amazon OpenSearch Service e OpenSearch Serverless.
+- Avaliar custos, estratégias de particionamento em shards e dimensionamento de capacidade para e-commerce e centralização de logs.
+
+---
+
+## A Importância do Motor de Busca Gerenciado
+
+Gerenciar um cluster de Elasticsearch autohospedado exige monitoramento constante de fragmentos (*shards*), pressão de memória na *JVM Heap*, balanceamento de nós mestres (*Split-Brain*) e limpeza de segmentos do Apache Lucene:
+
+<Mermaid title="Arquitetura de nós em um cluster de busca distribuído na nuvem">
+{`
+flowchart TD
+    Client["APIs de E-commerce / Agentes Logstash / OpenTelemetry"] --> LoadBalancer["Endpoint do Cluster / Gateway"]
+
+    subgraph SearchCluster ["Cluster Gerenciado (Elastic Cloud / OpenSearch)"]
+        direction TB
+        LoadBalancer --> Coord["Nós Coordenadores / Ingestão"]
+
+        subgraph TieredNodes ["Camadas de Nós de Dados"]
+            Coord --> Hot["Camada Hot (SSDs NVMe: Indexação Rápida e Busca Recente)"]
+            Coord --> Warm["Camada Warm (SSDs Econômicos: Consultas Periódicas)"]
+            Coord --> Cold["Camada Cold / Frozen (Armazenamento em Objeto S3)"]
+        end
+
+        Master["Nós Mestres Dedicados (Gerenciamento do Cluster State em Quorum)"] -.-> TieredNodes
+    end
+
+    Kibana["Dashboard Kibana / OpenSearch Dashboards"] --> LoadBalancer
+`}
+</Mermaid>
+
+Os serviços em nuvem automatizam o provisionamento de quóruns de nós mestres dedicados e a rotação automática de índices conforme eles envelhecem.
+
+---
+
+## Elastic Cloud: O Ecossistema Oficial da Elastic
+
+O **Elastic Cloud** é a plataforma SaaS e PaaS da Elastic disponível na AWS, Google Cloud e Microsoft Azure:
+
+<Mermaid title="Recursos integrados do Elastic Cloud">
+{`
+flowchart LR
+    App["Aplicação"] --> ES[("Elasticsearch Engine")]
+
+    subgraph Features ["Recursos do Elastic Cloud"]
+        Kibana["Kibana (Visualização e Painéis)"]
+        ESQL["ES|QL (Linguagem de Consulta Pipelined)"]
+        Vector["Busca Vetorial & Modelo ELSER (NLP)"]
+        Security["Elastic Security & SIEM"]
+    end
+
+    ES --> Features
+`}
+</Mermaid>
+
+Os principais diferenciais do Elastic Cloud incluem:
+
+1. **ES|QL (*Elasticsearch Query Language*)**: Uma nova linguagem de consulta canalizada com pipes (`|`) que transforma, agrega e filtra dados em uma única expressão de alta performance.
+2. **Busca Híbrida e Modelo ELSER**: Combinação nativa de relevância léxica (BM25 tradicional) com busca semântica vetorial através do modelo de inteligência artificial ELSER (*Elastic Learned Sparse EncodeR*).
+3. **Elasticsearch Serverless**: Elimina completamente o gerenciamento de shards e nós de dados, escalando automaticamente a computação de busca de forma independente da ingestão.
+4. **Kibana Totalmente Integrado**: Ferramenta padrão para exploração visual, gráficos analíticos e painéis de observabilidade e segurança.
+
+---
+
+## Amazon OpenSearch Service: Liberdade Open Source e Serverless
+
+O **Amazon OpenSearch Service** é a implementação gerenciada da AWS baseada no OpenSearch (fork open-source Apache 2.0 derivado do Elasticsearch 7.10):
+
+<Mermaid title="Modelos de provisionamento do Amazon OpenSearch">
+{`
+flowchart TD
+    OS["Amazon OpenSearch Platform"]
+
+    subgraph Managed ["1. OpenSearch Provisionado"]
+        M1["Instâncias EC2 Dedicadas (Data Nodes + Master Nodes)"]
+        M2["Controle Total de Sharding e Memória JVM"]
+    end
+
+    subgraph Serverless ["2. OpenSearch Serverless"]
+        S1["OpenSearch Compute Units (OCUs)"]
+        S2["Separação Total de Indexação e Busca"]
+        S3["Armazenamento Nativo e Ilimitado no Amazon S3"]
+    end
+
+    OS --> Managed
+    OS --> Serverless
+`}
+</Mermaid>
+
+Os pilares do Amazon OpenSearch abrangem:
+
+1. **OpenSearch Serverless**: Desacopla a computação de indexação da computação de busca, cobrando apenas por *OpenSearch Compute Units (OCUs)* consumidas, sem risco de quedas por sobrecarga de heap.
+2. **Plugin k-NN Nativo**: Algoritmos de busca vetorial aproximada (*HNSW* e *FAISS*) para alimentar sistemas de recomendação e busca semântica em grande escala.
+3. **Index State Management (ISM)**: Automação nativa para migração de índices de armazenamento quente para armazenamento frio e exclusão programada.
+4. **OpenSearch Dashboards**: Interface visual rica integrada para criação de relatórios e monitoramento de logs de infraestrutura AWS.
+
+---
+
+## Comparativo: Elastic Cloud vs. Amazon OpenSearch
+
+A tabela abaixo compara as duas plataformas de busca em nuvem:
+
+| Característica | Elastic Cloud | Amazon OpenSearch Service |
+| :--- | :--- | :--- |
+| **Código Base** | Elasticsearch 8+ proprietário (Elastic License) | OpenSearch 2+ (código 100% livre Apache 2.0) |
+| **Interface Visual** | Kibana oficial | OpenSearch Dashboards |
+| **Linguagens de Busca** | Query DSL JSON, SQL, ESQL | Query DSL JSON, OpenSearch SQL, PPL (*Pipelined Processing Language*) |
+| **IA e Busca Semântica** | Modelo ELSER nativo + vetores densos | Plugin k-NN (FAISS / NMSLIB / Lucene) |
+| **Opção Serverless** | Elasticsearch Serverless | OpenSearch Serverless (OCUs) |
+| **Presença em Nuvens** | Multinuvem (AWS, GCP, Azure) | Exclusivo da Amazon Web Services (AWS) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A seleção do motor de busca deve alinhar requisitos de relevância textual e restrições de licença:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Mecanismo de busca de e-commerce com relevância semântica, sinônimos e IA (ELSER) | **[Elastic Cloud](../elasticsearch/)** | Recursos avançados de NLP, ES|QL e ranking de relevância superior. |
+| Centralização de logs e observabilidade nativa na AWS com código estritamente open-source | **Amazon OpenSearch Service** | Totalmente open source, integração com CloudWatch e Kinesis, sem risco de *vendor lock-in*. |
+| Banco de dados transacional com validação de unicidade e transações ACID estritas | **[PostgreSQL](../postgresql/) / [Aurora](../rds-aurora/)** | Motores de busca usam consistência eventual e não são bancos relacionais primários. |
+| Cache simples de chave-valor de latência submilisegundo | **[Redis](../redis/) / [Upstash](../dynamodb-upstash/)** | Redis tem menor pegada de memória e maior velocidade para consultas exatas. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de motores de busca gerenciados:
+
+1. O que é o *Índice Invertido* e por que ele permite localizar termos em milhões de documentos em poucos milissegundos?
+2. Como funciona a estratégia de camadas *Hot/Warm/Cold* no ciclo de vida de índices (ILM/ISM) para redução de custos com logs?
+3. Qual é a diferença entre uma busca léxica por palavras-chave (BM25) e uma busca semântica vetorial (k-NN)?
+
+---
+
+## Desafio
+
+Você precisa desenhar o mecanismo de busca para um e-commerce com 5 milhões de produtos:
+- Os usuários realizam buscas com erros de digitação (ex: "tenis nique" em vez de "tênis nike").
+- Os resultados devem ser ordenados combinando relevância de texto com critérios de negócio (produtos com mais estoque e maior margem sobem no ranking).
+- Proponha o pipeline de indexação e os tipos de analisadores (*Analyzers*, *Fuzzy Match*, *Function Score / Boost*) recomendados.
+
+---
+
+## Perguntas de revisão
+
+<details>
+<summary>1. Por que não se deve usar um único shard gigante de 200 GB no Elasticsearch?</summary>
+Shards excessivamente grandes tornam a recuperação em caso de falha de nó extremamente lenta, prejudicam o balanceamento do cluster e diminuem a concorrência de busca. A boa prática recomenda manter o tamanho dos shards entre 20 GB e 50 GB para logs, e entre 10 GB e 30 GB para busca textual interativa.
+</details>
+
+<details>
+<summary>2. Como o OpenSearch Serverless lida com picos repentinos de ingestão de logs?</summary>
+O OpenSearch Serverless desacopla os nós de computação de indexação dos nós de consulta. Durante picos de ingestão, o serviço aloca automaticamente mais *OpenSearch Compute Units (OCUs)* para a camada de ingestão sem impactar a capacidade ou a latência das consultas de busca que estão sendo executadas simultaneamente.
+</details>
+
+---
+
+## Referências
+
+- [Elastic Cloud Getting Started](https://www.elastic.co/guide/en/cloud/current/index.html)
+- [Amazon OpenSearch Service Developer Guide](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/what-is.html)
+- [Elasticsearch: The Definitive Guide](https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html)
+
+---
+
+## Próximo tópico
+
+Concluída a indexação textual e observabilidade, finalize a trilha de bancos gerenciados conhecendo os bancos colunares amplos de altíssima escala com **[DataStax Astra DB e Amazon Keyspaces](../astradb-keyspaces/)**.

@@ -1352,6 +1352,14 @@ export default defineConfig({
                   label: 'Normalização de Dados',
                   link: '/courses/database/modeling/normalization/',
                 },
+                {
+                  label: 'Modelagem Não Relacional',
+                  link: '/courses/database/modeling/non-relational/',
+                },
+                {
+                  label: 'Padrões e Auditoria',
+                  link: '/courses/database/modeling/patterns/',
+                },
                 { label: 'Chaves e Índices', link: '/courses/database/modeling/keys-indexes/' },
                 { label: 'Estudos de Caso', link: '/courses/database/modeling/case-studies/' },
               ],
@@ -1410,6 +1418,15 @@ export default defineConfig({
                     { label: 'Administração', link: '/courses/database/mysql/administration/' },
                   ],
                 },
+                {
+                  label: 'Amazon RDS e Aurora',
+                  items: [
+                    {
+                      label: 'Visão geral de RDS e Aurora',
+                      link: '/courses/database/rds-aurora/',
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1426,6 +1443,15 @@ export default defineConfig({
                     {
                       label: 'Linguagem MQL e Agregação',
                       link: '/courses/database/mongodb/crud/',
+                    },
+                  ],
+                },
+                {
+                  label: 'MongoDB Atlas e Firestore',
+                  items: [
+                    {
+                      label: 'Visão geral de Atlas e Firestore',
+                      link: '/courses/database/atlas-firestore/',
                     },
                   ],
                 },
@@ -1448,6 +1474,15 @@ export default defineConfig({
                     },
                   ],
                 },
+                {
+                  label: 'DynamoDB e Upstash',
+                  items: [
+                    {
+                      label: 'Visão geral de DynamoDB e Upstash',
+                      link: '/courses/database/dynamodb-upstash/',
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1462,6 +1497,15 @@ export default defineConfig({
                       link: '/courses/database/neo4j/setup/',
                     },
                     { label: 'Linguagem Cypher', link: '/courses/database/neo4j/cypher/' },
+                  ],
+                },
+                {
+                  label: 'Neo4j AuraDB e Neptune',
+                  items: [
+                    {
+                      label: 'Visão geral de AuraDB e Neptune',
+                      link: '/courses/database/auradb-neptune/',
+                    },
                   ],
                 },
               ],
@@ -1480,6 +1524,15 @@ export default defineConfig({
                     {
                       label: 'Linguagem Flux e Line Protocol',
                       link: '/courses/database/influxdb/time-series/',
+                    },
+                  ],
+                },
+                {
+                  label: 'InfluxDB Cloud e Timestream',
+                  items: [
+                    {
+                      label: 'Visão geral de InfluxDB Cloud e Timestream',
+                      link: '/courses/database/time-series-cloud/',
                     },
                   ],
                 },
@@ -1505,6 +1558,15 @@ export default defineConfig({
                     },
                   ],
                 },
+                {
+                  label: 'Elastic Cloud e OpenSearch',
+                  items: [
+                    {
+                      label: 'Visão geral de Elastic Cloud e OpenSearch',
+                      link: '/courses/database/elastic-cloud-opensearch/',
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -1521,6 +1583,15 @@ export default defineConfig({
                     {
                       label: 'Linguagem CQL e Particionamento',
                       link: '/courses/database/cassandra/cql/',
+                    },
+                  ],
+                },
+                {
+                  label: 'DataStax Astra DB e Keyspaces',
+                  items: [
+                    {
+                      label: 'Visão geral de Astra DB e Keyspaces',
+                      link: '/courses/database/astradb-keyspaces/',
                     },
                   ],
                 },

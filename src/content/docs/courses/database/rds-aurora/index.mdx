@@ -1,0 +1,187 @@
+---
+title: "Banco de Dados: Amazon RDS e Aurora"
+description: "Visão geral de bancos relacionais gerenciados em nuvem: Amazon RDS, Amazon Aurora, Google Cloud SQL, Azure SQL, arquitetura de armazenamento segregado, alta disponibilidade multi-AZ e serverless."
+course: database
+sidebar:
+  label: "Visão geral de RDS e Aurora"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o ecossistema de bancos de dados relacionais gerenciados na nuvem (*Managed Relational DBaaS*), com foco nas arquiteturas do **Amazon RDS** e do **Amazon Aurora**, além das soluções equivalentes no Google Cloud (Cloud SQL/AlloyDB) e Microsoft Azure (Azure SQL). Você aprenderá como a nuvem transforma a administração operacional, garantindo replicação automática, recuperação contra desastres e escalabilidade elástica sem paradas.
+
+---
+
+## Objetivo
+
+Compreender a arquitetura e as vantagens operacionais de bancos de dados relacionais gerenciados em nuvem pública frente à administração de servidores autohospedados (*Self-Hosted*). Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar o modelo de máquinas autohospedadas (EC2/IaaS), instâncias gerenciadas (RDS/Cloud SQL) e motores nativos da nuvem (Aurora/AlloyDB).
+- Explicar o funcionamento da replicação síncrona em múltiplas zonas de disponibilidade (*Multi-AZ*).
+- Descrever a arquitetura de armazenamento distribuído segregado da computação no Amazon Aurora.
+- Identificar os mecanismos de criação de réplicas de leitura (*Read Replicas*) e promoção automática em caso de falha (*failover*).
+- Avaliar os custos, cenários ideais de adoção e limites de escalabilidade do Aurora Serverless.
+
+---
+
+## Da Máquina Virtual ao Banco Nativo da Nuvem
+
+Ao migrar um banco relacional como PostgreSQL ou MySQL para a nuvem, existem três níveis sucessivos de abstração operacional:
+
+<Mermaid title="Níveis de abstração de bancos de dados relacionais na nuvem">
+{`
+flowchart TD
+    subgraph IaaS ["1. IaaS (Self-Hosted em VM)"]
+        A1[Instalador PostgreSQL / MySQL] --> A2[Gerenciamento do SO, Discos e Patches Manuais]
+    end
+
+    subgraph PaaS ["2. PaaS Gerenciado (Amazon RDS / Cloud SQL)"]
+        B1[Motor Padrão Otimizado] --> B2[Backups Automáticos, Multi-AZ e Failover Gerenciado]
+    end
+
+    subgraph CloudNative ["3. Cloud-Native (Amazon Aurora / AlloyDB)"]
+        C1[Camada de Computação Serverless] --> C2[Armazenamento Distribuído em 6 Cópias com Auto-Scaling]
+    end
+`}
+</Mermaid>
+
+A evolução para o modelo gerenciado transfere tarefas repetitivas de sustentação (como aplicação de correções de segurança no sistema operacional, rotação de certificados e rotinas de cópia de segurança) para a infraestrutura do provedor de nuvem.
+
+---
+
+## Arquitetura do Amazon Aurora: Separação de Computação e Armazenamento
+
+Enquanto o Amazon RDS tradicional executa o binário do PostgreSQL ou MySQL sobre volumes de blocos em disco EBS anexados a uma instância virtual, o **Amazon Aurora** redesenhou o motor relacional especificamente para a nuvem:
+
+<Mermaid title="Arquitetura de armazenamento distribuído do Amazon Aurora">
+{`
+flowchart LR
+    App["Aplicação Web"] --> WR["Instância Primária (Escrita)"]
+    App --> RR1["Réplica de Leitura 1"]
+    App --> RR2["Réplica de Leitura 2"]
+
+    subgraph StorageEngine ["Camada de Armazenamento Distribuído do Aurora (Log-Structured)"]
+        direction LR
+        AZ1[("Zona A (2 Cópias)")]
+        AZ2[("Zona B (2 Cópias)")]
+        AZ3[("Zona C (2 Cópias)")]
+    end
+
+    WR --> StorageEngine
+    StorageEngine -.-> RR1
+    StorageEngine -.-> RR2
+`}
+</Mermaid>
+
+Os três pilares da arquitetura do Aurora incluem:
+
+1. **Armazenamento Replicado em 6 Cópias**: Cada bloco de dado é gravado em 6 cópias distribuídas por 3 Zonas de Disponibilidade (*AZs*). O sistema tolera a perda de 2 cópias sem afetar a disponibilidade de escrita, e 3 cópias sem perder leitura.
+2. **Log como Banco de Dados (*The Log is the Database*)**: Em vez de gravar páginas completas no disco a cada transação, a instância primária envia apenas os registros de log de transação (*redo log*) para a camada de armazenamento, reduzindo drasticamente o tráfego de rede e a latência de commit.
+3. **Réplicas de Leitura sem Latência de Disco**: Até 15 réplicas de leitura compartilham a mesma camada de armazenamento subjacente, eliminando o atraso de replicação física comum em instâncias tradicionais.
+
+---
+
+## Alta Disponibilidade Multi-AZ e Failover Automático
+
+Em ambientes de produção com requisitos de alta disponibilidade (99,99%), habilita-se a opção **Multi-AZ**:
+
+A tabela abaixo compara o comportamento de instâncias de escrita e contingência:
+
+| Característica | Amazon RDS Tradicional (Multi-AZ) | Amazon Aurora (Multi-AZ) |
+| :--- | :--- | :--- |
+| **Instância Standby** | Instância secundária passiva em outra AZ recebendo replicação síncrona. Não atende leituras. | Todas as réplicas atendem tráfego ativo de leitura além de atuarem como alvos de *failover*. |
+| **Tempo de Failover** | 60 a 120 segundos para promover o standby e alternar o registro CNAME DNS. | Menos de 30 segundos (ou instantâneo com drivers inteligentes). |
+| **Crescimento de Armazenamento** | Expansão manual ou escalonamento automático de volumes EBS com limite estático. | Autoescala automática de 10 GB até 128 TB em incrementos dinâmicos. |
+
+<Aside type="tip" title="Aurora Serverless v2">
+  O **Aurora Serverless v2** ajusta automaticamente a capacidade de computação em frações de segundo (*Aurora Capacity Units - ACUs*), escalando de acordo com picos de tráfego de forma granular sem interrupção de conexões ativas.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha entre RDS, Aurora e DBaaS modernos depende do volume financeiro e da complexidade da esteira:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Sistemas corporativos críticos com alto throughput e tolerância zero a falhas | **Amazon Aurora** | Alta disponibilidade multi-AZ, até 15 réplicas e armazenamento autoescalável. |
+| Aplicações web padrão que já rodam na AWS com orçamento previsível | **Amazon RDS (Postgres/MySQL)** | Menor custo operacional fixo que o Aurora com backups e automações prontas. |
+| Prototipagem rápida, Next.js e aplicações com *scale-to-zero* | **[Supabase](../../cloud/supabase/) ou [Neon](../../cloud/resources/relational-database/)** | Provisionamento instantâneo, planos gratuitos generosos e branching estilo Git. |
+| Aplicação embutida, offline ou cliente desktop local | **[SQLite](../sqlite/)** | Zero dependência de rede, latência zero de barramento e arquivo único. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de bancos de dados relacionais gerenciados:
+
+1. Qual é a principal diferença arquitetural entre o Amazon RDS tradicional e o Amazon Aurora?
+2. Como funciona o mecanismo de *failover* em uma configuração Multi-AZ no RDS?
+3. O que acontece com as réplicas de leitura no Aurora se a instância primária de escrita sofrer uma falha de hardware?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O RDS tradicional executa o motor padrão (PostgreSQL ou MySQL) sobre volumes de blocos anexados (EBS), enquanto o Aurora possui uma camada de armazenamento distribuída e desacoplada da computação, replicando 6 cópias do log em 3 zonas de disponibilidade.
+
+  2. O provedor de nuvem detecta a indisponibilidade da instância primária, promove a instância secundária síncrona para assumir o papel de primária e atualiza o registro DNS do endpoint do banco, sem intervenção humana manual.
+
+  3. Uma das réplicas de leitura existentes é promovida automaticamente para se tornar a nova instância primária de escrita em poucos segundos, enquanto as demais réplicas passam a acompanhar o novo líder.
+</details>
+
+---
+
+## Desafio
+
+Um e-commerce de grande porte sofre com quedas de desempenho durante a Black Friday devido ao excesso de relatórios analíticos executados no banco principal de vendas.
+
+Proponha uma arquitetura de banco de dados na nuvem que proteja a base de escrita contra sobrecargas, garanta alta disponibilidade e reduza o custo nos meses normais do ano.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma arquitetura recomendada para este cenário:
+
+  1. **Separação de Endpoints**:
+     - Configurar a aplicação transacional para conectar-se ao *Writer Endpoint* do Amazon Aurora PostgreSQL.
+     - Redirecionar todos os relatórios, consultas de painel e leituras de catálogo para o *Reader Endpoint*, que balanceia as requisições entre réplicas de leitura.
+
+  2. **Escala Automática de Réplicas (Auto Scaling)**:
+     - Configurar políticas de Auto Scaling para criar réplicas de leitura dinâmicas durante os picos de tráfego da Black Friday e destruí-las automaticamente quando o consumo de CPU normalizar.
+
+  3. **Camada de Cache com Redis**:
+     - Adicionar uma instância ElastiCache for Redis na frente do catálogo para evitar consultas repetitivas de produtos no banco relacional.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Arquitetura em Nuvem
+
+1. **O que é um endpoint de leitura (*Reader Endpoint*) no Aurora?**
+   <details><summary>Possível resposta</summary>É um endereço DNS único fornecido pelo provedor que balanceia automaticamente as conexões de leitura entre todas as réplicas disponíveis no cluster.</details>
+
+2. **Por que o Aurora tem menor latência de commit que o MySQL autohospedado?**
+   <details><summary>Possível resposta</summary>Porque o Aurora transmite apenas registros de log binário (*redo log*) para o armazenamento, dispensando a gravação de páginas inteiras de dados e tabelas temporárias duplas (*doublewrite buffer*).</details>
+
+### Alta Disponibilidade
+
+3. **Qual a diferença entre uma réplica de leitura e uma instância standby Multi-AZ no RDS tradicional?**
+   <details><summary>Possível resposta</summary>A instância standby é passiva (não atende tráfego de leitura e recebe dados sincronamente para contingência); a réplica de leitura atende consultas assincronamente mas pode ter atraso de replicação.</details>
+
+---
+
+## Referências
+
+- [Amazon Aurora Architecture Paper (ACM SIGMOD)](https://dl.acm.org/doi/10.1145/3035918.3056101)
+- [Amazon RDS Documentation](https://docs.aws.amazon.com/rds/)
+- [Google Cloud SQL Overview](https://cloud.google.com/sql/docs)
+- [Azure Database for PostgreSQL Documentation](https://learn.microsoft.com/azure/postgresql/)
+
+---
+
+## Próximo tópico
+
+[Banco de Documentos](../../database/mongodb/): O paradigma de documentos BSON, esquema flexível e agregação com a MongoDB Query Language.

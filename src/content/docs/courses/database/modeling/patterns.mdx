@@ -1,0 +1,433 @@
+---
+title: "Banco de Dados: Padrões de Modelagem e Auditoria"
+description: "Exclusão lógica (soft delete), índices parciais, timestamps de auditoria (createdAt/updatedAt), histórico de valores (SCD Tipo 2), colunas computadas, concorrência otimista e identificadores modernos."
+course: database
+sidebar:
+  label: "Padrões e Auditoria"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico reúne os padrões arquiteturais essenciais de persistência que surgem em aplicações reais de produção. Você aprenderá como implementar exclusão lógica (*soft delete*) sem quebrar restrições de unicidade, rastrear auditoria temporal com `created_at` e `updated_at`, guardar histórico de valores no tempo, utilizar colunas geradas (*computed columns*), prevenir sobreposições com concorrência otimista e escolher identificadores modernos.
+
+---
+
+## Objetivo
+
+Dominar os padrões de desenho de esquema que garantem rastreabilidade, integridade de dados e proteção contra concorrência em bancos de produção. Ao final do tópico, o leitor deve ser capaz de:
+
+- Implementar exclusão lógica com `deleted_at` e resolver o conflito com restrições `UNIQUE` através de índices parciais.
+- Configurar colunas de auditoria temporal (`created_at` e `updated_at`) e automatizar a atualização via gatilhos (*triggers*) ou recursos nativos do motor.
+- Projetar tabelas para histórico de valores, vigências temporais (SCD Tipo 2) e cópia pontual (*snapshots*).
+- Criar colunas computadas (*generated columns*) nos modos `VIRTUAL` e `STORED` e identificar quando indexá-las.
+- Aplicar controle de concorrência otimista (*Optimistic Locking*) com controle de versão para evitar atualizações perdidas (*lost updates*).
+- Comparar chaves primárias sequenciais inteiras com identificadores universais modernos (UUIDv4, UUIDv7 e ULID).
+- Modelar ciclos de vida de entidades e máquinas de estado através de restrições `CHECK` e tipos enumerados.
+
+---
+
+## Exclusão Lógica (Soft Delete)
+
+Em sistemas corporativos, apagar registros fisicamente com `DELETE FROM` (*Hard Delete*) é frequentemente perigoso: destrói o histórico financeiro, quebra integridade de relatórios e impede a recuperação em caso de engano do usuário ou conformidade legal (auditoria e LGPD/GDPR).
+
+O padrão de **Exclusão Lógica** (*Soft Delete*) marca o registro como inativo em vez de removê-lo do disco. A melhor prática é adotar uma coluna temporal `deleted_at TIMESTAMP NULL`, onde `NULL` indica que a linha está ativa e uma data preenchida indica quando foi excluída.
+
+<SourceCode path="examples/courses/database/invest-db/modeling/patterns.sql" region="schema" mark={[8, 13]} />
+
+### A Armadilha do Índice de Unicidade
+
+O grande desafio do *soft delete* surge quando uma tabela possui uma coluna com restrição `UNIQUE`, como o e-mail de um usuário:
+
+1. O usuário `carlos@example.com` é cadastrado (linha ativa).
+2. O usuário exclui sua conta; o sistema grava `deleted_at = '2026-09-11 12:00:00'`.
+3. Dias depois, Carlos tenta criar uma nova conta com o mesmo e-mail `carlos@example.com`.
+4. Uma restrição `UNIQUE(email)` tradicional rejeitará a inserção com erro de chave duplicada, porque o registro antigo ainda reside na tabela.
+
+A solução consiste em criar um **Índice Parcial** (ou condicional), suportado por PostgreSQL e SQLite:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/patterns.sql" region="demo-soft-delete" mark={[5, 8, 11]} />
+
+```sql title="Definição de índice parcial condicional"
+CREATE UNIQUE INDEX idx_user_active_email ON user_account (email) WHERE deleted_at IS NULL;
+```
+
+Com o índice parcial, a unicidade é validada apenas entre as linhas onde `deleted_at IS NULL`. Vários registros excluídos com o mesmo e-mail podem coexistir no histórico sem gerar conflito.
+
+<Aside type="caution" title="Dica de IA: Cuidado com o Soft Delete em Chaves Estrangeiras">
+  Ao usar *soft delete*, ações em cascata (`ON DELETE CASCADE`) do banco **não disparam**, pois o comando executado é um `UPDATE`. Se você desativar um cliente, deve atualizar manualmente seus pedidos ou criar rotinas no ORM/trilha de aplicação para propagar a inativação.
+</Aside>
+
+---
+
+## Auditoria Temporal: createdAt e updatedAt
+
+Saber exatamente quando cada linha foi gravada e quando sofreu sua última modificação é um requisito universal de auditoria e depuração.
+
+A convenção padronizada da indústria utiliza duas colunas:
+
+- `created_at`: Preenchida automaticamente no momento da inserção (`DEFAULT CURRENT_TIMESTAMP` ou `now()`). É imutável.
+- `updated_at`: Atualizada automaticamente a cada modificação (`UPDATE`) na linha.
+
+A automação do `updated_at` varia conforme o motor de banco de dados:
+
+<Mermaid title="Estratégias de atualização automática de updatedAt por motor">
+{`
+flowchart TD
+    A[Modificação de Registro UPDATE] --> B{Motor do SGBD}
+    B -->|MySQL / MariaDB| C[Cláusula Nativa ON UPDATE CURRENT_TIMESTAMP]
+    B -->|PostgreSQL| D[Trigger PL/pgSQL BEFORE UPDATE]
+    B -->|SQLite| E[Trigger AFTER UPDATE com WHERE id = OLD.id]
+    B -->|Aplicação / ORMs| F[Hooks do Prisma / TypeORM / Drizzle]
+`}
+</Mermaid>
+
+No MySQL, a atualização é declarativa na própria definição da coluna:
+
+```sql title="MySQL: Atualização nativa declarativa"
+created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+```
+
+No PostgreSQL e SQLite, cria-se uma função/gatilho (*trigger*) para atualizar o timestamp antes ou depois de cada alteração:
+
+```sql title="PostgreSQL: Gatilho de atualização de timestamp"
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER trg_user_updated_at
+BEFORE UPDATE ON user_account
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+---
+
+## Estratégias para Guardar Histórico de Valores
+
+Em aplicações de produção, um dos maiores erros de modelagem é atualizar um campo diretamente com `UPDATE` (destruindo o valor anterior) quando o negócio precisa saber quanto aquele valor valia no passado. Se a tabela `product` tiver apenas a coluna `price` e o preço for alterado de R$ 100 para R$ 150, todos os pedidos antigos vinculados por chave estrangeira que calculam relatórios via junção sofrerão distorção retroativa.
+
+Existem quatro estratégias arquiteturais consagradas para armazenar histórico de valores:
+
+<Mermaid title="Estratégias de preservação de histórico de valores">
+{`
+flowchart TD
+    A[Necessidade de Guardar Histórico] --> B{Qual o objetivo principal?}
+    B -->|Imutabilidade de Vendas/Faturas| C[1. Snapshot Pontual no Pedido]
+    B -->|Preço/Salário Vigente com Linha do Tempo| D[2. Vigência Temporal SCD Tipo 2]
+    B -->|Conformidade Legal e Segurança| E[3. Log de Auditoria JSON]
+    B -->|Saldos Contábeis e Financeiros| F[4. Razão Imutável Append-Only]
+`}
+</Mermaid>
+
+### 1. Snapshot no Momento da Transação (Point-in-Time Snapshot)
+
+Em e-commerce, faturamento e cobrança, a regra de ouro é: **nunca confie no `JOIN` com o cadastro atual para obter o preço de uma transação passada**.
+
+A tabela de itens de pedido (`order_item`) deve copiar fisicamente o `unit_price` e até mesmo o `product_name` no exato momento em que o pedido é confirmado:
+
+```sql title="Cópia pontual deliberada de valor histórico"
+-- order_item grava o preço congelado no momento da compra
+INSERT INTO order_item (order_id, product_name, quantity, unit_price)
+SELECT 101, p.name, 2, p.price
+FROM product p WHERE p.id = 1;
+```
+
+Essa duplicação não viola a [normalização](../normalization/): ela reflete o fato de que o *preço contratado no pedido* é um atributo próprio do pedido, imutável, e não o preço dinâmico do catálogo.
+
+### 2. Tabelas de Vigência Temporal (SCD Tipo 2)
+
+Quando uma entidade precisa manter uma linha do tempo contínua de alterações (como histórico de preços, aumentos salariais ou mudanças de endereço de entrega), utiliza-se o padrão **Slowly Changing Dimension Tipo 2 (SCD Tipo 2)**.
+
+Cria-se uma tabela associada com intervalos de vigência expressos por `valid_from` (data de início) e `valid_to` (data de término, onde `NULL` indica o registro atualmente em vigor):
+
+<SourceCode path="examples/courses/database/invest-db/modeling/patterns.sql" region="demo-history" mark={[2, 4, 8, 14]} />
+
+```sql title="Consulta do preço vigente versus preço histórico em data específica"
+-- Preço atual (vigente)
+SELECT price FROM product_price_history WHERE product_id = 1 AND valid_to IS NULL;
+
+-- Preço exato em 15 de março de 2026
+SELECT price FROM product_price_history
+WHERE product_id = 1
+  AND '2026-03-15 10:00:00' >= valid_from
+  AND ('2026-03-15 10:00:00' < valid_to OR valid_to IS NULL);
+```
+
+Um índice parcial único `CREATE UNIQUE INDEX ... WHERE valid_to IS NULL` garante que cada produto tenha estritamente um único preço vigente por vez.
+
+### 3. Trilha de Auditoria por Log de Modificações (Audit Trail)
+
+Para auditoria geral de segurança e conformidade (LGPD, SOX, ISO), armazena-se um log genérico com os deltas em formato JSON:
+
+```sql title="Esquema de log de auditoria genérico"
+CREATE TABLE audit_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  table_name  TEXT NOT NULL,
+  record_id   INTEGER NOT NULL,
+  action      TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
+  old_data    TEXT NULL, -- JSON com o estado anterior
+  new_data    TEXT NULL, -- JSON com o novo estado
+  changed_by  INTEGER NOT NULL,
+  changed_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 4. Razão Contábil Imutável (Append-Only Ledger)
+
+Em sistemas bancários e carteiras digitais, saldos **nunca sofrem `UPDATE`**. O banco opera exclusivamente por inserções (`INSERT`) de lançamentos a débito e a crédito. O saldo atual é a soma cumulativa de todas as transações, garantindo rastreabilidade matemática perfeita contra fraudes.
+
+---
+
+## Campos Computados e Colunas Geradas (Generated Columns)
+
+Muitas vezes, uma informação depende matematicamente de outras colunas da mesma tabela (ex: `total = quantidade * preco_unitario`, ou `nome_completo = primeiro_nome || ' ' || sobrenome`).
+
+Armazenar cálculos manualmente via aplicação gera risco de inconsistência. As **Colunas Geradas** (*Generated / Computed Columns*) resolvem esse problema delegando a fórmula diretamente ao SGBD:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/patterns.sql" region="demo-computed" mark={[27, 30, 31, 32]} />
+
+Existem dois tipos fundamentais de colunas geradas:
+
+| Tipo de Coluna Gerada | Como Funciona | Consumo de Espaço | Indexação | Quando Escolher |
+| :--- | :--- | :--- | :--- | :--- |
+| **`VIRTUAL`** | Calculada em tempo de execução a cada consulta `SELECT`. | Zero bytes em disco. | Suportada em alguns SGBDs (PostgreSQL via índice em expressão). | Cálculos simples, funções leves ou formatos alternativos de exibição. |
+| **`STORED`** | Calculada no momento da inserção/alteração e gravada fisicamente no disco. | Ocupa espaço como uma coluna normal. | Totalmente indexável com árvores B-Tree padrão. | Cálculos caros ou colunas frequentemente filtradas em cláusulas `WHERE` e `ORDER BY`. |
+
+```sql title="Exemplo de coluna gerada STORED no SQLite / PostgreSQL / MySQL"
+CREATE TABLE order_item (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  quantity     INTEGER NOT NULL CHECK (quantity > 0),
+  unit_price   INTEGER NOT NULL CHECK (unit_price >= 0),
+  total_amount INTEGER GENERATED ALWAYS AS (quantity * unit_price) STORED
+);
+```
+
+---
+
+## Controle de Concorrência Otimista (Optimistic Locking)
+
+Quando dois usuários ou processos concorrentes tentam editar o mesmo registro simultaneamente, ocorre o problema de **Atualização Perdida** (*Lost Update*): o último processo a gravar sobrescreve as alterações do primeiro sem perceber.
+
+O bloqueio pessimista (`SELECT ... FOR UPDATE`) trava a linha no banco, mas reduz drasticamente o paralelismo e não funciona bem em arquiteturas web desconectadas (onde o usuário fica com a tela aberta editando um formulário).
+
+O padrão de **Controle de Concorrência Otimista** adiciona uma coluna de versão (`version INTEGER NOT NULL DEFAULT 1`) à tabela:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/patterns.sql" region="demo-concurrency" mark={[38, 41, 46]} />
+
+<Mermaid title="Fluxo de Concorrência Otimista com controle de versão">
+{`
+sequenceDiagram
+    autonumber
+    actor Alice
+    actor Bob
+    participant DB as Banco de Dados
+
+    Alice->>DB: SELECT * WHERE id = 1 (versão = 1, estoque = 10)
+    Bob->>DB: SELECT * WHERE id = 1 (versão = 1, estoque = 10)
+    Note over Alice,Bob: Ambos preparam alterações em paralelo
+
+    Alice->>DB: UPDATE SET estoque = 9, version = 2 WHERE id = 1 AND version = 1
+    DB-->>Alice: 1 linha afetada (Sucesso!)
+
+    Bob->>DB: UPDATE SET estoque = 9, version = 2 WHERE id = 1 AND version = 1
+    DB-->>Bob: 0 linhas afetadas (Conflito detectado!)
+    Note over Bob: Aplicação de Bob avisa que o registro foi alterado por outro usuário
+`}
+</Mermaid>
+
+Se o comando `UPDATE` retornar `0 linhas afetadas`, a aplicação sabe imediatamente que outro processo alterou o registro antes dela, podendo abortar a operação ou solicitar que o usuário recarregue os dados mais recentes.
+
+---
+
+## Identificadores Modernos de Registros
+
+A escolha da chave primária afeta diretamente a segurança, a escalabilidade e o desempenho de gravação no índice B-Tree:
+
+| Identificador | Formato / Exemplo | Vantagens | Desvantagens |
+| :--- | :--- | :--- | :--- |
+| **Inteiro Sequencial (`BIGINT`)** | `1, 2, 3...` (8 bytes) | Extremamente compacto, inserção sequencial sem fragmentação de índice. | Previsível (permite enumeração em APIs: `/users/42`), exige coordenação centralizada. |
+| **UUIDv4 (Aleatório)** | `a8098c1a-f86e-11da-bd1a-00112444be1e` (16 bytes) | Gerado localmente sem consultar o banco, impossível de adivinhar. | **Fragmentação massiva de índice B-Tree**: inserções em locais aleatórios causam divisões de página (*page splits*) constantes. |
+| **UUIDv7 (Temporal Ordenável)** | `018d9f4e-2f1a-7b3c-91d4-8f2e1a3b4c5d` (16 bytes) | Combina timestamp de milissegundos nos primeiros bits com aleatoriedade. **Ordenável no tempo**, mantendo inserções no fim do índice sem fragmentar. | Novo padrão (RFC 9562 formalizado em 2024), requer suporte nativo ou biblioteca no gerador. |
+| **ULID** | `01ARZ3NDEKTSV4RRFFQ69G5FAV` (26 caracteres) | Ordenável no tempo, amigável a URLs, case-insensitive (Base32). | Armazenado como texto se o motor não tiver tipo nativo de 128 bits. |
+
+<Aside type="tip" title="Recomendação Arquitetural de Chaves Primárias">
+  Para novos projetos modernos, adote **UUIDv7** como chave pública de entidades externas (ou inteiros sequenciais internos combinados com UUIDv7 para rotas públicas de API). Isso garante que suas rotas não exponham volumes de negócio e preserva o desempenho máximo dos índices B-Tree do banco.
+</Aside>
+
+---
+
+## Máquinas de Estado e Integridade de Domínio
+
+Tabelas que representam pedidos, faturas ou chamados passam por um ciclo de vida estrito (ex: `draft` $\rightarrow$ `published` $\rightarrow$ `archived`).
+
+Para evitar que a aplicação grave estados inexistentes ou execute saltos inválidos, utilize restrições de domínio `CHECK` no SGBD:
+
+```sql title="Garantia de estados e transições no banco"
+CREATE TABLE article (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  title      TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'archived')),
+  published_at TEXT NULL,
+  -- Garante que artigos publicados tenham data de publicação obrigatória
+  CONSTRAINT chk_published_date CHECK (
+    (status = 'published' AND published_at IS NOT NULL) OR
+    (status != 'published')
+  )
+);
+```
+
+---
+
+## Executando
+
+Os passos abaixo executam o arquivo de demonstração de padrões de modelagem no SQLite:
+
+<Steps>
+1. Na pasta `examples/courses/database/invest-db/`, execute o script `patterns.sql`:
+
+   ```bash title="Terminal"
+   node run.mjs modeling/patterns.sql
+   ```
+
+2. Observe a saída confirmando o funcionamento do índice parcial, da coluna computada e do bloqueio de concorrência:
+
+   ```txt title="Output"
+   == modeling/patterns.sql ==
+   -- ok
+   -- ok
+   -- ok
+   -- ok
+   -- ok
+   -- ok
+   -- ok
+   -- 1 linha(s) afetada(s)
+   -- 1 linha(s) afetada(s)
+   -- 1 linha(s) afetada(s)
+   id | email              | name                      | deleted_at
+   ---+--------------------+---------------------------+-----------
+   2  | carlos@example.com | Carlos Silva (Nova Conta) | NULL      
+   -- 2 linha(s) afetada(s)
+   product_name     | quantity | price | total
+   -----------------+----------+-------+------
+   Teclado Mecânico | 2        | 250   | 500  
+   Mouse Ergonômico | 1        | 150   | 150  
+   -- 1 linha(s) afetada(s)
+   -- 1 linha(s) afetada(s)
+   -- 0 linha(s) afetada(s)
+   id | name       | stock | status    | version
+   ---+------------+-------+-----------+--------
+   1  | Monitor 4K | 9     | published | 2      
+   -- 2 linha(s) afetada(s)
+   product_id | current_price | valid_from         
+   -----------+---------------+--------------------
+   1          | 2000          | 2026-06-01 00:00:00
+   product_id | historic_price
+   -----------+---------------
+   1          | 1800          
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos padrões apresentados nesta página:
+
+1. Por que a exclusão lógica utilizando uma coluna booleana `is_deleted BOOLEAN` é menos informativa do que uma coluna temporal `deleted_at TIMESTAMP NULL`?
+2. Como uma restrição `UNIQUE` em coluna de e-mail pode ser compatibilizada com o *soft delete* no PostgreSQL ou SQLite?
+3. Qual é a principal diferença de desempenho de inserção entre um identificador `UUIDv4` e um `UUIDv7` em tabelas com milhões de linhas indexadas por B-Tree?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A coluna temporal `deleted_at TIMESTAMP NULL` armazena não apenas o fato da exclusão (quando não for nula), mas também o momento exato em que ela ocorreu. Isso permite auditoria, conformidade legal, ordenação cronológica e implementação de rotinas automáticas de expurgo (ex: expurgar fisicamente contas inativas há mais de 5 anos).
+
+  2. Criando um **Índice Parcial** que aplica a restrição de unicidade exclusivamente nas linhas ativas: `CREATE UNIQUE INDEX idx_user_active_email ON user_account (email) WHERE deleted_at IS NULL;`.
+
+  3. O `UUIDv4` é totalmente aleatório, fazendo com que novas inserções caiam em pontos arbitrários da árvore B-Tree, provocando constantes quebras e realocações de páginas de memória (*page splits*). Já o `UUIDv7` possui um prefixo temporal de milissegundos ordenável, garantindo que novas inserções ocorram sequencialmente no final da árvore, mantendo o índice compacto e rápido como um inteiro sequencial.
+</details>
+
+---
+
+## Desafio
+
+Uma plataforma de cobranças precisa de uma tabela de faturas (`invoice`). Cada fatura possui um valor bruto (`gross_amount`), um percentual de desconto (`discount_pct` entre 0 e 100), e um imposto fixo de retenção (`tax_amount`).
+
+Projete a tabela no dialeto SQL de sua escolha com:
+1. Uma coluna computada `net_amount` que calcule o valor líquido a pagar: `gross_amount - (gross_amount * discount_pct / 100) + tax_amount`.
+2. Controle de concorrência otimista.
+3. Rastreamento de auditoria com `created_at` e `updated_at`.
+4. Máquina de estados para `status` (`'pending'`, `'paid'`, `'cancelled'`, `'refunded'`).
+5. Proteção para que faturas com status `'paid'` tenham obrigatoriamente uma data `paid_at` preenchida.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql title="Modelo de fatura com padrões avançados"
+  CREATE TABLE invoice (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id   INTEGER NOT NULL,
+    gross_amount  INTEGER NOT NULL CHECK (gross_amount >= 0), -- em centavos
+    discount_pct  INTEGER NOT NULL DEFAULT 0 CHECK (discount_pct BETWEEN 0 AND 100),
+    tax_amount    INTEGER NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
+    -- Coluna gerada armazenada
+    net_amount    INTEGER GENERATED ALWAYS AS (
+      gross_amount - (gross_amount * discount_pct / 100) + tax_amount
+    ) STORED,
+    status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded')),
+    paid_at       TEXT NULL,
+    version       INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at    TEXT NULL,
+
+    CONSTRAINT chk_invoice_paid_date CHECK (
+      (status = 'paid' AND paid_at IS NOT NULL) OR
+      (status != 'paid')
+    )
+  ) STRICT;
+
+  CREATE UNIQUE INDEX idx_invoice_active ON invoice (id) WHERE deleted_at IS NULL;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Padrões de Exclusão e Auditoria
+
+1. **O que acontece com as consultas padrão da aplicação quando o *soft delete* é introduzido?**
+   <details><summary>Possível resposta</summary>Todas as consultas de listagem e leitura de dados ativos devem incluir explicitamente a cláusula `WHERE deleted_at IS NULL`, ou utilizar escopos globais e filtros automáticos configurados no ORM da aplicação.</details>
+
+2. **Por que a coluna `updated_at` deve ser inicializada com `CURRENT_TIMESTAMP` na inserção?**
+   <details><summary>Possível resposta</summary>Para garantir consistência semântica e evitar valores nulos (`NULL`) em consultas de ordenação temporal ou sincronização de dados desde o momento da criação.</details>
+
+### Concorrência e Identificadores
+
+3. **Qual a principal vantagem do bloqueio otimista frente ao bloqueio pessimista (`SELECT FOR UPDATE`) em APIs web?**
+   <details><summary>Possível resposta</summary>O bloqueio otimista não mantém transações ou conexões abertas com bloqueios de tabela/linha durante o tempo em que o usuário está preenchendo um formulário na interface gráfica, preservando alta escalabilidade e taxa de requisições simultâneas.</details>
+
+4. **Quando uma coluna gerada deve ser `STORED` em vez de `VIRTUAL`?**
+   <details><summary>Possível resposta</summary>Quando a coluna computada for utilizada com alta frequência em cláusulas de filtro (`WHERE`), ordenação (`ORDER BY`) ou junções (`JOIN`), necessitando de um índice B-Tree físico para acelerar as buscas.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: Generated Columns](https://www.postgresql.org/docs/current/ddl-generated-columns.html)
+- [SQLite Documentation: Generated Columns](https://www.sqlite.org/gencol.html)
+- [PostgreSQL Documentation: Partial Indexes](https://www.postgresql.org/docs/current/indexes-partial.html)
+- [IETF RFC 9562: Universally Unique Identifiers (UUIDv7)](https://datatracker.ietf.org/doc/rfc9562/)
+- [Martin Fowler: Optimistic Offline Lock](https://martinfowler.com/eaaCatalog/optimisticOfflineLock.html)
+
+---
+
+## Próximo tópico
+
+[Chaves e Índices](../keys-indexes/): Chaves naturais e substitutas, chaves estrangeiras, restrições compostas, índices simples e compostos e análise com `EXPLAIN QUERY PLAN`.
