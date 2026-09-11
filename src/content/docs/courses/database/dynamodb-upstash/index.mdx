@@ -104,17 +104,60 @@ Os diferenciais do Upstash abrangem:
 
 ---
 
-## Comparativo: DynamoDB vs. Upstash vs. ElastiCache
+## Aceleração e Cache: DynamoDB, DAX e Amazon ElastiCache
+
+Ao desenhar arquiteturas de altíssima vazão em nuvem, surge frequentemente a dúvida sobre como acelerar leituras: usar o banco diretamente, adicionar **DAX** ou acoplar **Amazon ElastiCache**?
+
+<Mermaid title="Padrões arquiteturais: DAX (Inline Cache) vs ElastiCache (Look-Aside Cache)">
+{`
+flowchart TD
+    subgraph PatternDAX ["1. DAX: Cache em Linha (Inline / Write-Through)"]
+        direction LR
+        App1["Aplicação (SDK DynamoDB)"] -->|"1. GetItem / Query (Microssegundos)"| DAX["DAX Cluster (In-Memory)"]
+        DAX -->|"2. Cache Miss / Write-Through"| DDB1[("Amazon DynamoDB (SSD)")]
+    end
+
+    subgraph PatternElastiCache ["2. ElastiCache: Cache Desacoplado (Look-Aside / Cache-Aside)"]
+        direction TB
+        App2["Aplicação"] -->|"1. Verifica Chave"| EC["ElastiCache (Redis / Valkey)"]
+        App2 -->|"2. Se Cache Miss, busca no Banco"| DDB2[("DynamoDB / PostgreSQL")]
+        App2 -->|"3. Atualiza Cache com TTL"| EC
+    end
+`}
+</Mermaid>
+
+A escolha entre DAX e ElastiCache baseia-se no modelo de integração e na complexidade das estruturas de dados:
+
+### 1. Amazon DynamoDB (Banco Persistente)
+É a camada primária de persistência e fonte da verdade (*Source of Truth*). Oferece durabilidade garantida em 3 zonas de disponibilidade (Multi-AZ) e latência consistente de 1 dígito de milissegundo (entre 4ms e 9ms) para qualquer volume de dados.
+
+### 2. DAX - DynamoDB Accelerator (Cache Inline Especializado)
+O **DAX** é um cache em memória totalmente gerenciado projetado especificamente para o DynamoDB:
+
+- **Transparência de Código (*Drop-in Replacement*)**: A aplicação utiliza o mesmo SDK do DynamoDB, alterando apenas o endpoint de conexão para o cluster DAX. Nenhuma lógica de *cache-aside* precisa ser escrita pelo desenvolvedor.
+- **Latência em Microssegundos**: Reduz o tempo de resposta de milissegundos para sub-milissegundos (~100µs a 200µs) para leituras repetitivas (*Read-Heavy*) e picos de tráfego em chaves populares (*Hot Keys*).
+- **Gerenciamento Automático**: O DAX atualiza seu cache interno automaticamente durante operações de escrita (*Write-Through*).
+
+### 3. Amazon ElastiCache (Cache Look-Aside Genérico)
+O **ElastiCache** (Redis, Valkey ou Memcached) atua como um armazenamento em memória desacoplado e de propósito geral:
+
+- **Estruturas de Dados Avançadas**: Permite usar recursos nativos do Redis como *Sorted Sets* (para placares em tempo real e rankings), *Hashes*, *Bitmaps* e *Pub/Sub*, que não existem no DAX.
+- **Agregação Multi-Banco**: Pode cachear resultados agregados que combinam dados do DynamoDB, PostgreSQL, MySQL e APIs externas de terceiros na mesma chave.
+- **Padrão Cache-Aside**: A aplicação é responsável por gerenciar manualmente a verificação de cache, a busca no banco primário em caso de falha (*cache miss*) e a expiração com TTL.
+
+---
+
+## Comparativo: DynamoDB vs. DAX vs. ElastiCache vs. Upstash
 
 A tabela abaixo sintetiza os papéis dos principais motores chave-valor e cache em nuvem:
 
-| Característica | Amazon DynamoDB | Upstash Redis | AWS ElastiCache (Redis/Valkey) |
-| :--- | :--- | :--- | :--- |
-| **Persistência Principal** | Permanente em SSD NVMe com 3 AZs | Persistência assíncrona com foco em cache | Em memória RAM (volátil ou com replicação) |
-| **Protocolo de Acesso** | SDK AWS via HTTPS / gRPC | REST HTTP e protocolo Redis padrão | Protocolo TCP nativo Redis em VPC privada |
-| **Estruturas de Dados** | Documentos JSON, Atributos Escalares, Sets | Hashes, Lists, Sets, Sorted Sets, Bitmaps, Geospatial | Todas as estruturas de dados nativas do Redis |
-| **Modelo de Cobrança** | Por requisições (On-Demand) ou RCU/WCU | Por comando HTTP executado (Serverless) | Por hora de instância provisionada (ex: `cache.t4g.micro`) |
-| **Ideal para** | Banco NoSQL de produção primário | Rate limiting, sessões em Next.js e Edge | Cache de alta vazão para bancos relacionais em VPC |
+| Característica | Amazon DynamoDB | DynamoDB Accelerator (DAX) | AWS ElastiCache (Redis) | Upstash Redis |
+| :--- | :--- | :--- | :--- | :--- |
+| **Papel Arquitetural** | Banco NoSQL persistente primário | Cache *Inline* dedicado ao DynamoDB | Cache *Look-Aside* genérico em VPC | Cache *Serverless* para Edge/HTTP |
+| **Latência Típica** | 4ms a 9ms (Milissegundos) | 100µs a 200µs (Microssegundos) | 200µs a 800µs (Microssegundos) | 10ms a 30ms (HTTP Edge) / 1ms (TCP) |
+| **Integração na Aplicação** | SDK padrão AWS DynamoDB | Mesmo SDK DynamoDB (troca de endpoint) | SDK Redis nativo com lógica Cache-Aside | SDK REST HTTP (`fetch`) ou Redis |
+| **Estruturas Suportadas** | Documentos JSON, Chaves PK/SK | Apenas operações de Item/Query DynamoDB | Sorted Sets, Hashes, Lists, Pub/Sub | Estruturas Redis completas |
+| **Fonte de Dados** | Próprio armazenamento SSD | Exclusivo para tabelas DynamoDB | Qualquer banco (SQL, NoSQL, APIs) | Qualquer aplicação Web / Serverless |
 
 ---
 

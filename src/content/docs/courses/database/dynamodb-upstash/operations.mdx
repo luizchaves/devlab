@@ -85,6 +85,72 @@ flowchart LR
 
 ---
 
+## Aceleração com DAX vs Caching Estruturado com ElastiCache
+
+Ao operar tabelas DynamoDB com picos massivos de leitura, a equipe pode escolher entre duas abordagens práticas de aceleração:
+
+### 1. Aceleração Transparente com DAX (Inline Cache)
+O **DAX** elimina a necessidade de gerenciar chaves e expirações manualmente. A aplicação utiliza o SDK do DynamoDB acoplado ao cliente DAX:
+
+```typescript title="dax-example.ts: Leitura acelerada com DAX Client em Node.js"
+import AmazonDaxClient from 'amazon-dax-client';
+import AWS from 'aws-sdk';
+
+// Cria o cliente apontando para o cluster DAX dentro da VPC
+const dax = new AmazonDaxClient({
+  endpoints: ['dax-cluster.m7q.dax-clusters.us-east-1.amazonaws.com:8111'],
+  region: 'us-east-1',
+});
+
+const ddbDocClient = new AWS.DynamoDB.DocumentClient({ service: dax });
+
+// A consulta executa em microssegundos se o item estiver em cache (Cache Hit)
+async function getProduct(productId: string) {
+  const result = await ddbDocClient.get({
+    TableName: 'Catalog',
+    Key: { PK: `PRODUCT#${productId}`, SK: 'METADATA' },
+  }).promise();
+
+  return result.Item;
+}
+```
+
+### 2. Padrão Cache-Aside com ElastiCache (Redis)
+Quando o sistema necessita de estruturas de dados ricas (como ranqueamentos com `ZREVRANGE` ou contadores em tempo real), adota-se o padrão *Cache-Aside* com o ElastiCache:
+
+```typescript title="cache-aside.ts: Padrão Cache-Aside combinando Redis e DynamoDB"
+import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.ELASTICACHE_PRIMARY_ENDPOINT);
+const ddb = new DynamoDBClient({ region: 'us-east-1' });
+
+async function getUserProfile(userId: string) {
+  const cacheKey = `user:profile:${userId}`;
+
+  // 1. Tenta recuperar do ElastiCache (Redis)
+  const cachedData = await redis.get(cacheKey);
+  if (cachedData) {
+    return JSON.parse(cachedData); // Cache Hit (Microssegundos)
+  }
+
+  // 2. Cache Miss: Busca no DynamoDB
+  const response = await ddb.send(new GetItemCommand({
+    TableName: 'AppSingleTable',
+    Key: { PK: { S: `USER#${userId}` }, SK: { S: 'PROFILE' } },
+  }));
+
+  if (response.Item) {
+    // 3. Popula o cache com TTL de 1 hora (3600 segundos)
+    await redis.setex(cacheKey, 3600, JSON.stringify(response.Item));
+  }
+
+  return response.Item;
+}
+```
+
+---
+
 ## Controle de Taxa na Borda (Upstash Rate Limiting)
 
 Para proteger APIs públicas contra abusos e ataques de negação de serviço (*DDoS*), utiliza-se o **Upstash Rate Limit** com o algoritmo *Sliding Window*:
