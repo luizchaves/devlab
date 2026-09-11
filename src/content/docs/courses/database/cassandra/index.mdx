@@ -1,0 +1,183 @@
+---
+title: "Banco de Dados: Apache Cassandra"
+description: "Visão geral do Apache Cassandra: banco de dados colunar amplo (wide-column), arquitetura distribuída sem nó mestre (masterless), anel de tokens, alta vazão de escrita e consistência ajustável."
+course: database
+sidebar:
+  label: "Visão geral do Cassandra"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Apache Cassandra** é um banco de dados NoSQL distribuído de **Família de Colunas / Colunar Amplo** (*Wide-Column Store*) projetado para lidar com petabytes de dados e milhões de operações simultâneas de escrita por segundo, sem nenhum ponto único de falha (*Zero Single Point of Failure*).
+
+## Objetivo
+
+Compreender a arquitetura distribuída do Apache Cassandra, seu modelo de particionamento em anel *peer-to-peer* e os princípios de modelagem orientada a consultas (*Query-Driven Modeling*), contrastando suas garantias de disponibilidade (modelo AP no Teorema CAP) com bancos relacionais tradicionais. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever a arquitetura *masterless* onde todos os nós do cluster possuem o mesmo papel.
+- Explicar como a Chave de Partição (*Partition Key*) distribui os dados geograficamente pelo anel de tokens.
+- Compreender o conceito de **Consistência Ajustável** (*Tunable Consistency* com quóruns `ONE`, `QUORUM`, `ALL`).
+- Reconhecer por que a modelagem no Cassandra exige projetar uma tabela por consulta da aplicação.
+
+---
+
+## Arquitetura Distribuída Sem Mestre (*Masterless*)
+
+Ao contrário de arquiteturas tradicionais que utilizam um nó primário para escrita e réplicas para leitura, o Cassandra adota uma topologia em **anel distribuído (*Ring Topology*)** baseada no protocolo *Dynamo* da Amazon e no motor de armazenamento *Bigtable* do Google.
+
+<Mermaid title="Topologia em anel distribuído (Masterless) do Apache Cassandra">
+{`
+flowchart TD
+    subgraph Cluster["Cluster Cassandra (Anel de Tokens)"]
+        N1["Nó 1 (Token Range: 0 - 33%)"]
+        N2["Nó 2 (Token Range: 34% - 66%)"]
+        N3["Nó 3 (Token Range: 67% - 100%)"]
+
+        N1 <-->|"Gossip Protocol"| N2
+        N2 <-->|"Gossip Protocol"| N3
+        N3 <-->|"Gossip Protocol"| N1
+    end
+
+    App["Cliente / Aplicação"] -->|"Qualquer nó atua como Coordenador"| N1
+`}
+</Mermaid>
+
+### Características Chave da Arquitetura
+
+1. **Todos os nós são iguais**: Não existe nó mestre. Qualquer nó do cluster pode receber uma requisição de leitura ou escrita e atuar como **Nó Coordenador**.
+2. **Protocolo Gossip**: Os nós trocam mensagens em segundo plano constantemente para monitorar a saúde e o estado de todo o cluster.
+3. **Escalabilidade Linear**: Adicionar novos nós ao cluster aumenta linearmente tanto a capacidade de armazenamento quanto a taxa de transferência de leitura e escrita.
+
+---
+
+## Consistência Ajustável (*Tunable Consistency*)
+
+No Teorema CAP, o Cassandra é fundamentalmente um sistema de alta disponibilidade e tolerância a partições (**AP**), mas permite que cada requisição da aplicação defina o seu próprio nível de consistência:
+
+| Nível de Consistência | O que o Nó Coordenador exige para confirmar | Velocidade | Garantia |
+| :--- | :--- | :--- | :--- |
+| **`ONE`** | Resposta de apenas 1 réplica. | Máxima | Consistência Eventual (pode ler dados antigos). |
+| **`QUORUM`** | Resposta da maioria das réplicas ($\lfloor N/2 \rfloor + 1$). | Balanceada | **Consistência Forte** se $R + W > N$. |
+| **`ALL`** | Resposta de 100% das réplicas configuradas. | Mais lenta | Consistência Absoluta (falha se 1 nó estiver fora). |
+
+---
+
+## O Que Esta Seção Cobre
+
+As páginas seguintes organizam o estudo prático do Cassandra:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    Inicialização em contêiner Docker Compose, criação de Keyspace com estratégias de replicação e utilitário `cqlsh`.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Modelagem CQL e particionamento" icon="seti:db">
+    A linguagem CQL, modelagem guiada por consultas, chaves de partição vs chaves de agrupamento e expiração automática com TTL.
+
+    [Acessar tópico](cql/)
+  </Card>
+</CardGrid>
+
+---
+
+## Modelagem Orientada a Consultas (*Query-Driven*)
+
+No banco relacional, a modelagem normalizada desenha entidades reais primeiro e resolve consultas através de `JOIN`s.
+
+No Cassandra, **não existem `JOIN`s nem chaves estrangeiras**. A modelagem segue o caminho inverso:
+1. Lista-se primeiro quais telas e consultas a aplicação precisa executar.
+2. Cria-se uma tabela desnormalizada dedicada para cada uma dessas perguntas.
+3. A duplicação de dados entre tabelas é aceita e incentivada para garantir que qualquer consulta leia dados de um único nó e de uma única partição.
+
+---
+
+## Quando usar, e quando não usar?
+
+O Cassandra foi projetado para volumes gigantescos onde a disponibilidade contínua é um requisito inegociável.
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Registro de bilhões de eventos de cliques (*clickstream*), telemetria e logs | **Cassandra** | Escrita sequencial em disco com altíssima taxa de transferência via Memtable e SSTables. |
+| Chat, caixas de entrada de mensagens e histórico de transações por usuário | **Cassandra** | Particionamento direto por `user_id` com ordenação física por data no disco. |
+| Sistemas globais multi-datacenter que não podem ter downtime | **Cassandra** | Replicação assíncrona ativa entre múltiplos datacenters e regiões de nuvem. |
+| Aplicações de negócio com modelos relacionais altamente conectados e mutáveis | **[PostgreSQL](../postgresql/)** | Exige `JOIN`s, integridade referencial estrita e transações multi-tabela. |
+| Aplicações com poucos gigabytes de dados em nó único | **[PostgreSQL](../postgresql/) ou [SQLite](../sqlite/)** | O Cassandra introduz complexidade operacional desnecessária para dados pequenos. |
+
+---
+
+## Exercício
+
+Responda com base na arquitetura do Apache Cassandra:
+
+1. O que significa dizer que o Cassandra possui uma arquitetura *masterless*?
+2. Como o nível de consistência `QUORUM` garante leituras sempre atualizadas?
+3. Por que no Cassandra a modelagem de dados começa pelas consultas da aplicação e não pelas entidades normalizadas?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Significa que todos os nós do cluster desempenham exatamente a mesma função operacional. Não há nó mestre (eliminando ponto único de falha) e qualquer nó pode coordenar requisições.
+
+  2. Porque a fórmula de quórum garante que o conjunto de nós consultados na leitura ($R$) e o conjunto de nós confirmados na escrita ($W$) sempre terão pelo menos um nó em comum ($R + W > N$).
+
+  3. Porque o Cassandra não suporta `JOIN`s entre tabelas. Para responder a uma consulta em tempo submilissegundo, os dados necessários devem estar pré-agrupados e desnormalizados em uma única tabela particionada.
+</details>
+
+---
+
+## Desafio
+
+Um sistema de mensagens estilo WhatsApp armazena centenas de bilhões de mensagens.
+
+Como modelar a chave primária da tabela `messages` no Cassandra para garantir que:
+1. As mensagens de um mesmo canal de conversa (*chat_id*) fiquem armazenadas juntas no mesmo nó físico.
+2. As mensagens venham ordenadas automaticamente pela data/hora de envio da mais recente para a mais antiga.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Utiliza-se uma Chave Composta com Chave de Partição e Chave de Agrupamento:
+
+  ```cql
+  CREATE TABLE messages_by_chat (
+      chat_id uuid,
+      message_time timestamp,
+      message_id uuid,
+      sender_id uuid,
+      content text,
+      PRIMARY KEY ((chat_id), message_time, message_id)
+  ) WITH CLUSTERING ORDER BY (message_time DESC, message_id ASC);
+  ```
+
+  - `(chat_id)`: Chave de Partição (*Partition Key*), garantindo que todo o chat resida na mesma partição do anel.
+  - `message_time`: Chave de Agrupamento (*Clustering Key*), ordenando os registros fisicamente em disco na ordem decrescente.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que é o protocolo Gossip no Cassandra?**
+   <details><summary>Possível resposta</summary>É o protocolo interno peer-to-peer pelo qual os nós do cluster trocam periodicamente informações de status e saúde entre si.</details>
+
+2. **O que é uma SSTable (*Sorted String Table*)?**
+   <details><summary>Possível resposta</summary>É a estrutura imutável de arquivo em disco onde o Cassandra persiste os dados ordenados por chave após descarregá-los da memória RAM (*Memtable*).</details>
+
+3. **Qual linguagem é utilizada para interagir com o Cassandra?**
+   <details><summary>Possível resposta</summary>CQL (*Cassandra Query Language*).</details>
+
+---
+
+## Referências
+
+- [Apache Cassandra Documentation](https://cassandra.apache.org/doc/latest/)
+- [Cassandra Data Modeling by Example](https://cassandra.apache.org/doc/latest/cassandra/data_modeling/intro.html)
+- [Architecture of Cassandra](https://cassandra.apache.org/doc/latest/cassandra/architecture/overview.html)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): Executando o Cassandra no Docker Compose e interagindo via `cqlsh`.

@@ -1,0 +1,182 @@
+---
+title: "Redis: Instalação e Cliente"
+description: "Como subir o servidor Redis via Docker Compose, conectar com o utilitário de terminal redis-cli, autenticar com senha e inspecionar estruturas graficamente pelo Redis Commander."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Configurar o **Redis** para desenvolvimento local envolve subir o servidor como contêiner isolado com persistência ativada e utilizar tanto o cliente de linha de comando (`redis-cli`) quanto interfaces visuais para gerenciar chaves e inspecionar consumo de memória.
+
+## Objetivo
+
+Aprender a subir o servidor Redis localmente com Docker Compose, conectar-se via `redis-cli`, realizar autenticação, verificar métricas de integridade e operar a interface visual Redis Commander. Ao final do tópico, o leitor deve ser capaz de:
+
+- Subir os serviços Redis e Redis Commander através de um arquivo `docker-compose.yml`.
+- Configurar credenciais protegidas via arquivo de variáveis de ambiente `.env`.
+- Executar comandos interativos no terminal com `redis-cli`.
+- Inspecionar informações operacionais de memória e clientes conectados usando `INFO`.
+
+---
+
+## Arquivos de Configuração
+
+O diretório `examples/courses/database/servers/redis-server/` disponibiliza o ambiente de desenvolvimento completo com Redis 7.2 e a interface web Redis Commander:
+
+<SourceCode
+  path="examples/courses/database/servers/redis-server/docker-compose.yml"
+/>
+
+As variáveis de credenciais ficam isoladas no arquivo `.env`:
+
+```ini title=".env.example"
+REDIS_PASSWORD=redispass
+REDIS_COMMANDER_USER=admin
+REDIS_COMMANDER_PASSWORD=adminpass
+```
+
+---
+
+## Executando
+
+<Steps>
+1. **Criar o arquivo de variáveis de ambiente:**
+
+   Copie o modelo de variáveis para criar o arquivo `.env` dentro da pasta do servidor:
+
+   ```bash
+   cp examples/courses/database/servers/redis-server/.env.example examples/courses/database/servers/redis-server/.env
+   ```
+
+2. **Iniciar os contêineres:**
+
+   Execute o comando `docker compose up -d` para baixar as imagens e iniciar os serviços em segundo plano:
+
+   ```bash
+   docker compose -f examples/courses/database/servers/redis-server/docker-compose.yml up -d
+   ```
+
+3. **Conectar via terminal com `redis-cli`:**
+
+   Abra uma sessão interativa dentro do contêiner `redis` informando a senha de autenticação:
+
+   ```bash
+   docker exec -it redis redis-cli -a redispass
+   ```
+
+   A saída confirma a autenticação bem-sucedida:
+
+   ```text
+   Warning: Using a password with '-a' or '-u' option on the command line interface may not be safe.
+   127.0.0.1:6379> PING
+   PONG
+   ```
+
+4. **Verificar o estado da memória e estatísticas do servidor:**
+
+   Execute o comando `INFO memory` no terminal do Redis:
+
+   ```text
+   127.0.0.1:6379> INFO memory
+   # Memory
+   used_memory:1048576
+   used_memory_human:1.00M
+   used_memory_rss:10485760
+   maxmemory:0
+   mem_fragmentation_ratio:1.20
+   ```
+
+5. **Acessar a interface Web Redis Commander:**
+
+   Abra o navegador no endereço `http://localhost:8081`. O navegador solicitará o usuário `admin` e a senha `adminpass` configurados no `.env`. A interface permite navegar pela árvore de chaves, inspecionar tipos de dados, editar valores em tempo real e monitorar a fila de comandos.
+</Steps>
+
+---
+
+## Conexão a partir da Aplicação
+
+A cadeia de conexão padrão do Redis segue o formato URI:
+
+```text
+redis://:redispass@localhost:6379/0
+```
+
+- `localhost:6379`: Host e porta padrão do serviço.
+- `:redispass@`: Senha de autenticação configurada no `requirepass`.
+- `/0`: Número do banco lógico (o Redis oferece 16 bancos indexados de `0` a `15`, sendo `0` o padrão).
+
+---
+
+## Exercício
+
+Com o contêiner em execução, execute os passos abaixo no `redis-cli`:
+
+1. Grave a chave `app:status` com o valor `"online"`.
+2. Configure um tempo de expiração de 30 segundos para a chave `app:status`.
+3. Consulte o valor gravado e o tempo restante de vida da chave.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```text
+  127.0.0.1:6379> SET app:status "online"
+  OK
+  127.0.0.1:6379> EXPIRE app:status 30
+  (integer) 1
+  127.0.0.1:6379> GET app:status
+  "online"
+  127.0.0.1:6379> TTL app:status
+  (integer) 27
+  ```
+</details>
+
+---
+
+## Desafio
+
+O comando `FLUSHALL` apaga todas as chaves de todos os bancos lógicos do servidor instantaneamente, sendo uma das operações mais perigosas em ambientes compartilhados.
+
+Descubra qual diretiva de configuração no arquivo `redis.conf` ou argumento de inicialização permite renomear ou desativar comandos perigosos como `FLUSHALL` e `CONFIG` para proteger o ambiente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Utiliza-se a diretiva `rename-command` no arquivo de configuração do Redis (`redis.conf`):
+
+  ```text
+  rename-command FLUSHALL ""
+  rename-command FLUSHDB ""
+  rename-command CONFIG "SYS_CONFIG_SUPERSECRET_9876"
+  ```
+
+  Ao atribuir uma string vazia `""`, o comando é completamente desativado. Ao atribuir um nome aleatório, apenas administradores com conhecimento do nome interno conseguem executá-lo.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é a porta TCP padrão do Redis?**
+   <details><summary>Possível resposta</summary>Porta `6379`.</details>
+
+2. **O que o comando `PING` responde quando o servidor está saudável?**
+   <details><summary>Possível resposta</summary>Responde `PONG`.</details>
+
+3. **Qual a função do utilitário Redis Commander?**
+   <details><summary>Possível resposta</summary>É uma interface web administrativa leve para visualizar, editar e gerenciar chaves e estruturas de dados do Redis no navegador.</details>
+
+---
+
+## Referências
+
+- [Redis CLI Documentation](https://redis.io/docs/connect/cli/)
+- [Redis Security Guidelines](https://redis.io/docs/management/security/)
+- [Redis Commander Repository](https://github.com/joeferner/redis-commander)
+
+---
+
+## Próximo tópico
+
+[Estruturas e comandos](../commands/): Strings, Hashes, Lists, Sets, Sorted Sets e técnicas de cache e controle de tráfego.

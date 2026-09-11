@@ -1,0 +1,179 @@
+---
+title: "Cassandra: Instalação e Cliente"
+description: "Como subir o Apache Cassandra via Docker Compose, conectar com o utilitário de terminal cqlsh, verificar o anel de nós com nodetool status e criar Keyspaces."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Configurar o **Apache Cassandra** para desenvolvimento envolve inicializar um nó local com limites de memória controlados para a Java Virtual Machine (JVM) e utilizar a ferramenta de linha de comando `cqlsh` para operar o banco via CQL.
+
+## Objetivo
+
+Aprender a subir o servidor Apache Cassandra localmente com Docker Compose, verificar o status de saúde do cluster com o utilitário administrativo `nodetool` e executar o shell interativo `cqlsh`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Iniciar o Apache Cassandra 4.1 através de um arquivo `docker-compose.yml`.
+- Executar comandos de diagnóstico com o utilitário `nodetool status`.
+- Conectar-se ao shell de consultas interativas `cqlsh` na porta `9042`.
+- Criar um **Keyspace** configurando a estratégia e o fator de replicação.
+
+---
+
+## Arquivos de Configuração
+
+O diretório `examples/courses/database/servers/cassandra-server/` disponibiliza o ambiente de desenvolvimento completo:
+
+<SourceCode
+  path="examples/courses/database/servers/cassandra-server/docker-compose.yml"
+/>
+
+O arquivo de variáveis de ambiente define as portas do serviço:
+
+```ini title=".env.example"
+CASSANDRA_PORT=9042
+```
+
+---
+
+## Executando
+
+<Steps>
+1. **Criar o arquivo de variáveis `.env`:**
+
+   Copie o modelo de configuração:
+
+   ```bash
+   cp examples/courses/database/servers/cassandra-server/.env.example examples/courses/database/servers/cassandra-server/.env
+   ```
+
+2. **Iniciar o contêiner:**
+
+   Suba o serviço via Docker Compose:
+
+   ```bash
+   docker compose -f examples/courses/database/servers/cassandra-server/docker-compose.yml up -d
+   ```
+
+3. **Verificar a inicialização com `nodetool status`:**
+
+   O Cassandra pode levar alguns segundos para inicializar a JVM e o protocolo Gossip. Verifique o status com:
+
+   ```bash
+   docker exec -it cassandra nodetool status
+   ```
+
+   A saída confirma que o nó está ativo (`UN` - *Up/Normal*):
+
+   ```text
+   Datacenter: datacenter1
+   =======================
+   Status=Up/Down
+   |/ State=Normal/Leaving/Joining/Moving
+   --  Address     Load       Tokens  Owns (effective)  Host ID                               Rack
+   UN  172.20.0.2  105.2 KiB  16      100.0%            a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d  rack1
+   ```
+
+4. **Conectar interativamente via `cqlsh`:**
+
+   Execute o cliente de terminal nativo:
+
+   ```bash
+   docker exec -it cassandra cqlsh
+   ```
+
+   O prompt de comando confirma a conexão:
+
+   ```text
+   Connected to devlab_cluster at 127.0.0.1:9042
+   [cqlsh 6.1.0 | Cassandra 4.1.4 | CQL spec 3.4.6 | Native protocol v5]
+   Use HELP for help.
+   cqlsh>
+   ```
+
+5. **Criar o Keyspace de desenvolvimento:**
+
+   No shell `cqlsh`, crie o Keyspace `invest` com estratégia simples e fator de replicação 1 para ambiente local:
+
+   ```cql
+   CREATE KEYSPACE IF NOT EXISTS invest
+   WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+
+   USE invest;
+   ```
+</Steps>
+
+---
+
+## Estratégias de Replicação de Keyspace
+
+No Cassandra, um **Keyspace** é o equivalente ao conceito de *Database/Schema* no SQL, e define onde e quantas cópias dos dados serão mantidas no cluster:
+
+- **`SimpleStrategy`**: Utilizada para desenvolvimento local ou clusters de teste dentro de um único datacenter físico (`replication_factor: 1` ou `3`).
+- **`NetworkTopologyStrategy`**: Utilizada em ambientes corporativos de produção com múltiplos datacenters e regiões de nuvem (ex: `{'datacenter-us': 3, 'datacenter-br': 3}`).
+
+---
+
+## Exercício
+
+Com o `cqlsh` conectado:
+
+1. Crie uma tabela de teste chamada `ping` com as colunas `id int PRIMARY KEY` e `status text`.
+2. Insira um registro na tabela `ping`.
+3. Consulte o registro inserido.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```cql
+  USE invest;
+  CREATE TABLE ping (id int PRIMARY KEY, status text);
+  INSERT INTO ping (id, status) VALUES (1, 'Cassandra Ativo');
+  SELECT * FROM ping;
+  ```
+</details>
+
+---
+
+## Desafio
+
+O comando administrativo `nodetool` é a ferramenta central de diagnóstico e manutenção de um cluster Cassandra.
+
+Quais subcomandos do `nodetool` são utilizados para:
+1. Forçar o descarregamento imediato dos dados da memória RAM (*Memtable*) para o disco (*SSTables*).
+2. Executar a compactação manual dos arquivos em disco.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Descarregamento da memória para o disco: `nodetool flush [keyspace]`
+  2. Compactação manual de SSTables: `nodetool compact [keyspace]`
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é a porta TCP padrão de transporte CQL no Apache Cassandra?**
+   <details><summary>Possível resposta</summary>Porta `9042`.</details>
+
+2. **O que representa a sigla `UN` na saída do comando `nodetool status`?**
+   <details><summary>Possível resposta</summary>`U` = *Up* (nó em execução e acessível) e `N` = *Normal* (nó em estado operacional comum no anel).</details>
+
+3. **O que é um Keyspace no Cassandra?**
+   <details><summary>Possível resposta</summary>É o contêiner de nível superior que agrupa tabelas e define a estratégia e o fator de replicação dos dados no cluster.</details>
+
+---
+
+## Referências
+
+- [Cassandra cqlsh Documentation](https://cassandra.apache.org/doc/latest/cassandra/tools/cqlsh.html)
+- [Cassandra Nodetool Guide](https://cassandra.apache.org/doc/latest/cassandra/tools/nodetool/nodetool.html)
+- [Datastax Node.js Driver for Apache Cassandra](https://github.com/datastax/nodejs-driver)
+
+---
+
+## Próximo tópico
+
+[Modelagem CQL e particionamento](../cql/): Chaves de partição, chaves de agrupamento, consultas eficientes e controle de expiração com TTL.

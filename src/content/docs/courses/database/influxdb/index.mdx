@@ -1,0 +1,159 @@
+---
+title: "Banco de Dados: InfluxDB"
+description: "Visão geral do InfluxDB: banco de dados de séries temporais (TSDB), ingestão contínua de alta frequência, modelo de measurements, tags e fields, agregação por janelas de tempo e downsampling."
+course: database
+sidebar:
+  label: "Visão geral do InfluxDB"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **InfluxDB** é o banco de dados open source líder para o paradigma de **Séries Temporais** (*Time-Series Database* - TSDB). Ele foi desenhado especificamente para lidar com fluxos ininterruptos de dados indexados pelo tempo: métricas de servidores, telemetria de dispositivos IoT, logs de aplicação e cotações de ativos financeiros com granularidade de nanossegundos.
+
+## Objetivo
+
+Compreender a arquitetura e as características centrais do InfluxDB para manipulação de séries temporais, dominando a distinção entre metadados indexados (*tags*) e valores numéricos (*fields*), e aplicando políticas automáticas de expiração e agregação de dados (*downsampling*). Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que bancos relacionais tradicionais sofrem gargalos em cenários de telemetria massiva com alta frequência de gravação.
+- Descrever a estrutura de dados do InfluxDB: *Measurement*, *Tag Set*, *Field Set* e *Timestamp*.
+- Distinguir o custo de indexação de *Tags* frente ao armazenamento de *Fields*.
+- Reconhecer os benefícios de políticas de retenção (*Retention Policies*) e agregação por janelas temporais (*Downsampling*).
+
+---
+
+## Modelo de Dados: A Anatomia de um Ponto Temporal
+
+Em um banco relacional, cada inserção exige atualização de índices B-Tree e registros no log de transações (WAL), o que limita a capacidade de escrita contínua. No InfluxDB, os dados são organizados em estruturas colunares indexadas pelo tempo (Time-Structured Merge Tree - TSM), permitindo compactação agressiva (até 90% de economia em disco) e ingestão de centenas de milhares de pontos por segundo.
+
+Cada registro no InfluxDB é chamado de **Ponto (*Point*)** e possui 4 componentes:
+
+<Mermaid title="Estrutura de um Ponto de Série Temporal no InfluxDB">
+{`
+flowchart TD
+    Point["Ponto de Telemetria"]
+    Point --> M["Measurement (ex: quotes)"]
+    Point --> T["Tag Set (Indexado)<br/>ticker=VALE3, broker=XP"]
+    Point --> F["Field Set (Não indexado)<br/>price=65.20, volume=12000"]
+    Point --> TS["Timestamp (ns)<br/>1709280000000000000"]
+`}
+</Mermaid>
+
+### Tags vs Fields: A Regra de Ouro da Modelagem
+
+- **Tags (Metadados Indexados)**: Strings usadas para filtrar e agrupar consultas (`WHERE ticker = 'VALE3'` ou `GROUP BY broker`). Possuem índice invertido em memória.
+- **Fields (Valores Medidos)**: Valores reais (floats, inteiros, booleanos ou strings) que não são indexados, mas sobre os quais se calculam agregações matemáticas (`mean`, `sum`, `max`, `min`).
+
+<Aside type="caution" title="Cuidado com a Alta Cardinalidade">
+Nunca coloque dados dinâmicos de alta variabilidade (como IDs de transação ou timestamps) como **Tags**. Cada combinação única de tags cria uma nova série temporal (*Time Series*) em memória. Dados únicos devem ser armazenados como **Fields**.
+</Aside>
+
+---
+
+## O Que Esta Seção Cobre
+
+As páginas seguintes guiam a prática operacional com o InfluxDB:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    Servidor com Docker Compose, configuração de organização e bucket, interface visual web na porta `:8086` e utilitário de terminal `influx`.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Line Protocol e séries temporais" icon="seti:db">
+    Sintaxe de ingestão Line Protocol, consultas em InfluxQL e Flux, agregações por janela (`aggregateWindow`) e retenção de dados.
+
+    [Acessar tópico](time-series/)
+  </Card>
+</CardGrid>
+
+---
+
+## Ciclo de Vida: Retenção e Downsampling
+
+Dados temporais têm alto valor imediato e valor histórico consolidado. O InfluxDB resolve isso com dois recursos nativos:
+
+1. **Bucket Retention Policy**: Define o tempo máximo de vida dos dados brutos (ex: descartar pontos com mais de 30 dias automaticamente, sem custo de `DELETE`).
+2. **Downsampling (Redução de Granularidade)**: Tarefas em segundo plano agregam pontos brutos por segundo em médias horárias ou diárias antes do descarte, preservando tendências históricas por anos com fração do consumo de disco.
+
+---
+
+## Quando usar, e quando não usar?
+
+O InfluxDB é a escolha natural quando a dimensão do **tempo** é o eixo primário de todas as leituras e gravações.
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Monitoramento de servidores, consumo de CPU, memória e rede | **InfluxDB** | Ingestão de alta vazão, agregações temporais nativas e integração com Telegraf/Grafana. |
+| Sensores IoT, telemetria veicular e estações meteorológicas | **InfluxDB** | Armazenamento compacto e cálculos de médias por minuto/hora. |
+| Histórico de cotações e gráficos de velas (*candlestick*) | **InfluxDB** | Agrupamento por intervalos contínuos de tempo sem buracos (*gap filling*). |
+| Transações financeiras com saldo de conta bancária | **[PostgreSQL](../postgresql/)** | Exige ACID estrito, chaves estrangeiras e integridade transacional. |
+| Catálogo de produtos com busca textual rica | **[Elasticsearch](../elasticsearch/)** | O InfluxDB não indexa texto livre para pesquisa fonética ou lematização. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de bancos de séries temporais:
+
+1. Qual é a diferença prática entre uma *Tag* e um *Field* no InfluxDB?
+2. Por que o InfluxDB não necessita de um comando `DELETE` manual para limpar registros antigos de telemetria?
+3. O que acontece com a memória do servidor se colocarmos um UUID aleatório como *Tag* em cada ponto inserido?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. As *Tags* são indexadas e servem para filtros rápidos e agrupamentos (`GROUP BY`). Os *Fields* guardam as medições reais e não possuem índice, servindo para cálculos de agregação numérica.
+
+  2. Porque os *Buckets* possuem políticas de retenção configuráveis (*Retention Policies*) que descartam blocos inteiros de dados antigos no disco automaticamente de forma muito eficiente.
+
+  3. Ocorre uma explosão de cardinalidade (*high cardinality*): cada UUID único cria uma nova série temporal na memória RAM, levando ao esgotamento rápido dos recursos do servidor (*Out of Memory*).
+</details>
+
+---
+
+## Desafio
+
+Uma corretora de investimentos recebe 50.000 cotações por segundo de ações da B3. Ela precisa exibir gráficos de variação de preço em tempo real para os últimos 7 dias com precisão de segundo, mas deseja manter o histórico dos últimos 5 anos apenas com a cotação de abertura, fechamento, máxima e mínima diária.
+
+Como você estruturaria os *Buckets* e as tarefas de *Downsampling* no InfluxDB para atender a essa demanda com baixo custo de armazenamento?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Estrutura recomendada:
+  1. **Bucket `quotes_raw`**:
+     - Retenção configurada para **7 dias**.
+     - Recebe o fluxo bruto de alta frequência (50.000 pts/seg).
+  2. **Bucket `quotes_daily`**:
+     - Retenção configurada para **5 anos (1825 dias)**.
+  3. **Tarefa Agendada (Task Flux)**:
+     - Executada a cada 24 horas, lê os dados do `quotes_raw`, calcula `first(price)`, `last(price)`, `max(price)`, `min(price)` e `sum(volume)` agrupados por `ticker`, e grava os resultados no bucket `quotes_daily`.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é o protocolo padrão em formato texto para envio de dados ao InfluxDB?**
+   <details><summary>Possível resposta</summary>Line Protocol.</details>
+
+2. **Qual a ferramenta visual mais comum utilizada em conjunto com o InfluxDB para dashboards de monitoramento?**
+   <details><summary>Possível resposta</summary>Grafana (além da interface nativa do InfluxDB UI).</details>
+
+3. **Qual linguagem declarativa funcional foi introduzida no InfluxDB v2 para consultas e transformações?**
+   <details><summary>Possível resposta</summary>Linguagem Flux.</details>
+
+---
+
+## Referências
+
+- [InfluxDB Documentation](https://docs.influxdata.com/influxdb/v2/)
+- [InfluxDB Line Protocol Reference](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/)
+- [Flux Query Language Documentation](https://docs.influxdata.com/flux/v0.x/)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): Configurando o InfluxDB no Docker Compose, criando tokens de autenticação e explorando o InfluxDB UI e CLI.

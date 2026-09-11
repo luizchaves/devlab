@@ -1,0 +1,227 @@
+---
+title: "Elasticsearch: Índices e Consultas"
+description: "Mapeamento de índices no Elasticsearch: criação de mappings com analisadores em português, tipos text e keyword, consultas com Query DSL (match, bool, range, fuzzy) e agregações facetadas."
+course: database
+sidebar:
+  label: "Índices e consultas"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+O Elasticsearch consulta dados através da **Query DSL** (*Domain Specific Language* baseada em JSON). As consultas variam de pesquisas fonéticas e tolerantes a erros em texto aberto até filtros booleanos determinísticos e agregações estatísticas por facetas.
+
+## Objetivo
+
+Dominar a criação de índices estruturados (*mappings*), a configuração de analisadores de língua portuguesa e a escrita de consultas complexas em Query DSL sobre o catálogo de investimentos do `invest-db`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Definir esquemas de índices explicitando tipos `text`, `keyword`, `scaled_float` e `date`.
+- Aplicar o analisador `portuguese` para suporte automático a acentuação e lematização.
+- Combinar filtros e cláusulas de pontuação com consultas `bool` (`must`, `filter`, `should`).
+- Realizar agregações facetadas (*bucket aggregations*) para contagem e soma de valores por categoria.
+
+---
+
+## O Domínio de Investimentos em Query DSL
+
+O arquivo `invest.http` reúne as requisições completas de definição de mapping, carga de documentos, busca textual com *fuzzy* e agregações facetadas:
+
+<SourceCode
+  path="examples/courses/database/servers/elasticsearch-server/invest.http"
+/>
+
+---
+
+## Cláusulas Essenciais da Query DSL
+
+A tabela abaixo sintetiza os principais blocos de consulta do Elasticsearch:
+
+| Bláusula Query DSL | Comportamento | Afeta o Score (`_score`)? | Uso Típico |
+| :--- | :--- | :--- | :--- |
+| `match` | Passa o texto pelo Analyzer e calcula relevância BM25 sobre campos `text`. | **Sim** | Busca por palavras-chave na barra de pesquisa. |
+| `term` | Compara o valor exato sem passar por Analyzer sobre campos `keyword`. | **Não** (em contexto de filtro) | Filtros de categoria, status ou ID. |
+| `multi_match` | Busca os termos em múltiplos campos com pesos diferenciados (ex: `name^2`). | **Sim** | Busca em título e descrição simultaneamente. |
+| `fuzzy` | Tolera erros de digitação baseando-se na distância de edição Levenshtein. | **Sim** | Correção automática de digitação. |
+| `range` | Filtra por intervalos numéricos ou de datas (`gte`, `lte`). | **Não** (em contexto de filtro) | Filtro de preço, valor investido ou data. |
+| `bool` | Combina múltiplos critérios lógicos com `must`, `filter`, `should` e `must_not`. | **Misto** | Consultas avançadas de e-commerce. |
+
+---
+
+## Contexto de Consulta vs Contexto de Filtro
+
+No Elasticsearch, a cláusula `bool` divide o processamento em dois contextos:
+
+```json
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "description": "liquidez" } }
+      ],
+      "filter": [
+        { "term": { "category": "Pós-fixado" } },
+        { "range": { "value": { "gte": 1000 } } }
+      ]
+    }
+  }
+}
+```
+
+1. **Contexto de Consulta (`must` / `should`)**: Responde *"o quanto este documento é relevante?"*. O motor calcula a pontuação `_score` e consome mais CPU.
+2. **Contexto de Filtro (`filter` / `must_not`)**: Responde *"este documento atende ao critério de forma binária (sim/não)?"*. O motor ignora o cálculo de score e utiliza **cache de filtros em memória**, tornando a execução extremamente rápida.
+
+---
+
+## Agregações Facetadas (*Faceted Search*)
+
+Agregações permitem gerar métricas analíticas em tempo real paralelamente à busca. A agregação abaixo calcula o valor total investido por categoria:
+
+```json
+{
+  "size": 0,
+  "aggs": {
+    "por_categoria": {
+      "terms": { "field": "category" },
+      "aggs": {
+        "valor_total": { "sum": { "field": "value" } }
+      }
+    }
+  }
+}
+```
+
+---
+
+## Executando
+
+Para criar o índice e rodar as consultas via terminal:
+
+<Steps>
+1. **Criar o índice `investments`:**
+
+   ```bash
+   curl -X PUT "http://localhost:9200/investments" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "mappings": {
+         "properties": {
+           "name": { "type": "text", "analyzer": "portuguese" },
+           "description": { "type": "text", "analyzer": "portuguese" },
+           "category": { "type": "keyword" },
+           "value": { "type": "scaled_float", "scaling_factor": 100 }
+         }
+       }
+     }'
+   ```
+
+2. **Inserir um documento:**
+
+   ```bash
+   curl -X POST "http://localhost:9200/investments/_doc/1" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "name": "CDB Prefixado 14%",
+       "description": "Certificado de Depósito Bancário de alta rentabilidade.",
+       "category": "Renda Fixa",
+       "value": 5000.00
+     }'
+   ```
+
+3. **Executar busca com termo flexível:**
+
+   ```bash
+   curl -s -X POST "http://localhost:9200/investments/_search" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "query": {
+         "match": { "description": "deposito" }
+       }
+     }' | jq '.hits.hits[] | {score: ._score, name: ._source.name}'
+   ```
+
+   A saída confirma que a palavra sem acento encontrou o documento acentuado graças ao analisador `portuguese`:
+
+   ```json
+   {
+     "score": 0.2876821,
+     "name": "CDB Prefixado 14%"
+   }
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base na Query DSL:
+
+1. Qual a diferença de comportamento entre consultar um termo usando a cláusula `must` e usando a cláusula `filter` dentro de um `bool`?
+2. Como configurar um campo para que o título do ativo possa ser tanto pesquisado por texto livre quanto ordenado alfabeticamente?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A cláusula `must` calcula a nota de relevância BM25 (`_score`) do termo, enquanto a cláusula `filter` atua como filtro estrito binário (sim/não), sem calcular score e aproveitando cache de memória do Elasticsearch.
+
+  2. Utiliza-se um mapeamento multi-campo (*fields*):
+     ```json
+     "name": {
+       "type": "text",
+       "analyzer": "portuguese",
+       "fields": {
+         "keyword": {
+           "type": "keyword"
+         }
+       }
+     }
+     ```
+     Para busca usa-se `name`, e para ordenação alfabética usa-se `name.keyword`.
+</details>
+
+---
+
+## Desafio
+
+Um sistema de busca precisa implementar autocompletar instantâneo enquanto o usuário digita na caixa de pesquisa (ex: o usuário digita `"teso"` e o sistema já sugere `"Tesouro Selic"`).
+
+Qual tipo de analisador e técnica de mapeamento (como `edge_ngram` ou tipo de campo `search_as_you_type`) é recomendado para implementar autocompletar no Elasticsearch?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Utiliza-se o tipo de campo nativo `search_as_you_type` ou um analisador customizado com o filtro `edge_ngram`:
+
+  ```json
+  "name": {
+    "type": "search_as_you_type"
+  }
+  ```
+
+  O `search_as_you_type` cria internamente n-gramas de prefixo (como `"t"`, `"te"`, `"tes"`, `"teso"`), permitindo que consultas do tipo `multi_match` com `bool_prefix` retornem sugestões instantâneas em submilissegundos a cada tecla pressionada pelo usuário.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que é um Analyzer de língua nativa (como `analyzer: "portuguese"`)?**
+   <details><summary>Possível resposta</summary>É um analisador que aplica regras linguísticas específicas do idioma português: remoção de acentos, conversão para minúsculas, remoção de stopwords ("de", "para", "com") e extração de radicais verbais e nominais (*stemming*).</details>
+
+2. **Para que serve o parâmetro `"size": 0` em uma consulta de agregação?**
+   <details><summary>Possível resposta</summary>Para indicar que o Elasticsearch não precisa retornar os documentos individuais na lista `hits`, devolvendo apenas os resultados sumarizados do bloco `aggregations`.</details>
+
+3. **O que é a pontuação de relevância `_score`?**
+   <details><summary>Possível resposta</summary>É o número decimal positivo calculado pelo algoritmo BM25 que indica a similaridade estatística entre a consulta e o documento.</details>
+
+---
+
+## Referências
+
+- [Elasticsearch Mappings Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html)
+- [Portuguese Analyzer Documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-lang-analyzer.html#portuguese-analyzer)
+- [Elasticsearch Aggregations Guide](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html)
+
+---
+
+## Próximo tópico
+
+[Visão geral do Apache Cassandra](../../cassandra/): O paradigma wide-column, anel distribuído peer-to-peer e modelagem orientada a consultas.

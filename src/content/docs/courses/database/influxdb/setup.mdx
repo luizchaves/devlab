@@ -1,0 +1,189 @@
+---
+title: "InfluxDB: Instalação e Cliente"
+description: "Como subir o servidor InfluxDB v2 via Docker Compose, configurar organização, bucket e token de acesso, interagir pela interface web em :8086 e utilizar o CLI influx no terminal."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Configurar o **InfluxDB v2** para desenvolvimento envolve inicializar o contêiner com variáveis de automação de setup (`DOCKER_INFLUXDB_INIT_*`), criando automaticamente o usuário administrador, a organização inicial, o bucket e o token de API.
+
+## Objetivo
+
+Aprender a subir o InfluxDB v2 localmente com Docker Compose, autenticar-se na interface Web nativa, emitir tokens de autenticação e utilizar o cliente de linha de comando `influx` para verificar a saúde do serviço. Ao final do tópico, o leitor deve ser capaz de:
+
+- Iniciar o InfluxDB 2.7 através de um arquivo `docker-compose.yml` com provisionamento automático.
+- Reconhecer os conceitos de Organização (*Org*), *Bucket* e *Token de API*.
+- Acessar a interface gráfica InfluxDB UI na porta HTTP `8086`.
+- Executar comandos de consulta e ingestão usando a ferramenta CLI `influx`.
+
+---
+
+## Arquivos de Configuração
+
+O diretório `examples/courses/database/servers/influxdb-server/` disponibiliza o ambiente de desenvolvimento completo:
+
+<SourceCode
+  path="examples/courses/database/servers/influxdb-server/docker-compose.yml"
+/>
+
+As variáveis de setup e credenciais ficam isoladas no arquivo `.env`:
+
+```ini title=".env.example"
+INFLUXDB_USERNAME=admin
+INFLUXDB_PASSWORD=adminpassword123
+INFLUXDB_ORG=devlab
+INFLUXDB_BUCKET=investments
+INFLUXDB_TOKEN=my-super-secret-auth-token-devlab
+```
+
+---
+
+## Executando
+
+<Steps>
+1. **Criar o arquivo de variáveis de ambiente:**
+
+   Copie o modelo de variáveis para criar o arquivo `.env`:
+
+   ```bash
+   cp examples/courses/database/servers/influxdb-server/.env.example examples/courses/database/servers/influxdb-server/.env
+   ```
+
+2. **Iniciar o contêiner:**
+
+   Suba o serviço InfluxDB via Docker Compose:
+
+   ```bash
+   docker compose -f examples/courses/database/servers/influxdb-server/docker-compose.yml up -d
+   ```
+
+3. **Verificar a saúde do serviço pelo terminal:**
+
+   Execute o utilitário `influx ping` no contêiner:
+
+   ```bash
+   docker exec -it influxdb influx ping
+   ```
+
+   A saída confirma que o serviço está operacional:
+
+   ```text
+   OK
+   ```
+
+4. **Listar os buckets configurados via CLI:**
+
+   Utilize o token de administração para listar os buckets existentes:
+
+   ```bash
+   docker exec -it influxdb influx bucket list \
+     --org devlab \
+     --token my-super-secret-auth-token-devlab
+   ```
+
+   A saída exibe o bucket `investments` e os buckets de sistema:
+
+   ```text
+   ID                      Name            Retention       Shard group duration    Organization ID         Schema Type
+   0d8a1b2c3d4e5f60        _monitoring     168h0m0s        24h0m0s                 1a2b3c4d5e6f7a8b        implicit
+   1f2e3d4c5b6a7089        _tasks          72h0m0s         24h0m0s                 1a2b3c4d5e6f7a8b        implicit
+   9a8b7c6d5e4f3a21        investments     infinite        168h0m0s                1a2b3c4d5e6f7a8b        implicit
+   ```
+
+5. **Acessar a interface Web InfluxDB UI:**
+
+   Abra o navegador no endereço `http://localhost:8086`.
+   - **Usuário**: `admin`
+   - **Senha**: `adminpassword123`
+
+   A interface permite explorar dados graficamente (*Data Explorer*), criar dashboards com gráficos temporais em tempo real e gerenciar tarefas agendadas.
+</Steps>
+
+---
+
+## Conexão a partir da Aplicação
+
+Os SDKs modernos do InfluxDB (como `@influxdata/influxdb-client` em Node.js ou o cliente oficial em Python) conectam-se via HTTP utilizando o Token de API:
+
+```javascript
+import { InfluxDB, Point } from '@influxdata/influxdb-client';
+
+const client = new InfluxDB({
+  url: 'http://localhost:8086',
+  token: 'my-super-secret-auth-token-devlab'
+});
+
+const writeApi = client.getWriteApi('devlab', 'investments');
+```
+
+---
+
+## Exercício
+
+Com o contêiner em execução:
+
+1. Crie um novo bucket chamado `telemetry_logs` com retenção de 72 horas utilizando o CLI `influx`.
+2. Verifique se o novo bucket aparece na listagem de buckets.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```bash
+  docker exec -it influxdb influx bucket create \
+    --name telemetry_logs \
+    --retention 72h \
+    --org devlab \
+    --token my-super-secret-auth-token-devlab
+
+  docker exec -it influxdb influx bucket list --org devlab --token my-super-secret-auth-token-devlab
+  ```
+</details>
+
+---
+
+## Desafio
+
+O InfluxDB permite ingestão de dados via requisições HTTP REST diretas no endpoint `/api/v2/write`.
+
+Escreva um comando `curl` que envie um ponto de cotação da ação `VALE3` no valor de `65.50` utilizando o Line Protocol via HTTP POST.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```bash
+  curl --request POST "http://localhost:8086/api/v2/write?org=devlab&bucket=investments&precision=s" \
+    --header "Authorization: Token my-super-secret-auth-token-devlab" \
+    --header "Content-Type: text/plain; charset=utf-8" \
+    --data-binary "quotes,ticker=VALE3,broker=XP price=65.50"
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual porta HTTP padrão é utilizada pelo InfluxDB v2?**
+   <details><summary>Possível resposta</summary>Porta `8086`.</details>
+
+2. **O que é uma Organização no InfluxDB v2?**
+   <details><summary>Possível resposta</summary>É um espaço de trabalho lógico que agrupa usuários, buckets, dashboards, tarefas agendadas e tokens de segurança.</details>
+
+3. **O que acontece se uma requisição de escrita não informar o timestamp no Line Protocol?**
+   <details><summary>Possível resposta</summary>O servidor InfluxDB atribui automaticamente o timestamp UTC atual do servidor no momento do recebimento do ponto.</details>
+
+---
+
+## Referências
+
+- [InfluxDB CLI (influx) Reference](https://docs.influxdata.com/influxdb/v2/tools/influx-cli/)
+- [InfluxDB HTTP API Reference](https://docs.influxdata.com/influxdb/v2/api/)
+- [InfluxDB JavaScript Client](https://github.com/influxdata/influxdb-client-js)
+
+---
+
+## Próximo tópico
+
+[Line Protocol e séries temporais](../time-series/): Sintaxe do Line Protocol, consultas em InfluxQL e Flux, e agregações por janela temporal.

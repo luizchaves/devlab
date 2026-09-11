@@ -1,0 +1,162 @@
+---
+title: "Banco de Dados: Elasticsearch"
+description: "Visão geral do Elasticsearch: motor de busca textual distribuído, Apache Lucene, índice invertido, pontuação de relevância BM25, campos text vs keyword e casos de uso de busca e observabilidade."
+course: database
+sidebar:
+  label: "Visão geral do Elasticsearch"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Elasticsearch** é um motor de busca e análise distribuído construído sobre a biblioteca **Apache Lucene**. Ele foi projetado para resolver um problema em que bancos relacionais tradicionais são notoriamente lentos e limitados: a **busca textual completa** (*Full-Text Search*) sobre milhões de documentos com tolerância a erros de digitação, lematização linguística, sinônimos e ordenação por relevância estatística.
+
+## Objetivo
+
+Compreender a arquitetura e os fundamentos conceituais do Elasticsearch, entendendo o funcionamento do **Índice Invertido**, a pontuação de relevância (algoritmo BM25) e as diferenças fundamentais entre campos de texto livre (`text`) e termos exatos (`keyword`). Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que a cláusula `WHERE coluna LIKE '%termo%'` em SQL não escala para grandes volumes de dados textuais.
+- Descrever a estrutura interna de um **Índice Invertido** (*Inverted Index*).
+- Distinguir o processamento de campos `text` (analisados, tokenizados) e campos `keyword` (valores exatos e agregáveis).
+- Compreender como o algoritmo BM25 calcula a pontuação de relevância (*score* `_score`) dos resultados.
+
+---
+
+## O Problema do `LIKE %...%` vs O Índice Invertido
+
+Em um banco SQL, a busca `LIKE '%deposito%'` exige que o motor faça uma varredura sequencial completa em todas as linhas da tabela (*Full Table Scan*), pois índices convencionais B-Tree não conseguem indexar subsequências no meio de strings. Além disso, o SQL não entende plural/singular ("depósito" vs "depósitos"), erros de digitação ("deposito" vs "depósitu") nem calcula relevância.
+
+O Elasticsearch resolve isso desmontando os documentos em tokens durante a gravação e construindo um **Índice Invertido**, que mapeia cada palavra única para a lista exata de IDs de documentos onde ela aparece:
+
+<Mermaid title="Como o Índice Invertido mapeia termos para documentos">
+{`
+flowchart LR
+    subgraph Docs["Documentos JSON Brutos"]
+        D1["Doc 1: 'Certificado de Depósito Bancário'"]
+        D2["Doc 2: 'Depósito a Prazo Fixo'"]
+        D3["Doc 3: 'Fundo de Ações e Renda'"]
+    end
+
+    subgraph InvertedIndex["Índice Invertido (Lucene)"]
+        T1["termo: 'bancário' --> [Doc 1]"]
+        T2["termo: 'certificado' --> [Doc 1]"]
+        T3["termo: 'depósito' --> [Doc 1, Doc 2]"]
+        T4["termo: 'fixo' --> [Doc 2]"]
+        T5["termo: 'renda' --> [Doc 3]"]
+    end
+
+    Docs -->|"Análise Léxica<br/>(Tokenização e Stemming)"| InvertedIndex
+`}
+</Mermaid>
+
+Quando o usuário pesquisa por `"depósito"`, o Elasticsearch consulta o índice invertido em tempo constante $O(1)$ e localiza instantaneamente que os documentos `1` e `2` contêm a palavra, sem varrer o restante da base.
+
+---
+
+## Tipos de Campos: `text` vs `keyword`
+
+A decisão mais crítica na modelagem de um índice no Elasticsearch é a escolha entre os tipos textuais:
+
+| Tipo de Campo | Processamento pelo Analyzer | Uso Recomendado | Operação de Consulta Típica |
+| :--- | :--- | :--- | :--- |
+| **`text`** | O texto é quebrado em tokens minúsculos, sem acentos e com raiz gramatical extraída (*stemming*). | Títulos, descrições, posts, comentários e busca aberta. | `match`, `multi_match`, `fuzzy` |
+| **`keyword`** | O valor é mantido intacto como string exata sem análise textual. | IDs de status, códigos SKU, categorias, e-mails e filtros. | `term`, `terms`, agregações e ordenação |
+
+<Aside type="tip" title="Campos com Mapeamento Duplo">
+Por padrão, o Elasticsearch cria campos textuais no formato multi-campo: `name` (do tipo `text` para busca flexível) e `name.keyword` (do tipo `keyword` para ordenação alfabética e agregações facetadas).
+</Aside>
+
+---
+
+## O Que Esta Seção Cobre
+
+As páginas seguintes abordam a operação do motor:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    Servidor com Docker Compose integrando Elasticsearch e Kibana, API REST HTTP na porta `:9200` e console Dev Tools.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Índices e consultas" icon="seti:json">
+    Mapeamento de tipos (*Mappings*), analisadores em português, consultas com Query DSL (`bool`, `range`, `fuzzy`) e agregações.
+
+    [Acessar tópico](search/)
+  </Card>
+</CardGrid>
+
+---
+
+## Quando usar, e quando não usar?
+
+O Elasticsearch é o complemento ideal para atuar como motor de busca especializado conectado a uma base primária relacional.
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Barra de busca em e-commerce ou catálogo com autocompletar e filtros | **Elasticsearch** | BM25, tolerância a erros de digitação (*fuzzy*) e filtros facetados em milissegundos. |
+| Centralização e busca de logs de infraestrutura (Stack ELK) | **Elasticsearch** | Varreduras sobre bilhões de linhas de log e agregação de erros por segundo. |
+| Transações ACID financeiras e integridade referencial estrita | **[PostgreSQL](../postgresql/)** | O Elasticsearch possui consistência eventual entre nós e não suporta transações multi-documento com rollback. |
+| Armazenamento chave-valor simples com latência em microssegundos | **[Redis](../redis/)** | O Redis opera em memória RAM pura sem o custo de pontuação textual do Lucene. |
+
+---
+
+## Exercício
+
+Responda com base no funcionamento de motores de busca:
+
+1. O que é um *Índice Invertido* e como ele difere de um índice B-Tree relacional?
+2. Por que um campo do tipo `text` não deve ser utilizado para operações de agrupamento (*aggregations*) ou ordenação estrita?
+3. O que é o algoritmo BM25 e qual é a sua finalidade no resultado de uma busca?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O índice invertido mapeia cada palavra normalizada para a lista de identificadores de documentos que a contêm. O índice B-Tree indexa o valor completo da coluna em uma árvore ordenada, ideal para comparações exatas (`=`) ou intervalos (`BETWEEN`), mas ineficiente para buscar palavras soltas no meio do texto.
+
+  2. Porque campos `text` são desmembrados em múltiplos tokens pelo *Analyzer*, o que consome muita memória para reconstruir termos originais em agregações. Para agrupar ou ordenar, deve-se utilizar campos `keyword`.
+
+  3. O BM25 (*Best Matching 25*) é o algoritmo estatístico padrão que calcula a relevância de um documento com base na frequência do termo no documento (TF) e na raridade do termo em toda a coleção (IDF), atribuindo o score `_score` final.
+</details>
+
+---
+
+## Desafio
+
+Um usuário digita `"tesouro selik"` na busca do InvestApp.
+
+Explique quais técnicas do Elasticsearch permitem encontrar o título `"Tesouro Selic 2029"` mesmo com o erro de digitação do usuário e o número do ano ausente na busca.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Duas técnicas combinadas:
+  1. **Fuzziness (Distância de Levenshtein)**: A consulta com `fuzziness: "AUTO"` calcula que trocar a letra `'k'` por `'c'` requer apenas 1 edição (distância 1), casando `"selik"` com `"selic"`.
+  2. **Tokenização e Match Parcial**: O *Analyzer* quebrou `"Tesouro Selic 2029"` nos tokens `["tesouro", "selic", "2029"]`. A consulta casou com 2 dos 3 tokens (`"tesouro"` e `"selic"`), calculando um score alto de relevância e retornando o documento no topo.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual é o protocolo nativo de comunicação com o Elasticsearch?**
+   <details><summary>Possível resposta</summary>HTTP REST com payloads JSON (porta padrão `9200`).</details>
+
+2. **O que faz um *Analyzer* durante a indexação de um documento?**
+   <details><summary>Possível resposta</summary>Processa o texto bruto através de três etapas: filtros de caracteres (*char filters*), quebra em palavras (*tokenizer*) e normalização de tokens (*token filters*, como minúsculas e remoção de acentos).</details>
+
+3. **O que representa o campo `_score` devolvido em uma resposta do Elasticsearch?**
+   <details><summary>Possível resposta</summary>É a nota de relevância calculada pelo motor para indicar o quanto o documento atende aos critérios da busca.</details>
+
+---
+
+## Referências
+
+- [Elasticsearch Guide](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html)
+- [Anatomy of an Inverted Index](https://www.elastic.co/blog/found-inside-the-lucene-index)
+- [Query DSL Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): Executando Elasticsearch e Kibana com Docker Compose e interagindo via HTTP REST e Kibana Dev Tools.

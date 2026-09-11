@@ -1401,6 +1401,55 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Redis',
+              items: [
+                { label: 'Visão geral do Redis', link: '/courses/database/redis/' },
+                { label: 'Instalação e cliente', link: '/courses/database/redis/setup/' },
+                { label: 'Estruturas e comandos', link: '/courses/database/redis/commands/' },
+              ],
+            },
+            {
+              label: 'Neo4j',
+              items: [
+                { label: 'Visão geral do Neo4j', link: '/courses/database/neo4j/' },
+                { label: 'Instalação e cliente', link: '/courses/database/neo4j/setup/' },
+                { label: 'Modelagem e Cypher', link: '/courses/database/neo4j/cypher/' },
+              ],
+            },
+            {
+              label: 'InfluxDB',
+              items: [
+                { label: 'Visão geral do InfluxDB', link: '/courses/database/influxdb/' },
+                { label: 'Instalação e cliente', link: '/courses/database/influxdb/setup/' },
+                {
+                  label: 'Line Protocol e séries temporais',
+                  link: '/courses/database/influxdb/time-series/',
+                },
+              ],
+            },
+            {
+              label: 'Elasticsearch',
+              items: [
+                {
+                  label: 'Visão geral do Elasticsearch',
+                  link: '/courses/database/elasticsearch/',
+                },
+                { label: 'Instalação e cliente', link: '/courses/database/elasticsearch/setup/' },
+                { label: 'Índices e consultas', link: '/courses/database/elasticsearch/search/' },
+              ],
+            },
+            {
+              label: 'Cassandra',
+              items: [
+                { label: 'Visão geral do Cassandra', link: '/courses/database/cassandra/' },
+                { label: 'Instalação e cliente', link: '/courses/database/cassandra/setup/' },
+                {
+                  label: 'Modelagem CQL e particionamento',
+                  link: '/courses/database/cassandra/cql/',
+                },
+              ],
+            },
+            {
               label: 'Referência',
               items: [
                 {

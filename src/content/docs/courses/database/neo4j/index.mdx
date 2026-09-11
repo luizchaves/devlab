@@ -1,0 +1,179 @@
+---
+title: "Banco de Dados: Neo4j"
+description: "Visão geral do Neo4j: banco de dados em grafos de propriedades rotuladas, adjacência livre de índices, linguagem declarativa Cypher, travessia de relacionamentos e casos de uso de redes e recomendações."
+course: database
+sidebar:
+  label: "Visão geral do Neo4j"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Neo4j** é o banco de dados nativo em grafos mais utilizado no mercado. Ao contrário do modelo relacional (onde relacionamentos são inferidos em tempo de consulta por meio de chaves estrangeiras e junções entre tabelas), o Neo4j adota o modelo de **Grafos de Propriedades Rotuladas** (*Labeled Property Graph*), onde os relacionamentos são tratados como elementos físicos de primeira classe armazenados em disco junto aos dados.
+
+## Objetivo
+
+Compreender o modelo mental e a arquitetura de grafos do Neo4j, diferenciando a navegação por ponteiros físicos (*Index-Free Adjacency*) das junções relacionais com chaves estrangeiras, e identificando os cenários ideais para sua aplicação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever a anatomia de um grafo: Nós (*Nodes*), Rótulos (*Labels*), Relacionamentos (*Relationships*) e Propriedades (*Properties*).
+- Explicar o conceito de Adjacência Livre de Índices (*Index-Free Adjacency*) e seu impacto no desempenho de consultas profundas.
+- Comparar a expressividade da linguagem Cypher frente a consultas SQL com múltiplos `JOIN`s recursivos.
+- Avaliar quando adotar o Neo4j em sistemas de recomendação, redes sociais, detecção de fraudes e gerenciamento de acessos.
+
+---
+
+## O Modelo de Grafo de Propriedades
+
+No Neo4j, todas as informações são representadas por quatro elementos fundamentais:
+
+1. **Nós (*Nodes*)**: As entidades do domínio (ex: um `User`, um `Asset`, uma `Category`).
+2. **Rótulos (*Labels*)**: Categorizam os nós e permitem a criação de restrições e índices (um nó pode ter múltiplos rótulos, como `:User:Admin`).
+3. **Relacionamentos (*Relationships*)**: Conexões direcionadas e com tipo explícito entre dois nós (ex: `-[:INVESTS_IN]->`, `-[:FOLLOWS]->`).
+4. **Propriedades (*Properties*)**: Pares de chave-valor anexados tanto a nós quanto a relacionamentos (ex: `amount: 5000.00`, `since: 2024-01-15`).
+
+O diagrama abaixo ilustra o grafo do domínio `invest-db`:
+
+<Mermaid title="Grafo de investidores, carteiras e conexões no Neo4j">
+{`
+graph LR
+    U1["(u1:User {name: 'Lucas'})"]
+    U2["(u2:User {name: 'Ana'})"]
+    A1["(a1:Asset {code: 'CDB_PREFIXADO'})"]
+    A2["(a2:Asset {code: 'TESOURO_SELIC'})"]
+    C1["(c1:Category {name: 'Renda Fixa'})"]
+
+    U1 -->|"[:INVESTS_IN {amount: 5000}]"| A1
+    U1 -->|"[:INVESTS_IN {amount: 3500}]"| A2
+    U2 -->|"[:INVESTS_IN {amount: 8000}]"| A2
+    U1 -->|"[:FOLLOWS]"| U2
+    A1 -->|"[:IN_CATEGORY]"| C1
+    A2 -->|"[:IN_CATEGORY]"| C1
+`}
+</Mermaid>
+
+---
+
+## Adjacência Livre de Índices (*Index-Free Adjacency*)
+
+A principal vantagem arquitetural do Neo4j sobre bancos relacionais é a **Adjacência Livre de Índices**:
+
+Em um banco relacional, fazer uma consulta como *"amigos dos amigos dos meus amigos até o 4º nível"* exige varreduras sucessivas em índices de tabelas intermediárias (`JOIN user_friends`). À medida que a base cresce para milhões de linhas, o custo do `JOIN` cresce de forma exponencial ou logarítmica ($O(N \log N)$).
+
+No Neo4j, cada nó armazena ponteiros diretos de memória para os relacionamentos aos quais está conectado. Percorrer uma conexão tem custo constante $O(1)$ por nó visitado, independente do tamanho total do banco de dados (se o banco tem 10 mil ou 100 milhões de nós, a travessia do caminho leva o mesmo tempo).
+
+---
+
+## O Que Esta Seção Cobre
+
+As páginas seguintes detalham o ambiente e a linguagem de consulta do Neo4j:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    Inicialização com Docker Compose, acesso à interface gráfica Neo4j Browser (`:7474`) e utilitário `cypher-shell` no terminal.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Modelagem e Cypher" icon="seti:graphql">
+    Criação de nós e relacionamentos com `CREATE`, casamento de padrões com `MATCH`, filtros com `WHERE` e algoritmos de recomendação e menor caminho.
+
+    [Acessar tópico](cypher/)
+  </Card>
+</CardGrid>
+
+---
+
+## Comparação: SQL Recursivo vs Cypher
+
+Observe a diferença de legibilidade ao consultar conexões de múltiplos graus:
+
+| Operação | SQL Relacional | Neo4j Cypher |
+| :--- | :--- | :--- |
+| **Amigos de Amigos (2º Grau)** | `WITH RECURSIVE` ou múltiplos `JOIN`s com tabelas associativas e remoção manual de duplicatas. | `MATCH (u:User {id: 1})-[:FOLLOWS*2]->(f:User) RETURN f` |
+| **Ativos recomendados por pessoas que sigo** | Junção entre 4 tabelas (`users`, `followers`, `investments`, `assets`) com subconsultas `NOT IN`. | `MATCH (me:User)-[:FOLLOWS]->()-[:INVESTS_IN]->(a:Asset) WHERE NOT (me)-[:INVESTS_IN]->(a) RETURN a` |
+
+---
+
+## Quando usar, e quando não usar?
+
+O Neo4j brilha onde a **relação entre os dados** é tão importante quanto os próprios dados.
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Redes sociais, grafos de conhecimento e permissões hierárquicas (RBAC/ABAC) | **Neo4j** | Travessia de múltiplos graus com desempenho em tempo real. |
+| Motores de recomendação em tempo real | **Neo4j** | Casamento de padrões de consumo e similaridade de vizinhança. |
+| Detecção de fraudes em pagamentos (anéis de laranjas) | **Neo4j** | Identificação instantânea de ciclos e nós com alto grau de conexões suspeitas. |
+| Cadastros transacionais tabulares com pouca conectividade | **[PostgreSQL](../postgresql/)** | SQL relacional e ferramentas corporativas maduras. |
+| Ingestão massiva de telemetria e séries temporais | **[InfluxDB](../influxdb/)** | Focado em gravação contínua orientada a tempo, sem grafos. |
+
+---
+
+## Exercício
+
+Responda com base nos fundamentos de bancos em grafos:
+
+1. Quais são os 4 blocos de construção de um modelo em grafos de propriedades?
+2. O que é *Index-Free Adjacency* e por que ela torna travessias em grafos mais rápidas que `JOIN`s relacionais?
+3. Um relacionamento no Neo4j pode conter propriedades próprias? Dê um exemplo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Nós (*Nodes*), Rótulos (*Labels*), Relacionamentos (*Relationships*) e Propriedades (*Properties*).
+
+  2. É a capacidade de cada nó guardar ponteiros físicos diretos para seus nós adjacentes. A travessia ocorre em tempo $O(1)$ por aresta, sem necessidade de pesquisar em tabelas de índices globais.
+
+  3. Sim. Por exemplo, o relacionamento `-[:INVESTS_IN]->` pode conter as propriedades `amount: 5000.00` e `since: date('2024-01-15')`.
+</details>
+
+---
+
+## Desafio
+
+Modele uma estrutura de controle de permissões corporativas onde usuários pertencem a departamentos, departamentos herdam permissões de setores-pai e permissões concedem acesso a recursos protegidos.
+
+Desenhe o padrão de nós e relacionamentos correspondente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Padrão de grafo:
+  - Nós: `(:User)`, `(:Department)`, `(:Permission)`, `(:Resource)`.
+  - Relacionamentos:
+    - `(:User)-[:MEMBER_OF]->(:Department)`
+    - `(:Department)-[:SUB_DEPARTMENT_OF]->(:Department)`
+    - `(:Department)-[:HAS_PERMISSION]->(:Permission)`
+    - `(:Permission)-[:GRANTS_ACCESS_TO]->(:Resource)`
+
+  Para verificar se um usuário tem acesso ao recurso `Relatório Financeiro`:
+  ```cypher
+  MATCH (u:User {name: 'Lucas'})-[:MEMBER_OF*1..3]->(d:Department)-[:HAS_PERMISSION]->(p:Permission)-[:GRANTS_ACCESS_TO]->(r:Resource {name: 'Relatório Financeiro'})
+  RETURN count(r) > 0 AS temAcesso
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que é a linguagem Cypher?**
+   <details><summary>Possível resposta</summary>É a linguagem declarativa de consulta do Neo4j que utiliza arte ASCII (como `(node)-[:REL]->(node)`) para descrever padrões visuais em grafos.</details>
+
+2. **Um nó pode existir sem nenhum relacionamento no Neo4j?**
+   <details><summary>Possível resposta</summary>Sim, nós isolados são totalmente válidos.</details>
+
+3. **Qual protocolo binário nativo é utilizado para comunicação de alta performance com o Neo4j?**
+   <details><summary>Possível resposta</summary>Protocolo Bolt (porta padrão `7687`).</details>
+
+---
+
+## Referências
+
+- [Neo4j Graph Database Documentation](https://neo4j.com/docs/)
+- [The Graph Database Reference Handbook](https://neo4j.com/graph-databases-book/)
+- [Cypher Query Language Manual](https://neo4j.com/docs/cypher-manual/current/)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): Subindo o contêiner do Neo4j com Docker Compose, navegando pelo Neo4j Browser e conectando com `cypher-shell`.

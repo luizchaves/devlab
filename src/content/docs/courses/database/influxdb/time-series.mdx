@@ -1,0 +1,180 @@
+---
+title: "InfluxDB: Line Protocol e Séries Temporais"
+description: "Sintaxe do Line Protocol para ingestão em lote, consultas temporais com Flux e InfluxQL, agrupamento por janelas de tempo (aggregateWindow) e cálculos de downsampling no InvestApp."
+course: database
+sidebar:
+  label: "Line Protocol e séries temporais"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+O InfluxDB utiliza o formato textual **Line Protocol** como padrão de alta vazão para envio em lote de métricas e cotações, e oferece linguagens especializadas (Flux e InfluxQL) para transformar, filtrar e agregar dados ao longo do tempo.
+
+## Objetivo
+
+Dominar o formato Line Protocol e escrever consultas temporais com a linguagem Flux no domínio de cotações financeiras do `invest-db`, realizando agregações por janela temporal (*windowing*) e calculando médias móveis. Ao final do tópico, o leitor deve ser capaz de:
+
+- Formatar pontos de dados no padrão textual estrito do Line Protocol.
+- Ingerir arquivos de métricas em lote através do utilitário `influx write`.
+- Escrever consultas em Flux encadeando funções com o operador pipe (`|>`).
+- Realizar agregações temporais com `aggregateWindow()` e calcular mínimos, máximos e médias.
+
+---
+
+## O Domínio de Cotações em Line Protocol
+
+O arquivo `invest.lp` reúne o histórico de preços e volumes negociados de ativos do InvestApp:
+
+<SourceCode
+  path="examples/courses/database/servers/influxdb-server/invest.lp"
+/>
+
+### Anatomia da Sintaxe do Line Protocol
+
+A estrutura segue o padrão rigoroso:
+
+```text
+measurement,tag_key=tag_val field_key=field_val timestamp_em_nanossegundos
+```
+
+- **Vírgula**: Separa o nome da *Measurement* das chaves e valores de *Tags*.
+- **Espaço em branco**: Separa o conjunto de *Tags* do conjunto de *Fields*.
+- **Segundo espaço em branco**: Separa os *Fields* do *Timestamp* Unix (em nanossegundos por padrão).
+- **Tipos de dados nos Fields**: Floats são numéricos comuns (`65.20`), inteiros levam o sufixo `i` (`12000i`), booleanos são `t`/`f` e strings ficam entre aspas duplas (`"texto"`).
+
+---
+
+## Consultas em Flux
+
+O arquivo `invest.flux` demonstra como consultar e agregar o histórico temporal:
+
+<SourceCode
+  path="examples/courses/database/servers/influxdb-server/invest.flux"
+/>
+
+A tabela abaixo detalha as principais funções do pipeline Flux:
+
+| Função Flux | Equivalente SQL | Ação na Série Temporal |
+| :--- | :--- | :--- |
+| `from(bucket: "...")` | `FROM tabela` | Define o bucket de origem dos dados. |
+| `range(start: -24h)` | `WHERE time >= NOW() - 24h` | Delimita a janela de tempo obrigatória da consulta. |
+| `filter(fn: (r) => ...)` | `WHERE ticker = 'VALE3'` | Filtra por measurements, tags e campos específicos. |
+| `aggregateWindow(every: 1h, fn: mean)` | `GROUP BY time(1h)` com `AVG()` | Divide a linha do tempo em blocos de 1 hora e calcula a média. |
+| `yield(name: "...")` | `AS alias_resultado` | Nomeia o conjunto de tabelas resultante da execução. |
+
+---
+
+## Executando
+
+<Steps>
+1. **Ingerir o arquivo Line Protocol no InfluxDB:**
+
+   Execute o comando `influx write` passando o arquivo de cotações:
+
+   ```bash
+   docker exec -i influxdb influx write \
+     --bucket investments \
+     --org devlab \
+     --token my-super-secret-auth-token-devlab \
+     --format lp < examples/courses/database/servers/influxdb-server/invest.lp
+   ```
+
+2. **Executar a consulta Flux via CLI:**
+
+   Execute a consulta de agregação por janela temporal:
+
+   ```bash
+   docker exec -it influxdb influx query \
+     --org devlab \
+     --token my-super-secret-auth-token-devlab \
+     'from(bucket: "investments")
+        |> range(start: 2024-03-01T00:00:00Z, stop: 2024-03-02T00:00:00Z)
+        |> filter(fn: (r) => r._measurement == "quotes" and r.ticker == "VALE3" and r._field == "price")
+        |> aggregateWindow(every: 1h, fn: mean)'
+   ```
+
+   A saída retorna a tabela com os valores médios consolidados por hora:
+
+   ```text
+   #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+   #group,false,false,true,true,false,false,true,true,true,true
+   #default,_result,,,,,,,,,
+   ,result,table,_start,_stop,_time,_value,_field,_measurement,broker,ticker
+   ,,0,2024-03-01T00:00:00Z,2024-03-02T00:00:00Z,2024-03-01T08:00:00Z,65.2,price,quotes,XP,VALE3
+   ,,0,2024-03-01T00:00:00Z,2024-03-02T00:00:00Z,2024-03-01T09:00:00Z,65.8,price,quotes,XP,VALE3
+   ,,0,2024-03-01T00:00:00Z,2024-03-02T00:00:00Z,2024-03-01T10:00:00Z,66.1,price,quotes,XP,VALE3
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base no Line Protocol e na linguagem Flux:
+
+1. Escreva uma linha no formato Line Protocol para registrar a temperatura (`temp=26.4`) e umidade (`humidity=68i`) de um sensor com tag `room=server_room_1`.
+2. Como escrever uma consulta Flux que calcule a cotação máxima (`max()`) da ação `VALE3` nos últimos 30 dias?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Linha em Line Protocol:
+     ```text
+     sensors,room=server_room_1 temp=26.4,humidity=68i
+     ```
+
+  2. Consulta Flux:
+     ```javascript
+     from(bucket: "investments")
+       |> range(start: -30d)
+       |> filter(fn: (r) => r._measurement == "quotes" and r.ticker == "VALE3" and r._field == "price")
+       |> max()
+     ```
+</details>
+
+---
+
+## Desafio
+
+Em gráficos financeiros com intervalos onde o mercado está fechado (fins de semana e noites), consultas de agregação por janela temporal podem devolver intervalos vazios sem nenhum ponto gravado.
+
+Qual parâmetro da função `aggregateWindow` controla se janelas de tempo sem dados devem ser preenchidas com registros vazios ou omitidas do resultado final?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O parâmetro `createEmpty: true` ou `createEmpty: false`:
+
+  ```javascript
+  aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+  ```
+
+  Quando configurado como `false`, o InfluxDB descarta intervalos de tempo que não possuem medições no período. Quando `true`, gera uma linha com valor `null`, ideal para preencher lacunas em bibliotecas de gráficos contínuos.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Por que uma consulta Flux exige obrigatoriamente a função `range()`?**
+   <details><summary>Possível resposta</summary>Porque o InfluxDB é particionado internamente por tempo; delimitar a faixa temporal evita que a consulta execute uma varredura completa e infinita por todo o histórico em disco.</details>
+
+2. **Qual é o separador obrigatório entre as Tags e os Fields no Line Protocol?**
+   <details><summary>Possível resposta</summary>Um espaço em branco (` `).</details>
+
+3. **Qual a diferença entre a função `mean()` e a função `sum()` em séries temporais?**
+   <details><summary>Possível resposta</summary>`mean()` calcula a média aritmética dos valores no intervalo; `sum()` calcula o somatório total acumulado dos pontos.</details>
+
+---
+
+## Referências
+
+- [Flux Standard Library Functions](https://docs.influxdata.com/flux/v0.x/stdlib/)
+- [InfluxDB aggregateWindow Documentation](https://docs.influxdata.com/flux/v0.x/stdlib/universe/aggregatewindow/)
+- [Line Protocol Best Practices](https://docs.influxdata.com/influxdb/v2/write-data/best-practices/optimize-writes/)
+
+---
+
+## Próximo tópico
+
+[Visão geral do Elasticsearch](../../elasticsearch/): O paradigma de motores de busca, índices invertidos, pontuação de relevância BM25 e análise de texto.

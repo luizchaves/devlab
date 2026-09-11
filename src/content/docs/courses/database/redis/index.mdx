@@ -1,0 +1,157 @@
+---
+title: "Banco de Dados: Redis"
+description: "Visão geral do Redis: banco chave-valor em memória, estruturas de dados nativas, persistência por snapshots (RDB) e log de append (AOF), cache, filas, sessões e casos de uso no desenvolvimento web."
+course: database
+sidebar:
+  label: "Visão geral do Redis"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Redis** (*Remote Dictionary Server*) é um banco de dados em memória que opera prioritariamente sobre a memória RAM, entregando tempos de resposta em submilissegundos. Diferente de um chave-valor trivial que aceita apenas strings simples, o Redis é um servidor de estruturas de dados: disponibiliza listas, conjuntos, hashes, conjuntos ordenados, bitmaps e fluxos de eventos como tipos nativos de primeira classe.
+
+## Objetivo
+
+Compreender o papel do Redis como banco em memória e servidor de estruturas de dados em arquiteturas web modernas, dominando seu modelo mental, estratégias de persistência e critérios de escolha em relação a bancos em disco. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a diferença de desempenho e latência entre operações na memória RAM e em disco.
+- Descrever as estruturas de dados fundamentais do Redis (Strings, Hashes, Lists, Sets e Sorted Sets).
+- Comparar as estratégias de persistência RDB (*Redis Database File*) e AOF (*Append Only File*).
+- Identificar casos de uso ideais (cache, sessões, filas e contadores) e cenários em que o Redis não deve ser o banco principal.
+
+---
+
+## Modelo Mental: Dados na Memória RAM
+
+Em um banco relacional tradicional (como PostgreSQL ou MySQL), os dados residem no disco e o motor utiliza buffers de memória para acelerar consultas frequentes. No Redis, o caminho é invertido: a **RAM é a fonte primária** de armazenamento e processamento, e o disco atua apenas como mecanismo assíncrono de persistência e recuperação contra desastres.
+
+O diagrama abaixo ilustra o fluxo de leitura e escrita com latência de microssegundos:
+
+<Mermaid title="Arquitetura de execução em memória do Redis">
+{`
+flowchart LR
+    App["Aplicação Web"] -->|"Comandos TCP (Porta 6379)<br/>Latência < 1ms"| Core["Motor Redis<br/>(Processamento em RAM)"]
+    Core --> RAM[("Memória RAM<br/>Estruturas Nativas")]
+    Core -.->|"Assíncrono: Snapshots"| RDB["Disco: dump.rdb"]
+    Core -.->|"Assíncrono: Append Log"| AOF["Disco: appendonly.aof"]
+`}
+</Mermaid>
+
+Por operar em memória e utilizar uma arquitetura orientada a eventos *single-threaded* para execução de comandos, o Redis elimina custos de sincronização de bloqueios (*locks*) entre threads, garantindo que operações atômicas sejam executadas com previsibilidade e altíssima vazão.
+
+---
+
+## O Que Esta Seção Cobre
+
+As páginas seguintes organizam o aprendizado prático do Redis no ciclo de desenvolvimento:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    Configuração do contêiner Docker Compose, conexão interativa com `redis-cli`, autenticação por senha e interface gráfica com Redis Commander.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Estruturas e comandos" icon="seti:json">
+    Operações com Strings, Hashes, Lists, Sets e Sorted Sets, controle de tempo de vida (TTL), padrões de cache e filas de tarefas.
+
+    [Acessar tópico](commands/)
+  </Card>
+</CardGrid>
+
+---
+
+## Estratégias de Persistência: RDB vs AOF
+
+Embora viva na memória, o Redis oferece dois mecanismos complementares para gravar o estado em disco sem degradar o tráfego em tempo real:
+
+A tabela abaixo compara as duas abordagens de persistência:
+
+| Mecanismo | O que faz | Ponto Forte | Ponto Fraco |
+| :--- | :--- | :--- | :--- |
+| **RDB (Snapshot)** | Tira uma foto compacta de toda a base em intervalos de tempo configuráveis (ex: a cada 5 min). | Arquivos compactos, reinicialização rápida e mínimo impacto de I/O contínuo. | Pode perder os dados gravados entre o último snapshot e uma queda repentina. |
+| **AOF (Append Only File)** | Registra cada comando de escrita em um log sequencial em disco (*fsync* a cada segundo). | Durabilidade quase total (perda máxima de 1 segundo de dados). | Arquivo maior e tempo de inicialização mais longo ao reconstruir o estado. |
+
+<Aside type="tip" title="Combinação padrão em produção">
+A maioria dos ambientes modernos de produção habilita **RDB e AOF simultaneamente**: o AOF garante a durabilidade das transações recentes, enquanto o snapshot RDB agiliza backups externos e clonagem de instâncias réplicas.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+O Redis atua principalmente como camada auxiliar de alta velocidade ou como armazenamento principal de dados efêmeros.
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Cache de consultas caras e respostas de APIs | **Redis** | Resposta em submilissegundos e expiração automática com TTL. |
+| Gestão de sessões de usuário e tokens de autenticação | **Redis** | Compartilhamento rápido entre instâncias de aplicação web sem bater no banco relacional. |
+| Contadores de acessos, *rate limiting* e placares | **Redis** | Operações atômicas (`INCR`, `ZADD`) sem concorrência de escrita. |
+| Fila de mensagens em segundo plano (BullMQ) | **Redis** | Listas e streams com bloqueio de leitura eficiente (`BLPOP`, `XREAD`). |
+| Modelo corporativo com relações complexas e integridade estrita | **[PostgreSQL](../postgresql/)** | Junções nativas, restrições de chave estrangeira e modelo ACID completo. |
+| Volumes de dados maiores do que a memória RAM disponível | **[PostgreSQL](../postgresql/) ou [Cassandra](../cassandra/)** | Custo de armazenamento em disco é dezenas de vezes menor que memória RAM. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de bancos em memória e persistência:
+
+1. Por que o Redis consegue processar dezenas de milhares de operações por segundo com latência inferior a 1 milissegundo?
+2. Em um sistema de e-commerce, quais dados fazem sentido guardar no Redis e quais devem permanecer no PostgreSQL?
+3. Qual é a diferença fundamental entre a persistência RDB e a AOF?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque os dados residem diretamente na memória RAM (eliminando latências de barramento de disco) e o motor executa comandos em uma fila atômica com event-loop, sem custo de travamento entre threads.
+
+  2. No Redis: carrinhos temporários, sessões autenticadas de login, cache de catálogo de produtos e limite de requisições (*rate limit*). No PostgreSQL: pedidos finalizados, notas fiscais, contas de usuários e saldos financeiros (dados relacionais que exigem ACID e integridade referencial rígida).
+
+  3. O RDB gera um arquivo de imagem pontual (*snapshot*) de tempos em tempos, enquanto o AOF registra um log contínuo com todas as operações de escrita que alteraram a base.
+</details>
+
+---
+
+## Desafio
+
+Projete uma arquitetura de cache para a listagem de carteiras de investimentos do `invest-db`. Defina:
+
+1. A chave utilizada para guardar o resultado pré-calculado do usuário de ID `42`.
+2. A política de expiração (*TTL*) recomendada para essa chave.
+3. O evento na aplicação que deve disparar a invalidação manual dessa chave (*Cache Invalidation*).
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Chave: `user:42:portfolio:summary` guardando um payload JSON serializado ou um hash Redis.
+  2. TTL: 300 segundos (5 minutos) com estratégia *Cache-Aside*, garantindo que consultas repetidas no mesmo intervalo não sobrecarreguem o banco principal.
+  3. Invalidação manual: Sempre que o usuário executar uma compra, venda ou depósito (`INSERT` / `UPDATE` em transações), a aplicação executa `DEL user:42:portfolio:summary` antes de responder à requisição, forçando o recálculo imediato na próxima leitura.
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **O que significa o termo TTL no Redis?**
+   <details><summary>Possível resposta</summary>*Time To Live*: o tempo em segundos ou milissegundos após o qual uma chave é removida automaticamente da memória.</details>
+
+2. **Como o Redis lida com a falta de memória quando atinge o limite configurado?**
+   <details><summary>Possível resposta</summary>Por meio de políticas de despejo (*eviction policies*), como LRU (*Least Recently Used*), LFU (*Least Frequently Used*) ou recusa de novas escritas com erro (*noeviction*).</details>
+
+3. **O que é um Sorted Set (ZSet)?**
+   <details><summary>Possível resposta</summary>Uma coleção de strings únicas onde cada membro possui uma pontuação numérica (*score*), mantendo os elementos ordenados automaticamente para consultas por ranking ou faixa de pontuação.</details>
+
+---
+
+## Referências
+
+- [Documentação Oficial do Redis](https://redis.io/docs/)
+- [Redis Persistence Demystified](https://redis.io/docs/management/persistence/)
+- [Redis Data Types Tutorial](https://redis.io/docs/data-types/)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): Executando o servidor Redis no Docker Compose e interagindo via `redis-cli` e Redis Commander.

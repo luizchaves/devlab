@@ -1,0 +1,177 @@
+---
+title: "Elasticsearch: Instalação e Cliente"
+description: "Como subir o cluster local do Elasticsearch e Kibana via Docker Compose em modo single-node, interagir via requisições HTTP REST com cURL e utilizar o console Dev Tools do Kibana."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Configurar o **Elasticsearch** para desenvolvimento local envolve subir o nó em modo `single-node` e acoplar o **Kibana** como interface visual para administração de índices e execução interativa de consultas.
+
+## Objetivo
+
+Aprender a subir o Elasticsearch e o Kibana localmente com Docker Compose, verificar a integridade do cluster através da API REST nativa na porta `9200` e executar consultas interativas pelo console Kibana Dev Tools na porta `5601`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Iniciar os serviços Elasticsearch e Kibana através de um arquivo `docker-compose.yml`.
+- Executar requisições de status e criação de documentos usando `curl` no terminal.
+- Acessar e operar o console Dev Tools no Kibana.
+- Interpretar os níveis de saúde do cluster (*green*, *yellow*, *red*).
+
+---
+
+## Arquivos de Configuração
+
+O diretório `examples/courses/database/servers/elasticsearch-server/` disponibiliza o ambiente de desenvolvimento completo:
+
+<SourceCode
+  path="examples/courses/database/servers/elasticsearch-server/docker-compose.yml"
+/>
+
+As variáveis de ambiente ficam no arquivo `.env`:
+
+```ini title=".env.example"
+ELASTIC_PORT=9200
+KIBANA_PORT=5601
+```
+
+---
+
+## Executando
+
+<Steps>
+1. **Criar o arquivo de variáveis `.env`:**
+
+   Copie o modelo de variáveis de ambiente:
+
+   ```bash
+   cp examples/courses/database/servers/elasticsearch-server/.env.example examples/courses/database/servers/elasticsearch-server/.env
+   ```
+
+2. **Iniciar os contêineres:**
+
+   Suba os serviços via Docker Compose:
+
+   ```bash
+   docker compose -f examples/courses/database/servers/elasticsearch-server/docker-compose.yml up -d
+   ```
+
+3. **Verificar a saúde do nó via cURL:**
+
+   Faça uma chamada HTTP GET na porta `9200`:
+
+   ```bash
+   curl -s http://localhost:9200/_cluster/health | jq .
+   ```
+
+   A saída confirma o status do cluster:
+
+   ```json
+   {
+     "cluster_name": "docker-cluster",
+     "status": "green",
+     "timed_out": false,
+     "number_of_nodes": 1,
+     "number_of_data_nodes": 1,
+     "active_primary_shards": 0,
+     "active_shards": 0
+   }
+   ```
+
+4. **Acessar o console Dev Tools no Kibana:**
+
+   Abra o navegador no endereço `http://localhost:5601`.
+   - No menu lateral esquerdo, navegue até **Management** > **Dev Tools** (ou acesse diretamente `http://localhost:5601/app/dev_tools#/console`).
+   - O console Dev Tools permite digitar comandos HTTP abreviados com autocompletar e ver a resposta JSON imediatamente no painel direito.
+</Steps>
+
+---
+
+## Conexão a partir da Aplicação
+
+Bibliotecas oficiais (como `@elastic/elasticsearch` em Node.js ou `elasticsearch-py` em Python) utilizam o endpoint HTTP:
+
+```javascript
+import { Client } from '@elastic/elasticsearch';
+
+const client = new Client({
+  node: 'http://localhost:9200'
+});
+
+const health = await client.cluster.health();
+```
+
+---
+
+## Exercício
+
+Com os serviços em execução, execute os passos abaixo via cURL ou Kibana Dev Tools:
+
+1. Crie um documento no índice `test_index` com o campo `message: "Olá Elasticsearch"`.
+2. Recupere o documento recém-criado pelo seu ID.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No terminal via `curl`:
+
+  ```bash
+  # 1. Inserir documento com ID 1
+  curl -X POST "http://localhost:9200/test_index/_doc/1" \
+    -H "Content-Type: application/json" \
+    -d '{"message": "Olá Elasticsearch"}'
+
+  # 2. Consultar documento por ID
+  curl -s "http://localhost:9200/test_index/_doc/1" | jq .
+  ```
+</details>
+
+---
+
+## Desafio
+
+Ao subir um cluster de desenvolvimento com apenas 1 nó físico, criar um índice configurado com réplicas (`number_of_replicas: 1`) faz com que o status de saúde do cluster mude de `green` para `yellow`.
+
+Por que isso acontece e qual comando de configuração altera as réplicas do índice para `0` para que o cluster retorne ao status `green`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O status `yellow` indica que todos os dados primários (*primary shards*) estão ativos, mas as cópias de segurança (*replica shards*) não puderam ser alocadas porque o Elasticsearch nunca coloca uma réplica no mesmo nó onde o shard primário reside. Com apenas 1 nó no cluster, a réplica fica pendente.
+
+  Para retornar a `green` em ambiente local, zera-se o número de réplicas:
+
+  ```bash
+  curl -X PUT "http://localhost:9200/test_index/_settings" \
+    -H "Content-Type: application/json" \
+    -d '{"index": {"number_of_replicas": 0}}'
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Qual porta HTTP é utilizada pela API REST do Elasticsearch e qual pelo Kibana?**
+   <details><summary>Possível resposta</summary>Porta `9200` para o Elasticsearch e porta `5601` para o Kibana.</details>
+
+2. **O que significa o status `green` na saúde do cluster?**
+   <details><summary>Possível resposta</summary>Significa que todos os shards primários e todas as suas respectivas réplicas estão alocados e operacionais.</details>
+
+3. **O que é o Kibana?**
+   <details><summary>Possível resposta</summary>É a plataforma visual oficial da Elastic para visualização de dados, criação de gráficos e exploração interativa de índices.</details>
+
+---
+
+## Referências
+
+- [Running Elasticsearch in Docker](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html)
+- [Kibana Dev Tools Documentation](https://www.elastic.co/guide/en/kibana/current/devtools-kibana.html)
+- [Elasticsearch Node.js Client](https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/index.html)
+
+---
+
+## Próximo tópico
+
+[Índices e consultas](../search/): Mapeamento de tipos, analisadores léxicos em português e consultas avançadas com Query DSL.

@@ -111,6 +111,15 @@
   - [x] `[TASK-039.3]` Criar as seções por motor no molde do guia de nuvem: SQLite, PostgreSQL, MySQL e MongoDB, com visão geral, instalação e cliente, e administração (CRUD e agregação no MongoDB) — **12 páginas**, com sessões de terminal capturadas de contêineres `postgres:16.2`, `mysql:8.3` e `mongo:7.0` e arquivos em `examples/courses/database/servers/`
   - [x] `[TASK-039.4]` Criar as 7 páginas cruzadas: `basics/administration`, `nosql/paradigms`, `modeling/keys-indexes`, `modeling/case-studies`, `sql/transactions`, `sql/performance` e `reference/sql-cheat-sheet`
   - [x] `[TASK-039.5]` Remover a seção "Acesso a dados na aplicação" (duplicava a trilha de persistência do Express), reescrever o índice no formato dos demais guias e cruzar os links com Express e Nuvem — de **6 para 25 páginas**, `pnpm validate` limpo, diagramas medidos entre 256 e 802 px
+- [x] **[TASK-040] Expansão de Motores Especializados no Guia de Banco de Dados:** (ver [spec](../specs/executed/spec-011-specialized-databases-expansion.md))
+  - [x] `[TASK-040.1]` Criar os 5 ambientes e scripts de servidor em `examples/courses/database/servers/` (`redis-server`, `neo4j-server`, `influxdb-server`, `elasticsearch-server`, `cassandra-server`)
+  - [x] `[TASK-040.2]` Escrever a seção do **Redis** (Chave-Valor): `index.mdx`, `setup.mdx`, `commands.mdx`
+  - [x] `[TASK-040.3]` Escrever a seção do **Neo4j** (Grafos): `index.mdx`, `setup.mdx`, `cypher.mdx`
+  - [x] `[TASK-040.4]` Escrever a seção do **InfluxDB** (Séries Temporais): `index.mdx`, `setup.mdx`, `time-series.mdx`
+  - [x] `[TASK-040.5]` Escrever a seção do **Elasticsearch** (Busca Textual): `index.mdx`, `setup.mdx`, `search.mdx`
+  - [x] `[TASK-040.6]` Escrever a seção do **Apache Cassandra** (Wide-Column): `index.mdx`, `setup.mdx`, `cql.mdx`
+  - [x] `[TASK-040.7]` Atualizar sidebar em `astro.config.mjs`, índice em `src/content/docs/courses/database/index.mdx` e matriz em `basics/paradigms.mdx`
+  - [x] `[TASK-040.8]` Validar com `pnpm validate`, mover a spec para `specs/executed/` e realizar commit e push
 
 ### Concluídos (Conteúdo)
 

@@ -1,0 +1,192 @@
+---
+title: "Cassandra: Modelagem CQL e Particionamento"
+description: "Modelagem orientada a consultas no Apache Cassandra: chaves de partição, chaves de agrupamento (clustering keys), ordenação física em disco, expiração com TTL e o antipadrão ALLOW FILTERING."
+course: database
+sidebar:
+  label: "Modelagem CQL e particionamento"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+No **Apache Cassandra**, a modelagem física dita diretamente como o motor armazena os dados no disco e em qual nó do cluster cada registro reside. Dominar a distinção entre **Chave de Partição (*Partition Key*)** e **Chave de Agrupamento (*Clustering Key*)** é o fator determinante para consultas que respondem em milissegundos versus consultas que derrubam o cluster.
+
+## Objetivo
+
+Compreender a modelagem orientada a consultas na linguagem CQL, implementando tabelas particionadas e ordenadas para o histórico financeiro do `invest-db`, controlando o ciclo de vida com TTL e evitando antipadrões de varredura global. Ao final do tópico, o leitor deve ser capaz de:
+
+- Definir chaves primárias compostas distinguindo a *Partition Key* das *Clustering Keys*.
+- Configurar a ordenação física dos registros no disco com `WITH CLUSTERING ORDER BY`.
+- Inserir dados com tempo de vida programado utilizando a cláusula `USING TTL`.
+- Explicar por que o uso da cláusula `ALLOW FILTERING` é um antipadrão grave em produção.
+
+---
+
+## O Domínio InvestApp em CQL
+
+O script `invest.cql` define o keyspace, as tabelas de transações e investimentos particionadas e as consultas estruturadas:
+
+<SourceCode
+  path="examples/courses/database/servers/cassandra-server/invest.cql"
+/>
+
+---
+
+## Anatomia da Chave Primária no CQL
+
+A chave primária no Cassandra pode ser dividida em duas partes com propósitos totalmente diferentes:
+
+```cql
+PRIMARY KEY ((user_id), transaction_time, transaction_id)
+```
+
+1. **Chave de Partição (*Partition Key* - `user_id`)**:
+   - Fica envolvida por parênteses extras `((coluna))`.
+   - O Cassandra aplica uma função hash criptográfica (*Murmur3Partitioner*) sobre esse valor para gerar um token numérico.
+   - Esse token determina **em qual nó físico do cluster a partição inteira será gravada**.
+2. **Chaves de Agrupamento (*Clustering Keys* - `transaction_time, transaction_id`)**:
+   - Determinam a **ordenação física das linhas dentro do mesmo nó e da mesma partição no disco**.
+   - Permitem filtros de intervalo (`>=`, `<=`) rápidos sem varreduras adicionais.
+
+<Mermaid title="Como o Cassandra particiona e ordena dados no disco">
+{`
+flowchart TD
+    subgraph Particao["Partição física no Nó A: user_id = a1b2c3d4..."]
+        R1["Linha 1: 2024-03-05 14:15:00 | TESOURO_SELIC | R$ 3.500"]
+        R2["Linha 2: 2024-03-01 10:30:00 | VALE3         | R$ 6.500"]
+    end
+`}
+</Mermaid>
+
+---
+
+## O Antipadrão `ALLOW FILTERING`
+
+Em SQL relacional, fazer `SELECT * FROM tabela WHERE coluna_sem_indice = 'valor'` é comum (embora possa ser lento).
+
+No Cassandra, se você tentar filtrar por uma coluna que **não faz parte da Chave Primária**, o banco recusa a consulta com um erro:
+
+```text
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Cannot execute this query as it might involve data filtering and thus may have unpredictable performance. If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING"
+```
+
+<Aside type="caution" title="Por que nunca usar ALLOW FILTERING em produção?">
+Adicionar `ALLOW FILTERING` força o nó coordenador a pedir que **todos os nós do cluster leiam todas as suas partições e linhas inteiras no disco** para filtrar os dados na memória. Isso destrói o desempenho e pode causar lentidão generalizada ou queda por esgotamento de memória (*OOM*).
+</Aside>
+
+Se uma consulta nova precisa de outro filtro, a solução correta no Cassandra é **criar uma nova tabela dedicada** para essa consulta.
+
+---
+
+## Expiração com TTL (*Time To Live*)
+
+O Cassandra permite definir tempo de vida automático para linhas ou colunas individuais durante a inserção ou atualização:
+
+```cql
+INSERT INTO user_transactions (...) VALUES (...) USING TTL 86400; -- Expira em 24 horas
+```
+
+Ao atingir o tempo limite, o Cassandra marca o dado com um marcador especial chamado **Tombstone**, liberando o espaço em disco de forma assíncrona durante a próxima compactação automática.
+
+---
+
+## Executando
+
+Para executar o script `invest.cql` no contêiner do Cassandra:
+
+```bash
+docker exec -i cassandra cqlsh < examples/courses/database/servers/cassandra-server/invest.cql
+```
+
+A saída confirma a criação das tabelas e exibe os registros filtrados na partição:
+
+```text
+ transaction_time                | asset_code    | operation_type | amount
+---------------------------------+---------------+----------------+---------
+ 2024-03-05 14:15:00.000000+0000 | TESOURO_SELIC |            BUY | 3500.00
+ 2024-03-01 10:30:00.000000+0000 |         VALE3 |            BUY | 6500.00
+
+(2 rows)
+```
+
+---
+
+## Exercício
+
+Com base na modelagem em CQL:
+
+1. Qual a função da Chave de Partição (*Partition Key*) e da Chave de Agrupamento (*Clustering Key*)?
+2. O que é um *Tombstone* no Apache Cassandra?
+3. Como obter todas as transações de um usuário ordenadas da mais recente para a mais antiga?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A Chave de Partição define o nó físico do cluster onde os dados residem através do cálculo de token hash. A Chave de Agrupamento define a ordenação física sequencial das linhas dentro do arquivo em disco daquela partição.
+
+  2. É um marcador especial gravado no disco para indicar que um registro ou coluna foi apagado ou expirou por TTL, evitando que réplicas antigas ressuscitem o dado durante a reconciliação assíncrona.
+
+  3. Definindo a tabela com `WITH CLUSTERING ORDER BY (transaction_time DESC)` e consultando diretamente a partição do usuário:
+     ```cql
+     SELECT * FROM user_transactions WHERE user_id = ...;
+     ```
+</details>
+
+---
+
+## Desafio
+
+Uma plataforma de streaming como a Netflix armazena o histórico de reprodução de filmes dos usuários para exibir a lista "Continuar Assistindo".
+
+Desenhe a declaração `CREATE TABLE` no Cassandra para essa funcionalidade, garantindo que o histórico de um usuário venha sempre ordenado pelo momento exato em que ele parou de assistir.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```cql
+  CREATE TABLE user_watch_history (
+      user_id uuid,
+      watched_at timestamp,
+      movie_id uuid,
+      movie_title text,
+      playback_position_seconds int,
+      completed boolean,
+      PRIMARY KEY ((user_id), watched_at, movie_id)
+  ) WITH CLUSTERING ORDER BY (watched_at DESC, movie_id ASC);
+  ```
+
+  Essa estrutura permite buscar instantaneamente os últimos 5 filmes assistidos pelo usuário:
+  ```cql
+  SELECT movie_title, playback_position_seconds
+  FROM user_watch_history
+  WHERE user_id = a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+  LIMIT 5;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+1. **Por que não existem chaves estrangeiras (`FOREIGN KEY`) no Apache Cassandra?**
+   <details><summary>Possível resposta</summary>Porque em um ambiente distribuído em dezenas ou centenas de servidores, validar chaves estrangeiras exigiria comunicação de rede contínua e travamento entre nós, destruindo a velocidade de escrita e a escalabilidade linear.</details>
+
+2. **O que acontece ao executar um `UPDATE` em uma linha que não existe no Cassandra?**
+   <details><summary>Possível resposta</summary>O Cassandra executa um *Upsert*: se a linha não existir na partição, ela é criada automaticamente com os valores informados.</details>
+
+3. **Qual é o limitador de tamanho recomendado para uma única partição no Cassandra?**
+   <details><summary>Possível resposta</summary>Recomenda-se manter cada partição abaixo de 100 MB (e no máximo 100.000 linhas) para evitar pausas longas de *Garbage Collection* na JVM e sobrecarga de I/O em nós individuais.</details>
+
+---
+
+## Referências
+
+- [Cassandra Query Language (CQL) Reference](https://cassandra.apache.org/doc/latest/cassandra/cql/index.html)
+- [Basic Rules of Cassandra Data Modeling](https://www.datastax.com/learn/data-modeling-by-example)
+- [Cassandra Tombstones and Garbage Collection](https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/index.html)
+
+---
+
+## Próximo tópico
+
+[Guia de Referência](../../reference/sql-cheat-sheet/): Resumo comparativo de sintaxe, tipos de dados e comandos dos motores de banco de dados do DevLab.
