@@ -12,6 +12,7 @@ script imprime.
 - `joins.sql`, `aggregations.sql`, `subqueries.sql`, `views.sql`: consultas.
 - `modeling/school.sql`: mapeamento do DER de professores, turmas e alunos.
 - `normalization/1fn.sql`, `2fn.sql`, `3fn.sql`: as formas normais, com uma verificação cada.
+- `datasets/selic.csv`: dataset ilustrativo para o exercício de importação com `sqlite3 .import`.
 
 ## Como executar
 

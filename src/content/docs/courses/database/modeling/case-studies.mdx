@@ -339,7 +339,84 @@ Na internet e em repositórios abertos, existem inúmeras outras bases de dados 
 - **[Chinook Database](https://github.com/lerocha/chinook-database)**: Simula uma loja de música digital e streaming com faixas, álbuns, artistas, faturas e listas de reprodução (*playlists*), muito popular para SQLite, PostgreSQL, SQL Server e MySQL.
 - **[MySQL Employees Sample Database](https://dev.mysql.com/doc/employee/en/)**: Base de dados volumosa com centenas de milhares de registros de salários, departamentos e títulos profissionais, ideal para testes de performance e indexação.
 - **[MySQL World Database](https://dev.mysql.com/doc/world-setup/en/)**: Base geográfica com países, cidades e idiomas oficiais, excelente para primeiros passos em comandos `SELECT`, filtros e junções.
-- **Repositórios e Datasets Públicos**: Plataformas como [Kaggle Datasets](https://www.kaggle.com/datasets), [Data.gov](https://data.gov/) e repositórios abertos do GitHub oferecem datasets do mundo real em formatos SQL e CSV para prática de modelagem e consultas analíticas.
+- **Repositórios e datasets públicos**: dados do mundo real em CSV, JSON e Parquet, que exigem modelagem antes da consulta. São o assunto da próxima seção.
+
+---
+
+## Datasets e Repositórios de Dados
+
+Um banco de amostra chega modelado: tabelas, chaves e índices já decididos por alguém. Um **dataset** chega cru, quase sempre como arquivo tabular, e a modelagem é sua. É o exercício mais próximo do trabalho real, e o mais útil para aplicar o que os três casos desta página ensinaram, porque cada coluna do arquivo obriga a decidir tipo, chave e o que fica em tabela própria.
+
+Os repositórios abaixo publicam dados abertos com licença de uso e, na maioria, com descrição das colunas. A tabela indica o que cada um tem de característico:
+
+| Repositório | O que oferece | Formato típico | Vale para |
+| --- | --- | --- | --- |
+| [Portal Brasileiro de Dados Abertos](https://dados.gov.br/) | Dados do governo federal: orçamento, saúde, educação, transporte | CSV, JSON, XML | Modelar domínios públicos com volume real |
+| [IBGE](https://www.ibge.gov.br/estatisticas/) e [SIDRA](https://sidra.ibge.gov.br/) | Censo, PNAD, índices de preços, malha territorial | CSV, XLSX, API | Séries por município e por período; junções geográficas |
+| [Banco Central (SGS)](https://www3.bcb.gov.br/sgspub/) | Séries temporais econômicas: Selic, IPCA, câmbio | CSV, JSON por API | O domínio do InvestApp, com dados reais de cotação |
+| [Kaggle Datasets](https://www.kaggle.com/datasets) | Datasets da comunidade, com discussões e notebooks | CSV, Parquet | Variedade de domínios; conferir a licença de cada um |
+| [Hugging Face Datasets](https://huggingface.co/datasets) | Datasets de texto, imagem e tabelas, versionados como repositórios Git | Parquet, JSON Lines | Volumes grandes, com download parcial |
+| [UCI Machine Learning Repository](https://archive.ics.uci.edu/) | Datasets clássicos de aprendizado de máquina, pequenos e documentados | CSV | Primeiros exercícios de importação e tipagem |
+| [Google Dataset Search](https://datasetsearch.research.google.com/) | Buscador de datasets em milhares de repositórios | Vários | Encontrar a fonte primária de um dado |
+| [Data.gov](https://data.gov/) e [data.europa.eu](https://data.europa.eu/) | Dados abertos dos governos americano e europeu | CSV, JSON, API | Comparação entre países; dados geográficos |
+| [Awesome Public Datasets](https://github.com/awesomedata/awesome-public-datasets) | Lista curada por área, no GitHub | Links | Ponto de partida por assunto |
+
+Dois critérios valem antes de baixar qualquer um: a **licença**, que diz se o dado pode ser redistribuído e usado em projeto (Creative Commons e ODbL são as mais comuns; "uso acadêmico" não autoriza um produto), e o **dicionário de dados**, a descrição de cada coluna, sem a qual a modelagem vira adivinhação.
+
+O formato do arquivo condiciona o caminho até o banco, e os três mais frequentes pedem cuidados distintos:
+
+| Formato | Característica | Cuidado ao importar |
+| --- | --- | --- |
+| **CSV** | Texto tabular, universal, sem tipos | Todo valor chega como texto; datas e números precisam de conversão. O separador nem sempre é vírgula. |
+| **JSON** e **JSON Lines** | Objetos aninhados, um por linha no JSON Lines | Estruturas aninhadas viram tabelas relacionadas ou uma coluna de documento. |
+| **Parquet** | Binário colunar, com tipos e compressão | Não abre em editor de texto; exige ferramenta (DuckDB, pandas) para converter ou consultar direto. |
+
+O projeto `invest-db` traz um dataset pequeno para o exercício, `datasets/selic.csv`, com uma série mensal ilustrativa da taxa básica de juros (valores fictícios, no formato da série real do Banco Central). A importação mais direta é o `.import --csv` do cliente `sqlite3`, que cria a tabela a partir do cabeçalho:
+
+```bash title="Terminal"
+sqlite3 dataset.db ".import --csv datasets/selic.csv selic"
+sqlite3 -box dataset.db ".schema selic" "SELECT typeof(rate) AS tipo, COUNT(*) AS n FROM selic GROUP BY 1;"
+```
+
+```txt title="Output"
+CREATE TABLE IF NOT EXISTS "selic"(
+"date" TEXT, "rate" TEXT);
+┌──────┬───┐
+│ tipo │ n │
+├──────┼───┤
+│ text │ 9 │
+└──────┴───┘
+```
+
+A conveniência tem um preço: as duas colunas viraram `TEXT`, e a taxa é uma string, o que faz `rate < 11` comparar texto. O caminho correto é criar a tabela antes, com os tipos e as restrições decididos, e importar pulando o cabeçalho:
+
+```bash title="Terminal"
+sqlite3 dataset.db "CREATE TABLE selic (date TEXT PRIMARY KEY, rate REAL NOT NULL) STRICT;"
+sqlite3 dataset.db ".import --csv --skip 1 datasets/selic.csv selic"
+sqlite3 -box dataset.db "SELECT typeof(rate) AS tipo, COUNT(*) AS n FROM selic GROUP BY 1;" "SELECT date, rate FROM selic WHERE rate < 11 ORDER BY date;"
+```
+
+```txt title="Output"
+┌──────┬───┐
+│ tipo │ n │
+├──────┼───┤
+│ real │ 9 │
+└──────┴───┘
+┌────────────┬───────┐
+│    date    │ rate  │
+├────────────┼───────┤
+│ 2026-08-03 │ 10.75 │
+│ 2026-09-01 │ 10.5  │
+└────────────┴───────┘
+```
+
+Agora a taxa é `real`, a data é chave primária (uma leitura por dia, como a tabela `quote` do Caso 1) e a comparação numérica devolve os dois meses abaixo de 11%. Nos demais motores o fluxo é o mesmo com outra ferramenta: `\copy` no PostgreSQL, `LOAD DATA` no MySQL e `mongoimport` no MongoDB, sempre com a tabela ou a validação definida antes da carga.
+
+<Aside type="caution" title="Dica de IA: Peça o esquema antes do import">
+  Ao pedir "importe este CSV para o banco", assistentes chamam a ferramenta de importação com a criação automática de tabela, e o resultado é o da primeira saída acima: tudo em texto, sem chave, sem `NOT NULL`. As consultas funcionam até a primeira comparação numérica ou ordenação por data, que passam a estar erradas em silêncio.
+
+  **Prompt:** *"Antes de importar `selic.csv`, leia as primeiras linhas, proponha o `CREATE TABLE` com tipo, chave e restrições por coluna, e só então gere o comando de importação que pula o cabeçalho; ao final, mostre a consulta `typeof()` que prova os tipos."*
+</Aside>
 
 ---
 
