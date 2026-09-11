@@ -5,7 +5,7 @@ course: cloud
 sidebar:
   label: "Autenticação Gerenciada"
 ---
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 
 Este tópico trata do serviço que cadastra usuários, valida senhas, fala com provedores sociais e emite o token que identifica quem está usando a aplicação. É a parte de um back-end que mais vale a pena terceirizar, porque é a mais fácil de errar, e ao mesmo tempo a que mais confunde: autenticar alguém não decide o que essa pessoa pode fazer.
@@ -17,8 +17,8 @@ Compreender a autenticação gerenciada como um serviço de identidade, separand
 - Distinguir autenticação de autorização e localizar cada uma na arquitetura.
 - Descrever o ciclo do token: emissão, armazenamento no cliente, envio, renovação e expiração.
 - Explicar como o token chega às políticas do banco e o que acontece quando ele é enviado a uma API própria.
-- Escolher entre e-mail e senha, *magic link*, provedores sociais e login anônimo pelo tipo de aplicação.
-- Comparar Supabase Auth, Firebase Auth, Amplify Auth, Appwrite e PocketBase pelo modelo de token e pela integração com dados.
+- Escolher entre e-mail e senha, *magic link*, provedores sociais, *passkeys* (WebAuthn) e autenticação multifator (MFA/2FA).
+- Comparar Supabase Auth, Firebase Auth, Amplify Auth, Appwrite e PocketBase pelo modelo de token e recursos de segurança.
 
 ---
 
@@ -66,34 +66,61 @@ A última linha é a que importa quando a aplicação tem uma API própria além
 
 ---
 
-## Métodos de Login
+## Métodos de Login e Fatores de Segurança
 
-O serviço oferece vários caminhos de entrada, e a escolha é de produto, não de tecnologia. Cada um tem um custo de atrito para o usuário e um custo de configuração para a equipe.
+O serviço oferece vários caminhos de entrada, e a escolha é de produto e segurança. Cada método equilibra atrito de uso com nível de proteção contra ataques de roubo de credenciais.
 
-| Método | Melhor para | Custo |
-| --- | --- | --- |
-| **E-mail e senha** | Aplicações internas e ferramentas de trabalho | Fluxo de recuperação de senha e confirmação de e-mail. |
-| ***Magic link*** | Produtos em que o usuário entra pouco e esquece a senha | Depende da entrega de e-mail; sem e-mail, sem login. |
-| **Provedor social** (Google, GitHub) | Público amplo, cadastro em um clique | Configurar o aplicativo OAuth em cada provedor; dependência deles. |
-| **Telefone** | Aplicativos móveis em mercados onde e-mail é raro | Custo por SMS e fraude de número. |
-| **Anônimo** | Experimentar antes de cadastrar, com conversão depois | Migrar os dados do anônimo para a conta real. |
+A tabela a seguir compara os métodos de login mais comuns:
 
-Um detalhe que costuma passar despercebido: com provedores sociais, o e-mail do usuário vem do provedor, e duas contas em provedores diferentes com o mesmo e-mail podem ou não ser a mesma pessoa, conforme a configuração de vinculação de contas. É uma decisão que precisa ser tomada antes do primeiro usuário, porque separar ou unir contas depois é migração de dados.
+| Método | Melhor para | Mecanismo | Nível de Segurança |
+| :--- | :--- | :--- | :--- |
+| **E-mail e senha** | Aplicações corporativas e ferramentas de trabalho | Hash seguro (Argon2, bcrypt) no servidor | Médio (sujeito a vazamento e senhas fracas). |
+| ***Passkeys* (WebAuthn)** | Aplicações modernas em dispositivos pessoais | Criptografia assimétrica vinculada à biometria (Touch ID, Face ID) | **Máximo**: imune a phishing por design. |
+| ***Magic link*** | Usuários esporádicos que esquecem a senha | Token efêmero enviado por e-mail | Médio (depende da segurança da caixa postal). |
+| **Provedor social** (OAuth) | Cadastro rápido em um clique (Google, GitHub, Apple) | Delegação de identidade via OpenID Connect | Alto (herda a segurança e o 2FA do provedor). |
+| **Telefone (SMS / WhatsApp)** | Aplicativos móveis populares | Código OTP temporário | Baixo a Médio (sujeito a clonagem de chip / *SIM swapping*). |
+| **Anônimo** | Experimentação imediata antes do cadastro | Sessão temporária vinculada ao dispositivo | Baixo (convertida em conta real posteriormente). |
+
+### Passkeys e WebAuthn
+
+As *Passkeys* representam a evolução da autenticação sem senha baseada no padrão aberto FIDO2 / WebAuthn da W3C. Em vez de transmitir um segredo compartilhado (como uma senha) pela internet, a autenticação utiliza criptografia assimétrica de chave pública.
+
+Ao cadastrar uma *Passkey*, o dispositivo do usuário (como um smartphone ou computador com leitor biométrico) gera um par de chaves criptográficas:
+
+<Steps>
+1. **Chave pública**: É enviada e armazenada com segurança no serviço de autenticação gerenciada.
+2. **Chave privada**: Fica trancada no chip de segurança do dispositivo (*Secure Enclave* ou TPM) e nunca sai dele.
+3. **Assinatura biométrica**: A cada login, o servidor envia um desafio aleatório (*challenge*). O usuário desbloqueia a chave privada com biometria ou PIN local, o dispositivo assina o desafio e devolve apenas a assinatura matemática para verificação.
+</Steps>
+
+Como a chave privada é vinculada rigidamente à origem do domínio (`origin`), o usuário não consegue autenticar em um site falso de phishing mesmo que tente: o navegador recusa a assinatura se o domínio não coincidir exatamente.
+
+### Autenticação Multifator (MFA e 2FA)
+
+A Autenticação Multifator (MFA) exige que o usuário apresente dois ou mais fatores de categorias distintas para confirmar sua identidade:
+
+1. **Fator de conhecimento**: Algo que o usuário sabe (senha, PIN).
+2. **Fator de posse**: Algo que o usuário tem (aplicativo gerador de código TOTP, chave física FIDO2, smartphone).
+3. **Fator de inerência**: Algo que o usuário é (biometria facial, impressão digital).
+
+O método de segundo fator mais adotado em serviços gerenciados é o **TOTP** (*Time-based One-Time Password*, RFC 6238), gerado por aplicativos como Google Authenticator ou 1Password. O serviço gera um segredo compartilhado via QR Code e tanto o aplicativo quanto o servidor calculam códigos de 6 dígitos que mudam a cada 30 segundos.
+
+Plataformas modernas como Supabase Auth refletem o nível de garantia no próprio JWT (por exemplo, `aal1` para fator único e `aal2` para autenticação com segundo fator aprovado), permitindo que políticas do banco e rotas administrativas exijam `aal2` explicitamente para operações sensíveis.
 
 ---
 
 ## O Que Cada Plataforma Entrega
 
-Cinco plataformas do guia oferecem autenticação, e a diferença que mais pesa é com que dados o token se integra sem esforço:
+Cinco plataformas do guia oferecem autenticação, com suporte variado a múltiplos fatores e métodos modernos:
 
-| Plataforma | Serviço | Token e sessão | Integração nativa | Página do guia |
-| --- | --- | --- | --- | --- |
-| **Supabase** | Supabase Auth (GoTrue) | JWT, renovado pelo SDK | `auth.uid()` nas políticas RLS do PostgreSQL | [Supabase Auth](../../supabase/auth/) |
-| **Firebase** | Firebase Auth | ID token, renovado pelo SDK | `request.auth.uid` nas *Security Rules* do Firestore e do Storage | [Firebase Auth](../../firebase/auth/) |
-| **AWS Amplify** | Amplify Auth (Cognito) | JWT do Cognito, com grupos | Autorização por usuário e grupo em Data e Storage | [Amplify Auth](../../amplify/auth/) |
-| **Appwrite** | Appwrite Auth | Sessão gerenciada pelo servidor | Permissões por usuário e por papel nas coleções | [Outras Plataformas](../../reference/other-platforms/) |
-| **PocketBase** | Auth collections | JWT emitido pelo binário | Regras por coleção com o registro do usuário | [Outras Plataformas](../../reference/other-platforms/) |
-| **Vercel, Netlify, Cloudflare** | Sem serviço próprio | Integração com provedor externo | Verificação em functions e na borda | [Funções de Borda](../edge-functions/) |
+| Plataforma | Serviço | Métodos Principais | Suporte a MFA / 2FA | Integração Nativa | Página do guia |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Supabase** | Supabase Auth (GoTrue) | Senha, Social, Magic Link, Passkeys | Nativo via TOTP (AAL2) e WebAuthn | `auth.uid()` e `auth.jwt()` no PostgreSQL RLS | [Supabase Auth](../../supabase/auth/) |
+| **Firebase** | Firebase Auth | Senha, Social, Telefone, Anônimo | TOTP e SMS (plano Identity Platform) | `request.auth.uid` no Firestore e Storage Rules | [Firebase Auth](../../firebase/auth/) |
+| **AWS Amplify** | Amplify Auth (Cognito) | Senha, Social, SAML, Passkeys | TOTP, SMS e WebAuthn | Grupos e autorização em Data e Storage | [Amplify Auth](../../amplify/auth/) |
+| **Appwrite** | Appwrite Auth | Senha, Magic Link, Social, Telefone | TOTP, e-mail e SMS | Permissões por documento e papel | [Outras Plataformas](../../reference/other-platforms/) |
+| **PocketBase** | Auth collections | Senha, Social OAuth2 | MFA com TOTP na v0.23+ | Regras por coleção com `@request.auth.id` | [Outras Plataformas](../../reference/other-platforms/) |
+| **Vercel / Netlify / Cloudflare** | Sem serviço próprio | Integração com Auth0, Clerk, Kinde | Depende do provedor conectado | Verificação de JWT em funções e na borda | [Funções de Borda](../edge-functions/) |
 
 A regra prática é escolher a autenticação da mesma plataforma que guarda os dados. Cruzar, por exemplo autenticar no Firebase e guardar no Supabase, é possível, mas o token de um não é reconhecido pelas políticas do outro, e a integração que era gratuita vira código seu.
 
@@ -115,11 +142,12 @@ A autenticação gerenciada é a escolha certa na maioria dos projetos, e as exc
 
 ## Exercício
 
-Responda com base no ciclo do token e na separação entre identidade e permissão:
+Responda com base no ciclo do token, na separação entre identidade e permissão e nos métodos de segurança:
 
 1. Um usuário está autenticado, com token válido, e a tabela de investimentos não tem política de acesso. O que ele consegue ler?
 2. Por que o seu servidor Express não pode confiar no `uid` lido de dentro do JWT sem verificar a assinatura?
-3. Qual é a vantagem de usar a autenticação da mesma plataforma que guarda os dados?
+3. Por que as *Passkeys* (WebAuthn) são imunes a ataques de phishing, diferentemente de senhas convencionais e códigos OTP por SMS?
+4. Qual é a vantagem de usar a autenticação da mesma plataforma que guarda os dados?
 
 <details>
   <summary>Possível resposta</summary>
@@ -128,7 +156,9 @@ Responda com base no ciclo do token e na separação entre identidade e permiss�
 
   2. Porque o conteúdo do JWT é apenas codificado, não cifrado, e qualquer pessoa consegue montar um token com o `uid` que quiser. Só a assinatura, verificada com a chave pública do projeto, prova que o serviço emitiu aquele token.
 
-  3. O token é reconhecido diretamente pelas políticas do banco e do storage, sem código de integração. Cruzar plataformas transforma essa integração em código seu.
+  3. Porque a assinatura biométrica da Passkey é vinculada matematicamente à origem do domínio no navegador. Mesmo que o usuário seja induzido a acessar um site falso clonado (`exemp1o.com`), o navegador recusa assinar o desafio com a chave privada de `exemplo.com`, frustrando o ataque de phishing.
+
+  4. O token é reconhecido diretamente pelas políticas do banco e do storage, sem código de integração. Cruzar plataformas transforma essa integração em código seu.
 </details>
 
 ---
@@ -173,19 +203,31 @@ Projete a integração completa: como o front-end envia o token à API, como a A
 
 ### Métodos e plataformas
 
-4. **Por que o *magic link* depende de uma decisão de infraestrutura que o e-mail e senha não exige?**
+4. **Como o padrão WebAuthn / Passkeys substitui a transmissão de senhas na rede?**
+   <details>
+     <summary>Possível resposta</summary>
+     O cliente gera um par de chaves assimétricas; a chave privada fica segura no dispositivo e a chave pública é salva no servidor. A cada login, o servidor envia um desafio criptográfico que o dispositivo assina com a chave privada após autorização biométrica, enviando apenas a assinatura matemática pela rede.
+   </details>
+
+5. **Por que o segundo fator via aplicativo autenticador (TOTP) é mais seguro que SMS?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o SMS é vulnerável a clonagem de chip (*SIM swapping*), interceptação em redes celulares e ataques de engenharia social junto às operadoras, enquanto o TOTP gera códigos localmente com base em um segredo matemático seguro que nunca sai do dispositivo do usuário.
+   </details>
+
+6. **Por que o *magic link* depende de uma decisão de infraestrutura que o e-mail e senha não exige?**
    <details>
      <summary>Possível resposta</summary>
      Porque o login inteiro depende da entrega do e-mail. Sem um remetente confiável e sem tratar caixa de spam, o usuário simplesmente não consegue entrar.
    </details>
 
-5. **O que precisa ser decidido antes do primeiro usuário quando há mais de um provedor social?**
+7. **O que precisa ser decidido antes do primeiro usuário quando há mais de um provedor social?**
    <details>
      <summary>Possível resposta</summary>
      Se contas de provedores diferentes com o mesmo e-mail são a mesma conta ou contas separadas. Mudar isso depois é migração de dados de usuários.
    </details>
 
-6. **Como uma API própria consulta o banco do BaaS em nome do usuário sem a chave administrativa?**
+8. **Como uma API própria consulta o banco do BaaS em nome do usuário sem a chave administrativa?**
    <details>
      <summary>Possível resposta</summary>
      Repassando o token do usuário ao cliente da plataforma criado no servidor. As políticas de acesso continuam valendo, e a API não reimplementa a autorização.
@@ -198,6 +240,8 @@ Projete a integração completa: como o front-end envia o token à API, como a A
 - [Supabase Auth](https://supabase.com/docs/guides/auth)
 - [Firebase Authentication](https://firebase.google.com/docs/auth)
 - [AWS Amplify: Authentication](https://docs.amplify.aws/react/build-a-backend/auth/)
+- [W3C: Web Authentication (WebAuthn / Passkeys)](https://www.w3.org/TR/webauthn-2/)
+- [RFC 6238: TOTP - Time-Based One-Time Password Algorithm](https://datatracker.ietf.org/doc/html/rfc6238)
 - [JSON Web Token (RFC 7519)](https://www.rfc-editor.org/rfc/rfc7519)
 - [OWASP: Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 
