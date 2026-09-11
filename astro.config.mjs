@@ -1382,11 +1382,11 @@ export default defineConfig({
                       link: '/courses/database/sql/procedures-triggers/',
                     },
                     { label: 'Desempenho', link: '/courses/database/sql/performance/' },
+                    {
+                      label: 'Comparativo de Motores',
+                      link: '/courses/database/sql/engines-comparison/',
+                    },
                   ],
-                },
-                {
-                  label: 'Comparativo de Motores',
-                  link: '/courses/database/relational-comparison/',
                 },
                 {
                   label: 'SQLite',
