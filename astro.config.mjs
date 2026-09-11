@@ -1424,6 +1424,10 @@ export default defineConfig({
                       label: 'Administração',
                       link: '/courses/database/postgresql/administration/',
                     },
+                    {
+                      label: 'Prática de SQL (invest_db)',
+                      link: '/courses/database/postgresql/practice/',
+                    },
                   ],
                 },
                 {

@@ -1,0 +1,636 @@
+---
+title: "Prática de SQL: Carteira de Investimentos com PostgreSQL"
+description: "Construção prática e incremental de um banco de dados financeiro (invest_db) no PostgreSQL: importação de CSV, normalização DDL na 3FN, cálculo de preço médio e rentabilidade, views analíticas, funções PL/pgSQL e backup com pg_dump."
+course: database
+sidebar:
+  label: "Prática (invest_db)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Esta prática guiada conduz você pela construção incremental, importação de dados e exploração analítica do banco de dados de investimentos **`invest_db`** no PostgreSQL. Inspirada no domínio central do InvestApp, você partirá de uma planilha bruta de movimentações financeiras em formato **`.csv`**, estruturará tabelas normalizadas com tipos precisos (`NUMERIC`, `TIMESTAMPTZ`), calculará preço médio ponderado e rentabilidade não realizada, criará visões e rotinas em PL/pgSQL e gerará o backup lógico final com `pg_dump`.
+
+---
+
+## Objetivo
+
+Aplicar os recursos analíticos e transacionais do PostgreSQL em um cenário real do mercado financeiro, capacitando o desenvolvedor a modelar dados na 3FN, carregar arquivos delimitados e resolver cálculos complexos de alocação de ativos e rentabilidade de carteiras. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar e configurar bancos de dados, esquemas, restrições e tipos numéricos de alta precisão no PostgreSQL.
+- Importar arquivos `.csv` volumosos utilizando tabelas de *staging* e comandos de carga de alto desempenho (`COPY`).
+- Distribuir dados desnormalizados para tabelas relacionais (`users`, `categories`, `assets`, `transactions`, `quotes`) preservando chaves estrangeiras.
+- Calcular métricas financeiras essenciais (Patrimônio Total, Preço Médio Ponderado, Ganho de Capital Não Realizado e Alocação Percentual) com `JOIN`, agregações e funções de janela (*Window Functions*).
+- Encapsular regras analíticas em visões (*Views*) e desenvolver funções procedurais em **PL/pgSQL**.
+- Exportar o esquema e os dados finais em scripts SQL portáveis através da ferramenta `pg_dump`.
+
+---
+
+## O Cenário e o Dataset Financeiro (`dataset.csv`)
+
+Imagine uma corretora ou aplicativo de consolidação financeira que recebe registros diários de operações de compra de ativos (Ações, Fundos Imobiliários, Renda Fixa, Tesouro Direto e Criptoativos) de múltiplos investidores.
+
+Os dados brutos são consolidados em um arquivo de texto com valores separados por vírgula (`.csv`).
+
+O arquivo de dados completo do projeto está disponível no repositório:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/dataset.csv" />
+
+As primeiras linhas do arquivo apresentam a seguinte estrutura:
+
+| user_name | user_email | category | ticker | asset_name | operation | quantity | price | current_price | transacted_at |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `Alice Ferreira` | `alice@invest.com` | `Ações` | `PETR4` | `Petrobras PN` | `BUY` | `100` | `34.50` | `38.20` | `2024-01-10 10:15:00` |
+| `Alice Ferreira` | `alice@invest.com` | `Ações` | `VALE3` | `Vale ON` | `BUY` | `50` | `68.20` | `62.50` | `2024-01-12 11:30:00` |
+| `Alice Ferreira` | `alice@invest.com` | `FIIs` | `HGLG11` | `CSHG Logística` | `BUY` | `20` | `158.00` | `163.50` | `2024-01-15 14:00:00` |
+| `Alice Ferreira` | `alice@invest.com` | `Tesouro` | `SELIC-2029` | `Tesouro Selic 2029` | `BUY` | `1` | `14250.00` | `14580.00` | `2024-02-01 09:30:00` |
+| `Alice Ferreira` | `alice@invest.com` | `Cripto` | `BTC` | `Bitcoin` | `BUY` | `0.05` | `245000.00` | `310000.00` | `2024-03-02 16:30:00` |
+
+A diretoria de investimentos precisa responder a cinco perguntas centrais sobre essa base:
+
+1. **Qual é o patrimônio total investido por cliente e no consolidado da plataforma?**
+2. **Qual é a distribuição percentual da carteira por categoria de ativo (diversificação)?**
+3. **Qual é o Preço Médio (PM) ponderado de aquisição de cada ativo para cada investidor?**
+4. **Qual é o lucro ou prejuízo nominal (R$) e percentual (%) não realizado comparando o custo de aquisição com a cotação atual de mercado?**
+5. **Quais investidores possuem exposição a Criptoativos superior a 15% do seu patrimônio total?**
+
+---
+
+## 1. DDL: Criação Incremental e Normalização no PostgreSQL
+
+Iniciaremos criando o banco de dados `invest_db` e o esquema relacional normalizado na Terceira Forma Normal (3FN).
+
+### 1.1 Criação do Banco de Dados
+No console do PostgreSQL (`psql`), criamos e conectamos ao banco:
+
+```sql title="Comandos DDL: Banco de Dados"
+-- Cria o banco de dados dedicado aos investimentos
+CREATE DATABASE invest_db
+  WITH ENCODING 'UTF8'
+  LC_COLLATE = 'C'
+  LC_CTYPE = 'C';
+
+-- Conecta ao banco recém-criado
+\c invest_db
+
+-- Confirma o banco ativo
+SELECT current_database(), current_user;
+```
+
+### 1.2 Criação de Usuários, Categorias e Ativos
+No PostgreSQL, utilizamos tipos exatos como `NUMERIC` para valores monetários e quantidades fracionárias (como frações de Bitcoin):
+
+```sql title="Comandos DDL: Cadastros Base"
+-- 1. Investidores cadastrados
+CREATE TABLE users (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(120) NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Classes e categorias de ativos
+CREATE TABLE categories (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- 3. Catálogo de ativos negociáveis
+CREATE TABLE assets (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  category_id INT NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+  ticker VARCHAR(20) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL
+);
+```
+
+### 1.3 Criação de Transações e Cotações de Mercado
+Modelamos as compras e a cotação atual de fechamento de mercado:
+
+```sql title="Comandos DDL: Transações e Cotações"
+-- 4. Histórico de transações de compra e venda
+CREATE TABLE transactions (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asset_id INT NOT NULL REFERENCES assets(id) ON DELETE RESTRICT,
+  operation VARCHAR(10) NOT NULL CHECK (operation IN ('BUY', 'SELL', 'DIVIDEND')),
+  quantity NUMERIC(16, 6) NOT NULL CHECK (quantity > 0),
+  price NUMERIC(14, 2) NOT NULL CHECK (price >= 0),
+  transacted_at TIMESTAMPTZ NOT NULL
+);
+
+-- 5. Última cotação de mercado para marcação a mercado
+CREATE TABLE quotes (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  asset_id INT NOT NULL UNIQUE REFERENCES assets(id) ON DELETE CASCADE,
+  price NUMERIC(14, 2) NOT NULL CHECK (price >= 0),
+  quoted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para otimização de consultas por usuário e ativo
+CREATE INDEX idx_trans_user ON transactions(user_id);
+CREATE INDEX idx_trans_asset ON transactions(asset_id);
+CREATE INDEX idx_trans_date ON transactions(transacted_at);
+```
+
+O diagrama Entidade-Relacionamento abaixo ilustra o modelo normalizado:
+
+<Mermaid title="Modelo Lógico Relacional do invest_db">
+{`
+erDiagram
+  users ||--o{ transactions : "realiza (1:N)"
+  categories ||--o{ assets : "classifica (1:N)"
+  assets ||--o{ transactions : "negociado_em (1:N)"
+  assets ||--o| quotes : "cotacao_mercado (1:1)"
+
+  users {
+    INT id PK
+    VARCHAR name
+    VARCHAR email UK
+    TIMESTAMPTZ created_at
+  }
+  categories {
+    INT id PK
+    VARCHAR name UK
+  }
+  assets {
+    INT id PK
+    INT category_id FK
+    VARCHAR ticker UK
+    VARCHAR name
+  }
+  transactions {
+    INT id PK
+    INT user_id FK
+    INT asset_id FK
+    VARCHAR operation
+    NUMERIC quantity
+    NUMERIC price
+    TIMESTAMPTZ transacted_at
+  }
+  quotes {
+    INT id PK
+    INT asset_id FK
+    NUMERIC price
+    TIMESTAMPTZ quoted_at
+  }
+`}
+</Mermaid>
+
+---
+
+## 2. DML: Carga do CSV e Normalização Relacional
+
+Para carregar os dados brutos de [`dataset.csv`](file:///Users/lucachaves/code/subjects/devlab/examples/courses/database/servers/postgres-server/dataset.csv), criamos uma tabela de transição (*staging*) e utilizamos o comando `\copy` do PostgreSQL.
+
+### 2.1 Criação da Tabela Staging e Importação do CSV
+Criamos a tabela temporária e realizamos a leitura direta do arquivo:
+
+```sql title="Criação da Staging e Leitura do CSV"
+-- Tabela de staging com colunas espelhando o cabeçalho do CSV
+CREATE TABLE raw_transactions (
+  user_name VARCHAR(100),
+  user_email VARCHAR(120),
+  category VARCHAR(50),
+  ticker VARCHAR(20),
+  asset_name VARCHAR(100),
+  operation VARCHAR(10),
+  quantity NUMERIC(16, 6),
+  price NUMERIC(14, 2),
+  current_price NUMERIC(14, 2),
+  transacted_at TIMESTAMPTZ
+);
+
+-- Comando de carga de alta velocidade no psql
+\copy raw_transactions FROM 'dataset.csv' WITH (FORMAT csv, HEADER true);
+```
+
+### 2.2 Distribuição e Normalização dos Dados na 3FN
+Com os dados carregados na tabela transitória, populamos as tabelas relacionais em sequência lógica:
+
+```sql title="Distribuição dos Dados para o Esquema Relacional"
+-- 1. Popula usuários únicos
+INSERT INTO users (name, email)
+SELECT DISTINCT user_name, user_email
+FROM raw_transactions
+ON CONFLICT (email) DO NOTHING;
+
+-- 2. Popula categorias únicas
+INSERT INTO categories (name)
+SELECT DISTINCT category
+FROM raw_transactions
+ON CONFLICT (name) DO NOTHING;
+
+-- 3. Popula catálogo de ativos vinculando com a chave estrangeira da categoria
+INSERT INTO assets (category_id, ticker, name)
+SELECT DISTINCT c.id, r.ticker, r.asset_name
+FROM raw_transactions r
+INNER JOIN categories c ON r.category = c.name
+ON CONFLICT (ticker) DO NOTHING;
+
+-- 4. Popula cotações de mercado mais recentes
+INSERT INTO quotes (asset_id, price, quoted_at)
+SELECT DISTINCT a.id, r.current_price, CURRENT_TIMESTAMP
+FROM raw_transactions r
+INNER JOIN assets a ON r.ticker = a.ticker
+ON CONFLICT (asset_id) DO UPDATE
+   SET price = EXCLUDED.price,
+       quoted_at = CURRENT_TIMESTAMP;
+
+-- 5. Popula a tabela de transações históricas
+INSERT INTO transactions (user_id, asset_id, operation, quantity, price, transacted_at)
+SELECT u.id, a.id, r.operation, r.quantity, r.price, r.transacted_at
+FROM raw_transactions r
+INNER JOIN users u ON r.user_email = u.email
+INNER JOIN assets a ON r.ticker = a.ticker;
+
+-- 6. Remove a tabela de staging
+DROP TABLE raw_transactions;
+```
+
+---
+
+## 3. DQL: Respondendo às Questões com Consultas Analíticas
+
+Com as 40 movimentações do CSV distribuídas no banco relacional, construímos as consultas SQL para responder às perguntas de negócio.
+
+### Questão 1: Patrimônio total investido (custo de aquisição)
+Calculamos o total aplicado por investidor e o somatório geral:
+
+```sql title="Consulta 1: Total Investido por Cliente"
+SELECT
+  u.name AS investidor,
+  u.email,
+  COUNT(t.id) AS total_operacoes,
+  TO_CHAR(SUM(t.quantity * t.price), 'R$ 999,999,990.00') AS total_investido
+FROM users u
+INNER JOIN transactions t ON u.id = t.user_id
+GROUP BY u.id, u.name, u.email
+ORDER BY SUM(t.quantity * t.price) DESC;
+```
+
+```txt title="Resultado"
+investidor     | email            | total_operacoes | total_investido
+---------------+------------------+-----------------+-----------------
+Carla Lima     | carla@invest.com | 10              | R$   50,816.00
+Alice Ferreira | alice@invest.com | 10              | R$   46,676.00
+Diego Rocha    | diego@invest.com | 10              | R$   36,888.00
+Bob Santos     | bob@invest.com   | 10              | R$   35,972.00
+```
+
+### Questão 2: Diversificação percentual por classe de ativo
+Utilizamos funções de agregação combinadas com **Window Functions** (`SUM() OVER ()`) para calcular a fatia percentual de cada categoria no portfólio global:
+
+```sql title="Consulta 2: Alocação Percentual por Categoria"
+SELECT
+  c.name AS classe_ativo,
+  COUNT(t.id) AS quantidade_aportes,
+  ROUND(SUM(t.quantity * t.price), 2) AS valor_total_alocado,
+  ROUND(
+    (SUM(t.quantity * t.price) / SUM(SUM(t.quantity * t.price)) OVER ()) * 100,
+    2
+  ) AS percentual_carteira
+FROM categories c
+INNER JOIN assets a ON c.id = a.category_id
+INNER JOIN transactions t ON a.id = t.asset_id
+GROUP BY c.id, c.name
+ORDER BY valor_total_alocado DESC;
+```
+
+```txt title="Resultado"
+classe_ativo | quantidade_aportes | valor_total_alocado | percentual_carteira
+-------------+--------------------+---------------------+--------------------
+Tesouro      | 5                  |            44200.00 |               25.95
+Renda Fixa   | 5                  |            33000.00 |               19.37
+Cripto       | 4                  |            32450.00 |               19.05
+Ações        | 16                 |            32028.00 |               18.80
+FIIs         | 10                 |            28674.00 |               16.83
+```
+
+### Questão 3: Preço Médio Ponderado (PM) de compra por ativo
+O Preço Médio Ponderado é a métrica regulatória exigida pela Receita Federal para cálculo de impostos sobre ganho de capital. A fórmula pondera as compras acumuladas dividindo o valor total investido pela quantidade de cotas em custódia:
+
+> **Preço Médio Ponderado (PM):**  
+> `PM = SUM(quantity * price) / SUM(quantity)`
+
+A consulta a seguir calcula o Preço Médio de cada papel para a investidora Alice:
+
+```sql title="Consulta 3: Preço Médio de Aquisição"
+SELECT
+  a.ticker,
+  a.name AS ativo,
+  SUM(t.quantity) AS quantidade_acumulada,
+  ROUND(SUM(t.quantity * t.price) / SUM(t.quantity), 2) AS preco_medio,
+  q.price AS cotacao_atual
+FROM users u
+INNER JOIN transactions t ON u.id = t.user_id
+INNER JOIN assets a ON t.asset_id = a.id
+INNER JOIN quotes q ON a.id = q.asset_id
+WHERE u.email = 'alice@invest.com'
+GROUP BY a.id, a.ticker, a.name, q.price
+ORDER BY a.ticker ASC;
+```
+
+```txt title="Resultado"
+ticker      | ativo               | quantidade_acumulada | preco_medio | cotacao_atual
+------------+---------------------+----------------------+-------------+--------------
+BTC         | Bitcoin             |             0.050000 |   245000.00 |     310000.00
+CDB-INTER   | CDB Inter 100% CDI  |             1.000000 |     5000.00 |       5120.00
+HGLG11      | CSHG Logística      |            20.000000 |      158.00 |        163.50
+ITUB4       | Itaú Unibanco PN    |            80.000000 |       31.20 |         34.80
+KNRI11      | Kinea Renda         |            30.000000 |      142.00 |        140.80
+PETR4       | Petrobras PN        |           150.000000 |       35.00 |         38.20
+SELIC-2029  | Tesouro Selic 2029  |             1.000000 |    14250.00 |      14580.00
+VALE3       | Vale ON             |            80.000000 |       66.63 |         62.50
+```
+
+### Questão 4: Rentabilidade e Lucro/Prejuízo Não Realizado
+Comparamos o custo total de aquisição com o valor presente de mercado (*Mark-to-Market*):
+
+```sql title="Consulta 4: Lucro Não Realizado por Ativo"
+SELECT
+  a.ticker,
+  SUM(t.quantity) AS quantidade,
+  ROUND(SUM(t.quantity * t.price), 2) AS valor_investido,
+  ROUND(SUM(t.quantity) * q.price, 2) AS valor_atual_mercado,
+  ROUND((SUM(t.quantity) * q.price) - SUM(t.quantity * t.price), 2) AS lucro_prejuizo_rs,
+  ROUND(
+    (((SUM(t.quantity) * q.price) - SUM(t.quantity * t.price)) / SUM(t.quantity * t.price)) * 100,
+    2
+  ) AS rentabilidade_pct
+FROM users u
+INNER JOIN transactions t ON u.id = t.user_id
+INNER JOIN assets a ON t.asset_id = a.id
+INNER JOIN quotes q ON a.id = q.asset_id
+WHERE u.email = 'alice@invest.com'
+GROUP BY a.id, a.ticker, q.price
+ORDER BY lucro_prejuizo_rs DESC;
+```
+
+```txt title="Resultado"
+ticker      | quantidade | valor_investido | valor_atual_mercado | lucro_prejuizo_rs | rentabilidade_pct
+------------+------------+-----------------+---------------------+-------------------+------------------
+BTC         |   0.050000 |        12250.00 |            15500.00 |           3250.00 |            26.53
+PETR4       | 150.000000 |         5250.00 |             5730.00 |            480.00 |             9.14
+SELIC-2029  |   1.000000 |        14250.00 |            14580.00 |            330.00 |             2.32
+ITUB4       |  80.000000 |         2496.00 |             2784.00 |            288.00 |            11.54
+CDB-INTER   |   1.000000 |         5000.00 |             5120.00 |            120.00 |             2.40
+HGLG11      |  20.000000 |         3160.00 |             3270.00 |            110.00 |             3.48
+KNRI11      |  30.000000 |         4260.00 |             4224.00 |            -36.00 |            -0.85
+VALE3       |  80.000000 |         5330.00 |             5000.00 |           -330.00 |            -6.19
+```
+
+### Questão 5: Clientes com exposição a Criptoativos superior a 15%
+Identificamos os perfis com maior exposição a risco combinando subconsultas analíticas:
+
+```sql title="Consulta 5: Exposição a Risco em Cripto"
+WITH patrimonio_cliente AS (
+  SELECT
+    u.id AS user_id,
+    u.name AS cliente,
+    SUM(t.quantity * t.price) AS total_patrimonio,
+    SUM(CASE WHEN c.name = 'Cripto' THEN t.quantity * t.price ELSE 0 END) AS total_cripto
+  FROM users u
+  INNER JOIN transactions t ON u.id = t.user_id
+  INNER JOIN assets a ON t.asset_id = a.id
+  INNER JOIN categories c ON a.category_id = c.id
+  GROUP BY u.id, u.name
+)
+SELECT
+  cliente,
+  ROUND(total_patrimonio, 2) AS patrimonio_total,
+  ROUND(total_cripto, 2) AS valor_em_cripto,
+  ROUND((total_cripto / total_patrimonio) * 100, 2) AS exposicao_cripto_pct
+FROM patrimonio_cliente
+WHERE (total_cripto / total_patrimonio) * 100 > 15.00
+ORDER BY exposicao_cripto_pct DESC;
+```
+
+```txt title="Resultado"
+cliente        | patrimonio_total | valor_em_cripto | exposicao_cripto_pct
+---------------+------------------+-----------------+---------------------
+Alice Ferreira |         46676.00 |        12250.00 |                26.25
+Bob Santos     |         35972.00 |        10800.00 |                30.02
+Diego Rocha    |         36888.00 |         7800.00 |                21.15
+```
+
+---
+
+## 4. Recursos Nativos e Automação no PostgreSQL
+
+Exploramos funções nativas do PostgreSQL e desenvolvemos objetos procedurais em PL/pgSQL.
+
+### 4.1 Funções de Data e Truncamento Temporal
+O PostgreSQL disponibiliza a poderosa função `DATE_TRUNC()` para agregar movimentações por período:
+
+```sql title="Evolução Mensal de Aportes com DATE_TRUNC"
+SELECT
+  DATE_TRUNC('month', t.transacted_at) AS mes_ano,
+  COUNT(t.id) AS total_aportes,
+  ROUND(SUM(t.quantity * t.price), 2) AS volume_financeiro
+FROM transactions t
+GROUP BY DATE_TRUNC('month', t.transacted_at)
+ORDER BY mes_ano ASC;
+```
+
+### 4.2 Criação de Visão Analítica de Portfólio
+Criamos a visão `v_portfolio_summary` para simplificar consultas na aplicação:
+
+```sql title="Criação da View de Posição Consolidada"
+CREATE OR REPLACE VIEW v_portfolio_summary AS
+SELECT
+  u.id AS user_id,
+  u.name AS investidor,
+  c.name AS categoria,
+  a.ticker,
+  SUM(t.quantity) AS quantidade_total,
+  ROUND(SUM(t.quantity * t.price) / SUM(t.quantity), 2) AS preco_medio,
+  q.price AS cotacao_mercado,
+  ROUND(SUM(t.quantity) * q.price, 2) AS valor_presente,
+  ROUND((SUM(t.quantity) * q.price) - SUM(t.quantity * t.price), 2) AS resultado_aberto
+FROM users u
+INNER JOIN transactions t ON u.id = t.user_id
+INNER JOIN assets a ON t.asset_id = a.id
+INNER JOIN categories c ON a.category_id = c.id
+INNER JOIN quotes q ON a.id = q.asset_id
+GROUP BY u.id, u.name, c.name, a.ticker, q.price;
+```
+
+### 4.3 Função Procedural em PL/pgSQL
+Desenvolvemos uma função que calcula o patrimônio total atualizado a mercado de qualquer usuário:
+
+```sql title="Função PL/pgSQL para Cálculo de Patrimônio"
+CREATE OR REPLACE FUNCTION fn_calcular_patrimonio_mercado(p_user_id INT)
+RETURNS NUMERIC AS $$
+DECLARE
+  v_patrimonio NUMERIC(14, 2) := 0;
+BEGIN
+  SELECT COALESCE(SUM(t.quantity * q.price), 0)
+    INTO v_patrimonio
+    FROM transactions t
+   INNER JOIN assets a ON t.asset_id = a.id
+   INNER JOIN quotes q ON a.id = q.asset_id
+   WHERE t.user_id = p_user_id;
+
+  RETURN v_patrimonio;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Invocando a função PL/pgSQL
+SELECT name, fn_calcular_patrimonio_mercado(id) AS patrimonio_atual_mercado
+FROM users;
+```
+
+---
+
+## 5. Exportando o Banco: Backup com `pg_dump`
+
+Ao final do processo, geramos a fotografia completa do banco de dados `invest_db` utilizando a ferramenta nativa **`pg_dump`**.
+
+### 5.1 Executando o Comando de Backup
+O comando a seguir exporta o esquema completo, os dados inseridos, as visões e a função procedural para o arquivo `database.sql`:
+
+```bash title="Terminal"
+# Executa o dump lógico em formato SQL texto
+docker compose exec postgres pg_dump \
+  -U postgres \
+  -d invest_db \
+  --clean \
+  --if-exists \
+  --no-owner \
+  --no-privileges > database.sql
+```
+
+Os parâmetros utilizados garantem total portabilidade:
+- **`--clean --if-exists`**: Adiciona comandos `DROP TABLE IF EXISTS` e `DROP VIEW IF EXISTS` antes de cada criação, permitindo reexecutar o script sem erros.
+- **`--no-owner`**: Evita vincular os objetos criados ao usuário do servidor original, facilitando a restauração em outros ambientes.
+- **`--no-privileges`**: Omite comandos de `GRANT/REVOKE` proprietários.
+
+### 5.2 Restaurando o Backup
+Para recriar todo o ambiente a partir do arquivo exportado:
+
+```bash title="Terminal"
+docker compose exec -T postgres psql -U postgres -d invest_db < database.sql
+```
+
+---
+
+## Executando no Docker
+
+Para executar e testar todos os passos desta prática em um ambiente isolado:
+
+<Steps>
+1. Acesse a pasta do servidor PostgreSQL:
+
+   ```bash title="Terminal"
+   cd examples/courses/database/servers/postgres-server
+   ```
+
+2. Inicie o container PostgreSQL com Docker Compose:
+
+   ```bash title="Terminal"
+   docker compose up -d
+   ```
+
+3. Abra o console interativo `psql` e execute as instruções passo a passo:
+
+   ```bash title="Terminal"
+   docker compose exec postgres psql -U postgres
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base no banco `invest_db`:
+
+1. Escreva uma consulta SQL que liste todos os ativos cadastrados e a quantidade total de operações realizadas para cada um, exibindo zero para ativos que nunca foram negociados.
+2. Escreva uma consulta que retorne as transações cujo valor financeiro (`quantity * price`) tenha sido superior a R$ 10.000,00.
+3. Qual é a vantagem de utilizar o tipo `NUMERIC(16, 6)` em vez de `FLOAT` ou `REAL` para o campo `quantity` em transações de criptomoedas?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Consulta com `LEFT JOIN`:
+     ```sql
+     SELECT a.ticker, a.name, COUNT(t.id) AS total_negociacoes
+     FROM assets a
+     LEFT JOIN transactions t ON a.id = t.asset_id
+     GROUP BY a.id, a.ticker, a.name;
+     ```
+
+  2. Consulta com filtro aritmético:
+     ```sql
+     SELECT id, user_id, asset_id, quantity, price, (quantity * price) AS total_operacao
+     FROM transactions
+     WHERE (quantity * price) > 10000.00;
+     ```
+
+  3. O tipo `NUMERIC` realiza aritmética decimal exata de precisão arbitrária, impedindo os erros cumulativos de arredondamento inerentes à representação binária de ponto flutuante do padrão IEEE 754 presente nos tipos `FLOAT` e `REAL`.
+</details>
+
+---
+
+## Desafio
+
+Crie uma consulta analítica no PostgreSQL que gere o relatório de **Proventos e Dividendos Projetados**. Suponha que cada cota de Fundo Imobiliário (`FIIs`) pague um rendimento mensal estimado de 0,85% sobre a cotação atual de mercado (`quotes.price`).
+
+Escreva a instrução SQL que liste o nome do investidor, o código do FII (`ticker`), o total de cotas em custódia e o valor em reais (R$) de rendimento mensal estimado a receber.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  SELECT
+    u.name AS investidor,
+    a.ticker AS fundo_imobiliario,
+    SUM(t.quantity) AS total_cotas,
+    q.price AS cotacao_mercado,
+    ROUND(SUM(t.quantity) * q.price * 0.0085, 2) AS rendimento_mensal_estimado
+  FROM users u
+  INNER JOIN transactions t ON u.id = t.user_id
+  INNER JOIN assets a ON t.asset_id = a.id
+  INNER JOIN categories c ON a.category_id = c.id
+  INNER JOIN quotes q ON a.id = q.asset_id
+  WHERE c.name = 'FIIs'
+  GROUP BY u.id, u.name, a.ticker, q.price
+  ORDER BY rendimento_mensal_estimado DESC;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelagem Financeira
+
+1. **Por que a tabela `quotes` possui chave estrangeira `1:1` exclusiva (`UNIQUE`) para `assets` neste modelo?**
+   <details><summary>Possível resposta</summary>Porque ela armazena a cotação mais recente de fechamento para marcação a mercado do portfólio, mantendo uma única linha por ativo.</details>
+
+2. **Como a fórmula do Preço Médio Ponderado evita distorções quando um investidor realiza compras em preços e quantidades diferentes?**
+   <details><summary>Possível resposta</summary>Ao ponderar cada preço unitário pela quantidade de cotas adquiridas naquela operação (`SUM(quantidade * preco) / SUM(quantidade)`), o cálculo reflete com exatidão o custo real unitário do patrimônio acumulado.</details>
+
+### PostgreSQL e Backup
+
+3. **Qual é a diferença entre a função `DATE_TRUNC` e `DATE_PART` no PostgreSQL?**
+   <details><summary>Possível resposta</summary>`DATE_TRUNC` arredonda o carimbo temporal para o início do intervalo especificado (ex: primeiro dia do mês), preservando o tipo `TIMESTAMPTZ`. `DATE_PART` extrai apenas o valor numérico isolado do campo (ex: o número do mês como inteiro).</details>
+
+4. **Para que serve o utilitário `pg_dump` em comparação com a cópia direta dos arquivos de dados em disco?**
+   <details><summary>Possível resposta</summary>O `pg_dump` produz um backup lógico consistente em tempo de execução sem interromper o servidor, gerando comandos SQL portáveis entre diferentes arquiteturas de hardware e versões do PostgreSQL.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: Data Types — Numeric Types](https://www.postgresql.org/docs/current/datatype-numeric.html)
+- [PostgreSQL Documentation: Window Functions](https://www.postgresql.org/docs/current/tutorial-window.html)
+- [PostgreSQL Documentation: PL/pgSQL — SQL Procedural Language](https://www.postgresql.org/docs/current/plpgsql.html)
+- [PostgreSQL Documentation: pg_dump](https://www.postgresql.org/docs/current/app-pgdump.html)
+- [IFPB: Guia de Desenvolvimento Web - Banco de Dados e SQL](https://ifpb.github.io/dw/database/sql/)
+
+---
+
+## Próximo tópico
+
+[Visão geral do MySQL](../../mysql/): O outro servidor relacional, com motores de armazenamento, usuários por origem e a base instalada mais ampla.
