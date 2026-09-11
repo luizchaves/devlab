@@ -1,0 +1,129 @@
+---
+title: "Nuvem: Supabase Storage"
+description: "Armazenamento de arquivos no Supabase Storage: buckets, objetos, políticas RLS, URLs públicas, URLs assinadas e quando separar arquivos do banco relacional."
+course: cloud
+sidebar:
+  label: "Supabase Storage"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Supabase Storage** é o serviço de arquivos da plataforma. Ele guarda objetos como imagens, PDFs e anexos em buckets, enquanto os metadados que dão sentido a esses arquivos continuam no PostgreSQL.
+
+## Objetivo
+
+Compreender o papel do Supabase Storage em uma aplicação web, diferenciando arquivo, metadado e política de acesso para escolher entre URL pública, URL assinada e bucket privado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que arquivos grandes não devem ser gravados como colunas de uma tabela.
+- Diferenciar bucket, objeto, caminho e metadado de negócio.
+- Escolher entre bucket público, bucket privado e URL assinada.
+- Relacionar políticas de Storage às políticas RLS do PostgreSQL.
+- Planejar upload de avatar, comprovante ou anexo sem expor arquivos de outros usuários.
+
+## O Que o Storage Resolve
+
+O banco relacional responde bem por entidades, relações e consultas. Arquivos têm outro perfil: são grandes, lidos como bytes e servidos melhor por uma camada própria de objetos.
+
+<Mermaid title="Relação entre tabela, bucket e objeto no Supabase Storage">
+{`
+flowchart TD
+  User["Usuário autenticado"] --> App["Aplicação web"]
+  App --> Storage["Supabase Storage<br/>bucket avatars"]
+  App --> Database["PostgreSQL<br/>tabela profiles"]
+  Database --> Row["Linha<br/>avatar_path"]
+  Storage --> Object["Objeto<br/>user-id/avatar.png"]
+  Row -. "referencia caminho" .-> Object
+`}
+</Mermaid>
+
+A tabela guarda o caminho e os dados pesquisáveis, como `user_id`, `created_at` e tipo do arquivo. O Storage guarda o conteúdo binário. Essa separação evita que uma listagem de perfis carregue megabytes de imagem quando só precisa de nome e e-mail.
+
+## Buckets, Objetos e Políticas
+
+Um bucket é um contêiner lógico, como `avatars`, `receipts` ou `documents`. Dentro dele, cada objeto recebe um caminho. Esse caminho deve carregar informação suficiente para a política decidir quem acessa, sem depender de segredo no front-end.
+
+A tabela abaixo resume as decisões centrais antes do primeiro upload:
+
+| Decisão | Opções | Critério |
+| --- | --- | --- |
+| **Visibilidade** | Público ou privado | Avatar público pode ter URL direta; comprovante financeiro deve exigir autorização. |
+| **Caminho** | `userId/file.ext`, `entityId/file.ext` | O caminho precisa permitir política por dono ou por entidade. |
+| **Entrega** | URL pública ou URL assinada | URL assinada expira e serve para arquivos privados. |
+| **Metadados** | Coluna no Postgres | O banco guarda quem enviou, qual entidade usa e quando o arquivo venceu. |
+
+Depois que o bucket existe, a segurança depende das políticas. Um bucket privado sem política não permite leitura pelo cliente, e uma política ampla demais transforma a chave pública do projeto em acesso aos arquivos.
+
+<Aside type="caution" title="Dica de IA: Peça a política junto do upload">
+  Assistentes costumam gerar apenas `upload(path, file)` e comemorar quando o arquivo chega ao bucket. Isso não prova que a aplicação está segura: é preciso testar se outro usuário consegue ler ou sobrescrever o caminho.
+
+  **Prompt:** *"Crie a política de Storage para o bucket `avatars` em que cada usuário só escreve em caminhos iniciados pelo próprio `auth.uid()`, e mostre um teste negativo tentando ler o avatar de outro usuário."*
+</Aside>
+
+## Quando Usar
+
+O Storage entra quando o dado tem forma de arquivo e precisa ser entregue como arquivo. O PostgreSQL continua sendo o lugar certo para o que será filtrado, ordenado ou relacionado.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Avatar público de perfil | **Bucket público com caminho controlado** | A imagem pode ser servida por URL direta, mas a escrita segue restrita ao dono. |
+| Comprovante, contrato ou anexo privado | **Bucket privado com URL assinada** | O link expira e só é gerado para quem passou pela autorização. |
+| Miniatura derivada de imagem | **Storage + função** | O upload original gera processamento e salva outra versão. |
+| Campo pequeno pesquisável | **PostgreSQL** | Texto, status e números devem continuar em colunas consultáveis. |
+
+## Executando
+
+Os passos abaixo descrevem o fluxo mínimo para um upload seguro:
+
+<Steps>
+1. Crie um bucket no painel do Supabase e defina se ele será público ou privado.
+2. Escolha um padrão de caminho que inclua o identificador do usuário ou da entidade dona do arquivo.
+3. Escreva políticas para `select`, `insert`, `update` e `delete` antes de conectar a tela.
+4. Grave no PostgreSQL apenas o caminho do objeto e os metadados que a aplicação precisa consultar.
+5. Teste o caso negativo: usuário autenticado tentando acessar arquivo de outro usuário.
+</Steps>
+
+## Exercício
+
+Responda considerando um app em que cada usuário pode enviar um avatar e três comprovantes privados:
+
+1. Por que o avatar pode usar URL pública, mas os comprovantes devem usar URL assinada?
+2. Qual informação precisa aparecer no caminho do objeto para a política impedir acesso cruzado?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O avatar normalmente é dado público de perfil, enquanto comprovantes carregam informação sensível e precisam de link temporário. O caminho deve incluir o `auth.uid()` ou uma entidade que tenha dono verificável, como `profiles/{uid}/avatar.png` e `receipts/{uid}/{receiptId}.pdf`.
+</details>
+
+## Desafio
+
+Desenhe a modelagem de upload de comprovantes para uma carteira de investimentos. Inclua o bucket, a tabela de metadados, a coluna que aponta para o caminho do arquivo e as políticas necessárias para impedir que um usuário liste arquivos de outro.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma solução comum usa bucket privado `receipts`, tabela `investment_receipts` com `id`, `investment_id`, `user_id`, `storage_path` e `created_at`, além de política que compara `auth.uid()` com `user_id`. O caminho pode seguir `receipts/{user_id}/{investment_id}/{receipt_id}.pdf`, para que a regra consiga validar posse sem abrir o arquivo.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que guardar arquivos grandes direto no PostgreSQL costuma ser uma má escolha?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque arquivos são bytes servidos como objeto, não dados consultáveis. Guardá-los em colunas aumenta o tamanho das leituras, dificulta cache e mistura persistência de entidades com entrega de arquivos.
+   </details>
+
+2. **Qual é a diferença prática entre bucket público e URL assinada?**
+   <details>
+     <summary>Possível resposta</summary>
+     O bucket público permite acesso direto ao objeto por URL. A URL assinada é gerada para um objeto privado e expira depois de um período definido.
+   </details>
+
+## Referências
+
+- [Supabase Storage](https://supabase.com/docs/guides/storage)
+- [Supabase Storage Access Control](https://supabase.com/docs/guides/storage/security/access-control)
+
+## Próximo tópico
+
+[Supabase Realtime](../realtime/): escuta de mudanças do PostgreSQL por canais em tempo real.

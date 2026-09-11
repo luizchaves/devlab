@@ -1472,6 +1472,10 @@ export default defineConfig({
                   label: 'Computação em Nuvem',
                   link: '/courses/cloud/foundations/cloud-computing/',
                 },
+                {
+                  label: 'Comparação de Serviços',
+                  link: '/courses/cloud/foundations/service-comparison/',
+                },
                 { label: 'Backend as a Service', link: '/courses/cloud/foundations/baas/' },
               ],
             },
@@ -1479,9 +1483,11 @@ export default defineConfig({
               label: 'Supabase',
               items: [
                 { label: 'Visão geral do Supabase', link: '/courses/cloud/supabase/' },
-                { label: 'Supabase API', link: '/courses/cloud/supabase/api/' },
-                { label: 'Supabase Client', link: '/courses/cloud/supabase/client/' },
+                { label: 'Database API', link: '/courses/cloud/supabase/api/' },
                 { label: 'Supabase Auth', link: '/courses/cloud/supabase/auth/' },
+                { label: 'Supabase Storage', link: '/courses/cloud/supabase/storage/' },
+                { label: 'Supabase Realtime', link: '/courses/cloud/supabase/realtime/' },
+                { label: 'Edge Functions', link: '/courses/cloud/supabase/edge-functions/' },
               ],
             },
             {
@@ -1490,6 +1496,47 @@ export default defineConfig({
                 { label: 'Visão geral do Firebase', link: '/courses/cloud/firebase/' },
                 { label: 'Cloud Firestore', link: '/courses/cloud/firebase/firestore/' },
                 { label: 'Firebase Auth', link: '/courses/cloud/firebase/auth/' },
+                { label: 'Cloud Storage', link: '/courses/cloud/firebase/storage/' },
+                { label: 'Cloud Functions', link: '/courses/cloud/firebase/functions/' },
+                { label: 'Firebase Hosting', link: '/courses/cloud/firebase/hosting/' },
+              ],
+            },
+            {
+              label: 'Vercel',
+              items: [
+                { label: 'Visão geral da Vercel', link: '/courses/cloud/vercel/' },
+                { label: 'Deployments', link: '/courses/cloud/vercel/deployments/' },
+                { label: 'Vercel Functions', link: '/courses/cloud/vercel/functions/' },
+                { label: 'CDN e Edge Network', link: '/courses/cloud/vercel/cdn/' },
+                { label: 'Storage e Marketplace', link: '/courses/cloud/vercel/storage/' },
+                { label: 'Ambientes e variáveis', link: '/courses/cloud/vercel/environments/' },
+              ],
+            },
+            {
+              label: 'Netlify',
+              items: [
+                { label: 'Visão geral do Netlify', link: '/courses/cloud/netlify/' },
+                { label: 'Deployments', link: '/courses/cloud/netlify/deployments/' },
+                { label: 'Netlify Functions', link: '/courses/cloud/netlify/functions/' },
+                { label: 'Edge Functions', link: '/courses/cloud/netlify/edge-functions/' },
+                { label: 'Forms', link: '/courses/cloud/netlify/forms/' },
+                { label: 'Redirects e headers', link: '/courses/cloud/netlify/routing/' },
+                { label: 'Data e Storage', link: '/courses/cloud/netlify/data-storage/' },
+              ],
+            },
+            {
+              label: 'Cloudflare',
+              link: '/courses/cloud/cloudflare/',
+            },
+            {
+              label: 'AWS Amplify',
+              link: '/courses/cloud/amplify/',
+            },
+            {
+              label: 'PaaS e Containers',
+              items: [
+                { label: 'Render', link: '/courses/cloud/render/' },
+                { label: 'Railway', link: '/courses/cloud/railway/' },
               ],
             },
             {
@@ -1503,9 +1550,40 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Na Prática',
+              items: [
+                {
+                  label: 'InvestApp Cloud',
+                  items: [
+                    {
+                      label: 'Visão geral',
+                      link: '/courses/cloud/practice/investapp/',
+                    },
+                    {
+                      label: '1. Supabase API',
+                      link: '/courses/cloud/practice/investapp/supabase-api/',
+                    },
+                    {
+                      label: '2. Supabase Client',
+                      link: '/courses/cloud/practice/investapp/supabase-client/',
+                    },
+                    {
+                      label: '3. Firebase Firestore',
+                      link: '/courses/cloud/practice/investapp/firebase-firestore/',
+                    },
+                    {
+                      label: '4. Publicação e funções',
+                      link: '/courses/cloud/practice/investapp/deploy-functions/',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
               label: 'Referência',
               items: [
                 { label: 'Mapa de Plataformas', link: '/courses/cloud/reference/platform-map/' },
+                { label: 'Outras Plataformas', link: '/courses/cloud/reference/other-platforms/' },
               ],
             },
           ],

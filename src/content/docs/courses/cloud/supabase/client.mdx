@@ -1,268 +1,177 @@
 ---
 title: "Nuvem: Supabase Client"
-description: "Uso da biblioteca cliente oficial @supabase/supabase-js para operações CRUD assíncronas, consultas fluentes e integração no front-end."
+description: "Guia do Supabase Client: SDK JavaScript, criação do cliente, acesso a Database API, Auth, Storage e Realtime, tratamento de erro e limites no front-end."
 course: cloud
 sidebar:
   label: "Supabase Client"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
-import FileTree from '@components/FileTree.astro';
-import SourceCode from '@components/SourceCode.astro';
 import Mermaid from '@components/Mermaid.astro';
-import PackageManagerTabs from '@components/PackageManagerTabs.astro';
 
-O SDK cliente oficial **`@supabase/supabase-js`** fornece uma API fluente, tipada e assíncrona para interagir com todos os serviços do Supabase (Banco de Dados, Autenticação, Storage e Realtime) diretamente do front-end ou de projetos Node.js sem a necessidade de compor requisições HTTP manuais.
+O **Supabase Client** (`@supabase/supabase-js`) é o SDK JavaScript que conecta uma aplicação aos serviços do Supabase. Ele não é um serviço separado, mas a porta de entrada para Database API, Auth, Storage, Realtime e funções.
 
 ## Objetivo
 
-Dominar o uso do cliente `@supabase/supabase-js` em uma aplicação real, da inicialização com as chaves do projeto até um módulo de serviço que concentra as quatro operações de persistência e o tratamento de erro de todas elas. Ao final do tópico, o leitor deve ser capaz de:
+Compreender o Supabase Client como camada de integração, não como lugar de regra de negócio, para organizar o front-end sem espalhar chamadas à plataforma por todos os componentes. Ao final do tópico, o leitor deve ser capaz de:
 
-- Inicializar o cliente com a URL do projeto e a *anon key* lidas de variáveis de ambiente.
-- Implementar `create`, `read`, `update` e `remove` com a interface encadeada do SDK.
-- Interpretar a resposta `{ data, error }` e converter o erro em exceção no módulo de serviço.
-- Diferenciar a chave `anon` da `service_role` e explicar por que só uma delas pode ir ao navegador.
-- Isolar o acesso ao Supabase em um módulo, mantendo os componentes de interface independentes da plataforma.
+- Inicializar o cliente com URL e chave pública do projeto.
+- Identificar quais serviços são acessados pelo mesmo objeto `supabase`.
+- Tratar respostas `{ data, error }` sem engolir falhas.
+- Separar camada de serviço, componente de interface e política de acesso.
+- Reconhecer quando o SDK não deve ser usado por depender de segredo.
 
----
+## Modelo Mental
 
-## Arquitetura do Supabase JS Client
+O SDK compõe requisições, anexa tokens de sessão, abre canais em tempo real e padroniza retornos. A segurança, porém, continua nos serviços: RLS no banco, regras no Storage e configuração do Auth.
 
-O SDK cliente do Supabase abstrai as chamadas HTTP do PostgREST através de uma interface encadeada baseada em Promises:
-
-<Mermaid title="Fluxo de Dados com o Supabase JS Client">
+<Mermaid title="Supabase Client como porta de entrada para os serviços">
 {`
 flowchart TD
-  App["Aplicação Front-End (main.js)"] -- "supabase.from('investments').select()" --> SDK["@supabase/supabase-js Client"]
-  SDK -- "Compõe HTTP + Header apikey" --> API["PostgREST API (Supabase Cloud)"]
-  API -- "Executa Query no Postgres" --> DB[(PostgreSQL)]
-  DB -- "Retorna { data, error }" --> App
+  UI["Componentes de interface"] --> Service["Módulo de serviço<br/>storage.js, session.js"]
+  Service --> Client["@supabase/supabase-js"]
+  Client --> DB["Database API"]
+  Client --> Auth["Auth"]
+  Client --> Storage["Storage"]
+  Client --> Realtime["Realtime"]
 `}
 </Mermaid>
 
----
+O melhor uso do SDK é ficar atrás de módulos pequenos. A tela pede `createInvestment`, `login` ou `uploadAvatar`; o módulo decide qual chamada do Supabase executa.
 
-## 1. Instalação e Inicialização
+## Recursos Principais
 
-Instale a biblioteca cliente oficial no projeto através do gerenciador de pacotes:
+O mesmo cliente cobre várias áreas da plataforma. A tabela abaixo mostra o que cada família de métodos representa:
 
-<PackageManagerTabs package="@supabase/supabase-js" />
+| Família | Exemplo | Papel |
+| --- | --- | --- |
+| **Database** | `from('investments').select()` | Consultar e alterar tabelas pela Database API. |
+| **Auth** | `auth.signInWithPassword()` | Criar sessão, renovar token e observar login/logout. |
+| **Storage** | `storage.from('avatars').upload()` | Enviar, ler e remover objetos de buckets. |
+| **Realtime** | `channel('portfolio').subscribe()` | Receber eventos por WebSocket. |
+| **Functions** | `functions.invoke('charge')` | Chamar código serverless da plataforma. |
 
-Para instanciar o cliente, forneça a URL do projeto e a chave anônima pública (*anon key*). O objeto devolvido por `createClient()` é o ponto de entrada para banco de dados, autenticação, storage e tempo real:
+## Pequenos Trechos
 
-```js title="Exemplo básico de inicialização"
+O cliente começa com URL e chave pública. Em Vite, variáveis com `VITE_` entram no bundle, então só valores públicos pertencem aqui:
+
+```js title="Inicialização do Supabase Client"
 import { createClient } from '@supabase/supabase-js';
 
-const API_URL = 'https://xyz.supabase.co';
-const API_KEY = 'public-anon-key';
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+```
 
-const supabase = createClient(API_URL, API_KEY);
+Uma consulta simples deve tratar `error` como falha real, não como mensagem de console:
 
-// Consulta dados da tabela investments
-const { data, error } = await supabase
-  .from('investments')
-  .select();
+```js title="Leitura com tratamento explícito"
+export async function listInvestments() {
+  const { data, error } = await supabase
+    .from('investments')
+    .select('id,name,amount')
+    .order('created_at', { ascending: false });
 
-if (error) {
-  console.error('Erro na consulta:', error.message);
-} else {
-  console.log('Investimentos:', data);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }
 ```
 
----
+Uma função de login pertence a um módulo de sessão, não ao componente do formulário:
 
-## 2. Estrutura do Projeto `Invest-app`
+```js title="Função de sessão"
+export async function login(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-Na aplicação `Invest-app`, centralizamos toda a lógica de comunicação com o Supabase dentro de um módulo de serviço (`services/storage.js`):
+  if (error) {
+    throw new Error('E-mail ou senha inválidos.');
+  }
 
-<FileTree>
-{`
-invest-app/
-├── css/
-│   └── style.css
-├── js/
-│   ├── components/
-│   │   ├── InvestmentCard.js
-│   │   ├── InvestmentForm.js
-│   │   └── Modal.js
-│   ├── lib/
-│   │   ├── dom.js
-│   │   ├── format.js
-│   │   └── investments.js
-│   ├── services/
-│   │   └── storage.js
-│   └── main.js
-├── public/
-│   └── vite.svg
-├── .env.example
-├── .gitignore
-├── index.html
-├── package-lock.json
-├── package.json
-├── postcss.config.js
-└── tailwind.config.js
-`}
-</FileTree>
+  return data.user;
+}
+```
 
----
+<Aside type="caution" title="Dica de IA: Não espalhe `supabase.from()` pela interface">
+  Código gerado costuma chamar o SDK direto dentro de cada botão e componente. Isso deixa a troca
+  de plataforma cara e mistura erro de rede com regra de tela.
 
-## 3. Implementação do Módulo de Serviço CRUD (`storage.js`)
-
-Todo o acesso ao Supabase mora em um único arquivo, `js/services/storage.js`. O restante da aplicação chama funções com nomes de domínio (`create`, `read`, `update`, `remove`) e nunca vê o SDK, o que mantém os componentes independentes da plataforma.
-
-O arquivo abre lendo as chaves do ambiente. O Vite expõe em `import.meta.env` apenas as variáveis prefixadas com `VITE_`, e é a partir delas que a linha 6 monta o cliente:
-
-<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="1-6" />
-
-### Operação de Criação (`create`)
-
-O método `.insert()` aceita um objeto ou um array de objetos, mas por padrão devolve apenas a confirmação da escrita. O `.select('*')` encadeado na linha 9 pede o registro de volta já com os campos que o banco gerou, como `id` e `created_at`, e a linha 15 devolve o primeiro item desse array:
-
-<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="8-16" mark={[9, 15]} />
-
-### Operação de Leitura (`read`)
-
-A mesma função atende à listagem e à busca por identificador. O operador ternário das linhas 19 a 21 decide entre acrescentar ou não o filtro `.eq('id', id)`, e o retorno é sempre um array: com `id`, ele traz no máximo um item; sem `id`, traz a tabela inteira:
-
-<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="18-28" mark={[20]} />
-
-### Operação de Atualização (`update`)
-
-O `.update()` envia apenas os campos presentes no objeto `data`, o que caracteriza uma atualização parcial. O filtro `.eq('id', id)` da linha 34 é o que impede a operação de atingir a tabela inteira:
-
-<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="30-42" mark={[34]} />
-
-<Aside type="caution" title="Dica de IA: Peça o teste que prova o filtro antes de aceitar um update">
-  Assistentes escrevem `update` e `delete` sem o `.eq()` com frequência, e o erro não aparece em desenvolvimento: a chamada retorna sucesso, só que aplicada a todas as linhas visíveis pela política de acesso. Como o `error` vem nulo, nenhum `try/catch` denuncia o problema.
-
-  **Prompt:** *"Escreva um teste que insere três investimentos, chama `update('investments', id, data)` e falha se algum registro diferente do `id` informado tiver sido alterado; depois mostre o que acontece com esse teste se o `.eq('id', id)` for removido."*
+  **Prompt:** *"Refatore estas chamadas `supabase.from('investments')` para um módulo `investmentService`, mantendo os componentes dependentes apenas de funções como `listInvestments` e `saveInvestment`."*
 </Aside>
 
-### Operação de Remoção (`remove`)
+## Aplicações
 
-O `.delete()` não devolve dados úteis, então a função só precisa reagir ao erro. A linha 54 exporta o objeto que o restante da aplicação importa:
+O SDK é uma boa escolha quando o front-end é o cliente principal dos serviços do Supabase. Ele reduz código repetido, integra sessão com chamadas ao banco e permite usar Realtime sem montar WebSocket manualmente.
 
-<SourceCode path="examples/courses/cloud/supabase-client/invest-app/js/services/storage.js" lines="44-54" />
+| Aplicação | Como o SDK ajuda | Cuidado |
+| --- | --- | --- |
+| CRUD autenticado | Anexa sessão e expõe API fluente. | RLS continua obrigatória. |
+| Upload de avatar | Usa Storage com o mesmo projeto e sessão. | Caminho e política precisam impedir sobrescrita cruzada. |
+| Interface em tempo real | Abre canais e gerencia eventos. | Ainda precisa de leitura inicial e reconciliação. |
+| Chamada administrativa | **Não usar no front-end** | Chave `service_role` exige servidor ou função. |
 
----
+## Quando Usar, e Quando Não Usar?
 
-## Quando usar, e quando não usar?
-
-O SDK e a API REST do PostgREST chegam ao mesmo banco, e a escolha entre eles é de ergonomia e de lugar de execução, não de capacidade. Há ainda um terceiro caminho, o mais fácil de esquecer: quando a chave que autentica a chamada não pode aparecer no navegador, nenhuma das duas serve, e a operação precisa acontecer no servidor.
-
-A tabela abaixo separa os três casos:
+Use o Supabase Client para operações públicas ou autenticadas que respeitam as políticas da plataforma. Não use no navegador para tarefas administrativas, integrações pagas ou qualquer fluxo que dependa de segredo.
 
 | Cenário | Escolha | Por quê |
 | --- | --- | --- |
-| CRUD do front-end, com sessão do usuário | **`@supabase/supabase-js`** | O SDK acopla o token da sessão a cada chamada e trata a renovação sozinho. |
-| Escuta de mudanças ao vivo na tabela | **`@supabase/supabase-js`** | O canal Realtime só existe no SDK; a API REST não abre WebSocket. |
-| Script pontual, teste manual ou integração fora do JavaScript | **[API REST](../api/)** com `curl` ou `.http` | Uma requisição HTTP não exige instalar, empacotar e versionar uma dependência. |
-| Operação com a chave `service_role` | **Back-end próprio** ([Guia de Express.js](../../../expressjs/)) | A chave ignora o RLS; publicá-la no *bundle* do front-end entrega o banco inteiro. |
-| Consulta que a interface encadeada não expressa | **Função SQL (RPC)** | Uma função no banco, chamada por `supabase.rpc()`, resolve o que o encadeamento não alcança. |
-
----
+| Front-end com login e CRUD | **Supabase Client** | O SDK coordena sessão e chamadas aos serviços. |
+| Script de teste ou documentação de contrato | **HTTP direto** | A requisição explícita ensina melhor o protocolo. |
+| Webhook ou cobrança | **Edge Function** | O segredo precisa ficar no servidor. |
+| API própria com domínio extenso | **Back-end próprio** | A camada de aplicação centraliza regras e testes. |
 
 ## Executando
 
-Siga os passos para testar a integração do Supabase Client:
+O código completo com `storage.js` e interface do InvestApp fica na trilha prática:
 
 <Steps>
-1. Configure o arquivo `.env` do seu projeto front-end com as chaves do Supabase:
-   ```ini
-   VITE_APP_SUPABASE_URL=https://seu-projeto.supabase.co
-   VITE_APP_SUPABASE_KEY=sua_chave_anon
-   ```
-2. Instale o pacote:
-
-   <PackageManagerTabs package="@supabase/supabase-js" />
-3. Inicie o servidor de desenvolvimento Vite: `npm run dev`.
-4. Abra o console do navegador e confirme o carregamento e salvamento de dados na nuvem.
+1. Leia este guia para entender o papel do SDK.
+2. Estude [InvestApp Cloud: Supabase Client](../../practice/investapp/supabase-client/) para ver o módulo aplicado.
+3. Volte para [Supabase Storage](../storage/) e [Supabase Realtime](../realtime/) quando a aplicação precisar de arquivos ou eventos.
 </Steps>
-
----
 
 ## Exercício
 
-Responda com base no módulo `storage.js` que você acabou de ler, e não de memória sobre outros SDKs:
-
-1. Qual objeto retornado pelas chamadas do `@supabase/supabase-js` contém a mensagem de erro caso uma operação falhe no banco de dados?
-2. Por que é necessário chamar `.select('*')` logo após um `.insert(data)` se desejamos obter o objeto completo criado com o `id` retornado?
+Por que um módulo de serviço melhora a manutenção quando a aplicação usa Supabase Client?
 
 <details>
   <summary>Possível resposta</summary>
 
-  1. A propriedade `error` (desestruturada da resposta `{ data, error }`).
-
-  2. Por padrão, o `.insert()` apenas executa a inserção. Chamar `.select('*')` força o Supabase a retornar o registro em sua forma final com os campos calculados e gerados pelo banco (como `id` e `created_at`).
+  Porque concentra chamadas ao SDK em um lugar. Os componentes usam funções de domínio, e mudanças de filtro, tratamento de erro ou plataforma não se espalham pela interface.
 </details>
-
----
 
 ## Desafio
 
-O `storage.js` da aplicação devolve a tabela inteira em toda listagem, o que funciona com dez investimentos e deixa de funcionar com dez mil. Estenda o módulo com uma função `list(resource, options)` que aceite paginação (`page` e `perPage`), ordenação (`orderBy` e `ascending`) e um filtro opcional por categoria.
-
-A função deve devolver os itens da página e o total de registros que satisfazem o filtro, para que a interface consiga desenhar a paginação sem uma segunda consulta. Trate o caso em que a página pedida está além do fim dos dados.
+Defina três módulos para uma aplicação Supabase: `sessionService`, `investmentService` e `avatarService`. Liste quais métodos do SDK cada um poderia usar.
 
 <details>
   <summary>Possível resposta</summary>
 
-  A contagem e a página saem da mesma chamada, porque o PostgREST devolve o total no cabeçalho `Content-Range` quando o `select` pede `count`:
-
-  ```js title="Esboço da função list"
-  async function list(resource, { page = 1, perPage = 10, orderBy = 'id', ascending = true, category } = {}) {
-    const from = (page - 1) * perPage;
-    const to = from + perPage - 1;
-
-    let query = supabase
-      .from(resource)
-      .select('*', { count: 'exact' })
-      .order(orderBy, { ascending })
-      .range(from, to);
-
-    if (category) {
-      query = query.eq('category', category);
-    }
-
-    const { data, count, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    return { items: data, total: count ?? 0, page, perPage };
-  }
-  ```
-
-  O `.range()` usa índices baseados em zero e inclui os dois extremos, por isso o `to` desconta um. Uma página além do fim não é erro: a consulta devolve um array vazio com o `count` correto, e é esse total que permite à interface voltar para a última página válida.
+  `sessionService` usa `supabase.auth`, `investmentService` usa `supabase.from('investments')` e `avatarService` usa `supabase.storage.from('avatars')`. Cada módulo devolve funções de domínio em vez de expor o cliente inteiro.
 </details>
-
----
 
 ## Perguntas de revisão
 
-1. **Como encadear múltiplos filtros em uma consulta com o Supabase Client (ex: valor maior que 1000 e categoria igual a 'Pós')?**
+1. **O Supabase Client substitui RLS?**
    <details>
      <summary>Possível resposta</summary>
-     Encadeando métodos na consulta: `supabase.from('investments').select('*').gt('value', 1000).eq('category', 'Pós')`.
+     Não. Ele apenas faz chamadas. A autorização continua nas políticas do banco e dos serviços.
    </details>
 
-2. **Qual a diferença entre a chave `anon public key` e a chave `service_role key` no Supabase?**
+2. **Por que a chave `service_role` não pode ser usada pelo Supabase Client no navegador?**
    <details>
      <summary>Possível resposta</summary>
-     A chave `anon` respeita todas as regras de segurança RLS e deve ser usada no front-end. A chave `service_role` ignora o RLS e tem acesso administrativo total, devendo ser mantida estritamente secreta no servidor backend.
+     Porque ela ignora RLS e qualquer valor no bundle pode ser lido pelo usuário. Ela pertence a servidor ou função.
    </details>
-
----
 
 ## Referências
 
-- [Supabase JavaScript Client Docs](https://supabase.com/docs/reference/javascript/introduction)
-- [Supabase Select Reference](https://supabase.com/docs/reference/javascript/select)
-- [Supabase Insert Reference](https://supabase.com/docs/reference/javascript/insert)
-
----
+- [Supabase JavaScript Client](https://supabase.com/docs/reference/javascript/introduction)
+- [Supabase Client Libraries](https://supabase.com/docs/reference)
 
 ## Próximo tópico
 
-[Supabase Auth](../auth/): Gerenciamento de usuários, cadastro, login e sessões de autenticação com Supabase Auth.
+[Supabase Auth](../auth/): sessões, identidade e integração com políticas de acesso.

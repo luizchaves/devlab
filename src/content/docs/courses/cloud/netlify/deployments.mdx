@@ -1,0 +1,166 @@
+---
+title: "Nuvem: Netlify Deployments"
+description: "Deployments no Netlify: build por Git, deploy atômico, previews, branch deploys, rollback, variáveis de ambiente e publicação reproduzível."
+course: cloud
+sidebar:
+  label: "Deployments"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Um **deployment** no Netlify é uma versão completa de um site ou aplicação publicada de forma atômica. O build gera os arquivos, a plataforma prepara a versão e só então troca o tráfego para ela, reduzindo o risco de servir HTML de uma versão junto com assets de outra.
+
+## Objetivo
+
+Compreender o ciclo de deployment no Netlify, usando previews, branch deploys, variáveis de ambiente, redirects e rollback para publicar com menos risco. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar deploy atômico e rollback.
+- Configurar build command e publish directory.
+- Diferenciar deploy preview, branch deploy e produção.
+- Identificar quais configurações devem ficar no repositório.
+- Validar uma publicação antes de promovê-la.
+
+## Ciclo de Deploy
+
+O fluxo típico começa com um push no Git. O Netlify detecta a mudança, executa o build, gera uma versão imutável e publica uma URL de preview antes da promoção para produção.
+
+<Mermaid title="Ciclo de deployment no Netlify">
+{`
+flowchart TD
+  Commit["Commit ou pull request"] --> Build["Build command"]
+  Build --> Publish["Publish directory"]
+  Publish --> Preview["Deploy preview"]
+  Preview --> Review["Revisão visual e técnica"]
+  Review --> Prod["Produção"]
+  Prod --> Rollback["Rollback para deploy anterior"]
+`}
+</Mermaid>
+
+Deploy atômico não significa que o build nunca falha. Significa que, se o build falhar, a versão anterior continua atendendo. Se o build passar, a troca acontece para um pacote completo.
+
+## Tipos de Deploy
+
+Os tipos de deploy ajudam o time a revisar mudanças sem misturar experimento e produção.
+
+| Tipo | Quando acontece | Uso principal |
+| --- | --- | --- |
+| **Deploy preview** | Em pull requests ou branches de revisão. | Validar interface, rotas, headers e integrações antes do merge. |
+| **Branch deploy** | Em branches configuradas para publicação. | Manter ambientes como staging, docs ou homologação. |
+| **Production deploy** | Na branch de produção configurada. | Entregar a versão estável para usuários finais. |
+| **Manual deploy** | Quando o time envia uma pasta ou artefato pronto. | Casos pontuais, migrações ou projetos sem integração Git. |
+
+## Configuração no Repositório
+
+Para projetos Astro, Vite, React, Vue ou Svelte, a configuração mínima costuma declarar comando de build e pasta publicada.
+
+```toml
+[build]
+  command = "pnpm build"
+  publish = "dist"
+```
+
+Quando o projeto usa rotas de SPA, redirects ou headers de segurança, o mesmo arquivo pode guardar regras adicionais.
+
+```toml
+[[redirects]]
+  from = "/dashboard/*"
+  to = "/dashboard/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+```
+
+Essas regras devem ser revisadas junto com o código. Uma alteração de rota pode quebrar produção tanto quanto uma alteração de componente.
+
+<Aside type="caution" title="Não esconda configuração crítica no painel">
+  Configurações feitas apenas no painel são fáceis de esquecer e difíceis de revisar. Use o painel para segredos e operações, mas prefira versionar build, redirects e headers quando eles fazem parte do comportamento da aplicação.
+</Aside>
+
+## Variáveis de Ambiente
+
+Deploys de preview, branch e produção podem precisar de valores diferentes. Uma URL pública do Supabase pode ser exposta ao front-end, mas tokens de serviço, chaves privadas e segredos de provedores externos devem ficar apenas em Functions ou no ambiente do servidor.
+
+| Variável | Onde usar | Observação |
+| --- | --- | --- |
+| `PUBLIC_SUPABASE_URL` | Front-end | Pode ir para o bundle se for realmente pública. |
+| `PUBLIC_SUPABASE_ANON_KEY` | Front-end | Deve depender de RLS e regras corretas no BaaS. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Function | Nunca deve aparecer no navegador. |
+| `EMAIL_PROVIDER_TOKEN` | Function | Use para envio de e-mail, webhook ou integração privada. |
+
+## Quando Usar
+
+Deployments do Netlify são especialmente úteis quando o projeto precisa de revisão visual frequente, rotas versionadas e rollback simples.
+
+| Cenário | Bom uso | Atenção |
+| --- | --- | --- |
+| Site estático ou documentação | Build e CDN resolvem quase tudo. | Verifique base path e links internos. |
+| Front-end com Supabase ou Firebase | Netlify entrega a interface e o BaaS cuida dos dados. | Separe variáveis públicas e privadas. |
+| Aplicação SPA | Rewrite evita 404 em reload de rota interna. | Não transforme todo erro em fallback para `index.html`. |
+| Ambientes por branch | Cada branch pode ter preview ou staging. | Dados reais exigem cuidado com chaves e permissões. |
+
+## Executando
+
+Um processo de deploy saudável separa build, revisão e promoção.
+
+<Steps>
+1. Confirme o comando de build e o diretório de saída do framework.
+2. Versione `netlify.toml` com build, publish, redirects e headers relevantes.
+3. Configure variáveis públicas e privadas nos ambientes corretos.
+4. Abra o deploy preview e valide rotas, formulários, headers e chamadas externas.
+5. Promova para produção apenas depois da revisão.
+6. Mantenha rollback como plano de resposta para erro de publicação.
+</Steps>
+
+## Exercício
+
+Por que deploy preview é mais útil do que apenas rodar o projeto localmente?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o preview usa o pipeline real de build e publicação, gera uma URL compartilhável e permite validar comportamento parecido com produção, incluindo redirects, headers, assets e integrações.
+</details>
+
+## Desafio
+
+Desenhe uma política de deploy para uma turma: toda branch recebe preview, a branch principal publica produção, e qualquer 404 de rota interna deve ser corrigido por configuração versionada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A política define build automático por pull request, checklist no deploy preview, merge para a branch principal apenas depois da revisão, rewrite de SPA em `netlify.toml` e rollback para o último deploy estável quando produção falhar.
+</details>
+
+## Perguntas de revisão
+
+1. **O que significa deploy atômico?**
+   <details>
+     <summary>Possível resposta</summary>
+     Significa publicar uma versão completa de uma vez, sem servir arquivos misturados de builds diferentes.
+   </details>
+
+2. **Qual sintoma indica falta de rewrite em uma SPA?**
+   <details>
+     <summary>Possível resposta</summary>
+     A navegação pelo app funciona, mas recarregar diretamente uma rota interna como `/dashboard` devolve 404.
+   </details>
+
+3. **Quais variáveis não devem ir para o bundle do front-end?**
+   <details>
+     <summary>Possível resposta</summary>
+     Tokens privados, service role keys, segredos de provedores externos e qualquer credencial que permita agir em nome do servidor.
+   </details>
+
+## Referências
+
+- [Netlify Deploys](https://docs.netlify.com/site-deploys/overview/)
+- [Netlify configuration file](https://docs.netlify.com/configure-builds/file-based-configuration/)
+- [Netlify environment variables](https://docs.netlify.com/environment-variables/overview/)
+
+## Próximo tópico
+
+[Netlify Functions](../functions/): rotas serverless para segredos, APIs curtas e webhooks.

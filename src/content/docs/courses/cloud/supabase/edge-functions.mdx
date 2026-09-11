@@ -1,0 +1,113 @@
+---
+title: "Nuvem: Supabase Edge Functions"
+description: "Funções de borda no Supabase: código sob demanda, segredos no servidor, webhooks, integração com banco e limites em relação ao front-end."
+course: cloud
+sidebar:
+  label: "Edge Functions"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+As **Supabase Edge Functions** executam código sob demanda perto do usuário, com acesso a variáveis de ambiente e integração com os serviços da plataforma. Elas entram quando uma operação não pode acontecer no navegador.
+
+## Objetivo
+
+Compreender o papel das Edge Functions dentro de uma arquitetura Supabase, separando o que pertence ao banco, ao front-end e ao servidor sob demanda. Ao final do tópico, o leitor deve ser capaz de:
+
+- Identificar operações que exigem segredo e não podem rodar no cliente.
+- Explicar a diferença entre política RLS, função SQL e Edge Function.
+- Planejar webhooks, integrações externas e validações server-side.
+- Reconhecer limites de tempo de execução, estado e dependências.
+- Escolher entre Edge Function, back-end próprio e função SQL.
+
+## O Servidor que Volta Pontualmente
+
+O BaaS reduz a quantidade de servidor escrito pela equipe, mas não elimina todos os casos de servidor. Pagamentos, webhooks, chaves administrativas e integrações com terceiros continuam exigindo um ambiente que o usuário não controla.
+
+<Mermaid title="Responsabilidades entre navegador, Supabase e Edge Function">
+{`
+flowchart TD
+  Browser["Navegador<br/>anon key"] --> RLS["Database API<br/>respeita RLS"]
+  Browser --> Fn["Edge Function<br/>segredos no ambiente"]
+  Fn --> External["API externa<br/>token privado"]
+  Fn --> Admin["Supabase Admin<br/>service role protegida"]
+  RLS --> DB[(PostgreSQL)]
+  Admin --> DB
+`}
+</Mermaid>
+
+A regra prática é simples: se a operação usa a `service_role`, cobra dinheiro, chama uma API privada ou decide algo que o usuário não pode alterar, ela não pertence ao front-end.
+
+<Aside type="danger" title="A chave service_role nunca vai para o bundle">
+  A chave `service_role` ignora RLS. Publicá-la em uma variável `VITE_` ou em código entregue ao navegador dá acesso administrativo ao projeto inteiro. Use uma função ou back-end próprio para qualquer operação que precise dela.
+</Aside>
+
+## Função SQL, RLS ou Edge Function?
+
+Essas três ferramentas parecem resolver "regra de negócio", mas vivem em lugares diferentes. A tabela abaixo ajuda a escolher sem transformar tudo em função:
+
+| Necessidade | Melhor lugar | Motivo |
+| --- | --- | --- |
+| Restringir linhas por dono | **RLS** | A política acompanha qualquer acesso à tabela. |
+| Agregação ou transação dentro do banco | **Função SQL** | Os dados já estão no PostgreSQL e a operação precisa ser atômica. |
+| Webhook de pagamento | **Edge Function** | A requisição vem de fora e precisa validar assinatura. |
+| Chamar API externa com segredo | **Edge Function** | O token privado fica em variável de ambiente do servidor. |
+| API extensa com muitas rotas | **Back-end próprio** | Camadas, testes e observabilidade ficam mais claros em um serviço dedicado. |
+
+## Executando
+
+Um fluxo seguro de Edge Function começa pela fronteira da operação, não pelo código:
+
+<Steps>
+1. Liste quais dados chegam do cliente e quais segredos a função precisa ler do ambiente.
+2. Defina se a função usará a chave `anon`, respeitando RLS, ou a `service_role`, assumindo responsabilidade administrativa.
+3. Valide método HTTP, origem, payload e identidade antes de tocar no banco.
+4. Faça a integração externa ou a escrita administrativa.
+5. Retorne apenas o resultado necessário para a interface continuar o fluxo.
+</Steps>
+
+## Exercício
+
+Analise uma aplicação que precisa gerar uma cobrança e gravar o status no banco:
+
+1. Por que o token do provedor de pagamento não pode ficar no front-end?
+2. Qual parte dessa regra ainda deve ficar no PostgreSQL mesmo usando Edge Function?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O token de pagamento permite criar ou consultar cobranças e seria legível no bundle do navegador. Mesmo com função, o banco deve manter restrições de integridade, como dono da cobrança, status válidos e vínculo com o usuário, para que a persistência não dependa só do caminho feliz da função.
+</details>
+
+## Desafio
+
+Desenhe uma Edge Function para receber webhook de pagamento. Ela deve validar a assinatura do provedor, localizar o usuário ou pedido, atualizar o status no PostgreSQL e devolver uma resposta que permita ao provedor repetir a chamada em caso de falha.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A função deve rejeitar método errado, ler o corpo bruto, validar a assinatura com segredo do ambiente, buscar o pedido por identificador externo, aplicar atualização idempotente e devolver `200` apenas depois da escrita confirmada. Se a escrita falhar, a resposta deve ser `500` para permitir nova tentativa do provedor.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que Edge Function não substitui automaticamente RLS?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a função é só mais um ponto de entrada. Se ela usa acesso administrativo, passa a ter obrigação de validar a autorização que o RLS faria no acesso direto.
+   </details>
+
+2. **Quando uma função SQL é melhor do que uma Edge Function?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando a operação acontece inteiramente dentro do PostgreSQL, precisa de transação e não depende de API externa nem de segredo fora do banco.
+   </details>
+
+## Referências
+
+- [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
+- [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+## Próximo tópico
+
+[Firebase](../../firebase/): visão geral da plataforma BaaS do Google.

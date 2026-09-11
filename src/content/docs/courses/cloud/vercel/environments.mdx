@@ -1,0 +1,155 @@
+---
+title: "Nuvem: Vercel Ambientes e Variáveis"
+description: "Guia de ambientes na Vercel: local, preview, produção, variáveis públicas e privadas, segredos, configuração por branch e riscos de vazamento no front-end."
+course: cloud
+sidebar:
+  label: "Ambientes e variáveis"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+**Ambientes** separam versões da aplicação que rodam com configurações diferentes. Na Vercel, local, preview e produção podem ter variáveis próprias, domínios próprios e serviços de dados diferentes.
+
+## Objetivo
+
+Compreender ambientes como fronteira de segurança e validação, para impedir que previews usem dados reais ou que segredos privados virem JavaScript público. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar ambiente local, preview e produção.
+- Separar variável pública de variável privada.
+- Explicar por que prefixos como `VITE_` e `NEXT_PUBLIC_` expõem valores.
+- Planejar bancos, buckets e tokens diferentes por ambiente.
+- Revisar uma configuração antes de abrir preview para terceiros.
+
+## Modelo Mental
+
+O mesmo código pode rodar com configurações diferentes. O ambiente decide para onde apontam banco, API, BaaS, domínio e tokens.
+
+<Mermaid title="Ambientes e variáveis em um projeto Vercel">
+{`
+flowchart TD
+  Code["Mesmo código"] --> Local["Local<br/>.env.local"]
+  Code --> Preview["Preview<br/>branch ou PR"]
+  Code --> Prod["Produção<br/>domínio principal"]
+  Local --> DevDB["Banco de desenvolvimento"]
+  Preview --> TestDB["Banco de teste"]
+  Prod --> RealDB["Banco real"]
+`}
+</Mermaid>
+
+Essa separação evita um erro clássico: testar uma tela em preview e escrever no banco de produção sem perceber.
+
+## Recursos Principais
+
+Ambientes resolvem configuração, segurança e fluxo de revisão ao mesmo tempo.
+
+| Recurso | O que resolve | Cuidado |
+| --- | --- | --- |
+| **Local** | Desenvolvimento na máquina. | Não versionar `.env.local`. |
+| **Preview** | Revisão por branch ou pull request. | Não apontar para dados reais sem necessidade. |
+| **Production** | URL usada por usuários reais. | Mudança de variável pode quebrar sem alterar código. |
+| **Variável pública** | Configuração embutida no bundle. | Não colocar segredo sob prefixo público. |
+| **Variável privada** | Segredo lido por função ou build. | Build-time ainda pode embutir valor se usado no front-end. |
+
+## Pequenos Trechos
+
+Em Vite, `VITE_` significa "expor ao código do navegador". Isso é adequado para URL pública e chave anon, mas não para tokens administrativos:
+
+```txt title="Variáveis públicas de front-end"
+VITE_SUPABASE_URL=https://projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=publica_por_natureza
+```
+
+Variáveis privadas pertencem a funções, scripts de build ou código server-side:
+
+```txt title="Variáveis privadas de servidor"
+QUOTE_API_KEY=token_privado
+SUPABASE_SERVICE_ROLE_KEY=nunca_no_frontend
+```
+
+O código do front-end só deve ler variáveis públicas:
+
+```js title="Uso seguro no cliente Vite"
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+```
+
+<Aside type="danger" title="Prefixo público não perdoa segredo">
+  Se uma variável `VITE_` ou `NEXT_PUBLIC_` recebe token privado, ela entra no bundle. Não importa que o valor esteja fora do Git: ele será servido ao navegador.
+</Aside>
+
+## Aplicações
+
+Ambientes são especialmente importantes quando a plataforma cria previews automaticamente. Cada preview precisa funcionar sem colocar produção em risco.
+
+| Aplicação | Configuração saudável | Risco evitado |
+| --- | --- | --- |
+| Preview de pull request | Banco ou projeto BaaS de teste. | Escrever dados falsos em produção. |
+| Função com API paga | Token privado só no ambiente necessário. | Gasto indevido em previews públicos. |
+| App com Supabase | `anon key` pública e RLS ativa. | Confundir chave pública com autorização. |
+| Build estático | Variáveis públicas revisadas antes do build. | Site publicado apontando para API errada. |
+
+## Quando Usar, e Quando Não Usar?
+
+Use ambientes separados sempre que houver dados reais, tokens pagos ou revisão externa. Para protótipos pequenos, ainda vale separar pelo menos variáveis públicas e privadas.
+
+| Cenário | Estratégia | Por quê |
+| --- | --- | --- |
+| Projeto didático local | **`.env.local` e preview simples** | Baixo risco, mas segredo continua fora do Git. |
+| App com usuários reais | **Preview e produção separados** | Teste não toca dado real. |
+| API paga por uso | **Token privado por ambiente** | Evita custo acidental. |
+| Valor que muda por tela | **Não usar variável de ambiente** | Variável é configuração de deploy, não estado da aplicação. |
+
+## Executando
+
+Antes de compartilhar uma URL de preview, revise a configuração:
+
+<Steps>
+1. Liste todas as variáveis usadas pelo projeto.
+2. Classifique cada uma como pública ou privada.
+3. Confira se preview e produção apontam para serviços adequados.
+4. Rode o fluxo principal no preview.
+5. Remova variáveis antigas que não são mais lidas pelo código.
+</Steps>
+
+## Exercício
+
+Por que `VITE_SUPABASE_ANON_KEY` pode ser pública, mas `SUPABASE_SERVICE_ROLE_KEY` não pode?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A anon key é pública por natureza e respeita RLS. A service role ignora RLS e tem privilégio administrativo, então precisa ficar apenas no servidor.
+</details>
+
+## Desafio
+
+Desenhe os ambientes de uma turma que publica previews do InvestApp Cloud. Defina bancos, chaves públicas e tokens privados para local, preview e produção.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Local usa projeto de desenvolvimento. Preview usa projeto de teste com dados descartáveis. Produção usa projeto real. Chaves públicas podem ir ao front-end em cada ambiente; tokens privados ficam apenas nas funções correspondentes.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que preview deve ter variáveis próprias?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para testar mudanças com serviços adequados à revisão, sem alterar dados ou custos de produção.
+   </details>
+
+2. **O que torna uma variável pública em um front-end Vite?**
+   <details>
+     <summary>Possível resposta</summary>
+     O prefixo `VITE_`, que permite ao Vite embutir o valor no JavaScript servido ao navegador.
+   </details>
+
+## Referências
+
+- [Vercel Environment Variables](https://vercel.com/docs/environment-variables)
+- [Vercel Environments](https://vercel.com/docs/deployments/environments)
+
+## Próximo tópico
+
+[Netlify](../../netlify/): outra plataforma de publicação, deploy previews, functions e recursos de site.

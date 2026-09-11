@@ -1,0 +1,121 @@
+---
+title: "Nuvem: Cloud Storage for Firebase"
+description: "Armazenamento de arquivos no Firebase: buckets do Cloud Storage, referências, upload, download URLs, regras de segurança e relação com Auth e Firestore."
+course: cloud
+sidebar:
+  label: "Cloud Storage"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Cloud Storage for Firebase** guarda arquivos enviados por usuários, como avatares, fotos, vídeos e documentos. Ele usa a infraestrutura do Google Cloud Storage, mas expõe SDKs e regras de segurança pensadas para aplicações cliente.
+
+## Objetivo
+
+Compreender como arquivos entram em uma arquitetura Firebase, separando bytes, metadados e regras de acesso para não transformar o Firestore em depósito de imagens. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar documento do Firestore e objeto do Storage.
+- Planejar caminhos de arquivo que permitam regras por usuário.
+- Explicar o papel de download URLs e regras de segurança.
+- Decidir quando metadados devem ficar no Firestore.
+- Relacionar `request.auth.uid` às permissões de leitura e escrita.
+
+## Arquivos Fora do Documento
+
+O Firestore guarda dados estruturados. O Storage guarda objetos binários. Em uma aplicação real, os dois trabalham juntos: o arquivo fica no bucket, e o documento guarda o caminho, o dono e as informações pesquisáveis.
+
+<Mermaid title="Arquivo no Storage e metadados no Firestore">
+{`
+flowchart TD
+  User["Usuário autenticado"] --> App["Aplicação web"]
+  App --> Storage["Cloud Storage<br/>avatars/{uid}.png"]
+  App --> Firestore["Firestore<br/>profiles/{uid}"]
+  Firestore --> Metadata["Campos<br/>displayName, avatarPath"]
+  Storage --> Object["Objeto binário<br/>imagem"]
+  Metadata -. "referencia" .-> Object
+`}
+</Mermaid>
+
+Essa separação permite listar perfis sem baixar imagens, validar posse pelo caminho e trocar o arquivo sem reescrever o documento inteiro.
+
+## Regras de Segurança
+
+As regras de Storage usam a mesma identidade emitida pelo Firebase Auth. O ponto crítico é que o caminho do arquivo precisa carregar a informação que a regra consegue verificar.
+
+| Caminho | Regra possível | Uso típico |
+| --- | --- | --- |
+| `avatars/{uid}.png` | Comparar `{uid}` com `request.auth.uid` | Avatar por usuário. |
+| `receipts/{uid}/{fileId}.pdf` | Restringir pasta do usuário autenticado | Comprovantes privados. |
+| `public/{fileName}` | Leitura pública e escrita restrita | Assets enviados por administradores. |
+
+<Aside type="caution" title="Dica de IA: Não aceite upload sem regra negativa">
+  Código gerado para Storage costuma funcionar no modo de teste e falhar silenciosamente como arquitetura. O teste decisivo é tentar ler ou sobrescrever um arquivo cujo caminho pertence a outro `uid`.
+
+  **Prompt:** *"Escreva as regras do Firebase Storage para `receipts/{uid}/{fileId}` e mostre um teste no emulador em que o usuário `ana` tenta ler um arquivo de `bia` e recebe permissão negada."*
+</Aside>
+
+## Quando Usar
+
+O Storage entra quando o dado é arquivo. Quando a aplicação precisa buscar, filtrar ou agregar, o metadado correspondente deve estar em documento.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Avatar ou imagem de perfil | **Storage + caminho no Firestore** | O arquivo é entregue como bytes, e o perfil só aponta para ele. |
+| Documento privado | **Storage com regras por `uid`** | O acesso depende da identidade autenticada. |
+| Texto pesquisável | **Firestore** | Consulta e índice pertencem ao banco de documentos. |
+| Arquivo gerado por processamento | **Storage + Cloud Functions** | Uma função pode criar miniaturas ou validar conteúdo depois do upload. |
+
+## Executando
+
+Um fluxo mínimo de upload seguro passa por configuração, regra e metadado:
+
+<Steps>
+1. Ative o Cloud Storage no projeto Firebase.
+2. Escolha caminhos que incluam o `uid` ou a entidade dona do arquivo.
+3. Escreva regras de leitura e escrita antes de ligar a tela de upload.
+4. Faça o upload pelo SDK e grave no Firestore apenas o caminho e os metadados.
+5. Teste acesso permitido e negado no emulador ou no painel de regras.
+</Steps>
+
+## Exercício
+
+Explique por que `receipts/{uid}/{fileId}.pdf` é um caminho mais seguro do que `receipts/{fileId}.pdf` para comprovantes privados.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O primeiro caminho expõe o dono diretamente para a regra, que pode comparar `{uid}` com `request.auth.uid`. No segundo, a regra precisaria consultar outro lugar para descobrir o dono do arquivo.
+</details>
+
+## Desafio
+
+Modele o upload de avatar de um perfil: defina caminho, documento do Firestore, regra de escrita e regra de leitura.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um modelo simples usa `avatars/{uid}.png`, grava `avatarPath` em `profiles/{uid}` e permite escrita apenas quando `request.auth.uid == uid`. A leitura pode ser pública se o avatar aparecer em telas públicas, ou restrita ao usuário autenticado se o perfil for privado.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que o arquivo não deve ficar dentro de um documento do Firestore?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque arquivos são objetos binários grandes, enquanto documentos são dados estruturados e consultáveis. Misturar os dois aumenta custo, tráfego e complexidade.
+   </details>
+
+2. **Qual identidade as regras do Storage usam para autorizar acesso?**
+   <details>
+     <summary>Possível resposta</summary>
+     Elas usam a identidade do Firebase Auth, acessada nas regras por `request.auth.uid`.
+   </details>
+
+## Referências
+
+- [Cloud Storage for Firebase](https://firebase.google.com/docs/storage)
+- [Firebase Security Rules](https://firebase.google.com/docs/rules)
+
+## Próximo tópico
+
+[Cloud Functions](../functions/): código serverless conectado aos eventos do Firebase.

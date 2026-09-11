@@ -1,0 +1,162 @@
+---
+title: "Nuvem: Netlify Data e Storage"
+description: "Dados e storage no Netlify: Blobs, Database, Cache API, Image CDN e critérios para combinar a plataforma com BaaS ou back-end próprio."
+course: cloud
+sidebar:
+  label: "Data e Storage"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+**Data e Storage** no Netlify reúne recursos para persistir, transformar ou entregar dados próximos da aplicação publicada. A plataforma oferece peças úteis, como Blobs, Database, cache e Image CDN, mas muitos produtos continuam precisando de um BaaS, banco gerenciado ou API própria.
+
+## Objetivo
+
+Compreender quais problemas de dados o Netlify resolve diretamente e quais devem ficar em serviços especializados. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar arquivos, cache, banco relacional e dados de domínio.
+- Reconhecer bons usos para Netlify Blobs.
+- Entender quando Netlify Database ou um banco externo faz sentido.
+- Separar assets públicos de dados protegidos por usuário.
+- Planejar integração com Supabase, Firebase ou uma API própria.
+
+## Tipos de Dados
+
+Nem todo dado tem o mesmo ciclo de vida. Um avatar, um cache de resposta, uma inscrição de formulário e uma transação financeira pedem soluções diferentes.
+
+<Mermaid title="Escolha de persistência por tipo de dado">
+{`
+flowchart TD
+  Need["O que precisa persistir?"] --> Static["Asset público<br/>CDN ou Image CDN"]
+  Need --> Blob["Objeto ou arquivo simples<br/>Netlify Blobs"]
+  Need --> Relational["Entidade consultável<br/>Database ou banco externo"]
+  Need --> AuthData["Dados por usuário<br/>BaaS ou API com auth"]
+  Need --> Cache["Resposta temporária<br/>Cache"]
+`}
+</Mermaid>
+
+Antes de escolher ferramenta, pergunte quem pode ler, quem pode escrever, por quanto tempo o dado vive e se ele participa de regra de negócio.
+
+## Recursos da Plataforma
+
+O Netlify oferece opções para persistência e entrega, mas cada uma tem um formato de problema mais natural.
+
+| Recurso | O que resolve | Bom para | Atenção |
+| --- | --- | --- | --- |
+| **Blobs** | Armazenamento de objetos associado ao projeto. | Arquivos pequenos, snapshots, dados simples de integração. | Não substitui modelagem relacional complexa. |
+| **Database** | Banco gerenciado integrado ao fluxo da plataforma. | Protótipos e aplicações que precisam de consultas estruturadas. | Avalie limites, migração e portabilidade. |
+| **Cache API** | Armazenamento temporário de respostas. | Reduzir chamadas repetidas em funções ou borda. | Cache inválido pode servir dado velho. |
+| **Image CDN** | Otimização e entrega de imagens. | Redimensionamento e entrega de assets visuais. | Não resolve permissão de arquivos privados sozinho. |
+| **BaaS externo** | Dados, auth, storage e regras de domínio. | Supabase, Firebase e back-ends existentes. | A integração exige variáveis e política de segurança corretas. |
+
+## Netlify Blobs
+
+Blobs são úteis quando a aplicação precisa guardar objetos simples sem criar um banco completo. Um caso comum é persistir resultado de uma integração, cache semântico ou pequenos arquivos gerados por função.
+
+```js
+import { getStore } from '@netlify/blobs';
+
+export default async () => {
+  const store = getStore('reports');
+
+  await store.setJSON('daily-summary', {
+    generatedAt: new Date().toISOString(),
+    total: 42,
+  });
+
+  const summary = await store.get('daily-summary', { type: 'json' });
+
+  return Response.json(summary);
+};
+```
+
+Use esse padrão para objetos sem muita relação entre si. Quando o produto precisa consultar por usuário, filtrar por múltiplos campos, aplicar transações ou auditar mudanças, um banco modelado costuma ser mais adequado.
+
+## Banco, BaaS ou API Própria?
+
+Escolha dados pela regra de negócio, não pela plataforma de deploy.
+
+| Necessidade | Caminho provável | Exemplo |
+| --- | --- | --- |
+| Página estática com conteúdo gerado no build | Arquivos e CDN | Documentação, blog, catálogo. |
+| Pequeno objeto gerado por Function | Netlify Blobs | Resultado de importação, snapshot, cache persistente. |
+| Formulário simples | Netlify Forms | Contato, inscrição, pesquisa. |
+| Dados por usuário com auth e permissões | Supabase ou Firebase | Carteira de investimentos, perfil, preferências. |
+| Regra de domínio extensa | API própria | Transações, auditoria, filas, integrações críticas. |
+
+<Aside type="tip" title="No InvestApp, dados financeiros pedem modelo explícito">
+  Carteiras, ativos, lançamentos e permissões por usuário não devem ser tratados como arquivos soltos. Para esse domínio, use Supabase, Firebase ou uma API própria com banco, autenticação e regras de autorização claras.
+</Aside>
+
+## Cache e Imagens
+
+Cache e Image CDN pertencem à camada de entrega. Eles melhoram performance, mas não são substitutos de persistência de domínio.
+
+| Recurso | Use para | Não use para |
+| --- | --- | --- |
+| **Cache** | Respostas derivadas, chamadas caras e dados temporários. | Estado canônico da aplicação. |
+| **Image CDN** | Servir imagens redimensionadas e otimizadas. | Controle de permissão de arquivos privados. |
+| **CDN de assets** | JS, CSS, fontes e imagens públicas versionadas. | Dados sensíveis ou personalizados por usuário. |
+
+## Executando
+
+Projete dados começando pelo ciclo de vida e pela permissão.
+
+<Steps>
+1. Liste quais dados são públicos, privados, temporários e permanentes.
+2. Separe assets estáticos de dados de usuário.
+3. Escolha Forms para submissão simples e Blobs para objeto simples.
+4. Escolha BaaS ou banco quando houver consulta, auth ou regra de domínio.
+5. Use Functions para acessar segredos e integrar serviços externos.
+6. Defina estratégia de cache só depois de saber qual é o dado canônico.
+</Steps>
+
+## Exercício
+
+Por que um blob não é uma boa representação para uma carteira de investimentos completa?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a carteira precisa de consultas, permissões por usuário, histórico, consistência e regras de domínio. Um blob pode guardar um objeto simples, mas não substitui um modelo de dados com relações e autorização.
+</details>
+
+## Desafio
+
+Classifique os dados do InvestApp entre CDN, Blobs, Forms, BaaS e API própria: logotipo, formulário de interesse, carteira do usuário, cotação em cache e relatório exportado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Logotipo vai para CDN de assets. Formulário de interesse pode usar Forms. Carteira do usuário deve ficar em BaaS ou API própria com auth. Cotação temporária pode usar cache. Relatório exportado pode usar Blobs ou storage de BaaS, dependendo de permissão e retenção.
+</details>
+
+## Perguntas de revisão
+
+1. **Qual pergunta vem antes de escolher storage?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quem lê, quem escreve, por quanto tempo o dado vive e se ele participa de regra de negócio.
+   </details>
+
+2. **Quando usar Netlify Blobs?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o projeto precisa guardar objetos simples, snapshots ou dados auxiliares sem modelagem relacional complexa.
+   </details>
+
+3. **Por que cache não é dado canônico?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque cache pode expirar, ficar desatualizado ou ser invalidado. O estado verdadeiro precisa estar em uma fonte persistente e confiável.
+   </details>
+
+## Referências
+
+- [Netlify Blobs](https://docs.netlify.com/blobs/overview/)
+- [Netlify Database](https://docs.netlify.com/storage/database/overview/)
+- [Netlify Image CDN](https://docs.netlify.com/image-cdn/overview/)
+
+## Próximo tópico
+
+[Hospedagem Estática](../../hosting/static-hosting/): comparação prática entre plataformas de publicação.

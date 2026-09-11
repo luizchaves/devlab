@@ -1,0 +1,158 @@
+---
+title: "Nuvem: Netlify Functions"
+description: "Funções no Netlify: rotas serverless, webhooks, variáveis privadas, integração com front-end e limites de uso como back-end principal."
+course: cloud
+sidebar:
+  label: "Netlify Functions"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+As **Netlify Functions** executam código serverless junto de um site publicado. Elas são úteis para pequenas APIs, webhooks, integrações com segredo e automações que não cabem no front-end.
+
+## Objetivo
+
+Compreender como Functions complementam um front-end publicado no Netlify, separando código público, variáveis privadas e execução no servidor. Ao final do tópico, o leitor deve ser capaz de:
+
+- Identificar quando uma rota precisa de Function.
+- Explicar onde vivem as variáveis privadas.
+- Projetar respostas HTTP previsíveis.
+- Diferenciar Function, Edge Function e back-end dedicado.
+- Reconhecer quando uma API cresceu além do modelo serverless simples.
+
+## Função Como Borda Privada
+
+Uma Function recebe uma requisição HTTP, lê variáveis privadas no ambiente do servidor e devolve uma resposta para o front-end. O navegador nunca deve receber tokens de serviço, chaves secretas ou credenciais de provedores pagos.
+
+<Mermaid title="Function protegendo uma integração externa">
+{`
+flowchart TD
+  Browser["Navegador"] --> Function["Netlify Function"]
+  Function --> Env["Variáveis privadas"]
+  Function --> Provider["Serviço externo"]
+  Provider --> Function
+  Function --> Browser
+`}
+</Mermaid>
+
+Esse padrão é útil quando o front-end precisa chamar um serviço que exige segredo. A função age como uma pequena camada de servidor, não como substituto automático para toda a arquitetura da aplicação.
+
+## Estrutura de Resposta
+
+Uma Function deve tratar método, entrada, autenticação e erro externo de forma explícita. O trecho abaixo mostra o formato mental de uma função curta.
+
+```js
+export default async (request) => {
+  if (request.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
+  const token = process.env.EMAIL_PROVIDER_TOKEN;
+  if (!token) {
+    return Response.json({ error: 'Missing server configuration' }, { status: 500 });
+  }
+
+  const payload = await request.json();
+  if (!payload.email) {
+    return Response.json({ error: 'Email is required' }, { status: 400 });
+  }
+
+  return Response.json({ status: 'queued' }, { status: 202 });
+};
+```
+
+O importante não é decorar a sintaxe de uma versão específica da plataforma, mas enxergar o contrato: entrada validada, segredo no servidor, status adequado e JSON previsível.
+
+<Aside type="caution" title="Dica de IA: Peça o contrato de erro">
+  Código gerado para funções costuma tratar apenas o caminho feliz. Para uma rota pequena ser confiável, ela precisa responder método inválido, JSON inválido, variável de ambiente ausente e falha do provedor externo com mensagens e status diferentes.
+</Aside>
+
+## Casos de Uso
+
+Functions cabem bem como complemento de um front-end. Elas deixam de ser confortáveis quando viram a aplicação inteira.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Webhook de formulário ou pagamento | **Function** | A validação roda no servidor e pode assinar respostas. |
+| Chave privada de serviço externo | **Function** | O token não entra no bundle público. |
+| Transformação curta de dados | **Function** | Evita manter um servidor só para uma rota pequena. |
+| API com domínio extenso | **Back-end próprio** | Camadas, testes, filas e observabilidade ficam mais organizados. |
+| Decisão por região ou autenticação leve antes da resposta | **Edge Function** | A lógica roda mais perto do usuário e antes da origem. |
+
+## Boas Práticas
+
+Uma Function pequena não dispensa arquitetura. Ela só reduz a quantidade de infraestrutura que precisa ser mantida.
+
+| Prática | Motivo |
+| --- | --- |
+| Aceitar métodos explícitos | Evita comportamento acidental para `GET`, `POST` e `OPTIONS`. |
+| Validar JSON e campos obrigatórios | Impede que payload quebrado chegue ao provedor externo. |
+| Retornar status HTTP correto | Facilita tratamento no front-end e depuração. |
+| Separar segredo público de segredo privado | Evita vazamento de credenciais no bundle. |
+| Registrar erro sem expor segredo | Ajuda suporte sem entregar dados sensíveis ao cliente. |
+
+## Quando Não Usar
+
+O modelo serverless é ruim quando a função precisa manter processo vivo, compartilhar estado em memória, executar trabalhos longos ou coordenar domínio complexo. Nesses casos, uma API Express, Fastify, NestJS ou um serviço dedicado costuma dar mais controle.
+
+## Executando
+
+Crie Functions como contratos pequenos e testáveis.
+
+<Steps>
+1. Defina rota, método e formato da resposta.
+2. Liste as variáveis privadas necessárias.
+3. Valide entrada antes de chamar serviços externos.
+4. Devolva status e JSON consistentes.
+5. Teste a função no deploy preview.
+6. Monitore logs antes de promover mudanças sensíveis para produção.
+</Steps>
+
+## Exercício
+
+Por que uma Function é melhor do que chamar diretamente uma API paga a partir do front-end?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a chave da API paga fica no ambiente do servidor. O front-end recebe apenas o resultado, sem acesso ao token que gera custo ou permite abuso.
+</details>
+
+## Desafio
+
+Planeje uma Function do Netlify para receber contato do InvestApp e enviar e-mail. Inclua método, validação, variáveis privadas e respostas de erro.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A função aceita apenas `POST`, valida nome, e-mail e mensagem, lê o token do provedor de e-mail no ambiente, envia a mensagem e devolve `202`. Método errado recebe `405`, JSON inválido recebe `400`, variável ausente recebe `500` e falha do provedor recebe `502`.
+</details>
+
+## Perguntas de revisão
+
+1. **Onde uma Netlify Function deve guardar token de API externa?**
+   <details>
+     <summary>Possível resposta</summary>
+     Em variável de ambiente privada da plataforma, acessada apenas durante a execução da função.
+   </details>
+
+2. **Quando uma Function deixa de ser a melhor solução?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando a API cresce muito, precisa de processos longos, filas, estado compartilhado complexo ou observabilidade mais robusta.
+   </details>
+
+3. **Por que status HTTP consistente importa?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o front-end consegue diferenciar erro de validação, método inválido, falha do servidor e falha de provedor externo sem depender de texto solto.
+   </details>
+
+## Referências
+
+- [Netlify Functions](https://docs.netlify.com/build/functions/overview/)
+- [Netlify environment variables](https://docs.netlify.com/environment-variables/overview/)
+
+## Próximo tópico
+
+[Netlify Edge Functions](../edge-functions/): lógica de baixa latência antes da resposta final.

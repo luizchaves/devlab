@@ -1,0 +1,174 @@
+---
+title: "Nuvem: Vercel Functions"
+description: "Guia de Vercel Functions: rotas server-side sob demanda, Fluid compute, Edge Runtime, variáveis privadas, webhooks, conexão com banco e limites."
+course: cloud
+sidebar:
+  label: "Vercel Functions"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+As **Vercel Functions** executam código server-side sob demanda dentro de um projeto Vercel. Elas servem para rotas dinâmicas, webhooks, operações com segredo, chamadas a APIs externas e trabalho de I/O que não deve acontecer no navegador.
+
+## Objetivo
+
+Compreender funções como uma camada de servidor pontual, diferenciando runtime, estado, segredo, conexão com banco e custo de execução. Ao final do tópico, o leitor deve ser capaz de:
+
+- Identificar quando uma rota precisa de função em vez de arquivo estático.
+- Diferenciar runtime Node.js, Edge Runtime e middleware de roteamento.
+- Proteger variáveis privadas e evitar vazamento para o bundle.
+- Planejar conexão com banco, timeout, cache e resposta de erro.
+- Reconhecer quando uma API cresceu além do modelo de funções isoladas.
+
+## Modelo Mental
+
+Uma função fica entre o navegador e o recurso confiável. O navegador chama uma rota do seu domínio; a função valida entrada, lê segredos do ambiente, chama serviços externos ou banco e devolve uma resposta pequena.
+
+<Mermaid title="Função Vercel protegendo uma operação com segredo">
+{`
+flowchart TD
+  Browser["Navegador<br/>sem segredo"] --> Route["/api/quote"]
+  Route --> Function["Vercel Function"]
+  Function --> Env["Variável privada<br/>QUOTE_API_KEY"]
+  Function --> Provider["API externa"]
+  Function --> Cache["Cache opcional"]
+  Provider --> Function
+  Function --> Browser
+`}
+</Mermaid>
+
+Esse desenho não transforma toda regra em função. CRUD direto com Supabase e RLS pode continuar no cliente. Cobrança, webhook e chave privada precisam sair dele.
+
+## Runtimes e Escopo
+
+Nem todo código server-side na Vercel roda no mesmo ambiente. A escolha do runtime afeta APIs disponíveis, latência, dependências e compatibilidade.
+
+| Opção | Onde roda melhor | Cuidado |
+| --- | --- | --- |
+| **Node.js Function** | Bibliotecas Node, SDKs de banco, APIs com I/O e pacotes npm comuns. | Partida a frio, tempo de execução e conexões precisam ser planejados. |
+| **Edge Runtime** | Lógica curta perto do usuário, personalização e baixa latência. | Não oferece todas as APIs do Node nem pacotes nativos. |
+| **Routing Middleware** | Reescrever, redirecionar ou bloquear antes de completar a requisição. | Deve ser curto e não virar API de domínio. |
+| **Cron Jobs** | Chamadas agendadas a rotas de função. | Tarefa longa ou pesada pede fila ou worker dedicado. |
+
+## Pequenos Trechos
+
+A função abaixo demonstra o contrato mínimo: valida método, lê uma variável privada e devolve JSON. O segredo nunca entra no JavaScript do front-end:
+
+```js title="Função HTTP com variável privada"
+export async function GET(request) {
+  const symbol = new URL(request.url).searchParams.get('symbol');
+
+  if (!symbol) {
+    return Response.json({ error: 'Informe o ativo.' }, { status: 400 });
+  }
+
+  const token = process.env.QUOTE_API_KEY;
+
+  if (!token) {
+    return Response.json({ error: 'Serviço indisponível.' }, { status: 503 });
+  }
+
+  return Response.json({ symbol, provider: 'external-api' });
+}
+```
+
+Uma função que recebe webhook precisa validar a assinatura antes de confiar no corpo:
+
+```js title="Esqueleto de webhook"
+export async function POST(request) {
+  const signature = request.headers.get('x-provider-signature');
+  const body = await request.text();
+
+  if (!isValidSignature(body, signature, process.env.WEBHOOK_SECRET)) {
+    return Response.json({ error: 'Assinatura inválida.' }, { status: 401 });
+  }
+
+  await processWebhook(body);
+  return Response.json({ received: true });
+}
+```
+
+<Aside type="caution" title="Dica de IA: Peça runtime, timeout e contrato de erro">
+  Código gerado para serverless costuma tratar apenas o caminho feliz. Uma função publicável precisa dizer em qual runtime roda, quais variáveis usa, quais erros retorna e o que acontece quando o provedor externo falha.
+
+  **Prompt:** *"Revise esta Vercel Function e acrescente runtime esperado, validação de método, erro para variável ausente, timeout do provedor e respostas JSON estáveis para `400`, `401`, `502` e `503`."*
+</Aside>
+
+## Aplicações
+
+Funções funcionam melhor quando resolvem uma fronteira estreita de confiança. Elas ficam desconfortáveis quando viram todo o back-end de domínio sem organização.
+
+| Aplicação | Como a Function ajuda | Limite |
+| --- | --- | --- |
+| Chamar API paga | Protege o token no servidor. | Precisa rate limit e cache para controlar custo. |
+| Receber webhook | Valida assinatura e idempotência. | Eventos repetidos precisam ser previstos. |
+| Gerar conteúdo sob demanda | Executa I/O e devolve resposta dinâmica. | Resposta lenta degrada a experiência. |
+| Conectar banco relacional | Usa SDK e variável privada. | Muitas instâncias podem pressionar conexões. |
+| API completa | Pode funcionar em projetos pequenos. | Muitas rotas pedem arquitetura de back-end mais explícita. |
+
+## Quando Usar, e Quando Não Usar?
+
+Use Functions quando uma parte pequena da aplicação precisa de servidor. Evite para processos longos, filas complexas, estado em memória, conexão persistente pesada ou regras de domínio que se espalham por dezenas de arquivos.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Segredo de provedor externo | **Vercel Function** | O token fica no ambiente server-side. |
+| CRUD protegido por RLS | **Supabase Client direto** | A política do banco já é a barreira correta. |
+| Processamento em lote demorado | **Worker ou fila dedicada** | Função HTTP tem limite de execução e expectativa de resposta. |
+| API com muitas camadas | **Back-end próprio** | Testes, middlewares e observabilidade ficam mais claros. |
+
+## Executando
+
+Ao adicionar uma função em uma aplicação publicada, siga esta ordem:
+
+<Steps>
+1. Declare qual operação não pode rodar no navegador.
+2. Defina runtime, método HTTP e contrato de entrada.
+3. Cadastre variáveis privadas apenas no ambiente necessário.
+4. Trate falhas de validação, segredo ausente e serviço externo indisponível.
+5. Teste no preview antes de apontar produção para a versão nova.
+</Steps>
+
+## Exercício
+
+Por que uma função que apenas repassa uma chamada externa ainda precisa validar entrada e limitar custo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque a URL da função é pública para quem usa o site. Sem validação e controle de uso, qualquer pessoa pode gerar chamadas inválidas ou consumir a cota do provedor externo usando o seu token.
+</details>
+
+## Desafio
+
+Planeje uma função `/api/quote` para o InvestApp Cloud. Ela deve aceitar `symbol`, proteger a chave do provedor, lidar com erro externo e evitar que a mesma cotação seja buscada a cada recarregamento.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A função valida `symbol`, lê `QUOTE_API_KEY`, consulta o provedor com timeout, devolve `502` em falha externa e aplica cache curto por ativo. O front-end recebe preço e data da consulta, nunca a chave.
+</details>
+
+## Perguntas de revisão
+
+1. **Quando uma Vercel Function é melhor do que código no front-end?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando a operação usa segredo, valida webhook, chama API paga ou precisa executar uma decisão que o usuário não pode alterar.
+   </details>
+
+2. **Por que runtime importa ao escrever uma função?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque Node.js e Edge Runtime não oferecem as mesmas APIs, dependências e limites de execução.
+   </details>
+
+## Referências
+
+- [Vercel Functions](https://vercel.com/docs/functions)
+- [Vercel Fluid Compute](https://vercel.com/docs/functions/fluid-compute)
+- [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)
+
+## Próximo tópico
+
+[CDN e Edge Network](../cdn/): cache, entrega global e invalidação de respostas.

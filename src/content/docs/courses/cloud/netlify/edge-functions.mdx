@@ -1,0 +1,137 @@
+---
+title: "Nuvem: Netlify Edge Functions"
+description: "Edge Functions no Netlify: lógica executada na borda para personalização, redirects dinâmicos, autenticação leve e decisões antes da origem."
+course: cloud
+sidebar:
+  label: "Edge Functions"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+As **Netlify Edge Functions** executam lógica perto do usuário, antes da resposta final ser entregue. Elas servem para decisões rápidas de rota, personalização, autenticação leve, testes A/B e ajustes de resposta que se beneficiam de baixa latência.
+
+## Objetivo
+
+Compreender quando uma Edge Function é melhor do que uma Function tradicional, distinguindo lógica de borda, lógica serverless e lógica de aplicação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o papel da borda na entrega de uma aplicação web.
+- Escolher entre Redirects, Edge Functions e Functions.
+- Identificar bons usos para personalização e roteamento dinâmico.
+- Reconhecer limites de runtime e dependências.
+- Planejar uma regra de borda sem acoplar domínio complexo à CDN.
+
+## Onde a Borda Entra
+
+Uma Edge Function roda no caminho entre o usuário e a origem. Ela pode decidir redirecionar, reescrever, adicionar headers, bloquear uma requisição ou escolher uma variante antes que o restante da aplicação precise responder.
+
+<Mermaid title="Edge Function antes da origem">
+{`
+flowchart LR
+  User["Usuário"] --> Edge["Edge Function"]
+  Edge --> CDN["CDN"]
+  Edge --> Origin["Origem ou Function"]
+  Edge --> Redirect["Redirect dinâmico"]
+`}
+</Mermaid>
+
+Use esse recurso quando a decisão depende da requisição atual e precisa acontecer cedo. Se a regra é estática, um redirect versionado costuma ser mais simples.
+
+## Functions ou Edge Functions?
+
+A diferença principal não é apenas sintaxe. É o tipo de decisão que precisa ser tomada.
+
+| Necessidade | Melhor escolha | Motivo |
+| --- | --- | --- |
+| Redirecionar `/old` para `/new` sempre | **Redirect** | Regra estática, simples e barata. |
+| Escolher variante por país, cookie ou header | **Edge Function** | A decisão acontece antes da resposta e perto do usuário. |
+| Chamar API externa com segredo e validar payload | **Function** | A lógica é mais parecida com endpoint de servidor. |
+| Executar domínio complexo com banco e várias camadas | **Back-end próprio** | A borda não deve virar camada de negócio pesada. |
+
+## Exemplos de Aplicação
+
+Edge Functions são boas quando a resposta muda por contexto, mas o custo de ir até uma origem completa seria alto.
+
+| Aplicação | O que a Edge Function faz | Cuidado |
+| --- | --- | --- |
+| Teste A/B | Lê cookie e escolhe variante. | Registre a escolha para manter consistência. |
+| Internacionalização | Direciona usuário para locale apropriado. | Ofereça opção manual e preserve preferências. |
+| Proteção de área | Bloqueia ou redireciona sem carregar a aplicação toda. | Não substitua regras fortes no back-end. |
+| Campanhas | Reescreve URL para uma página específica. | Evite regras difíceis de rastrear. |
+
+## Trecho Mínimo
+
+Uma Edge Function deve ser pequena e previsível. O exemplo abaixo mostra uma decisão por header de país, usando fallback quando o header não existe.
+
+```js
+export default async (request, context) => {
+  const country = context.geo?.country?.code ?? 'BR';
+
+  if (country !== 'BR') {
+    return Response.redirect(new URL('/en/', request.url), 302);
+  }
+
+  return context.next();
+};
+```
+
+Esse tipo de lógica pertence à borda porque não precisa consultar banco nem montar uma resposta complexa. Ela apenas decide para onde a requisição deve seguir.
+
+<Aside type="caution" title="Não coloque regra de negócio pesada na borda">
+  Edge Functions são excelentes para decisões rápidas. Quando a regra precisa de transação, consulta complexa, biblioteca pesada ou auditoria detalhada, prefira uma Function comum ou um back-end próprio.
+</Aside>
+
+## Executando
+
+Planeje Edge Functions começando pela pergunta que precisa ser respondida antes da origem.
+
+<Steps>
+1. Defina qual decisão depende da requisição atual.
+2. Verifique se a regra poderia ser um redirect estático.
+3. Liste headers, cookies ou dados de contexto necessários.
+4. Mantenha a função pequena e sem dependências pesadas.
+5. Teste preview, produção e fallback para contexto ausente.
+6. Documente por que a regra está na borda.
+</Steps>
+
+## Exercício
+
+Quando um redirect estático é melhor do que uma Edge Function?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando a regra não depende de cookie, header, país, sessão ou outro dado da requisição. Redirecionar sempre de uma URL para outra é mais simples com redirects versionados.
+</details>
+
+## Desafio
+
+Planeje uma Edge Function para enviar usuários não autenticados de `/app/*` para `/login`. Indique quais riscos ainda precisam ser tratados fora da borda.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A Edge Function pode verificar um cookie de sessão e redirecionar quem não tem sessão aparente. O back-end ou BaaS ainda precisa validar o token de verdade, aplicar regras de autorização e proteger dados contra requisições diretas.
+</details>
+
+## Perguntas de revisão
+
+1. **Qual é a vantagem de executar lógica na borda?**
+   <details>
+     <summary>Possível resposta</summary>
+     A decisão acontece perto do usuário e antes da origem, reduzindo latência para roteamento, bloqueio ou personalização leve.
+   </details>
+
+2. **Por que Edge Function não deve substituir autorização no banco?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ela pode ajudar no fluxo de navegação, mas a proteção real dos dados precisa estar no serviço que lê e grava esses dados.
+   </details>
+
+## Referências
+
+- [Netlify Edge Functions](https://docs.netlify.com/build/edge-functions/overview/)
+- [Netlify Edge Functions API](https://docs.netlify.com/build/edge-functions/api/)
+
+## Próximo tópico
+
+[Netlify Forms](../forms/): captura de submissões sem criar uma API própria.

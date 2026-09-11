@@ -1,0 +1,162 @@
+---
+title: "Nuvem: Vercel CDN e Edge Network"
+description: "Guia da CDN da Vercel: entrega global, cache de assets, cache de respostas, revalidação, headers, rotas estáticas e efeitos na publicação."
+course: cloud
+sidebar:
+  label: "CDN e Edge Network"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A **CDN da Vercel** entrega arquivos e respostas cacheáveis a partir de pontos próximos ao usuário. Ela reduz latência, absorve tráfego repetido e muda a forma como o desenvolvedor pensa sobre atualização de conteúdo.
+
+## Objetivo
+
+Compreender CDN como parte da arquitetura da aplicação, não apenas como aceleração automática, para decidir o que pode ser cacheado, quando revalidar e como depurar conteúdo aparentemente desatualizado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar cache de asset, cache de página e cache de resposta dinâmica.
+- Explicar por que arquivos com hash podem ter cache longo.
+- Reconhecer o papel de headers como `Cache-Control`.
+- Planejar invalidação e revalidação sem reconstruir tudo.
+- Decidir quando uma resposta não deve ser cacheada.
+
+## Modelo Mental
+
+O navegador raramente precisa falar com a origem para cada arquivo. A CDN guarda cópias de respostas perto dos usuários e entrega essas cópias enquanto a política de cache permitir.
+
+<Mermaid title="Entrega de conteúdo pela CDN da Vercel">
+{`
+flowchart TD
+  User["Navegador"] --> Edge["Ponto da CDN<br/>perto do usuário"]
+  Edge -->|"cache hit"| User
+  Edge -->|"cache miss"| Origin["Deployment Vercel<br/>arquivos ou função"]
+  Origin --> Edge
+  Edge --> User
+`}
+</Mermaid>
+
+O ganho vem do *cache hit*. O risco vem de cachear o que não deveria ou esperar atualização imediata de uma resposta que foi declarada como reaproveitável.
+
+## Recursos Principais
+
+A CDN aparece de formas diferentes conforme o tipo de resposta. A tabela abaixo separa os casos mais comuns em aplicações web:
+
+| Resposta | Estratégia comum | Cuidado |
+| --- | --- | --- |
+| **Asset com hash** | Cache longo, porque o nome muda quando o conteúdo muda. | Nunca referencie asset gerado por nome fixo. |
+| **`index.html` de SPA** | Cache curto ou revalidação frequente. | HTML antigo pode apontar para bundle inexistente se a política for errada. |
+| **Imagem otimizada** | Transformação e entrega em formato adequado. | URL, tamanho e formato influenciam cache. |
+| **Resposta de função** | Cache explícito apenas quando o conteúdo permite. | Dados por usuário não devem ser cacheados publicamente. |
+| **Página estática gerada** | Cache eficiente por deployment. | Conteúdo editorial pode precisar revalidação. |
+
+## Pequenos Trechos
+
+O Vite gera assets com hash no nome. Isso permite cache longo para arquivos imutáveis:
+
+```txt title="Exemplo de asset versionado"
+/assets/index-C56ycdGA.js
+/assets/index-hrm3bI7s.css
+```
+
+Uma função pode declarar cache para uma resposta pública e curta, como uma cotação atrasada ou conteúdo de catálogo:
+
+```js title="Resposta pública com cache curto"
+return Response.json(data, {
+  headers: {
+    'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+  },
+});
+```
+
+Já uma resposta por usuário precisa evitar cache compartilhado:
+
+```js title="Resposta privada sem cache compartilhado"
+return Response.json(portfolio, {
+  headers: {
+    'Cache-Control': 'private, no-store',
+  },
+});
+```
+
+<Aside type="caution" title="Dica de IA: Pergunte quem pode receber a resposta cacheada">
+  Assistentes costumam adicionar `s-maxage` para melhorar desempenho sem perguntar se a resposta contém dados de usuário. Cache compartilhado é excelente para catálogo público e perigoso para carteira privada.
+
+  **Prompt:** *"Classifique cada rota deste app como pública, privada ou por usuário; para cada uma, proponha `Cache-Control` e explique o risco de cache compartilhado."*
+</Aside>
+
+## Aplicações
+
+CDN não é apenas desempenho. Ela define como a aplicação lida com versões, rollbacks, conteúdo estático e picos de tráfego.
+
+| Aplicação | Como a CDN ajuda | Limite |
+| --- | --- | --- |
+| Site institucional | Entrega global com cache agressivo. | Conteúdo muito frequente precisa estratégia de atualização. |
+| SPA Vite | Assets versionados ficam baratos de servir. | Rewrites e `index.html` exigem cuidado. |
+| Catálogo público | Função pode cachear resposta por alguns segundos. | Estoque ou preço em tempo real talvez não possam esperar. |
+| Dashboard privado | CDN serve o app, mas dados vêm sem cache compartilhado. | Dados do usuário dependem de BaaS ou API autenticada. |
+
+## Quando Usar, e Quando Não Usar?
+
+Use cache de CDN para conteúdo público, estático ou derivado de forma segura. Não use cache compartilhado para respostas personalizadas por usuário, dados sensíveis, autorização ou operações de escrita.
+
+| Cenário | Estratégia | Por quê |
+| --- | --- | --- |
+| JavaScript e CSS gerados com hash | **Cache longo** | O nome muda quando o conteúdo muda. |
+| HTML principal de SPA | **Cache curto** | Precisa apontar para a versão atual dos assets. |
+| Dados públicos que mudam pouco | **Cache com revalidação** | Reduz custo sem congelar indefinidamente. |
+| Carteira do usuário logado | **Sem cache compartilhado** | Dados privados não podem vazar entre usuários. |
+
+## Executando
+
+Para revisar cache em uma publicação, siga o comportamento no navegador:
+
+<Steps>
+1. Abra a aba de rede e confira quais arquivos vêm de cache.
+2. Verifique se assets com hash recebem política longa.
+3. Confirme se `index.html` e rotas privadas não estão com cache público agressivo.
+4. Teste rollback ou novo deployment para ver se o HTML aponta para assets válidos.
+5. Documente a política de cache junto da rota ou função que a define.
+</Steps>
+
+## Exercício
+
+Por que `index.html` e `/assets/index-C56ycdGA.js` não devem necessariamente ter a mesma política de cache?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O asset tem hash no nome e pode ser cacheado por muito tempo. O `index.html` mantém o nome estável e aponta para a versão atual dos assets, então precisa atualizar com mais facilidade.
+</details>
+
+## Desafio
+
+Classifique três rotas do InvestApp Cloud quanto a cache: `/`, `/assets/app.js` e `/api/portfolio`. Justifique cada política.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `/assets/app.js` com hash recebe cache longo. `/` recebe cache curto ou revalidação. `/api/portfolio` é privada por usuário e deve evitar cache compartilhado, usando autenticação e `no-store`.
+</details>
+
+## Perguntas de revisão
+
+1. **O que é cache hit?**
+   <details>
+     <summary>Possível resposta</summary>
+     É quando a CDN já tem uma cópia válida da resposta e consegue entregá-la sem consultar a origem.
+   </details>
+
+2. **Por que cache compartilhado é perigoso em respostas autenticadas?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a resposta de um usuário pode ser reutilizada para outro se a política não separar conteúdo privado de conteúdo público.
+   </details>
+
+## Referências
+
+- [Vercel CDN](https://vercel.com/docs/cdn)
+- [Vercel Headers](https://vercel.com/docs/headers)
+
+## Próximo tópico
+
+[Storage e Marketplace](../storage/): onde guardar arquivos, banco, cache e serviços conectados.

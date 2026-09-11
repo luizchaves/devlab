@@ -1,321 +1,167 @@
 ---
 title: "Nuvem: Cloud Firestore"
-description: "Banco de dados NoSQL flexível e escalável na nuvem com o Firebase Cloud Firestore: coleções, documentos, consultas e operações CRUD."
+description: "Guia do Cloud Firestore: banco de documentos do Firebase, coleções, documentos, subcoleções, consultas, índices, Security Rules, tempo real, offline e limites do modelo NoSQL."
 course: cloud
 sidebar:
   label: "Cloud Firestore"
 ---
 import { Aside, Steps } from '@astrojs/starlight/components';
-import FileTree from '@components/FileTree.astro';
-import SourceCode from '@components/SourceCode.astro';
 import Mermaid from '@components/Mermaid.astro';
-import PackageManagerTabs from '@components/PackageManagerTabs.astro';
 
-O **Cloud Firestore** é o banco de dados NoSQL orientado a documentos do **Google Firebase**. Projetado para armazenar e sincronizar dados entre aplicações cliente e servidor em tempo real, o Firestore organiza os dados em **coleções** que contêm **documentos**, com suporte a consultas ricas, transações e regras de segurança na nuvem.
+O **Cloud Firestore** é o banco de dados de documentos do Firebase. Ele organiza dados em coleções e documentos, sincroniza mudanças em tempo real, oferece cache offline nos SDKs e protege acesso por *Security Rules*.
 
 ## Objetivo
 
-Compreender o modelo de coleções e documentos do Cloud Firestore e traduzi-lo em um módulo de serviço que a aplicação consome, do `addDoc` que cria o documento ao `where` que filtra a consulta, reconhecendo onde esse modelo difere de uma tabela relacional. Ao final do tópico, o leitor deve ser capaz de:
+Compreender o Firestore como banco orientado ao formato de leitura da aplicação, não como uma tabela SQL com sintaxe diferente, para modelar dados, consultas e regras sem depender de gambiarras no cliente. Ao final do tópico, o leitor deve ser capaz de:
 
-- Descrever a hierarquia de coleções, documentos e subcoleções do Firestore.
-- Inicializar o SDK do Firebase a partir de variáveis de ambiente do projeto.
-- Implementar as quatro operações com `addDoc`, `getDocs`, `updateDoc` e `deleteDoc`.
-- Compor consultas filtradas com `query()` e `where()` e reconhecer seus limites.
-- Explicar por que o identificador do documento vive fora dos dados e precisa ser reunido a eles na leitura.
+- Diferenciar coleção, documento e subcoleção.
+- Explicar por que o `id` do documento fica fora dos dados.
+- Planejar consultas a partir das telas que a aplicação precisa carregar.
+- Relacionar índices e *Security Rules* ao desenho dos caminhos.
+- Reconhecer quando um banco relacional é uma escolha melhor.
 
----
+## Modelo Mental
 
-## Modelo de Dados NoSQL do Firestore
+No Firestore, um documento é a unidade de leitura, escrita e cobrança. Coleções agrupam documentos, e subcoleções criam novos agrupamentos abaixo de um documento.
 
-Diferente dos bancos relacionais (SQL), o Firestore não utiliza tabelas ou linhas. Os dados são organizados em **Coleções** que abrigam **Documentos** em formato similar a JSON:
-
-<Mermaid title="Estrutura Hierárquica do Cloud Firestore (Coleção > Documento)">
+<Mermaid title="Modelo de coleções e documentos no Cloud Firestore">
 {`
 flowchart TD
-  Col["Coleção 'investments'"] --> Doc1["Documento 'doc_abc123'"]
-  Col --> Doc2["Documento 'doc_xyz789'"]
-  
-  subgraph Doc1Content["Campos do Documento"]
-    F1["name: 'Tesouro Selic'"]
-    F2["value: 10000"]
-    F3["category: 'Pós'"]
-  end
-  
-  Doc1 --- Doc1Content
+  Users["coleção users"] --> Ana["documento users/ana"]
+  Ana --> Profile["campos<br/>name, email"]
+  Ana --> Investments["subcoleção investments"]
+  Investments --> Asset["documento investments/asset-1"]
+  Asset --> Fields["campos<br/>name, amount, category"]
 `}
 </Mermaid>
 
----
+Esse modelo incentiva desenhar o dado pela tela que será lida. Se a tela precisa listar todos os investimentos do usuário, faz sentido que o caminho ou o campo de dono torne essa consulta direta.
 
-## 1. Inicializando o Firebase no Projeto
+## Recursos Principais
 
-Acesse o [Firebase Console](https://console.firebase.google.com/), crie um projeto e adicione um aplicativo Web para obter as credenciais de configuração:
+O Firestore combina banco de documentos, consultas indexadas, sincronização e regras declarativas. A tabela abaixo mostra como esses recursos afetam arquitetura:
 
-<PackageManagerTabs package="firebase" />
+| Recurso | O que resolve | Cuidado |
+| --- | --- | --- |
+| **Coleções e documentos** | Estrutura flexível em JSON | Flexível não significa sem modelagem. |
+| **Subcoleções** | Dados naturalmente pertencentes a um documento | Consultas globais ficam menos diretas. |
+| **Consultas indexadas** | Filtros e ordenação previsíveis | Algumas combinações exigem índice composto. |
+| **Listeners em tempo real** | Atualização automática da interface | É preciso carregar estado inicial e lidar com reconexão. |
+| **Cache offline** | Uso temporário sem rede | Conflitos e sincronização continuam sendo decisões do app. |
+| **Security Rules** | Autorização no serviço | Regra permissiva expõe dados direto pelo SDK. |
 
-### Inicializando a Aplicação (`services/api.js`)
+## Pequenos Trechos
 
-O arquivo de configuração faz duas coisas: monta o objeto de credenciais a partir das variáveis de ambiente e exporta a instância `db`, que todos os módulos de serviço importam:
+A leitura de uma coleção usa funções do SDK modular. O `id` precisa ser reunido aos campos porque ele pertence ao caminho do documento:
 
-<SourceCode path="examples/courses/cloud/firebase-firestore/invest-app/js/services/api.js" title="js/services/api.js" />
+```js title="Leitura de documentos com id"
+const snapshot = await getDocs(collection(db, 'investments'));
 
-### Variáveis de Ambiente (`.env.example`)
-
-As credenciais do aplicativo Firebase devem ser armazenadas em um arquivo `.env`:
-
-```ini title="invest-app/.env.example"
-VITE_APP_APIKEY=
-VITE_APP_AUTHDOAMIN=
-VITE_APP_PROJECTID=
-VITE_APP_STORAGEBUCKET=
-VITE_APP_MESSAGINGSENDERID=
-VITE_APP_APPID=
-VITE_APP_MEASUREMENTID=
+const investments = snapshot.docs.map((item) => ({
+  id: item.id,
+  ...item.data(),
+}));
 ```
 
----
+Uma consulta filtrada deve nascer de uma pergunta de tela. O exemplo abaixo lista investimentos de um usuário em uma categoria específica:
 
-## 2. Estrutura do Projeto `Invest-app` (Firestore)
-
-A aplicação `Invest-app` organiza a comunicação com o Firestore no módulo de serviço `services/storage.js`:
-
-<FileTree>
-{`
-invest-app/
-├── css/
-│   └── style.css
-├── js/
-│   ├── components/
-│   │   ├── InvestmentCard.js
-│   │   ├── InvestmentForm.js
-│   │   └── Modal.js
-│   ├── lib/
-│   │   ├── dom.js
-│   │   ├── format.js
-│   │   └── investments.js
-│   ├── services/
-│   │   ├── api.js
-│   │   └── storage.js
-│   └── main.js
-├── public/
-│   └── vite.svg
-├── .env.example
-├── .gitignore
-├── index.html
-├── package-lock.json
-├── package.json
-├── postcss.config.js
-└── tailwind.config.js
-`}
-</FileTree>
-
----
-
-## 3. Implementando Operações CRUD (`js/services/storage.js`)
-
-O módulo de serviço concentra o acesso ao banco. Ele importa do `firebase/firestore` apenas as funções que usa, um hábito que o SDK modular do Firebase recompensa: o que não é importado fica fora do pacote final. A linha 11 traz o `db` já inicializado no arquivo anterior:
-
-<SourceCode path="examples/courses/cloud/firebase-firestore/invest-app/js/services/storage.js" lines="1-11" />
-
-As quatro funções exportadas dão à aplicação um vocabulário próprio, independente do Firestore:
-
-```js title="Esboço das operações do módulo"
-async function create(resource, data) {}
-async function read(resource, filter, value) {}
-async function update(resource, data) {}
-async function remove(resource, id) {}
-
-export default { create, read, update, remove };
+```js title="Consulta por dono e categoria"
+const q = query(
+  collection(db, 'investments'),
+  where('user_id', '==', user.uid),
+  where('category', '==', 'Renda Fixa')
+);
 ```
 
----
+As regras de segurança precisam expressar a mesma posse no serviço, e não apenas na interface:
 
-### Criar um Documento (`create`)
+```txt title="Security Rule por dono do documento"
+match /investments/{investmentId} {
+  allow read, update, delete: if request.auth != null
+    && request.auth.uid == resource.data.user_id;
 
-O `addDoc` insere o documento e deixa o Firestore gerar o identificador. Repare na linha 14: uma data precisa virar objeto `Date` antes de ser gravada, porque o SDK a converte em *Timestamp*, e uma string ficaria armazenada como texto. Como o `id` só existe depois da escrita, a linha 20 o reúne aos dados para devolver o registro completo:
-
-<SourceCode path="examples/courses/cloud/firebase-firestore/invest-app/js/services/storage.js" lines="13-21" mark={[14, 20]} />
-
-A chamada a partir da aplicação envia apenas o nome da coleção e o objeto:
-
-```js title="Exemplo de chamada para criar investimento"
-import API from './services/storage.js';
-
-const investment = {
-  name: 'Tesouro Selic 2029',
-  value: 10000,
-  origin: 'Tesouro Direto',
-  category: 'Pós',
-  interest: '100% Selic',
-  created_at: '2021-09-10T00:00:00-03:00',
-};
-
-await API.create('investments', investment);
+  allow create: if request.auth != null
+    && request.auth.uid == request.resource.data.user_id;
+}
 ```
 
----
+<Aside type="caution" title="Dica de IA: Firestore não faz junção escondida">
+  Assistentes costumam traduzir uma consulta SQL para várias leituras no cliente e chamar isso de solução. Funciona com poucos documentos, mas muda custo, latência e consistência.
 
-### Ler e Filtrar Documentos (`read`)
-
-A mesma função atende à listagem e à consulta filtrada. O filtro é montado na linha 31 com `query()` e `where()`, e não na URL como no PostgREST. A linha 38 é a que mais revela o modelo do Firestore: o identificador não faz parte dos dados do documento, então precisa ser reunido a eles a cada leitura:
-
-<SourceCode path="examples/courses/cloud/firebase-firestore/invest-app/js/services/storage.js" lines="23-41" mark={[31, 38]} />
-
-Do lado de quem chama, a diferença entre listar tudo e filtrar é a presença dos dois últimos argumentos:
-
-```js title="Exemplo de busca de investimentos"
-import API from './services/storage.js';
-
-// Busca todos os investimentos
-const todos = await API.read('investments');
-
-// Busca investimentos filtrados pela categoria 'Pós'
-const pos = await API.read('investments', 'category', 'Pós');
-```
-
-<Aside type="caution" title="Dica de IA: Confirme se a consulta sugerida existe no Firestore">
-  Consultas que um banco relacional resolve sem esforço não têm equivalente aqui, e assistentes preenchem a lacuna com código plausível: `where` com `OR` entre campos diferentes, `like` para busca textual, ou ordenação por um campo enquanto se filtra por outro sem o índice composto correspondente. O erro só aparece em tempo de execução, quando o Firestore recusa a consulta.
-
-  **Prompt:** *"Para a coleção `investments` com os campos `category`, `value` e `created_at`, liste quais destas consultas o Firestore aceita sem índice composto, quais exigem índice e quais são impossíveis; para as impossíveis, mostre como reorganizar os dados."*
+  **Prompt:** *"Para esta tela de carteira, conte quantos documentos o Firestore precisa ler, diga quais dados devem ser desnormalizados e indique quais consultas exigem índice composto."*
 </Aside>
 
----
+## Aplicações
 
-### Atualizar um Documento (`update`)
+O Firestore favorece aplicações em que a tela lê documentos previsíveis, usuários editam dados ao vivo e o offline importa. Ele é menos confortável para relatórios, junções e exploração ad hoc.
 
-O `updateDoc` precisa de uma referência direta ao documento, construída na linha 46 a partir da coleção e do `id`. Diferente do `setDoc`, ele mescla os campos enviados com os que já existem, em vez de substituir o documento inteiro:
+| Aplicação | Como Firestore ajuda | Limite |
+| --- | --- | --- |
+| App móvel com offline | SDK mantém cache e sincroniza depois. | Conflitos precisam de regra clara. |
+| Quadro colaborativo ou painel ao vivo | Listeners atualizam a tela. | Eventos não substituem modelagem. |
+| CRUD simples por usuário | Documento por item e regra por dono. | Relatórios agregados ficam caros. |
+| Busca e analytics | **Melhor usar serviço dedicado** | Firestore não é motor de busca textual nem banco analítico. |
 
-<SourceCode path="examples/courses/cloud/firebase-firestore/invest-app/js/services/storage.js" lines="43-51" mark={[46]} />
+## Quando Usar, e Quando Não Usar?
 
-A chamada envia o `id` dentro do próprio objeto de dados:
-
-```js title="Exemplo de atualização de investimento"
-import API from './services/storage.js';
-
-await API.update('investments', { id: 'ID_DO_DOCUMENTO', value: 15000 });
-```
-
----
-
-### Remover um Documento (`remove`)
-
-A remoção segue o mesmo par de passos: montar a referência e aplicar a operação. O `deleteDoc` não devolve o documento apagado, e apagar algo inexistente não é erro:
-
-<SourceCode path="examples/courses/cloud/firebase-firestore/invest-app/js/services/storage.js" lines="53-59" />
-
-Da aplicação, basta a coleção e o identificador:
-
-```js title="Exemplo de remoção de investimento"
-import API from './services/storage.js';
-
-await API.remove('investments', 'ID_DO_DOCUMENTO');
-```
-
----
-
-## Quando usar, e quando não usar?
-
-O Firestore é excelente no que foi projetado para fazer, e desconfortável fora disso. Ele foi desenhado para leituras rápidas e previsíveis de dados moldados pela tela que os exibe, com sincronização entre dispositivos. Consultas exploratórias, relatórios e agregações não são o seu terreno.
-
-A tabela abaixo confronta cada necessidade com a opção que a atende melhor:
+Use Firestore quando o dado acompanha telas, documentos e sincronização. Prefira banco relacional quando o sistema depende de relações fortes, agregações frequentes, joins, relatórios ou migração simples para outra infraestrutura.
 
 | Cenário | Escolha | Por quê |
 | --- | --- | --- |
-| Dados que precisam aparecer ao vivo em várias telas | **Firestore** | O `onSnapshot` entrega as mudanças sem polling nem servidor de WebSocket. |
-| Aplicativo que precisa funcionar sem conexão | **Firestore** | O SDK mantém cache local e sincroniza quando a rede volta. |
-| Consultas que cruzam entidades, agregam ou somam | **[Supabase](../../supabase/)** ou outro banco relacional | Junções e agregações são nativas em SQL e custosas de emular em documentos. |
-| Busca textual dentro do conteúdo dos documentos | **Serviço de busca dedicado** | O Firestore não indexa texto livre; só compara valores. |
-| Relatório sobre um volume grande de registros | **Exportar para um banco analítico** | A cobrança é por documento lido, o que torna varreduras caras. |
-| Migração futura para outra infraestrutura | **Banco relacional gerenciado** | O export do Firestore é proprietário e exige conversão antes de virar tabelas. |
-
----
+| Dados lidos por documento ou coleção pequena | **Firestore** | A leitura é direta e previsível. |
+| Uso offline e atualização ao vivo | **Firestore** | O SDK já oferece esses recursos. |
+| Carteira com agregações e relatórios SQL | **Supabase ou PostgreSQL** | Junções e somatórios são nativos no relacional. |
+| Busca textual rica | **Serviço de busca** | Firestore filtra campos, mas não substitui busca full-text. |
 
 ## Executando
 
-Os passos abaixo levam da criação do projeto no console à primeira escrita salva na nuvem:
+O passo a passo com arquivos reais fica na trilha prática:
 
 <Steps>
-1. Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
-2. Ative o **Cloud Firestore** no modo de teste (*Test Mode*).
-3. Preencha as chaves no arquivo `.env` da sua aplicação front-end.
-4. Execute o projeto com `npm run dev` e interaja com a interface para salvar e ler dados em tempo real.
+1. Leia este guia para entender modelo, consulta e regra.
+2. Abra [InvestApp Cloud: Firebase Firestore](../../practice/investapp/firebase-firestore/) para ver a implementação aplicada.
+3. Volte para [Firebase Auth](../auth/) e [Cloud Storage](../storage/) quando precisar de identidade e arquivos.
 </Steps>
-
----
 
 ## Exercício
 
-Responda a partir do módulo `storage.js` desta página e do modelo de coleções e documentos:
-
-1. Qual a diferença fundamental entre uma coleção (*Collection*) e um documento (*Document*) no Cloud Firestore?
-2. Qual função do SDK do Firestore é utilizada para criar uma referência apontando para um documento específico através do seu `id`?
+Explique a diferença entre guardar investimentos em `investments/{id}` com campo `user_id` e em `users/{uid}/investments/{id}`.
 
 <details>
   <summary>Possível resposta</summary>
 
-  1. Uma **Coleção** é um contêiner de documentos (similar a uma tabela). Um **Documento** é a unidade individual que armazena os dados em pares chave/valor (similar a um objeto JSON).
-
-  2. A função `doc(db, nomeColecao, idDocumento)`.
+  A coleção global facilita consultas administrativas, mas exige regras por campo `user_id`. A subcoleção coloca o dono no caminho, simplificando regras por usuário, mas torna consultas globais mais específicas.
 </details>
-
----
 
 ## Desafio
 
-A função `read` desta página traz a coleção inteira a cada chamada, e cada documento devolvido é cobrado. Reescreva a leitura para paginar os resultados com `orderBy`, `limit` e `startAfter`, mantendo a assinatura simples para quem chama.
-
-Além da paginação, resolva um problema que o modelo de documentos impõe: a tela precisa mostrar o total de investimentos por categoria, e percorrer todos os documentos para contar é justamente o que se quer evitar. Descreva a estratégia e o preço que ela cobra.
+Modele a tela "minha carteira" do InvestApp no Firestore. Defina caminho, campos mínimos, regra de segurança e uma consulta principal.
 
 <details>
   <summary>Possível resposta</summary>
 
-  A paginação do Firestore é por cursor, não por deslocamento: não existe "pule 200 registros", existe "continue a partir deste documento". Quem chama guarda o último documento da página anterior e o devolve na chamada seguinte:
-
-  ```js title="Esboço da leitura paginada"
-  async function readPage(resource, { pageSize = 10, cursor } = {}) {
-    const colRef = collection(db, resource);
-    const constraints = [orderBy('created_at', 'desc'), limit(pageSize)];
-
-    if (cursor) {
-      constraints.push(startAfter(cursor));
-    }
-
-    const snapshot = await getDocs(query(colRef, ...constraints));
-    const items = snapshot.docs.map((docRef) => ({ ...docRef.data(), id: docRef.id }));
-
-    return { items, cursor: snapshot.docs.at(-1) ?? null };
-  }
-  ```
-
-  Para o total por categoria há dois caminhos. O `getCountFromServer()` conta sem transferir os documentos e é o mais simples, embora ainda cobre pela contagem. O caminho tradicional é manter um documento de contadores atualizado a cada escrita, com `increment()`, dentro de uma transação ou de uma *Cloud Function*. O preço é a consistência: o contador pode divergir se uma escrita falhar depois da outra, e reconciliá-lo exige justamente a varredura que ele foi criado para evitar.
+  Uma opção é `users/{uid}/investments/{investmentId}` com campos `name`, `amount`, `category`, `created_at` e `updated_at`. A regra compara `{uid}` com `request.auth.uid`, e a consulta lê a subcoleção do usuário ordenada por `created_at`.
 </details>
-
----
 
 ## Perguntas de revisão
 
-1. **O que acontece se usarmos `addDoc` em vez de `setDoc` para inserir dados no Firestore?**
+1. **Qual é a unidade de leitura e cobrança no Firestore?**
    <details>
      <summary>Possível resposta</summary>
-     O `addDoc` gera automaticamente um ID alfanumérico único para o novo documento, enquanto o `setDoc` exige que você forneça um ID manualmente.
+     O documento. Consultas que retornam muitos documentos geram muitas leituras.
    </details>
 
-2. **Como obter atualizações em tempo real do banco de dados sempre que um documento for alterado por outro usuário?**
+2. **Por que Security Rules são parte da arquitetura, não detalhe de console?**
    <details>
      <summary>Possível resposta</summary>
-     Utilizando a função `onSnapshot(docRef, (doc) => { ... })` em vez de `getDocs()`.
+     Porque o cliente fala diretamente com o serviço. As regras são a barreira que impede leitura e escrita indevidas.
    </details>
-
----
 
 ## Referências
 
-- [Firebase Cloud Firestore Docs](https://firebase.google.com/docs/firestore)
-- [Firestore: Get Data with Queries](https://firebase.google.com/docs/firestore/query-data/get-data)
-- [Firestore: Add and Manage Data](https://firebase.google.com/docs/firestore/manage-data/add-data)
-
----
+- [Cloud Firestore](https://firebase.google.com/docs/firestore)
+- [Cloud Firestore Security Rules](https://firebase.google.com/docs/firestore/security/get-started)
 
 ## Próximo tópico
 
-[Firebase Auth](../auth/): Autenticação de usuários, login e controle de acesso com o Firebase Auth.
+[Firebase Auth](../auth/): identidade, sessão e regras baseadas em `request.auth.uid`.

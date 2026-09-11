@@ -1,0 +1,130 @@
+---
+title: "Nuvem: Supabase Realtime"
+description: "Eventos em tempo real no Supabase: canais WebSocket, mudanças do PostgreSQL, broadcast, presence e limites de sincronização em aplicações web."
+course: cloud
+sidebar:
+  label: "Supabase Realtime"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **Supabase Realtime** permite que uma aplicação receba eventos sem recarregar a página. Ele pode publicar mudanças em tabelas do PostgreSQL, mensagens de broadcast e estado de presença, sempre por canais WebSocket.
+
+## Objetivo
+
+Compreender quando o Supabase Realtime substitui polling e quando ele apenas cria complexidade, relacionando mudanças no banco, canais, presença e atualização de interface. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a diferença entre consultar dados e assinar mudanças.
+- Diferenciar eventos de tabela, broadcast e presence.
+- Reconhecer que Realtime não substitui autorização nem validação de escrita.
+- Planejar atualização otimista e reconciliação quando eventos chegam fora de ordem.
+- Decidir quando polling simples é suficiente.
+
+## Consulta Não é Assinatura
+
+Uma consulta lê o estado atual. Uma assinatura mantém um canal aberto para avisar que algo mudou depois daquela leitura. Aplicações em tempo real normalmente usam os dois: carregam o estado inicial por consulta e aplicam eventos incrementais depois.
+
+<Mermaid title="Estado inicial e eventos incrementais com Supabase Realtime">
+{`
+sequenceDiagram
+  participant Browser as Navegador
+  participant API as Database API
+  participant RT as Realtime
+  participant DB as PostgreSQL
+  Browser->>API: select inicial
+  API->>DB: consulta linhas permitidas
+  DB-->>Browser: estado inicial
+  Browser->>RT: subscribe no canal
+  DB-->>RT: INSERT ou UPDATE
+  RT-->>Browser: evento incremental
+`}
+</Mermaid>
+
+O detalhe importante é que a assinatura não transforma o front-end em fonte de verdade. A gravação ainda precisa passar pelo banco, pela política RLS e pelas validações da aplicação.
+
+## Tipos de Canal
+
+O Realtime reúne recursos diferentes sob o mesmo mecanismo de canal. A tabela abaixo separa cada uso para evitar que tudo vire "WebSocket" no vocabulário do projeto:
+
+| Recurso | O que envia | Aplicação típica |
+| --- | --- | --- |
+| **Postgres Changes** | `INSERT`, `UPDATE` e `DELETE` de tabelas publicadas | Atualizar listas e painéis quando dados persistidos mudam. |
+| **Broadcast** | Mensagens temporárias entre clientes | Evento de interface, como "usuário começou a editar". |
+| **Presence** | Estado dos participantes de um canal | Lista de usuários online ou cursores colaborativos. |
+
+Eventos persistidos e eventos temporários têm regras diferentes. Se a informação precisa sobreviver ao recarregamento da página, ela pertence ao banco. Se ela só faz sentido naquele instante, um broadcast pode bastar.
+
+<Aside type="caution" title="Dica de IA: Peça o estado inicial antes do canal">
+  Código gerado para Realtime costuma abrir `subscribe()` e esquecer o `select` inicial. A tela fica vazia até alguém alterar um registro, porque eventos futuros não carregam o histórico.
+
+  **Prompt:** *"Reescreva este fluxo para primeiro carregar `investments` com `select`, depois assinar apenas eventos novos do canal, e mostre como reconciliar um `UPDATE` recebido para um item que já está na lista."*
+</Aside>
+
+## Quando Usar
+
+Tempo real é caro cognitivamente. Ele compensa quando a ausência do evento prejudica a experiência, não apenas porque a plataforma oferece o recurso.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Painel compartilhado que vários usuários editam | **Realtime** | O atraso de atualização causa conflito visível. |
+| Notificação de mudança rara | **Polling leve ou invalidação manual** | Manter WebSocket aberto pode ser excesso. |
+| Chat, presença ou colaboração | **Broadcast e Presence** | O evento temporário é mais importante que uma consulta periódica. |
+| Relatório administrativo lido uma vez ao dia | **Consulta comum** | O custo mental de sincronizar eventos não se paga. |
+
+## Executando
+
+Antes de escrever o primeiro `subscribe`, siga uma ordem que deixa o comportamento observável:
+
+<Steps>
+1. Carregue o estado inicial por uma consulta comum.
+2. Habilite a publicação da tabela que deve emitir eventos.
+3. Abra o canal e registre handlers separados para `INSERT`, `UPDATE` e `DELETE`.
+4. Atualize a estrutura local sem recarregar a página inteira.
+5. Simule eventos em duas abas para conferir duplicação, ordem e remoção.
+</Steps>
+
+## Exercício
+
+Responda a partir do fluxo deste tópico:
+
+1. Por que uma assinatura Realtime não substitui a consulta inicial?
+2. Quando usar `broadcast` em vez de mudança de tabela?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A assinatura só envia eventos novos, então ela não monta o estado que já existia. `broadcast` serve para eventos temporários, como presença de edição, que não precisam ser consultados depois.
+</details>
+
+## Desafio
+
+Projete uma tela de carteira de investimentos que atualiza quando outro dispositivo cria, edita ou remove um ativo. Defina o estado local, os três handlers de evento e o que acontece quando a assinatura cai.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O estado pode ser um `Map` por `id`. `INSERT` adiciona, `UPDATE` substitui a entrada existente e `DELETE` remove. Se a assinatura cair, a aplicação deve sinalizar estado desatualizado e refazer o `select` ao reconectar, porque eventos perdidos não podem ser reconstruídos pela memória do cliente.
+</details>
+
+## Perguntas de revisão
+
+1. **Qual é a diferença entre Postgres Changes e Presence?**
+   <details>
+     <summary>Possível resposta</summary>
+     Postgres Changes envia eventos derivados de linhas persistidas no banco. Presence sincroniza estado temporário dos participantes de um canal.
+   </details>
+
+2. **Por que Realtime não substitui RLS?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o canal só transporta eventos. A decisão sobre quem pode ler ou escrever continua sendo aplicada pelas políticas do banco e pela configuração do canal.
+   </details>
+
+## Referências
+
+- [Supabase Realtime](https://supabase.com/docs/guides/realtime)
+- [Supabase Realtime Concepts](https://supabase.com/docs/guides/realtime/concepts)
+
+## Próximo tópico
+
+[Supabase Edge Functions](../edge-functions/): código sob demanda para operações que não pertencem ao navegador.

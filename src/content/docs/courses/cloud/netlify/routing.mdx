@@ -1,0 +1,170 @@
+---
+title: "Nuvem: Netlify Redirects e Headers"
+description: "Redirects, rewrites e headers no Netlify: controle de rotas, fallback de SPA, proxy, cache e segurança por configuração versionada."
+course: cloud
+sidebar:
+  label: "Redirects e headers"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+**Redirects e headers** no Netlify controlam como a plataforma responde antes do JavaScript da aplicação entrar em cena. Eles resolvem migração de URLs, fallback de SPA, proxy para APIs, headers de segurança e regras de cache.
+
+## Objetivo
+
+Compreender redirects, rewrites e headers como parte da arquitetura de entrega, não apenas como detalhe de hospedagem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar redirect e rewrite.
+- Configurar fallback de SPA sem quebrar arquivos estáticos.
+- Aplicar headers de segurança e cache.
+- Escolher entre `_redirects` e `netlify.toml`.
+- Identificar quando uma regra estática deve virar Edge Function.
+
+## Antes do Front-End
+
+Quando uma requisição chega ao Netlify, a plataforma pode aplicar regras de rota e headers antes de servir arquivo, chamar função ou devolver erro.
+
+<Mermaid title="Roteamento antes da resposta">
+{`
+flowchart LR
+  Request["Request"] --> Rules["Redirects e headers"]
+  Rules --> Static["Arquivo estático"]
+  Rules --> Function["Function"]
+  Rules --> Proxy["Proxy externo"]
+  Rules --> Response["Resposta com headers"]
+`}
+</Mermaid>
+
+Isso é especialmente importante em SPAs, porque o navegador sabe navegar para `/dashboard`, mas o servidor precisa saber o que fazer quando alguém recarrega essa rota diretamente.
+
+## Redirect ou Rewrite?
+
+Redirect e rewrite parecem parecidos, mas produzem efeitos diferentes para o usuário.
+
+| Regra | O que acontece | Exemplo |
+| --- | --- | --- |
+| **Redirect 301 ou 302** | O navegador muda de URL. | `/blog-antigo` passa a abrir `/blog/`. |
+| **Rewrite 200** | A URL continua igual, mas outro recurso é servido. | `/dashboard/*` serve `/dashboard/index.html`. |
+| **Proxy rewrite** | A URL pública continua no site, mas a resposta vem de outro serviço. | `/api/*` aponta para uma API externa. |
+| **Header** | A rota continua igual, mas a resposta ganha metadados. | `Cache-Control`, `X-Frame-Options`, CSP. |
+
+## Arquivo `_redirects`
+
+O arquivo `_redirects` é direto e bom para regras simples. Ele deve ser publicado junto dos arquivos finais do site.
+
+```txt
+/old-page /new-page 301
+/dashboard/* /dashboard/index.html 200
+/api/* https://api.example.com/:splat 200
+```
+
+Em frameworks com pasta `public`, coloque esse arquivo onde ele será copiado para a saída final. Em projetos Astro, isso normalmente significa `public/_redirects`.
+
+## Configuração em `netlify.toml`
+
+O `netlify.toml` é melhor quando a regra precisa de mais estrutura, headers ou condições.
+
+```toml
+[[redirects]]
+  from = "/dashboard/*"
+  to = "/dashboard/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+```
+
+Prefira manter regras críticas no repositório. O histórico do Git explica quando uma rota mudou e por que uma política de header foi adicionada.
+
+<Aside type="caution" title="Fallback amplo demais esconde erro real">
+  Um rewrite como `/* /index.html 200` pode ser necessário em SPAs, mas também pode mascarar 404 legítimo de asset, API ou página inexistente. Escreva a regra com o menor escopo possível.
+</Aside>
+
+## Aplicações Típicas
+
+As regras de roteamento ajudam tanto em produto quanto em manutenção.
+
+| Aplicação | Regra típica | Observação |
+| --- | --- | --- |
+| Migração de URL | `301` permanente | Preserve SEO e links antigos. |
+| SPA | Rewrite `200` para `index.html` | Necessário para reload de rotas internas. |
+| Proxy de API | Rewrite para serviço externo | Cuidado com CORS, autenticação e logs. |
+| Segurança | Headers globais | Comece por headers simples e evolua CSP com testes. |
+| Cache | Headers por pasta | Assets com hash podem ter cache mais agressivo. |
+
+## Quando Virar Edge Function
+
+Use redirects e headers estáticos sempre que a regra for fixa. Use Edge Function quando a decisão depender de cookie, país, header, sessão ou outro contexto da requisição.
+
+| Pergunta | Caminho provável |
+| --- | --- |
+| A origem e o destino são sempre iguais? | Redirect estático. |
+| A regra depende de um cookie? | Edge Function. |
+| A resposta precisa chamar API com segredo? | Function. |
+| O problema é apenas header de segurança? | Header versionado. |
+
+## Executando
+
+Trate roteamento como parte do design da aplicação.
+
+<Steps>
+1. Liste rotas públicas, rotas internas de SPA e APIs.
+2. Defina quais URLs antigas precisam de redirect.
+3. Escreva fallbacks com escopo mínimo.
+4. Aplique headers de segurança e cache por tipo de rota.
+5. Teste reload direto em rotas internas.
+6. Valide se APIs e assets não foram capturados pelo fallback.
+</Steps>
+
+## Exercício
+
+Qual é a diferença prática entre `301` e `200` em uma regra de rota?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com `301`, o navegador muda de URL e entende que houve redirecionamento permanente. Com `200`, a URL continua igual e o Netlify serve outro recurso por trás, o que é típico em fallback de SPA.
+</details>
+
+## Desafio
+
+Crie um plano de redirects para migrar `/investimentos` para `/app/investments` e permitir reload em `/app/*` sem capturar `/api/*`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Use um redirect `301` de `/investimentos` para `/app/investments`, uma regra específica para `/api/*` antes do fallback e um rewrite `200` de `/app/*` para `/app/index.html`.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que fallback de SPA é necessário?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o servidor precisa saber qual arquivo servir quando o usuário acessa diretamente uma rota que o front-end normalmente controla.
+   </details>
+
+2. **Quando `_redirects` é suficiente?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando as regras são simples, lineares e não precisam de muita estrutura ou headers complexos.
+   </details>
+
+3. **Que risco existe em um rewrite global para `index.html`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele pode mascarar 404 reais de arquivos, APIs ou páginas inexistentes, dificultando diagnóstico.
+   </details>
+
+## Referências
+
+- [Netlify redirects and rewrites](https://docs.netlify.com/manage/routing/redirects/overview/)
+- [Netlify custom headers](https://docs.netlify.com/manage/routing/headers/)
+
+## Próximo tópico
+
+[Netlify Data e Storage](../data-storage/): opções de dados, arquivos e cache na plataforma.

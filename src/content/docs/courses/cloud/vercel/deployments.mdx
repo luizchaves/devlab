@@ -1,0 +1,169 @@
+---
+title: "Nuvem: Vercel Deployments"
+description: "Deployments na Vercel: conexão com Git, builds, preview deployments, produção, rollback, variáveis de ambiente e validação antes de promover uma versão."
+course: cloud
+sidebar:
+  label: "Deployments"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Um **deployment** na Vercel é uma versão publicada da aplicação. Ele nasce de um build, recebe uma URL própria e pode virar produção quando a equipe promove aquela versão. Em vez de pensar em "subir arquivos", pense em versões imutáveis que podem ser revisadas, comparadas e revertidas.
+
+## Objetivo
+
+Compreender o ciclo de deployment da Vercel, do `git push` ao domínio de produção, para revisar mudanças antes que elas cheguem aos usuários. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que deployments imutáveis facilitam revisão e rollback.
+- Diferenciar preview, production e ambientes de branch.
+- Configurar build command, install command, output directory e variáveis.
+- Validar rotas, funções, cache e integrações antes de promover uma versão.
+- Reconhecer quando o erro está no build, no roteamento, nas variáveis ou no runtime.
+
+## Do Push ao Preview
+
+Cada alteração enviada ao Git pode virar uma URL de preview. Essa URL não é um ambiente improvisado: ela é o resultado do pipeline de build da plataforma, com domínio próprio e configuração de ambiente apropriada.
+
+<Mermaid title="Ciclo de deployment na Vercel">
+{`
+flowchart TD
+  Push["git push"] --> Install["Install command"]
+  Install --> Build["Build command"]
+  Build --> Output["Output directory"]
+  Output --> Preview["Preview deployment<br/>URL imutável"]
+  Preview --> Review["Revisão<br/>UI, rotas, functions, dados"]
+  Review --> Promote["Promover"]
+  Promote --> Prod["Production deployment"]
+  Prod --> Rollback["Rollback"]
+`}
+</Mermaid>
+
+O ganho pedagógico é enxergar produção como promoção de uma versão conhecida, não como uma compilação misteriosa feita no último segundo. Se o preview já foi revisado, a promoção tem menos surpresa.
+
+## Tipos de Ambiente
+
+Vercel separa o ciclo de publicação por ambientes. A diferença mais importante para o desenvolvedor é quais variáveis, domínios e integrações cada ambiente usa.
+
+| Ambiente | Quando aparece | Uso principal |
+| --- | --- | --- |
+| **Development** | Máquina local ou comando de desenvolvimento. | Iteração rápida, dados locais ou sandbox. |
+| **Preview** | Pull requests e branches não produtivas. | Revisão de mudança real antes do merge. |
+| **Production** | Branch ou promoção configurada para produção. | Versão disponível no domínio final. |
+
+Separar ambiente não significa duplicar tudo. Significa declarar quais valores mudam entre teste e produção: URLs de BaaS, chaves públicas, domínios autorizados, webhooks e tokens privados.
+
+## Configuração do Build
+
+Projetos modernos normalmente são detectados automaticamente, mas o time deve entender a configuração. Quando a detecção automática não basta, ajuste o framework preset, install command, build command e output directory.
+
+```json
+{
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist",
+  "installCommand": "pnpm install --frozen-lockfile"
+}
+```
+
+O formato acima é um exemplo de contrato de build. Em muitos projetos, esses valores são definidos pelo painel ou pelo preset do framework. O importante é saber que o deployment sempre depende de instalar dependências, construir a aplicação e apontar para a saída correta.
+
+## Variáveis de Ambiente
+
+Variáveis são uma das principais causas de "funcionou no preview, quebrou em produção". Em aplicações com Supabase, Firebase ou APIs externas, classifique cada variável antes de publicar.
+
+| Tipo | Exemplo | Onde pode aparecer |
+| --- | --- | --- |
+| Pública do front-end | `NEXT_PUBLIC_SUPABASE_URL` | Bundle do navegador. |
+| Pública com regra no BaaS | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Bundle, desde que RLS e regras estejam corretas. |
+| Privada de servidor | `SUPABASE_SERVICE_ROLE_KEY` | Apenas Functions, Server Components ou runtime de servidor. |
+| Segredo de integração | `EMAIL_PROVIDER_TOKEN` | Apenas código de servidor. |
+
+<Aside type="caution" title="Prefixo público não torna uma chave segura">
+  Variável exposta ao navegador deve ser tratada como pública. A segurança precisa estar nas regras do serviço remoto, como RLS no Supabase, regras do Firebase ou validação em API própria.
+</Aside>
+
+## Validação Antes de Promover
+
+Um deployment pode passar no build e ainda falhar como produto. A revisão precisa testar o caminho principal da aplicação publicada.
+
+| Área | O que validar | Sintoma comum |
+| --- | --- | --- |
+| Build | Instalação, build command e output. | Deploy falha antes de gerar URL. |
+| Rotas | Página inicial, rota interna e reload direto. | 404 em rota client-side. |
+| Functions | Métodos, status, logs e variáveis privadas. | `500` por segredo ausente. |
+| BaaS | Login, leitura, escrita e permissões. | Funciona localmente, falha por domínio ou chave errada. |
+| Cache | Dados atualizados após publicar. | Usuário vê versão antiga ou resposta stale. |
+
+## Quando Usar
+
+Deployments da Vercel são especialmente confortáveis para front-ends com revisão contínua, aplicações Next.js, SPAs, sites estáticos e projetos que usam functions ou renderização híbrida.
+
+| Cenário | Bom uso | Atenção |
+| --- | --- | --- |
+| Next.js com SSR ou Server Components | Integração nativa com o runtime da plataforma. | Entenda o que roda no servidor e o que vai para o cliente. |
+| Astro, Vite ou React estático | Build simples, CDN e preview por branch. | Configure output directory corretamente. |
+| Front-end com Supabase ou Firebase | Vercel entrega interface e funções curtas. | Domínios autorizados e variáveis por ambiente importam muito. |
+| API extensa | Use com cuidado. | Functions ajudam, mas domínio grande pode pedir back-end dedicado. |
+
+## Executando
+
+Um fluxo de publicação confiável deve verificar o build e uma rota interna antes de promover.
+
+<Steps>
+1. Configure o projeto pelo repositório Git.
+2. Confira install command, build command e output directory.
+3. Cadastre variáveis públicas e privadas no ambiente correto.
+4. Abra a URL de preview gerada pela branch.
+5. Teste página inicial, rota interna, login, chamada a BaaS e função serverless.
+6. Promova a versão para produção apenas depois da revisão.
+7. Mantenha rollback pronto para voltar a uma versão conhecida.
+</Steps>
+
+## Exercício
+
+Um preview funciona, mas a produção quebra por variável ausente. Qual diferença de ambiente provavelmente foi esquecida?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A variável foi cadastrada para preview, mas não para produção, ou recebeu valores diferentes nos dois ambientes. Também pode faltar domínio autorizado no serviço remoto usado pela produção.
+</details>
+
+## Desafio
+
+Escreva um checklist de revisão para promover um deployment do InvestApp, cobrindo build, rota interna, login, acesso ao BaaS, funções e variáveis.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O checklist deve abrir a URL de preview, recarregar uma rota interna, testar login, listar investimentos, criar um registro de teste, chamar uma função com segredo, conferir erros no console e validar se as variáveis públicas apontam para o projeto correto.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que um deployment imutável facilita depuração?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a URL continua apontando para os mesmos arquivos e variáveis daquele build, permitindo comparar versões sem que uma sobrescreva a outra.
+   </details>
+
+2. **O que deve ser conferido antes de promover um preview?**
+   <details>
+     <summary>Possível resposta</summary>
+     Build, rotas, variáveis de ambiente, integrações externas, funções, cache e fluxo principal da aplicação.
+   </details>
+
+3. **Por que produção não deve depender de variável cadastrada só em preview?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque cada ambiente tem seu próprio conjunto de valores. Uma variável presente no preview pode não existir ou apontar para outro serviço em produção.
+   </details>
+
+## Referências
+
+- [Vercel Deployments](https://vercel.com/docs/deployments)
+- [Vercel Environment Variables](https://vercel.com/docs/environment-variables)
+- [Vercel Project configuration](https://vercel.com/docs/project-configuration)
+
+## Próximo tópico
+
+[Vercel Functions](../functions/): execução sob demanda para rotas com segredo ou regra de servidor.

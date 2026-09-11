@@ -1,0 +1,166 @@
+---
+title: "Nuvem: Vercel Storage e Marketplace"
+description: "Guia de storage na Vercel: Blob, bancos e caches via Marketplace, variáveis provisionadas, escolha entre storage de arquivo, banco relacional, KV e BaaS externo."
+course: cloud
+sidebar:
+  label: "Storage e Marketplace"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+**Vercel Storage** e o **Marketplace** conectam uma aplicação publicada a serviços de estado: arquivos, bancos, caches, filas e provedores externos. A Vercel injeta credenciais por variáveis de ambiente, mas a modelagem continua sendo decisão do projeto.
+
+## Objetivo
+
+Compreender storage como escolha de arquitetura, não como pasta genérica para dados, para decidir entre arquivo, banco, cache, BaaS e serviço externo. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar objeto, registro relacional, chave-valor e cache.
+- Reconhecer quando Vercel Blob resolve uploads.
+- Escolher banco ou BaaS para dados consultáveis.
+- Entender como credenciais provisionadas chegam à aplicação.
+- Evitar usar função e storage como substitutos frágeis de back-end de domínio.
+
+## Modelo Mental
+
+A aplicação roda na Vercel, mas seu estado pode morar em serviços diferentes. O importante é escolher pelo tipo de dado e pela operação principal, não pela conveniência do painel.
+
+<Mermaid title="Aplicação Vercel conectada a diferentes formas de estado">
+{`
+flowchart TD
+  App["Aplicação na Vercel"] --> Blob["Blob<br/>arquivos e uploads"]
+  App --> SQL["Postgres<br/>relações e consultas"]
+  App --> KV["KV ou cache<br/>leituras rápidas"]
+  App --> BaaS["Supabase ou Firebase<br/>dados + auth"]
+  App --> Env["Variáveis provisionadas<br/>credenciais por ambiente"]
+`}
+</Mermaid>
+
+Um avatar é objeto. Uma carteira de investimentos é dado relacional ou documento. Uma flag de recurso é configuração. Uma sessão temporária é cache. Misturar esses formatos aumenta custo e dificulta migração.
+
+## Recursos Principais
+
+A Vercel lista e conecta serviços de storage, mas cada serviço tem seu próprio contrato. A tabela abaixo resume usos comuns:
+
+| Recurso | Melhor para | Evite quando |
+| --- | --- | --- |
+| **Vercel Blob** | Imagens, PDFs, uploads e arquivos gerados. | O dado precisa de consulta relacional ou filtros complexos. |
+| **Postgres via Marketplace** | Dados relacionais, relatórios e integridade. | O app precisa de offline e sincronização cliente pronta. |
+| **KV ou cache** | Feature flags, sessão curta, rate limit e leituras por chave. | O dado precisa de transação relacional. |
+| **BaaS externo** | Dados + auth + regras de acesso gerenciadas. | O projeto exige controle total do servidor. |
+| **Global config** | Configurações lidas com baixa latência. | O valor muda a cada requisição ou por usuário. |
+
+## Pequenos Trechos
+
+Um upload para objeto deve devolver um identificador ou URL que será guardado em outro lugar:
+
+```js title="Upload conceitual para objeto"
+const file = await uploadAvatar(user.id, formData.get('avatar'));
+
+await saveProfile({
+  userId: user.id,
+  avatarUrl: file.url,
+});
+```
+
+Um dado consultável deve ir para banco ou BaaS, não para um arquivo JSON regravado por função:
+
+```js title="Dado de domínio em banco"
+await db.investment.create({
+  data: {
+    userId,
+    name: 'Tesouro Selic',
+    amount: 10000,
+  },
+});
+```
+
+Uma variável provisionada por integração pertence ao ambiente correto. Preview e produção podem apontar para bancos diferentes:
+
+```txt title="Variáveis por ambiente"
+POSTGRES_URL=...
+BLOB_READ_WRITE_TOKEN=...
+NEXT_PUBLIC_SUPABASE_URL=...
+```
+
+<Aside type="caution" title="Dica de IA: Peça o tipo de dado antes da ferramenta">
+  Assistentes sugerem "salvar no storage" sem distinguir arquivo, registro, cache e configuração. Essa escolha define consulta, custo, backup e migração.
+
+  **Prompt:** *"Classifique estes dados em arquivo, relacional, documento, cache ou configuração; para cada item, escolha Vercel Blob, Postgres, Supabase, Firebase ou KV e justifique a consulta principal."*
+</Aside>
+
+## Aplicações
+
+Storage na Vercel costuma aparecer junto de funções. A função recebe upload, valida, grava objeto e registra metadado em banco.
+
+| Aplicação | Combinação comum | Por quê |
+| --- | --- | --- |
+| Avatar de usuário | Blob + banco ou BaaS | Arquivo no objeto, metadado no perfil. |
+| Rate limit de função | KV/cache | Incremento por chave e expiração curta. |
+| Carteira de investimentos | Postgres ou Supabase | Relações, filtros e agregações importam. |
+| Configuração global | Global config ou variável | Leitura rápida e poucas alterações. |
+
+## Quando Usar, e Quando Não Usar?
+
+Use storage integrado quando ele combina com o tipo de dado e com o ambiente de deploy. Não escolha storage só porque está no mesmo painel: dados de domínio ainda pedem modelo, autorização e plano de migração.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Upload de imagem pública | **Blob** | Entrega de arquivo é a operação principal. |
+| Dados com relação entre entidades | **Postgres ou Supabase** | SQL e integridade ajudam mais que objeto. |
+| Preferência temporária ou rate limit | **KV/cache** | Chave e expiração são suficientes. |
+| Dados privados por usuário sem back-end próprio | **BaaS com regras** | Auth e autorização já vêm integradas. |
+
+## Executando
+
+Antes de provisionar um serviço, escreva a matriz de dados:
+
+<Steps>
+1. Liste cada dado persistido pela aplicação.
+2. Marque se ele é arquivo, registro, documento, cache ou configuração.
+3. Defina quem pode ler, escrever e apagar.
+4. Escolha o serviço pelo padrão de acesso, não pelo nome comercial.
+5. Cadastre variáveis separadas para preview e produção.
+</Steps>
+
+## Exercício
+
+Por que um avatar e uma transação financeira não devem necessariamente morar no mesmo tipo de storage?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O avatar é arquivo entregue como objeto. A transação financeira é dado consultável, filtrável e relacionado ao usuário, então pede banco ou BaaS com regras.
+</details>
+
+## Desafio
+
+Monte uma matriz de storage para o InvestApp Cloud com investimento, avatar, token de API externa, cache de cotação e flag de recurso.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Investimento vai para Supabase ou Postgres; avatar vai para Blob ou Storage do BaaS; token externo fica em variável privada; cache de cotação vai para KV ou cache de função; flag de recurso vai para configuração ou serviço de flags.
+</details>
+
+## Perguntas de revisão
+
+1. **Por que Blob não substitui banco relacional?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque Blob guarda objetos, enquanto banco relacional oferece consultas, relações, filtros, transações e integridade.
+   </details>
+
+2. **Por que preview e produção podem precisar de storages diferentes?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para evitar que testes em preview escrevam no banco ou bucket usado por usuários reais.
+   </details>
+
+## Referências
+
+- [Vercel Storage](https://vercel.com/docs/storage)
+- [Vercel Marketplace](https://vercel.com/marketplace)
+
+## Próximo tópico
+
+[Ambientes e variáveis](../environments/): separar local, preview, produção, público e privado.
