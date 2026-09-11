@@ -1,0 +1,253 @@
+---
+title: "Banco de Dados: MongoDB, Instalação e Cliente"
+description: "Instalação do MongoDB com Docker Compose, cliente mongosh, Mongo Express no navegador, bancos e coleções, usuários por banco com papéis read e readWrite, teste de permissão, mongodump e mongorestore."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico sobe um servidor MongoDB 7 com Docker Compose, conecta pelo `mongosh` e cuida da parte administrativa que no MongoDB é pequena: usuários com papéis por banco, e backup com `mongodump`. As operações sobre documentos ficam na [página seguinte](../crud/). Toda saída foi capturada em um contêiner `mongo:7.0` executando os arquivos do projeto `servers/mongo-server`.
+
+## Objetivo
+
+Colocar um servidor MongoDB no ar em ambiente de desenvolvimento, operar o `mongosh` e aplicar o mínimo de administração que uma aplicação exige. Ao final do tópico, o leitor deve ser capaz de:
+
+- Subir o servidor e o Mongo Express com o `docker-compose.yml` do projeto e as variáveis de ambiente.
+- Conectar com o `mongosh`, listar bancos e coleções e executar um arquivo de sessão.
+- Criar um usuário de aplicação com o papel `readWrite` em um banco, e provar o que `read` não permite.
+- Trocar e revogar papéis e remover o usuário.
+- Fazer backup com `mongodump` e restaurar em outro banco com `mongorestore`.
+
+---
+
+## Subindo o Servidor
+
+O `docker-compose.yml` do projeto sobe o MongoDB 7 e o Mongo Express, uma interface web para navegar pelos documentos. O usuário raiz vem das variáveis das linhas 8 e 9, e o volume da linha 15 guarda os dados em uma pasta local:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/docker-compose.yml" lines="1-15" mark={[8, 9, 15]} />
+
+As duas variáveis vêm do `.env`, criado a partir do modelo do projeto:
+
+```ini title=".env.example"
+MONGO_ROOT_USERNAME=root
+MONGO_ROOT_PASSWORD=secret
+```
+
+Com o `.env` no lugar, o ambiente sobe, e o Mongo Express responde em `http://localhost:8081` com as mesmas credenciais:
+
+```bash title="Terminal"
+docker compose up -d
+docker compose ps
+```
+
+A alternativa sem Compose é um `docker run` com as duas variáveis:
+
+```bash title="Terminal"
+docker run -d --name mongo -e MONGO_INITDB_ROOT_USERNAME=root -e MONGO_INITDB_ROOT_PASSWORD=secret -v mongodata:/data/db -p 27017:27017 mongo:7.0
+```
+
+---
+
+## O Cliente mongosh
+
+O `mongosh` é um shell JavaScript: cada comando é uma expressão avaliada contra o objeto `db`, e a saída é o valor devolvido. Ele vem na imagem, e a conexão como raiz é feita de dentro do contêiner:
+
+```bash title="Terminal"
+docker exec -it mongo mongosh -u root -p secret
+```
+
+A versão e a lista de bancos confirmam o servidor. Os bancos `admin`, `config` e `local` são internos; o `invest` só aparece depois da primeira escrita nele:
+
+```txt title="Output"
+test> db.version()
+7.0.41
+test> show dbs
+admin    148.00 KiB
+config    60.00 KiB
+local     72.00 KiB
+```
+
+Os comandos de navegação são poucos, e a maioria é JavaScript sobre `db`:
+
+| Comando | Descrição |
+| :--- | :--- |
+| `show dbs` | Lista os bancos que têm dados. |
+| `use invest` | Seleciona o banco; ele é criado na primeira escrita. |
+| `show collections` ou `db.getCollectionNames()` | Lista as coleções do banco atual. |
+| `db.investments.countDocuments()` | Conta os documentos de uma coleção. |
+| `db.investments.stats()` | Estatísticas da coleção: tamanho, índices, contagem. |
+| `db.getUsers()` | Lista os usuários do banco atual. |
+| `load('arquivo.js')` | Executa um arquivo JavaScript na sessão. |
+| `exit` | Sai do shell. |
+
+Um arquivo `.js` também pode ser redirecionado para o `mongosh`, que executa linha a linha e imprime cada resultado; é assim que as saídas desta seção foram produzidas. Como o prompt aparece na saída, a opção `--quiet` remove o cabeçalho de conexão, e a função `use('invest')` (com parênteses) seleciona o banco dentro de um arquivo, onde a forma `use invest` do shell interativo não funciona.
+
+---
+
+## Usuários e Papéis
+
+No MongoDB, um usuário é criado **dentro de um banco** (o banco de autenticação) e recebe **papéis** que valem para um banco cada. O arquivo `users.mongodb.js` cria o usuário da aplicação no banco `invest`, com o papel `readWrite` nesse banco, na linha 11:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/users.mongodb.js" region="create" mark={[11]} />
+
+A execução mostra o `{ ok: 1 }` da criação e a lista de papéis consultada em seguida:
+
+```bash title="Terminal"
+docker exec -i mongo mongosh -u root -p secret --quiet < users.mongodb.js
+```
+
+```txt title="Output"
+switched to db invest
+{ ok: 1 }
+[ { role: 'readWrite', db: 'invest' } ]
+{ ok: 1 }
+{ ok: 1 }
+[ { role: 'read', db: 'invest' } ]
+{ ok: 1 }
+```
+
+Os papéis embutidos que uma aplicação usa são `read` e `readWrite`; `dbAdmin` acrescenta índices e estatísticas, e `dbOwner` reúne os três. Papéis de servidor, como `root` e `userAdminAnyDatabase`, ficam no banco `admin` e nunca são da aplicação.
+
+A prova de que o papel limita o acesso vem de conectar como um usuário só de leitura e tentar inserir. A mensagem lista o comando recusado:
+
+```bash title="Terminal"
+docker exec mongo mongosh -u invest_app -p app-secret --authenticationDatabase invest --quiet --eval "use('invest'); db.investments.insertOne({ name: 'x' })"
+```
+
+```txt title="Output"
+MongoServerError: not authorized on invest to execute command { insert: "investments", documents: [ { name: "x", _id: ObjectId('6aa3668d6fae84157473ead6') } ], ordered: true, lsid: { id: UUID("d00a1b54-4ac9-4949-a49b-6723a5a01092") }, $db: "invest" }
+```
+
+O `--authenticationDatabase invest` é o detalhe que mais causa erro de conexão: o usuário foi criado no banco `invest`, e a autenticação precisa apontar para ele, mesmo que a aplicação vá usar outro banco. Na URL de conexão, é o parâmetro `authSource=invest`.
+
+A segunda metade do arquivo troca o papel de `readWrite` para `read`, confere e remove o usuário:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/users.mongodb.js" region="revoke" />
+
+<Aside type="caution" title="Dica de IA: Peça o `authSource` junto com a URL de conexão">
+  Assistentes montam `mongodb://invest_app:senha@mongo:27017/invest` e a aplicação recebe `Authentication failed`, porque o usuário foi criado em `invest` e o driver autentica em `admin` por padrão. O erro parece de senha e é de banco de autenticação.
+
+  **Prompt:** *"Dado que o usuário `invest_app` foi criado com `db.createUser` dentro do banco `invest`, escreva a URL de conexão com o `authSource` correto, explique a diferença entre banco de autenticação e banco de dados da aplicação, e mostre como confirmar com `db.getUsers()` onde o usuário existe."*
+</Aside>
+
+---
+
+## Backup e Restauração
+
+O `mongodump` exporta um banco em arquivos BSON, um por coleção, mais os metadados de índices; o `mongorestore` os importa, com a opção de renomear o destino. Os dois vêm na imagem e precisam do mesmo `--authenticationDatabase` do usuário usado:
+
+```bash title="Terminal"
+docker exec mongo mongodump -u root -p secret --authenticationDatabase admin --db invest --out /tmp/dump
+docker exec mongo mongorestore -u root -p secret --authenticationDatabase admin --nsFrom 'invest.*' --nsTo 'invest_restored.*' /tmp/dump
+docker exec mongo mongosh -u root -p secret --quiet --eval "use('invest_restored'); db.investments.countDocuments()"
+```
+
+```txt title="Output"
+writing `invest.investments` to `/tmp/dump/invest/investments.bson`
+done dumping `invest.investments` (2 documents)
+2 document(s) restored successfully. 0 document(s) failed to restore.
+2
+```
+
+Para um banco pequeno, a exportação em JSON legível com `mongoexport --collection investments --jsonArray` é útil para inspeção e versionamento, com a ressalva de que ela perde os tipos do BSON que o JSON não representa, o que o `mongodump` preserva.
+
+---
+
+## Executando
+
+Os passos abaixo reproduzem a sessão desta página a partir da pasta `examples/courses/database/servers/mongo-server/`:
+
+<Steps>
+1. Crie o `.env` a partir do modelo e suba os serviços:
+
+   ```bash title="Terminal"
+   cp .env.example .env && docker compose up -d
+   ```
+2. Execute o arquivo de usuários e confira a saída acima:
+
+   ```bash title="Terminal"
+   docker exec -i mongo mongosh -u root -p secret --quiet < users.mongodb.js
+   ```
+3. Comente o bloco `revoke` do arquivo, execute de novo, e conecte como `invest_app` com `--authenticationDatabase invest` para inserir um documento.
+4. Abra `http://localhost:8081` no navegador e confira o banco pelo Mongo Express.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos comandos e nas saídas desta página:
+
+1. Por que o banco `invest` não aparece no `show dbs` logo depois de `use invest`?
+2. O que `--authenticationDatabase` (ou `authSource`) indica, e o que acontece quando ele está errado?
+3. O que o `mongodump` preserva que o `mongoexport` perde?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o banco só é criado na primeira escrita. O `use` apenas seleciona o nome; sem coleção e sem documento, não há nada a listar.
+
+  2. O banco em que o usuário foi criado, onde as credenciais dele estão. Com o valor errado, a autenticação falha com uma mensagem que parece de senha inválida.
+
+  3. Os tipos do BSON que o JSON não representa (datas como datas, `ObjectId`, decimais, binários) e os metadados de índices, que o `mongorestore` recria.
+</details>
+
+---
+
+## Desafio
+
+A aplicação de investimentos vai ter uma segunda aplicação de relatórios, que só lê, e um perfil de manutenção que precisa criar índices mas não alterar dados. Crie os dois usuários com os papéis embutidos corretos, e prove com uma operação recusada para cada um o limite do papel.
+
+Depois responda: o papel `dbAdmin` permite ler os documentos? Confira executando um `find` com o usuário de manutenção antes de responder.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O usuário de relatórios recebe `{ role: 'read', db: 'invest' }` e é recusado no `insertOne`, como a página mostrou. O de manutenção recebe `{ role: 'dbAdmin', db: 'invest' }`, consegue `createIndex` e é recusado no `insertOne` e no `updateOne`.
+
+  O `dbAdmin` **não** inclui leitura de documentos: ele cobre índices, estatísticas e validação de esquema, e um `find` com esse usuário é recusado com `not authorized`. Quem precisa administrar e ler recebe os dois papéis, `dbAdmin` e `read`, ou `dbOwner` se também for escrever. É o contraexemplo de "admin pode tudo": no MongoDB, cada papel embutido é uma lista fechada de ações.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Servidor e cliente
+
+1. **Para que serve o Mongo Express no `docker-compose.yml`?**
+   <details><summary>Possível resposta</summary>Para navegar por bancos, coleções e documentos no navegador, na porta 8081, com as credenciais do `.env`.</details>
+
+2. **Por que `use('invest')` tem parênteses em um arquivo e `use invest` não tem no shell?**
+   <details><summary>Possível resposta</summary>`use invest` é um comando do shell interativo, não JavaScript válido. Em arquivos executados pelo `mongosh`, a forma é a função `use('invest')`.</details>
+
+3. **O que `db.investments.stats()` informa?**
+   <details><summary>Possível resposta</summary>Contagem de documentos, tamanho em disco e em memória e os índices da coleção.</details>
+
+### Usuários e backup
+
+4. **Onde um usuário do MongoDB existe, e onde os papéis dele valem?**
+   <details><summary>Possível resposta</summary>Existe no banco em que foi criado (o banco de autenticação); cada papel vale para o banco indicado nele, que pode ser outro.</details>
+
+5. **Quais papéis embutidos uma aplicação costuma usar?**
+   <details><summary>Possível resposta</summary>`read` e `readWrite` no banco da aplicação. `dbAdmin` e `dbOwner` são para manutenção; `root` e os papéis `AnyDatabase` ficam no `admin`.</details>
+
+6. **Como restaurar um dump em um banco com outro nome?**
+   <details><summary>Possível resposta</summary>Com `mongorestore --nsFrom 'origem.*' --nsTo 'destino.*'`, que renomeia o banco de cada coleção na importação.</details>
+
+---
+
+## Referências
+
+- [Docker Hub: mongo](https://hub.docker.com/_/mongo)
+- [MongoDB Shell (mongosh)](https://www.mongodb.com/docs/mongodb-shell/)
+- [MongoDB: Built-In Roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/)
+- [MongoDB: mongodump](https://www.mongodb.com/docs/database-tools/mongodump/)
+- [Mongo Express](https://github.com/mongo-express/mongo-express)
+
+---
+
+## Próximo tópico
+
+[CRUD e agregação](../crud/): Inserir, consultar, atualizar e apagar documentos, e o pipeline no lugar do `GROUP BY`.

@@ -1,0 +1,282 @@
+---
+title: "Banco de Dados: PostgreSQL, Instalação e Cliente"
+description: "Instalação do PostgreSQL com Docker Compose, cliente psql, criação de banco e tabela com GENERATED AS IDENTITY, NUMERIC, TIMESTAMPTZ e JSONB, consultas, comandos de barra invertida e Adminer no navegador."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico sobe um servidor PostgreSQL com Docker Compose, conecta pelo cliente `psql` e cria a tabela de investimentos com os tipos que a [visão geral](../) apresentou. Toda saída mostrada foi capturada em um contêiner `postgres:16.2` executando os arquivos do projeto `servers/postgres-server`.
+
+## Objetivo
+
+Colocar um servidor PostgreSQL no ar em ambiente de desenvolvimento e operar o cliente de terminal o suficiente para criar bancos, tabelas e consultar dados sem depender de interface gráfica. Ao final do tópico, o leitor deve ser capaz de:
+
+- Subir o servidor e o Adminer com o `docker-compose.yml` do projeto e as variáveis de ambiente.
+- Conectar com `psql` de dentro do contêiner e navegar entre bancos com os comandos de barra invertida.
+- Criar um banco e uma tabela com identidade, `NUMERIC`, `TIMESTAMPTZ` e `JSONB`.
+- Executar um arquivo `.sql` contra o servidor e ler a saída do `psql`.
+- Consultar um campo `JSONB` com os operadores `->>` e `@>`.
+
+---
+
+## Subindo o Servidor
+
+O projeto traz um `docker-compose.yml` com dois serviços: o PostgreSQL 16 e o Adminer, uma interface web para inspecionar o banco. A senha do superusuário vem de uma variável de ambiente, lida de um arquivo `.env` ao lado:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/docker-compose.yml" lines="1-16" mark={[9, 15]} />
+
+A linha 9 lê a senha do ambiente, e a linha 15 monta um volume nomeado: sem ele, os dados desaparecem quando o contêiner é removido. O arquivo `.env` é criado a partir do modelo do projeto, que contém uma única variável:
+
+```ini title=".env.example"
+POSTGRES_PASSWORD=secret
+```
+
+Com o `.env` no lugar, dois comandos sobem e conferem o ambiente:
+
+```bash title="Terminal"
+docker compose up -d
+docker compose ps
+```
+
+O Adminer responde em `http://localhost:8080`, com sistema `PostgreSQL`, servidor `postgres`, usuário `postgres` e a senha do `.env`. Para quem prefere não usar Compose, o mesmo servidor sobe com um `docker run`:
+
+```bash title="Terminal"
+docker run -d --name postgres -e POSTGRES_PASSWORD=secret -v pgdata:/var/lib/postgresql/data -p 5432:5432 postgres:16.2
+```
+
+---
+
+## O Cliente psql
+
+O `psql` vem dentro da imagem, e a forma mais simples de usá-lo é executá-lo no contêiner. O comando abaixo abre uma sessão interativa como o superusuário:
+
+```bash title="Terminal"
+docker exec -it postgres psql -U postgres
+```
+
+Dentro da sessão, a versão confirma que o servidor está no ar:
+
+```txt title="Output"
+postgres=# SELECT version();
+                                                          version
+---------------------------------------------------------------------------------------------------------------------------
+ PostgreSQL 16.2 (Debian 16.2-1.pgdg120+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+(1 row)
+```
+
+Os comandos de barra invertida são o equivalente dos comandos de ponto do SQLite, e os mais usados são estes:
+
+| Comando | Descrição |
+| :--- | :--- |
+| `\l` | Lista os bancos de dados do servidor. |
+| `\c <banco>` | Conecta ao banco informado. |
+| `\dt` | Lista as tabelas do esquema atual. |
+| `\d <tabela>` | Mostra colunas, tipos, padrões, índices e restrições da tabela. |
+| `\du` | Lista os papéis (usuários) do servidor. |
+| `\i arquivo.sql` | Executa um arquivo SQL. |
+| `\x` | Alterna a saída expandida, útil para linhas largas. |
+| `\q` | Sai do `psql`. |
+
+Um servidor recém-criado tem três bancos: o `postgres`, usado como padrão de conexão, e os dois modelos `template0` e `template1`, a partir dos quais bancos novos são clonados:
+
+```txt title="Output"
+postgres=# \l
+   Name    |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | ICU Locale | ICU Rules |   Access privileges
+-----------+----------+----------+-----------------+------------+------------+------------+-----------+-----------------------
+ postgres  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           |
+ template0 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +
+           |          |          |                 |            |            |            |           | postgres=CTc/postgres
+ template1 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |            |           | =c/postgres          +
+           |          |          |                 |            |            |            |           | postgres=CTc/postgres
+(3 rows)
+```
+
+---
+
+## Criando o Banco e a Tabela
+
+A aplicação ganha um banco próprio, e o arquivo `invest.sql` do projeto cria a tabela nele. A criação do banco é uma instrução à parte, porque `CREATE DATABASE` não pode rodar dentro de uma transação:
+
+```bash title="Terminal"
+docker exec postgres psql -U postgres -c "CREATE DATABASE invest;"
+```
+
+```txt title="Output"
+CREATE DATABASE
+```
+
+A tabela usa os quatro tipos que distinguem o PostgreSQL. A linha 3 declara a identidade gerada pelo banco, a forma atual do antigo `SERIAL`; a linha 5 é o decimal exato com uma restrição de domínio; a linha 7 é o documento consultável; e a linha 8 é o instante com fuso:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/invest.sql" region="table" mark={[3, 5, 7, 8]} />
+
+Os dados de exemplo incluem um documento JSON por linha, com campos diferentes entre eles, o que já mostra a flexibilidade do `JSONB`:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/invest.sql" region="seed" />
+
+Executar o arquivo inteiro contra o banco `invest` produz uma linha de confirmação por instrução e as tabelas de resultado das consultas:
+
+```bash title="Terminal"
+docker exec -i postgres psql -U postgres -d invest < invest.sql
+```
+
+```txt title="Output"
+CREATE TABLE
+INSERT 0 3
+ id |        name        |  value   | category
+----+--------------------+----------+----------
+  1 | Tesouro Selic 2029 | 10000.00 | Pós
+  2 | Tesouro IPCA 2029  | 25000.50 | Pós
+  3 | CDB Banco X        |  5000.00 | Pré
+(3 rows)
+
+ category |  total
+----------+----------
+ Pós      | 35000.50
+ Pré      |  5000.00
+(2 rows)
+
+    name     | broker
+-------------+---------
+ CDB Banco X | Banco X
+(1 row)
+```
+
+O `INSERT 0 3` informa que três linhas entraram, e o `35000.50` da soma é exato, sem os dígitos de erro que um `REAL` produziria. As duas primeiras consultas são SQL padrão:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/invest.sql" region="queries" />
+
+A terceira é o que só o `JSONB` permite. O operador `->>` da linha 27 extrai um campo como texto, e o `@>` da linha 29 testa se o documento contém o par informado:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/invest.sql" region="jsonb" mark={[27, 29]} />
+
+O `\d investment` mostra como o servidor guardou a definição, com a identidade, a restrição de `CHECK` e o índice da chave primária que ele criou sozinho:
+
+```txt title="Output"
+invest=# \d investment
+                                  Table "public.investment"
+   Column   |           Type           | Collation | Nullable |           Default
+------------+--------------------------+-----------+----------+------------------------------
+ id         | integer                  |           | not null | generated always as identity
+ name       | text                     |           | not null |
+ value      | numeric(14,2)            |           | not null |
+ category   | text                     |           | not null |
+ notes      | jsonb                    |           |          |
+ created_at | timestamp with time zone |           | not null | now()
+Indexes:
+    "investment_pkey" PRIMARY KEY, btree (id)
+Check constraints:
+    "investment_value_check" CHECK (value >= 0::numeric)
+```
+
+<Aside type="caution" title="Dica de IA: Peça `GENERATED AS IDENTITY`, não `SERIAL`">
+  Assistentes ainda escrevem `id SERIAL PRIMARY KEY`, que funciona e é a forma antiga: a sequência fica solta, com permissões próprias e sem ligação formal com a coluna. O padrão SQL, que o PostgreSQL implementa desde a versão 10, é `GENERATED ALWAYS AS IDENTITY`, e é o que aparece no `\d`.
+
+  **Prompt:** *"Reescreva este esquema PostgreSQL trocando `SERIAL` por `GENERATED ALWAYS AS IDENTITY`, `TIMESTAMP` por `TIMESTAMPTZ` e valores monetários para `NUMERIC`, e explique o que muda nas permissões da sequência."*
+</Aside>
+
+---
+
+## Executando
+
+Os passos abaixo reproduzem a sessão desta página a partir da pasta `examples/courses/database/servers/postgres-server/`:
+
+<Steps>
+1. Crie o `.env` a partir do modelo e suba os serviços:
+
+   ```bash title="Terminal"
+   cp .env.example .env && docker compose up -d
+   ```
+2. Crie o banco e execute o arquivo do projeto contra ele:
+
+   ```bash title="Terminal"
+   docker exec postgres psql -U postgres -c "CREATE DATABASE invest;"
+   docker exec -i postgres psql -U postgres -d invest < invest.sql
+   ```
+3. Abra uma sessão interativa no banco e inspecione a tabela com `\d investment`:
+
+   ```bash title="Terminal"
+   docker exec -it postgres psql -U postgres -d invest
+   ```
+4. Abra `http://localhost:8080` no navegador e confira a mesma tabela pelo Adminer.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos comandos e nas saídas desta página:
+
+1. Por que `CREATE DATABASE` foi executado com `-c` em um comando separado, e não dentro do `invest.sql`?
+2. O que o `\d investment` revela que o `CREATE TABLE` não declarou explicitamente?
+3. Qual é a diferença entre `->>` e `@>` na consulta ao `JSONB`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o arquivo é executado conectado ao banco `invest`, que precisa existir antes; e `CREATE DATABASE` não pode rodar dentro de uma transação, então fica fora de qualquer script que o `psql` possa envolver em `BEGIN`.
+
+  2. O índice `investment_pkey`, criado automaticamente para a chave primária, e o nome que o servidor deu à restrição de `CHECK` (`investment_value_check`).
+
+  3. O `->>` extrai o valor de um campo como texto, para exibir ou comparar. O `@>` testa se o documento inteiro contém o fragmento informado, o que serve para filtrar e pode usar índice.
+</details>
+
+---
+
+## Desafio
+
+O `invest.sql` guarda a corretora dentro do `JSONB`, e um relatório precisa do total por corretora. Escreva a consulta que agrupa por `notes ->> 'broker'`, e depois responda à pergunta que decide o modelo: a corretora deveria ser uma coluna, uma tabela própria ou continuar no documento?
+
+Crie as três versões no banco, com os mesmos dados, e compare a consulta de total por corretora em cada uma, inclusive o que acontece com o registro que não tem corretora no `JSONB`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A consulta no `JSONB` é `SELECT notes ->> 'broker' AS broker, SUM(value) FROM investment GROUP BY 1`, e o registro sem o campo aparece com `broker` nulo, agrupado à parte. Como coluna `broker TEXT`, a consulta fica mais simples e o `NOT NULL` passa a ser possível; como tabela `broker` com chave estrangeira, a corretora ganha identidade própria, nome padronizado e outros atributos, ao custo de uma junção.
+
+  A regra que decide: campo que aparece em toda linha, é filtrado ou agrupado com frequência e tem valores repetidos é coluna ou tabela, não documento. O `JSONB` fica para o que varia de linha para linha e não entra em relatório, como o `liquidity` e o `fgc` do exemplo. Foi a [normalização](../../modeling/normalization/) reaparecendo dentro do documento.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Servidor e cliente
+
+1. **Para que serve o volume nomeado no `docker-compose.yml`?**
+   <details><summary>Possível resposta</summary>Para persistir os dados fora do contêiner, de modo que removê-lo ou atualizá-lo não apague o banco.</details>
+
+2. **Como executar um arquivo SQL contra um banco específico com o `psql` no contêiner?**
+   <details><summary>Possível resposta</summary>Redirecionando o arquivo para `docker exec -i postgres psql -U postgres -d banco`, ou com `\i arquivo.sql` dentro de uma sessão interativa.</details>
+
+3. **Quais são os três bancos de um servidor recém-criado, e para que servem os dois modelos?**
+   <details><summary>Possível resposta</summary>`postgres`, `template0` e `template1`. Bancos novos são clonados a partir de `template1`; `template0` é a cópia intocada, usada para restaurações.</details>
+
+### Tabela e tipos
+
+4. **O que `GENERATED ALWAYS AS IDENTITY` faz, e como se relaciona com `SERIAL`?**
+   <details><summary>Possível resposta</summary>Faz o banco gerar o valor da coluna a partir de uma sequência ligada formalmente a ela. É a forma padrão do SQL; `SERIAL` é a forma antiga do PostgreSQL, com a sequência solta.</details>
+
+5. **O que a saída `INSERT 0 3` significa?**
+   <details><summary>Possível resposta</summary>Que três linhas foram inseridas. O zero é o OID, que o PostgreSQL moderno não atribui a linhas.</details>
+
+6. **Por que o total `35000.50` sai exato?**
+   <details><summary>Possível resposta</summary>Porque `value` é `NUMERIC(14, 2)`, um decimal exato, e a soma é feita em decimal, sem passar por ponto flutuante binário.</details>
+
+---
+
+## Referências
+
+- [Docker Hub: postgres](https://hub.docker.com/_/postgres)
+- [PostgreSQL: psql](https://www.postgresql.org/docs/current/app-psql.html)
+- [PostgreSQL: CREATE TABLE](https://www.postgresql.org/docs/current/sql-createtable.html)
+- [PostgreSQL: JSON Functions and Operators](https://www.postgresql.org/docs/current/functions-json.html)
+- [Adminer](https://www.adminer.org/)
+
+---
+
+## Próximo tópico
+
+[Administração](../administration/): Papéis, permissões, um usuário de aplicação sem superpoderes, `pg_dump` e restauração.

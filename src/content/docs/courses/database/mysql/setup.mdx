@@ -1,0 +1,279 @@
+---
+title: "Banco de Dados: MySQL, Instalação e Cliente"
+description: "Instalação do MySQL com Docker Compose, cliente mysql, criação da tabela com AUTO_INCREMENT, DECIMAL, ENUM e JSON, consultas com JSON_EXTRACT, modo estrito em ação, DESCRIBE e SHOW."
+course: database
+sidebar:
+  label: "Instalação e cliente"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico sobe um servidor MySQL 8 com Docker Compose, conecta pelo cliente `mysql` e cria a tabela de investimentos com os tipos da [visão geral](../), incluindo o `ENUM` que só o MySQL tem. Toda saída foi capturada em um contêiner `mysql:8.3` executando os arquivos do projeto `servers/mysql-server`.
+
+## Objetivo
+
+Colocar um servidor MySQL no ar em ambiente de desenvolvimento e operar o cliente de terminal para criar e consultar a tabela do exemplo, observando os comportamentos que distinguem o MySQL. Ao final do tópico, o leitor deve ser capaz de:
+
+- Subir o servidor e o Adminer com o `docker-compose.yml` do projeto e as variáveis de ambiente.
+- Conectar com o cliente `mysql` e usar `SHOW` e `DESCRIBE` para inspecionar bancos e tabelas.
+- Criar uma tabela com `AUTO_INCREMENT`, `DECIMAL`, `ENUM`, `JSON` e `ENGINE = InnoDB`.
+- Consultar um campo `JSON` com `JSON_EXTRACT` e `JSON_UNQUOTE`.
+- Reconhecer o modo estrito na mensagem de erro de um valor fora do `ENUM`.
+
+---
+
+## Subindo o Servidor
+
+O `docker-compose.yml` do projeto sobe o MySQL 8.3 e o Adminer. Diferente do PostgreSQL, a imagem do MySQL já cria um banco e um usuário de aplicação na inicialização, a partir das variáveis das linhas 9 a 11:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/docker-compose.yml" lines="1-17" mark={[8, 9, 10, 11, 17]} />
+
+As quatro variáveis vêm do `.env`, criado a partir do modelo do projeto:
+
+```ini title=".env.example"
+MYSQL_ROOT_PASSWORD=secret
+MYSQL_DATABASE=invest
+MYSQL_USER=invest_app
+MYSQL_PASSWORD=app-secret
+```
+
+Com o `.env` no lugar, o ambiente sobe e o banco `invest` já existe ao final da inicialização, com `invest_app` tendo todos os privilégios nele:
+
+```bash title="Terminal"
+docker compose up -d
+docker compose ps
+```
+
+A alternativa sem Compose é um `docker run` com a senha do `root`, e nesse caso o banco e o usuário de aplicação ficam para depois:
+
+```bash title="Terminal"
+docker run -d --name mysql -e MYSQL_ROOT_PASSWORD=secret -v mysql-data:/var/lib/mysql -p 3306:3306 mysql:8.3
+```
+
+O Adminer responde em `http://localhost:8080`, com sistema `MySQL`, servidor `mysql` e as credenciais do `.env`.
+
+---
+
+## O Cliente mysql
+
+O cliente vem na imagem, e o `-p` sem valor pede a senha de forma interativa, o que evita deixá-la no histórico do terminal:
+
+```bash title="Terminal"
+docker exec -it mysql mysql -u root -p
+```
+
+Dentro da sessão, a versão e a lista de bancos confirmam o servidor. Além do `invest` criado pelo Compose, aparecem os quatro bancos internos do MySQL:
+
+```txt title="Output"
+mysql> SELECT VERSION();
++-----------+
+| VERSION() |
++-----------+
+| 8.3.0     |
++-----------+
+
+mysql> SHOW DATABASES;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| invest             |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+```
+
+Onde o `psql` tem comandos de barra invertida, o MySQL tem instruções SQL de inspeção, o que permite usá-las também de dentro da aplicação:
+
+| Instrução | Descrição |
+| :--- | :--- |
+| `SHOW DATABASES;` | Lista os bancos do servidor. |
+| `USE invest;` | Seleciona o banco da sessão. |
+| `SHOW TABLES;` | Lista as tabelas do banco selecionado. |
+| `DESCRIBE investment;` | Mostra colunas, tipos, nulidade, chaves e padrões. |
+| `SHOW CREATE TABLE investment;` | Mostra o `CREATE TABLE` completo, com o motor e o *charset*. |
+| `SHOW TABLE STATUS;` | Mostra o motor de armazenamento e as estatísticas de cada tabela. |
+| `SELECT @@sql_mode;` | Mostra o modo SQL da sessão, inclusive se o modo estrito está ligado. |
+| `quit` | Sai do cliente. |
+
+---
+
+## Criando a Tabela
+
+O arquivo `invest.sql` do projeto cria a tabela no banco `invest`. A linha 3 declara a chave gerada como atributo da coluna; a linha 5 é o decimal exato com `CHECK`; a linha 6 é o `ENUM`, a lista fechada de valores; a linha 7 é o documento; e a linha 9 fixa o motor:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/invest.sql" region="table" mark={[3, 5, 6, 7, 9]} />
+
+Os dados são os mesmos da seção de PostgreSQL, com um documento JSON por linha:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/invest.sql" region="seed" />
+
+O arquivo termina com uma inserção que viola o `ENUM` de propósito. Executar o arquivo inteiro com `--table` desenha os resultados, e a violação aparece como a primeira linha da saída, porque o cliente reporta o erro antes de imprimir as consultas que já haviam rodado:
+
+```bash title="Terminal"
+docker exec -i mysql mysql -u root -p --table invest < invest.sql
+```
+
+```txt title="Output"
+ERROR 1265 (01000) at line 34: Data truncated for column 'category' at row 1
++----+--------------------+----------+----------+
+| id | name               | value    | category |
++----+--------------------+----------+----------+
+|  1 | Tesouro Selic 2029 | 10000.00 | Pós      |
+|  2 | Tesouro IPCA 2029  | 25000.50 | Pós      |
+|  3 | CDB Banco X        |  5000.00 | Pré      |
++----+--------------------+----------+----------+
++----------+----------+
+| category | total    |
++----------+----------+
+| Pré      |  5000.00 |
+| Pós      | 35000.50 |
++----------+----------+
++-------------+---------+
+| name        | broker  |
++-------------+---------+
+| CDB Banco X | Banco X |
++-------------+---------+
+```
+
+O `ERROR 1265` é o modo estrito recusando `'Híbrido'` em uma coluna `ENUM('Pré', 'Pós')`. A mensagem "Data truncated" vem da história do MySQL: sem o modo estrito, o valor seria truncado para a string vazia e a inserção passaria com um aviso. As consultas que geraram as três tabelas são SQL padrão, mais a consulta ao JSON:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/invest.sql" region="queries" />
+
+O MySQL não tem os operadores `->>` e `@>` do PostgreSQL; o acesso ao documento é por funções. A linha 27 extrai o campo com `JSON_EXTRACT` e remove as aspas com `JSON_UNQUOTE`, e a linha 29 filtra pelo valor booleano:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/invest.sql" region="json" mark={[27, 29]} />
+
+O `DESCRIBE` mostra como o servidor guardou a definição, com o `auto_increment` no `Extra` e o `ENUM` com os seus valores:
+
+```txt title="Output"
+mysql> DESCRIBE investment;
++------------+---------------------+------+-----+-------------------+-------------------+
+| Field      | Type                | Null | Key | Default           | Extra             |
++------------+---------------------+------+-----+-------------------+-------------------+
+| id         | int                 | NO   | PRI | NULL              | auto_increment    |
+| name       | varchar(120)        | NO   |     | NULL              |                   |
+| value      | decimal(14,2)       | NO   |     | NULL              |                   |
+| category   | enum('Pré','Pós')   | NO   |     | NULL              |                   |
+| notes      | json                | YES  |     | NULL              |                   |
+| created_at | datetime            | NO   |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED |
++------------+---------------------+------+-----+-------------------+-------------------+
+```
+
+<Aside type="caution" title="Dica de IA: Confira o `sql_mode` antes de confiar na validação">
+  Assistentes escrevem esquemas MySQL contando com o modo estrito, e ele é padrão em servidores novos. Em um servidor herdado, com `sql_mode` reduzido por alguma aplicação antiga, o mesmo esquema aceita valores truncados e datas `0000-00-00` sem erro, e a validação que parecia existir no banco não existe.
+
+  **Prompt:** *"Mostre a consulta que revela o `sql_mode` do servidor e da sessão, explique o que cada flag do valor `STRICT_TRANS_TABLES,NO_ZERO_DATE,…` protege, e escreva um `INSERT` que passa sem o modo estrito e falha com ele."*
+</Aside>
+
+---
+
+## Executando
+
+Os passos abaixo reproduzem a sessão desta página a partir da pasta `examples/courses/database/servers/mysql-server/`:
+
+<Steps>
+1. Crie o `.env` a partir do modelo e suba os serviços; o banco `invest` já nasce com a inicialização:
+
+   ```bash title="Terminal"
+   cp .env.example .env && docker compose up -d
+   ```
+2. Execute o arquivo do projeto contra o banco e confira a saída, inclusive o erro do `ENUM`:
+
+   ```bash title="Terminal"
+   docker exec -i mysql mysql -u root -p --table invest < invest.sql
+   ```
+3. Abra uma sessão interativa e confira o modo estrito e o motor da tabela:
+
+   ```bash title="Terminal"
+   docker exec -it mysql mysql -u root -p invest
+   ```
+
+   ```txt title="Output"
+   mysql> SELECT @@sql_mode;
+   ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+   mysql> SHOW TABLE STATUS\G
+              Name: investment
+            Engine: InnoDB
+   ```
+4. Abra `http://localhost:8080` no navegador e confira a mesma tabela pelo Adminer.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos comandos e nas saídas desta página:
+
+1. O que o Compose do MySQL faz na inicialização que o do PostgreSQL não faz, e de onde vêm os dados para isso?
+2. Por que a mensagem do `ENUM` fala em "truncated" se o valor foi recusado?
+3. Como a consulta ao campo JSON difere entre MySQL e PostgreSQL?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Cria o banco `MYSQL_DATABASE` e o usuário `MYSQL_USER` com senha `MYSQL_PASSWORD`, com todos os privilégios nesse banco, a partir das variáveis do `.env`. No PostgreSQL, o banco e o papel de aplicação são criados depois, com SQL.
+
+  2. Porque a operação interna do `ENUM` para um valor desconhecido é truncar para a string vazia, que era o comportamento antigo; no modo estrito, essa truncagem vira erro, mas a mensagem manteve o nome.
+
+  3. No MySQL o acesso é por funções (`JSON_EXTRACT`, `JSON_UNQUOTE`) com caminhos como `'$.broker'`; no PostgreSQL, por operadores (`->>`, `@>`). O resultado é o mesmo; a sintaxe e a indexação são diferentes.
+</details>
+
+---
+
+## Desafio
+
+O `ENUM('Pré', 'Pós')` vai precisar de uma terceira categoria, `'Híbrido'`, exatamente o valor que o arquivo recusou. Faça a alteração com `ALTER TABLE ... MODIFY`, reexecute a inserção e confira.
+
+Depois responda à pergunta que faz muita equipe abandonar o `ENUM`: o que acontece com os dados existentes se a nova lista for `('Pós', 'Pré', 'Híbrido')`, com a ordem trocada, e por que a tabela de categorias com chave estrangeira não tem esse problema?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `ALTER TABLE investment MODIFY category ENUM('Pré', 'Pós', 'Híbrido') NOT NULL` acrescenta o valor ao fim da lista, e a inserção de `'Fundo Z'` passa a funcionar. Como a lista foi estendida sem mudar a ordem dos valores existentes, os dados não são tocados.
+
+  Com a ordem trocada, o MySQL precisa reescrever a tabela, porque o `ENUM` é guardado como o índice do valor na lista: `'Pré'` era 1 e passa a ser 2. O servidor faz a conversão pelo nome, então os dados não se corrompem, mas a operação vira uma cópia completa da tabela, com bloqueio, e a ordenação por `category` muda de resultado (o `ENUM` ordena pelo índice, não pelo texto). Uma tabela `category` com chave estrangeira não tem lista embutida no tipo: acrescentar, renomear ou reordenar é `INSERT` e `UPDATE` em linhas, sem tocar na tabela de investimentos.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Servidor e cliente
+
+1. **Para que servem `MYSQL_DATABASE`, `MYSQL_USER` e `MYSQL_PASSWORD` na imagem oficial?**
+   <details><summary>Possível resposta</summary>Para criar, na primeira inicialização, um banco e um usuário de aplicação com todos os privilégios nele, sem SQL manual.</details>
+
+2. **Por que `-p` sem valor é preferível a `-psecret`?**
+   <details><summary>Possível resposta</summary>Porque a senha é pedida de forma interativa e não fica no histórico do terminal nem na lista de processos.</details>
+
+3. **Quais são os quatro bancos internos de um servidor MySQL?**
+   <details><summary>Possível resposta</summary>`information_schema`, `mysql`, `performance_schema` e `sys`, com metadados, contas e estatísticas do servidor.</details>
+
+### Tabela e tipos
+
+4. **Como uma coluna `ENUM` é armazenada?**
+   <details><summary>Possível resposta</summary>Como o índice do valor na lista declarada, o que torna a coluna compacta e faz a ordenação seguir a ordem da lista, não a alfabética.</details>
+
+5. **O que `DESCRIBE` mostra no `Extra` da coluna `id`?**
+   <details><summary>Possível resposta</summary>`auto_increment`, indicando que o valor é gerado pelo servidor a cada inserção.</details>
+
+6. **Qual instrução mostra o motor de armazenamento de uma tabela?**
+   <details><summary>Possível resposta</summary>`SHOW TABLE STATUS`, ou `SHOW CREATE TABLE`, que inclui a cláusula `ENGINE`.</details>
+
+---
+
+## Referências
+
+- [Docker Hub: mysql](https://hub.docker.com/_/mysql)
+- [MySQL: The mysql Command-Line Client](https://dev.mysql.com/doc/refman/8.4/en/mysql.html)
+- [MySQL: CREATE TABLE](https://dev.mysql.com/doc/refman/8.4/en/create-table.html)
+- [MySQL: The ENUM Type](https://dev.mysql.com/doc/refman/8.4/en/enum.html)
+- [MySQL: JSON Functions](https://dev.mysql.com/doc/refman/8.4/en/json-functions.html)
+
+---
+
+## Próximo tópico
+
+[Administração](../administration/): Usuários por origem, `GRANT`, `SHOW GRANTS`, `mysqldump` e restauração.

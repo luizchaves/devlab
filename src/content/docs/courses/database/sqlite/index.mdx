@@ -1,0 +1,185 @@
+---
+title: "Banco de Dados: SQLite"
+description: "Visão geral do SQLite: banco relacional embutido em um arquivo, sem servidor, com tipagem dinâmica, transações ACID, modo WAL e o recorte de projetos em que ele é a escolha certa."
+course: database
+sidebar:
+  label: "Visão geral do SQLite"
+---
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **SQLite** é o banco de dados mais usado do mundo e o único deste guia que não é um servidor: é uma biblioteca que a aplicação carrega, e o banco inteiro é um arquivo. Todo o SQL das seções [SQL DDL e DML](../sql/fundamentals/) e [Junções e Agregações](../sql/joins-aggregations/) foi executado nele, o que faz desta seção a continuação natural daquelas.
+
+## Objetivo
+
+Compreender o SQLite como um banco relacional completo com uma arquitetura diferente dos demais, para usá-lo onde ele é a melhor escolha e reconhecer o momento em que deixa de ser. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o que muda quando o banco é uma biblioteca dentro do processo, e não um servidor.
+- Descrever o modelo de arquivo único, o *journal* e o modo WAL.
+- Reconhecer a tipagem dinâmica e o que a cláusula `STRICT` altera.
+- Identificar os limites de concorrência de escrita e o que eles significam para uma aplicação web.
+- Situar o SQLite entre estudo, ferramenta local, aplicação embarcada e produção de pequeno porte.
+
+---
+
+## Um Banco em um Arquivo
+
+Um banco SQLite é um único arquivo, com as tabelas, os índices e os dados dentro dele. A aplicação abre o arquivo por uma biblioteca (no Node.js, o módulo nativo `node:sqlite`), e todas as leituras e escritas acontecem no próprio processo, sem rede, sem porta e sem outro programa em execução.
+
+O diagrama abaixo mostra o caminho de uma escrita, e o papel do arquivo de *journal* que garante a atomicidade:
+
+<Mermaid title="Escrita no SQLite: processo, biblioteca, arquivo e journal">
+{`
+flowchart LR
+  App["Aplicação<br/>node:sqlite"] --> Lib["Biblioteca SQLite<br/>no mesmo processo"]
+  Lib --> Journal["Journal ou WAL<br/>registro da transação"]
+  Journal --> File[("banco.db<br/>arquivo único")]
+`}
+</Mermaid>
+
+O *journal* é o que faz uma transação sobreviver a uma queda de energia no meio: as mudanças são registradas nele antes de irem ao arquivo principal, e na próxima abertura o SQLite completa ou desfaz o que ficou pela metade. No modo **WAL** (*write-ahead log*), o registro fica em um arquivo ao lado do banco e permite que leituras aconteçam enquanto uma escrita está em andamento, o que é a configuração recomendada para qualquer uso além do estudo.
+
+---
+
+## O Que Esta Seção Cobre
+
+As duas páginas seguintes saem da visão geral para a prática, na ordem em que um projeto as encontra:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    O binário `sqlite3`, o módulo `node:sqlite`, a imagem Docker do projeto e a primeira sessão no terminal, com `.tables`, `.schema` e os modos de saída.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Administração" icon="setting">
+    O que "administrar" significa sem servidor: `PRAGMA`, chaves estrangeiras, WAL, `.backup`, `.dump`, `VACUUM` e a verificação de integridade.
+
+    [Acessar tópico](administration/)
+  </Card>
+</CardGrid>
+
+---
+
+## Tipagem Dinâmica
+
+A característica que mais surpreende quem vem de outro motor é que o SQLite não impõe o tipo da coluna. `INTEGER`, `TEXT` e os demais são **afinidades**: uma preferência de conversão, aplicada quando possível. Uma coluna `INTEGER` aceita a string `'abc'` e a guarda como texto, sem erro.
+
+A cláusula `STRICT`, disponível desde a versão 3.37, transforma a afinidade em restrição:
+
+| Declaração | Inserir `'abc'` em coluna `INTEGER` | Uso recomendado |
+| --- | --- | --- |
+| `CREATE TABLE t (n INTEGER)` | Aceito; o valor fica como `text` | Compatibilidade com esquemas antigos |
+| `CREATE TABLE t (n INTEGER) STRICT` | Recusado: `cannot store TEXT value in INTEGER column` | Esquemas novos |
+
+A tipagem dinâmica também explica a tabela de tipos de [Motores, Nuvem e Mercado](../basics/engines/#tipos-de-dados-entre-motores-relacionais): não há `BOOLEAN`, `DATETIME` nem `DECIMAL` de verdade. Booleano é `0` ou `1`, data é texto ISO 8601 ou inteiro, e valor monetário é inteiro em centavos.
+
+---
+
+## Concorrência e o Limite de Escrita
+
+O SQLite permite muitos leitores ao mesmo tempo e **um escritor por vez**. Com o modo WAL, os leitores não bloqueiam o escritor nem são bloqueados por ele; ainda assim, duas transações de escrita simultâneas se enfileiram, e a segunda espera ou recebe `SQLITE_BUSY` se a espera passar do tempo configurado.
+
+Para uma aplicação com um único processo, isso é imperceptível: as escritas são rápidas e a fila se esvazia em milissegundos. O limite aparece em dois cenários:
+
+<Steps>
+1. **Vários processos gravando.** Duas instâncias da API abrindo o mesmo arquivo competem pelo bloqueio, e em disco de rede o bloqueio nem é confiável. É o gatilho para um servidor, como a seção [PostgreSQL](../postgresql/) mostra.
+2. **Escritas longas.** Uma transação que demora segundos segura todas as outras. A saída é manter transações curtas e mover processamento pesado para fora delas.
+</Steps>
+
+<Aside type="tip" title="SQLite em produção não é contradição">
+Sites com milhares de leituras por segundo rodam sobre SQLite em WAL, desde que a escrita venha de um processo só. O erro não é usar SQLite em produção; é usá-lo com várias instâncias gravando, ou em armazenamento de rede.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+O SQLite é a escolha certa em mais casos do que se costuma admitir, e a errada em poucos, bem definidos.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Estudo, protótipo, testes automatizados | **SQLite** | Zero instalação, banco em memória ou em arquivo, criado e destruído em milissegundos. |
+| Ferramenta de linha de comando, aplicação de área de trabalho ou móvel | **SQLite** | O banco vai junto do programa, sem serviço a manter. |
+| Aplicação web com um processo e leitura intensa | **SQLite em WAL** | Um escritor basta; leituras concorrentes não se bloqueiam. |
+| API em várias instâncias ou em vários servidores | **[PostgreSQL](../postgresql/) ou [MySQL](../mysql/)** | Um servidor coordena escritas de vários processos. |
+| Disco compartilhado por rede | **Servidor de banco** | O bloqueio de arquivo em rede não é confiável, e o banco corrompe. |
+| Dados com tipos exatos e regras ricas | **PostgreSQL** | `NUMERIC`, `TIMESTAMPTZ`, `JSONB` e extensões não existem no SQLite. |
+
+---
+
+## Exercício
+
+Responda com base na arquitetura e na seção de concorrência:
+
+1. Por que o SQLite não tem porta de rede, e o que isso implica para uma aplicação que roda em dois servidores?
+2. O que é a afinidade de tipo, e o que a cláusula `STRICT` muda?
+3. O que o modo WAL permite que o modo de *journal* padrão não permite?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque ele não é um servidor: é uma biblioteca dentro do processo da aplicação, e o banco é um arquivo local. Dois servidores não conseguem compartilhar esse arquivo com segurança, então a aplicação precisa de um servidor de banco.
+
+  2. A afinidade é a preferência de conversão da coluna, aplicada quando possível e ignorada quando não é: uma coluna `INTEGER` guarda `'abc'` como texto. Com `STRICT`, o tipo declarado passa a ser obrigatório, e o valor incompatível é recusado.
+
+  3. Que leituras aconteçam durante uma escrita, sem bloqueio nos dois sentidos. No modo padrão, a escrita bloqueia os leitores enquanto durar.
+</details>
+
+---
+
+## Desafio
+
+O projeto `invest-db` roda tudo em memória. Converta o `run.mjs` para gravar em um arquivo `invest.db`, ative o WAL e escreva um segundo script que abra o mesmo arquivo e leia enquanto o primeiro insere mil linhas em uma transação longa.
+
+Meça o que acontece com e sem WAL: o leitor espera, falha ou lê a versão anterior? Depois rode dois escritores ao mesmo tempo e descreva o erro. Por fim responda: o que a aplicação deveria fazer ao receber `SQLITE_BUSY`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Sem WAL, o leitor recebe `SQLITE_BUSY` (ou espera até o `busy_timeout`) enquanto a transação de escrita durar, porque o modo *journal* padrão bloqueia leituras durante a escrita. Com WAL, o leitor lê a versão anterior do banco sem esperar, e só enxerga as mil linhas depois do `COMMIT`. Dois escritores produzem `SQLITE_BUSY` no segundo, independentemente do modo, porque só um escritor existe por vez.
+
+  A resposta correta ao `SQLITE_BUSY` é configurar um `busy_timeout` razoável (alguns segundos) e tratar o erro que sobrar com nova tentativa curta, nunca com repetição imediata em laço. Se o erro se torna frequente, o diagnóstico não é "o SQLite é lento", e sim "há mais de um escritor" ou "as transações são longas demais".
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Arquitetura
+
+1. **O que significa dizer que o SQLite é embutido?**
+   <details><summary>Possível resposta</summary>Que ele é uma biblioteca carregada pela aplicação, executada no mesmo processo, e não um servidor separado acessado pela rede.</details>
+
+2. **Qual é o papel do arquivo de journal?**
+   <details><summary>Possível resposta</summary>Registrar a transação antes de ela chegar ao arquivo principal, para que uma queda no meio possa ser completada ou desfeita na próxima abertura, garantindo atomicidade.</details>
+
+3. **Por que o modo WAL é recomendado fora do estudo?**
+   <details><summary>Possível resposta</summary>Porque permite leituras concorrentes com a escrita, sem bloqueio, e costuma ser mais rápido para escritas frequentes.</details>
+
+### Uso
+
+4. **Quantos escritores simultâneos o SQLite permite?**
+   <details><summary>Possível resposta</summary>Um por vez. Escritores adicionais esperam ou recebem `SQLITE_BUSY`.</details>
+
+5. **Como o SQLite representa booleanos, datas e valores monetários?**
+   <details><summary>Possível resposta</summary>Booleano como inteiro 0 ou 1; data como texto ISO 8601 ou inteiro; valor monetário como inteiro em centavos, porque não há tipo decimal exato.</details>
+
+6. **Qual é o cenário em que o SQLite corrompe dados, e por quê?**
+   <details><summary>Possível resposta</summary>Arquivo em disco compartilhado por rede com mais de um processo gravando, porque o bloqueio de arquivo em rede não é confiável.</details>
+
+---
+
+## Referências
+
+- [SQLite: About](https://www.sqlite.org/about.html)
+- [SQLite: Datatypes and type affinity](https://www.sqlite.org/datatype3.html)
+- [SQLite: STRICT tables](https://www.sqlite.org/stricttables.html)
+- [SQLite: Write-Ahead Logging](https://www.sqlite.org/wal.html)
+- [Node.js: node:sqlite](https://nodejs.org/api/sqlite.html)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): O binário `sqlite3`, o `node:sqlite` e a primeira sessão no terminal.

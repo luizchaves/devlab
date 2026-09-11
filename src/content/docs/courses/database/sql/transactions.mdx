@@ -1,0 +1,254 @@
+---
+title: "Banco de Dados: Transações"
+description: "Transações em SQL: BEGIN, COMMIT e ROLLBACK, as propriedades ACID na prática, SAVEPOINT, o que acontece quando uma instrução falha no meio, atualização perdida, níveis de isolamento e por que transações curtas importam."
+course: database
+sidebar:
+  label: "Transações"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico executa o que a [introdução](../../basics/introduction/) apresentou como sigla: uma transação é o mecanismo que faz várias instruções acontecerem juntas ou não acontecerem, e o arquivo `transactions.sql` do projeto `invest-db` mostra cada comportamento com uma transferência entre contas que dá certo, uma que falha no meio e uma desfeita pela metade.
+
+## Objetivo
+
+Dominar o controle de transações para escrever operações que deixam o banco consistente mesmo quando algo falha no meio, e reconhecer os problemas de concorrência que o isolamento resolve. Ao final do tópico, o leitor deve ser capaz de:
+
+- Delimitar uma unidade de trabalho com `BEGIN`, `COMMIT` e `ROLLBACK`.
+- Explicar cada propriedade ACID a partir de uma instrução que a exercita.
+- Usar `SAVEPOINT` para desfazer parte de uma transação.
+- Reconhecer a atualização perdida e o papel dos níveis de isolamento.
+- Justificar por que transações curtas são a regra, e o que uma transação longa bloqueia.
+
+---
+
+## Tudo ou Nada
+
+Uma transferência entre contas é o exemplo clássico porque expõe o problema: são duas escritas, e o mundo entre a primeira e a segunda é inconsistente (o dinheiro saiu de uma conta e ainda não entrou na outra). A transação delimita as duas como uma unidade.
+
+O diagrama abaixo mostra os dois desfechos possíveis:
+
+<Mermaid title="Os dois desfechos de uma transação">
+{`
+flowchart TD
+  Begin["BEGIN"] --> W1["UPDATE conta 1"] --> W2["UPDATE conta 2"]
+  W2 -->|"tudo certo"| Commit["COMMIT<br/>as duas escritas ficam"]
+  W2 -->|"erro ou desistência"| Rollback["ROLLBACK<br/>nenhuma escrita fica"]
+`}
+</Mermaid>
+
+O arquivo cria duas contas com um `CHECK` que impede saldo negativo, e faz a transferência de 300 entre `BEGIN` (linha 11) e `COMMIT` (linha 14):
+
+<SourceCode path="examples/courses/database/invest-db/transactions.sql" region="commit" mark={[11, 14]} />
+
+```txt title="Output"
+-- ok
+-- 2 linha(s) afetada(s)
+-- ok
+-- 1 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+-- ok
+id | owner | balance
+---+-------+--------
+1  | Ana   | 700
+2  | Bruno | 800
+```
+
+Os dois `UPDATE` foram confirmados juntos, e a consulta mostra o resultado: 300 saíram de Ana e entraram em Bruno. Sem transação, o resultado seria o mesmo neste caso feliz. A diferença aparece no caso seguinte.
+
+---
+
+## A Falha no Meio da Transação
+
+A segunda transferência é de 900, e Ana tem 700: o `CHECK` recusa a segunda escrita. A primeira, que creditou Bruno, já aconteceu. O `ROLLBACK` da linha 24 é o que desfaz as duas:
+
+<SourceCode path="examples/courses/database/invest-db/transactions.sql" region="rollback" mark={[23, 24]} />
+
+```txt title="Output"
+-- ok
+-- 1 linha(s) afetada(s)
+-- erro: CHECK constraint failed: balance >= 0
+-- ok
+id | owner | balance
+---+-------+--------
+1  | Ana   | 700
+2  | Bruno | 800
+```
+
+O crédito de 900 a Bruno chegou a ser executado (`1 linha afetada`) e desapareceu com o `ROLLBACK`: os saldos são os mesmos de antes. Sem a transação, Bruno ficaria com 1700 e Ana com 700, e o banco teria criado 900 do nada.
+
+Um detalhe do SQLite merece atenção: a instrução que falhou não encerrou a transação, e o `ROLLBACK` explícito foi necessário. O PostgreSQL se comporta de outra forma: depois de um erro, a transação entra em estado abortado e recusa qualquer instrução até o `ROLLBACK`, o que é mais seguro, porque impede um `COMMIT` parcial por descuido. Nas aplicações, o padrão é o mesmo em todos os motores: capturar o erro e executar o `ROLLBACK` no `catch`.
+
+<Aside type="caution" title="Dica de IA: Peça o ROLLBACK no caminho de erro">
+  Assistentes escrevem o `BEGIN`, as instruções e o `COMMIT`, e o `try/catch` em volta apenas registra o erro. A transação fica aberta, segurando bloqueios até a conexão morrer, e no PostgreSQL a conexão passa a recusar tudo com `current transaction is aborted`.
+
+  **Prompt:** *"Reescreva esta função para que toda transação termine com `COMMIT` no sucesso e `ROLLBACK` em qualquer exceção, inclusive nas lançadas pelo próprio código entre as instruções, e mostre o teste que provoca a falha na segunda escrita e confere que a primeira foi desfeita."*
+</Aside>
+
+---
+
+## ACID, Instrução por Instrução
+
+As quatro propriedades que o [tópico de introdução](../../basics/introduction/) enunciou aparecem no arquivo:
+
+| Propriedade | O que garante | Onde aparece no exemplo |
+| --- | --- | --- |
+| **Atomicidade** | Tudo ou nada | O `ROLLBACK` desfaz o crédito de 900 que já havia sido executado. |
+| **Consistência** | O banco sai de um estado válido para outro válido | O `CHECK (balance >= 0)` recusa o estado inválido, e a transação não pode ser confirmada com ele. |
+| **Isolamento** | Transações simultâneas não veem o meio uma da outra | Outra conexão lendo as contas durante a transferência vê os saldos de antes ou de depois, nunca o intermediário. |
+| **Durabilidade** | O que foi confirmado sobrevive a queda | Depois do `COMMIT`, o *journal* garante os 700 e 800 mesmo com o processo morto em seguida. |
+
+---
+
+## Desfazer Só uma Parte
+
+O `SAVEPOINT` marca um ponto dentro da transação, e `ROLLBACK TO` volta até ele sem encerrar a transação. No terceiro trecho, o débito de 100 (linha 32) fica, e o bônus de 50 (linha 34) é desfeito pela linha 35:
+
+<SourceCode path="examples/courses/database/invest-db/transactions.sql" region="savepoint" mark={[33, 35]} />
+
+```txt title="Output"
+-- ok
+-- 1 linha(s) afetada(s)
+-- ok
+-- 1 linha(s) afetada(s)
+-- ok
+-- ok
+id | owner | balance
+---+-------+--------
+1  | Ana   | 600
+2  | Bruno | 800
+```
+
+Ana perdeu os 100 e Bruno não ganhou os 50. O uso típico é uma operação em lote em que a falha de um item não deve desfazer os anteriores: cada item ganha um `SAVEPOINT`, e o `ROLLBACK TO` descarta só o item problemático.
+
+---
+
+## Concorrência e Isolamento
+
+O isolamento é a propriedade que só se entende com duas conexões. O problema clássico é a **atualização perdida**: duas transações leem o mesmo saldo, cada uma calcula o novo valor e grava, e a segunda gravação apaga a primeira.
+
+| Passo | Transação A | Transação B | Saldo no banco |
+| --- | --- | --- | --- |
+| 1 | Lê saldo: 700 | | 700 |
+| 2 | | Lê saldo: 700 | 700 |
+| 3 | Grava 700 − 100 = 600 | | 600 |
+| 4 | | Grava 700 − 200 = 500 | **500** |
+
+O resultado correto seria 400; o débito de A foi perdido. As duas defesas são:
+
+<Steps>
+1. **Não ler para depois gravar.** `UPDATE Account SET balance = balance - 100` faz o cálculo no banco, dentro de um bloqueio da linha, e a segunda transação espera a primeira. É o que o arquivo faz, e resolve a maioria dos casos.
+2. **Bloquear na leitura, quando o cálculo precisa acontecer na aplicação.** `SELECT ... FOR UPDATE` (PostgreSQL, MySQL) trava a linha até o fim da transação, e a segunda leitura espera. O SQLite não tem `FOR UPDATE`; ele serializa escritores, e `BEGIN IMMEDIATE` reserva a escrita desde o início.
+</Steps>
+
+Os motores oferecem **níveis de isolamento** que decidem o que uma transação pode ver das outras. O padrão do PostgreSQL e do MySQL (*read committed* e *repeatable read*, respectivamente) evita ler dados não confirmados, e o nível mais alto, *serializable*, faz as transações se comportarem como se rodassem uma por vez, ao custo de recusar algumas com erro de serialização, que a aplicação precisa repetir.
+
+---
+
+## Quando usar, e quando não usar?
+
+Toda escrita em SQL acontece em uma transação, explícita ou não. A decisão é sobre o tamanho dela.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Várias escritas que só fazem sentido juntas | **Uma transação explícita** | Atomicidade: transferência, pedido com itens, cadastro com perfil. |
+| Uma única instrução | **Transação implícita** | Cada instrução já é atômica; o `BEGIN` não acrescenta nada. |
+| Lote grande de linhas | **Uma transação por lote, não por linha** | Um `COMMIT` a cada mil linhas é ordens de grandeza mais rápido do que um por linha. |
+| Lote em que a falha de um item não deve desfazer os outros | **`SAVEPOINT` por item** | Desfaz só o item, mantém o lote. |
+| Trabalho longo (chamada externa, espera do usuário) | **Fora da transação** | Uma transação aberta segura bloqueios; a chamada externa não deve estar dentro dela. |
+| Leitura de um saldo para decidir e gravar | **Cálculo no `UPDATE` ou `FOR UPDATE`** | Evita a atualização perdida. |
+
+---
+
+## Executando
+
+O arquivo cria a própria tabela de contas sobre o banco do projeto:
+
+<Steps>
+1. Execute e compare as três consultas de saldo com as desta página:
+
+   ```bash title="Terminal"
+   node run.mjs transactions.sql
+   ```
+2. Remova o `ROLLBACK` do segundo trecho e execute de novo: no SQLite, o `COMMIT` seguinte confirma o crédito de 900 sem o débito, e é exatamente o defeito que a transação existe para evitar.
+3. Reproduza a atualização perdida com dois terminais abertos no mesmo arquivo `invest.db`: leia o saldo nos dois, grave nos dois, e confira o resultado.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nas três transferências do arquivo:
+
+1. Por que o saldo de Bruno voltou a 800 depois da segunda transferência, se o crédito de 900 imprimiu `1 linha afetada`?
+2. Qual propriedade ACID o `CHECK (balance >= 0)` exercita, e por que ela não bastaria sem a atomicidade?
+3. O que `ROLLBACK TO bonus` desfez, e o que manteve?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o crédito foi executado dentro de uma transação que terminou em `ROLLBACK`. Executar não é confirmar: até o `COMMIT`, tudo pode ser desfeito, e foi.
+
+  2. A consistência: o banco recusa um estado inválido. Sem atomicidade, a instrução inválida seria recusada, mas a válida anterior ficaria, e o banco terminaria consistente linha a linha e errado como um todo.
+
+  3. Desfez o bônus de 50 a Bruno, executado depois do `SAVEPOINT`, e manteve o débito de 100 de Ana, executado antes. O `COMMIT` confirmou só o que sobrou.
+</details>
+
+---
+
+## Desafio
+
+Escreva um arquivo `batch.sql` que insira dez investimentos em uma transação, um dos quais com valor negativo que viola um `CHECK`, e faça o lote inteiro falhar. Depois reescreva com um `SAVEPOINT` por item, de modo que os nove válidos entrem e só o inválido seja descartado.
+
+Meça o custo da terceira variante: os mesmos dez itens, cada um em uma transação própria. Com o `time` do terminal e um lote de dez mil linhas geradas por script, compare uma transação por lote com uma por linha, e explique a diferença pelo que o `COMMIT` faz.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Na primeira versão, o `CHECK` falha no item inválido e o `ROLLBACK` descarta os dez. Na segunda, cada item fica entre `SAVEPOINT item_n` e `RELEASE item_n`, com `ROLLBACK TO item_n` no erro; nove entram, um sai, e o `COMMIT` confirma os nove.
+
+  Na medição, uma transação por linha é dezenas de vezes mais lenta do que uma por lote, porque cada `COMMIT` obriga o motor a gravar o *journal* em disco de forma durável (`fsync`) antes de responder. Dez mil `COMMIT` são dez mil esperas pelo disco; um `COMMIT` é uma. É o motivo de toda importação em massa ser feita em lotes, e de scripts de migração de dados envolverem as linhas em uma transação.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Controle
+
+1. **O que `BEGIN`, `COMMIT` e `ROLLBACK` delimitam?**
+   <details><summary>Possível resposta</summary>Uma unidade de trabalho: as instruções entre `BEGIN` e `COMMIT` ficam todas, e as entre `BEGIN` e `ROLLBACK` são todas desfeitas.</details>
+
+2. **O que acontece no PostgreSQL depois que uma instrução falha dentro de uma transação?**
+   <details><summary>Possível resposta</summary>A transação entra em estado abortado e recusa qualquer instrução até o `ROLLBACK`, o que impede um `COMMIT` parcial.</details>
+
+3. **Para que serve `SAVEPOINT`?**
+   <details><summary>Possível resposta</summary>Para marcar um ponto dentro da transação ao qual se pode voltar com `ROLLBACK TO`, desfazendo só o que veio depois dele.</details>
+
+### Concorrência
+
+4. **O que é a atualização perdida?**
+   <details><summary>Possível resposta</summary>Duas transações leem o mesmo valor, cada uma calcula e grava, e a segunda gravação apaga o efeito da primeira.</details>
+
+5. **Como evitar a atualização perdida sem bloqueio explícito?**
+   <details><summary>Possível resposta</summary>Fazendo o cálculo no próprio `UPDATE` (`SET balance = balance - 100`), que o banco executa sob bloqueio da linha.</details>
+
+6. **Por que uma transação longa é um problema?**
+   <details><summary>Possível resposta</summary>Porque segura bloqueios e versões antigas enquanto durar, atrasando ou impedindo outras transações. Chamadas externas e esperas pelo usuário ficam fora dela.</details>
+
+---
+
+## Referências
+
+- [SQLite: Transactions](https://www.sqlite.org/lang_transaction.html)
+- [SQLite: SAVEPOINT](https://www.sqlite.org/lang_savepoint.html)
+- [PostgreSQL: Transactions](https://www.postgresql.org/docs/current/tutorial-transactions.html)
+- [PostgreSQL: Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html)
+- [MySQL: SELECT ... FOR UPDATE](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html)
+
+---
+
+## Próximo tópico
+
+[Desempenho](../performance/): O plano de execução, o índice que o planejador usa ou ignora, o N+1 e o custo da paginação por `OFFSET`.

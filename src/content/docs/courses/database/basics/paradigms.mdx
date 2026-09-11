@@ -1,0 +1,232 @@
+---
+title: "Banco de Dados: Paradigmas"
+description: "Comparação entre paradigmas de banco de dados: relacional, documentos, chave-valor, colunar e grafos, com o modelo de dados, as garantias, as consultas que cada um faz bem, o teorema CAP como critério e uma tabela de decisão por tipo de aplicação."
+course: database
+sidebar:
+  label: "Paradigmas"
+---
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico responde à pergunta que vem antes de escolher um motor: **que forma os dados vão ter?** Tabelas com junções, documentos aninhados, pares de chave e valor, colunas por família, nós e arestas em grafos, fluxos temporais ou vetores matemáticos são respostas diferentes, e cada uma torna algumas consultas instantâneas e outras impraticáveis. "NoSQL" nomeou as primeiras alternativas ao modelo relacional, mas o ecossistema atual vai além.
+
+## Objetivo
+
+Compreender os paradigmas fundamentais e especializados de banco de dados como modelos estruturais distintos, com garantias, formas de indexação e consultas próprias, para escolher a família arquitetural adequada antes do motor e reconhecer quando um projeto está usando o modelo errado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever o modelo de dados de cada paradigma e a unidade elementar que ele armazena.
+- Identificar as consultas que cada modelo faz com eficiência nativa e as que ele não atende.
+- Explicar o que a sigla "NoSQL" agrupa historicamente e como os motores modernos se tornaram multiparadigma.
+- Diferenciar os modelos clássicos dos paradigmas especializados (séries temporais, vetores, busca textual e geoespacial).
+- Aplicar o teorema CAP como critério para sistemas distribuídos, sem exagerar o seu alcance.
+- Escolher o paradigma de um projeto a partir da forma dos dados, dos requisitos de consulta e da escala.
+
+---
+
+## Famílias de Bancos de Dados
+
+O ecossistema contemporâneo de persistência de dados divide-se em três grandes grupos arquiteturais:
+
+1. **Bancos Relacionais (SQL)**:
+   - **Relacional Tradicional (OLTP)**: Baseado em tabelas com esquemas rígidos (*schema-first*), chaves primárias, chaves estrangeiras e integridade transacional estrita (ACID). São a escolha padrão para sistemas de gestão (ERP, CRM), finanças e comércio eletrônico (como PostgreSQL, MySQL e SQLite).
+   - **Relacional Distribuído (NewSQL)**: Combina a linguagem SQL padrão e as garantias ACID com escalabilidade horizontal transparente e replicação de consenso global (como CockroachDB, Cloud Spanner e TiDB).
+
+2. **Bancos Não-Relacionais (NoSQL)**:
+   - **Documentos**: Armazenam registros semiestruturados em formatos como JSON ou BSON. Cada documento é auto-descritivo e pode conter campos aninhados e esquemas flexíveis, facilitando o desenvolvimento ágil e a correspondência direta com objetos da aplicação (como MongoDB e Firestore).
+   - **Chave-Valor (*Key-Value*)**: O modelo mais simples e veloz de persistência, baseado em tabelas hash em memória RAM indexadas por chaves únicas. Oferece latência sub-milissegundo para leitura e escrita, sendo ideal para sessões, filas e cache (como Redis e DynamoDB).
+   - **Colunas Largas (*Wide-Column*)**: Agrupam os dados em famílias de colunas dinâmicas distribuídas por chaves de partição. São otimizados para escrita contínua em escala massiva de petabytes sem a necessidade de travas centralizadas (como Apache Cassandra e ScyllaDB).
+   - **Grafos (*Graph*)**: Modelam as entidades como nós (vértices) e as relações como conexões explícitas (arestas) com propriedades associadas. Permitem percorrer redes complexas de múltiplos saltos com alto desempenho, sem a sobrecarga de sucessivos `JOIN` relacionais (como Neo4j e Neptune).
+
+3. **Motores Especializados e Analíticos**:
+   - **Analítico / OLAP (*Online Analytical Processing*)**: Organizam os dados em blocos orientados a colunas em vez de linhas. Esse formato permite compactação extrema e varredura de bilhões de registros por segundo para cálculos de agregação (`SUM`, `AVG`, `COUNT`), sendo a base de *Data Warehouses* e ferramentas de BI (como ClickHouse e DuckDB).
+   - **Séries Temporais (*Time-Series*)**: Otimizados para gravação e consulta de fluxos contínuos de eventos cronológicos indexados por carimbos de data e hora (*timestamps*), oferecendo retenção automática e compressão de métricas de telemetria (como TimescaleDB e InfluxDB).
+   - **Busca Textual (*Search Engines*)**: Utilizam índices invertidos e algoritmos de pontuação de relevância (como BM25 e TF-IDF) para viabilizar pesquisas flexíveis em linguagem natural, tolerância a erros de digitação e filtros facetados (como OpenSearch e Meilisearch).
+   - **Geoespacial (*Spatial / GIS*)**: Incorporam tipos geométricos (pontos, polígonos, linhas e geometrias esferoidais) e estruturas de indexação multidimensional (R-Tree e GiST), permitindo consultas rápidas de raio, proximidade e sobreposição de rotas (como PostGIS e SpatiaLite).
+   - **Vetorial (*Vector / AI*)**: Armazenam representações matemáticas (*embeddings*) geradas por modelos de inteligência artificial. Realizam buscas por vizinhos mais próximos aproximados (*ANN - Approximate Nearest Neighbor*) para suportar busca semântica e sistemas de Recuperação Aumentada por Geração (como pgvector, Qdrant e Milvus).
+
+---
+
+## Formas Fundamentais de Guardar Dados
+
+A tabela abaixo apresenta os paradigmas pela unidade que armazenam, pelo seu mecanismo definidor e pelos motores de referência:
+
+| Paradigma | Unidade Armazenada | O que o define | Motores de Referência |
+| --- | --- | --- | --- |
+| **Relacional** | Linha em uma tabela com esquema rígido | Junções (`JOIN`), restrições de integridade e transações ACID entre tabelas | PostgreSQL, MySQL, SQLite, MariaDB |
+| **Documentos** | Documento semiestruturado em coleção | Esquema flexível (JSON/BSON), leitura de um bloco e modelagem por telas | MongoDB, Cloud Firestore, CouchDB |
+| **Chave-valor** | Valor opaco indexado por chave | Leitura e escrita direta por chave em memória com latência sub-milissegundo | Redis, Valkey, DynamoDB, Memcached |
+| **Colunar / Wide-Column** | Colunas agrupadas por partição ou armazenamento orientado a colunas | Escrita massiva e varredura de poucas colunas em bilhões de registros para agregação | Apache Cassandra, ScyllaDB, ClickHouse, DuckDB |
+| **Grafos** | Nós (vértices) e arestas (conexões com propriedades) | Travessia de redes de relacionamentos em profundidade arbitrária | Neo4j, Apache TinkerPop, Amazon Neptune |
+| **Séries Temporais** | Evento ordenado por carimbo de data e hora (*timestamp*) | Ingestão contínua de telemetria, janelamento temporal e compressão histórica | TimescaleDB, InfluxDB, Prometheus |
+| **Vetorial** | Vetores de ponto flutuante (*embeddings* multidimensionais) | Busca por similaridade semântica via algoritmos de vizinhos mais próximos (ANN) | pgvector, Qdrant, Milvus, Chroma |
+| **Busca Textual** | Documento indexado em estrutura invertida | Análise léxica, tokenização, busca por termos aproximados e relevância BM25 | Elasticsearch, OpenSearch, Meilisearch |
+| **Geoespacial** | Geometrias e geografias (pontos, linhas e polígonos) | Indexação espacial multidimensional (R-Tree, GiST) para cálculos de raio e polígonos | PostGIS, SpatiaLite, MySQL Spatial |
+
+O diagrama abaixo coloca a mesma entidade, "Ana investe no Tesouro Selic", em diferentes formas estruturais:
+
+<Mermaid title="A mesma relação em diferentes paradigmas">
+{`
+flowchart TB
+  subgraph Rel["Relacional (Tabelas)"]
+    direction LR
+    R1["user: 1, Ana"] --- R2["investment: 1, user_id=1, Selic"]
+  end
+  subgraph Doc["Documentos (JSON)"]
+    direction LR
+    D1["{ name: 'Ana', investments: [ { name: 'Selic' } ] }"]
+  end
+  subgraph KV["Chave-valor (Hash)"]
+    direction LR
+    K1["user:1 → { 'Ana', [Selic] }"]
+  end
+  subgraph Graph["Grafos (Rede)"]
+    direction LR
+    G1(("Ana")) -->|"INVESTE_EM"| G2(("Selic"))
+  end
+  subgraph TS["Séries Temporais"]
+    direction LR
+    T1["2026-09-10T09:00Z | user=1 | selic=10150.00"]
+  end
+  subgraph Vec["Vetorial (Embedding)"]
+    direction LR
+    V1["[0.124, -0.891, 0.450, ...] (Semântica)"]
+  end
+  Rel ~~~ Doc ~~~ KV
+  Graph ~~~ TS ~~~ Vec
+`}
+</Mermaid>
+
+O modelo colunar atua no formato físico de gravação em disco (armazenando blocos inteiros da mesma coluna contiguamente para permitir compressão agressiva e somas verticais), enquanto motores de busca utilizam índices invertidos que mapeiam termos a documentos.
+
+---
+
+## O Que Cada Paradigma Abre Mão e Ganha
+
+O termo "NoSQL" surgiu para nomear bancos que abriam mão do modelo relacional tradicional, mas a especialização de bancos modernos vai além da oposição SQL versus NoSQL. Cada paradigma foi desenhado para maximizar a eficiência de um tipo específico de acesso e estrutura, abrindo mão de garantias generalistas em favor de desempenho extremo:
+
+A tabela abaixo sintetiza os trade-offs arquiteturais de cada família:
+
+| Paradigma | Abre mão de | Ganha |
+| --- | --- | --- |
+| **Documentos** | Junções nativas eficientes e esquema rígido | Leitura de um bloco, flexibilidade de evolução e partição por documento |
+| **Chave-valor** | Consultas ricas por conteúdo interno | Latência mínima em memória e escala linear por chave |
+| **Colunar (OLAP / Wide-Column)** | Transações atômicas por linha e escritas pontuais | Escrita massiva contínua, compressão agressiva e agregações em bilhões de registros |
+| **Grafos** | Particionamento e escala horizontal trivial | Travessia de redes de relacionamento em múltiplos níveis sem explosão combinatória |
+| **Séries Temporais** | Atualizações arbitrárias no passado (*random updates*) | Ingestão sequencial de alta vazão, agregações por janelas e expiração automática |
+| **Vetorial** | Correspondência exata e determinística | Busca por similaridade semântica em alta dimensão para IA e RAG |
+| **Busca Textual** | Consistência imediata e garantias ACID rígidas | Tolerância a erros fonéticos, lematização, sinônimos e pontuação BM25 |
+| **Geoespacial** | Estruturas de índices unidimensionais simples | Cálculos geodésicos exatos, intersecções e consultas de proximidade espacial |
+
+O modelo relacional, por sua vez, abre mão da especialização extrema e da partição horizontal automática, mas entrega a combinação de junções, restrições declarativas e transações ACID completas entre tabelas, funcionando como a fundação mais segura e versátil para a grande maioria das aplicações.
+
+<Aside type="tip" title="O relacional se tornou multiparadigma">
+O `JSONB` e o `pgvector` do PostgreSQL, o tipo `JSON` do MySQL e o suporte a dados geoespaciais (PostGIS e SpatiaLite) mostram como os motores relacionais modernos absorveram boa parte dos paradigmas NoSQL e especializados. Um campo de formulário dinâmico, coordenadas GPS ou embeddings de IA cabem em colunas relacionais sem a necessidade de fragmentar a arquitetura em vários bancos separados.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha do paradigma parte de três perguntas: qual é a forma natural dos dados, quais consultas são frequentes, e quanto precisa escalar. A tabela abaixo cruza cenários com a resposta que costuma vencer:
+
+| Cenário | Paradigma Recomendado | Por quê |
+| --- | --- | --- |
+| Aplicação de negócio com entidades relacionadas, relatórios e transações | **Relacional (SQL)** | Junções, restrições e ACID entre tabelas são o núcleo do problema. |
+| Catálogo, conteúdo, eventos com forma variável, lidos em bloco | **Documentos** | Cada item tem os próprios campos; a tela lê um documento. |
+| Aplicativo móvel com sincronização em tempo real e uso offline | **Documentos** (Firestore) | O SDK resolve cache local e reconciliação remota. |
+| Sessão, cache, contador, fila leve, limite de requisições (*rate limit*) | **Chave-valor** (Redis/Valkey) | Acesso por chave em microssegundos; sem consulta por conteúdo. |
+| Telemetria, métricas de servidores, sensores IoT e cotações | **Séries Temporais** (Timescale/Influx) | Ingestão contínua com agregação temporal e descarte de dados velhos. |
+| Busca semântica, agentes inteligentes e RAG para LLMs | **Vetorial** (pgvector/Qdrant) | Busca por proximidade de conceitos e similaridade em vetores. |
+| Busca em e-commerce com tolerância a erros e filtros facetados | **Busca Textual** (Meilisearch/OpenSearch) | Índices invertidos, relevância e autocompletar instantâneo. |
+| Rotas de entrega, geofencing e proximidade de motoristas | **Geoespacial** (PostGIS/SpatiaLite) | Tipos geométricos nativos e índices espaciais (R-Tree/GiST). |
+| *Data Warehouse*, análise histórica de métricas e BI | **Colunar / OLAP** (ClickHouse/DuckDB) | Varreduras e somas sobre bilhões de linhas em frações de segundo. |
+| Recomendação, rede social profunda, detecção de fraude por conexões | **Grafos** (Neo4j) | "Amigos de amigos até o quarto nível" é um percurso em grafo. |
+| Campo variável dentro de um modelo relacional corporativo | **Relacional com JSONB** | Sem complexidade operacional de manter dois bancos distintos. |
+| Projeto novo sem escala definida | **Relacional (PostgreSQL/MySQL/SQLite)** | Abrange mais casos; a especialização ocorre sob demanda comprovada. |
+
+A última linha é o conselho padrão do guia: começar no relacional não é conservadorismo, é a escolha que mais tarde se revela certa com mais frequência, e a que deixa o caminho aberto para acrescentar um chave-valor para cache ou extensões especializadas sem migrar o modelo inteiro.
+
+<Aside type="caution" title="Dica de IA: Peça a consulta que o paradigma não faz">
+  Ao pedir "qual banco para o meu projeto", assistentes respondem com a lista de virtudes do paradigma sugerido e omitem o que ele não faz. Um MongoDB recomendado para um sistema de pedidos vai bem até o primeiro relatório que cruza clientes, produtos e pedidos.
+
+  **Prompt:** *"Para este projeto, liste as cinco consultas mais frequentes e as três mais complexas, e para cada paradigma diga qual delas ele faz mal ou não faz; só então recomende, e inclua o que eu teria que desnormalizar ou duplicar para compensar."*
+</Aside>
+
+---
+
+## Exercício
+
+Responda com base na tabela de paradigmas e na seção sobre NoSQL:
+
+1. Por que "NoSQL" não é um critério de escolha?
+2. O que o relacional abre mão que os NoSQL ganham, e o que ele garante que eles não garantem?
+3. Um projeto roda em um único servidor de banco. O teorema CAP se aplica a ele?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque agrupa quatro paradigmas com modelos de dados e garantias diferentes entre si. "Não relacional" diz o que o banco não é, não o que ele faz bem.
+
+  2. Abre mão da escala horizontal fácil, que exige particionar tabelas entre servidores. Garante junções, restrições entre tabelas e transações entre tabelas, que os outros paradigmas oferecem parcialmente ou não oferecem.
+
+  3. Não. O CAP trata do comportamento durante uma partição de rede entre servidores; com um servidor só, não há partição possível, e as garantias são as ACID do próprio motor.
+</details>
+
+---
+
+## Desafio
+
+Pegue o modelo de rede social do projeto `invest-db` (`modeling/social-feed.sql`) e escreva, para cada um dos cinco paradigmas, como a consulta "sugestões de pessoas para seguir: quem os que eu sigo seguem, e eu não sigo" seria expressa, ou por que não seria.
+
+Depois responda: em qual paradigma ela é natural, em qual é possível e cara, e o que acontece com o relacional quando a profundidade passa a ser "até o quarto nível"?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No relacional, a consulta é uma autojunção dupla em `follow` com `NOT EXISTS` para excluir quem já sigo, e funciona bem em dois níveis. Em documentos, exige guardar a lista de seguidos em cada conta e fazer duas leituras (a minha lista, e a lista de cada seguido), com o `$lookup` como alternativa cara. Em chave-valor, é `SMEMBERS` da lista de cada seguido mais operações de conjunto no Redis, que resolve bem exatamente esse caso, com `SDIFF`. No colunar, não é uma consulta para a qual ele foi feito. Em grafos, é o caso natural: `MATCH (eu)-[:SEGUE]->()-[:SEGUE]->(s) WHERE NOT (eu)-[:SEGUE]->(s)`.
+
+  No relacional, cada nível é mais uma autojunção, e no quarto nível a consulta tem quatro junções sobre a mesma tabela com um produto que cresce exponencialmente; `WITH RECURSIVE` a expressa, mas o custo continua. É a fronteira em que o grafo deixa de ser luxo e vira a ferramenta certa, e é raro uma aplicação chegar a ela.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Paradigmas
+
+1. **Qual é a unidade de armazenamento de cada paradigma?**
+   <details><summary>Possível resposta</summary>Relacional: linha em tabela. Documentos: documento em coleção. Chave-valor: valor por chave. Colunar: colunas por família e chave de linha. Grafos: nós e arestas.</details>
+
+2. **Por que o colunar é rápido para somar uma coluna e lento para ler uma linha inteira?**
+   <details><summary>Possível resposta</summary>Porque guarda cada coluna separada: somar uma coluna lê só ela, em sequência; ler uma linha inteira exige reunir o valor de cada coluna, espalhado.</details>
+
+3. **Que consulta define o paradigma de grafos?**
+   <details><summary>Possível resposta</summary>O percurso de relações em profundidade arbitrária, como "amigos de amigos de amigos", que no relacional exige uma junção por nível.</details>
+
+### Escolha
+
+4. **O que o `JSONB` do PostgreSQL absorveu do paradigma de documentos, e o que não absorveu?**
+   <details><summary>Possível resposta</summary>Absorveu o documento consultável e indexável dentro da linha. Não absorveu a partição horizontal por documento nem a sincronização com o cliente.</details>
+
+5. **O que os sistemas AP fazem durante uma partição, e o que isso custa?**
+   <details><summary>Possível resposta</summary>Continuam respondendo em todos os servidores, aceitando que as respostas divirjam até a reconciliação. Custa consistência eventual: uma leitura pode devolver um valor antigo por um tempo.</details>
+
+6. **Por que o guia recomenda começar no relacional?**
+   <details><summary>Possível resposta</summary>Porque abrange mais casos, e um chave-valor para cache ou um documento para um campo podem ser acrescentados depois sem migrar o modelo. A troca de paradigma, se vier, terá um motivo medido.</details>
+
+---
+
+## Referências
+
+- [Martin Fowler: NoSQL Distilled (resumo)](https://martinfowler.com/books/nosql.html)
+- [DB-Engines: Database Models](https://db-engines.com/en/ranking_categories)
+- [PostgreSQL: JSON Types](https://www.postgresql.org/docs/current/datatype-json.html)
+- [Redis: Data Types](https://redis.io/docs/latest/develop/data-types/)
+- [Neo4j: Graph Database Concepts](https://neo4j.com/docs/getting-started/graph-database/)
+- [CAP Twelve Years Later: How the "Rules" Have Changed](https://www.infoq.com/articles/cap-twelve-years-later-how-the-rules-have-changed/)
+
+---
+
+## Próximo tópico
+
+[Motores, Nuvem e Mercado](../engines/): Motores de código aberto, mapeamento de tipos, comparativo de nuvem, plataformas DBaaS e extensibilidade.

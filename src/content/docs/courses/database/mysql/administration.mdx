@@ -1,0 +1,226 @@
+---
+title: "Banco de Dados: MySQL, Administração"
+description: "Administração do MySQL: contas 'usuário'@'origem', CREATE USER, GRANT e REVOKE por banco e tabela, SHOW GRANTS, FLUSH PRIVILEGES, teste de permissão com a conta da aplicação, mysqldump e restauração."
+course: database
+sidebar:
+  label: "Administração"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico faz no MySQL o que a [administração](../../basics/administration/) descreve como conceito e a seção de [PostgreSQL](../../postgresql/administration/) fez com papéis: cria a conta da aplicação com o mínimo de privilégios, prova pela conexão que ela não consegue o que não recebeu, e faz backup e restauração. Toda saída foi capturada no servidor da página anterior, com o arquivo `users.sql` do projeto.
+
+## Objetivo
+
+Operar um servidor MySQL de desenvolvimento com as práticas que valem em produção, lidando com a particularidade do MySQL de identificar contas por origem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar uma conta `'usuário'@'origem'` com senha e explicar o papel do curinga `%`.
+- Conceder e revogar privilégios por banco e por tabela com `GRANT` e `REVOKE`.
+- Ler o resultado de `SHOW GRANTS` e reconhecer o `USAGE` implícito.
+- Testar as permissões conectando com a conta da aplicação.
+- Fazer backup com `mysqldump` e restaurar em um banco novo, conferindo o resultado.
+
+---
+
+## A Conta da Aplicação
+
+O `docker-compose.yml` já cria `invest_app` com todos os privilégios em `invest`, o que é conveniente para começar e generoso demais para uma aplicação. O arquivo `users.sql` mostra a versão explícita: a linha 3 cria a conta para qualquer origem, e a linha 5 concede apenas leitura, inserção e atualização em todas as tabelas do banco:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/users.sql" region="create" mark={[3, 5]} />
+
+O `%` da origem aceita conexões de qualquer endereço, o que é o necessário quando a aplicação roda em outro contêiner. Em um servidor exposto à rede, a origem restrita ao endereço da aplicação é uma camada a mais de defesa, ao custo de recriar a conta quando o endereço muda.
+
+O `SHOW GRANTS` da linha 7 é a forma de conferir o que uma conta pode, e a saída tem uma linha a mais do que se concedeu:
+
+```bash title="Terminal"
+docker exec -i mysql mysql -u root -p --table < users.sql
+```
+
+```txt title="Output"
++----------------------------------------------------------------+
+| Grants for invest_app@%                                        |
++----------------------------------------------------------------+
+| GRANT USAGE ON *.* TO `invest_app`@`%`                         |
+| GRANT SELECT, INSERT, UPDATE ON `invest`.* TO `invest_app`@`%` |
++----------------------------------------------------------------+
+```
+
+O `USAGE ON *.*` não é um privilégio: é a forma do MySQL dizer "esta conta existe e pode conectar", sem acesso a nada. A segunda linha é o que foi concedido, no nível do banco (`invest.*`), o que cobre tabelas futuras, ao contrário do `GRANT ... ON ALL TABLES` do PostgreSQL.
+
+<Aside type="tip" title="FLUSH PRIVILEGES">
+Os comandos `CREATE USER`, `GRANT` e `REVOKE` aplicam a mudança na hora. O `FLUSH PRIVILEGES` só é necessário quando as tabelas de privilégio do banco `mysql` são alteradas diretamente com `INSERT` ou `UPDATE`, prática antiga que vale evitar; ele aparece em muitos tutoriais por hábito, e executá-lo sem necessidade não faz mal.
+</Aside>
+
+---
+
+## Testando Pela Conexão
+
+O MySQL não tem `SET ROLE` para uma conta de login como o PostgreSQL tem para papéis; o teste é conectar com a conta da aplicação e tentar. O `DELETE` não foi concedido, e a mensagem de erro traz a origem pela qual a conta foi reconhecida:
+
+```bash title="Terminal"
+docker exec mysql mysql -u invest_app -p invest -e "DELETE FROM investment WHERE id = 1;"
+```
+
+```txt title="Output"
+ERROR 1142 (42000) at line 1: DELETE command denied to user 'invest_app'@'localhost' for table 'investment'
+```
+
+Repare no `'invest_app'@'localhost'`: a conta foi criada como `@'%'`, mas a conexão de dentro do contêiner chega por `localhost`, e o `%` a cobre. Se existisse também uma conta `'invest_app'@'localhost'`, ela teria precedência, com os privilégios dela, e é assim que surge o erro clássico de "a permissão existe e não funciona".
+
+<Aside type="caution" title="Dica de IA: Peça a origem junto com o usuário">
+  Assistentes escrevem `CREATE USER 'app'@'localhost'` por hábito, e a aplicação no contêiner ao lado recebe `Access denied for user 'app'@'172.18.0.3'`. O erro não é de senha: é de origem. O inverso também acontece: `@'%'` aberto em um servidor exposto à internet.
+
+  **Prompt:** *"Para uma aplicação que conecta ao MySQL de outro contêiner na mesma rede Docker, escreva o `CREATE USER` com a origem correta, explique o que `Access denied for user 'app'@'172.18.0.3'` significa e mostre como listar as contas existentes por origem em `mysql.user`."*
+</Aside>
+
+---
+
+## Revogar e Remover
+
+Revogar é o espelho de conceder, e remover uma conta no MySQL não tem a armadilha das dependências do PostgreSQL: o `DROP USER` remove a conta e os privilégios dela de uma vez:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/users.sql" region="revoke" />
+
+Uma conta removida enquanto conectada continua conectada até encerrar a sessão; os privilégios dela, porém, deixam de valer para novas instruções na próxima verificação.
+
+---
+
+## Backup e Restauração
+
+O `mysqldump` gera um arquivo SQL com o esquema e os dados, e o restaura o próprio cliente `mysql`. Para tabelas InnoDB, a opção `--single-transaction` produz uma cópia consistente sem bloquear as escritas, do mesmo modo que o `pg_dump`:
+
+```bash title="Terminal"
+docker exec mysql sh -c "mysqldump -u root -p --single-transaction invest > /tmp/invest.sql"
+docker exec mysql mysql -u root -p -e "CREATE DATABASE invest_restored;"
+docker exec mysql sh -c "mysql -u root -p invest_restored < /tmp/invest.sql"
+docker exec mysql mysql -u root -p --table -e "SELECT COUNT(*) AS total FROM invest_restored.investment;"
+```
+
+```txt title="Output"
++-------+
+| total |
++-------+
+|     3 |
++-------+
+```
+
+O arquivo gerado tem o `CREATE TABLE` seguido de um único `INSERT` com todas as linhas, envolto em instruções que desligam as verificações de chave estrangeira durante a carga e as religam ao final. Ao contrário do `pg_dump`, ele não inclui contas nem `GRANT`: privilégios são do servidor, não do banco, e são exportados à parte, com `mysqldump mysql` ou com `SHOW GRANTS`.
+
+| Opção do `mysqldump` | Efeito | Quando usar |
+| --- | --- | --- |
+| `--single-transaction` | Cópia consistente sem bloqueio, para InnoDB | Sempre, em servidor em uso |
+| `--all-databases` | Todos os bancos, inclusive `mysql` com as contas | Backup completo do servidor |
+| `--no-data` | Só o esquema | Recriar a estrutura em outro ambiente |
+| `--routines --triggers` | Inclui procedimentos e gatilhos | Bancos que os usam; não vêm por padrão |
+
+---
+
+## O Que Observar em Uso
+
+Três instruções respondem às primeiras perguntas de um servidor lento ou cheio:
+
+| Pergunta | Instrução |
+| --- | --- |
+| Quem está conectado e o que está executando? | `SHOW PROCESSLIST;` |
+| Qual é o tamanho de cada tabela? | `SELECT table_name, ROUND(data_length / 1024) AS kb FROM information_schema.tables WHERE table_schema = 'invest';` |
+| Quantas conexões o servidor aceita? | `SHOW VARIABLES LIKE 'max_connections';` |
+
+O padrão de `max_connections` é 151, e vale o mesmo aviso da seção de PostgreSQL: funções *serverless* sem *pooler* o esgotam.
+
+---
+
+## Executando
+
+Os passos abaixo reproduzem a sessão desta página no servidor da página anterior:
+
+<Steps>
+1. Execute o arquivo de contas como `root` e confira o `SHOW GRANTS`:
+
+   ```bash title="Terminal"
+   docker exec -i mysql mysql -u root -p --table < users.sql
+   ```
+2. Comente o bloco `revoke` do `users.sql`, execute de novo e teste a conta pela conexão:
+
+   ```bash title="Terminal"
+   docker exec mysql mysql -u invest_app -p invest -e "DELETE FROM investment WHERE id = 1;"
+   ```
+3. Faça o backup com `--single-transaction`, restaure em um banco novo e compare as contagens.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base no `users.sql` e nas saídas:
+
+1. O que a linha `GRANT USAGE ON *.*` do `SHOW GRANTS` significa?
+2. Por que a mensagem de erro do `DELETE` diz `'invest_app'@'localhost'` se a conta foi criada como `@'%'`?
+3. O que o `mysqldump` não inclui que o `pg_dump` inclui, e como exportá-lo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Que a conta existe e pode conectar ao servidor, sem privilégio sobre nenhum banco. É a linha base de toda conta, não uma concessão.
+
+  2. Porque a mensagem mostra a origem real da conexão, e a conta `@'%'` a cobre. O MySQL escolhe a conta mais específica que case com a origem; como só existe a `@'%'`, é ela que vale.
+
+  3. As contas e os privilégios, que no MySQL pertencem ao servidor e não ao banco. Exportam-se com `mysqldump mysql`, com `--all-databases`, ou gerando os comandos a partir de `SHOW GRANTS`.
+</details>
+
+---
+
+## Desafio
+
+O servidor vai receber uma segunda aplicação, de relatórios, que só lê. Crie a conta `'invest_reports'@'%'` com `SELECT` em `invest.*`, e depois crie uma segunda conta com o mesmo nome e origem `'localhost'`, com `SELECT` e `INSERT`.
+
+Conecte de dentro do contêiner e de fora (pela porta 3306 publicada, com um cliente na máquina) e registre qual conta atendeu cada conexão e o que cada uma conseguiu fazer. Explique a regra de precedência que o MySQL aplicou.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  De dentro do contêiner, a conexão chega por `localhost` e é atendida pela conta `'invest_reports'@'localhost'`, que consegue inserir. De fora, pela porta publicada, a conexão chega pelo endereço da rede Docker e é atendida pela `'invest_reports'@'%'`, que só lê. Mesmo nome, mesma senha se assim foi criada, privilégios diferentes conforme o caminho.
+
+  A regra é que o MySQL ordena as contas da origem mais específica para a mais genérica e usa a primeira que case: `localhost` e endereços literais antes de padrões com `%`. É exatamente o comportamento que produz "funciona no servidor e não funciona da aplicação", e o motivo para manter uma conta só por nome, salvo quando a diferença de origem for intencional.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Contas e privilégios
+
+1. **Como o MySQL identifica uma conta, e o que o `%` significa?**
+   <details><summary>Possível resposta</summary>Pelo par `'usuário'@'origem'`. O `%` é o curinga de origem, que aceita conexões de qualquer endereço.</details>
+
+2. **Qual é a diferença entre `GRANT ... ON invest.*` e `GRANT ... ON invest.investment`?**
+   <details><summary>Possível resposta</summary>O primeiro vale para todas as tabelas do banco, inclusive as futuras; o segundo vale só para a tabela nomeada.</details>
+
+3. **Quando o `FLUSH PRIVILEGES` é necessário?**
+   <details><summary>Possível resposta</summary>Só quando as tabelas de privilégio do banco `mysql` foram alteradas diretamente. `GRANT`, `REVOKE` e `CREATE USER` aplicam a mudança na hora.</details>
+
+### Backup
+
+4. **Para que serve `--single-transaction` no `mysqldump`?**
+   <details><summary>Possível resposta</summary>Para produzir uma cópia consistente de tabelas InnoDB sem bloquear as escritas, lendo uma fotografia do banco dentro de uma transação.</details>
+
+5. **O que acontece com as chaves estrangeiras durante a restauração de um `mysqldump`?**
+   <details><summary>Possível resposta</summary>O arquivo desliga a verificação (`FOREIGN_KEY_CHECKS=0`) durante a carga e a religa ao final, para que a ordem das tabelas não importe.</details>
+
+6. **Como fazer backup das contas de um servidor MySQL?**
+   <details><summary>Possível resposta</summary>Incluindo o banco `mysql` no dump (`--all-databases` ou `mysqldump mysql`), ou gerando os comandos com `SHOW GRANTS` para cada conta.</details>
+
+---
+
+## Referências
+
+- [MySQL: Access Control and Account Management](https://dev.mysql.com/doc/refman/8.4/en/access-control.html)
+- [MySQL: GRANT Statement](https://dev.mysql.com/doc/refman/8.4/en/grant.html)
+- [MySQL: Specifying Account Names](https://dev.mysql.com/doc/refman/8.4/en/account-names.html)
+- [MySQL: mysqldump](https://dev.mysql.com/doc/refman/8.4/en/mysqldump.html)
+- [MySQL: SHOW PROCESSLIST](https://dev.mysql.com/doc/refman/8.4/en/show-processlist.html)
+
+---
+
+## Próximo tópico
+
+[Visão geral do MongoDB](../../mongodb/): O banco de documentos, e o que muda quando não há tabela, esquema fixo nem junção.

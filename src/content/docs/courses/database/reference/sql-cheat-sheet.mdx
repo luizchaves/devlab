@@ -1,0 +1,392 @@
+---
+title: "Guia de Referência: SQL"
+description: "Referência rápida de SQL com as diferenças entre SQLite, PostgreSQL e MySQL lado a lado: DDL, tipos, restrições, DML, consultas, junções, agregações, subconsultas, visões, índices, transações, controle de acesso, comandos dos clientes e o equivalente no MongoDB."
+course: database
+sidebar:
+  label: "Guia de Referência"
+---
+import { Aside } from '@astrojs/starlight/components';
+
+Esta página é a **referência rápida** do guia: a sintaxe de cada instrução SQL ensinada nas trilhas, com a diferença entre SQLite, PostgreSQL e MySQL anotada onde ela existe, e o equivalente no MongoDB ao final. Cada entrada aponta para a página que a explica.
+
+## Legenda e Convenções
+
+As marcas abaixo aparecem nas entradas e indicam o que é opcional, o que se repete e o que muda entre motores:
+
+- **`[opcional]`**: cláusula que pode ser omitida.
+- **`...`**: o item anterior pode se repetir.
+- **`?`**: valor fornecido pela aplicação (parâmetro).
+- **Igual nos três**: a sintaxe vale para SQLite, PostgreSQL e MySQL sem alteração.
+- **Difere**: a entrada mostra a forma de cada motor.
+
+<Aside type="tip" title="Dica de IA: Confirme o dialeto antes de aceitar a sintaxe">
+  A sintaxe que um assistente devolve costuma ser a do PostgreSQL ou do MySQL, sem dizer qual. `SERIAL`, `AUTO_INCREMENT`, `NOW()`, `::text`, `LIMIT` com vírgula e `RETURNING` são dialeto, e falham em silêncio ou com erro no motor errado. Esta página marca o que é de cada um.
+
+  **Prompt:** *"Reescreva este SQL para o SQLite, o PostgreSQL e o MySQL, marcando cada linha que muda entre eles, e diga qual construção não tem equivalente em algum dos três."*
+</Aside>
+
+## Definição de Estrutura (DDL)
+
+Instruções que criam e alteram tabelas, tratadas em [SQL DDL e DML](../../sql/fundamentals/).
+
+<details>
+  <summary>`CREATE TABLE nome (coluna tipo [restrições], ..., [restrições de tabela])`: igual nos três</summary>
+
+  Cria a tabela com colunas e restrições. `IF NOT EXISTS` evita erro se ela já existir. No SQLite, `STRICT` ao final torna os tipos obrigatórios.
+</details>
+
+<details>
+  <summary>Chave gerada: difere</summary>
+
+  SQLite: `id INTEGER PRIMARY KEY AUTOINCREMENT`. PostgreSQL: `id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY` (ou o antigo `SERIAL`). MySQL: `id INT AUTO_INCREMENT PRIMARY KEY`.
+</details>
+
+<details>
+  <summary>`ALTER TABLE nome ADD COLUMN coluna tipo`: igual nos três</summary>
+
+  Acrescenta uma coluna; as linhas existentes recebem o `DEFAULT` ou `NULL`. Remover coluna (`DROP COLUMN`) e renomear (`RENAME COLUMN a TO b`) existem nos três, com limites no SQLite para colunas com restrições.
+</details>
+
+<details>
+  <summary>`DROP TABLE [IF EXISTS] nome`: igual nos três</summary>
+
+  Remove a tabela e todos os dados. No PostgreSQL, `CASCADE` ao final remove também o que depende dela.
+</details>
+
+<details>
+  <summary>`CREATE INDEX nome ON tabela (coluna, ...)`: igual nos três</summary>
+
+  Cria um índice; `UNIQUE` antes de `INDEX` torna-o também uma restrição de unicidade. PostgreSQL e SQLite aceitam `WHERE` ao final para índice parcial. Ver [Chaves e Índices](../../modeling/keys-indexes/).
+</details>
+
+<details>
+  <summary>`CREATE VIEW nome AS SELECT ...`: igual nos três</summary>
+
+  Guarda a consulta sob um nome, executada a cada leitura. Ver [Junções e Agregações](../../sql/joins-aggregations/).
+</details>
+
+## Tipos
+
+Os tipos abstratos e a forma de cada motor, da tabela de [Motores, Nuvem e Mercado](../../basics/engines/#tipos-de-dados-entre-motores-relacionais).
+
+<details>
+  <summary>Texto: `TEXT` (SQLite, PostgreSQL), `VARCHAR(n)` (MySQL, PostgreSQL)</summary>
+
+  No MySQL, uma coluna `TEXT` não pode ser chave nem `UNIQUE` sem tamanho de prefixo; use `VARCHAR(n)`.
+</details>
+
+<details>
+  <summary>Dinheiro: `NUMERIC(p, s)` (PostgreSQL), `DECIMAL(p, s)` (MySQL), inteiro em centavos (SQLite)</summary>
+
+  O SQLite não tem decimal exato; `REAL` acumula erro. Nos outros, `NUMERIC` e `DECIMAL` são o mesmo tipo com nomes diferentes.
+</details>
+
+<details>
+  <summary>Instante: `TIMESTAMPTZ` (PostgreSQL), `DATETIME` ou `TIMESTAMP` (MySQL), `TEXT` ISO 8601 (SQLite)</summary>
+
+  `TIMESTAMPTZ` converte para UTC. O `TIMESTAMP` do MySQL também converte e tem limite em 2038; `DATETIME` não converte. No SQLite, texto ISO 8601 ordena e compara corretamente.
+</details>
+
+<details>
+  <summary>Booleano: `BOOLEAN` (PostgreSQL, MySQL como `TINYINT(1)`), `INTEGER` 0 ou 1 (SQLite)</summary>
+
+  Em comparações, `= true` no PostgreSQL e MySQL; `= 1` no SQLite.
+</details>
+
+<details>
+  <summary>Documento: `JSONB` (PostgreSQL), `JSON` (MySQL), `TEXT` com `json_*` (SQLite)</summary>
+
+  PostgreSQL: `notes ->> 'campo'` e `notes @> '{"k": v}'`. MySQL: `JSON_EXTRACT(notes, '$.campo')`, `JSON_UNQUOTE(...)`. SQLite: `json_extract(notes, '$.campo')`.
+</details>
+
+<details>
+  <summary>Lista fechada: `CHECK (col IN (...))` (os três), `ENUM(...)` (MySQL), `CREATE TYPE ... AS ENUM` (PostgreSQL)</summary>
+
+  O `CHECK` é a forma portável. O `ENUM` do MySQL é guardado como índice na lista e ordena pela posição.
+</details>
+
+## Restrições
+
+Declaradas na coluna ou ao final da tabela, tratadas em [Chaves e Índices](../../modeling/keys-indexes/).
+
+<details>
+  <summary>`PRIMARY KEY (coluna, ...)`: igual nos três</summary>
+
+  Identifica a linha; implica `NOT NULL` e `UNIQUE`, e cria um índice. Composta quando lista mais de uma coluna.
+</details>
+
+<details>
+  <summary>`FOREIGN KEY (coluna) REFERENCES tabela (coluna) [ON DELETE ação] [ON UPDATE ação]`: igual nos três</summary>
+
+  Ações: `RESTRICT` ou `NO ACTION` (padrão), `CASCADE`, `SET NULL`. No SQLite, só é verificada com `PRAGMA foreign_keys = ON` na conexão. Em tabelas MySQL, só com `ENGINE = InnoDB`.
+</details>
+
+<details>
+  <summary>`UNIQUE (coluna, ...)`, `NOT NULL`, `DEFAULT valor`, `CHECK (condição)`: igual nos três</summary>
+
+  `UNIQUE` composto garante a combinação. `CHECK` só vê a própria linha; regras entre linhas ficam em gatilho, índice parcial ou transação na aplicação.
+</details>
+
+## Manipulação de Dados (DML)
+
+As quatro operações do CRUD, em [SQL DDL e DML](../../sql/fundamentals/).
+
+<details>
+  <summary>`INSERT INTO tabela (colunas) VALUES (valores), (valores), ...`: igual nos três</summary>
+
+  Várias linhas em uma instrução. PostgreSQL e SQLite aceitam `RETURNING *` ao final para devolver as linhas inseridas; no MySQL, `LAST_INSERT_ID()`.
+</details>
+
+<details>
+  <summary>`INSERT ... ON CONFLICT (coluna) DO UPDATE SET ...`: difere</summary>
+
+  *Upsert*. PostgreSQL e SQLite: `ON CONFLICT (col) DO UPDATE SET col = excluded.col`. MySQL: `ON DUPLICATE KEY UPDATE col = VALUES(col)`.
+</details>
+
+<details>
+  <summary>`UPDATE tabela SET coluna = valor, ... [WHERE condição]`: igual nos três</summary>
+
+  Sem `WHERE`, altera todas as linhas. O cálculo no `SET` (`balance = balance - 100`) evita a atualização perdida.
+</details>
+
+<details>
+  <summary>`DELETE FROM tabela [WHERE condição]`: igual nos três</summary>
+
+  Sem `WHERE`, apaga todas as linhas. `TRUNCATE TABLE` (PostgreSQL, MySQL) é a forma rápida de esvaziar; o SQLite otimiza o `DELETE` sem `WHERE`.
+</details>
+
+## Consulta (DQL)
+
+A instrução `SELECT` e suas cláusulas, na ordem em que se escrevem.
+
+<details>
+  <summary>`SELECT [DISTINCT] colunas FROM tabela [WHERE] [GROUP BY] [HAVING] [ORDER BY] [LIMIT [OFFSET]]`: igual nos três</summary>
+
+  Ordem de execução: `FROM` → `WHERE` → `GROUP BY` → `HAVING` → `SELECT` → `ORDER BY` → `LIMIT`. É por isso que `WHERE` não vê agregações e `HAVING` vê.
+</details>
+
+<details>
+  <summary>Operadores do `WHERE`: `=`, `<>`, `>`, `>=`, `<`, `<=`, `BETWEEN a AND b`, `IN (...)`, `LIKE 'padrão'`, `IS [NOT] NULL`, `AND`, `OR`, `NOT`: igual nos três</summary>
+
+  `LIKE` usa `%` (qualquer sequência) e `_` (um caractere). PostgreSQL tem `ILIKE` sem diferenciar maiúsculas; no MySQL, `LIKE` já não diferencia por padrão; no SQLite, não diferencia para ASCII.
+</details>
+
+<details>
+  <summary>`ORDER BY coluna [ASC | DESC], ...`: igual nos três</summary>
+
+  `NULL` ordena primeiro ou último conforme o motor; PostgreSQL e SQLite aceitam `NULLS FIRST` e `NULLS LAST`.
+</details>
+
+<details>
+  <summary>`LIMIT n OFFSET m`: igual nos três, com variação</summary>
+
+  MySQL também aceita `LIMIT m, n`. PostgreSQL também aceita `FETCH FIRST n ROWS ONLY`. Para páginas profundas, prefira o cursor (`WHERE id > ? ORDER BY id LIMIT n`), em [Desempenho](../../sql/performance/).
+</details>
+
+## Junções
+
+Combinação de tabelas, em [Junções e Agregações](../../sql/joins-aggregations/).
+
+<details>
+  <summary>`FROM a [INNER] JOIN b ON a.col = b.col`: igual nos três</summary>
+
+  Só linhas com correspondência nas duas tabelas.
+</details>
+
+<details>
+  <summary>`FROM a LEFT [OUTER] JOIN b ON ...`: igual nos três</summary>
+
+  Todas as linhas de `a`, com `NULL` nas colunas de `b` quando não há par. Com `WHERE b.id IS NULL`, encontra as linhas de `a` sem correspondência.
+</details>
+
+<details>
+  <summary>`RIGHT JOIN`, `FULL OUTER JOIN`: difere</summary>
+
+  PostgreSQL: os dois. MySQL: `RIGHT JOIN` sim, `FULL` não (simula-se com `UNION` de `LEFT` e `RIGHT`). SQLite: os dois desde a 3.39.
+</details>
+
+<details>
+  <summary>`FROM a JOIN a AS b ON ...` (autojunção): igual nos três</summary>
+
+  A tabela junta consigo mesma, com alias. É como se consulta um autorrelacionamento (`follow`, supervisor de funcionário).
+</details>
+
+## Agregação e Agrupamento
+
+Funções que resumem linhas e a cláusula que as agrupa, em [Junções e Agregações](../../sql/joins-aggregations/).
+
+<details>
+  <summary>`COUNT(*)`, `COUNT(coluna)`, `SUM()`, `AVG()`, `MIN()`, `MAX()`: igual nos três</summary>
+
+  `COUNT(coluna)` ignora `NULL`; `COUNT(*)` conta linhas. `AVG` sobre inteiros devolve decimal no PostgreSQL e no MySQL, e real no SQLite.
+</details>
+
+<details>
+  <summary>`GROUP BY coluna, ... HAVING condição`: igual nos três, com variação</summary>
+
+  PostgreSQL e MySQL (com `ONLY_FULL_GROUP_BY`, padrão) exigem que toda coluna do `SELECT` esteja no `GROUP BY` ou em agregação. O SQLite permite colunas soltas e devolve o valor da linha do `MIN`/`MAX`.
+</details>
+
+<details>
+  <summary>`COUNT(*) FILTER (WHERE ...)`, `SUM(CASE WHEN ... THEN ... END)`: difere</summary>
+
+  `FILTER` é PostgreSQL e SQLite. O `CASE` dentro da agregação é a forma portável de agregar condicionalmente.
+</details>
+
+## Subconsultas e Expressões
+
+Consultas aninhadas, expressões de tabela comuns e as expressões condicionais que aparecem em qualquer cláusula.
+
+<details>
+  <summary>`WHERE col > (SELECT ...)`, `WHERE col IN (SELECT ...)`, `WHERE EXISTS (SELECT ...)`: igual nos três</summary>
+
+  Escalar (um valor), de conjunto (`IN`) e de existência (`EXISTS`, o mais eficiente para "existe pelo menos um").
+</details>
+
+<details>
+  <summary>`WITH nome AS (SELECT ...) SELECT ... FROM nome`: igual nos três</summary>
+
+  Expressão de tabela comum (CTE): nomeia uma subconsulta para reutilizá-la. `WITH RECURSIVE` percorre hierarquias.
+</details>
+
+<details>
+  <summary>`CASE WHEN cond THEN v [WHEN ...] [ELSE v] END`: igual nos três</summary>
+
+  Expressão condicional, usável no `SELECT`, no `WHERE` e dentro de agregações.
+</details>
+
+<details>
+  <summary>`COALESCE(a, b, ...)`, `NULLIF(a, b)`: igual nos três</summary>
+
+  `COALESCE` devolve o primeiro não nulo; `NULLIF` devolve `NULL` se `a = b`.
+</details>
+
+## Transações
+
+Controle de transação, em [Transações](../../sql/transactions/).
+
+<details>
+  <summary>`BEGIN; ... COMMIT;` e `BEGIN; ... ROLLBACK;`: igual nos três, com variação</summary>
+
+  MySQL também aceita `START TRANSACTION`. No SQLite, `BEGIN IMMEDIATE` reserva a escrita desde o início. No PostgreSQL, após um erro a transação fica abortada até o `ROLLBACK`.
+</details>
+
+<details>
+  <summary>`SAVEPOINT nome; ... ROLLBACK TO nome; ... RELEASE nome;`: igual nos três</summary>
+
+  Ponto de retorno dentro da transação. `ROLLBACK TO` desfaz até o ponto sem encerrar a transação.
+</details>
+
+<details>
+  <summary>`SELECT ... FOR UPDATE`: PostgreSQL e MySQL</summary>
+
+  Bloqueia as linhas lidas até o fim da transação. Não existe no SQLite, que serializa escritores.
+</details>
+
+## Controle de Acesso (DCL)
+
+Comandos de administração de cada servidor, nas seções de [PostgreSQL](../../postgresql/administration/), [MySQL](../../mysql/administration/) e [MongoDB](../../mongodb/setup/). O SQLite não tem usuários.
+
+<details>
+  <summary>Criar credencial: difere</summary>
+
+  PostgreSQL: `CREATE ROLE nome LOGIN PASSWORD 'senha'`. MySQL: `CREATE USER 'nome'@'origem' IDENTIFIED BY 'senha'`. MongoDB: `db.createUser({ user, pwd, roles })` no banco de autenticação.
+</details>
+
+<details>
+  <summary>`GRANT privilégios ON objeto TO credencial`: difere no objeto</summary>
+
+  PostgreSQL: por banco (`CONNECT`), esquema (`USAGE`), tabela e sequência, separadamente. MySQL: `ON banco.*` ou `ON banco.tabela`. MongoDB: `db.grantRolesToUser(nome, [{ role, db }])`.
+</details>
+
+<details>
+  <summary>`REVOKE privilégios ON objeto FROM credencial`, `DROP ROLE` / `DROP USER`: difere</summary>
+
+  No PostgreSQL, `DROP ROLE` exige antes `DROP OWNED BY`. No MySQL, `DROP USER` remove os privilégios junto. No MongoDB, `db.dropUser(nome)`.
+</details>
+
+## Clientes de Terminal
+
+Comandos de inspeção de cada cliente, nas páginas de instalação de [SQLite](../../sqlite/setup/), [PostgreSQL](../../postgresql/setup/), [MySQL](../../mysql/setup/) e [MongoDB](../../mongodb/setup/).
+
+<details>
+  <summary>Listar bancos: `\l` (psql), `SHOW DATABASES` (mysql), `show dbs` (mongosh)</summary>
+
+  No SQLite, o banco é o arquivo aberto; `.databases` lista os anexados.
+</details>
+
+<details>
+  <summary>Listar tabelas: `.tables` (sqlite3), `\dt` (psql), `SHOW TABLES` (mysql), `show collections` (mongosh)</summary>
+
+  Todos listam só o banco ou esquema atual.
+</details>
+
+<details>
+  <summary>Descrever tabela: `.schema t` (sqlite3), `\d t` (psql), `DESCRIBE t` (mysql), `db.t.stats()` (mongosh)</summary>
+
+  O `.schema` mostra o `CREATE` literal; `\d` e `DESCRIBE` mostram colunas, tipos, chaves e índices.
+</details>
+
+<details>
+  <summary>Executar arquivo: `.read f.sql` (sqlite3), `\i f.sql` (psql), `source f.sql` (mysql), `load('f.js')` (mongosh)</summary>
+
+  Ou por redirecionamento na linha de comando: `cliente < arquivo`.
+</details>
+
+<details>
+  <summary>Plano de execução: `EXPLAIN QUERY PLAN` (SQLite), `EXPLAIN [ANALYZE]` (PostgreSQL), `EXPLAIN` (MySQL), `.explain()` (mongosh)</summary>
+
+  `ANALYZE` no PostgreSQL executa a consulta e mede. Ver [Desempenho](../../sql/performance/).
+</details>
+
+<details>
+  <summary>Backup: `.dump` / `.backup` (sqlite3), `pg_dump` (PostgreSQL), `mysqldump --single-transaction` (MySQL), `mongodump` (MongoDB)</summary>
+
+  Restauração: `sqlite3 novo.db < dump.sql`, `psql -d novo -f dump.sql`, `mysql novo < dump.sql`, `mongorestore`. Ver [Administração](../../basics/administration/).
+</details>
+
+## Equivalentes no MongoDB
+
+A tradução das operações principais, em [CRUD e agregação](../../mongodb/crud/).
+
+<details>
+  <summary>`INSERT` → `db.col.insertOne(doc)`, `db.col.insertMany([docs])`</summary>
+
+  Não há `CREATE TABLE`: a coleção nasce na primeira inserção.
+</details>
+
+<details>
+  <summary>`SELECT ... WHERE` → `db.col.find(filtro, projeção)`</summary>
+
+  Operadores: `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$or`, `$exists`, `$regex`. Projeção com `1` inclui; `_id: 0` exclui.
+</details>
+
+<details>
+  <summary>`UPDATE ... SET` → `db.col.updateOne(filtro, { $set: { campo: valor } })`</summary>
+
+  Sempre com operador (`$set`, `$inc`, `$push`); sem operador, a atualização é recusada.
+</details>
+
+<details>
+  <summary>`DELETE` → `db.col.deleteOne(filtro)`, `db.col.deleteMany(filtro)`</summary>
+
+  `deleteMany({})` apaga a coleção inteira.
+</details>
+
+<details>
+  <summary>`GROUP BY` → `db.col.aggregate([{ $match }, { $group: { _id: '$campo', total: { $sum: '$valor' } } }, { $sort }])`</summary>
+
+  `$match` antes do `$group` é o `WHERE`; depois, é o `HAVING`. `$lookup` é a junção, mais cara do que um `JOIN`.
+</details>
+
+<details>
+  <summary>`CREATE INDEX` → `db.col.createIndex({ campo: 1 }, { unique: true })`</summary>
+
+  `1` ascendente, `-1` descendente; índice composto com mais de um campo no objeto.
+</details>
+
+<details>
+  <summary>`BEGIN ... COMMIT` → `session.startTransaction()` ... `session.commitTransaction()`</summary>
+
+  Exige conjunto de réplicas. A escrita em um único documento já é atômica sem transação.
+</details>

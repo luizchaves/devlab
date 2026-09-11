@@ -1,0 +1,185 @@
+---
+title: "Banco de Dados: MySQL"
+description: "Visão geral do MySQL: servidor relacional de maior base instalada, motor de armazenamento InnoDB, usuários identificados por origem, modo estrito, tipos como ENUM e JSON, e o recorte de projetos em que ele é a escolha certa."
+course: database
+sidebar:
+  label: "Visão geral do MySQL"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **MySQL** é o servidor relacional com a maior base instalada do mundo: está por trás de boa parte da web que existe há vinte anos, de hospedagens compartilhadas a serviços gerenciados de todos os grandes provedores. Esta seção o apresenta pelo que o distingue do PostgreSQL, e não pelo que os dois têm em comum, que é a maior parte do SQL deste guia.
+
+## Objetivo
+
+Compreender o MySQL como um servidor relacional com decisões próprias de armazenamento, autenticação e tipagem, para operá-lo com segurança e reconhecer onde ele diverge do SQL que o guia ensinou. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever a arquitetura de servidor, bancos e motores de armazenamento, e o papel do InnoDB.
+- Explicar por que um usuário do MySQL é identificado por nome **e** origem da conexão.
+- Reconhecer o efeito do modo estrito e o que muda quando ele está desligado.
+- Usar os tipos que o MySQL tem e o PostgreSQL não, como `ENUM`, e os que ambos têm com nomes diferentes.
+- Situar o MySQL em relação ao PostgreSQL, ao MariaDB e às plataformas gerenciadas.
+
+---
+
+## Servidor, Bancos e Motores de Armazenamento
+
+Como o PostgreSQL, o MySQL é um processo que escuta em uma porta (3306) e mantém vários bancos, chamados também de *schemas*; ao contrário dele, não há um nível de esquema dentro do banco. A peculiaridade do MySQL está abaixo das tabelas: cada tabela é guardada por um **motor de armazenamento**, e o motor decide o que a tabela é capaz de fazer.
+
+O diagrama abaixo mostra a hierarquia e onde o motor entra:
+
+<Mermaid title="Servidor, bancos, tabelas e motores de armazenamento no MySQL">
+{`
+flowchart TD
+  App["Aplicação"] -->|"TCP 3306, usuário@origem"| Server["Servidor MySQL<br/>processo mysqld"]
+  Server --> DB[("invest")]
+  DB --> T1["investment<br/>ENGINE = InnoDB"]
+  DB --> T2["log<br/>ENGINE = MyISAM"]
+  T1 --> Inno["InnoDB<br/>transações, chaves estrangeiras, bloqueio por linha"]
+  T2 --> My["MyISAM<br/>sem transações nem chaves estrangeiras"]
+`}
+</Mermaid>
+
+Desde o MySQL 5.5 o motor padrão é o **InnoDB**, e é o único que interessa a uma aplicação: ele tem transações ACID, chaves estrangeiras, bloqueio por linha e MVCC. O `MyISAM`, anterior, ainda aparece em bancos antigos e não tem nada disso; uma tabela `MyISAM` aceita `FOREIGN KEY` na sintaxe e o ignora em silêncio. Declarar `ENGINE = InnoDB` no `CREATE TABLE` é redundante nas versões atuais, e o exemplo do projeto o faz mesmo assim, para deixar a decisão visível.
+
+---
+
+## O Que Esta Seção Cobre
+
+As duas páginas seguintes saem da visão geral para a prática, na ordem em que um projeto as encontra:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    O servidor com Docker Compose, o cliente `mysql`, a tabela de investimentos com `AUTO_INCREMENT`, `DECIMAL`, `ENUM` e `JSON`, e o modo estrito em ação.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Administração" icon="setting">
+    Usuários por origem, `GRANT` e `REVOKE`, `SHOW GRANTS`, `mysqldump` e restauração, e a diferença para o modelo de papéis do PostgreSQL.
+
+    [Acessar tópico](administration/)
+  </Card>
+</CardGrid>
+
+---
+
+## Usuário É Nome e Origem
+
+A diferença administrativa mais visível do MySQL é que um usuário não é só um nome: é o par `'nome'@'origem'`. `'invest_app'@'localhost'` e `'invest_app'@'%'` são duas contas distintas, com senhas e privilégios próprios, e a segunda (com o curinga `%`) é a que aceita conexões de qualquer endereço. É comum um usuário "existir" e a aplicação não conseguir conectar, porque a conta foi criada para `localhost` e a aplicação chega pela rede, de um contêiner ao lado.
+
+A [administração](administration/) mostra o efeito nas mensagens de erro, que sempre trazem a origem: `DELETE command denied to user 'invest_app'@'localhost'`.
+
+---
+
+## Modo Estrito e Tipos
+
+O MySQL foi, por muito tempo, permissivo: um valor grande demais era truncado, uma data inválida virava zeros, e a inserção passava com um aviso. Desde a versão 5.7 o **modo estrito** (`STRICT_TRANS_TABLES`) é padrão, e esses casos viram erro, como em qualquer outro motor. O comportamento antigo ainda pode ser encontrado em servidores com `sql_mode` alterado, e é o primeiro item a conferir ao herdar um banco.
+
+Os tipos seguem o SQL padrão com alguns nomes próprios, e um tipo que os outros motores não têm:
+
+| Necessidade | MySQL | PostgreSQL | Observação |
+| --- | --- | --- | --- |
+| Chave gerada | `INT AUTO_INCREMENT` | `GENERATED AS IDENTITY` | Atributo da coluna, sem sequência separada. |
+| Dinheiro | `DECIMAL(14, 2)` | `NUMERIC(14, 2)` | Mesmo comportamento exato; nome diferente. |
+| Valor de uma lista fechada | `ENUM('Pré', 'Pós')` | `CHECK` ou tipo enumerado | Guardado como inteiro; o valor fora da lista é recusado no modo estrito. |
+| Documento | `JSON` | `JSONB` | Validado e consultável com `JSON_EXTRACT`; sem os operadores `->>` e `@>` do PostgreSQL. |
+| Instante | `DATETIME`, `TIMESTAMP` | `TIMESTAMPTZ` | `TIMESTAMP` converte para UTC e tem limite em 2038; `DATETIME` não converte. |
+| Booleano | `BOOLEAN` (sinônimo de `TINYINT(1)`) | `BOOLEAN` | Guardado como 0 ou 1. |
+
+<Aside type="tip" title="MariaDB">
+O MariaDB nasceu como bifurcação do MySQL e continua compatível na maior parte do SQL, dos clientes e dos protocolos, com diferenças crescentes em recursos novos (o `JSON` do MariaDB é um sinônimo de `LONGTEXT`, por exemplo). Tudo o que esta seção mostra vale para os dois, salvo onde a página indicar.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+Entre MySQL e PostgreSQL, a diferença técnica raramente decide. O que decide é o ecossistema em que o projeto vai viver.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Hospedagem, equipe ou sistema existente já em MySQL | **MySQL** | Familiaridade e ferramentas prontas valem mais do que a diferença de recursos. |
+| Aplicação web relacional comum: CRUD, relatórios, transações | **MySQL ou PostgreSQL** | Os dois atendem; a escolha é operacional. |
+| Tipos ricos, extensões, `JSONB` consultável, políticas por linha | **[PostgreSQL](../postgresql/)** | Esses recursos não têm equivalente direto no MySQL. |
+| Banco gerenciado em plataforma de nuvem para aplicação nova | **PostgreSQL** | É o padrão de Supabase, Render, Railway e Heroku. |
+| Um processo, ferramenta local, estudo | **[SQLite](../sqlite/)** | Um servidor é peso morto sem concorrência entre processos. |
+| Documentos sem forma fixa como modelo central | **[MongoDB](../mongodb/)** | O `JSON` do MySQL guarda o campo variável, não o modelo inteiro. |
+
+---
+
+## Exercício
+
+Responda com base na arquitetura e na seção de usuários:
+
+1. O que uma tabela `MyISAM` faz com uma `FOREIGN KEY` declarada, e por que isso importa ao herdar um banco antigo?
+2. Por que `'invest_app'@'localhost'` e `'invest_app'@'%'` são contas diferentes, e qual delas uma aplicação em outro contêiner usa?
+3. O que o modo estrito muda em uma inserção com valor fora do `ENUM`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Aceita a sintaxe e ignora a restrição: linhas órfãs entram sem erro. Ao herdar um banco, conferir o motor de cada tabela com `SHOW TABLE STATUS` é o primeiro passo, porque a integridade que o esquema aparenta pode não existir.
+
+  2. Porque no MySQL a identidade é o par nome e origem, com privilégios e senha separados. Uma aplicação em outro contêiner chega pela rede e precisa da conta com origem `%` (ou com o endereço específico).
+
+  3. Com o modo estrito, a inserção falha com `Data truncated for column`. Sem ele, o MySQL insere uma string vazia (o valor especial de erro do `ENUM`) e apenas avisa.
+</details>
+
+---
+
+## Desafio
+
+O projeto `invest-db` do guia roda em SQLite. Escreva a versão MySQL do `schema.sql`, usando `AUTO_INCREMENT`, `DECIMAL`, `BOOLEAN` e `DATETIME`, e liste as diferenças em relação à versão SQLite e à versão PostgreSQL do desafio daquela seção.
+
+Depois responda: entre as três versões, qual é a única cláusula que existe em um motor e não tem equivalente nos outros dois, e o que você faria com ela em um esquema que precisa rodar nos três?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  As diferenças em relação ao SQLite são as de tipo: `INTEGER PRIMARY KEY AUTOINCREMENT` vira `INT AUTO_INCREMENT PRIMARY KEY`, `REAL` vira `DECIMAL(10, 2)`, `DATETIME DEFAULT CURRENT_TIMESTAMP` fica igual, e `TEXT` em coluna com `UNIQUE` precisa virar `VARCHAR(n)`, porque o MySQL não indexa `TEXT` sem tamanho de prefixo. Em relação ao PostgreSQL, muda a forma da chave gerada e o nome do decimal.
+
+  A cláusula sem equivalente é o `ENUM`: o SQLite não o tem, e o PostgreSQL o tem como tipo criado à parte (`CREATE TYPE`), não como cláusula de coluna. Em um esquema portável, a lista fechada vira `CHECK (category IN ('Pré', 'Pós'))`, que os três motores aceitam, ou uma tabela de categorias com chave estrangeira, que é a solução relacional de verdade.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Arquitetura
+
+1. **O que é um motor de armazenamento, e qual é o padrão atual?**
+   <details><summary>Possível resposta</summary>O componente que guarda e recupera os dados de cada tabela, definindo o que ela suporta. O padrão desde o MySQL 5.5 é o InnoDB, com transações, chaves estrangeiras e bloqueio por linha.</details>
+
+2. **Qual é a diferença entre "banco" e "esquema" no MySQL?**
+   <details><summary>Possível resposta</summary>Nenhuma: são sinônimos. Não existe um nível de esquema dentro do banco, como no PostgreSQL.</details>
+
+3. **Por que declarar `ENGINE = InnoDB` no `CREATE TABLE` se ele já é o padrão?**
+   <details><summary>Possível resposta</summary>Para deixar a decisão explícita e protegida de um servidor com padrão alterado, já que uma tabela em outro motor perderia transações e chaves estrangeiras em silêncio.</details>
+
+### Usuários e tipos
+
+4. **Como o MySQL identifica um usuário?**
+   <details><summary>Possível resposta</summary>Pelo par `'nome'@'origem'`; contas com o mesmo nome e origens diferentes são contas distintas.</details>
+
+5. **O que é o modo estrito?**
+   <details><summary>Possível resposta</summary>O `sql_mode` que transforma em erro o que o MySQL antigo aceitava com aviso: valores truncados, datas inválidas e valores fora do `ENUM`. É padrão desde a 5.7.</details>
+
+6. **Qual é a diferença entre `TIMESTAMP` e `DATETIME`?**
+   <details><summary>Possível resposta</summary>`TIMESTAMP` converte para UTC ao gravar e para o fuso da sessão ao ler, com limite no ano 2038; `DATETIME` guarda o valor como recebido, sem conversão.</details>
+
+---
+
+## Referências
+
+- [MySQL 8.4 Reference Manual](https://dev.mysql.com/doc/refman/8.4/en/)
+- [MySQL: The InnoDB Storage Engine](https://dev.mysql.com/doc/refman/8.4/en/innodb-storage-engine.html)
+- [MySQL: Server SQL Modes](https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html)
+- [MySQL: Account Names](https://dev.mysql.com/doc/refman/8.4/en/account-names.html)
+- [MariaDB: Compatibility with MySQL](https://mariadb.com/kb/en/mariadb-vs-mysql-compatibility/)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): O servidor com Docker Compose, o cliente `mysql` e a tabela com `ENUM` e `JSON`.

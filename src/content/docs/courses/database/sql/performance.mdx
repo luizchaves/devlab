@@ -1,0 +1,245 @@
+---
+title: "Banco de Dados: Desempenho"
+description: "Desempenho de consultas SQL: o plano de execução com EXPLAIN QUERY PLAN, varredura contra busca por índice, expressões que impedem o uso do índice, o problema N+1 e a junção que o resolve, e paginação por OFFSET contra paginação por cursor."
+course: database
+sidebar:
+  label: "Desempenho"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico ensina a fazer ao banco a pergunta que resolve a maioria dos problemas de lentidão: **como você vai executar isto?** O `EXPLAIN` responde com o plano de execução, e o arquivo `performance.sql` do projeto `invest-db` mostra o plano mudando conforme o índice existe, a consulta o permite e a paginação o aproveita.
+
+## Objetivo
+
+Compreender o plano de execução como a ferramenta de diagnóstico de desempenho, para reconhecer os três padrões que mais custam em aplicações web e corrigi-los antes de aumentar o servidor. Ao final do tópico, o leitor deve ser capaz de:
+
+- Ler um plano de execução e distinguir varredura de busca por índice.
+- Identificar as expressões no `WHERE` que impedem o planejador de usar um índice existente.
+- Reconhecer o problema N+1 no código da aplicação e substituí-lo por uma junção.
+- Explicar o custo da paginação por `OFFSET` e implementar a paginação por cursor.
+- Decidir quando o problema é a consulta, o índice, o modelo ou o servidor.
+
+---
+
+## O Plano de Execução
+
+Antes de executar uma consulta, o motor decide **como**: em que ordem ler as tabelas, se usa índice, como junta. Essa decisão é o plano, e o `EXPLAIN` a mostra sem executar. No SQLite o comando é `EXPLAIN QUERY PLAN`; no PostgreSQL, `EXPLAIN` (e `EXPLAIN ANALYZE` para executar e medir); no MySQL, `EXPLAIN`.
+
+A consulta abaixo filtra posts por audiência. Sem índice em `views`, o plano é uma varredura:
+
+<SourceCode path="examples/courses/database/invest-db/performance.sql" region="plan-scan" />
+
+```txt title="Output"
+-- plano: SCAN Post
+```
+
+`SCAN Post` significa ler todas as linhas e testar cada uma. Com seis posts é instantâneo; com seis milhões, é o motivo de a página demorar. A linha 7 cria o índice, e a linha 10 repete a pergunta:
+
+<SourceCode path="examples/courses/database/invest-db/performance.sql" region="plan-index" mark={[7, 10, 13]} />
+
+```txt title="Output"
+-- ok
+-- plano: SEARCH Post USING INDEX idx_post_views (views>?)
+-- plano: SCAN Post
+```
+
+A segunda linha mostra o índice em uso: `SEARCH ... (views>?)` lê só o intervalo. A terceira é a armadilha desta página: a consulta da linha 13 filtra a mesma coluna, tem o mesmo índice disponível, e voltou a `SCAN Post`. O motivo é a expressão `views * 2 > 200`: o índice ordena `views`, não `views * 2`, e o planejador não reescreve a álgebra. A tabela abaixo lista as formas que costumam derrubar um índice:
+
+| Expressão no `WHERE` | Usa o índice em `col`? | Alternativa |
+| --- | --- | --- |
+| `col = ?`, `col > ?`, `col BETWEEN ? AND ?` | Sim | |
+| `col * 2 > 200` | Não | `col > 100` |
+| `LOWER(col) = 'ana'` | Não | Índice sobre a expressão, ou coluna já normalizada |
+| `col LIKE 'Ana%'` | Sim, em muitos motores | |
+| `col LIKE '%Ana'` | Não | Busca textual dedicada |
+| `CAST(col AS TEXT) = '1'` | Não | Comparar com o tipo certo |
+| `col IS NULL` | Depende do motor | |
+
+<Aside type="caution" title="Dica de IA: Peça o plano, não a garantia">
+  Assistentes afirmam que "a consulta usa o índice" com base na presença do índice, sem consultar o planejador. As formas da tabela acima aparecem com frequência em código gerado, especialmente `LOWER(email)` para comparar sem diferenciar maiúsculas.
+
+  **Prompt:** *"Para cada consulta deste módulo, escreva o `EXPLAIN` correspondente, execute contra o banco com os índices atuais e cole o plano; para cada `SCAN` em tabela com índice disponível, reescreva a condição para que o índice seja usado."*
+</Aside>
+
+---
+
+## O Problema N+1
+
+O N+1 não aparece no SQL: aparece no código que o chama. A aplicação busca a lista de autores (uma consulta) e, para cada autor, busca os posts dele (N consultas). Com quatro autores são cinco idas ao banco; com mil, são mil e uma, cada uma com a latência de rede de uma requisição.
+
+O arquivo mostra as duas formas. As linhas 18 a 20 são o N+1 escrito à mão; a linha 23 é a junção que devolve tudo de uma vez:
+
+<SourceCode path="examples/courses/database/invest-db/performance.sql" region="n-plus-one" mark={[18, 19, 20, 23]} />
+
+```txt title="Output"
+id | name
+---+------------
+1  | Ana Silva
+2  | Bruno Costa
+3  | Carla Souza
+4  | Diego Lima
+title
+----------------------
+Introdução ao SQL
+Junções explicadas
+Rascunho sobre índices
+title
+-----------------
+Receita de pão
+Viagem ao litoral
+name        | title
+------------+------------------------
+Ana Silva   | Introdução ao SQL
+Ana Silva   | Junções explicadas
+Ana Silva   | Rascunho sobre índices
+Bruno Costa | Receita de pão
+Bruno Costa | Viagem ao litoral
+Carla Souza | Normalização na prática
+Diego Lima  | NULL
+```
+
+A junção devolve o mesmo conteúdo em uma consulta, com o autor repetido em cada linha, o que é o custo aceitável. O N+1 é o problema de desempenho mais comum em aplicações com ORM, porque o código `for (const user of users) user.posts` parece inocente e gera exatamente as N consultas. Os ORMs oferecem carregamento antecipado (`include` no Prisma) para transformá-lo em uma junção ou em duas consultas com `IN`.
+
+---
+
+## Paginação
+
+A paginação com `LIMIT` e `OFFSET`, vista em [SQL DDL e DML](../fundamentals/), tem um custo escondido: para devolver a página 500 de 20 itens, o banco lê e descarta 9.980 linhas. A linha 31 pede a terceira página de dois, e o plano é uma varredura:
+
+<SourceCode path="examples/courses/database/invest-db/performance.sql" region="pagination" mark={[31, 34]} />
+
+```txt title="Output"
+-- plano: SCAN Post
+-- plano: SEARCH Post USING INTEGER PRIMARY KEY (rowid>?)
+```
+
+A linha 34 é a **paginação por cursor**: em vez de "pule N linhas", a consulta diz "continue a partir do último `id` que eu vi", e o plano vira uma busca pela chave primária. O custo passa a ser o mesmo em qualquer página, e é a forma que APIs com muitos dados adotam (o cliente recebe o último `id` como cursor e o devolve na próxima requisição).
+
+| Forma | Consulta | Custo da página N | Limite |
+| --- | --- | --- | --- |
+| **OFFSET** | `ORDER BY id LIMIT 20 OFFSET 20 * N` | Cresce com N | Simples; "ir para a página 37" funciona |
+| **Cursor** | `WHERE id > :ultimo ORDER BY id LIMIT 20` | Constante | Só avança; exige ordenação por coluna única e indexada |
+
+---
+
+## A Ordem de Investigação
+
+Diante de uma consulta lenta, a ordem de investigação abaixo resolve quase tudo antes de qualquer mudança de infraestrutura:
+
+<Steps>
+1. **Meça.** O `EXPLAIN` mostra o plano; no PostgreSQL, `EXPLAIN ANALYZE` mostra o tempo real de cada etapa. Uma consulta que parece lenta na aplicação e é rápida no banco é problema de rede ou de N+1.
+2. **Procure o `SCAN` em tabela grande.** É o sinal de índice ausente ou de expressão que o derruba.
+3. **Conte as consultas por requisição.** Um registro de consultas (o `log` do ORM) revela o N+1 imediatamente.
+4. **Revise o modelo.** Uma consulta que precisa de cinco junções para uma tela frequente pode estar pedindo uma [desnormalização medida](../../modeling/normalization/) ou uma visão materializada.
+5. **Só então o servidor.** Mais memória e CPU escondem um `SCAN` por um tempo, e ele volta com o dobro dos dados.
+</Steps>
+
+---
+
+## Quando usar, e quando não usar?
+
+As ferramentas desta página têm momentos certos, e usá-las cedo demais é um custo tão real quanto usá-las tarde.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Consulta frequente com `WHERE` em coluna sem índice | **Criar o índice** | O `SCAN` cresce com a tabela; o índice não. |
+| Tabela pequena, ou coluna com dois ou três valores | **Deixar sem índice** | O planejador varre de qualquer forma; o índice só custa nas escritas. |
+| Lista com itens relacionados carregados em laço | **Junção ou carregamento antecipado** | N+1 é latência multiplicada por N. |
+| Paginação de tela com poucas páginas | **`OFFSET`** | Simples, e o custo é irrelevante em páginas baixas. |
+| Rolagem infinita ou API sobre milhões de linhas | **Cursor** | Custo constante por página. |
+| Consulta lenta sem `SCAN` e sem N+1 | **Revisar o modelo** | Junções demais para a tela mais usada pedem outra forma dos dados. |
+
+---
+
+## Executando
+
+O arquivo roda sobre o blog do `schema.sql`:
+
+<Steps>
+1. Execute e compare os planos com os desta página:
+
+   ```bash title="Terminal"
+   node run.mjs performance.sql
+   ```
+2. Troque `views * 2 > 200` por `views > 100` na terceira consulta e execute de novo: o plano volta a usar o índice.
+3. Acrescente um `EXPLAIN QUERY PLAN` à junção do N+1 e observe como o SQLite escolhe a ordem das tabelas e o índice da chave estrangeira.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos planos do arquivo:
+
+1. Por que `views * 2 > 200` não usa o índice que `views > 100` usa, se as duas condições são equivalentes?
+2. Onde o N+1 aparece: no SQL ou no código da aplicação? Como ele se manifesta?
+3. Por que a paginação por cursor tem custo constante e a por `OFFSET` não?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o índice ordena os valores de `views`, e o planejador procura no índice pelo valor da coluna. Ele não reescreve `views * 2 > 200` como `views > 100`; a expressão sobre a coluna o impede de usar a ordenação.
+
+  2. No código: um laço que executa uma consulta por item de uma lista obtida por outra consulta. Manifesta-se como N+1 idas ao banco por requisição, cada uma com a latência da rede.
+
+  3. Porque o cursor vira uma busca pela chave (`WHERE id > :ultimo`), que encontra o ponto de partida direto no índice. O `OFFSET` obriga o banco a ler e descartar todas as linhas anteriores à página.
+</details>
+
+---
+
+## Desafio
+
+O blog do projeto tem seis posts, e nenhum plano mostra diferença de tempo. Escreva um script `seed-big.mjs` que insira cem mil posts com `node:sqlite` em uma transação, e meça com `console.time` as três consultas da página (`views > 100` sem e com índice, e a página 4.000 por `OFFSET` contra a mesma página por cursor).
+
+Registre os tempos e responda: em qual das três a diferença é maior, e o que aconteceria com cada uma se a tabela tivesse dez vezes mais linhas?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com cem mil linhas em memória, a consulta por `views` cai de alguns milissegundos (varredura) para centésimos de milissegundo (busca), cerca de quarenta vezes, e a diferença cresce linearmente com a tabela: dez vezes mais linhas, dez vezes mais tempo na varredura, quase o mesmo tempo na busca. A paginação por `OFFSET` na página 4.000 lê e descarta 80 mil linhas e leva dezenas de vezes mais do que a mesma página por cursor, que leva o mesmo que a página 1; dez vezes mais linhas não mudam o cursor.
+
+  A maior diferença costuma estar na paginação profunda, porque o `OFFSET` multiplica o custo pela posição da página, e nenhum índice o resolve. É o caso em que a mudança não é um índice novo, e sim outra forma de consultar, o que a aplicação precisa suportar (devolvendo e recebendo o cursor).
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Plano
+
+1. **O que `EXPLAIN` mostra, e o que ele não faz?**
+   <details><summary>Possível resposta</summary>Mostra como o motor pretende executar a consulta (ordem, índices, junções), sem executá-la. No PostgreSQL, `EXPLAIN ANALYZE` executa e mede.</details>
+
+2. **O que `SCAN` e `SEARCH ... USING INDEX` significam no plano do SQLite?**
+   <details><summary>Possível resposta</summary>`SCAN` é a leitura de todas as linhas da tabela; `SEARCH ... USING INDEX` é a busca direta pelo índice, lendo só as linhas que interessam.</details>
+
+3. **Cite três expressões que impedem o uso de um índice.**
+   <details><summary>Possível resposta</summary>Aritmética sobre a coluna (`col * 2`), função sobre a coluna (`LOWER(col)`) e `LIKE` com curinga inicial (`'%texto'`).</details>
+
+### Padrões
+
+4. **Como um ORM evita o N+1?**
+   <details><summary>Possível resposta</summary>Com carregamento antecipado (`include`, *eager loading*), que transforma o laço de consultas em uma junção ou em uma segunda consulta com `IN`.</details>
+
+5. **Qual é a limitação da paginação por cursor?**
+   <details><summary>Possível resposta</summary>Só avança a partir do último item visto, e exige ordenação por uma coluna única e indexada; "ir direto para a página 37" não existe.</details>
+
+6. **Por que aumentar o servidor é a última opção?**
+   <details><summary>Possível resposta</summary>Porque esconde um `SCAN` ou um N+1 apenas até os dados dobrarem, quando o problema volta com o dobro do custo. A consulta, o índice e o modelo vêm antes.</details>
+
+---
+
+## Referências
+
+- [SQLite: EXPLAIN QUERY PLAN](https://www.sqlite.org/eqp.html)
+- [SQLite: The SQLite Query Optimizer Overview](https://www.sqlite.org/optoverview.html)
+- [PostgreSQL: Using EXPLAIN](https://www.postgresql.org/docs/current/using-explain.html)
+- [Prisma: Solving the N+1 problem](https://www.prisma.io/docs/orm/prisma-client/queries/query-optimization-performance)
+- [Use The Index, Luke: Paging](https://use-the-index-luke.com/sql/partial-results/fetch-next-page)
+
+---
+
+## Próximo tópico
+
+[Visão geral do SQLite](../../sqlite/): A primeira seção por motor, com o banco relacional que roda dentro da aplicação.

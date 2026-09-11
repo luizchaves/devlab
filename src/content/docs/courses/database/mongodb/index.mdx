@@ -1,0 +1,191 @@
+---
+title: "Banco de Dados: MongoDB"
+description: "Visão geral do MongoDB: banco de documentos BSON, coleções sem esquema fixo, modelagem por incorporação e referência, consultas por filtro e projeção, pipeline de agregação, réplicas e o recorte de projetos em que ele é a escolha certa."
+course: database
+sidebar:
+  label: "Visão geral do MongoDB"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **MongoDB** é o único motor deste guia que não fala SQL: guarda documentos, não linhas, em coleções que não exigem esquema, e é consultado por objetos JavaScript em vez de instruções de texto. Esta seção o apresenta pelo que muda no modelo e no dia a dia, e aponta para [Paradigmas](../basics/paradigms/) quando a pergunta for "documentos ou tabelas".
+
+## Objetivo
+
+Compreender o MongoDB como um banco de documentos com modelo de dados, linguagem de consulta e forma de modelagem próprios, para usá-lo onde ele é a melhor escolha sem carregar hábitos relacionais que não se aplicam. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever a hierarquia de servidor, bancos, coleções e documentos BSON.
+- Explicar o que "sem esquema" significa de fato, e onde a validação de esquema entra.
+- Escolher entre incorporar e referenciar ao modelar dados relacionados.
+- Reconhecer o filtro, a projeção e o pipeline de agregação como a linguagem de consulta.
+- Situar o MongoDB em relação ao PostgreSQL com `JSONB` e ao Firestore da nuvem.
+
+---
+
+## Documentos em Coleções
+
+Um servidor MongoDB mantém bancos; cada banco tem coleções; cada coleção guarda documentos. O documento é um objeto BSON, a forma binária do JSON com tipos a mais (datas, decimais, identificadores), e recebe um `_id` único na inserção.
+
+O diagrama abaixo mostra a hierarquia com o exemplo desta seção:
+
+<Mermaid title="Servidor, banco, coleção e documentos no MongoDB">
+{`
+flowchart TD
+  App["Aplicação"] -->|"TCP 27017, usuário e senha"| Server["Servidor MongoDB<br/>processo mongod"]
+  Server --> DB[("invest")]
+  DB --> Col["investments (coleção)"]
+  Col --> D1["{ _id, name, value, category, broker }"]
+  Col --> D2["{ _id, name, value, category, fgc }"]
+`}
+</Mermaid>
+
+Os dois documentos têm campos diferentes, e a coleção aceita os dois: não há `CREATE TABLE` porque não há tabela. É o que se chama de "sem esquema", e a expressão engana. O esquema existe, mas mora na aplicação, que precisa saber que `broker` pode faltar; e o MongoDB permite declará-lo no servidor, com validação por JSON Schema na coleção, quando a flexibilidade deixa de ser vantagem.
+
+---
+
+## O Que Esta Seção Cobre
+
+As duas páginas seguintes saem da visão geral para a prática, na ordem em que um projeto as encontra:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    O servidor com Docker Compose, o `mongosh`, o Mongo Express no navegador, e os usuários por banco com papéis `read` e `readWrite`.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="CRUD e agregação" icon="seti:json">
+    Inserir, consultar com filtro e projeção, atualizar com operadores, apagar, e o pipeline de agregação no lugar do `GROUP BY`.
+
+    [Acessar tópico](crud/)
+  </Card>
+</CardGrid>
+
+---
+
+## Incorporar ou Referenciar
+
+A decisão central de modelagem em documentos é a que o relacional não tem: dados relacionados ficam **dentro** do documento ou em **outro** documento referenciado pelo `_id`? Um investimento com o histórico de cotações pode ter o histórico incorporado como um array, ou em uma coleção `quotes` com o `investmentId` de cada uma.
+
+A tabela abaixo dá o critério:
+
+| Incorporar quando | Referenciar quando |
+| --- | --- |
+| O dado é lido sempre junto do pai | O dado é lido sozinho, ou por vários pais |
+| A lista é pequena e tem tamanho limitado | A lista cresce sem limite (o documento tem teto de 16 MB) |
+| O dado pertence ao pai e morre com ele | O dado tem identidade própria e é atualizado à parte |
+| Exemplo: endereço do usuário | Exemplo: histórico de cotações, autor de vários posts |
+
+Não há junção nativa entre coleções no modelo básico; existe o estágio `$lookup` do pipeline de agregação, que a faz, e é mais caro do que um `JOIN` relacional. A regra prática é a mesma do [banco de documentos](../../cloud/resources/document-database/) da nuvem: modelar pelas telas, e aceitar duplicação onde ela evita a segunda leitura.
+
+---
+
+## A Linguagem de Consulta
+
+No lugar do SQL, o MongoDB recebe objetos: um **filtro**, que escolhe documentos, e uma **projeção**, que escolhe campos. Operadores começam com `$`, e a consulta é a mesma no `mongosh` e no driver da aplicação, o que é uma vantagem prática sobre montar strings SQL.
+
+| SQL | MongoDB |
+| --- | --- |
+| `SELECT name, value FROM investments WHERE category = 'Pós'` | `db.investments.find({ category: 'Pós' }, { name: 1, value: 1 })` |
+| `WHERE value > 8000` | `{ value: { $gt: 8000 } }` |
+| `UPDATE ... SET value = 5500 WHERE name = 'CDB'` | `db.investments.updateOne({ name: 'CDB' }, { $set: { value: 5500 } })` |
+| `SELECT category, SUM(value) ... GROUP BY category` | `db.investments.aggregate([{ $group: { _id: '$category', total: { $sum: '$value' } } }])` |
+
+A última linha é o **pipeline de agregação**: uma sequência de estágios (`$match`, `$group`, `$sort`, `$project`, `$lookup`) pela qual os documentos passam, e é onde mora o poder de consulta do MongoDB. A página de [CRUD e agregação](crud/) o executa contra o servidor.
+
+<Aside type="tip" title="Transações existem, com ressalva">
+Uma escrita em um documento é atômica, inclusive quando altera vários campos e arrays incorporados, e por muito tempo essa foi a única garantia. Desde a versão 4.0 há transações entre documentos e coleções, com `session.startTransaction()`, mas elas exigem um conjunto de réplicas e custam mais do que no relacional. Um modelo que precisa delas com frequência costuma ser um modelo que deveria ter incorporado mais.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+O MongoDB é uma escolha de modelo, não de recurso, e o critério é o mesmo de [Paradigmas](../basics/paradigms/).
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Documentos com forma variável como modelo central (catálogo, eventos, conteúdo) | **MongoDB** | Cada documento tem os campos que precisa, sem tabela de mil colunas opcionais. |
+| Dados lidos em bloco por tela, com hierarquia natural | **MongoDB** | Um documento incorporado é uma leitura, sem junção. |
+| Escrita intensa de eventos com esquema em evolução | **MongoDB** | Inserir sem migração de esquema; validar depois, se preciso. |
+| Dados relacionados, relatórios com junções e agregações | **[PostgreSQL](../postgresql/) ou [MySQL](../mysql/)** | Junção é nativa; `$lookup` é o caminho lento. |
+| Um campo variável em um modelo relacional | **PostgreSQL com `JSONB`** | O documento cabe na coluna, ao lado das tabelas. |
+| Sincronização em tempo real e offline em aplicativo móvel | **[Firestore](../../cloud/firebase/firestore/)** | O SDK resolve cache e reconciliação; o MongoDB precisaria de uma camada própria. |
+
+---
+
+## Exercício
+
+Responda com base na hierarquia e na seção de modelagem:
+
+1. O que "sem esquema" significa no MongoDB, e onde o esquema acaba morando?
+2. Um investimento tem um histórico de cotações que cresce todo dia. Incorporar ou referenciar? Por quê?
+3. Por que o `$lookup` não é equivalente ao `JOIN` relacional?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Que a coleção não exige que os documentos tenham os mesmos campos. O esquema passa a morar na aplicação, que precisa lidar com a variação, ou na validação por JSON Schema declarada na coleção quando se quer o servidor conferindo.
+
+  2. Referenciar, em uma coleção `quotes` com o `investmentId`: a lista cresce sem limite, o documento tem teto de 16 MB, e o histórico é lido sozinho (em um gráfico) com mais frequência do que junto do investimento.
+
+  3. Porque é um estágio de agregação que faz a junção documento a documento, sem o otimizador e os índices de junção de um motor relacional; funciona, mas é o caminho lento, e o modelo deveria evitá-lo nas leituras frequentes.
+</details>
+
+---
+
+## Desafio
+
+Modele o blog do projeto `invest-db` (usuários, posts, e a categoria de cada post) no MongoDB de duas formas: uma com os posts incorporados no documento do usuário, outra com posts em coleção própria referenciando o autor. Escreva, para cada forma, as consultas que respondem a "posts de um autor", "posts de uma categoria em todos os autores" e "quantos posts cada autor tem".
+
+Com as seis consultas na mão, responda: qual forma vence em cada pergunta, e qual você escolheria para um blog em que a tela principal é a lista de posts recentes de todos os autores?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Com posts incorporados, "posts de um autor" é uma leitura de documento, a mais barata possível; "posts de uma categoria em todos os autores" exige percorrer todos os usuários e desdobrar o array (`$unwind`), o caminho lento; e a contagem por autor é `$size` do array, trivial. Com coleção própria, as três são consultas diretas na coleção `posts`, com índices em `authorId`, `category` e `createdAt`, e a contagem é um `$group`.
+
+  Para um blog cuja tela principal é a lista de posts recentes de todos os autores, a coleção própria vence sem discussão: a consulta principal é por data, atravessando autores, e o modelo incorporado a torna a mais cara de todas. É o caso em que o dado é lido sozinho e por vários caminhos, o critério de referenciar. O incorporado serviria a um perfil de autor com poucos posts, lido sempre inteiro.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelo
+
+1. **O que é BSON, e o que ele acrescenta ao JSON?**
+   <details><summary>Possível resposta</summary>A forma binária em que o MongoDB guarda documentos, com tipos que o JSON não tem: datas, decimais, binários e o `ObjectId` do `_id`.</details>
+
+2. **Qual é o limite de tamanho de um documento, e que decisão de modelagem ele afeta?**
+   <details><summary>Possível resposta</summary>16 MB. Afeta a escolha de incorporar: listas que crescem sem limite precisam ser referenciadas em outra coleção.</details>
+
+3. **Como declarar um esquema no servidor quando a flexibilidade deixa de interessar?**
+   <details><summary>Possível resposta</summary>Com validação por JSON Schema na coleção, que recusa documentos fora do formato declarado.</details>
+
+### Consultas
+
+4. **Quais são as duas partes de uma consulta `find`?**
+   <details><summary>Possível resposta</summary>O filtro, que escolhe os documentos, e a projeção, que escolhe os campos devolvidos.</details>
+
+5. **O que é o pipeline de agregação?**
+   <details><summary>Possível resposta</summary>Uma sequência de estágios (`$match`, `$group`, `$sort`, `$project`, `$lookup`) pelos quais os documentos passam, equivalente ao `GROUP BY`, ao `JOIN` e às transformações do SQL.</details>
+
+6. **Qual garantia de atomicidade o MongoDB dá por padrão?**
+   <details><summary>Possível resposta</summary>A escrita em um único documento é atômica, inclusive em campos e arrays incorporados. Transações entre documentos existem desde a 4.0, com conjunto de réplicas.</details>
+
+---
+
+## Referências
+
+- [MongoDB Manual](https://www.mongodb.com/docs/manual/)
+- [MongoDB: Data Modeling](https://www.mongodb.com/docs/manual/data-modeling/)
+- [MongoDB: Schema Validation](https://www.mongodb.com/docs/manual/core/schema-validation/)
+- [MongoDB: Aggregation Pipeline](https://www.mongodb.com/docs/manual/core/aggregation-pipeline/)
+- [MongoDB: Transactions](https://www.mongodb.com/docs/manual/core/transactions/)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): O servidor com Docker Compose, o `mongosh` e os usuários por banco.

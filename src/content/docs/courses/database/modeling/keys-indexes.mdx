@@ -1,0 +1,243 @@
+---
+title: "Banco de Dados: Chaves e Índices"
+description: "Chaves primárias naturais e substitutas, chaves estrangeiras e ações referenciais, restrições UNIQUE compostas e CHECK, índices simples e compostos, o que um índice custa e como ver o planejador usá-lo com EXPLAIN QUERY PLAN."
+course: database
+sidebar:
+  label: "Chaves e Índices"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico reúne as decisões de modelagem que aparecem depois das tabelas estarem desenhadas e antes de o banco ir para produção: qual coluna identifica cada linha, como as tabelas se apontam, que regras o banco garante sozinho, e onde um índice transforma uma varredura em uma busca. O arquivo `keys-indexes.sql` do projeto `invest-db` executa cada decisão.
+
+## Objetivo
+
+Dominar as ferramentas de integridade e de acesso do modelo relacional, escolhendo chaves e restrições que fazem o banco garantir as regras do domínio, e índices que fazem as consultas frequentes serem buscas em vez de varreduras. Ao final do tópico, o leitor deve ser capaz de:
+
+- Escolher entre chave natural e chave substituta, e explicar o custo de cada uma.
+- Definir chaves estrangeiras com a ação referencial adequada a cada relação.
+- Expressar regras do domínio com `UNIQUE` composto e `CHECK`.
+- Criar índices simples e compostos e prever quais consultas eles servem.
+- Ler o plano de execução para confirmar se um índice está sendo usado.
+
+---
+
+## Chave Natural e Chave Substituta
+
+Toda tabela precisa de uma chave primária, e há duas escolhas. A **chave natural** é um valor que já identifica a linha no mundo real: o código ISO do país, o CPF, o e-mail. A **chave substituta** (*surrogate*) é gerada pelo banco, sem significado, estável: o `id` sequencial ou um UUID.
+
+O arquivo do projeto cria uma tabela de cada tipo, e o teste no fim mostra o que a chave natural custa. A linha 4 é a chave natural; a linha 10, a substituta; e as linhas 19 e 20 alteram o país de duas formas:
+
+<SourceCode path="examples/courses/database/invest-db/keys-indexes.sql" region="natural-surrogate" mark={[4, 10, 19, 20]} />
+
+```txt title="Output"
+-- ok
+-- ok
+-- 2 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+-- erro: FOREIGN KEY constraint failed
+```
+
+Mudar o nome do país (linha 19) passou. Mudar o código (linha 20) falhou, porque `Broker` o referencia: a chave natural, quando muda, arrasta todas as referências. A tabela abaixo resume a troca:
+
+| Aspecto | Chave natural | Chave substituta |
+| --- | --- | --- |
+| **Exemplo** | `code TEXT PRIMARY KEY` | `id INTEGER PRIMARY KEY AUTOINCREMENT` |
+| **Legibilidade** | `'BR'` diz o que é | `42` não diz nada |
+| **Estabilidade** | Muda quando o mundo muda (CPF corrigido, e-mail trocado) | Nunca muda |
+| **Referências** | Cada tabela filha carrega o valor inteiro | Um inteiro pequeno |
+| **Uso recomendado** | Códigos padronizados e imutáveis (ISO, moeda) | Quase tudo o mais, com `UNIQUE` na coluna natural |
+
+A regra prática é a última linha: chave substituta como primária, e a coluna natural com `UNIQUE`, para ter as duas garantias sem o custo da mudança.
+
+---
+
+## Chaves Estrangeiras e Ações Referenciais
+
+A chave estrangeira faz o banco recusar referências a linhas inexistentes, e a **ação referencial** decide o que acontece com os filhos quando o pai é apagado ou alterado:
+
+| Ação | Ao apagar o pai | Quando usar |
+| --- | --- | --- |
+| `RESTRICT` ou `NO ACTION` (padrão) | Recusa, se houver filhos | Relação em que o pai não pode sumir com dependentes: categoria com investimentos |
+| `CASCADE` | Apaga os filhos junto | Filhos que não fazem sentido sem o pai: itens de um pedido, cotações de um investimento |
+| `SET NULL` | Deixa a referência nula | Filho que sobrevive sem o pai: post cujo autor foi removido |
+
+O `CASCADE` é o mais conveniente e o mais perigoso: um `DELETE` em `user` pode apagar milhares de linhas em cascata sem aviso. A pergunta que decide é "se o pai sumir, o filho ainda significa algo?".
+
+<Aside type="caution" title="Dica de IA: Confira a ação referencial em cada chave estrangeira">
+  Assistentes escolhem `ON DELETE CASCADE` em todas as chaves estrangeiras, porque é o que faz o `DELETE` do teste não falhar. Em produção, apagar uma categoria apaga os investimentos dela, e ninguém pediu isso.
+
+  **Prompt:** *"Para cada chave estrangeira deste esquema, diga se a ação de exclusão deve ser `RESTRICT`, `CASCADE` ou `SET NULL`, justificando com a pergunta 'o filho faz sentido sem o pai?', e mostre o `DELETE` que revelaria uma escolha errada."*
+</Aside>
+
+---
+
+## Restrições que Expressam Regras
+
+`UNIQUE` e `CHECK` fazem o banco garantir regras que, sem eles, ficariam espalhadas pela aplicação. O `UNIQUE` composto da linha 30 expressa "o mesmo símbolo pode existir em corretoras diferentes, nunca duas vezes na mesma", e o `CHECK` da linha 29 recusa preço zero ou negativo:
+
+<SourceCode path="examples/courses/database/invest-db/keys-indexes.sql" region="constraints" mark={[29, 30]} />
+
+```txt title="Output"
+-- ok
+-- 2 linha(s) afetada(s)
+-- erro: UNIQUE constraint failed: Asset.broker_id, Asset.symbol
+-- erro: CHECK constraint failed: price > 0
+```
+
+As duas inserções que violam as regras foram recusadas com mensagens que nomeiam a restrição. É a diferença entre uma regra que existe no banco e uma que existe na documentação: a primeira não depende de ninguém lembrar dela.
+
+---
+
+## Índices
+
+Sem índice, encontrar as linhas com `category = 'Tecnologia'` exige ler a tabela inteira. Um índice é uma estrutura ordenada (uma árvore B, na maioria dos motores) que aponta da coluna para as linhas, e transforma a varredura em uma busca.
+
+O diagrama abaixo mostra a diferença de caminho:
+
+<Mermaid title="Varredura da tabela e busca pelo índice">
+{`
+flowchart TD
+  Q["WHERE category = 'Tecnologia'"] --> Scan["Sem índice<br/>lê todas as linhas"]
+  Q --> Idx["Com índice<br/>árvore ordenada por category"]
+  Scan --> T[("Post: 6 linhas hoje,<br/>milhões amanhã")]
+  Idx -->|"só as linhas apontadas"| T
+`}
+</Mermaid>
+
+A linha 44 cria o índice, e o `EXPLAIN QUERY PLAN` da linha 47 pergunta ao planejador como ele vai executar a consulta:
+
+<SourceCode path="examples/courses/database/invest-db/keys-indexes.sql" region="index" mark={[44, 47]} />
+
+```txt title="Output"
+-- ok
+-- plano: SEARCH Post USING INDEX idx_post_category (category=?)
+name                     | sql
+-------------------------+--------------------------------------------------
+sqlite_autoindex_Asset_1 | NULL
+idx_post_category        | CREATE INDEX idx_post_category ON Post (category)
+```
+
+O plano diz `SEARCH ... USING INDEX`: o índice está em uso. Sem ele, diria `SCAN Post`. A consulta ao catálogo mostra ainda o `sqlite_autoindex_Asset_1`, criado automaticamente pelo `UNIQUE (broker_id, symbol)`: toda chave primária e todo `UNIQUE` já vêm com índice, e é por isso que a busca por chave é sempre rápida.
+
+Índices têm custo, e ele explica por que não se indexa tudo:
+
+| O que o índice custa | Por quê |
+| --- | --- |
+| Espaço em disco | É uma cópia ordenada da coluna, mais os ponteiros. |
+| Escritas mais lentas | Cada `INSERT`, `UPDATE` e `DELETE` atualiza a tabela e cada índice dela. |
+| Manutenção | Um índice não usado é custo puro, e o planejador não avisa. |
+
+A regra para índices compostos, como o `(author_id, created_at)` do modelo de rede social: a ordem das colunas importa, e o índice serve consultas que filtram pela primeira coluna, ou pelas duas, mas não pela segunda sozinha. O tópico de [Desempenho](../../sql/performance/) mostra os casos em que o índice existe e o planejador não o usa.
+
+---
+
+## Quando usar, e quando não usar?
+
+As decisões desta página têm padrões claros, e as exceções valem ser conhecidas.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Chave primária de uma entidade comum | **Substituta (`id`), com `UNIQUE` na natural** | Estável nas referências; a regra de unicidade continua garantida. |
+| Códigos padronizados e imutáveis (país, moeda) | **Natural** | O código é o identificador do mundo, e não muda. |
+| Filho que não existe sem o pai (item, cotação) | **`ON DELETE CASCADE`** | Apagar o pai limpa o que não faz mais sentido. |
+| Pai que não pode sumir com dependentes (categoria) | **`RESTRICT`** | O erro força a decisão consciente. |
+| Coluna usada em `WHERE` e `JOIN` de consultas frequentes | **Índice** | Busca em vez de varredura, e a diferença cresce com a tabela. |
+| Tabela pequena, ou coluna com poucos valores distintos | **Sem índice** | O planejador varre de qualquer jeito; o índice só custa. |
+| Tabela com escrita intensa e leitura rara (log, eventos) | **Poucos índices** | Cada índice torna cada escrita mais lenta. |
+
+---
+
+## Executando
+
+O arquivo roda sobre o blog do `schema.sql`, porque o índice é criado em `Post`:
+
+<Steps>
+1. Execute e compare com as saídas desta página:
+
+   ```bash title="Terminal"
+   node run.mjs keys-indexes.sql
+   ```
+2. Remova o `CREATE INDEX` e execute de novo: o plano passa a dizer `SCAN Post`.
+3. Troque o `ON DELETE` de `Broker.country_code` para `CASCADE`, acrescente `DELETE FROM Country WHERE code = 'BR'` ao fim e conte as corretoras que restam.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base no arquivo e nas saídas:
+
+1. Por que o `UPDATE` do nome do país passou e o do código falhou?
+2. O que o `sqlite_autoindex_Asset_1` é, e quem o criou?
+3. Como confirmar que uma consulta está usando um índice?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o nome não é referenciado por ninguém, e o código é a chave primária que `Broker.country_code` aponta. Mudar uma chave natural referenciada viola a chave estrangeira das linhas filhas.
+
+  2. O índice criado automaticamente pelo `UNIQUE (broker_id, symbol)`. Toda restrição de unicidade precisa de um índice para ser verificada rapidamente, e o banco o cria sem pedir.
+
+  3. Com `EXPLAIN QUERY PLAN` antes da consulta: `SEARCH ... USING INDEX` indica uso; `SCAN` indica varredura da tabela.
+</details>
+
+---
+
+## Desafio
+
+O modelo de rede social do projeto (`modeling/social-feed.sql`) tem o índice `(author_id, created_at)` para o feed. Acrescente três consultas ao arquivo, cada uma com `EXPLAIN QUERY PLAN`: os posts de um autor, os posts de um autor a partir de uma data, e os posts de todos os autores a partir de uma data.
+
+Registre qual usa o índice e qual não usa, e responda: que índice faltaria para a terceira, e o que esse índice custaria em uma rede com milhões de posts por dia?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  As duas primeiras usam o índice (`SEARCH post USING INDEX idx_post_author_date`), porque filtram pela primeira coluna, sozinha ou com a segunda. A terceira filtra só por `created_at`, a segunda coluna do índice, e o planejador varre a tabela (`SCAN post`).
+
+  Um índice `(created_at)` sozinho serviria a terceira consulta. Em uma rede com milhões de posts por dia, ele custa uma escrita a mais por post inserido e cresce ao ritmo da tabela; como o feed global por data costuma ser a consulta mais pesada da rede, ele quase sempre compensa. A decisão que não compensa é indexar por hábito colunas que nenhuma consulta frequente filtra.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Chaves
+
+1. **Qual é a diferença entre chave natural e chave substituta?**
+   <details><summary>Possível resposta</summary>A natural é um valor com significado no mundo real (código, e-mail); a substituta é gerada pelo banco, sem significado e estável.</details>
+
+2. **Por que a recomendação é chave substituta como primária e `UNIQUE` na natural?**
+   <details><summary>Possível resposta</summary>Porque as referências ficam estáveis mesmo quando o valor natural muda, e a unicidade do valor natural continua garantida pela restrição.</details>
+
+3. **O que `ON DELETE CASCADE` faz, e qual é o risco?**
+   <details><summary>Possível resposta</summary>Apaga as linhas filhas quando o pai é apagado. O risco é uma exclusão em cascata inesperada e silenciosa a partir de uma tabela pai.</details>
+
+### Restrições e índices
+
+4. **Qual regra um `UNIQUE` composto expressa que um `UNIQUE` simples não expressa?**
+   <details><summary>Possível resposta</summary>Que a combinação de colunas é única, permitindo repetição em cada coluna isoladamente: o mesmo símbolo em corretoras diferentes, nunca na mesma.</details>
+
+5. **O que um índice custa?**
+   <details><summary>Possível resposta</summary>Espaço em disco e escritas mais lentas, porque cada `INSERT`, `UPDATE` e `DELETE` atualiza cada índice da tabela.</details>
+
+6. **Um índice em `(a, b)` serve uma consulta que filtra só por `b`?**
+   <details><summary>Possível resposta</summary>Não. Serve consultas que filtram por `a`, ou por `a` e `b`. Para filtrar só por `b`, é preciso um índice que comece por `b`.</details>
+
+---
+
+## Referências
+
+- [SQLite: CREATE INDEX](https://www.sqlite.org/lang_createindex.html)
+- [SQLite: EXPLAIN QUERY PLAN](https://www.sqlite.org/eqp.html)
+- [PostgreSQL: Indexes](https://www.postgresql.org/docs/current/indexes.html)
+- [PostgreSQL: Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html)
+- [Use The Index, Luke](https://use-the-index-luke.com/)
+
+---
+
+## Próximo tópico
+
+[Estudos de Caso](../case-studies/): Três modelos completos, do requisito ao `CREATE TABLE`, com as decisões desta página aplicadas.

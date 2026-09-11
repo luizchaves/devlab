@@ -1,0 +1,245 @@
+---
+title: "Banco de Dados: PostgreSQL, Administração"
+description: "Administração do PostgreSQL: papéis e permissões com CREATE ROLE, GRANT e REVOKE, um papel de aplicação sem superpoderes, SET ROLE para testar, DROP OWNED, backup com pg_dump, restauração com psql e o que observar em um servidor em uso."
+course: database
+sidebar:
+  label: "Administração"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico faz o que a [administração](../../basics/administration/) descreve como conceito, nos comandos do PostgreSQL: cria um papel de aplicação com o mínimo de privilégios, prova que ele não consegue o que não lhe foi dado, e faz o backup e a restauração do banco. Toda saída foi capturada no servidor da página anterior, com o arquivo `roles.sql` do projeto.
+
+## Objetivo
+
+Operar um servidor PostgreSQL de desenvolvimento com as práticas que valem em produção: uma credencial por aplicação, privilégios explícitos e uma rotina de cópia que se sabe restaurar. Ao final do tópico, o leitor deve ser capaz de:
+
+- Distinguir papel de usuário e criar um papel de aplicação com `LOGIN` e senha.
+- Conceder e revogar privilégios sobre banco, esquema, tabelas e sequências.
+- Testar as permissões de um papel com `SET ROLE` sem trocar de conexão.
+- Remover um papel corretamente, lidando com os objetos que dependem dele.
+- Fazer backup com `pg_dump` e restaurar em um banco novo, conferindo o resultado.
+
+---
+
+## Papéis, Não Usuários
+
+No PostgreSQL, usuário e grupo são a mesma coisa: um **papel** (*role*). Um papel com o atributo `LOGIN` pode conectar; um papel sem ele funciona como grupo, ao qual outros papéis pertencem. `CREATE USER` ainda existe e é apenas `CREATE ROLE` com `LOGIN`.
+
+O superusuário `postgres` criado na instalação pode tudo, e é exatamente por isso que a aplicação não deve usá-lo. O arquivo `roles.sql` cria o papel da aplicação com o que ela precisa, e nada mais. A linha 3 cria o papel com senha; as linhas 5 a 8 concedem, em ordem, o acesso ao banco, ao esquema, à tabela e à sequência que gera os `id`:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/roles.sql" region="create" mark={[3, 7]} />
+
+A concessão em quatro níveis surpreende quem vem do MySQL. No PostgreSQL, conectar ao banco, enxergar o esquema e ler a tabela são privilégios distintos, e a sequência da identidade é um objeto à parte: sem o `USAGE` da linha 8, o `INSERT` falha mesmo com permissão na tabela, porque não consegue gerar o próximo `id`.
+
+---
+
+## Testando o Papel Sem Trocar de Conexão
+
+O `SET ROLE` faz a sessão atual passar a agir como outro papel, o que permite testar as permissões sem abrir uma conexão nova. O trecho seguinte insere como a aplicação e depois tenta o `DELETE`, que não foi concedido:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/roles.sql" region="check" mark={[15, 18]} />
+
+Executando o arquivo inteiro contra o banco `invest`, cada instrução imprime a sua confirmação, e a linha 18 imprime a recusa:
+
+```bash title="Terminal"
+docker exec -i postgres psql -U postgres -d invest < roles.sql
+```
+
+```txt title="Output"
+CREATE ROLE
+GRANT
+GRANT
+GRANT
+GRANT
+SET
+INSERT 0 1
+ERROR:  permission denied for table investment
+RESET
+REVOKE
+DROP OWNED
+DROP ROLE
+```
+
+O `INSERT 0 1` mostra que a aplicação consegue gravar; o `ERROR: permission denied` mostra que ela não consegue apagar. É a prova que uma revisão de código não dá: o privilégio foi testado contra o servidor, não lido em um arquivo.
+
+O `\du` lista os papéis do servidor e os atributos de cada um. Enquanto o papel de aplicação existe, ele aparece sem atributo algum, ao lado do superusuário:
+
+```txt title="Output"
+invest=# \du
+                              List of roles
+ Role name  |                         Attributes
+------------+------------------------------------------------------------
+ invest_app |
+ postgres   | Superuser, Create role, Create DB, Replication, Bypass RLS
+```
+
+<Aside type="caution" title="Dica de IA: Peça o teste negativo do privilégio">
+  Assistentes produzem o `GRANT` certo e param aí, e um `GRANT` a mais (o `ALL PRIVILEGES` que aparece com frequência) passa despercebido, porque a aplicação funciona igual. A diferença só aparece no dia em que um erro de código executa um `DELETE` sem `WHERE` com a credencial da aplicação.
+
+  **Prompt:** *"Para este papel de aplicação, liste cada privilégio concedido e escreva, com `SET ROLE`, uma instrução que precisa falhar para cada privilégio **não** concedido; execute e cole a saída."*
+</Aside>
+
+---
+
+## Revogar e Remover
+
+Revogar um privilégio é o espelho de conceder. Remover o papel, porém, tem uma armadilha: o PostgreSQL recusa `DROP ROLE` enquanto algum objeto ou privilégio depender dele, e a mensagem lista as dependências. O `DROP OWNED BY` da linha 27 remove tudo o que o papel possui ou tem concedido, e só então o `DROP ROLE` passa:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/roles.sql" region="revoke" mark={[27]} />
+
+Sem a linha 27, a saída seria esta, e é a primeira coisa que se vê ao tentar remover um papel de aplicação:
+
+```txt title="Output"
+ERROR:  role "invest_app" cannot be dropped because some objects depend on it
+DETAIL:  privileges for schema public
+privileges for database invest
+privileges for sequence investment_id_seq
+privileges for table investment
+```
+
+---
+
+## Backup e Restauração
+
+O `pg_dump` gera um arquivo SQL com o esquema e os dados de um banco, e é consistente mesmo com o servidor em uso, porque roda dentro de uma transação e enxerga uma fotografia do banco. A restauração é executar esse SQL em um banco novo com o `psql`:
+
+```bash title="Terminal"
+docker exec postgres pg_dump -U postgres -d invest -f /tmp/invest.sql
+docker exec postgres psql -U postgres -c "CREATE DATABASE invest_restored;"
+docker exec postgres psql -U postgres -d invest_restored -f /tmp/invest.sql
+docker exec postgres psql -U postgres -d invest_restored -c "SELECT COUNT(*) FROM investment;"
+```
+
+```txt title="Output"
+CREATE DATABASE
+ count
+-------
+     4
+(1 row)
+```
+
+As quatro linhas (as três do `invest.sql` mais a inserida pelo papel de aplicação) chegaram ao banco restaurado. O arquivo gerado é legível e vale a inspeção: além do `CREATE TABLE` e do `COPY` com os dados, ele carrega a definição da identidade e os `GRANT` do papel de aplicação, o que significa que a restauração falha se o papel não existir no servidor de destino.
+
+| Opção do `pg_dump` | Efeito | Quando usar |
+| --- | --- | --- |
+| `-f arquivo.sql` (padrão, formato texto) | SQL legível | Bancos pequenos, versionamento, migração |
+| `-Fc -f arquivo.dump` | Formato comprimido, restaurado com `pg_restore` | Bancos grandes, restauração seletiva de tabelas |
+| `--no-owner --no-privileges` | Omite `OWNER` e `GRANT` | Restaurar em servidor com papéis diferentes |
+| `-s` | Só o esquema | Recriar a estrutura em outro ambiente |
+
+Para copiar o arquivo do contêiner para a máquina, o `docker cp postgres:/tmp/invest.sql .` completa o fluxo; em produção, o `pg_dump` costuma rodar de fora, apontando para o servidor, em uma tarefa agendada.
+
+---
+
+## O Que Observar em Uso
+
+Um servidor de desenvolvimento não precisa de monitoramento, mas três consultas ao catálogo do sistema valem ser conhecidas, porque são as primeiras a rodar quando algo fica lento:
+
+| Pergunta | Consulta |
+| --- | --- |
+| Quem está conectado e o que está executando? | `SELECT pid, usename, state, query FROM pg_stat_activity;` |
+| Qual é o tamanho de cada tabela? | `SELECT relname, pg_size_pretty(pg_total_relation_size(oid)) FROM pg_class WHERE relkind = 'r';` |
+| Quantas conexões o servidor aceita? | `SHOW max_connections;` |
+
+A última é a que a [página de banco gerenciado](../../../cloud/resources/relational-database/) antecipa: o padrão é 100, e funções *serverless* sem *pooler* o esgotam em segundos.
+
+---
+
+## Executando
+
+Os passos abaixo reproduzem a sessão desta página no servidor da página anterior:
+
+<Steps>
+1. Execute o arquivo de papéis contra o banco `invest` e confira a saída acima:
+
+   ```bash title="Terminal"
+   docker exec -i postgres psql -U postgres -d invest < roles.sql
+   ```
+2. Comente a linha do `DROP OWNED BY` no `roles.sql`, execute de novo e observe o erro de dependência.
+3. Faça o backup e a restauração, e compare a contagem nos dois bancos:
+
+   ```bash title="Terminal"
+   docker exec postgres pg_dump -U postgres -d invest -f /tmp/invest.sql
+   docker exec postgres psql -U postgres -c "CREATE DATABASE invest_restored;"
+   docker exec postgres psql -U postgres -d invest_restored -f /tmp/invest.sql
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base no `roles.sql` e nas saídas:
+
+1. Por que o papel de aplicação precisa de `USAGE` na sequência, se já tem `INSERT` na tabela?
+2. O que `SET ROLE` faz, e por que ele é útil para testar permissões?
+3. Por que o `DROP ROLE` falhou sem o `DROP OWNED BY`, e o que essa falha protege?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a coluna de identidade obtém o próximo valor de uma sequência, que é um objeto separado com privilégios próprios. Sem `USAGE` nela, o `INSERT` falha ao tentar gerar o `id`.
+
+  2. Faz a sessão atual agir como outro papel, com os privilégios dele, até o `RESET ROLE`. Permite provar o que a aplicação pode e não pode fazer sem abrir outra conexão.
+
+  3. Porque o papel ainda tinha privilégios concedidos sobre o banco, o esquema, a tabela e a sequência. A falha impede que a remoção de um papel deixe referências pendentes nos objetos que dependiam dele.
+</details>
+
+---
+
+## Desafio
+
+A aplicação de investimentos vai ganhar um perfil de auditoria: um papel que lê todas as tabelas, não escreve em nenhuma, e continua enxergando tabelas que forem criadas depois dele. Escreva os comandos, inclusive o que faz o privilégio valer para tabelas futuras, e prove com `SET ROLE` que ele lê e não escreve.
+
+Depois responda: por que `GRANT SELECT ON ALL TABLES IN SCHEMA public` não basta, e o que o `ALTER DEFAULT PRIVILEGES` muda?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O papel `invest_auditor` recebe `CONNECT` no banco, `USAGE` no esquema e `SELECT ON ALL TABLES IN SCHEMA public`. O teste com `SET ROLE invest_auditor` mostra o `SELECT` funcionando e o `INSERT` recusado com `permission denied`.
+
+  O `GRANT ... ON ALL TABLES` é uma fotografia: concede sobre as tabelas que existem naquele momento, e uma tabela criada amanhã nasce sem o privilégio. O `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO invest_auditor` muda o padrão para objetos futuros criados pelo papel que executa o comando, o que fecha a lacuna. É um dos poucos casos em que a ordem dos comandos administrativos altera o resultado meses depois.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Papéis e privilégios
+
+1. **Qual é a diferença entre `CREATE ROLE` e `CREATE USER`?**
+   <details><summary>Possível resposta</summary>Nenhuma além do padrão: `CREATE USER` é `CREATE ROLE` com o atributo `LOGIN` já ligado.</details>
+
+2. **Quais são os quatro níveis de privilégio que um papel de aplicação costuma precisar?**
+   <details><summary>Possível resposta</summary>`CONNECT` no banco, `USAGE` no esquema, os privilégios de dados na tabela (`SELECT`, `INSERT`, `UPDATE`) e `USAGE` nas sequências das colunas de identidade.</details>
+
+3. **Por que a aplicação não deve conectar como `postgres`?**
+   <details><summary>Possível resposta</summary>Porque é superusuário: qualquer erro de código ou credencial vazada dá acesso total ao servidor, inclusive a outros bancos.</details>
+
+### Backup
+
+4. **Por que o `pg_dump` é consistente mesmo com o servidor em uso?**
+   <details><summary>Possível resposta</summary>Porque roda dentro de uma transação e, pelo MVCC, enxerga uma fotografia do banco no instante em que começou.</details>
+
+5. **O que pode fazer uma restauração falhar em outro servidor, e como evitar?**
+   <details><summary>Possível resposta</summary>Os `OWNER` e `GRANT` que referenciam papéis inexistentes no destino. As opções `--no-owner --no-privileges` omitem essas instruções.</details>
+
+6. **Quando o formato comprimido (`-Fc`) é preferível ao SQL em texto?**
+   <details><summary>Possível resposta</summary>Em bancos grandes, e quando se quer restaurar apenas parte (uma tabela) com `pg_restore`.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL: Database Roles](https://www.postgresql.org/docs/current/user-manag.html)
+- [PostgreSQL: GRANT](https://www.postgresql.org/docs/current/sql-grant.html)
+- [PostgreSQL: DROP OWNED](https://www.postgresql.org/docs/current/sql-drop-owned.html)
+- [PostgreSQL: pg_dump](https://www.postgresql.org/docs/current/app-pgdump.html)
+- [PostgreSQL: The Statistics Collector](https://www.postgresql.org/docs/current/monitoring-stats.html)
+
+---
+
+## Próximo tópico
+
+[Visão geral do MySQL](../../mysql/): O outro servidor relacional, com motores de armazenamento, usuários por origem e a base instalada mais ampla.

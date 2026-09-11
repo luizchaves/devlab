@@ -5,8 +5,9 @@ course: database
 sidebar:
   label: "Normalização de Dados"
 ---
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Este tópico apresenta o processo formal de **Normalização de Banco de Dados**. Você aprenderá a identificar redundâncias e anomalias de atualização, estruturar tabelas de acordo com a Primeira (1FN), Segunda (2FN) e Terceira Forma Normal (3FN), além de compreender quando utilizar a desnormalização consciente por motivos de desempenho.
 
@@ -14,7 +15,13 @@ Este tópico apresenta o processo formal de **Normalização de Banco de Dados**
 
 ## Objetivo
 
-Compreender o conceito de dependência funcional, aplicar rigorosamente os critérios de normalização até a 3FN para eliminar anomalias de banco de dados e ponderar os trade-offs entre integridade relacional e performance.
+Compreender a normalização como a eliminação sistemática de redundância a partir das dependências funcionais, e aplicá-la até a 3FN em esquemas executados de verdade, para depois decidir com critério quando a desnormalização compensa. Ao final do tópico, o leitor deve ser capaz de:
+
+- Reconhecer as anomalias de inserção, atualização e exclusão em uma tabela redundante.
+- Explicar o que é dependência funcional e como ela define cada forma normal.
+- Aplicar a 1FN, a 2FN e a 3FN a uma tabela, produzindo o `CREATE TABLE` de cada etapa.
+- Verificar um esquema normalizado executando inserções e junções contra ele.
+- Decidir quando a desnormalização é aceitável e o que ela exige da aplicação.
 
 ---
 
@@ -65,20 +72,19 @@ Veja a tabela `Pedidos_Desorganizados` com telefones multivalorados e itens em l
 
 Para colocar na 1FN, dividimos os telefones e produtos em linhas únicas ou tabelas separadas, garantindo que cada célula contenha exatamente um valor atômico:
 
-```sql title="1fn-tabelas.sql"
--- Tabela de Clientes com atributos atômicos
-CREATE TABLE Cliente (
-    id INT PRIMARY KEY AUTOINCREMENT,
-    nome VARCHAR(100) NOT NULL
-);
+<SourceCode path="examples/courses/database/invest-db/normalization/1fn.sql" region="tables" />
 
--- Tabela separada para Telefones (eliminando o multivalorado)
-CREATE TABLE Cliente_Telefone (
-    cliente_id INT NOT NULL,
-    telefone VARCHAR(20) NOT NULL,
-    PRIMARY KEY (cliente_id, telefone),
-    FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
-);
+O trecho final do arquivo insere dados e consulta o resultado, para provar que a estrutura funciona:
+
+<SourceCode path="examples/courses/database/invest-db/normalization/1fn.sql" region="check" />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+nome | telefone
+-----+--------------
+Ana  | 83 99999-0001
+Ana  | 83 99999-0002
 ```
 
 ---
@@ -106,24 +112,24 @@ Dada a tabela `Item_Pedido` com chave composta por `(Pedido_ID, Produto_ID)`:
 
 Removemos o atributo que depende de parte da chave para uma tabela própria:
 
-```sql title="2fn-tabelas.sql"
--- Tabela de Produtos (depende apenas de Produto_ID)
-CREATE TABLE Produto (
-    id INT PRIMARY KEY AUTOINCREMENT,
-    nome VARCHAR(100) NOT NULL,
-    preco DECIMAL(10,2) NOT NULL
-);
+<SourceCode path="examples/courses/database/invest-db/normalization/2fn.sql" region="tables" />
 
--- Tabela de Itens (Quantidade depende da chave composta inteira)
-CREATE TABLE Item_Pedido (
-    pedido_id INT NOT NULL,
-    produto_id INT NOT NULL,
-    quantidade INT NOT NULL,
-    PRIMARY KEY (pedido_id, produto_id),
-    FOREIGN KEY (pedido_id) REFERENCES Pedido(id),
-    FOREIGN KEY (produto_id) REFERENCES Produto(id)
-);
+O trecho final do arquivo insere dados e consulta o resultado, para provar que a estrutura funciona:
+
+<SourceCode path="examples/courses/database/invest-db/normalization/2fn.sql" region="check" />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+nome    | quantidade | subtotal
+--------+------------+---------
+Teclado | 2          | 320
+Mouse   | 1          | 80
 ```
+
+O `UPDATE` do preço do teclado alterou uma linha só, e o subtotal já saiu com o valor novo: na tabela violando a 2FN, o mesmo preço estaria copiado em cada item de cada pedido, e a atualização teria que encontrar todas as cópias.
 
 ---
 
@@ -146,22 +152,29 @@ Considere a tabela `Funcionario`:
 
 Separamos as informações de endereço em uma tabela de CEPs:
 
-```sql title="3fn-tabelas.sql"
--- Tabela de Endereços por CEP (3FN)
-CREATE TABLE Endereco (
-    cep VARCHAR(9) PRIMARY KEY,
-    cidade VARCHAR(100) NOT NULL,
-    estado VARCHAR(50) NOT NULL
-);
+<SourceCode path="examples/courses/database/invest-db/normalization/3fn.sql" region="tables" />
 
--- Tabela de Funcionários sem dependência transitiva
-CREATE TABLE Funcionario (
-    id INT PRIMARY KEY AUTOINCREMENT,
-    nome VARCHAR(100) NOT NULL,
-    cep VARCHAR(9) NOT NULL,
-    FOREIGN KEY (cep) REFERENCES Endereco(cep)
-);
+O trecho final do arquivo insere dados e consulta o resultado, para provar que a estrutura funciona:
+
+<SourceCode path="examples/courses/database/invest-db/normalization/3fn.sql" region="check" />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- erro: FOREIGN KEY constraint failed
+nome  | cidade      | estado
+------+-------------+-------
+Ana   | João Pessoa | PB
+Bruno | João Pessoa | PB
 ```
+
+A inserção com o CEP `00000-000` foi recusada pela chave estrangeira. Na tabela original, um funcionário com cidade e estado inventados para um CEP real entraria sem nenhum aviso, e essa é a anomalia de inserção que a 3FN elimina.
+
+<Aside type="caution" title="Dica de IA: Peça a dependência funcional, não a forma normal">
+  Pedir "normalize esta tabela até a 3FN" costuma render um esquema correto e nenhuma explicação de por que ele é assim, o que impede de conferir. O que sustenta a decomposição é a lista de dependências funcionais, e um assistente consegue enumerá-la, mas só quando é pedido.
+
+  **Prompt:** *"Liste todas as dependências funcionais desta tabela no formato `A → B`, marque quais são parciais e quais são transitivas, e só então proponha a decomposição, indicando qual dependência cada tabela nova elimina."*
+</Aside>
 
 ---
 
@@ -182,6 +195,37 @@ A **Desnormalização** é a decisão deliberada de introduzir redundância cont
 
 ---
 
+## Quando usar, e quando não usar?
+
+A 3FN é o ponto de partida de todo esquema transacional, e a desnormalização é uma exceção que se justifica com medida, nunca com receio antecipado de `JOIN`.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Esquema novo, com escritas e leituras misturadas | **3FN** | Sem redundância não há anomalia, e o `JOIN` é barato em tabelas indexadas. |
+| Dado alterado com frequência (preço, nome, endereço) | **3FN** | Uma cópia só; a atualização acontece em um lugar. |
+| Relatório lido milhares de vezes por hora, com muitas junções | **Desnormalização medida** | Só depois de `EXPLAIN` mostrar o custo real, e com a redundância mantida por gatilho ou por rotina. |
+| Histórico que não pode mudar (nota fiscal, pedido fechado) | **Cópia deliberada** | O preço do item no pedido é o preço de então, e não deve seguir o cadastro. |
+| Banco de documentos ou cache de leitura | **Fora do modelo relacional** | A [modelagem por telas](../../../cloud/resources/document-database/) tem regras próprias. |
+
+A quarta linha é a que mais confunde: copiar o preço para o item do pedido não é violação da 2FN, porque o preço **do pedido** depende de fato do par (pedido, produto). Redundância e cópia histórica parecem iguais e são decisões opostas.
+
+---
+
+## Executando
+
+Cada arquivo de normalização cria o próprio esquema, e os três podem ser executados em sequência:
+
+<Steps>
+1. Execute as três formas normais e confira as saídas desta página:
+
+   ```bash title="Terminal"
+   node run.mjs normalization/1fn.sql normalization/2fn.sql normalization/3fn.sql
+   ```
+2. No `2fn.sql`, acrescente uma coluna `produto_nome` a `Item_Pedido` e copie o nome nas inserções. Depois altere o nome do produto na tabela `Produto` e consulte os itens: a divergência que aparece é a anomalia de atualização.
+</Steps>
+
+---
+
 ## Exercício
 
 Considere a tabela `Fatura`: `(Fatura_ID, Cliente_ID, Cliente_Nome, Data, Total)`.
@@ -195,17 +239,17 @@ Considere a tabela `Fatura`: `(Fatura_ID, Cliente_ID, Cliente_Nome, Data, Total)
   1. **Violação**: Violação da **3FN** (Dependência Transitiva). O `Cliente_Nome` depende do `Cliente_ID`, que é um atributo não-chave na tabela `Fatura`.
 
   2. **Solução 3FN**:
-     ```sql
+     ```sql title="Fatura na 3FN"
      CREATE TABLE Cliente (
-         id INT PRIMARY KEY AUTOINCREMENT,
-         nome VARCHAR(100) NOT NULL
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         nome TEXT NOT NULL
      );
 
      CREATE TABLE Fatura (
-         id INT PRIMARY KEY AUTOINCREMENT,
-         cliente_id INT NOT NULL,
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         cliente_id INTEGER NOT NULL,
          data_emissao DATE NOT NULL,
-         total DECIMAL(10,2) NOT NULL,
+         total REAL NOT NULL,
          FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
      );
      ```
@@ -213,10 +257,26 @@ Considere a tabela `Fatura`: `(Fatura_ID, Cliente_ID, Cliente_Nome, Data, Total)
 
 ---
 
+## Desafio
+
+A coluna `total` da `Fatura` do exercício é uma redundância: ela pode ser calculada somando os itens. Mantê-la é uma decisão de desnormalização, e ela precisa vir com a garantia de que o valor nunca diverge da soma.
+
+Modele `Fatura` e `Item_Fatura` no projeto, mantenha `total` na fatura e escreva os gatilhos (`CREATE TRIGGER`) que o recalculam a cada inserção, atualização e exclusão de item. Prove com um arquivo `.sql` que, depois de três operações diferentes sobre os itens, `total` continua igual a `SUM(quantidade * preco)`. Depois responda: em que situação você abriria mão do gatilho e recalcularia na leitura?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Três gatilhos `AFTER INSERT`, `AFTER UPDATE` e `AFTER DELETE` em `Item_Fatura`, cada um executando `UPDATE Fatura SET total = (SELECT COALESCE(SUM(quantidade * preco), 0) FROM Item_Fatura WHERE fatura_id = NEW.fatura_id)` (ou `OLD.fatura_id` na exclusão). A prova é um `SELECT` que compara `Fatura.total` com a soma calculada e devolve zero diferenças.
+
+  O gatilho compensa quando a fatura é lida muito mais do que alterada, o caso comum. Ele deixa de compensar quando os itens mudam em lote (uma importação de mil linhas dispara mil recálculos) ou quando a regra do total ganha exceções (desconto, frete, imposto) que tornam o gatilho um pedaço de lógica de negócio escondido no banco. Nesses casos, uma `VIEW` que calcula na leitura devolve a simplicidade, ao custo da soma a cada consulta.
+</details>
+
+---
+
 ## Perguntas de revisão
 
 1. **O que é uma anomalia de atualização num banco de dados?**
-   <details><summary>Possível resposta</summary>É um problema que ocorre ao inserir, alterar ou deletar dados em tabelas mal projetadas, levando à inconsistência ou perda involuntária de informações.</details>
+   <details><summary>Possível resposta</summary>É um problema que ocorre ao inserir, alterar ou apagar dados em tabelas mal projetadas, levando à inconsistência ou perda involuntária de informações.</details>
 
 2. **O que exige a Primeira Forma Normal (1FN)?**
    <details><summary>Possível resposta</summary>Exige que todos os atributos sejam atômicos (sem vetores ou valores separados por vírgula) e que não existam colunas repetitivas.</details>

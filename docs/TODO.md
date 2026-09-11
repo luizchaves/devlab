@@ -11,10 +11,10 @@
   - [ ] `[TASK-001.4]` Segurança Web, OWASP Top 10 e prevenção de vulnerabilidades (CSRF, XSS, SQL Injection, SameSite cookies, CORS, etc.)
   - [ ] `[TASK-001.5]` Opções de deploy (Vercel, Railway, Render, Fly.io, Heroku, AWS, GCP, Azure — Free Tier vs Pago)
   - [x] `[TASK-001.6]` Guia de Uso de IA para desenvolvimento e especificação
-- [ ] **[TASK-002] Guia de Banco de Dados:**
-  - [ ] `[TASK-002.1]` Adicionar seção sobre modelagem de dados (normalização, relacionamentos, chaves primárias e estrangeiras, índices)
-  - [ ] `[TASK-002.2]` Exemplos práticos de modelagem para diferentes tipos de aplicações (e-commerce, redes sociais, sistemas financeiros, etc.)
-  - [ ] `[TASK-002.3]` Comparativo entre paradigmas (relacional, NoSQL, grafos, etc.)
+- [x] **[TASK-002] Guia de Banco de Dados:** (fechada pela `[TASK-039]`, ver [spec](../specs/executed/spec-010-database-guide-restructure.md))
+  - [x] `[TASK-002.1]` Adicionar seção sobre modelagem de dados (normalização, relacionamentos, chaves primárias e estrangeiras, índices) — `modeling/keys-indexes`, com chaves naturais e substitutas, ações referenciais, `UNIQUE` composto, `CHECK` e `EXPLAIN QUERY PLAN`
+  - [x] `[TASK-002.2]` Exemplos práticos de modelagem para diferentes tipos de aplicações (e-commerce, redes sociais, sistemas financeiros, etc.) — `modeling/case-studies`, com InvestApp, loja e rede social executados de ponta a ponta
+  - [x] `[TASK-002.3]` Comparativo entre paradigmas (relacional, NoSQL, grafos, etc.) — `basics/paradigms`, com os cinco paradigmas, o que cada um abre mão e o CAP como critério
 - [ ] **[TASK-003] Guias Práticos / Tópicos de Fundamentos:**
   - [ ] `[TASK-003.1]` Git e GitHub: desenvolvimento com branches, PRs e code review
   - [ ] `[TASK-003.2]` Desenvolvimento orientado a Specs, Planning e Agents (SKILLS, MCP)
@@ -105,6 +105,12 @@
   - [x] `[TASK-038.4]` Escrever as **5 páginas novas**: `foundations/cloud-computing`, `foundations/baas`, `hosting/static-hosting` e `hosting/serverless-functions` (com projetos executáveis em `examples/courses/cloud/`) e `reference/platform-map`
   - [x] `[TASK-038.5]` Revisar com a `devlab-content-reviewer`: 4 títulos interrogativos sem `?` reescritos, 11 parágrafos de entrada ausentes, 2 subseções solitárias e 1 anglicismo (`deletar`); `check-code-blocks` com 21 blocos e 0 erro, e `pnpm validate` limpo
   - [x] `[TASK-038.6]` Criar a seção **Recursos** do guia, logo após Fundamentos, com uma página por linha-chave da matriz de comparação: `hosting/` virou `resources/` (2 redirecionamentos) e ganhou **8 páginas novas** (funções de borda, banco relacional, banco de documentos, autenticação, storage, realtime, workers e jobs, containers e PaaS), cada uma cruzando as plataformas e apontando para as páginas específicas; matriz de comparação, mapa de plataformas e índice do guia ligados a elas; 8 diagramas medidos entre 230 e 677 px
+- [x] **[TASK-039] Reestruturação do Guia de Banco de Dados:** (ver [spec](../specs/executed/spec-010-database-guide-restructure.md))
+  - [x] `[TASK-039.1]` Criar `examples/courses/database/invest-db/` com todo o SQL do guia em arquivos `.sql` executados por `run.mjs` (`node:sqlite`, sem dependências) — blocos escritos à mão com título de arquivo de **20 para 0**, e todo `Output` produzido pelo script
+  - [x] `[TASK-039.2]` Normalizar as 6 páginas existentes: `## Objetivo` bipartido, `## Desafio` e `Dica de IA:` de **0 para 6**, `## Quando usar` nas 3 que ensinam técnica escolhível; `basics/dbms` reduzido a motores e escolha
+  - [x] `[TASK-039.3]` Criar as seções por motor no molde do guia de nuvem: SQLite, PostgreSQL, MySQL e MongoDB, com visão geral, instalação e cliente, e administração (CRUD e agregação no MongoDB) — **12 páginas**, com sessões de terminal capturadas de contêineres `postgres:16.2`, `mysql:8.3` e `mongo:7.0` e arquivos em `examples/courses/database/servers/`
+  - [x] `[TASK-039.4]` Criar as 7 páginas cruzadas: `basics/administration`, `nosql/paradigms`, `modeling/keys-indexes`, `modeling/case-studies`, `sql/transactions`, `sql/performance` e `reference/sql-cheat-sheet`
+  - [x] `[TASK-039.5]` Remover a seção "Acesso a dados na aplicação" (duplicava a trilha de persistência do Express), reescrever o índice no formato dos demais guias e cruzar os links com Express e Nuvem — de **6 para 25 páginas**, `pnpm validate` limpo, diagramas medidos entre 256 e 802 px
 
 ### Concluídos (Conteúdo)
 

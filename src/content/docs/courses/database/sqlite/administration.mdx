@@ -1,0 +1,276 @@
+---
+title: "Banco de Dados: SQLite, Administração"
+description: "Administração do SQLite sem servidor: PRAGMA foreign_keys e journal_mode, tipagem STRICT, backup com .backup e .dump, restauração, VACUUM, integrity_check e o que fica a cargo da aplicação."
+course: database
+sidebar:
+  label: "Administração"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Este tópico trata do que "administrar" significa quando não há servidor: não existem usuários, permissões nem processo para reiniciar, e tudo o que resta é a configuração do arquivo, a cópia de segurança e a verificação de integridade. É pouco, e é exatamente por isso que cada item importa, porque nada acontece sem que a aplicação peça.
+
+## Objetivo
+
+Compreender as poucas decisões administrativas do SQLite e o momento em que cada uma precisa ser tomada, para operar um banco em arquivo com a mesma segurança que se espera de um servidor. Ao final do tópico, o leitor deve ser capaz de:
+
+- Ativar as chaves estrangeiras e o modo WAL com `PRAGMA`, e explicar por que ambos vêm desligados.
+- Escolher entre `STRICT` e afinidade ao criar tabelas novas.
+- Fazer backup com `.backup` e com `.dump`, e restaurar a partir de cada um.
+- Recuperar espaço com `VACUUM` e verificar o arquivo com `integrity_check`.
+- Reconhecer o que o SQLite não administra e precisa ficar na aplicação: usuários, permissões e concorrência entre processos.
+
+---
+
+## Configuração com PRAGMA
+
+O `PRAGMA` é o comando de configuração do SQLite, e dois deles precisam ser conhecidos por qualquer projeto, porque os padrões são conservadores por compatibilidade. Consultá-los mostra o estado atual:
+
+```bash title="Terminal"
+sqlite3 invest.db "PRAGMA foreign_keys;" "PRAGMA journal_mode;"
+```
+
+```txt title="Output"
+0
+delete
+```
+
+O `0` significa que as chaves estrangeiras **não são verificadas**, e `delete` é o modo de *journal* clássico, que bloqueia leituras durante a escrita. A tabela abaixo resume os `PRAGMA` que um projeto define:
+
+| PRAGMA | Padrão | Valor recomendado | Efeito |
+| --- | --- | --- | --- |
+| `foreign_keys` | `0` | `ON`, a cada conexão | Faz o banco recusar linhas órfãs e aplicar `ON DELETE CASCADE`. |
+| `journal_mode` | `delete` | `WAL`, uma vez por arquivo | Leituras concorrentes com a escrita; persiste no arquivo. |
+| `busy_timeout` | `0` | Alguns milhares de ms | Espera pelo bloqueio em vez de falhar na hora com `SQLITE_BUSY`. |
+| `synchronous` | `FULL` | `NORMAL` em WAL | Menos `fsync`, mantendo a atomicidade da transação. |
+
+A diferença entre "a cada conexão" e "uma vez por arquivo" é o erro mais comum: o `foreign_keys` é um estado da conexão, e o `run.mjs` do projeto o liga logo depois de abrir o banco. Sem isso, a inserção de um post com autor inexistente passa em silêncio:
+
+```bash title="Terminal"
+sqlite3 invest.db "INSERT INTO Post (title, authorId) VALUES ('orfao', 999); SELECT COUNT(*) FROM Post WHERE authorId = 999;"
+sqlite3 invest.db "PRAGMA foreign_keys = ON; INSERT INTO Post (title, authorId) VALUES ('orfao2', 999);"
+```
+
+```txt title="Output"
+1
+Error: stepping, FOREIGN KEY constraint failed (19)
+```
+
+A primeira sessão aceitou o órfão; a segunda, com o `PRAGMA` ligado, recusou. Já o `journal_mode` fica gravado no arquivo, e basta um comando para mudar de vez:
+
+```bash title="Terminal"
+sqlite3 invest.db "PRAGMA journal_mode = WAL;"
+```
+
+```txt title="Output"
+wal
+```
+
+<Aside type="caution" title="Dica de IA: Peça o PRAGMA junto com a abertura do banco">
+  Assistentes escrevem `new DatabaseSync('banco.db')` e seguem para as consultas, e o esquema com `FOREIGN KEY` dá a impressão de que a integridade está garantida. Não está: sem o `PRAGMA foreign_keys = ON` na conexão, a restrição é ignorada, e o erro aparece meses depois, como dado inconsistente.
+
+  **Prompt:** *"Escreva a função que abre o banco SQLite do projeto e aplica `foreign_keys = ON`, `journal_mode = WAL` e `busy_timeout` a cada conexão; inclua um teste que insere uma linha órfã e precisa falhar."*
+</Aside>
+
+---
+
+## Tabelas STRICT
+
+A afinidade de tipos vista na [visão geral](../) é um risco silencioso em tabelas novas. A cláusula `STRICT` o elimina, e a comparação abaixo mostra as duas na prática:
+
+```bash title="Terminal"
+sqlite3 invest.db "CREATE TABLE loose (n INTEGER); INSERT INTO loose VALUES ('abc'); SELECT n, typeof(n) FROM loose;"
+sqlite3 invest.db "CREATE TABLE strict_t (n INTEGER) STRICT; INSERT INTO strict_t VALUES ('abc');"
+```
+
+```txt title="Output"
+abc|text
+Error: stepping, cannot store TEXT value in INTEGER column strict_t.n (19)
+```
+
+Na tabela comum, `'abc'` entrou em uma coluna `INTEGER` e ficou guardado como `text`. Na tabela `STRICT`, o mesmo valor foi recusado. Em `STRICT`, os tipos permitidos são `INT`, `INTEGER`, `REAL`, `TEXT`, `BLOB` e `ANY`; nomes como `VARCHAR` ou `DATETIME` viram erro de sintaxe, o que também acaba com a ilusão de que eles significavam algo.
+
+---
+
+## Backup e Restauração
+
+Sem servidor, backup é cópia de arquivo, e há duas formas de fazer isso com segurança. Copiar o arquivo com `cp` enquanto a aplicação grava pode produzir uma cópia corrompida; os dois comandos abaixo não têm esse problema.
+
+O `.backup` produz um arquivo de banco idêntico, consistente mesmo com escritas em andamento:
+
+```bash title="Terminal"
+sqlite3 invest.db ".backup invest-copy.db"
+```
+
+O `.dump` produz SQL, que é legível, versionável e portável para outros motores com ajustes:
+
+```bash title="Terminal"
+sqlite3 invest.db ".dump" | head -12
+```
+
+```txt title="Output"
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE User (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  name      TEXT    NOT NULL,
+  email     TEXT    NOT NULL UNIQUE,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO User VALUES(1,'Ana Silva','ana@example.com','2026-01-10 09:00:00');
+INSERT INTO User VALUES(2,'Bruno Costa','bruno@example.com','2026-02-15 14:30:00');
+INSERT INTO User VALUES(3,'Carla Souza','carla@example.com','2026-03-20 08:45:00');
+INSERT INTO User VALUES(4,'Diego Lima','diego@example.com','2026-04-05 17:10:00');
+```
+
+Repare na primeira linha do *dump*: ele desliga as chaves estrangeiras durante a restauração, porque as tabelas são recriadas em uma ordem que pode inserir filhos antes dos pais. A restauração de cada forma é o inverso da criação:
+
+| Backup | Restauração | Quando preferir |
+| --- | --- | --- |
+| `.backup copia.db` | Copiar `copia.db` para o lugar do banco | Cópia rápida e fiel, inclusive índices; rotina automatizada |
+| `.dump > copia.sql` | `sqlite3 novo.db < copia.sql` | Legibilidade, versionamento, migração de motor |
+
+---
+
+## Espaço e Integridade
+
+Apagar linhas não encolhe o arquivo: o espaço fica reservado para reutilização. O `VACUUM` reconstrói o arquivo do zero e devolve o espaço ao sistema, ao custo de reescrever tudo, o que exige o dobro do tamanho em disco durante a operação e uma janela sem outras escritas.
+
+A verificação de integridade percorre o arquivo inteiro e devolve `ok` quando nada está corrompido:
+
+```bash title="Terminal"
+sqlite3 invest.db "PRAGMA integrity_check;"
+```
+
+```txt title="Output"
+ok
+```
+
+Vale rodá-la depois de qualquer evento suspeito (queda de energia, disco cheio, cópia feita com `cp` durante uso) e antes de confiar em um backup restaurado.
+
+---
+
+## O Que Fica com a Aplicação
+
+O SQLite não tem usuários nem permissões: quem consegue abrir o arquivo consegue tudo. As decisões que em um servidor seriam do administrador passam para a aplicação e para o sistema operacional:
+
+| Responsabilidade | Em um servidor | No SQLite |
+| --- | --- | --- |
+| Quem pode ler e escrever | Usuários e `GRANT` | Permissões do arquivo no sistema operacional |
+| Acesso pela rede | Porta, TLS, firewall | Não existe; o banco é local por definição |
+| Vários processos gravando | O servidor coordena | A aplicação evita, ou aceita `SQLITE_BUSY` |
+| Backup agendado | Ferramenta do servidor | Tarefa da aplicação ou do sistema, com `.backup` |
+| Migração de esquema | Igual | Igual: versionada no repositório, aplicada no deploy |
+
+A [página de administração](../../basics/administration/) trata desses conceitos de forma comum a todos os motores; as seções de [PostgreSQL](../../postgresql/administration/) e [MySQL](../../mysql/administration/) mostram os comandos onde eles existem.
+
+---
+
+## Executando
+
+Os passos abaixo aplicam a configuração recomendada a um banco do projeto e fazem o primeiro backup:
+
+<Steps>
+1. Crie o banco e mude o modo de *journal* de vez:
+
+   ```bash title="Terminal"
+   sqlite3 invest.db < schema.sql && sqlite3 invest.db < seed.sql
+   sqlite3 invest.db "PRAGMA journal_mode = WAL;"
+   ```
+2. Confira que o `foreign_keys` continua desligado em uma conexão nova, e que ligá-lo é por conexão:
+
+   ```bash title="Terminal"
+   sqlite3 invest.db "PRAGMA foreign_keys;"
+   ```
+
+   ```txt title="Output"
+   0
+   ```
+3. Faça o backup das duas formas e verifique a cópia:
+
+   ```bash title="Terminal"
+   sqlite3 invest.db ".backup invest-copy.db" && sqlite3 invest.db ".dump" > invest-copy.sql
+   sqlite3 invest-copy.db "PRAGMA integrity_check;"
+   ```
+
+   ```txt title="Output"
+   ok
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos `PRAGMA` e nas formas de backup:
+
+1. Por que `PRAGMA foreign_keys = ON` precisa ser executado a cada conexão, enquanto `journal_mode = WAL` só uma vez?
+2. Qual é o risco de copiar o arquivo do banco com `cp` enquanto a aplicação está gravando, e qual comando evita isso?
+3. Por que o `.dump` começa com `PRAGMA foreign_keys=OFF`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque `foreign_keys` é um estado da conexão, que nasce desligado por compatibilidade, enquanto `journal_mode` é gravado no cabeçalho do arquivo e vale para todas as conexões futuras.
+
+  2. A cópia pode capturar o arquivo no meio de uma transação, com páginas de versões diferentes, e ficar corrompida. O `.backup` usa a API de backup do SQLite e produz uma cópia consistente.
+
+  3. Porque a restauração recria tabelas e insere linhas na ordem do *dump*, e uma tabela filha pode ser preenchida antes da tabela pai existir; com as chaves ligadas, isso falharia.
+</details>
+
+---
+
+## Desafio
+
+Escreva um script `backup.mjs` no projeto que, usando apenas `node:sqlite` e `node:fs`, faça o backup consistente do `invest.db` sem depender do binário `sqlite3`: use `VACUUM INTO 'copia.db'`, que é a forma em SQL de produzir uma cópia limpa, e depois abra a cópia e rode `PRAGMA integrity_check`.
+
+Estenda o script para manter só os últimos sete backups, nomeados pela data, e responda: o que acontece se o `VACUUM INTO` rodar enquanto outra conexão está no meio de uma transação de escrita, com e sem WAL?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `VACUUM INTO 'copia.db'` gera um arquivo novo, compactado e consistente, a partir de uma leitura do banco; o script então abre `copia.db` com `DatabaseSync`, executa `integrity_check` e espera `ok`. A rotação lista os arquivos `backup-AAAA-MM-DD.db`, ordena por nome e apaga os que excedem sete.
+
+  Sobre a concorrência: em WAL, o `VACUUM INTO` é uma leitura e enxerga o estado anterior à transação de escrita em andamento, sem esperar por ela e sem bloqueá-la. No modo `delete`, ele precisa do bloqueio de leitura e espera a escrita terminar (ou falha com `SQLITE_BUSY` se o `busy_timeout` for zero). É mais um motivo para o WAL ser a primeira decisão administrativa de um banco SQLite.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Configuração
+
+1. **O que acontece com uma chave estrangeira declarada se `foreign_keys` estiver desligado?**
+   <details><summary>Possível resposta</summary>Nada: a declaração é aceita, mas a restrição não é verificada, e linhas órfãs entram sem erro.</details>
+
+2. **Qual é a diferença entre os modos de journal `delete` e `wal`?**
+   <details><summary>Possível resposta</summary>No `delete`, a escrita bloqueia as leituras enquanto dura. No `wal`, as mudanças vão para um registro ao lado do banco, e leituras e escrita coexistem.</details>
+
+3. **Para que serve `busy_timeout`?**
+   <details><summary>Possível resposta</summary>Para a conexão esperar pelo bloqueio por um tempo antes de falhar com `SQLITE_BUSY`, em vez de falhar imediatamente.</details>
+
+### Backup e integridade
+
+4. **Quando `.backup` é preferível a `.dump`?**
+   <details><summary>Possível resposta</summary>Quando se quer uma cópia rápida e fiel do arquivo, com índices, para rotina automatizada. O `.dump` é preferível para legibilidade, versionamento e migração.</details>
+
+5. **O que `VACUUM` faz e o que ele custa?**
+   <details><summary>Possível resposta</summary>Reconstrói o arquivo, devolvendo ao sistema o espaço de linhas apagadas. Custa reescrever o banco inteiro, com o dobro do espaço em disco durante a operação.</details>
+
+6. **O que o SQLite não administra e fica com a aplicação?**
+   <details><summary>Possível resposta</summary>Usuários e permissões (ficam nas permissões do arquivo), acesso pela rede (não existe) e a coordenação de vários processos gravando.</details>
+
+---
+
+## Referências
+
+- [SQLite: PRAGMA Statements](https://www.sqlite.org/pragma.html)
+- [SQLite: Foreign Key Support](https://www.sqlite.org/foreignkeys.html)
+- [SQLite: Write-Ahead Logging](https://www.sqlite.org/wal.html)
+- [SQLite: VACUUM](https://www.sqlite.org/lang_vacuum.html)
+- [SQLite: Online Backup API](https://www.sqlite.org/backup.html)
+
+---
+
+## Próximo tópico
+
+[Visão geral do PostgreSQL](../../postgresql/): O primeiro servidor da trilha, e o que muda quando o banco passa a ser um processo próprio.

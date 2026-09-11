@@ -1,0 +1,407 @@
+---
+title: "Banco de Dados: Estudos de Caso"
+description: "Três modelos completos do requisito ao CREATE TABLE: a carteira de investimentos do InvestApp com histórico de cotações, um e-commerce com pedido fechado e estoque protegido, e uma rede social com autorrelacionamento e feed indexado, todos executados no SQLite."
+course: database
+sidebar:
+  label: "Estudos de Caso"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico aplica de uma vez o que as páginas de [modelagem](../conceptual-logical/), [normalização](../normalization/) e [chaves e índices](../keys-indexes/) ensinaram em separado, em três domínios que aparecem em todo curso de desenvolvimento web: uma carteira de investimentos, uma loja e uma rede social. Cada modelo é um arquivo do projeto `invest-db`, executado com uma verificação que prova a regra central do domínio.
+
+## Objetivo
+
+Percorrer o caminho completo de modelagem em três domínios distintos, para reconhecer as decisões que se repetem, as que mudam com o domínio e a forma de provar cada uma com uma consulta. Ao final do tópico, o leitor deve ser capaz de:
+
+- Extrair entidades, relacionamentos e regras de um requisito em linguagem natural.
+- Decidir onde uma regra mora: em chave, restrição, índice ou aplicação.
+- Reconhecer a cópia deliberada de dados históricos e distingui-la de redundância.
+- Modelar um autorrelacionamento N:M e o índice que a consulta principal exige.
+- Escrever a consulta que verifica se o modelo cumpre o requisito.
+
+---
+
+## Caso 1: A Carteira do InvestApp
+
+O requisito é o do InvestApp dos guias de Express.js e de Web APIs: *"cada usuário tem investimentos, cada investimento pertence a uma categoria, e a aplicação mostra a carteira com o valor atual de cada investimento, que muda ao longo do tempo."*
+
+As entidades saem do texto: usuário, categoria, investimento e cotação. As decisões estão nas linhas marcadas: o valor em centavos na linha 22, porque o SQLite não tem decimal exato; a cotação como tabela própria com chave composta na linha 31, porque o histórico nunca é sobrescrito; e o índice da linha 34, porque a consulta principal filtra por usuário:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/invest-app.sql" region="schema" mark={[22, 31, 34]} />
+
+O diagrama Entidade-Relacionamento abaixo ilustra as entidades, cardinalidades e atributos do modelo:
+
+<Mermaid title="Modelo lógico do InvestApp">
+{`
+erDiagram
+  user ||--o{ investment : "possui (1:N)"
+  category ||--o{ investment : "classifica (1:N)"
+  investment ||--o{ quote : "cotado_em (1:N)"
+
+  user {
+    INTEGER id PK "Identificador único"
+    TEXT name "Nome do usuário"
+    TEXT email UK "E-mail único"
+    TEXT created_at "Data de criação"
+  }
+  category {
+    INTEGER id PK "Identificador único"
+    TEXT name UK "Nome da categoria"
+  }
+  investment {
+    INTEGER id PK "Identificador único"
+    INTEGER user_id FK "Proprietário (CASCADE)"
+    INTEGER category_id FK "Categoria do ativo"
+    TEXT name "Nome do investimento"
+    INTEGER amount "Valor aplicado em centavos (> 0)"
+    TEXT created_at "Data do aporte"
+  }
+  quote {
+    INTEGER investment_id PK, FK "Ativo vinculado (CASCADE)"
+    TEXT quoted_on PK "Data da cotação (YYYY-MM-DD)"
+    INTEGER amount "Valor da cotação em centavos (>= 0)"
+  }
+`}
+</Mermaid>
+
+O dicionário de dados descreve a estrutura das quatro tabelas do domínio de investimentos:
+
+| Tabela | Coluna | Tipo | Restrição | Padrão | Descrição de Negócio |
+| --- | --- | --- | --- | --- | --- |
+| `user` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial do usuário investidor. |
+| `user` | `name` | `TEXT` | `NOT NULL` | - | Nome civil ou corporativo do titular da conta. |
+| `user` | `email` | `TEXT` | `NOT NULL UNIQUE` | - | Endereço de correio eletrônico único para autenticação. |
+| `user` | `created_at` | `TEXT` | `NOT NULL` | `CURRENT_TIMESTAMP` | Data e hora em que a conta foi registrada no sistema. |
+| `category` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial da classe de ativo. |
+| `category` | `name` | `TEXT` | `NOT NULL UNIQUE` | - | Rótulo da classe de investimento (ex: Pré, Pós, FII, Ações). |
+| `investment` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial da aplicação financeira. |
+| `investment` | `user_id` | `INTEGER` | `NOT NULL FK` | `ON DELETE CASCADE` | Chave estrangeira referenciando o titular da aplicação. |
+| `investment` | `category_id` | `INTEGER` | `NOT NULL FK` | `ON DELETE RESTRICT` | Chave estrangeira referenciando a classe do investimento. |
+| `investment` | `name` | `TEXT` | `NOT NULL` | - | Nome descritivo do papel financeiro (ex: CDB Banco X). |
+| `investment` | `amount` | `INTEGER` | `CHECK (amount > 0)` | - | Montante principal aplicado, expresso em centavos inteiros. |
+| `investment` | `created_at` | `TEXT` | `NOT NULL` | `CURRENT_TIMESTAMP` | Data e hora em que o aporte foi registrado na carteira. |
+| `quote` | `investment_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE CASCADE` | Identificador do ativo; compõe a chave primária composta. |
+| `quote` | `quoted_on` | `TEXT` | `NOT NULL PK` | - | Data da cotação (formato `YYYY-MM-DD`); chave composta. |
+| `quote` | `amount` | `INTEGER` | `CHECK (amount >= 0)` | - | Valor patrimonial da cotação na data, em centavos inteiros. |
+
+O índice `idx_investment_user` acelera a consulta de carteira filtrando por `user_id`, enquanto a exclusão em cascata (`CASCADE`) garante que apagar uma conta limpe automaticamente seus investimentos e cotações dependentes.
+
+A verificação insere uma usuária com dois investimentos e três cotações, e faz a consulta da tela principal, com a última cotação de cada investimento:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/invest-app.sql" region="check" />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 3 linha(s) afetada(s)
+name               | category | last_quote | value
+-------------------+----------+------------+------
+Tesouro Selic 2029 | Pós      | 2026-09-10 | 10150
+CDB Banco X        | Pré      | 2026-09-10 | 5020
+```
+
+A consulta usa uma particularidade do SQLite: com `MAX(quoted_on)` no `SELECT`, as demais colunas da linha vêm da mesma linha do máximo. No PostgreSQL, o mesmo resultado pede `DISTINCT ON` ou uma subconsulta, e é o tipo de diferença que a seção de cada motor aponta.
+
+---
+
+## Caso 2: A Loja
+
+O requisito: *"clientes fazem pedidos com vários produtos; o preço do produto pode mudar, mas o pedido fechado mantém o preço da compra; o estoque não pode ficar negativo."*
+
+Duas decisões desta página parecem contradizer a [normalização](../normalization/) e não contradizem. O `unit_price` da linha 30 copia o preço do produto para o item, e isso não é redundância: o preço **do pedido** é um fato histórico que depende do par (pedido, produto), enquanto o preço **do catálogo** é o atual. E o `status` da linha 21 é uma lista fechada expressa com `CHECK`, a forma portável do `ENUM` do MySQL:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/ecommerce.sql" region="schema" mark={[15, 21, 30]} />
+
+O diagrama Entidade-Relacionamento abaixo modela a estrutura de catálogo, clientes e pedidos:
+
+<Mermaid title="Modelo lógico de E-commerce">
+{`
+erDiagram
+  customer ||--o{ order : "realiza (1:N)"
+  order ||--|{ order_item : "contem (1:N)"
+  product ||--o{ order_item : "vendido_em (1:N)"
+
+  customer {
+    INTEGER id PK "Identificador único"
+    TEXT name "Nome do cliente"
+    TEXT email UK "E-mail único"
+  }
+  product {
+    INTEGER id PK "Identificador único"
+    TEXT sku UK "Código de estoque único"
+    TEXT name "Nome do produto"
+    INTEGER price "Preço de catálogo em centavos (>= 0)"
+    INTEGER stock "Estoque disponível (>= 0)"
+  }
+  order {
+    INTEGER id PK "Identificador do pedido"
+    INTEGER customer_id FK "Cliente comprador"
+    TEXT status "open, paid, shipped, cancelled"
+    TEXT created_at "Data e hora da compra"
+  }
+  order_item {
+    INTEGER order_id PK, FK "Pedido de origem (CASCADE)"
+    INTEGER product_id PK, FK "Produto comprado (RESTRICT)"
+    INTEGER quantity "Quantidade adquirida (> 0)"
+    INTEGER unit_price "Preço unitário congelado na venda"
+  }
+`}
+</Mermaid>
+
+O dicionário de dados detalha os atributos e as regras de domínio das quatro tabelas do e-commerce:
+
+| Tabela | Coluna | Tipo | Restrição | Padrão | Descrição de Negócio |
+| --- | --- | --- | --- | --- | --- |
+| `customer` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial exclusivo do cliente. |
+| `customer` | `name` | `TEXT` | `NOT NULL` | - | Nome completo do comprador. |
+| `customer` | `email` | `TEXT` | `NOT NULL UNIQUE` | - | Endereço de correio eletrônico único para contato e login. |
+| `product` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial interno do produto no catálogo. |
+| `product` | `sku` | `TEXT` | `NOT NULL UNIQUE` | - | Código alfanumérico de identificação de estoque (*Stock Keeping Unit*). |
+| `product` | `name` | `TEXT` | `NOT NULL` | - | Nome comercial do produto exibido na vitrine da loja. |
+| `product` | `price` | `INTEGER` | `CHECK (price >= 0)` | - | Preço corrente no catálogo, em centavos inteiros. |
+| `product` | `stock` | `INTEGER` | `CHECK (stock >= 0)` | - | Quantidade física disponível em armazém (bloqueia saldo negativo). |
+| `order` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Número sequencial do pedido de compra. |
+| `order` | `customer_id` | `INTEGER` | `NOT NULL FK` | `ON DELETE RESTRICT` | Chave estrangeira referenciando o comprador. |
+| `order` | `status` | `TEXT` | `CHECK (status IN ('open', 'paid', 'shipped', 'cancelled'))` | `'open'` | Estado do ciclo de vida da compra. |
+| `order` | `created_at` | `TEXT` | `NOT NULL` | `CURRENT_TIMESTAMP` | Data e hora em que a compra foi iniciada. |
+| `order_item` | `order_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE CASCADE` | Pedido pai; exclusão do pedido remove seus itens dependentes. |
+| `order_item` | `product_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE RESTRICT` | Produto associado; `RESTRICT` impede apagar produtos já vendidos. |
+| `order_item` | `quantity` | `INTEGER` | `CHECK (quantity > 0)` | - | Quantidade de unidades compradas no item. |
+| `order_item` | `unit_price` | `INTEGER` | `NOT NULL` | - | Preço unitário no instante da compra, congelado para fins contábeis. |
+
+A integridade referencial utiliza `ON DELETE RESTRICT` em `product_id` para proteger o histórico fiscal (impedindo a exclusão de produtos com vendas registradas) e `ON DELETE CASCADE` em `order_id` para manter o banco consistente.
+
+A verificação cria um pedido, sobe o preço do catálogo e mostra os dois preços lado a lado; depois tenta baixar o estoque de um produto zerado:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/ecommerce.sql" region="check" mark={[49]} />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+name    | quantity | paid | current
+--------+----------+------+--------
+Teclado | 2        | 150  | 160
+-- erro: CHECK constraint failed: stock >= 0
+```
+
+O pedido pagou 150 e o catálogo diz 160: a cópia deliberada cumpriu o requisito. A linha 49 foi recusada pelo `CHECK` da linha 15, e é aqui que a modelagem encontra as [transações](../../sql/transactions/): em uma venda real, a baixa de estoque e a criação do item acontecem juntas, e a recusa do `CHECK` desfaz as duas.
+
+<Aside type="caution" title="Dica de IA: Distinga cópia histórica de redundância">
+  Assistentes que aprenderam normalização "removem a redundância" do `unit_price`, e o pedido fechado passa a mudar de valor quando o catálogo muda. A pergunta que separa os dois casos é se o valor pode mudar no futuro sem que o registro histórico deva mudar junto.
+
+  **Prompt:** *"Para cada coluna deste esquema que repete um valor existente em outra tabela, diga se é redundância (deve seguir a origem) ou cópia histórica (deve ficar congelada), e mostre a consulta que revelaria o erro se a decisão estivesse invertida."*
+</Aside>
+
+---
+
+## Caso 3: A Rede Social
+
+O requisito: *"contas seguem outras contas; contas publicam posts; contas curtem posts; a tela principal é o feed com os posts recentes de quem a conta segue, com o número de curtidas."*
+
+O relacionamento "segue" é um **autorrelacionamento** N:M: a tabela `follow` referencia `account` duas vezes, e a chave composta da linha 13 impede seguir a mesma conta duas vezes. O `CHECK` da linha 14 impede seguir a si mesmo, uma regra que só a restrição garante. O índice composto da linha 31 é a decisão de desempenho: o feed filtra por autor e ordena por data:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/social-feed.sql" region="schema" mark={[13, 14, 31]} />
+
+O diagrama Entidade-Relacionamento abaixo representa o autorrelacionamento e a associação de publicações e curtidas:
+
+<Mermaid title="Modelo lógico de Rede Social">
+{`
+erDiagram
+  account ||--o{ follow : "segue (follower)"
+  account ||--o{ follow : "e_seguido (followed)"
+  account ||--o{ post : "publica (1:N)"
+  account ||--o{ like : "curte (1:N)"
+  post ||--o{ like : "recebe (1:N)"
+
+  account {
+    INTEGER id PK "Identificador único"
+    TEXT handle UK "Identificador de usuário único"
+  }
+  follow {
+    INTEGER follower_id PK, FK "Quem segue (CASCADE)"
+    INTEGER followed_id PK, FK "Quem é seguido (CASCADE)"
+  }
+  post {
+    INTEGER id PK "Identificador único"
+    INTEGER author_id FK "Autor do post (CASCADE)"
+    TEXT body "Texto da postagem"
+    TEXT created_at "Data e hora de publicação"
+  }
+  like {
+    INTEGER account_id PK, FK "Conta que curtiu (CASCADE)"
+    INTEGER post_id PK, FK "Post curtido (CASCADE)"
+  }
+`}
+</Mermaid>
+
+O dicionário de dados define a estrutura das quatro tabelas da rede social:
+
+| Tabela | Coluna | Tipo | Restrição | Padrão | Descrição de Negócio |
+| --- | --- | --- | --- | --- | --- |
+| `account` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial único da conta de usuário. |
+| `account` | `handle` | `TEXT` | `NOT NULL UNIQUE` | - | Nome de usuário público exclusivo (ex: `@ana`). |
+| `follow` | `follower_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE CASCADE` | Conta que tomou a iniciativa de seguir; chave composta. |
+| `follow` | `followed_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE CASCADE` | Conta que é seguida; chave composta. |
+| `follow` | - | - | `CHECK (follower_id <> followed_id)` | - | Restrição de tabela que impede autosseguimento. |
+| `post` | `id` | `INTEGER` | `PRIMARY KEY` | Autoincremento | Identificador sequencial da postagem. |
+| `post` | `author_id` | `INTEGER` | `NOT NULL FK` | `ON DELETE CASCADE` | Chave estrangeira referenciando o autor da mensagem. |
+| `post` | `body` | `TEXT` | `NOT NULL` | - | Conteúdo em texto da postagem. |
+| `post` | `created_at` | `TEXT` | `NOT NULL` | `CURRENT_TIMESTAMP` | Data e hora em que a publicação foi postada no feed. |
+| `like` | `account_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE CASCADE` | Usuário que registrou a curtida; chave composta. |
+| `like` | `post_id` | `INTEGER` | `NOT NULL PK, FK` | `ON DELETE CASCADE` | Postagem que recebeu a curtida; chave composta. |
+
+A tabela `follow` utiliza uma chave primária composta `(follower_id, followed_id)` para impedir registros duplicados e um `CHECK` para barrar autosseguimento. O índice B-Tree composto `idx_post_author_date (author_id, created_at)` garante que a montagem cronológica do feed realize buscas indexadas em vez de varreduras completas de tabela.
+
+A verificação monta três contas, dois seguimentos, três posts e duas curtidas, tenta o autosseguimento e consulta o feed:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/social-feed.sql" region="check" />
+
+```txt title="Output"
+-- 3 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- 3 linha(s) afetada(s)
+-- 2 linha(s) afetada(s)
+-- erro: CHECK constraint failed: follower_id <> followed_id
+handle | body                   | likes
+-------+------------------------+------
+carla  | Carla no ar            | 0
+bruno  | Primeiro post do Bruno | 2
+```
+
+O feed de Ana traz os posts de Bruno e Carla, do mais recente ao mais antigo, e não traz o post da própria Ana, porque ela não se segue. As curtidas vêm de um `LEFT JOIN` com `COUNT`, para que o post sem curtida apareça com zero. O arquivo termina com três planos de execução que a página de [chaves e índices](../keys-indexes/) discute no desafio:
+
+<SourceCode path="examples/courses/database/invest-db/modeling/social-feed.sql" region="plans" />
+
+```txt title="Output"
+-- plano: SEARCH post USING INDEX idx_post_author_date (author_id=?)
+-- plano: SEARCH post USING INDEX idx_post_author_date (author_id=? AND created_at>?)
+-- plano: SCAN post
+```
+
+---
+
+## O Que Se Repete e o Que Muda
+
+Os três modelos têm mais em comum do que os domínios sugerem, e a tabela abaixo isola as decisões:
+
+| Decisão | InvestApp | Loja | Rede social |
+| --- | --- | --- | --- |
+| Chave primária | Substituta em todas as entidades | Substituta, com `sku` `UNIQUE` | Substituta, com `handle` `UNIQUE` |
+| N:M | Não há | `order_item`, com dados próprios (`quantity`) | `follow` e `like`, chaves compostas |
+| Regra em `CHECK` | `amount > 0` | `stock >= 0`, `status IN (...)` | `follower_id <> followed_id` |
+| Cópia histórica | Cotação por data, nunca sobrescrita | `unit_price` no item | Não há |
+| Ação de exclusão | `CASCADE` do usuário para os investimentos e cotações | `CASCADE` do pedido para os itens; `RESTRICT` do produto | `CASCADE` da conta para tudo |
+| Índice além das chaves | `user_id` em `investment` | Nenhum extra (chaves cobrem) | `(author_id, created_at)` em `post` |
+
+O que muda com o domínio é o que a tela principal pede: a carteira com a última cotação, o pedido com o preço de então, o feed por data. É a consulta principal que decide o índice, a cópia histórica e, em um banco de documentos, a modelagem inteira.
+
+---
+
+## Quando usar, e quando não usar?
+
+Os três modelos são relacionais, e valem a pergunta de [Paradigmas](../../basics/paradigms/): em qual deles outro paradigma competiria?
+
+| Caso | Fica no relacional porque | Onde outro paradigma entraria |
+| --- | --- | --- |
+| **InvestApp** | Relatórios por categoria e por período são junções e agregações | Cache da cotação atual em chave-valor |
+| **Loja** | Pedido, estoque e pagamento exigem transações entre tabelas | Catálogo com atributos variáveis por produto em `JSONB` |
+| **Rede social** | Feed de dois níveis é uma junção comum | "Quem seguir" em profundidade é caso de grafos |
+
+---
+
+## Executando
+
+Os três arquivos criam o próprio esquema:
+
+<Steps>
+1. Execute os três modelos e compare com as saídas desta página:
+
+   ```bash title="Terminal"
+   node run.mjs modeling/invest-app.sql modeling/ecommerce.sql modeling/social-feed.sql
+   ```
+2. Na loja, troque o `RESTRICT` implícito de `order_item.product_id` por `CASCADE`, acrescente `DELETE FROM product WHERE id = 1` e observe o pedido perder o item.
+3. Na rede social, insira um quarto post de Ana e confira que ele continua fora do feed dela.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nos três modelos:
+
+1. Por que o `unit_price` de `order_item` não viola a 3FN?
+2. Por que a tabela `quote` tem chave primária composta em vez de um `id`?
+3. Qual regra da rede social não pode ser garantida por chave, e como ela foi garantida?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque ele não depende do produto: depende do par (pedido, produto), que é a chave da tabela. É o preço praticado naquele pedido, um fato próprio da linha, e não uma cópia do catálogo.
+
+  2. Porque a regra é "uma cotação por investimento por data", e a chave composta (`investment_id`, `quoted_on`) a garante; um `id` permitiria duas cotações do mesmo dia.
+
+  3. "Uma conta não segue a si mesma": a chave composta impede repetição, mas não impede `(1, 1)`. O `CHECK (follower_id <> followed_id)` garante.
+</details>
+
+---
+
+## Desafio
+
+O InvestApp vai ganhar aportes e resgates: cada investimento tem movimentações com data, tipo (`deposit` ou `withdraw`) e valor, e o saldo investido passa a ser a soma das movimentações, não uma coluna. Acrescente a tabela ao `invest-app.sql`, com as restrições que o domínio exige, e reescreva a consulta da carteira para calcular o saldo a partir das movimentações.
+
+Depois responda: o que impede um resgate maior do que o saldo, dado que o `CHECK` não vê outras linhas? Onde essa regra precisa morar, e o que ela exige do código que a implementa?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A tabela `movement` tem `investment_id` com `CASCADE`, `moved_on`, `kind TEXT CHECK (kind IN ('deposit', 'withdraw'))` e `amount INTEGER CHECK (amount > 0)`. A carteira vira uma junção com `SUM(CASE WHEN kind = 'deposit' THEN amount ELSE -amount END)` agrupada por investimento, e a coluna `amount` de `investment` deixa de existir, ou vira uma cópia mantida por gatilho.
+
+  O resgate maior do que o saldo é a regra que restrição de linha não alcança, porque depende da soma de outras linhas. Ela mora em uma transação na aplicação: `BEGIN`, calcular o saldo com bloqueio (`SELECT ... FOR UPDATE` no PostgreSQL, `BEGIN IMMEDIATE` no SQLite), comparar, inserir o resgate, `COMMIT`. Sem o bloqueio, dois resgates simultâneos leem o mesmo saldo e ambos passam, a atualização perdida de [Transações](../../sql/transactions/). Um gatilho `BEFORE INSERT` que soma e recusa é a alternativa no banco, com o mesmo cuidado de concorrência.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Decisões
+
+1. **Por que os três modelos guardam dinheiro em inteiro?**
+   <details><summary>Possível resposta</summary>Porque o SQLite não tem decimal exato, e `REAL` acumula erro de arredondamento. Centavos em inteiro somam sem erro; a formatação acontece na exibição.</details>
+
+2. **O que a chave composta de `follow` garante, e o que o `CHECK` acrescenta?**
+   <details><summary>Possível resposta</summary>A chave impede seguir a mesma conta duas vezes; o `CHECK` impede seguir a si mesmo, o que a chave permitiria.</details>
+
+3. **Por que `order_item.product_id` não deve ter `ON DELETE CASCADE`?**
+   <details><summary>Possível resposta</summary>Porque apagar um produto do catálogo apagaria os itens de pedidos já fechados, destruindo o histórico de vendas. O `RESTRICT` força a decisão consciente (desativar o produto em vez de apagá-lo).</details>
+
+### Consultas
+
+4. **Por que o feed usa `LEFT JOIN` com `like`, e não `INNER JOIN`?**
+   <details><summary>Possível resposta</summary>Para que posts sem curtida apareçam com zero; com `INNER JOIN`, eles sumiriam do feed.</details>
+
+5. **O que o índice `(author_id, created_at)` serve, e o que não serve?**
+   <details><summary>Possível resposta</summary>Serve consultas por autor, com ou sem data. Não serve consultas só por data, que precisam de um índice começando por `created_at`.</details>
+
+6. **Como a consulta da carteira obtém a última cotação, e por que isso muda entre motores?**
+   <details><summary>Possível resposta</summary>Com `MAX(quoted_on)` e as demais colunas da mesma linha, uma particularidade do SQLite. No PostgreSQL, o mesmo resultado pede `DISTINCT ON` ou subconsulta, porque colunas fora do `GROUP BY` sem agregação são erro.</details>
+
+---
+
+## Referências
+
+- [SQLite: Bare columns in an aggregate query](https://www.sqlite.org/lang_select.html#bareagg)
+- [PostgreSQL: DISTINCT ON](https://www.postgresql.org/docs/current/sql-select.html#SQL-DISTINCT)
+- [Mermaid: Entity Relationship Diagrams](https://mermaid.js.org/syntax/entityRelationshipDiagram.html)
+- [Database Design for Mere Mortals (Michael Hernandez)](https://www.informit.com/store/database-design-for-mere-mortals-25th-anniversary-edition-9780136788041)
+
+---
+
+## Próximo tópico
+
+[SQL DDL e DML](../../sql/fundamentals/): Com os modelos desenhados, a linguagem que os cria e os manipula, executada arquivo a arquivo.

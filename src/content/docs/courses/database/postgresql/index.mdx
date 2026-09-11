@@ -1,0 +1,189 @@
+---
+title: "Banco de Dados: PostgreSQL"
+description: "Visão geral do PostgreSQL: servidor relacional objeto-relacional, conformidade com o padrão SQL, tipos ricos como NUMERIC, TIMESTAMPTZ e JSONB, MVCC, extensões e o recorte de projetos em que ele é a escolha padrão."
+course: database
+sidebar:
+  label: "Visão geral do PostgreSQL"
+---
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O **PostgreSQL** é o servidor relacional de referência deste guia e da maior parte das plataformas de nuvem: é nele que o [Supabase](../../cloud/supabase/) se apoia, e é ele que Render, Railway e Heroku oferecem como banco gerenciado. Esta seção mostra o que muda quando o banco passa a ser um processo próprio e o que o PostgreSQL acrescenta ao SQL que o guia já ensinou no SQLite.
+
+## Objetivo
+
+Compreender o PostgreSQL como um servidor com modelo de concorrência, tipos e extensibilidade próprios, para adotá-lo com critério e aproveitar o que ele tem além do SQL padrão. Ao final do tópico, o leitor deve ser capaz de:
+
+- Descrever a arquitetura de processo, conexões, bancos e esquemas de um servidor PostgreSQL.
+- Explicar como o MVCC permite leituras e escritas simultâneas sem bloqueio mútuo.
+- Escolher os tipos certos para dinheiro, tempo e documentos: `NUMERIC`, `TIMESTAMPTZ` e `JSONB`.
+- Reconhecer o papel das extensões e das políticas de segurança por linha.
+- Situar o PostgreSQL em relação ao SQLite, ao MySQL e às plataformas gerenciadas.
+
+---
+
+## Um Servidor, Vários Bancos
+
+Diferente do SQLite, o PostgreSQL é um processo que escuta em uma porta (5432 por padrão) e atende várias conexões ao mesmo tempo. Dentro do servidor há vários **bancos de dados**, isolados entre si, e dentro de cada banco há **esquemas**, que agrupam tabelas; o esquema `public` é o padrão.
+
+O diagrama abaixo mostra a hierarquia e o caminho de uma conexão:
+
+<Mermaid title="Servidor, bancos, esquemas e tabelas no PostgreSQL">
+{`
+flowchart TD
+  App["Aplicação"] -->|"TCP 5432, papel e senha"| Server["Servidor PostgreSQL<br/>processo postgres"]
+  Server --> DB1[("invest")]
+  Server --> DB2[("postgres")]
+  DB1 --> Schema["esquema public"]
+  Schema --> T1["investment"]
+  Schema --> T2["user"]
+`}
+</Mermaid>
+
+Cada conexão é atendida por um processo dedicado do servidor, o que torna conexões relativamente caras: uma aplicação web mantém um *pool* pequeno e o reutiliza, e funções *serverless* precisam de um *pooler* na frente, como a página de [banco relacional gerenciado](../../cloud/resources/relational-database/) explica.
+
+---
+
+## O Que Esta Seção Cobre
+
+As duas páginas seguintes saem da visão geral para a prática, na ordem em que um projeto as encontra:
+
+<CardGrid>
+  <Card title="Instalação e cliente" icon="rocket">
+    O servidor com Docker Compose, o cliente `psql`, a criação do banco e das tabelas do exemplo, e os tipos que o PostgreSQL acrescenta.
+
+    [Acessar tópico](setup/)
+  </Card>
+
+  <Card title="Administração" icon="setting">
+    Papéis e permissões, um papel de aplicação sem superpoderes, `pg_dump` e restauração, e o que observar em um servidor em uso.
+
+    [Acessar tópico](administration/)
+  </Card>
+</CardGrid>
+
+---
+
+## MVCC: Leitores Não Bloqueiam Escritores
+
+O PostgreSQL implementa o **controle de concorrência multiversão** (MVCC): cada transação enxerga uma fotografia consistente do banco, e uma escrita cria uma nova versão da linha em vez de sobrescrever a antiga. O efeito prático é que uma consulta longa não impede atualizações, e uma atualização não impede consultas, ao contrário do que acontece no SQLite sem WAL.
+
+O preço aparece de duas formas que a administração precisa conhecer:
+
+| Consequência | O que significa | O que fazer |
+| --- | --- | --- |
+| Versões antigas ocupam espaço | Linhas atualizadas ou apagadas ficam no arquivo até serem limpas | O `autovacuum` cuida disso; `VACUUM` manual só em casos especiais |
+| Escritas simultâneas na mesma linha | A segunda espera a primeira terminar | Transações curtas, tratadas em [Transações](../sql/transactions/) |
+
+---
+
+## Tipos Que o SQL Padrão Não Tem
+
+Os três tipos abaixo são o motivo mais frequente para escolher o PostgreSQL em projetos que começaram no SQLite:
+
+| Tipo | Resolve | Exemplo |
+| --- | --- | --- |
+| **`NUMERIC(14, 2)`** | Dinheiro sem erro de arredondamento | `25000.50` é exatamente `25000.50`, e a soma de mil parcelas também |
+| **`TIMESTAMPTZ`** | Instante com fuso horário | Grava em UTC e devolve no fuso da sessão; ordena e compara corretamente |
+| **`JSONB`** | Documento consultável dentro da linha | `notes @> '{"fgc": true}'` filtra pelo conteúdo, com índice se precisar |
+
+O `JSONB` merece uma nota, porque ele muda uma decisão de arquitetura: um campo com forma variável, que em outros motores forçaria a escolha de um banco de documentos, cabe em uma coluna, ao lado das colunas relacionais, consultável e indexável. A página de [Paradigmas](../basics/paradigms/) volta a esse ponto.
+
+Além dos tipos, o PostgreSQL é extensível: `pg_trgm` para busca textual aproximada, `PostGIS` para dados geográficos, `pgvector` para vetores, `pg_cron` para agendamento. Uma extensão é instalada com `CREATE EXTENSION` e passa a fazer parte do SQL do banco.
+
+<Aside type="tip" title="Segurança por linha">
+O PostgreSQL permite políticas de acesso avaliadas por linha (*Row Level Security*), que decidem o que cada papel enxerga em uma tabela. É o mecanismo que o Supabase expõe como RLS, e a página de [Supabase Auth](../../cloud/supabase/auth/) o mostra em uso.
+</Aside>
+
+---
+
+## Quando usar, e quando não usar?
+
+O PostgreSQL é a escolha padrão para aplicação web com servidor de banco, e as exceções são bem delimitadas.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| API em várias instâncias, dados relacionais | **PostgreSQL** | Servidor coordena a concorrência; MVCC evita bloqueio entre leitores e escritores. |
+| Dinheiro, tempo com fuso e documentos na mesma tabela | **PostgreSQL** | `NUMERIC`, `TIMESTAMPTZ` e `JSONB` resolvem sem gambiarra. |
+| Banco gerenciado em plataforma de nuvem | **PostgreSQL** | É o que Supabase, Render, Railway e Heroku oferecem. |
+| Um único processo, ferramenta local, estudo | **[SQLite](../sqlite/)** | Um servidor é peso morto quando não há concorrência entre processos. |
+| Equipe e hospedagem padronizadas em MySQL | **[MySQL](../mysql/)** | A diferença técnica não compensa a troca de ecossistema. |
+| Documentos sem forma fixa como modelo central, com sincronização | **[MongoDB](../mongodb/)** | `JSONB` cobre o campo variável, não o modelo inteiro. |
+
+---
+
+## Exercício
+
+Responda com base na arquitetura e na seção de tipos:
+
+1. Por que uma conexão ao PostgreSQL é mais cara do que abrir um arquivo SQLite, e o que a aplicação faz a respeito?
+2. Que problema o MVCC resolve, e qual é o custo que ele cobra?
+3. Por que `NUMERIC(14, 2)` é preferível a `REAL` para valores de investimento?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque cada conexão é um processo do servidor, com autenticação e memória próprias. A aplicação mantém um *pool* pequeno e reutiliza as conexões em vez de abrir uma por requisição.
+
+  2. Resolve o bloqueio entre leitores e escritores: cada transação vê uma fotografia consistente, e escritas criam versões novas das linhas. O custo é o espaço das versões antigas, limpo pelo `autovacuum`.
+
+  3. Porque `NUMERIC` é decimal exato: `25000.50` é armazenado como tal, e somas não acumulam erro. `REAL` é ponto flutuante binário e não representa a maioria dos centavos com exatidão.
+</details>
+
+---
+
+## Desafio
+
+O projeto `invest-db` do guia roda em SQLite. Escreva a versão PostgreSQL do `schema.sql` e do `seed.sql`, aproveitando os tipos desta página (`GENERATED AS IDENTITY`, `NUMERIC`, `TIMESTAMPTZ`, `JSONB`), e liste cada diferença em relação ao original com o motivo.
+
+Depois responda: quais consultas dos arquivos `joins.sql`, `aggregations.sql` e `subqueries.sql` rodam sem alteração no PostgreSQL, e quais precisam de ajuste? Execute-as no servidor da próxima página para confirmar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  As diferenças no esquema são poucas e todas de tipo: `INTEGER PRIMARY KEY AUTOINCREMENT` vira `INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY`; `BOOLEAN DEFAULT 0` vira `BOOLEAN DEFAULT false`; `DATETIME DEFAULT CURRENT_TIMESTAMP` vira `TIMESTAMPTZ DEFAULT now()`; `REAL` do preço vira `NUMERIC(10, 2)`. Nomes de tabela em maiúscula (`User`) precisam de aspas duplas no PostgreSQL ou passam a minúsculas, e `User` é palavra reservada, o que é um bom motivo para renomear para `users`.
+
+  As consultas rodam quase todas sem alteração, porque junções, agregações e subconsultas são SQL padrão. O que muda: `published = 1` vira `published = true`, e a divisão inteira de `AVG` sobre `INTEGER` devolve `NUMERIC` no PostgreSQL, com mais casas decimais na saída. É o tamanho típico de uma migração entre motores relacionais: sintaxe e tipos, não modelo.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Arquitetura
+
+1. **Qual é a hierarquia de um servidor PostgreSQL?**
+   <details><summary>Possível resposta</summary>Servidor, bancos de dados isolados entre si, esquemas dentro de cada banco (com `public` como padrão) e tabelas dentro dos esquemas.</details>
+
+2. **Como o PostgreSQL atende uma conexão?**
+   <details><summary>Possível resposta</summary>Com um processo dedicado do servidor por conexão, o que torna conexões caras e justifica o uso de *pool* na aplicação e de *pooler* em funções serverless.</details>
+
+3. **O que é o `autovacuum`?**
+   <details><summary>Possível resposta</summary>O processo automático que limpa as versões antigas de linhas deixadas pelo MVCC, devolvendo o espaço para reutilização.</details>
+
+### Tipos e recursos
+
+4. **Para que serve `TIMESTAMPTZ`?**
+   <details><summary>Possível resposta</summary>Para guardar um instante com consciência de fuso horário: armazena em UTC e converte na leitura, evitando ambiguidade entre servidores em fusos diferentes.</details>
+
+5. **O que uma coluna `JSONB` muda em uma decisão de arquitetura?**
+   <details><summary>Possível resposta</summary>Permite guardar um documento com forma variável ao lado das colunas relacionais, consultável e indexável, sem precisar de um banco de documentos só para esse campo.</details>
+
+6. **O que é uma extensão, e cite duas?**
+   <details><summary>Possível resposta</summary>Um módulo instalado com `CREATE EXTENSION` que acrescenta tipos, funções ou índices ao SQL do banco. Exemplos: `pg_trgm`, `PostGIS`, `pgvector`, `pg_cron`.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL: About](https://www.postgresql.org/about/)
+- [PostgreSQL: Concurrency Control (MVCC)](https://www.postgresql.org/docs/current/mvcc.html)
+- [PostgreSQL: Data Types](https://www.postgresql.org/docs/current/datatype.html)
+- [PostgreSQL: JSON Types](https://www.postgresql.org/docs/current/datatype-json.html)
+- [PostgreSQL: Row Security Policies](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
+
+---
+
+## Próximo tópico
+
+[Instalação e cliente](setup/): O servidor com Docker Compose, o `psql` e as primeiras tabelas com os tipos do PostgreSQL.

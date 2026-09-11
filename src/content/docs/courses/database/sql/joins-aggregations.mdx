@@ -5,7 +5,8 @@ course: database
 sidebar:
   label: "Junções e Agregações"
 ---
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
 import Mermaid from '@components/Mermaid.astro';
 
 Este tópico apresenta o poder das consultas relacionais avançadas em **SQL**. Você aprenderá como combinar registros de múltiplas tabelas usando diferentes tipos de **JOINs**, resumir grandes volumes de dados através de **Funções de Agregação** e aplicar agrupamentos condicionais com `GROUP BY` e `HAVING`.
@@ -14,17 +15,21 @@ Este tópico apresenta o poder das consultas relacionais avançadas em **SQL**. 
 
 ## Objetivo
 
-Dominar a sintaxe e a semântica dos diferentes tipos de junções (`INNER`, `LEFT`, `RIGHT`, `FULL`), aplicar funções agregadoras (`COUNT`, `SUM`, `AVG`), estruturar agrupamentos refinados e criar visões reutilizáveis (`VIEW`).
+Dominar as consultas que cruzam e resumem dados, executando cada uma contra o blog do projeto `invest-db` para ver o que muda quando a junção preserva ou descarta linhas e quando um filtro age antes ou depois do agrupamento. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a semântica de `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN` e `FULL OUTER JOIN` com conjuntos.
+- Escolher a junção pelo que a tela precisa mostrar, inclusive as linhas sem correspondência.
+- Aplicar `COUNT`, `SUM`, `AVG`, `MIN` e `MAX` sobre uma tabela inteira e por grupo.
+- Distinguir `WHERE` de `HAVING` pelo momento em que cada um filtra.
+- Compor subconsultas escalares e com `IN`, e encapsular consultas em `VIEW`.
 
 ---
 
 ## Junções de Tabelas (JOINs)
 
-Em um banco de dados relacional normalizado, as informações sobre entidades relacionadas ficam divididas em tabelas separadas. A cláusula `JOIN` permite combinar dados dessas tabelas em um único conjunto de resultados (*result set*), conectando Chaves Primárias e Chaves Estrangeiras.
+Em um banco de dados relacional normalizado, as informações sobre entidades relacionadas ficam divididas em tabelas separadas. A cláusula `JOIN` permite combinar dados dessas tabelas em um único conjunto de resultados (*result set*), conectando chaves primárias e chaves estrangeiras.
 
-### Diagrama Teórico de Junções
-
-O diagrama a seguir resume a lógica de interseção de conjuntos dos quatro principais tipos de junções relacionais:
+O diagrama a seguir resume a lógica de conjuntos dos quatro principais tipos de junção:
 
 <Mermaid title="Comportamento dos tipos de JOIN relacionais">
 {`
@@ -57,49 +62,70 @@ flowchart TD
 
 ## Tipos de JOIN na Prática
 
-Para ilustrar as consultas, considere duas tabelas: `User` (autores) e `Post` (publicações).
+As consultas usam as tabelas `User` (autores) e `Post` (publicações) do `schema.sql`, com os dados do `seed.sql`: quatro usuários, dos quais Diego não escreveu nada, e seis posts, um deles não publicado.
 
-### 1. `INNER JOIN` (Interseção Exata)
+### `INNER JOIN` (Interseção Exata)
 
-Retorna apenas as linhas que possuem correspondência **em ambas as tabelas**. Se um usuário não escreveu nenhum post, ele não aparecerá no resultado.
+Retorna apenas as linhas que possuem correspondência **em ambas as tabelas**. A linha 4 liga cada post ao seu autor, e o `WHERE` da linha 5 ainda exclui o rascunho não publicado:
 
-```sql title="inner-join.sql" {4}
-SELECT User.name AS autor, Post.title AS titulo
-FROM Post
-INNER JOIN User ON Post.authorId = User.id
-WHERE Post.published = 1;
+<SourceCode path="examples/courses/database/invest-db/joins.sql" region="inner" mark={[4]} />
+
+```txt title="Output"
+autor       | titulo
+------------+------------------------
+Ana Silva   | Introdução ao SQL
+Ana Silva   | Junções explicadas
+Bruno Costa | Receita de pão
+Bruno Costa | Viagem ao litoral
+Carla Souza | Normalização na prática
 ```
 
-### 2. `LEFT JOIN` (Preserva a Tabela da Esquerda)
+Diego não aparece, e o rascunho de Ana também não: um usuário sem posts e um post filtrado deixam de existir para a junção interna.
 
-Retorna **todas as linhas da tabela da esquerda** (`User`), acompanhadas dos dados correspondentes da tabela da direita (`Post`). Se o usuário não tiver posts, as colunas do post virão preenchidas com `NULL`.
+### `LEFT JOIN` (Preserva a Tabela da Esquerda)
 
-```sql title="left-join.sql" {3}
-SELECT User.name AS autor, Post.title AS titulo
-FROM User
-LEFT JOIN Post ON User.id = Post.authorId;
+Retorna **todas as linhas da tabela da esquerda** (`User`), acompanhadas dos dados correspondentes da tabela da direita (`Post`). A linha 11 é a que muda a semântica: quando o usuário não tem posts, as colunas do post vêm preenchidas com `NULL`:
+
+<SourceCode path="examples/courses/database/invest-db/joins.sql" region="left" mark={[11]} />
+
+```txt title="Output"
+autor       | titulo
+------------+------------------------
+Ana Silva   | Introdução ao SQL
+Ana Silva   | Junções explicadas
+Ana Silva   | Rascunho sobre índices
+Bruno Costa | Receita de pão
+Bruno Costa | Viagem ao litoral
+Carla Souza | Normalização na prática
+Diego Lima  | NULL
 ```
 
 <Aside type="tip" title="Identificando Registros Sem Relacionamento">
-  O `LEFT JOIN` combinado com `WHERE Post.id IS NULL` é a técnica padrão para encontrar autores que **nunca** escreveram nenhum post.
+  O `LEFT JOIN` combinado com `WHERE Post.id IS NULL` é a técnica padrão para encontrar autores que **nunca** escreveram nenhum post. Na saída acima, é a linha de Diego.
 </Aside>
 
-### 3. `RIGHT JOIN` e `FULL OUTER JOIN`
+### `RIGHT JOIN` e `FULL OUTER JOIN`
+
+As duas junções restantes espelham e combinam o `LEFT JOIN`:
 
 - `RIGHT JOIN`: Retorna todas as linhas da tabela da direita, trazendo `NULL` para a esquerda quando não houver correspondência.
 - `FULL OUTER JOIN`: Combina o efeito do `LEFT` e do `RIGHT JOIN`, trazendo todas as linhas de ambas as tabelas, vinculadas ou não.
 
 <Aside type="note" title="Suporte no SQLite">
-  O SQLite suporta nativamente `INNER JOIN` e `LEFT JOIN`. O suporte a `RIGHT JOIN` e `FULL OUTER JOIN` foi adicionado nas versões mais recentes (3.39+).
+  O SQLite suporta nativamente `INNER JOIN` e `LEFT JOIN`. O suporte a `RIGHT JOIN` e `FULL OUTER JOIN` foi adicionado nas versões mais recentes (3.39+). Na prática, todo `RIGHT JOIN` pode ser reescrito como `LEFT JOIN` invertendo a ordem das tabelas.
+</Aside>
+
+<Aside type="caution" title="Dica de IA: Confira a junção com um registro sem correspondência">
+  Assistentes escolhem `INNER JOIN` por padrão, e a consulta parece certa enquanto todos os registros têm par. O usuário sem posts, o pedido sem itens e o produto sem categoria somem da listagem sem nenhum erro, e a tela passa a mentir por omissão.
+
+  **Prompt:** *"Para esta consulta, diga quais linhas de cada tabela desaparecem com `INNER JOIN` e mostre a versão com `LEFT JOIN`; inclua um registro sem correspondência nos dados de teste e compare as duas saídas."*
 </Aside>
 
 ---
 
 ## Funções de Agregação
 
-As funções de agregação processam um conjunto de valores em uma coluna e retornam um único valor resumido.
-
-As cinco funções de agregação fundamentais são:
+As funções de agregação processam um conjunto de valores em uma coluna e retornam um único valor resumido. As cinco fundamentais são:
 
 | Função | O que faz | Exemplo de Uso |
 | :--- | :--- | :--- |
@@ -109,86 +135,133 @@ As cinco funções de agregação fundamentais são:
 | `MIN()` | Retorna o menor valor de uma coluna. | `SELECT MIN(price) FROM Product;` |
 | `MAX()` | Retorna o maior valor de uma coluna. | `SELECT MAX(price) FROM Product;` |
 
-Exemplo de consulta agregada simples:
+Sem `GROUP BY`, a agregação resume a tabela inteira em uma linha só:
 
-```sql title="agregacoes.sql"
-SELECT 
-    COUNT(*) AS total_posts,
-    AVG(views) AS media_visualizacoes
-FROM Post;
+<SourceCode path="examples/courses/database/invest-db/aggregations.sql" region="functions" />
+
+```txt title="Output"
+total_posts | media_visualizacoes | maior_audiencia
+------------+---------------------+----------------
+6           | 79.16666666666667   | 200
 ```
 
 ---
 
 ## Agrupamento de Dados (`GROUP BY` e `HAVING`)
 
+O agrupamento transforma a agregação de "um número para a tabela" em "um número por grupo", e o `HAVING` é o filtro que só existe depois disso.
+
 ### Cláusula `GROUP BY`
 
-A cláusula `GROUP BY` agrupa linhas que possuem os mesmos valores em colunas especificadas, permitindo executar funções de agregação para cada grupo individualmente.
+A cláusula `GROUP BY` agrupa linhas que possuem os mesmos valores em colunas especificadas, permitindo executar funções de agregação para cada grupo individualmente:
 
-```sql title="group-by.sql"
--- Contar quantos posts cada autor escreveu
-SELECT authorId, COUNT(*) AS total_posts
-FROM Post
-GROUP BY authorId;
+<SourceCode path="examples/courses/database/invest-db/aggregations.sql" region="group-by" />
+
+```txt title="Output"
+authorId | total_posts
+---------+------------
+1        | 3
+2        | 2
+3        | 1
 ```
 
 ### Filtrando Grupos (`HAVING`)
 
-Enquanto o `WHERE` filtra **linhas individuais** antes do agrupamento, a cláusula `HAVING` filtra **os grupos resultantes** após a execução da agregação.
+Enquanto o `WHERE` filtra **linhas individuais** antes do agrupamento, a cláusula `HAVING` da linha 21 filtra **os grupos resultantes** após a execução da agregação:
 
-```sql title="having.sql" {4}
--- Listar apenas autores que possuem mais de 5 posts publicados
-SELECT authorId, COUNT(*) AS total_posts
-FROM Post
-GROUP BY authorId
-HAVING COUNT(*) > 5;
+<SourceCode path="examples/courses/database/invest-db/aggregations.sql" region="having" mark={[21]} />
+
+```txt title="Output"
+authorId | total_posts
+---------+------------
+1        | 3
 ```
+
+Só a autora com três posts sobrevive ao `HAVING COUNT(*) > 2`. Trocar o `HAVING` por `WHERE COUNT(*) > 2` é erro de sintaxe, porque o `WHERE` roda antes de existir qualquer contagem.
 
 ---
 
 ## Subconsultas (Subqueries)
 
-Uma **Subconsulta** é uma instrução `SELECT` aninhada dentro de outra consulta principal. Podem ser usadas na cláusula `WHERE`, `FROM` ou `SELECT`:
+Uma **subconsulta** é uma instrução `SELECT` aninhada dentro de outra consulta principal. Pode aparecer nas cláusulas `WHERE`, `FROM` ou `SELECT`, e as duas formas mais comuns são a escalar, que devolve um valor, e a de conjunto, usada com `IN`.
 
-```sql title="subqueries.sql"
--- 1. Subconsulta escalar (retorna um único valor)
--- Buscar produtos com preço acima da média geral
-SELECT name, price 
-FROM Product 
-WHERE price > (SELECT AVG(price) FROM Product);
+A subconsulta escalar entre parênteses calcula a média uma vez, e o `WHERE` a compara com cada linha:
 
--- 2. Subconsulta com operador IN (retorna um vetor de valores)
--- Buscar usuários que possuem posts na categoria 'Tecnologia'
-SELECT name 
-FROM User 
-WHERE id IN (
-    SELECT DISTINCT authorId 
-    FROM Post 
-    WHERE category = 'Tecnologia'
-);
+<SourceCode path="examples/courses/database/invest-db/subqueries.sql" region="scalar" />
+
+```txt title="Output"
+name    | price
+--------+------
+Monitor | 1200
+```
+
+A subconsulta de conjunto devolve os `authorId` que têm post em Tecnologia, e o `IN` seleciona os usuários entre eles:
+
+<SourceCode path="examples/courses/database/invest-db/subqueries.sql" region="in" />
+
+```txt title="Output"
+name
+-----------
+Ana Silva
+Carla Souza
 ```
 
 ---
 
 ## Visões (`CREATE VIEW`)
 
-Uma **Visão (View)** é uma tabela virtual baseada no resultado de uma consulta SQL complexa. Elas simplificam o acesso a dados agregados ou com múltiplos `JOINs`, sem duplicar o armazenamento no disco.
+Uma **visão** (*view*) é uma tabela virtual baseada no resultado de uma consulta SQL. Ela simplifica o acesso a dados agregados ou com múltiplos `JOIN`, sem duplicar o armazenamento em disco: o que fica guardado é a definição da consulta, executada a cada leitura.
 
-```sql title="views.sql"
--- Criar uma visão simplificada de relatórios de autores
-CREATE VIEW RelatorioAutores AS
-SELECT 
-    User.id AS autor_id,
-    User.name AS autor_nome,
-    COUNT(Post.id) AS total_posts
-FROM User
-LEFT JOIN Post ON User.id = Post.authorId
-GROUP BY User.id;
+A visão abaixo reúne o `LEFT JOIN` e o `GROUP BY` das seções anteriores sob um nome, e a consulta final a usa como se fosse uma tabela:
 
--- Consultar a visão como se fosse uma tabela comum
-SELECT * FROM RelatorioAutores WHERE total_posts > 0;
+<SourceCode path="examples/courses/database/invest-db/views.sql" />
+
+```txt title="Output"
+-- ok
+autor_id | autor_nome  | total_posts
+---------+-------------+------------
+1        | Ana Silva   | 3
+2        | Bruno Costa | 2
+3        | Carla Souza | 1
 ```
+
+Diego, com zero posts, existe na visão por causa do `LEFT JOIN`, e foi excluído pelo `WHERE total_posts > 0` da consulta final.
+
+---
+
+## Quando usar, e quando não usar?
+
+Junções, agregações e visões são o núcleo do que o modelo relacional faz melhor do que qualquer outro, e a pergunta útil é qual das ferramentas resolve cada necessidade.
+
+| Necessidade | Escolha | Por quê |
+| --- | --- | --- |
+| Listar só o que tem correspondência nas duas tabelas | **`INNER JOIN`** | Linhas sem par são ruído para essa tela. |
+| Listar tudo de um lado, marcando o que não tem par | **`LEFT JOIN`** | O `NULL` do outro lado é informação, não falta. |
+| Um número para a tabela inteira | **Agregação sem `GROUP BY`** | Uma linha de resultado. |
+| Um número por categoria, autor ou período | **`GROUP BY`** com `HAVING` para filtrar grupos | O filtro depende do valor agregado. |
+| Comparar cada linha com um valor calculado | **Subconsulta escalar** | A média ou o máximo entram como constante. |
+| Reutilizar uma consulta complexa em vários lugares | **`VIEW`** | Um nome no lugar de vinte linhas repetidas. |
+| Consulta usada milhões de vezes em uma tela quente | **Coluna desnormalizada ou [índice](../performance/)** | A visão recalcula a cada leitura; o custo se repete. |
+
+---
+
+## Executando
+
+Os arquivos desta página rodam sobre o blog do `schema.sql` e do `seed.sql`, e cada um pode ser executado sozinho:
+
+<Steps>
+1. Execute as junções e compare as duas saídas, contando as linhas de cada uma:
+
+   ```bash title="Terminal"
+   node run.mjs joins.sql
+   ```
+2. Execute as agregações e observe a diferença entre a tabela inteira, os grupos e o `HAVING`:
+
+   ```bash title="Terminal"
+   node run.mjs aggregations.sql
+   ```
+3. Execute subconsultas e visão, e depois altere o `seed.sql` para dar um post a Diego: rode de novo e veja em quais saídas ele passa a aparecer.
+</Steps>
 
 ---
 
@@ -203,8 +276,8 @@ Considere duas tabelas: `Department` (id, name) e `Employee` (id, name, salary, 
   <summary>Possível resposta</summary>
 
   1. **Consulta com INNER JOIN**:
-     ```sql
-     SELECT 
+     ```sql title="Junção de funcionários e departamentos"
+     SELECT
        Employee.name AS funcionario,
        Employee.salary AS salario,
        Department.name AS departamento
@@ -213,8 +286,8 @@ Considere duas tabelas: `Department` (id, name) e `Employee` (id, name, salary, 
      ```
 
   2. **Consulta com GROUP BY e HAVING**:
-     ```sql
-     SELECT 
+     ```sql title="Média salarial por departamento"
+     SELECT
        Department.name AS departamento,
        AVG(Employee.salary) AS media_salarial
      FROM Employee
@@ -226,10 +299,30 @@ Considere duas tabelas: `Department` (id, name) e `Employee` (id, name, salary, 
 
 ---
 
+## Desafio
+
+A visão `RelatorioAutores` conta posts, mas um relatório real de blog precisa de mais: a categoria mais frequente de cada autor, a audiência total e a média de visualizações só dos posts publicados. Escreva um arquivo `report.sql` no projeto que produza esse relatório com uma linha por autor, incluindo quem não tem posts.
+
+Depois responda com a saída na mão: por que `AVG(views)` muda quando o filtro `published = 1` vai para o `ON` da junção em vez do `WHERE`, e o que acontece com Diego em cada versão?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A audiência e a média saem de um `LEFT JOIN` de `User` para `Post` com `GROUP BY User.id`, usando `SUM(views)` e `AVG(CASE WHEN published = 1 THEN views END)`, que ignora os rascunhos sem descartar o autor. A categoria mais frequente é a parte instrutiva: em SQL padrão exige uma subconsulta que agrupa por autor e categoria e escolhe a de maior contagem, e no SQLite pode ser resolvida com `GROUP BY` mais `ORDER BY COUNT(*) DESC LIMIT 1` dentro de uma subconsulta correlacionada.
+
+  O filtro no `WHERE` descarta as linhas de Diego (todas `NULL`) e ele some do relatório; no `ON`, a condição só decide o que casa, e Diego permanece com `NULL` nas colunas agregadas. Essa diferença entre filtrar na junção e filtrar depois dela é a fonte mais comum de relatórios com totais "errados".
+</details>
+
+---
+
 ## Perguntas de revisão
+
+### Junções
 
 1. **Qual a diferença fundamental entre `INNER JOIN` e `LEFT JOIN`?**
    <details><summary>Possível resposta</summary>`INNER JOIN` retorna apenas linhas que possuem correspondência nas duas tabelas. `LEFT JOIN` retorna todas as linhas da tabela da esquerda, mesmo sem correspondência na direita (preenchendo com `NULL`).</details>
+
+### Agregações e visões
 
 2. **Qual é a diferença entre as cláusulas `WHERE` e `HAVING`?**
    <details><summary>Possível resposta</summary>`WHERE` filtra linhas antes do agrupamento. `HAVING` filtra os grupos já consolidados após a execução do `GROUP BY` e das funções de agregação.</details>
@@ -263,4 +356,4 @@ Considere duas tabelas: `Department` (id, name) e `Employee` (id, name, salary, 
 
 ## Próximo tópico
 
-[SQL com Node.js](../../../expressjs/persistence/node-sqlite/): Integrando o banco de dados relacional SQLite com aplicações em Node.js e Express.js.
+[Transações](../transactions/): `BEGIN`, `COMMIT` e `ROLLBACK`, e o que o banco garante quando várias instruções precisam acontecer juntas.

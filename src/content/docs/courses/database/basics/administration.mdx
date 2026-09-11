@@ -1,0 +1,283 @@
+---
+title: "Banco de Dados: Administração"
+description: "Administração de banco de dados como conceito comum a todo motor: usuários e privilégio mínimo, ambientes, Docker, backup testado, migrações versionadas, monitoramento de saúde e rastreabilidade distribuída."
+course: database
+sidebar:
+  label: "Administração"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico trata do que acontece com um banco de dados fora das consultas: quem pode acessá-lo, onde ele roda, como é copiado, como o esquema evolui, como suas métricas são monitoradas e como rastrear o impacto de cada requisição da aplicação. São decisões que valem para qualquer motor; os comandos específicos de cada um estão nas seções de [SQLite](../../sqlite/administration/), [PostgreSQL](../../postgresql/administration/), [MySQL](../../mysql/administration/) e [MongoDB](../../mongodb/setup/).
+
+---
+
+## Objetivo
+
+Compreender as responsabilidades de administração e observabilidade de um banco de dados como um conjunto estável de decisões arquiteturais, para aplicá-las em qualquer motor e reconhecer o que uma plataforma gerenciada assume e o que deixa sob controle do desenvolvedor. Ao final do tópico, o leitor deve ser capaz de:
+
+- Aplicar o princípio do privilégio mínimo ao criar a credencial de uma aplicação.
+- Separar os ambientes de desenvolvimento, teste e produção e o que cada um exige do banco.
+- Subir um servidor de banco com Docker Compose e entender o papel do volume e das variáveis.
+- Distinguir backup lógico de backup físico, e explicar por que um backup não testado não é backup.
+- Versionar o esquema com migrações e aplicá-las sem quebrar a versão anterior da aplicação.
+- Monitorar a saúde e o consumo de recursos do SGBD (conexões, buffer pool, IOPS e slow query log).
+- Aplicar conceitos de rastreabilidade distribuída (tracing e OpenTelemetry) para correlacionar queries SQL às rotas da aplicação.
+
+---
+
+## Privilégio Mínimo
+
+A primeira decisão administrativa é quem acessa o banco, e a resposta padrão é: a aplicação, com uma credencial própria, que só pode fazer o que a aplicação precisa. O superusuário criado na instalação (`postgres`, `root`) pode tudo, inclusive apagar bancos inteiros, e por isso nunca é a credencial da aplicação.
+
+O diagrama abaixo mostra a separação típica de papéis em um servidor de banco de dados:
+
+<Mermaid title="Credenciais por papel em um servidor de banco">
+{`
+flowchart LR
+  Admin["Administrador<br/>superusuário, só por pessoa"] --> Server[("Servidor de banco")]
+  App["Aplicação<br/>SELECT, INSERT, UPDATE no seu banco"] --> Server
+  Reports["Relatórios<br/>SELECT em visões"] --> Server
+  Migrate["Migrações<br/>CREATE, ALTER, só no deploy"] --> Server
+`}
+</Mermaid>
+
+A tabela abaixo traduz o princípio de controle de acesso para os motores do guia:
+
+| Motor | Unidade de acesso | Como conceder | Página |
+| --- | --- | --- | --- |
+| **PostgreSQL** | Papel (*role*) | `GRANT` por banco, esquema, tabela e sequência | [Administração](../../postgresql/administration/) |
+| **MySQL** | Conta `'usuário'@'origem'` | `GRANT` por banco ou tabela | [Administração](../../mysql/administration/) |
+| **MongoDB** | Usuário em um banco, com papéis por banco | `createUser` com `read`, `readWrite` | [Instalação e cliente](../../mongodb/setup/) |
+| **SQLite** | Não há usuários | Permissões do arquivo no sistema operacional | [Administração](../../sqlite/administration/) |
+
+O que se ganha com isso não é só segurança contra ataque: um `DELETE` sem `WHERE` executado por engano com a credencial da aplicação apaga uma tabela; com a credencial de relatórios, é recusado.
+
+<Aside type="caution" title="Dica de IA: Peça a credencial da aplicação, não a de administrador">
+  Ao pedir "conecte a aplicação ao banco", assistentes usam as credenciais que estão à mão, que em ambiente de desenvolvimento são as do superusuário do `docker-compose.yml`. O código funciona, vai para produção com a mesma variável de ambiente, e a aplicação passa a rodar com poder total sobre o servidor.
+
+  **Prompt:** *"Crie a credencial de aplicação para este banco com apenas os privilégios que estas rotas usam, gere a URL de conexão com ela, e escreva o teste que prova que `DROP TABLE` e `DELETE` sem `WHERE` são recusados."*
+</Aside>
+
+---
+
+## Ambientes
+
+Um banco de dados existe em pelo menos três lugares durante a vida de um projeto, e cada um tem exigências diferentes:
+
+| Ambiente | Onde roda | O que importa | O que não importa |
+| --- | --- | --- | --- |
+| **Desenvolvimento** | Docker na máquina, ou SQLite em arquivo | Subir em segundos, resetar sem dó, dados de exemplo | Backup, alta disponibilidade |
+| **Teste** | Banco em memória ou contêiner descartável no CI | Criado e destruído a cada execução, isolamento entre testes | Persistência |
+| **Produção** | Servidor gerenciado ou operado pela equipe | Backup testado, credenciais separadas, monitoramento, migrações controladas | Conveniência |
+
+O erro mais comum é tratar os três como um só: usar o banco de desenvolvimento para testes (e perder os dados de exemplo a cada execução), ou levar hábitos de desenvolvimento para produção (resetar o banco, conectar como superusuário). A configuração por variável de ambiente, e não por arquivo versionado, é o que permite que o mesmo código aponte para o banco certo em cada lugar.
+
+---
+
+## Servidores com Docker
+
+Para desenvolvimento, o Docker Compose é a forma padrão de subir um servidor de banco: um arquivo declara a imagem, a porta, as variáveis e o volume, e `docker compose up -d` faz o resto. O projeto `examples/courses/database/servers/` tem um por motor, e as seções de cada um os executam.
+
+Três elementos aparecem em todos, e cada um responde a uma pergunta:
+
+<Steps>
+1. **Variáveis de ambiente** (`POSTGRES_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `MONGO_INITDB_ROOT_USERNAME`): a senha do superusuário e, em alguns, o banco e o usuário iniciais. Vêm de um `.env` que não é versionado, com um `.env.example` que é.
+2. **Porta publicada** (`5432:5432`, `3306:3306`, `27017:27017`): expõe o servidor à máquina, para clientes e para a aplicação rodando fora do Docker. Em rede Docker, os contêineres se falam pelo nome do serviço sem a porta publicada.
+3. **Volume** (`postgres_data:/var/lib/postgresql/data`): guarda os dados fora do contêiner. Sem ele, `docker compose down` apaga o banco; com ele, só `docker compose down -v` apaga.
+</Steps>
+
+Uma ferramenta de administração no navegador (Adminer, Mongo Express) costuma vir no mesmo Compose, na porta 8080 ou 8081, e é a forma mais rápida de inspecionar um banco sem decorar comandos de cliente.
+
+---
+
+## Backup
+
+Um backup responde a uma pergunta: **quanto dado se pode perder, e em quanto tempo ele precisa voltar?** As respostas definem a frequência e a forma. Há duas formas, e todo motor oferece ao menos uma:
+
+| Forma | O que é | Ferramentas | Vantagens | Limites |
+| --- | --- | --- | --- | --- |
+| **Lógico** | SQL ou documentos que recriam o banco | `pg_dump`, `mysqldump`, `mongodump`, `.dump` do SQLite | Legível, portável entre versões, restauração seletiva | Lento em bancos grandes; restauração reexecuta tudo |
+| **Físico** | Cópia dos arquivos do banco | `.backup` do SQLite, snapshot do volume, `pg_basebackup` | Rápido em qualquer tamanho | Só restaura na mesma versão do motor; inconsistente se feito com `cp` durante uso |
+
+A regra que resume o assunto tem duas partes. **Um backup que nunca foi restaurado não é backup**: o teste de restauração em um banco novo, com uma consulta que confere a contagem, é parte da rotina, não um extra. E **o backup mora em outro lugar**: no mesmo disco do servidor ele morre junto com ele.
+
+Plataformas gerenciadas fazem o backup automático, com retenção que depende do plano, e a [página de banco relacional gerenciado](../../../cloud/resources/relational-database/) trata do que fica de fora.
+
+---
+
+## Migrações
+
+O esquema muda ao longo do projeto: uma coluna nova, uma tabela, um índice. A migração é o registro versionado dessa mudança, aplicado na ordem em todos os ambientes, e é o que substitui o `ALTER TABLE` digitado à mão no console.
+
+Três regras fazem a diferença entre uma migração que funciona e uma que derruba produção:
+
+| Regra | Motivo |
+| --- | --- |
+| Arquivos numerados no repositório, aplicados em ordem | O esquema evolui junto com o código, e cada ambiente recebe as mesmas mudanças. |
+| Aplicadas no deploy, nunca à mão | O console é para ler; a migração é para versionar e repetir. |
+| Compatíveis com a versão anterior da aplicação | Durante o deploy, as duas versões coexistem contra o mesmo banco por alguns segundos. |
+
+A terceira regra tem uma consequência prática: renomear uma coluna nunca é uma migração só. É adicionar a nova, copiar os dados, trocar a aplicação e remover a antiga, em passos que a versão anterior tolera. O [Guia de Express.js](../../../expressjs/persistence/prisma/) mostra as migrações com o Prisma; o conceito é o mesmo com SQL puro.
+
+---
+
+## Observabilidade, Monitoramento e Tracing
+
+Operar um banco de dados em produção exige enxergar o que acontece dentro do motor antes que os usuários sintam lentidão. A observabilidade de dados divide-se em três pilares: inspeção de conexões, métricas contínuas de saúde e rastreabilidade distribuída (*tracing*).
+
+### Inspeção em Tempo Real de Atividade e Conexões
+
+Três perguntas resolvem a maioria dos incidentes operacionais de um banco em uso, e todo motor possui comandos para respondê-las:
+
+| Pergunta | O que revela | PostgreSQL | MySQL | MongoDB |
+| --- | --- | --- | --- | --- |
+| Quem está conectado e o que executa? | Consulta lenta, conexão presa, bloqueio (*locks*) | `pg_stat_activity` | `SHOW PROCESSLIST` | `db.currentOp()` |
+| Qual é o tamanho de cada tabela? | Onde o disco está sendo consumido | `pg_total_relation_size` | `information_schema.tables` | `db.collection.stats()` |
+| Quantas conexões o servidor aceita? | O teto que funções *serverless* estouram | `SHOW max_connections` | `SHOW VARIABLES LIKE 'max_connections'` | Limitado por pooler ou SO |
+
+A inspeção da lista de atividade é o primeiro comando a executar quando uma aplicação "trava": na grande maioria dos casos, há uma transação longa esquecida aberta segurando bloqueios em tabelas críticas.
+
+### Métricas de Saúde e Saturação do SGBD
+
+O monitoramento contínuo de métricas (*metrics*) coleta dados temporais para alertar a equipe antes do colapso do sistema:
+
+- **Utilização de CPU e Memória**: Picos sustentados de CPU indicam ausência de índices adequados ou agregações em excesso.
+- **Taxa de Acertos no Cache de Memória (*Buffer Pool Hit Ratio*)**: Percentual de leituras atendidas diretamente pela memória RAM sem tocar o disco rígido. Em bancos bem ajustados, esse índice deve permanecer acima de 99%.
+- **Saturação de I/O e IOPS de Disco**: Mede a fila de leitura e escrita no SSD. Se o disco atingir 100% de ocupação de canal, as consultas enfileiram e a latência de todas as requisições dispara.
+- **Conexões Ativas vs Limite (*Connection Pool Exhaustion*)**: Monitora o esgotamento do pool. Atingir o `max_connections` faz o banco rejeitar conexões imediatamente com erros de `too many connections`.
+- **Atraso de Replicação (*Replication Lag*)**: Em clusters com réplicas de leitura, monitora o atraso em segundos/bytes na sincronização do log transacional.
+
+Ferramentas padrão da indústria incluem coletores como o **Prometheus** (via `postgres_exporter`, `mysqld_exporter`), painéis de visualização no **Grafana**, agentes de APM (Datadog, New Relic) e ferramentas nativas de nuvem (Amazon CloudWatch, Azure Monitor, GCP Cloud Monitoring).
+
+### Registro de Consultas Lentas (Slow Query Log)
+
+Todo SGBD de produção deve ter o log de consultas lentas habilitado. Ele grava automaticamente qualquer instrução que demore mais do que um limiar configurado (por exemplo, queries que levem mais de 200 ms):
+
+- **No PostgreSQL**: Configurado via parâmetro `log_min_duration_statement` e analisado em profundidade com a extensão nativa `pg_stat_statements`, que agrupa consultas similares por padrão e calcula tempo médio, chamadas totais e blocos de disco lidos.
+- **No MySQL**: Configurado via `slow_query_log = 1` e `long_query_time = 0.2` no arquivo `my.cnf`, inspecionado com utilitários como `mysqldumpslow` ou ferramentas da Percona.
+- **No MongoDB**: Configurado via sistema de perfilamento (*Database Profiler*) com `db.setProfilingLevel(1, { slowms: 100 })`.
+
+### Rastreabilidade e Tracing Distribuído (APM)
+
+Em arquiteturas modernas de microsserviços e APIs web, uma única requisição de checkout do usuário pode acionar cinco serviços diferentes e disparar dezenas de consultas SQL. O **Tracing Distribuído** acompanha o ciclo de vida dessa requisição ponta a ponta:
+
+<Mermaid title="Fluxo de tracing distribuído: da rota HTTP à query SQL">
+{`
+flowchart TD
+    Req["Requisição HTTP<br/>(Trace ID: a1b2c3d4)"] --> API["API Node.js / Express<br/>(Span: POST /checkout)"]
+    API --> Auth["Validação JWT / Cache<br/>(Span: Redis GET)"]
+    API --> SQL1["Query SQL 1<br/>(Span: SELECT saldo FROM contas)"]
+    API --> SQL2["Query SQL 2<br/>(Span: UPDATE pedidos SET status)"]
+
+    SQL1 -.-> DB[("PostgreSQL")]
+    SQL2 -.-> DB
+`}
+</Mermaid>
+
+As boas práticas de tracing em banco de dados utilizam o padrão **OpenTelemetry**:
+
+- **Spans de Banco de Dados**: Cada chamada de banco gera um *span* filho com atributos semânticos padronizados (`db.system`, `db.name`, `db.statement`), medindo o tempo exato que o driver gastou esperando a resposta do servidor.
+- **Sanitização de Dados**: O span registra a estrutura da query parametrizada (`SELECT * FROM users WHERE id = $1`), ocultando automaticamente senhas, tokens e dados pessoais sensíveis (LGPD/GDPR).
+- **Injeção de Metadados via SQL Commenter**: Prática onde o ORM ou cliente de banco anexa automaticamente um comentário no final da instrução SQL enviada ao servidor (`SELECT * FROM produtos /*route='/produtos',service='catalog-api',traceparent='...'*/`). Isso permite que o DBA veja no console do banco exatamente qual linha de código e qual rota HTTP disparou aquela query lenta.
+
+---
+
+## Quando usar, e quando não usar?
+
+A pergunta administrativa mais importante hoje não é "como", e sim "quem": operar o servidor ou pagar para que alguém opere.
+
+| Cenário | Escolha | Por quê |
+| --- | --- | --- |
+| Estudo, protótipo, ferramenta local | **SQLite, sem administração** | Não há servidor a operar; backup é copiar um arquivo. |
+| Desenvolvimento em equipe | **Docker Compose** | O mesmo servidor em toda máquina, subido em segundos e descartável. |
+| Produção de pequeno e médio porte | **Banco gerenciado** | Backup, atualização, réplica e métricas vêm da plataforma; a equipe cuida do esquema e dos acessos. |
+| Exigência de operar na própria infraestrutura | **Servidor próprio com stack de observabilidade** | Toda a responsabilidade desta página é sua, incluindo backup testado, exporters e dashboards. |
+| Testes automatizados | **Banco em memória ou contêiner descartável** | Criado e destruído a cada execução, sem estado entre testes. |
+
+---
+
+## Exercício
+
+Responda com base nas seções de privilégio, backup, migrações e observabilidade:
+
+1. Por que a aplicação não deve conectar com o superusuário, mesmo em desenvolvimento?
+2. O que diferencia backup lógico de físico, e qual é a regra que vale para os dois?
+3. Por que renomear uma coluna não pode ser uma única migração em um sistema em produção?
+4. Qual é a utilidade do *Slow Query Log* e da extensão `pg_stat_statements` no PostgreSQL?
+5. Como a técnica de *SQL Commenter* e o tracing com OpenTelemetry ajudam a identificar a causa raiz de uma lentidão no banco?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a credencial de desenvolvimento vai para produção junto com o código, e porque um erro de código com poder total apaga o que não deveria. A credencial da aplicação só pode o que a aplicação precisa.
+  2. O lógico é SQL ou documentos que recriam o banco, portável e legível; o físico é a cópia dos arquivos, rápida mas presa à versão do motor. A regra comum: um backup não testado por restauração não é backup, e ele mora em outro lugar.
+  3. Porque durante o deploy a versão antiga da aplicação ainda roda por alguns segundos contra o esquema novo, e ela procura a coluna pelo nome antigo. O caminho é adicionar, copiar, trocar a aplicação e só então remover.
+  4. O *Slow Query Log* registra consultas individuais que ultrapassam um limite de tempo. O `pg_stat_statements` agrega todas as consultas executadas no banco, calculando tempo total, tempo médio e número de chamadas por padrão de query, revelando quais consultas consomem a maior fatia da CPU do servidor.
+  5. O OpenTelemetry rastreia o tempo de execução de cada span de banco associado a um Trace ID da requisição HTTP. O SQL Commenter injeta a rota e o arquivo de código de origem como comentário na query SQL, permitindo correlacionar uma query lenta diretamente com a funcionalidade da aplicação que a disparou.
+</details>
+
+---
+
+## Desafio
+
+Escreva o "manual de operação e observabilidade" de um banco para o InvestApp do Guia de Express.js em uma página:
+- As credenciais que existem e o que cada uma pode.
+- A rotina de backup com a frequência e o teste de restauração.
+- A estratégia de observabilidade: métricas de alerta essenciais (CPU, buffer pool, conexões) e configuração de slow queries e tracing.
+
+Depois simule o pior dia: o disco do servidor de produção morreu às 14h. Descreva, passo a passo e com os comandos do motor escolhido, como o serviço volta, quanto dado se perdeu e o que no manual teria reduzido essa perda.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um manual completo possui:
+  - **Credenciais**: Administrador por pessoa, aplicação com permissão restrita a DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`), relatórios em leitura e migrações DDL disparadas exclusivamente pela esteira de CI/CD.
+  - **Backup**: Backup lógico diário com `pg_dump` enviado a um bucket externo (S3/GCS) com retenção de 30 dias e teste semanal automatizado de restauração em container efêmero.
+  - **Observabilidade**: Alertas no Grafana/CloudWatch quando CPU > 80% por 5 min, conexões > 80% do pool ou Buffer Pool Hit Ratio < 95%; `pg_stat_statements` ativo com slow query log para queries > 200 ms; tracing com OpenTelemetry anexando rota e tempo de span a cada requisição.
+
+  No pior dia, o serviço volta provisionando um novo nó, restaurando o último dump externo (`psql -d invest -f backup.sql`), validando a contagem de registros e chaveando o DNS/DATABASE_URL. O que teria reduzido a perda para zero: arquivamento contínuo de WAL (*Point-in-Time Recovery - PITR*), que permite restaurar o estado do banco até o exato segundo anterior à quebra.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Acesso, Ambientes e Backup
+
+1. **O que é o princípio do privilégio mínimo aplicado a um banco?**
+   <details><summary>Possível resposta</summary>Cada credencial só pode fazer o que a sua função exige: a aplicação lê e escreve no próprio banco, relatórios só leem, migrações alteram esquema, e o superusuário é usado apenas por pessoas.</details>
+
+2. **Quais são os três ambientes e o que os distingue quanto ao banco?**
+   <details><summary>Possível resposta</summary>Desenvolvimento (rápido de subir e resetar), teste (criado e destruído por execução) e produção (backup, credenciais, monitoramento, observabilidade e migrações controladas).</details>
+
+3. **Por que um backup no mesmo disco do servidor não serve?**
+   <details><summary>Possível resposta</summary>Porque a falha que destrói o servidor destrói o backup junto. O backup precisa ficar em outro armazenamento físico isolado.</details>
+
+### Observabilidade e Tracing
+
+4. **O que o Buffer Pool Hit Ratio mede e por que ele é crucial?**
+   <details><summary>Possível resposta</summary>Mede a porcentagem de acessos a dados atendidos pela memória RAM em vez do disco rígido. Um índice baixo (ex: < 95%) significa que o banco está lendo páginas do SSD com frequência, gerando lentidão de I/O.</details>
+
+5. **O que é o SQL Commenter e como ele conecta o DBA ao desenvolvedor?**
+   <details><summary>Possível resposta</summary>É um padrão que injeta metadados da aplicação (como nome da rota, controller e Trace ID) como comentários dentro do código SQL enviado ao banco, permitindo descobrir instantaneamente qual funcionalidade disparou uma query lenta no log do SGBD.</details>
+
+6. **Qual consulta rodar primeiro quando a aplicação parece travada?**
+   <details><summary>Possível resposta</summary>A lista de atividade do servidor (`pg_stat_activity`, `SHOW PROCESSLIST`, `db.currentOp()`), que mostra a transação aberta ou a consulta lenta segurando bloqueios em tabelas.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL: Backup and Restore](https://www.postgresql.org/docs/current/backup.html)
+- [PostgreSQL: pg_stat_statements Module](https://www.postgresql.org/docs/current/pgstatstatements.html)
+- [OpenTelemetry: Database Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/database/)
+- [SQLCommenter: Augmenting SQL Statements with OpenTelemetry](https://google.github.io/sqlcommenter/)
+- [MySQL: Backup and Recovery](https://dev.mysql.com/doc/refman/8.4/en/backup-and-recovery.html)
+- [The Twelve-Factor App: Config](https://12factor.net/config)
+
+---
+
+## Próximo tópico
+
+[Modelo Conceitual e Lógico](../../modeling/conceptual-logical/): Do requisito ao DER, e do DER às tabelas com as chaves certas.

@@ -165,7 +165,9 @@ export default defineConfig({
     '/courses/dw-cstrc-jp/express/authentication': withBase(
       '/courses/expressjs/auth/authentication/'
     ),
-    '/courses/dw-cstrc-jp/database/dbms': withBase('/courses/database/basics/dbms/'),
+    '/courses/dw-cstrc-jp/database/dbms': withBase('/courses/database/basics/introduction/'),
+    '/courses/database/basics/dbms': withBase('/courses/database/basics/introduction/'),
+    '/courses/database/nosql/paradigms': withBase('/courses/database/basics/paradigms/'),
     '/courses/dw-cstrc-jp/database/sql': withBase('/courses/database/sql/fundamentals/'),
     '/courses/dw-cstrc-jp/database/sql-node': withBase(
       '/courses/expressjs/persistence/node-sqlite/'
@@ -1332,14 +1334,11 @@ export default defineConfig({
             {
               label: 'Fundamentos',
               items: [
-                {
-                  label: 'Conceito e Arquitetura',
-                  link: '/courses/database/basics/introduction/',
-                },
-                {
-                  label: 'SGBDs e Administração',
-                  link: '/courses/database/basics/dbms/',
-                },
+                { label: 'Conceito e SGBDs', link: '/courses/database/basics/introduction/' },
+                { label: 'Paradigmas de Dados', link: '/courses/database/basics/paradigms/' },
+                { label: 'Motores, Nuvem e Mercado', link: '/courses/database/basics/engines/' },
+                { label: 'Estratégias de Escala', link: '/courses/database/basics/scale/' },
+                { label: 'Administração', link: '/courses/database/basics/administration/' },
               ],
             },
             {
@@ -1353,33 +1352,60 @@ export default defineConfig({
                   label: 'Normalização de Dados',
                   link: '/courses/database/modeling/normalization/',
                 },
+                { label: 'Chaves e Índices', link: '/courses/database/modeling/keys-indexes/' },
+                { label: 'Estudos de Caso', link: '/courses/database/modeling/case-studies/' },
               ],
             },
             {
               label: 'SQL',
               items: [
-                {
-                  label: 'SQL DDL e DML',
-                  link: '/courses/database/sql/fundamentals/',
-                },
+                { label: 'SQL DDL e DML', link: '/courses/database/sql/fundamentals/' },
                 {
                   label: 'Junções e Agregações',
                   link: '/courses/database/sql/joins-aggregations/',
                 },
+                { label: 'Transações', link: '/courses/database/sql/transactions/' },
+                { label: 'Desempenho', link: '/courses/database/sql/performance/' },
               ],
             },
             {
-              label: 'Acesso a dados na aplicação',
+              label: 'SQLite',
+              items: [
+                { label: 'Visão geral do SQLite', link: '/courses/database/sqlite/' },
+                { label: 'Instalação e cliente', link: '/courses/database/sqlite/setup/' },
+                { label: 'Administração', link: '/courses/database/sqlite/administration/' },
+              ],
+            },
+            {
+              label: 'PostgreSQL',
+              items: [
+                { label: 'Visão geral do PostgreSQL', link: '/courses/database/postgresql/' },
+                { label: 'Instalação e cliente', link: '/courses/database/postgresql/setup/' },
+                { label: 'Administração', link: '/courses/database/postgresql/administration/' },
+              ],
+            },
+            {
+              label: 'MySQL',
+              items: [
+                { label: 'Visão geral do MySQL', link: '/courses/database/mysql/' },
+                { label: 'Instalação e cliente', link: '/courses/database/mysql/setup/' },
+                { label: 'Administração', link: '/courses/database/mysql/administration/' },
+              ],
+            },
+            {
+              label: 'MongoDB',
+              items: [
+                { label: 'Visão geral do MongoDB', link: '/courses/database/mongodb/' },
+                { label: 'Instalação e cliente', link: '/courses/database/mongodb/setup/' },
+                { label: 'CRUD e agregação', link: '/courses/database/mongodb/crud/' },
+              ],
+            },
+            {
+              label: 'Referência',
               items: [
                 {
-                  label: 'SQL com Node.js',
-                  link: '/courses/expressjs/persistence/node-sqlite/',
-                },
-                { label: 'Prisma', link: '/courses/expressjs/persistence/prisma/' },
-                { label: 'CRUD com Prisma', link: '/courses/expressjs/persistence/crud/' },
-                {
-                  label: 'Relações com Prisma',
-                  link: '/courses/expressjs/persistence/relations/',
+                  label: 'Guia de Referência',
+                  link: '/courses/database/reference/sql-cheat-sheet/',
                 },
               ],
             },

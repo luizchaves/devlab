@@ -1,20 +1,27 @@
 ---
-title: "Banco de Dados: Conceito e Arquitetura"
-description: "Fundamentos de banco de dados, evolução do armazenamento em arquivos para SGBDs, propriedades ACID, modelo relacional versus NoSQL e arquitetura cliente-servidor."
+title: "Banco de Dados: Conceito e SGBDs"
+description: "Fundamentos de banco de dados, evolução do armazenamento em arquivos para SGBDs, arquiteturas cliente-servidor e embutida, propriedades ACID e modelo BASE."
 course: database
 sidebar:
-  label: "Conceito e Arquitetura"
+  label: "Conceito e SGBDs"
 ---
 import { Aside } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
+import SourceCode from '@components/SourceCode.astro';
 
-Este tópico apresenta os conceitos fundamentais de Banco de Dados. Você entenderá por que sistemas modernos abandonaram o armazenamento simples em arquivos de texto ou JSON em favor de Sistemas Gerenciadores de Banco de Dados (SGBD), além de conhecer as propriedades ACID, o modelo relacional e NoSQL.
+Este tópico apresenta os conceitos fundamentais de Banco de Dados. Você entenderá por que sistemas modernos abandonaram o armazenamento simples em arquivos de texto ou JSON em favor de Sistemas Gerenciadores de Banco de Dados (SGBD), além de conhecer as arquiteturas cliente-servidor e embutida, as propriedades ACID e o modelo BASE.
 
 ---
 
 ## Objetivo
 
-Compreender o papel de um Banco de Dados e de um SGBD na arquitetura de software, dominando os conceitos de abstração de dados, integridade, transações ACID e as diferenças fundamentais entre bancos relacionais e Não-Relacionais (NoSQL).
+Compreender o papel do banco de dados e do SGBD na arquitetura de uma aplicação, partindo do problema que eles resolvem (dados em arquivos, sem regras nem concorrência) até as garantias que oferecem, para reconhecer o que se ganha ao delegar a persistência a um sistema dedicado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que a persistência em arquivo falha em integridade e em concorrência.
+- Definir SGBD e situar os níveis de abstração físico, lógico e de visão.
+- Distinguir a arquitetura cliente-servidor da arquitetura embutida e prever o efeito de cada uma na aplicação.
+- Enunciar as propriedades ACID e o modelo BASE, reconhecendo o compromisso entre consistência imediata e consistência eventual.
+- Verificar, executando um script, uma regra que o arquivo não impõe e o banco impõe.
 
 ---
 
@@ -31,13 +38,11 @@ Um **Banco de Dados** é uma coleção organizada de dados inter-relacionados. O
 
 ---
 
-## O que é um SGBD?
+## Como um SGBD Funciona
 
-O SGBD atua como uma camada intermediária entre as aplicações e os arquivos físicos no disco rígido. Ele abstrai a complexidade do armazenamento e oferece uma interface unificada para consulta e manipulação de dados.
+O SGBD atua como uma camada intermediária inteligente entre as aplicações e o armazenamento físico. Ele processa requisições SQL ou NoSQL, gerencia o cache em memória RAM para aceleração de leituras e coordena as gravações em disco:
 
-O diagrama a seguir ilustra a arquitetura típica de interação entre a aplicação, o SGBD e o armazenamento em disco:
-
-<Mermaid title="Arquitetura de interação com SGBD">
+<Mermaid title="Fluxo de requisições e persistência em um SGBD">
 {`
 flowchart TD
     A[Aplicação Client / Web API] -->|Requisição SQL / NoSQL| B[SGBD - Sistema Gerenciador]
@@ -46,21 +51,46 @@ flowchart TD
 `}
 </Mermaid>
 
-### Níveis de Abstração de Dados
-
 Para isolar o usuário final da complexidade interna do hardware, o SGBD divide a visão dos dados em três níveis de abstração:
 
 1. **Nível de Visão (Externo)**: A forma como os usuários ou partes da aplicação enxergam os dados (telas, visões específicas, relatórios).
 2. **Nível Lógico (Conceitual)**: Define quais dados estão armazenados e quais são seus relacionamentos (tabelas, colunas, tipos e restrições).
 3. **Nível Físico (Interno)**: Descreve como os dados são realmente gravados nos blocos do disco (índices, estruturas B-Tree, alocação de arquivos).
 
+### Arquitetura Cliente-Servidor vs Embutido
+
+Os sistemas gerenciadores de banco de dados se estruturam em duas formas principais de execução no ambiente da aplicação:
+
+<Mermaid title="Comparação de arquiteturas de SGBD: Cliente-Servidor vs Embutido">
+{`
+flowchart TD
+    subgraph ClienteServidor ["Cliente-Servidor (PostgreSQL, MySQL, MongoDB)"]
+        C1["Aplicação Web / API"] -->|"Conexão de rede (TCP)"| S1["Servidor SGBD Dedicado<br/>(Processo independente)"]
+        S1 --> D1[(Arquivos de Dados / Storage)]
+    end
+
+    ClienteServidor ~~~ Embutido
+
+    subgraph Embutido ["Embutido / Embedded (SQLite)"]
+        C2["Aplicação Web / API<br/>(Biblioteca SGBD embutida)"] -->|"Acesso direto em memória / I/O"| D2[("Arquivo de Banco (.db)<br/>no disco local")]
+    end
+`}
+</Mermaid>
+
+A diferença entre essas abordagens impacta diretamente a arquitetura e a operação do sistema:
+
+- **Modelo Cliente-Servidor**: O banco roda como um processo de sistema autônomo, escuta em portas de rede TCP específicas (como `5432` no PostgreSQL, `3306` no MySQL e `27017` no MongoDB) e atende dezenas de aplicações concorrentes. Ele gerencia autenticação centralizada, controle de permissões por usuário e pools de conexões simultâneas, exigindo rotinas operacionais de provisionamento, configuração e monitoramento de infraestrutura.
+- **Modelo Embutido (*Embedded*)**: O motor do banco de dados é compilado como uma biblioteca vinculada diretamente ao executável ou runtime da aplicação (como o [SQLite](https://www.sqlite.org/)). Não há processo separado nem escuta em portas de rede: a aplicação lê e grava diretamente em um único arquivo no disco local. Isso proporciona instalação zero e simplicidade extrema, ao custo de não permitir conexões remotas distribuídas e limitar gravações concorrentes via travas no próprio arquivo.
+
 ---
 
 ## Propriedades ACID e Transações
 
-Uma **transação** é uma sequência de uma ou mais operações executadas como um bloco único e indivisível de trabalho. Um caso clássico é a transferência bancária: tirar dinheiro de uma conta e colocar em outra.
+Uma **transação** é uma sequência de uma ou mais operações executadas como um bloco único e indivisível de trabalho. O caso clássico é a transferência bancária: tirar dinheiro de uma conta e colocar em outra exige que ambas as etapas aconteçam juntas.
 
-Para garantir a confiabilidade das transações, os bancos relacionais implementam o acrônimo **ACID**:
+### Modelo ACID (Consistência Forte)
+
+Para garantir confiabilidade absoluta em operações transacionais, os bancos relacionais implementam as propriedades **ACID**:
 
 | Propriedade | Significado | Descrição Didática |
 | :--- | :--- | :--- |
@@ -70,120 +100,176 @@ Para garantir a confiabilidade das transações, os bancos relacionais implement
 | **Durabilidade** | Persistência Permanente | Uma vez que a transação é confirmada (*commit*), os dados ficam gravados de forma permanente, mesmo se houver queda de energia. |
 
 <Aside type="caution" title="Atomicidade na Prática">
-  Sem transações ACID, se o servidor desligar no meio de uma transferência PIX entre o débito na conta A e o crédito na conta B, o dinheiro sumiria do sistema sem rastro.
+  Sem transações ACID, se o servidor desligar no meio de uma transferência bancária entre o débito na conta A e o crédito na conta B, o dinheiro sumiria do sistema sem rastro.
 </Aside>
+
+### Bancos Não-ACID e o Modelo BASE
+
+Nem todos os sistemas exigem ou comportam o rigor das transações ACID tradicionais. Em arquiteturas distribuídas com milhares de servidores espalhados geograficamente, exigir que todos os nós sincronizem travas e confirmem transações no mesmo milissegundo causa alta latência e reduz a disponibilidade geral.
+
+Para atender a cenários de altíssima escala e velocidade de gravação, os bancos NoSQL distribuídos costumam adotar o modelo **BASE**:
+
+- **Basically Available (Basicamente Disponível)**: O sistema prioriza responder a qualquer requisição, mantendo a disponibilidade mesmo em caso de falhas parciais de rede ou queda de nós.
+- **Soft State (Estado Fluido)**: O estado dos dados pode oscilar temporariamente sem novas escritas ativas, enquanto as réplicas em segundo plano recebem as atualizações.
+- **Eventual Consistency (Consistência Eventual)**: O sistema não garante sincronia imediata em todas as réplicas no instante da escrita, mas assegura que, após um intervalo sem novas alterações, todos os nós convergirão para o mesmo dado.
+
+O diagrama abaixo compara a abordagem síncrona com bloqueio do modelo ACID contra a propagação assíncrona do modelo BASE:
+
+<Mermaid title="Comparação de fluxo: Consistência Forte (ACID) vs Consistência Eventual (BASE)">
+{`
+flowchart LR
+    subgraph ACID["Modelo ACID (Consistência Forte e Síncrona)"]
+        direction TB
+        A1["Cliente"] -->|"1. Escrita Transacional"| A2["Nó Primário"]
+        A2 -->|"2. Sincronização e Bloqueio (Locks)"| A3["Réplica Síncrona"]
+        A3 -->|"3. Confirmação (ACK)"| A2
+        A2 -->|"4. Commit ACID Confirmado"| A1
+    end
+
+    subgraph BASE["Modelo BASE (Consistência Eventual e Assíncrona)"]
+        direction TB
+        B1["Cliente"] -->|"1. Escrita Rápida"| B2["Nó Receptor"]
+        B2 -->|"2. ACK Imediato (Baixa Latência)"| B1
+        B2 -.->|"3. Propagação em Segundo Plano (Gossip / Filas)"| B3["Nós Distribuídos"]
+    end
+`}
+</Mermaid>
+
+A tabela abaixo sintetiza os compromissos de engenharia entre os dois modelos de consistência:
+
+| Dimensão | Modelo ACID (Consistência Forte) | Modelo BASE (Consistência Eventual) |
+| :--- | :--- | :--- |
+| **Garantia Central** | Integridade absoluta e dados 100% atualizados a cada leitura. | Alta disponibilidade e escrita de baixíssima latência. |
+| **Ponto Fraco** | Bloqueios de concorrência e gargalo de escrita em nó único. | Dados desatualizados por milissegundos (*stale reads*). |
+| **Cenário Ideal** | Finanças, faturamento, transferências, reservas e contabilidade. | Feeds de redes sociais, logs de telemetria, carrinhos e contadores. |
+| **Bancos Típicos** | [PostgreSQL](https://www.postgresql.org/), [MySQL](https://www.mysql.com/), [Oracle](https://www.oracle.com/database/), [SQLite](https://www.sqlite.org/). | [Cassandra](https://cassandra.apache.org/), [DynamoDB](https://aws.amazon.com/dynamodb/), [MongoDB](https://www.mongodb.com/) (em cluster distribuído). |
 
 ---
 
-## Modelo Relacional vs NoSQL
+### Teorema CAP: Consistência vs Disponibilidade
 
-Existem dois grandes paradigmas para gerenciamento de dados na computação moderna:
+Em sistemas distribuídos com múltiplos servidores, o **Teorema CAP** (formulado por Eric Brewer) estabelece que, durante uma **partição de rede** ($P$) onde nós perdem a comunicação temporariamente, o sistema é obrigado a escolher entre duas garantias exclusivas:
 
-### Banco de Dados Relacional (RDBMS)
+1. **Consistência ($C$ - CP)**: Todos os nós respondem os dados mais recentes de forma síncrona. Se uma réplica não puder garantir a informação atualizada durante a falha de rede, ela recusa a requisição com erro para não entregar dados incorretos (como MongoDB em cluster com maioria e HBase).
+2. **Disponibilidade ($A$ - AP)**: Todos os nós continuam respondendo a leituras e escritas sem travar, aceitando que réplicas isoladas devolvam dados temporariamente divergentes que serão reconciliados mais tarde por consistência eventual (como Apache Cassandra e DynamoDB).
 
-Criado por Edgar F. Codd na década de 1970, organiza os dados em **tabelas** (relações) compostas por **linhas** (tuplas) e **colunas** (atributos). Utiliza a linguagem SQL como padrão de consulta.
+A tabela abaixo sintetiza o comportamento sob partição:
 
-- **Esquema Rígido (*Schema-first*)**: A estrutura das tabelas precisa ser definida antes da inserção dos dados.
-- **Foco**: Integridade relacional, consistência forte e suporte nativo a ACID.
-- **Exemplos**: PostgreSQL, MySQL, SQLite, Oracle, SQL Server.
+| Escolha no CAP | Comportamento Durante Partição de Rede | Exemplos Típicos |
+| :--- | :--- | :--- |
+| **Consistência (CP)** | Recusa leituras ou escritas que não possa garantir 100% corretas. | MongoDB (com *majority write*), HBase, CockroachDB. |
+| **Disponibilidade (AP)** | Responde sempre a qualquer nó ativo, reconciliando os dados depois. | Cassandra, DynamoDB, CouchDB. |
 
-### Banco de Dados Não-Relacional (NoSQL)
-
-Surgiu para atender demandas de escalabilidade horizontal, grande volume de dados não estruturados e esquema flexível.
-
-- **Esquema Dinâmico (*Schema-less*)**: Documentos ou registros podem ter estruturas diferentes na mesma coleção.
-- **Foco**: Alta velocidade de escrita, escalabilidade em cluster e flexibilidade de modelo.
-- **Tipos principais**:
-  - **Documentos**: JSON/BSON (ex: MongoDB).
-  - **Chave-Valor**: Armazenamento ultra-rápido em memória (ex: Redis).
-  - **Colunas Largas**: Consultas de grande escala (ex: Cassandra).
-  - **Grafos**: Redes de relacionamentos complexos (ex: Neo4j).
+Duas ressalvas práticas contextualizam o teorema:
+- O dilema do CAP só se manifesta durante **partições de rede** ($P$), que são eventos anômalos em infraestrutura. Fora de partições, sistemas AP também operam com alta consistência.
+- Uma aplicação executando sobre um **único servidor de banco de dados** não está sujeita às restrições do CAP (pois não há partição de rede possível entre nós), regendo-se integralmente pelas propriedades ACID locais do motor.
 
 ---
 
 ## Executando
 
-Para visualizar a diferença entre uma persistência simples em arquivo e o uso de um banco relacional, veja o script em Node.js a seguir:
+O script do projeto `invest-db` demonstra na prática por que um arquivo em disco não impõe regras de integridade que um SGBD garante por padrão. Ele grava dois usuários com o mesmo e-mail em um arquivo JSON e repete a mesma inserção no SQLite, que recusa o registro duplicado por meio de uma restrição `UNIQUE`:
 
-```js title="exemplo-persistencia.js"
-// Em arquivos de texto simples (sem SGBD):
-const fs = require('fs');
+<SourceCode
+  path="examples/courses/database/invest-db/file-vs-sqlite.mjs"
+/>
 
-// Escrita manual sem garantia de concorrência ou integridade
-const usuario = { id: 1, nome: "Ana", email: "ana@email.com" };
-fs.writeFileSync('usuarios.json', JSON.stringify(usuario));
+Para executar o script, execute o comando abaixo a partir da raiz do repositório:
 
-console.log("Dado gravado em arquivo direto no SO!");
+```bash
+node examples/courses/database/invest-db/file-vs-sqlite.mjs
 ```
 
-Execute o arquivo no terminal para confirmar a geração:
+A saída no terminal confirma o comportamento:
 
-```bash title="Terminal"
-node exemplo-persistencia.js
+```text
+arquivo: [
+  { id: 1, name: 'Ana', email: 'ana@example.com' },
+  { id: 2, name: 'Ana de novo', email: 'ana@example.com' }
+]
+sqlite recusou: UNIQUE constraint failed: User.email
+sqlite: [ { id: 1, name: 'Ana', email: 'ana@example.com' } ]
 ```
 
-```txt title="Output" frame="terminal"
-Dado gravado em arquivo direto no SO!
-```
+O arquivo aceitou os dois registros porque um sistema de arquivos apenas armazena bytes, sem conhecer o significado dos dados. O SGBD barrou a gravação duplicada antes que ela atingisse a tabela, garantindo a unicidade e a integridade do modelo.
 
 ---
 
 ## Exercício
 
-Imagine um e-commerce com clientes, pedidos e produtos.
+Responda com base nas seções conceituais e no script executável:
 
-1. Identifique duas falhas que poderiam ocorrer se os pedidos fossem gravados em um arquivo `.txt` compartilhado.
-2. Explique como a propriedade de **Atomicidade** garante a segurança no fechamento de um carrinho de compras com 3 itens.
+1. Por que um arquivo JSON não é suficiente para controlar a concorrência de dois usuários transferindo saldo simultaneamente?
+2. Em qual nível de abstração (Visão, Lógico ou Físico) atua um desenvolvedor ao criar uma tabela com tipos de dados e chaves estrangeiras?
+3. Uma API Express roda em três instâncias atrás de um balanceador. Por que o SQLite não serve como banco dela, mesmo com o arquivo em um disco compartilhado?
+4. Qual propriedade do modelo ACID garante que o banco desfaça todas as alterações de uma transação bancária caso o servidor desligue antes do final?
+5. Em que cenário de negócio uma aplicação deve preferir o modelo BASE em vez do modelo ACID?
 
 <details>
   <summary>Possível resposta</summary>
 
-  1. **Falhas no arquivo .txt**: 
-     - Duas compras simultâneas poderiam sobrescrever o arquivo ao mesmo tempo, corrompendo os pedidos (*race condition*).
-     - Não haveria validação se o `cliente_id` informado realmente existe no sistema.
+  1. Porque o arquivo não possui controle de travas por registro (*row-level locks*) nem transações atômicas; duas escritas simultâneas sobrescreverão os dados uma da outra, gerando perda ou corrupção de saldo.
+  2. No **Nível Lógico (Conceitual)**, que define as entidades, atributos, tipos e restrições de integridade do esquema.
+  3. Porque o SQLite é embutido: cada instância abriria o arquivo diretamente, e o bloqueio de escrita do arquivo em disco compartilhado não é confiável entre máquinas de rede. Um servidor SGBD existe exatamente para coordenar várias aplicações gravando ao mesmo tempo.
+  4. A **Atomicidade** (Tudo ou Nada), que executa o *rollback* automático de transações incompletas.
+  5. Em cenários de altíssimo volume de escrita e distribuição global (como contadores de curtidas, registros de clique ou feeds de redes sociais), onde a disponibilidade contínua e a baixa latência importam mais do que a consistência imediata de cada milissegundo.
+</details>
 
-  2. **Atomicidade no carrinho**:
-     - O fechamento do carrinho exige: debitar o estoque dos 3 itens, gerar a cobrança e registrar o pedido. Se o estoque de um dos itens falhar, a atomicidade garante um *rollback* completo, sem cobrar o cliente nem deixar o pedido incompleto.
+---
+
+## Desafio
+
+Imagine um sistema de reservas de passagens aéreas onde dois passageiros tentam selecionar o último assento disponível no mesmo milissegundo:
+
+1. Descreva o que aconteceria se esse sistema fosse implementado gravando diretamente em um arquivo `assentos.json`.
+2. Explique como o **Isolamento** e a **Atomicidade** do modelo ACID evitam a venda duplicada (*overbooking* indevido) no banco de dados.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Com arquivo JSON, ambas as requisições leriam `status: "livre"`, processariam o pagamento e salvariam o arquivo. A última requisição sobrescreveria a primeira no disco, confirmando a compra para dois passageiros para a mesma poltrona física.
+  2. Com transações ACID e isolamento adequado (via `SELECT ... FOR UPDATE` ou nível de isolamento serializável), a primeira transação adquire uma trava exclusiva sobre o registro do assento. A segunda transação é forçada a aguardar a conclusão da primeira; quando a trava é liberada, a segunda transação lê o assento já atualizado como `"ocupado"` e a operação é rejeitada com segurança.
 </details>
 
 ---
 
 ## Perguntas de revisão
 
-1. **O que é um Sistema Gerenciador de Banco de Dados (SGBD)?**
-   <details><summary>Possível resposta</summary>É o software responsável por criar, manipular, consultar e administrar bancos de dados, oferecendo segurança, concorrência e abstração de hardware.</details>
+### SGBD e Abstração
 
-2. **Quais são os 3 níveis de abstração de dados em um SGBD?**
-   <details><summary>Possível resposta</summary>Nível de Visão (Externo), Nível Lógico (Conceitual) e Nível Físico (Interno).</details>
+1. **O que diferencia a persistência em banco de dados da persistência direta em arquivos?**
+   <details><summary>Possível resposta</summary>O SGBD impõe integridade referencial, tipos de dados, controle de concorrência com travas por linha, índices de alta velocidade e recuperação contra falhas com durabilidade.</details>
 
-3. **O que significa a sigla ACID?**
-   <details><summary>Possível resposta</summary>Atomicidade, Consistência, Isolamento e Durabilidade.</details>
+2. **Quais são os três níveis de abstração de dados em um SGBD?**
+   <details><summary>Possível resposta</summary>Nível de Visão (como usuários enxergam partes dos dados), Nível Lógico (esquema com tabelas, colunas e tipos) e Nível Físico (estruturas de arquivos e índices gravados em disco).</details>
 
-4. **Qual a diferença entre um esquema rígido (*schema-first*) e um esquema flexível (*schema-less*)?**
-   <details><summary>Possível resposta</summary>No esquema rígido (relacional), a estrutura de tabelas e colunas deve ser criada antes dos dados. No esquema flexível (NoSQL), os documentos podem ter atributos variados sem pré-definição fixa.</details>
+3. **Qual a diferença fundamental entre a arquitetura de servidor do PostgreSQL e a arquitetura embutida do SQLite?**
+   <details><summary>Possível resposta</summary>O PostgreSQL roda como um processo servidor autônomo que atende múltiplas aplicações via rede TCP (porta 5432). O SQLite é uma biblioteca embutida no próprio executável da aplicação, gravando diretamente em um arquivo local sem processos independentes ou portas de rede.</details>
 
-5. **O que é o fenômeno de *rollback* em uma transação?**
-   <details><summary>Possível resposta</summary>É o ato de desfazer todas as alterações de uma transação quando ocorre um erro em qualquer uma das suas etapas, restaurando o banco ao estado inicial.</details>
+### Transações e Modelos de Consistência
 
-6. **Dê dois exemplos de bancos de dados relacionais e dois de bancos NoSQL.**
-   <details><summary>Possível resposta</summary>Relacionais: PostgreSQL, MySQL. NoSQL: MongoDB, Redis.</details>
+4. **O que significa a sigla ACID e por que ela é vital para sistemas financeiros?**
+   <details><summary>Possível resposta</summary>Atomicidade, Consistência, Isolamento e Durabilidade. É vital para impedir perdas financeiras, vendas duplicadas ou dados inconsistentes durante falhas do sistema.</details>
 
-7. **Por que arquivos JSON em disco não são recomendados para sistemas concorrentes?**
-   <details><summary>Possível resposta</summary>Porque não possuem controle de acesso concorrente (trava de linha/tabela) nem suporte nativo a transações e integridade relacional.</details>
+5. **O que é Consistência Eventual no modelo BASE?**
+   <details><summary>Possível resposta</summary>É o modelo onde réplicas distribuídas podem apresentar dados ligeiramente defasados logo após a escrita, mas convergem para o mesmo estado exato após um breve intervalo sem novas atualizações.</details>
 
-8. **O que garante a propriedade de Durabilidade em um SGBD?**
-   <details><summary>Possível resposta</summary>Garante que, uma vez confirmado o *commit*, as alterações são salvas permanentemente em meio não-volátil (disco), resistindo a falhas de energia.</details>
+6. **Qual o principal trade-off ao escolher entre consistência forte (ACID) e consistência eventual (BASE)?**
+   <details><summary>Possível resposta</summary>A consistência forte garante exatidão imediata ao custo de maior latência e limites de escala horizontal de escrita. A consistência eventual maximiza disponibilidade e throughput de escrita ao custo de tolerar leituras temporariamente desatualizadas.</details>
 
 ---
 
 ## Referências
 
+- [SQLite Documentation](https://www.sqlite.org/docs.html)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/current/)
+- [MySQL 8.4 Reference Manual](https://dev.mysql.com/doc/refman/8.4/en/)
+- [MongoDB Manual](https://www.mongodb.com/docs/manual/)
 - [Understanding Database Types | ByteByteGo](https://blog.bytebytego.com/p/understanding-database-types)
-- [DB-Engines Ranking](https://db-engines.com/en/ranking)
 - [ACID Properties Explained | GeeksforGeeks](https://www.geeksforgeeks.org/acid-properties-in-dbms/)
 
 ---
 
 ## Próximo tópico
 
-[SGBDs e Administração](../dbms/): Instalação, gerenciamento e operação de MySQL, PostgreSQL, SQLite e MongoDB com Docker.
+[Paradigmas](../paradigms/): Comparação entre modelos relacional, documentos, chave-valor, colunar e grafos, e o Teorema CAP.

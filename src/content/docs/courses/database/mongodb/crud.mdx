@@ -1,0 +1,244 @@
+---
+title: "Banco de Dados: MongoDB, CRUD e Agregação"
+description: "Operações sobre documentos no MongoDB com o mongosh: insertMany, find com filtro e projeção, operadores $gt e $set, updateOne, deleteOne, countDocuments e o pipeline de agregação com $group e $sort no lugar do GROUP BY."
+course: database
+sidebar:
+  label: "CRUD e agregação"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import SourceCode from '@components/SourceCode.astro';
+
+Este tópico percorre as quatro operações sobre documentos e o pipeline de agregação, no mesmo domínio de investimentos das seções de PostgreSQL e MySQL, para que a comparação com o SQL seja direta. O arquivo `invest.mongodb.js` do projeto foi executado contra o servidor da página anterior, e as saídas são as que o `mongosh` imprimiu.
+
+## Objetivo
+
+Dominar a linguagem de consulta do MongoDB o suficiente para implementar um módulo de acesso a dados, reconhecendo em cada operação o equivalente SQL e o que não tem equivalente. Ao final do tópico, o leitor deve ser capaz de:
+
+- Inserir documentos com campos diferentes na mesma coleção e ler o resultado da operação.
+- Consultar com filtro e projeção, usando operadores de comparação.
+- Atualizar campos com `$set` sem substituir o documento inteiro.
+- Apagar e contar documentos.
+- Agrupar e somar com o pipeline de agregação, e ordenar o resultado.
+
+---
+
+## Inserir
+
+Não há `CREATE TABLE`. A coleção `investments` passa a existir na primeira inserção, e o `insertMany` da linha 12 recebe um array de documentos que não precisam ter os mesmos campos: dois têm `broker`, o terceiro tem `fgc`:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/invest.mongodb.js" region="insert" mark={[12]} />
+
+A resposta traz o `_id` gerado para cada documento, um `ObjectId` de 12 bytes que embute o instante da criação:
+
+```txt title="Output"
+{
+  acknowledged: true,
+  insertedIds: {
+    '0': ObjectId('6aa3667d9a0f9c4dd5d55d43'),
+    '1': ObjectId('6aa3667d9a0f9c4dd5d55d44'),
+    '2': ObjectId('6aa3667d9a0f9c4dd5d55d45')
+  }
+}
+```
+
+O `acknowledged: true` é a confirmação de que o servidor recebeu e aplicou a escrita; em um conjunto de réplicas, o nível dessa confirmação (`writeConcern`) é configurável, e é uma das decisões de durabilidade que o relacional não pede.
+
+---
+
+## Consultar
+
+O `find` recebe dois objetos: o filtro, que escolhe documentos, e a projeção, que escolhe campos. A linha 21 filtra por igualdade e devolve só `name` e `value`; o `_id: 0` é necessário porque o `_id` vem por padrão:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/invest.mongodb.js" region="find" mark={[21, 24]} />
+
+```txt title="Output"
+[
+  { name: 'Tesouro Selic 2029', value: 10000 },
+  { name: 'Tesouro IPCA 2029', value: 25000.5 }
+]
+[ { name: 'Tesouro Selic 2029' }, { name: 'Tesouro IPCA 2029' } ]
+```
+
+A linha 24 usa um operador de comparação. Os operadores ficam dentro do filtro, como um objeto no valor do campo, e os mais usados mapeiam diretamente para o SQL:
+
+| SQL | Operador | Exemplo |
+| --- | --- | --- |
+| `=` | (igualdade direta) | `{ category: 'Pós' }` |
+| `>`, `>=`, `<`, `<=` | `$gt`, `$gte`, `$lt`, `$lte` | `{ value: { $gt: 8000 } }` |
+| `<>` | `$ne` | `{ category: { $ne: 'Pré' } }` |
+| `IN (...)` | `$in` | `{ category: { $in: ['Pré', 'Pós'] } }` |
+| `AND` | (campos no mesmo objeto) | `{ category: 'Pós', value: { $gt: 8000 } }` |
+| `OR` | `$or` | `{ $or: [{ fgc: true }, { value: { $gt: 20000 } }] }` |
+| `IS NULL` / campo ausente | `$exists` | `{ broker: { $exists: false } }` |
+| `LIKE` | `$regex` | `{ name: { $regex: /^Tesouro/ } }` |
+
+O `$exists` é o operador sem equivalente exato: em uma coleção sem esquema, "não tem o campo" e "tem o campo com `null`" são situações distintas, e a consulta precisa dizer qual quer.
+
+---
+
+## Atualizar
+
+O `updateOne` recebe o filtro e um documento de **operadores de atualização**. O `$set` da linha 28 altera só o campo informado e preserva os demais; sem um operador, o MongoDB moderno recusa a atualização, justamente para evitar a substituição acidental do documento inteiro:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/invest.mongodb.js" region="update" mark={[28]} />
+
+```txt title="Output"
+{
+  acknowledged: true,
+  insertedId: null,
+  matchedCount: 1,
+  modifiedCount: 1,
+  upsertedCount: 0
+}
+{ name: 'CDB Banco X', value: 5500, category: 'Pré', fgc: true }
+```
+
+O par `matchedCount` e `modifiedCount` é mais informativo do que o "1 linha afetada" do SQL: um documento pode casar com o filtro e não ser modificado, se o `$set` repetir o valor atual. O `findOne` em seguida confirma que `fgc` sobreviveu à atualização.
+
+<Aside type="caution" title="Dica de IA: Confira se a atualização usa `$set`">
+  Assistentes ainda escrevem `updateOne({ name: 'CDB' }, { value: 5500 })` a partir de exemplos antigos. Em versões atuais isso lança erro; em drivers antigos, substituía o documento inteiro por `{ value: 5500 }`, apagando os outros campos sem aviso. A regra: todo documento de atualização começa com um operador.
+
+  **Prompt:** *"Revise estas chamadas de `updateOne` e `updateMany` e aponte as que não usam operador (`$set`, `$inc`, `$push`); para cada uma, mostre o documento antes e depois se ela fosse executada como substituição."*
+</Aside>
+
+---
+
+## Agregar
+
+O pipeline de agregação é o `GROUP BY` do MongoDB, e é mais do que isso: uma sequência de estágios pelos quais os documentos passam. A linha 36 agrupa por categoria, somando o valor e contando documentos, e a linha 37 ordena o resultado pela chave do grupo:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/invest.mongodb.js" region="aggregate" mark={[36, 37]} />
+
+```txt title="Output"
+[
+  { _id: 'Pré', total: 5500, count: 1 },
+  { _id: 'Pós', total: 35000.5, count: 2 }
+]
+```
+
+O `_id` do resultado é a chave de agrupamento, e `'$category'` com cifrão é a referência ao campo do documento. Os estágios mais usados, e o que cada um corresponde no SQL:
+
+| Estágio | Papel | Equivalente SQL |
+| --- | --- | --- |
+| `$match` | Filtra documentos antes de agrupar | `WHERE` |
+| `$group` | Agrupa e aplica `$sum`, `$avg`, `$max`, `$min`, `$count` | `GROUP BY` com agregações |
+| `$sort` | Ordena | `ORDER BY` |
+| `$project` | Escolhe e calcula campos | Lista do `SELECT` |
+| `$limit`, `$skip` | Pagina | `LIMIT`, `OFFSET` |
+| `$lookup` | Junta com outra coleção | `LEFT JOIN`, com custo maior |
+| `$unwind` | Desdobra um array em um documento por item | Sem equivalente direto |
+
+Um `$match` depois do `$group` é o `HAVING`: filtra os grupos pelos valores agregados. A ordem dos estágios é a ordem de execução, e colocar o `$match` antes do `$group` é a otimização mais simples e mais eficaz de um pipeline.
+
+---
+
+## Apagar e Contar
+
+O `deleteOne` recebe o filtro e remove o primeiro documento que casar; `deleteMany` remove todos. O `countDocuments` sem filtro conta a coleção:
+
+<SourceCode path="examples/courses/database/servers/mongo-server/invest.mongodb.js" region="delete" />
+
+```txt title="Output"
+{ acknowledged: true, deletedCount: 1 }
+2
+```
+
+Como no SQL, o filtro vazio é a armadilha: `deleteMany({})` apaga a coleção inteira, e não há confirmação.
+
+---
+
+## Executando
+
+O arquivo pode ser executado de uma vez, ou colado instrução a instrução no shell interativo:
+
+<Steps>
+1. Execute o arquivo inteiro e compare com as saídas desta página; o `mongosh` imprime o prompt e o resultado de cada linha:
+
+   ```bash title="Terminal"
+   docker exec -i mongo mongosh -u root -p secret --quiet < invest.mongodb.js
+   ```
+2. Execute de novo. O `insertMany` cria três documentos a mais, porque não há `UNIQUE` em `name`; crie um índice único e execute uma terceira vez:
+
+   ```bash title="Terminal"
+   docker exec mongo mongosh -u root -p secret --quiet --eval "use('invest'); db.investments.createIndex({ name: 1 }, { unique: true })"
+   ```
+3. Acrescente um `$match: { category: 'Pós' }` antes do `$group` no pipeline e observe o resultado com um grupo só.
+</Steps>
+
+---
+
+## Exercício
+
+Responda com base nas operações e nas saídas desta página:
+
+1. Por que a projeção precisa de `_id: 0` para o `_id` não aparecer, se os outros campos precisam de `1` para aparecer?
+2. O que distingue `matchedCount` de `modifiedCount`, e quando eles diferem?
+3. Onde entra o `HAVING` em um pipeline de agregação?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a projeção é, por padrão, uma lista de inclusão (os campos com `1`), e o `_id` é a exceção incluída sempre. Excluí-lo exige o `0` explícito; misturar `0` e `1` para outros campos não é permitido.
+
+  2. `matchedCount` conta os documentos que casaram com o filtro; `modifiedCount` conta os que de fato mudaram. Diferem quando o `$set` atribui o valor que o documento já tinha.
+
+  3. Como um `$match` colocado depois do `$group`, filtrando pelos campos agregados (`total`, `count`) que o `$group` produziu.
+</details>
+
+---
+
+## Desafio
+
+Cada investimento vai ganhar um histórico de cotações. Modele-o como uma coleção `quotes` com `investmentId`, `date` e `price`, insira três cotações para dois investimentos e escreva o pipeline que devolve, para cada investimento, o nome e a última cotação.
+
+O pipeline precisa de `$lookup`, `$sort` dentro do `$lookup` (ou `$unwind` seguido de `$group` com `$last`) e `$project`. Com ele funcionando, responda: quantas leituras esse pipeline faz em uma coleção com dez mil investimentos, e o que a modelagem por incorporação (`lastQuote` dentro do investimento) mudaria?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma forma é `$lookup` com pipeline interno (`from: 'quotes'`, `let: { id: '$_id' }`, `pipeline: [{ $match: { $expr: { $eq: ['$investmentId', '$$id'] } } }, { $sort: { date: -1 } }, { $limit: 1 }]`, `as: 'last'`), seguido de `$unwind: '$last'` e `$project: { name: 1, lastPrice: '$last.price' }`. Ele devolve uma linha por investimento com a última cotação.
+
+  Com dez mil investimentos, o `$lookup` executa dez mil subconsultas em `quotes`, cada uma ordenando as cotações do investimento: sem índice em `{ investimentId: 1, date: -1 }`, é o pior caso possível. Com `lastQuote` incorporado no documento do investimento e atualizado a cada cotação nova, a mesma tela é um `find` com projeção, uma leitura por documento. É a troca central do modelo de documentos: escrever em dois lugares para ler em um, decidida pela tela mais frequente.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Escrita
+
+1. **O que `insertMany` devolve, e o que é o `ObjectId`?**
+   <details><summary>Possível resposta</summary>A confirmação da escrita e o `_id` de cada documento inserido. O `ObjectId` é um identificador de 12 bytes gerado pelo cliente ou pelo servidor, que embute o instante de criação.</details>
+
+2. **Por que `updateOne` exige um operador como `$set`?**
+   <details><summary>Possível resposta</summary>Para impedir a substituição acidental do documento inteiro. Sem operador, o documento passado seria o novo conteúdo completo, apagando os demais campos.</details>
+
+3. **Qual é a diferença entre `deleteOne` e `deleteMany`, e qual é o risco do filtro vazio?**
+   <details><summary>Possível resposta</summary>`deleteOne` remove o primeiro documento que casa; `deleteMany` remove todos. Com filtro `{}`, o `deleteMany` apaga a coleção inteira sem confirmação.</details>
+
+### Leitura e agregação
+
+4. **Como consultar documentos que não têm um campo?**
+   <details><summary>Possível resposta</summary>Com `{ campo: { $exists: false } }`, que distingue campo ausente de campo com valor `null`.</details>
+
+5. **O que `'$category'` significa dentro de um `$group`?**
+   <details><summary>Possível resposta</summary>Uma referência ao campo `category` do documento de entrada; sem o cifrão, seria a string literal.</details>
+
+6. **Qual é a otimização mais simples de um pipeline?**
+   <details><summary>Possível resposta</summary>Colocar o `$match` o mais cedo possível, antes do `$group`, para reduzir os documentos que os estágios seguintes processam.</details>
+
+---
+
+## Referências
+
+- [MongoDB: CRUD Operations](https://www.mongodb.com/docs/manual/crud/)
+- [MongoDB: Query and Projection Operators](https://www.mongodb.com/docs/manual/reference/operator/query/)
+- [MongoDB: Update Operators](https://www.mongodb.com/docs/manual/reference/operator/update/)
+- [MongoDB: Aggregation Stages](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline/)
+- [MongoDB: SQL to MongoDB Mapping Chart](https://www.mongodb.com/docs/manual/reference/sql-comparison/)
+
+---
+
+## Próximo tópico
+
+[Cheat Sheet de SQL](../../reference/sql-cheat-sheet/): A referência rápida do guia, com o SQL das quatro trilhas e as diferenças entre motores lado a lado.
