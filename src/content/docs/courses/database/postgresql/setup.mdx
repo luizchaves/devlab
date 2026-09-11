@@ -1,6 +1,6 @@
 ---
 title: "Banco de Dados: PostgreSQL, Instalação e Cliente"
-description: "Instalação do PostgreSQL com Docker Compose, cliente psql, criação de banco e tabela com GENERATED AS IDENTITY, NUMERIC, TIMESTAMPTZ e JSONB, consultas, comandos de barra invertida e Adminer no navegador."
+description: "Instalação do PostgreSQL com Docker Compose, cliente psql e utilitários de linha de comando, clientes gráficos (Adminer, pgAdmin via dpage/pgadmin4, DBeaver, extensões do VS Code), criação de banco e tabela com GENERATED AS IDENTITY, NUMERIC, TIMESTAMPTZ e JSONB."
 course: database
 sidebar:
   label: "Instalação e cliente"
@@ -14,11 +14,12 @@ Este tópico sobe um servidor PostgreSQL com Docker Compose, conecta pelo client
 
 Colocar um servidor PostgreSQL no ar em ambiente de desenvolvimento e operar o cliente de terminal o suficiente para criar bancos, tabelas e consultar dados sem depender de interface gráfica. Ao final do tópico, o leitor deve ser capaz de:
 
-- Subir o servidor e o Adminer com o `docker-compose.yml` do projeto e as variáveis de ambiente.
+- Subir o servidor e o Adminer com o `docker-compose.yml` do projeto, e o pgAdmin pelo perfil opcional.
 - Conectar com `psql` de dentro do contêiner e navegar entre bancos com os comandos de barra invertida.
 - Criar um banco e uma tabela com identidade, `NUMERIC`, `TIMESTAMPTZ` e `JSONB`.
 - Executar um arquivo `.sql` contra o servidor e ler a saída do `psql`.
 - Consultar um campo `JSONB` com os operadores `->>` e `@>`.
+- Escolher entre `psql`, Adminer, pgAdmin, DBeaver e as extensões do VS Code conforme a tarefa.
 
 ---
 
@@ -75,6 +76,9 @@ Os comandos de barra invertida são o equivalente dos comandos de ponto do SQLit
 | `\c <banco>` | Conecta ao banco informado. |
 | `\dt` | Lista as tabelas do esquema atual. |
 | `\d <tabela>` | Mostra colunas, tipos, padrões, índices e restrições da tabela. |
+| `\d+ <tabela>` | O mesmo, com tamanho, descrição e detalhes de armazenamento. |
+| `\dn` | Lista os esquemas do banco. |
+| `\df` | Lista as funções definidas no banco. |
 | `\du` | Lista os papéis (usuários) do servidor. |
 | `\i arquivo.sql` | Executa um arquivo SQL. |
 | `\x` | Alterna a saída expandida, útil para linhas largas. |
@@ -93,6 +97,63 @@ postgres=# \l
            |          |          |                 |            |            |            |           | postgres=CTc/postgres
 (3 rows)
 ```
+
+O `psql` é um entre vários programas que a instalação do PostgreSQL traz, todos disponíveis dentro do contêiner. Os que aparecem no dia a dia de um projeto são poucos:
+
+| Utilitário | O que faz | Onde aparece no guia |
+| --- | --- | --- |
+| `psql` | Terminal interativo e executor de arquivos SQL | Esta página |
+| `createdb`, `dropdb` | Criam e removem um banco sem abrir o `psql` (`createdb -U postgres invest`) | Alternativa ao `CREATE DATABASE` abaixo |
+| `createuser`, `dropuser` | Criam e removem papéis pela linha de comando | [Administração](../administration/) |
+| `pg_isready` | Testa se o servidor aceita conexões; útil em scripts e *health checks* | Docker e CI |
+| `pg_dump`, `pg_dumpall` | Backup lógico de um banco ou do servidor inteiro | [Administração](../administration/) |
+| `pg_restore` | Restaura um backup nos formatos comprimido e tar | [Administração](../administration/) |
+| `vacuumdb`, `reindexdb` | Limpeza de versões antigas e reconstrução de índices, pela linha de comando | Manutenção |
+| `pgbench` | Carga sintética para medir o servidor | [Desempenho](../../sql/performance/) |
+
+---
+
+## Clientes Gráficos e de Editor
+
+O `psql` resolve tudo, e nem sempre é a forma mais rápida de olhar um banco. Três famílias de cliente complementam o terminal, e o projeto já traz duas delas como serviço do Compose:
+
+| Cliente | Tipo | Como obter | Quando preferir |
+| --- | --- | --- | --- |
+| [Adminer](https://www.adminer.org/) | Web, um arquivo PHP | Serviço `adminer` do Compose, porta 8080 | Inspeção rápida de qualquer motor, sem instalar nada |
+| [pgAdmin](https://www.pgadmin.org/) | Web, específico do PostgreSQL | Imagem [`dpage/pgadmin4`](https://hub.docker.com/r/dpage/pgadmin4/), serviço `pgadmin` do Compose, porta 5050 | Administração completa: papéis, `EXPLAIN` visual, backup pela interface |
+| [DBeaver](https://dbeaver.io/) | Aplicação de área de trabalho, multiplataforma | Instalador para macOS, Windows e Linux | Vários motores na mesma ferramenta, com diagrama ER a partir do esquema |
+| [SQLTools](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools) + [driver PostgreSQL](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools-driver-pg) | Extensão do VS Code | Instalar as duas extensões | Consultar sem sair do editor, com os `.sql` do projeto abertos ao lado |
+| [PostgreSQL](https://marketplace.visualstudio.com/items?itemName=ckolkman.vscode-postgres) | Extensão do VS Code | Instalar a extensão | Navegar por bancos e tabelas na barra lateral do editor |
+
+O pgAdmin fica em um **perfil** do Compose, o que significa que ele não sobe com o `docker compose up` comum: as linhas 33 e 34 o reservam para quem pedir. A porta 5050 da linha 41 evita conflito com o Adminer, e as credenciais de login (linhas 36 e 37) vêm do mesmo `.env`:
+
+<SourceCode path="examples/courses/database/servers/postgres-server/docker-compose.yml" lines="28-43" mark={[33, 34, 41]} />
+
+```ini title=".env.example"
+POSTGRES_PASSWORD=secret
+
+PGADMIN_EMAIL=user@email.com
+PGADMIN_PASSWORD=secret
+```
+
+O comando que sobe o servidor, o Adminer e o pgAdmin de uma vez é o `up` com o perfil:
+
+```bash title="Terminal"
+docker compose --profile pgadmin up -d
+docker compose --profile pgadmin ps --format '{{.Name}} {{.Status}} {{.Ports}}'
+```
+
+```txt title="Output"
+pgadmin Up 20 seconds 0.0.0.0:5050->80/tcp
+postgres Up 20 seconds 0.0.0.0:5432->5432/tcp
+postgres-server-adminer-1 Up 20 seconds 0.0.0.0:8080->8080/tcp
+```
+
+No pgAdmin, em `http://localhost:5050`, o login é o e-mail e a senha do `.env`; depois, em *Add New Server*, o endereço do banco é `postgres` (o nome do serviço na rede do Compose), porta `5432`, usuário `postgres` e a senha do `.env`. É o mesmo detalhe dos clientes de área de trabalho e do editor, que rodam fora do Docker e conectam a `localhost:5432`, a porta publicada: dentro da rede o servidor se chama `postgres`; fora dela, `localhost`.
+
+<Aside type="tip" title="Cliente gráfico não substitui o SQL">
+As ferramentas acima geram o SQL a partir de cliques, e vale olhar o que elas geram: o pgAdmin mostra o comando de cada ação e o DBeaver tem um painel de SQL gerado. É a forma mais rápida de aprender a sintaxe que o guia não cobre, e de perceber quando a interface está prestes a executar algo que não se quer, como um `DROP` em cascata.
+</Aside>
 
 ---
 
@@ -274,6 +335,9 @@ Crie as três versões no banco, com os mesmos dados, e compare a consulta de to
 - [PostgreSQL: CREATE TABLE](https://www.postgresql.org/docs/current/sql-createtable.html)
 - [PostgreSQL: JSON Functions and Operators](https://www.postgresql.org/docs/current/functions-json.html)
 - [Adminer](https://www.adminer.org/)
+- [pgAdmin: Container Deployment](https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html)
+- [Docker Compose: Profiles](https://docs.docker.com/compose/how-tos/profiles/)
+- [PostgreSQL: Client Applications](https://www.postgresql.org/docs/current/reference-client.html)
 
 ---
 
