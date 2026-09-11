@@ -8,15 +8,16 @@ CREATE TABLE Professor (
 );
 -- #endregion professor
 
--- #region gabinete
--- Entidade Gabinete (relacionamento 1:1 com Professor)
-CREATE TABLE Gabinete (
+-- #region perfil
+-- Entidade Perfil (relacionamento 1:1 com Professor)
+CREATE TABLE Perfil (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  numero       TEXT    NOT NULL UNIQUE,
+  biografia    TEXT,
+  lattes       TEXT    NOT NULL UNIQUE,
   professor_id INTEGER NOT NULL UNIQUE,
   FOREIGN KEY (professor_id) REFERENCES Professor(id)
 );
--- #endregion gabinete
+-- #endregion perfil
 
 -- #region turma
 -- Entidade Turma (lado N do relacionamento 1:N)
@@ -50,7 +51,7 @@ CREATE TABLE Turma_Aluno (
 
 -- #region check
 INSERT INTO Professor (nome) VALUES ('Marina');
-INSERT INTO Gabinete (numero, professor_id) VALUES ('B-102', 1);
+INSERT INTO Perfil (biografia, lattes, professor_id) VALUES ('Doutora em Computação', 'http://lattes.cnpq.br/123456', 1);
 INSERT INTO Turma (codigo, professor_id) VALUES ('BD-2026', 1);
 INSERT INTO Aluno (nome) VALUES ('João'), ('Lia');
 INSERT INTO Turma_Aluno VALUES (1, 1, '2026-02-10'), (1, 2, '2026-02-11');
