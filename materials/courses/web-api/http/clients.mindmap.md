@@ -36,7 +36,7 @@ markmap:
 ### Bibliotecas JavaScript (Código)
 - **Ideia**: APIs e pacotes utilizados dentro da aplicação para fazer chamadas assíncronas ao backend: Fetch API: API nativa moderna do navegador e do Node
 - **Ponto**: Fetch API: API nativa moderna do navegador e do Node.js baseada em Promises
-- **Ponto**: Axios: Cliente HTTP baseado em Promises para Node.js e navegador com parse automático de JSON e interceptores (disponível no Guia de Pacotes npm)
+- **Ponto**: Axios: Cliente HTTP baseado em Promises para Node.js e navegador com parse automático de JSON e interceptores (disponível no Guia de Pacotes JavaScript)
 
 ## Tabela Comparativa de Bibliotecas no Código JS
 - **Ideia**: A escolha entre as bibliotecas se resume a quanto do trabalho repetitivo você quer escrever à mão

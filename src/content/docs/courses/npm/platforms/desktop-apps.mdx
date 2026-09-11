@@ -1,0 +1,289 @@
+---
+title: "npm: Aplicações Desktop (Electron vs Tauri)"
+description: "Construção de softwares desktop multiplataforma para Windows, macOS e Linux com JavaScript: arquitetura de processos, comunicação IPC e comparativo entre Electron e Tauri."
+course: npm
+sidebar:
+  label: "Aplicações Desktop"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta a criação de aplicações desktop instaláveis para **Windows**, **macOS** e **Linux** utilizando tecnologias web e o ecossistema JavaScript/TypeScript, com foco nos dois principais frameworks da indústria: **Electron** e **Tauri**.
+
+Em vez de aprender linguagens e kits de interface específicos para cada sistema operacional (como C#/.NET no Windows, Swift/Cocoa no macOS ou C++/Qt no Linux), esses frameworks permitem construir um aplicativo único reutilizando componentes HTML, CSS, React ou Vue, com acesso completo ao sistema de arquivos, notificações nativas e periféricos de hardware.
+
+## Objetivo
+
+Compreender a arquitetura de processos, os modelos de segurança e as diferenças de desempenho entre Electron e Tauri, selecionando a tecnologia apropriada para projetos de desktop modernos. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a arquitetura do **Electron** baseada no empacotamento conjunto do Chromium com o runtime Node.js.
+- Explicar a arquitetura do **Tauri** baseada nas WebViews nativas do sistema operacional com backend em Rust.
+- Diferenciar o Processo Principal (*Main Process*) dos Processos de Renderização (*Renderer Process*).
+- Implementar comunicação segura entre front-end e sistema operacional via **IPC (Inter-Process Communication)** e scripts de pré-carregamento (*preload*).
+- Avaliar métricas críticas: tamanho do instalador final, consumo de memória RAM e esforço de manutenção multiplataforma.
+
+## Electron vs Tauri: O Confronto Arquitetural
+
+A diferença fundamental entre o Electron e o Tauri reside em como eles renderizam a interface gráfica e em como acessam as APIs do sistema operacional:
+
+A tabela a seguir resume as principais dimensões técnicas:
+
+| Característica | Electron | Tauri (v2) |
+| :--- | :--- | :--- |
+| **Motor de Renderização** | Chromium empacotado dentro do app. | WebView nativa do SO (WebKit no macOS, WebView2 no Windows, WebKitGTK no Linux). |
+| **Runtime do Backend** | Node.js embutido. | Binário compilado em Rust. |
+| **Tamanho do Instalador** | Grande (~80 a 150+ MB). | Mínimo (~3 a 10 MB). |
+| **Consumo de Memória RAM** | Alto (~150 a 400+ MB por janela). | Baixo (~30 a 80 MB). |
+| **Consistência Visual** | 100% idêntica em qualquer SO (mesmo Chromium). | Pode ter pequenas variações entre motores de WebView do SO. |
+| **Segurança Padrão** | Exige configuração cuidadosa de isolamento de contexto. | Isolamento estrito de permissões e sandboxing nativo de fábrica. |
+| **Exemplos no Mercado** | VS Code, Discord, Slack, WhatsApp, Figma. | 1Password (UI), CrabNebula, Spacedrive, GitButler. |
+
+O diagrama abaixo ilustra a diferença estrutural entre as duas abordagens:
+
+<Mermaid title="Comparativo Arquitetural: Electron vs Tauri">
+{`
+flowchart TD
+  subgraph Electron["Arquitetura do Electron"]
+    direction TB
+    E_Main["Main Process (Node.js)"] <-->|"IPC Bridge"| E_Render["Renderer Process (Chromium embutido)"]
+    E_Main --> E_OS["Acesso ao SO (Arquivos, Rede, Hardware)"]
+  end
+
+  subgraph Tauri["Arquitetura do Tauri"]
+    direction TB
+    T_Core["Core Process (Binário Rust)"] <-->|"IPC Seguro / IPC Channels"| T_Webview["Webview Nativa do SO (Edge/WebKit)"]
+    T_Core --> T_OS["Acesso ao SO com Permissões Estritas"]
+  end
+`}
+</Mermaid>
+
+## Modelo de Processos e Segurança IPC
+
+Aplicações desktop executam código fora do sandbox tradicional do navegador web. Se uma página web carregar um script malicioso com acesso direto ao Node.js, ele poderia apagar arquivos do disco rígido do usuário.
+
+Por isso, tanto o Electron quanto o Tauri dividem o software em dois processos isolados:
+
+1. **Processo Principal / Core**: Tem privilégios administrativos para interagir com o sistema operacional, criar janelas e acessar o disco.
+2. **Processo de Renderização / UI**: Executa o código HTML, CSS e JavaScript da interface com privilégios restritos, comportando-se como uma página web comum.
+
+A comunicação entre a interface visual e o processo do sistema ocorre exclusivamente por canais de mensagens assíncronas chamados **IPC (Inter-Process Communication)**.
+
+### Exemplo no Electron: Context Isolation e Preload Script
+
+No Electron moderno, a propriedade `nodeIntegration` deve permanecer desativada no renderizador, utilizando um script `preload.js` seguro com `contextBridge`:
+
+```js title="preload.js (Script Seguro do Electron)"
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Expõe apenas funções controladas e seguras para a interface visual
+contextBridge.exposeInMainWorld('apiElectron', {
+  obterVersaoSistema: () => ipcRenderer.invoke('sistema:obter-versao'),
+  salvarDocumento: (conteudo) => ipcRenderer.invoke('arquivo:salvar', conteudo),
+});
+```
+
+No processo principal (`main.js`):
+
+```js title="main.js (Processo Principal do Node.js)"
+const { app, BrowserWindow, ipcMain } = require('electron');
+const path = require('node:path');
+const os = require('node:os');
+const fs = require('node:fs/promises');
+
+function criarJanela() {
+  const janela = new BrowserWindow({
+    width: 900,
+    height: 600,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, // Isolamento de contexto ativado
+      nodeIntegration: false, // Impede acesso direto ao Node no front-end
+    },
+  });
+
+  janela.loadFile('index.html');
+}
+
+// Responde às mensagens vindas do front-end
+ipcMain.handle('sistema:obter-versao', () => {
+  return `${os.type()} ${os.release()}`;
+});
+
+ipcMain.handle('arquivo:salvar', async (_, conteudo) => {
+  const caminho = path.join(app.getPath('documents'), 'meu-arquivo.txt');
+  await fs.writeFile(caminho, conteudo, 'utf-8');
+  return { sucesso: true, caminho };
+});
+
+app.whenReady().then(criarJanela);
+```
+
+No código JavaScript da interface visual (`renderer.js`):
+
+```js title="renderer.js (Front-end Web)"
+const botao = document.getElementById('btn-salvar');
+
+botao.addEventListener('click', async () => {
+  // Chama a função exposta com segurança sem conhecer require('fs')
+  const resposta = await window.apiElectron.salvarDocumento('Conteúdo do DevLab');
+  console.log('Arquivo salvo com sucesso em:', resposta.caminho);
+});
+```
+
+### Exemplo no Tauri: Comandos em Rust e Invocação com `@tauri-apps/api`
+
+No Tauri, as funções de sistema são escritas em Rust com a macro `#[tauri::command]`:
+
+```rust title="src-tauri/src/main.rs (Backend em Rust no Tauri)"
+// Função executada no processo nativo em Rust
+#[tauri::command]
+fn saudar_usuario(nome: &str) -> String {
+    format!("Olá, {}! Mensagem vinda diretamente do binário nativo em Rust.", nome)
+}
+
+fn main() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![saudar_usuario])
+        .run(tauri::generate_context!())
+        .expect("Erro ao executar aplicação Tauri");
+}
+```
+
+No front-end JavaScript/TypeScript:
+
+```ts title="src/main.ts (Front-end no Tauri)"
+import { invoke } from '@tauri-apps/api/core';
+
+async function cumprimentar() {
+  // Invoca o comando Rust nativo com tipagem segura
+  const mensagem = await invoke<string>('saudar_usuario', { nome: 'Aluno DevLab' });
+  console.log(mensagem);
+}
+
+cumprimentar();
+```
+
+## Como Escolher: Electron ou Tauri?
+
+A escolha depende do perfil do aplicativo, da equipe de engenharia e das restrições de distribuição:
+
+| Cenário de Projeto | Recomendação | Justificativa |
+| :--- | :--- | :--- |
+| **Equipe 100% JavaScript sem experiência em Rust** | **Electron** | Todo o código do backend e do build é escrito em JavaScript/TypeScript com Node.js. |
+| **Garantia de renderização idêntica entre OSs antigos** | **Electron** | O Chromium é fixo e encapsulado; comportamentos CSS e codecs de vídeo são uniformes. |
+| **Instalador leve para download rápido via internet** | **Tauri** | O binário do instalador tem menos de 10 MB, viabilizando downloads imediatos. |
+| **Aplicações que rodam em segundo plano (Bandeja / Tray)** | **Tauri** | O consumo mínimo de 30-50 MB de RAM não penaliza a memória do computador do usuário. |
+
+<Aside type="caution" title="Dica de IA: Nunca ative nodeIntegration: true em produção">
+Assistentes de código costumam sugerir `nodeIntegration: true` e `contextIsolation: false` no Electron como uma forma rápida de contornar erros de importação no front-end. Isso cria vulnerabilidades gravíssimas de Execução Remota de Código (RCE). Mantenha sempre o isolamento via `preload.js`.
+
+**Prompt:** *"Revise as configurações de BrowserWindow deste aplicativo Electron para garantir que contextIsolation esteja ativado, nodeIntegration esteja desativado e toda comunicação utilize canais seguros de ipcMain.handle."*
+</Aside>
+
+## Executando
+
+Veja como inicializar um projeto desktop com cada um dos frameworks:
+
+<Steps>
+1. **Para inicializar um projeto Tauri:**
+
+   ```bash title="Terminal"
+   npm create tauri-app@latest meu-app-desktop
+   ```
+
+2. **Para inicializar um projeto Electron com Forge e Vite:**
+
+   ```bash title="Terminal"
+   npm create @electron-forge/app@latest meu-app-electron --template=vite-typescript
+   ```
+
+3. **Inicie o ambiente de desenvolvimento:**
+
+   ```bash title="Terminal"
+   # No Electron
+   npm start
+
+   # No Tauri
+   npm run tauri dev
+   ```
+</Steps>
+
+## Exercício
+
+Analise as características abaixo e assinale **[E]** para Electron, **[T]** para Tauri ou **[AMBOS]**:
+
+1. ( ) Utiliza as WebViews nativas do sistema operacional (como WebView2 no Windows e WebKit no macOS).
+2. ( ) Separa a aplicação em Processo Principal e Processo de Renderização através de canais IPC.
+3. ( ) Empacota uma cópia completa do navegador Chromium junto com a distribuição do aplicativo.
+4. ( ) Gera instaladores compactos de tamanho inferior a 10 megabytes.
+5. ( ) Permite construir interfaces gráficas reutilizando frameworks web como React, Vue ou Svelte.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. **[T]**: O Tauri aproveita as WebViews já presentes no sistema operacional.
+  2. **[AMBOS]**: Ambas as arquiteturas utilizam divisão de processos e IPC para segurança.
+  3. **[E]**: O Electron inclui o Chromium completo em cada pacote compilado.
+  4. **[T]**: Os executáveis do Tauri são muito leves por não incluírem um motor de navegador embutido.
+  5. **[AMBOS]**: Ambos aceitam qualquer framework web moderno no processo de renderização.
+</details>
+
+## Desafio
+
+Explique o que é uma vulnerabilidade de **Remote Code Execution (RCE)** em uma aplicação desktop Electron e como um ataque de Cross-Site Scripting (XSS) em uma interface web com `nodeIntegration: true` pode permitir que um invasor tome controle total do computador do usuário.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em um navegador web convencional, o código JavaScript roda dentro de uma caixa de areia (*sandbox*), sem permissão para ler arquivos privados do disco rígido ou executar programas locais.
+
+  No Electron, se `nodeIntegration: true` estiver habilitado na janela e `contextIsolation` for desativado, o ambiente global da página passa a ter acesso direto às funções do Node.js, como `require('child_process')` e `require('fs')`.
+
+  Se a aplicação exibir um conteúdo externo não sanitizado (por exemplo, a mensagem de chat de outro usuário ou um comentário de blog contendo uma tag `<script>` maliciosa):
+  1. O script injetado (ataque XSS) será executado no contexto da página.
+  2. Em vez de apenas roubar cookies, o script poderá invocar `require('child_process').exec('...')` diretamente.
+  3. Isso permite que o atacante instale malwares, formate o disco ou transmita dados sigilosos, configurando uma Execução Remota de Código (RCE).
+
+  A ativação obrigatória de `contextIsolation: true`, o bloqueio de `nodeIntegration` e o uso de scripts `preload.js` com canais IPC restritos garantem que a interface web nunca tenha acesso irrestrito às APIs do sistema.
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para consolidar o aprendizado:
+
+1. **Por que um software desenvolvido em Electron como o VS Code costuma consumir mais memória RAM do que um editor nativo?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque cada instância de janela do Electron carrega um processo completo do navegador Chromium e um processo do Node.js na memória, alocando pilhas completas de renderização, pipeline gráfico V8 e subsistemas de rede.
+   </details>
+
+2. **Como o Tauri consegue gerar instaladores tão menores em comparação com o Electron?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele não embute o motor de renderização do Chromium dentro do instalador; em vez disso, utiliza a WebView que já vem pré-instalada no sistema operacional (Edge WebView2 no Windows, WebKit no macOS), somado a um binário compilado nativamente em Rust.
+   </details>
+
+3. **Qual é o papel do arquivo `preload.js` e da função `contextBridge.exposeInMainWorld()` no Electron?**
+   <details>
+     <summary>Possível resposta</summary>
+     Atuar como uma ponte segura e controlada entre o processo do Node.js e a página web, expondo apenas funções e métodos estritamente autorizados para o objeto global `window` sem conceder acesso direto a módulos do sistema.
+   </details>
+
+4. **Quais são os benefícios de construir aplicações desktop com tecnologias web em vez de linguagens nativas puras?**
+   <details>
+     <summary>Possível resposta</summary>
+     Reaproveitamento massivo de código entre as versões web, mobile e desktop, uniformidade de design systems com CSS/Tailwind, alta disponibilidade de desenvolvedores no mercado e ciclos rápidos de iteração com Hot Module Replacement (HMR).
+   </details>
+
+## Referências
+
+- [Electron Official Documentation](https://www.electronjs.org/docs/latest)
+- [Electron Security Tutorial](https://www.electronjs.org/docs/latest/tutorial/security)
+- [Tauri Official Documentation](https://v2.tauri.app/)
+- [Tauri Security Architecture](https://v2.tauri.app/security/)
+
+## Próximo tópico
+
+Com a camada de aplicações e clientes compreendida, avance para o acesso e modelagem de dados no back-end com bancos de dados relacionais:
+
+- [Prisma e ORMs](../../database/prisma/): Mapeamento objeto-relacional, modelagem declarativa e acesso type-safe a bancos com Prisma e Drizzle.

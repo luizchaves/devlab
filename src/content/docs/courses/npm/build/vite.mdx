@@ -14,7 +14,97 @@ O **Vite** é uma ferramenta de compilação (*build tool*) moderna desenvolvida
 
 ## Objetivo
 
-Compreender os conceitos fundamentais do Vite, criar novos projetos front-end com templates predefinidos, utilizar o servidor de desenvolvimento com Hot Module Replacement (HMR), configurar opções de compilação e realizar a publicação (*deploy*) de um site estático.
+Compreender os conceitos fundamentais do Vite, a transição do uso de tags `<script>` via CDN para dependências instaladas via npm, a criação de projetos com templates predefinidos, o servidor de desenvolvimento com Hot Module Replacement (HMR) e a geração de builds estáticos otimizados para produção. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar as vantagens de migrar de scripts CDN globais para pacotes instalados com módulos ES.
+- Compreender por que o Vite oferece inicialização quase instantânea comparado a empacotadores legados.
+- Compreender a resolução de *bare imports* e o pré-empacotamento de dependências (*Pre-Bundling*) com `esbuild`.
+- Criar um novo projeto front-end estruturado com `create-vite` e selecionar templates adequados (Vanilla, React, Vue, TypeScript).
+- Executar o servidor de desenvolvimento local com HMR e configurar proxy de API contra bloqueios de CORS.
+- Utilizar variáveis de ambiente e modos via `import.meta.env` com prefixo de segurança `VITE_`.
+- Manipular arquivos estáticos e imagens (*Asset Handling*) via importação direta, sufixos especiais, *inlining* e a pasta `public/`.
+- Importar módulos em lote com *Glob Imports* (`import.meta.glob`).
+- Integrar CSS Modules, pré-processadores Sass e plugins do ecossistema.
+- Configurar projetos multi-páginas (*Multi-Page App / MPA*) com múltiplos pontos de entrada HTML via `rollupOptions.input`.
+- Gerar e validar a compilação de produção na pasta `dist/`.
+
+---
+
+## De Tags `<script>` via CDN para Dependências npm
+
+No aprendizado inicial de desenvolvimento web ou em pequenos protótipos de página única, é comum adicionar bibliotecas externas diretamente no arquivo HTML por meio de tags `<script src="https://cdn...">` ou `<link rel="stylesheet">`.
+
+Embora prático para testes rápidos de conceito, esse modelo apresenta limitações severas à medida que a aplicação cresce:
+
+- **Poluição do escopo global**: scripts de CDN anexam suas funções no objeto `window` (como `window.L`, `window.Chart` ou `window.dayjs`), aumentando o risco de colisões entre nomes de variáveis.
+- **Ausência de autocompletar e tipagem**: o editor de código não consegue inspecionar o pacote da rede para fornecer IntelliSense ou validação de tipos TypeScript.
+- **Falta de controle de versão e integridade**: a versão fica dispersa em URLs no HTML, sujeita a quebras de links, indisponibilidade da CDN ou erros de hash SRI (*Subresource Integrity*).
+- **Sem otimização de empacotamento**: o navegador precisa baixar bibliotecas inteiras em tempo de execução, sem *tree-shaking* (remoção de código não utilizado) e sem minificação coordenada.
+
+Com o Vite e um gerenciador de pacotes, as bibliotecas são instaladas localmente no projeto (`node_modules`) e importadas explicitamente como Módulos ES (*ES Modules*):
+
+| Aspecto | Script via CDN | Dependência npm + Vite |
+| --- | --- | --- |
+| **Declaração** | Tag `<script>` ou `<link>` no HTML. | `package.json` (`dependencies` / `devDependencies`). |
+| **Importação** | Variável global em `window` (ex: `window.L`). | Módulo ES explícito (`import L from 'leaflet'`). |
+| **Estilos CSS** | `<link rel="stylesheet">` no HTML. | `import 'leaflet/dist/leaflet.css'` no JS ou CSS. |
+| **Autocomplete / Tipos** | Inexistente ou configurado manualmente. | IntelliSense e tipos TypeScript/JSDoc imediatos no editor. |
+| **Otimização / Build** | Arquivo completo baixado da rede. | *Tree-shaking*, minificação e *bundle* unificado na pasta `dist/`. |
+| **Controle de versão** | Manual em cada URL de cada tag. | Centralizado via `package.json` e travado no *lockfile*. |
+
+No modelo antigo com CDN, o HTML precisa carregar scripts externos antes dos scripts da aplicação:
+
+```html title="Antes: carregamento via CDN no index.html"
+<!-- index.html (legado) -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Exemplo com CDN</title>
+    <!-- CSS carregado de servidor de terceiros -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <!-- Script que cria a variável global L no window -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      // Depende da variável global criada pelo script anterior
+      const map = L.map('map').setView([-7.1195, -34.845], 13);
+    </script>
+  </body>
+</html>
+```
+
+No modelo moderno com Vite, o pacote é instalado via terminal (`npm install leaflet`) e consumido com importação limpa e isolada no JavaScript:
+
+```javascript title="Depois: modular no main.js"
+// main.js
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Variável com escopo local, sem poluição de window e com autocompletar
+const map = L.map('map').setView([-7.1195, -34.845], 13);
+```
+
+O `index.html` passa a ser apenas a casca estrutural que aponta para o módulo principal:
+
+```html title="Depois: index.html limpo na raiz"
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aplicação com Vite</title>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
+```
 
 ---
 
@@ -27,14 +117,16 @@ O Vite revoluciona essa abordagem dividindo os módulos em duas categorias: **de
 <Mermaid title="Diferença entre Bundler Tradicional e Vite">
 {`
 flowchart TD
-  subgraph Tradicional["Bundler Tradicional (Webpack / Parcel)"]
-    Src1["Código-Fonte"] --> Bundle["Processa Todo o Código"]
-    Bundle --> DevServer1["Servidor de Dev Pronto"]
+  subgraph Tradicional["Bundler Tradicional"]
+    direction TB
+    Src1["Código-Fonte Completo"] --> Bundle["Empacota Todo o Projeto"]
+    Bundle --> Dev1["Servidor de Dev Pronto"]
   end
 
-  subgraph ViteFlow["Vite (ES Modules Nativos)"]
-    DevServer2["Servidor de Dev Pronto Instantaneamente"] --> Route["Navegador Solicita Rota"]
-    Route --> Dynamic["Transpila Apenas o Módulo Necessário"]
+  subgraph ViteFlow["Vite (ES Modules)"]
+    direction TB
+    Dev2["Servidor Pronto Instantaneamente"] --> Req["Navegador Requisita Rota"]
+    Req --> Transpile["Transpila Módulo sob Demanda"]
   end
 `}
 </Mermaid>
@@ -43,15 +135,71 @@ flowchart TD
 O Vite atualiza os módulos alterados na tela quase instantaneamente, sem recarregar a página inteira e preservando o estado atual da aplicação.
 </Aside>
 
+Para tornar esse fluxo possível com o vasto ecossistema npm, o Vite implementa dois mecanismos fundamentais no servidor de desenvolvimento:
+
+### Resolução de Módulos (*Bare Module Imports*)
+
+A especificação padrão de Módulos ES nos navegadores exige que qualquer importação comece com `/`, `./`, `../` ou uma URL completa com protocolo (`https://...`). Navegadores rejeitam nativamente importações pelo nome do pacote (*bare imports*), como:
+
+```javascript
+// O navegador nao sabe resolver 'lodash-es' nativamente e lanca erro
+import { debounce } from 'lodash-es';
+```
+
+O servidor de desenvolvimento do Vite intercepta os arquivos de código-fonte enviados ao navegador e reescreve essas importações para URLs válidas apontando para a pasta interna de cache de dependências:
+
+```javascript
+// O Vite reescreve automaticamente para um caminho valido
+import { debounce } from '/node_modules/.vite/deps/lodash-es.js?v=12345678';
+```
+
+### Pré-empacotamento de Dependências com esbuild (*Pre-Bundling*)
+
+Na primeira inicialização do servidor de desenvolvimento, o Vite executa o **pré-empacotamento de dependências** (*Dependency Pre-Bundling*) utilizando o `esbuild` (uma ferramenta escrita em Go que compila JavaScript de 10 a 100 vezes mais rápido do que empacotadores em JS puro).
+
+Esse pré-empacotamento resolve dois desafios arquiteturais essenciais:
+
+1. **Compatibilidade com CommonJS e UMD**: Muitos pacotes do npm ainda são distribuídos no formato legado CommonJS (`module.exports` e `require`) ou UMD. Como os navegadores modernos só executam Módulos ES (`import`/`export`), o Vite converte essas bibliotecas automaticamente para módulos ES padrão.
+2. **Redução do Efeito Cascata de Requisições (*Network Waterfall*)**: Algumas bibliotecas modulares contêm centenas de pequenos arquivos internos (o `lodash-es`, por exemplo, é composto por mais de 600 arquivos individuais). Se o navegador tentasse importar todos eles simultaneamente via HTTP, a rede seria saturada, causando lentidão perceptível. O Vite agrupa esses submódulos em um único arquivo unificado em cache, transformando mais de 600 requisições em apenas uma.
+
+As dependências pré-empacotadas são salvas na pasta `node_modules/.vite/deps/` e servidas com cabeçalhos HTTP fortes de cache (`Cache-Control: max-age=31536000,immutable`).
+
+O Vite revalida esse cache automaticamente sempre que o `package-lock.json`, o `pnpm-lock.yaml` ou o arquivo `vite.config.js` sofrer alterações. Para forçar uma reconstrução manual do cache, basta executar:
+
+```bash title="Terminal"
+npx vite --force
+```
+
 ---
 
 ## 1. Criando um Projeto com Vite
 
-Para criar uma nova aplicação front-end utilizando o gerador oficial `create-vite`, execute o comando no terminal:
+Para criar uma nova aplicação front-end utilizando o gerador oficial `create-vite`, execute o comando no terminal informando o nome da pasta e o template desejado:
 
 ```bash title="Scaffolding de projeto via terminal"
 npm create vite@latest monitor-app -- --template vanilla
 ```
+
+Caso queira iniciar o projeto com suporte nativo a TypeScript, basta passar o sufixo `-ts` no template (ex: `vanilla-ts`):
+
+```bash title="Scaffolding com template TypeScript"
+npm create vite@latest monitor-app -- --template vanilla-ts
+```
+
+O `create-vite` disponibiliza templates oficiais pré-configurados tanto em JavaScript puro quanto com TypeScript para os principais frameworks do ecossistema:
+
+| Framework / Biblioteca | Template JavaScript | Template TypeScript | Descrição |
+| :--- | :--- | :--- | :--- |
+| **Vanilla** | `vanilla` | `vanilla-ts` | HTML, CSS e JS/TS puros sem framework de UI |
+| **React** | `react` | `react-ts` | React com JSX/TSX e suporte a Fast Refresh |
+| **Vue** | `vue` | `vue-ts` | Vue 3 com Single-File Components (`.vue`) |
+| **Svelte** | `svelte` | `svelte-ts` | Svelte com compilador otimizado |
+| **Solid** | `solid` | `solid-ts` | Solid.js com reatividade de granularidade fina |
+| **Preact** | `preact` | `preact-ts` | Alternativa ultraleve de 3 kB compatível com React |
+| **Lit** | `lit` | `lit-ts` | Web Components padronizados |
+| **Qwik** | `qwik` | `qwik-ts` | Framework orientado a *resumability* |
+
+Se preferir selecionar as opções de forma interativa por meio de menus no terminal, execute apenas `npm create vite@latest` sem argumentos adicionais.
 
 Saída no terminal durante o processo de criação:
 
@@ -69,9 +217,7 @@ Done. Now run:
   npm run dev
 ```
 
-### Estrutura de Arquivos Gerada
-
-O Vite gera uma estrutura mínima e limpa para o projeto:
+O Vite gera uma estrutura inicial mínima e limpa para o projeto:
 
 <FileTree>
 {`
@@ -157,37 +303,354 @@ Output:
 
 ---
 
-## 4. Principais Opções de Configuração (`vite.config.js`)
+## 4. Manipulação de Assets e Arquivos Estáticos
 
-É possível criar um arquivo `vite.config.js` na raiz do projeto para personalizar o comportamento do build:
+A gestão de recursos estáticos (*Asset Handling*) no Vite é nativamente integrada ao sistema de módulos ES, garantindo que imagens, fontes, vídeos, arquivos de áudio e estilos sejam rastreados pelo grafo de dependências e recebam hashes criptográficos automáticos no build para invalidação de cache (*cache busting*).
 
-```js title="vite.config.js"
+A seguir, exploramos as abordagens recomendadas para carregar assets estáticos em aplicações Vite:
+
+### Importação Explícita, Inlining e Sufixos de Consulta
+
+A forma recomendada de carregar imagens e outros arquivos de mídia é importá-los diretamente no código JavaScript ou CSS:
+
+```javascript title="src/main.js"
+import logoUrl from './assets/logo.png';
+import './style.css';
+
+const img = document.createElement('img');
+img.src = logoUrl;
+document.body.appendChild(img);
+```
+
+Ao processar o build para produção:
+- Se o arquivo for **menor que 4 kB** (limite padrão configurável via `build.assetsInlineLimit`), o Vite converte o conteúdo em uma *Data URL* Base64 embutida diretamente no código, economizando requisições HTTP adicionais.
+- Se o arquivo for **maior que 4 kB**, o Vite copia o arquivo para `dist/assets/` com um nome contendo hash criptográfico (ex: `logo.2d8ef535.png`) e retorna a URL pública absoluta resolvida.
+
+Além da importação padrão, o Vite suporta sufixos de consulta (*query suffixes*) para modificar como o asset é entregue:
+
+```javascript title="src/exemplo-sufixos.js"
+// Importa o conteudo textual bruto do arquivo como string
+import rawSvg from './icon.svg?raw';
+
+// Forca o retorno de uma URL mesmo para arquivos pequenos (evita inlining Base64)
+import smallIconUrl from './tiny-icon.png?url';
+
+// Instancia e executa um script como Web Worker dedicado
+import MyWorker from './worker.js?worker';
+const worker = new MyWorker();
+```
+
+### Diretório `public/` e Resolução Dinâmica de URLs
+
+Para arquivos que não devem ser processados ou renomeados pelo pipeline do Vite (como `favicon.ico`, `robots.txt`, manifestos PWA ou arquivos com nomes fixos exigidos por terceiros), utilize a pasta `public/` na raiz do projeto.
+
+A tabela abaixo compara o comportamento dos assets dentro de `src/` versus `public/`:
+
+| Aspecto | Assets em `src/` ou `src/assets/` | Assets na pasta `public/` |
+| :--- | :--- | :--- |
+| **Como referenciar** | Via `import foto from './foto.png'` | Via caminho absoluto direto: `/favicon.ico` |
+| **Processamento e Build** | Otimizados, minificados e renomeados com hash (`dist/assets/foto.abc12345.png`) | Copiados intactos diretamente para a raiz da pasta `dist/` |
+| **Inlining Base64** | Automático para arquivos menores que 4 kB | Nunca convertidos para Base64 |
+| **Detecção de Erros** | Erro de build imediato se o caminho estiver errado | Falha silenciosa com status 404 em tempo de execução |
+
+<Aside type="caution" title="Nunca importe arquivos de public/ no JavaScript">
+  Arquivos localizados dentro da pasta `public/` não devem ser importados via `import icon from '/public/favicon.ico'`. Eles devem ser referenciados diretamente pela URL raiz `/favicon.ico` no HTML ou em atributos `src`.
+</Aside>
+
+Para carregar imagens de forma dinâmica baseada em variáveis ou parâmetros em tempo de execução, utilize a combinação nativa de Módulos ES `new URL()`:
+
+```javascript title="src/dynamic-assets.js"
+function getImageUrl(name) {
+  // O Vite resolve dinamicamente caminhos relativos ao arquivo atual
+  return new URL(`./assets/avatars/${name}.png`, import.meta.url).href;
+}
+
+const userAvatar = getImageUrl('usuario-12');
+```
+
+---
+
+---
+
+## 5. Variáveis de Ambiente e Modos (`import.meta.env`)
+
+O Vite oferece suporte integrado a variáveis de ambiente carregadas a partir de arquivos `.env`, expondo-as no código cliente através do objeto especial `import.meta.env`.
+
+A seguir, são apresentados os conceitos essenciais para uso seguro e tipado de variáveis de ambiente:
+
+### Prefixo de Segurança `VITE_` e Variáveis Embutidas
+
+Para evitar o vazamento involuntário de dados confidenciais do servidor (como tokens de banco de dados ou segredos de API), o Vite expõe exclusivamente ao navegador as variáveis iniciadas pelo prefixo `VITE_`:
+
+```ini title=".env"
+# Exposta com seguranca para o front-end
+VITE_API_URL=https://api.empresa.com/v1
+VITE_APP_TITLE=MonitorApp
+
+# Nao exposta no navegador (invisivel para import.meta.env)
+DATABASE_PASSWORD=minha-senha-secreta
+```
+
+No código JavaScript ou TypeScript da aplicação, o acesso é feito diretamente por `import.meta.env`:
+
+```javascript title="src/api.js"
+const apiUrl = import.meta.env.VITE_API_URL;
+const appTitle = import.meta.env.VITE_APP_TITLE;
+
+// O Vite tambem inclui variaveis booleanas e de contexto nativamente:
+if (import.meta.env.DEV) {
+  console.log('Executando em modo de desenvolvimento local:', apiUrl);
+}
+
+if (import.meta.env.PROD) {
+  // Desativa logs ou habilita telemetria em producao
+}
+```
+
+As principais propriedades padrão fornecidas pelo `import.meta.env` são:
+
+| Propriedade | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `import.meta.env.MODE` | `string` | O modo de execução atual (ex: `'development'`, `'production'`). |
+| `import.meta.env.BASE_URL` | `string` | A URL base configurada para servir a aplicação (propriedade `base`). |
+| `import.meta.env.PROD` | `boolean` | `true` quando a aplicação está rodando em build de produção. |
+| `import.meta.env.DEV` | `boolean` | `true` quando a aplicação está rodando no servidor de desenvolvimento local. |
+| `import.meta.env.SSR` | `boolean` | `true` caso a aplicação esteja sendo renderizada no servidor (*Server-Side Rendering*). |
+
+### Hierarquia de Arquivos `.env` e Tipagem TypeScript
+
+O Vite carrega os arquivos `.env` na seguinte ordem de precedência (os arquivos mais específicos sobrescrevem os mais genéricos):
+
+1. `.env.[mode].local` (mais específico, ignorado pelo Git)
+2. `.env.[mode]` (específico do modo, ex: `.env.production`)
+3. `.env.local` (carregado em todos os modos, ignorado pelo Git)
+4. `.env` (carregado em todos os modos, padrão do repositório)
+
+Para habilitar autocompletar e validação estrita de tipos para as variáveis personalizadas em projetos TypeScript, crie ou edite o arquivo `src/vite-env.d.ts`:
+
+```typescript title="src/vite-env.d.ts"
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_URL: string;
+  readonly VITE_APP_TITLE: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+```
+
+---
+
+## 6. Recursos Avançados do Ecossistema
+
+O Vite integra recursos que simplificam o consumo de APIs em desenvolvimento, a importação de arquivos em massa e a estilização da interface:
+
+### Proxy Reverso no Servidor de Dev (`server.proxy`)
+
+Durante o desenvolvimento local, quando o front-end é executado em `http://localhost:5173` e a API back-end em `http://localhost:3000`, requisições HTTP normais disparadas pelo navegador são bloqueadas por políticas de CORS (*Cross-Origin Resource Sharing*).
+
+O Vite resolve esse problema fornecendo um proxy reverso interno configurável em `vite.config.js`:
+
+```javascript title="vite.config.js"
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  server: {
+    proxy: {
+      // Requisicoes para http://localhost:5173/api sao redirecionadas para o backend
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+});
+```
+
+Com o proxy ativo, o front-end dispara requisições relativas para `/api/usuarios`, e o servidor do Vite encaminha a chamada para `http://localhost:3000/usuarios`, eliminando erros de CORS sem necessidade de alterar o código da API.
+
+### Importação em Lote com *Glob Import* (`import.meta.glob`)
+
+O Vite estende a especificação de Módulos ES adicionando a função `import.meta.glob`, que permite importar múltiplos arquivos dinamicamente a partir de padrões glob:
+
+```javascript title="src/routes.js"
+// Importacao com carregamento sob demanda (lazy loading com code-splitting)
+const views = import.meta.glob('./views/*.js');
+
+// O objeto 'views' mapeia o caminho para uma funcao de importacao dinamica:
+// { './views/dashboard.js': () => import('./views/dashboard.js'), ... }
+async function loadView(name) {
+  const moduleLoader = views[`./views/${name}.js`];
+  if (moduleLoader) {
+    const module = await moduleLoader();
+    module.render();
+  }
+}
+```
+
+Para carregar todos os módulos de forma imediata e síncrona, utilize a opção `{ eager: true }`:
+
+```javascript title="src/icons.js"
+// Importa todos os modulos SVGs diretamente no bundle inicial
+const icons = import.meta.glob('./icons/*.svg', { eager: true, query: '?raw', import: 'default' });
+```
+
+### Estilização com CSS Modules, Sass e Plugins
+
+O Vite processa CSS nativamente com alta performance e sem necessidade de configurações complexas:
+
+- **CSS Modules**: Qualquer arquivo com o sufixo `*.module.css` (ou `*.module.scss`) tem seus seletores encapsulados com escopo local exclusivo para o componente (`import styles from './Button.module.css'`).
+- **Pré-processadores CSS**: Para usar Sass ou Less, basta instalar o compilador no projeto (`npm install -D sass-embedded`); o Vite reconhece e compila arquivos `.scss` automaticamente.
+- **Sistema de Plugins**: A arquitetura de plugins do Vite estende a API do Rollup. Plugins oficiais como `@vitejs/plugin-react` ou `@vitejs/plugin-vue` adicionam suporte a Fast Refresh, JSX e Single-File Components:
+
+```javascript title="vite.config.js"
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+});
+```
+
+---
+
+## 7. Configurando Aplicações Multi-Páginas (*Multi-Page App / MPA*)
+
+Embora o Vite seja muito popular para aplicações de página única (*Single-Page Applications / SPAs*), ele oferece suporte nativo de primeira classe para aplicações tradicionais com múltiplos arquivos HTML (*Multi-Page Apps*).
+
+A seguir, são detalhados a estrutura recomendada e a configuração de pontos de entrada no Rollup:
+
+### Estrutura de Diretórios para Múltiplas Páginas
+
+Em um projeto com múltiplos arquivos HTML (por exemplo, uma página inicial, uma página de catálogo de produtos e uma página de contato), organize os arquivos diretamente na raiz do projeto ou em subdiretórios dedicados:
+
+<FileTree>
+{`
+meu-projeto-mpa/
+    contato/
+        contato.js
+        index.html
+    produtos/
+        index.html
+        produtos.js
+    public/
+        favicon.ico
+    index.html
+    main.js
+    package.json
+    style.css
+    vite.config.js
+`}
+</FileTree>
+
+No servidor de desenvolvimento do Vite, a navegação entre as páginas funciona de forma imediata e transparente:
+- Acessar `http://localhost:5173/` carrega o arquivo `/index.html`.
+- Acessar `http://localhost:5173/produtos/` carrega o arquivo `/produtos/index.html`.
+- Acessar `http://localhost:5173/contato/` carrega o arquivo `/contato/index.html`.
+
+Cada arquivo HTML importa seu próprio script modular através de tags `<script type="module" src="./produtos.js">`, garantindo isolamento total de código entre páginas.
+
+### Configurando Múltiplos Pontos de Entrada com `rollupOptions.input`
+
+Durante o build de produção (`npm run build`), o Vite precisa saber explicitamente quais arquivos HTML devem ser compilados. Para isso, configure a propriedade `build.rollupOptions.input` no arquivo `vite.config.js`:
+
+```javascript title="vite.config.js"
+import { resolve } from 'node:path';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        // Ponto de entrada principal
+        main: resolve(__dirname, 'index.html'),
+        // Pagina secundaria de produtos
+        produtos: resolve(__dirname, 'produtos/index.html'),
+        // Pagina secundaria de contato
+        contato: resolve(__dirname, 'contato/index.html'),
+      },
+    },
+  },
+});
+```
+
+Ao executar `npm run build`, o Rollup compila cada página HTML individualmente, executa *tree-shaking*, extrai arquivos CSS compartilhados e gera a árvore completa na pasta `dist/`:
+
+<FileTree>
+{`
+dist/
+    assets/
+        contato-abc12345.js
+        main-8dac5379.js
+        produtos-44b5bae5.js
+        style-48a8825f.css
+    contato/
+        index.html
+    produtos/
+        index.html
+    index.html
+`}
+</FileTree>
+
+---
+
+## 8. Principais Opções de Configuração (`vite.config.js`)
+
+É possível centralizar todas as opções de build, plugins, servidor e resolução de dependências no arquivo `vite.config.js` na raiz do projeto:
+
+```js title="vite.config.js"
+import { resolve } from 'node:path';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  // Caminho base para deploy sob subdiretorio (ex: '/devlab/' ou './')
+  base: './',
+  // Controle do pre-empacotamento de dependencias com esbuild
+  optimizeDeps: {
+    include: ['lodash-es'], // Forca pre-empacotamento de pacote especifico
+    exclude: ['@meu-escopo/lib-local'], // Ignora pre-empacotamento para modulo local
+  },
   // Define o diretório de saída do build (padrão: 'dist')
   build: {
     outDir: 'dist',
+    // Limite em bytes para inlining de assets em Base64 (padrao: 4096 = 4kB)
+    assetsInlineLimit: 4096,
     // Compatibilidade com navegadores legados ('esnext', 'modules', 'es2015')
     target: 'modules',
     // Minificação de código ('terser' ou 'esbuild')
     minify: 'esbuild',
+    // Multiplos pontos de entrada (MPA)
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        admin: resolve(__dirname, 'admin/index.html'),
+      },
+    },
   },
   // Configuração do servidor de dev
   server: {
     port: 3000,
     open: true, // Abre o navegador automaticamente
   },
+  // Atalhos de resolucao de caminhos (aliases)
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+    },
+  },
 });
 ```
 
 ---
 
-## 5. Deploy de Sites Estáticos
+## 9. Deploy de Sites Estáticos
 
 Como o comando `npm run build` gera arquivos HTML, CSS e JavaScript estáticos puros dentro da pasta `dist/`, a publicação pode ser feita facilmente em qualquer provedor de hospedagem de sites estáticos:
 
-- **[GitHub Pages](https://vitejs.dev/guide/static-deploy.html#github-pages)**: Configurado via GitHub Actions ou branch `gh-pages`.
+- **[GitHub Pages](https://vitejs.dev/guide/static-deploy.html#github-pages)**: Configurado via GitHub Actions ou branch `gh-pages` (definindo `base: '/nome-do-repo/'`).
 - **[Netlify](https://vitejs.dev/guide/static-deploy.html#netlify)**: Definindo o comando de build como `npm run build` e a pasta de publicação como `dist`.
 - **[Vercel](https://vitejs.dev/guide/static-deploy.html#vercel)**: Detecção automática do Vite com um único clique.
 
@@ -223,18 +686,60 @@ Siga os passos para criar e testar seu primeiro projeto Vite:
 
 ---
 
+## Desafio
+
+Escolha um projeto simples em HTML que utilize bibliotecas via CDN (como SweetAlert2, Day.js ou Chart.js) e migre-o para um projeto modular gerenciado com Vite e npm.
+
+1. Crie um novo projeto com `npm create vite@latest migracao-app -- --template vanilla`.
+2. Instale as bibliotecas necessárias no projeto com `npm install <pacote>`.
+3. Substitua as tags `<script>` e `<link>` do HTML por declarações `import` no arquivo JavaScript (`main.js`).
+4. Remova o uso de variáveis globais (`window.*`) em favor das importações dos módulos instalados.
+5. Execute `npm run build` e teste o pacote compilado com `npm run preview`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No projeto original com CDN do Day.js, o HTML continha `<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>` e o script acessava `window.dayjs()`. Na migração com Vite, executou-se `npm install dayjs` e, no `main.js`, adicionou-se `import dayjs from 'dayjs'`. O `index.html` passou a conter apenas a tag `<script type="module" src="/main.js"></script>`. Ao executar `npm run build`, o Rollup empacotou apenas o código utilizado do Day.js em um arquivo JS minificado dentro de `dist/assets/`.
+</details>
+
+---
+
 ## Perguntas de revisão
 
-1. **Por que o servidor de desenvolvimento do Vite é consideravelmente mais rápido que o do Webpack?**
+1. **Quais são os principais problemas de carregar bibliotecas via tags `<script>` de CDN em vez de usar `npm install` com Vite?**
+   <details>
+     <summary>Possível resposta</summary>
+     Scripts de CDN poluem o escopo global (`window.*`), não fornecem autocompletar e tipos automáticos no editor, não participam da otimização de bundle/tree-shaking e deixam o controle de versão disperso e suscetível a indisponibilidades externas ou falhas de integridade (SRI).
+   </details>
+
+2. **Por que o servidor de desenvolvimento do Vite é consideravelmente mais rápido que o do Webpack?**
    <details>
      <summary>Possível resposta</summary>
      Porque o Vite não realiza o empacotamento (*bundling*) completo do código antes de iniciar o servidor. Ele utiliza ES Modules nativos do navegador para carregar cada arquivo sob demanda.
    </details>
 
-2. **Como podemos testar a versão compilada de produção da pasta `dist/` antes de realizar o deploy?**
+3. **Como podemos testar a versão compilada de produção da pasta `dist/` antes de realizar o deploy?**
    <details>
      <summary>Possível resposta</summary>
      Executando o comando `npm run preview` (que roda `vite preview`).
+   </details>
+
+4. **Por que o Vite exige o prefixo `VITE_` em variáveis de ambiente acessadas pelo front-end?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para evitar vazamentos acidentais de segurança no código cliente gerado no navegador, garantindo que credenciais confidenciais do servidor (como senhas de banco ou chaves secretas) não sejam embutidas no bundle público.
+   </details>
+
+5. **Qual é a vantagem do proxy reverso (`server.proxy`) do Vite em ambiente de desenvolvimento?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele redireciona requisições da origem do front-end (`localhost:5173/api`) para o servidor de backend (`localhost:3000`), evitando bloqueios de CORS sem exigir alterações ou permissões especiais na API em desenvolvimento.
+   </details>
+
+6. **Como configurar o Vite para compilar múltiplos arquivos HTML em uma aplicação Multi-Page (MPA)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Definindo a propriedade `build.rollupOptions.input` no arquivo `vite.config.js`, mapeando cada nome de página para o caminho absoluto de seu respectivo arquivo `index.html` via `resolve(__dirname, 'caminho/index.html')`.
    </details>
 
 ---
@@ -242,6 +747,13 @@ Siga os passos para criar e testar seu primeiro projeto Vite:
 ## Referências
 
 - [Vite Official Documentation](https://vitejs.dev/)
+- [Vite Guide: NPM Dependency Resolving and Pre-Bundling](https://vitejs.dev/guide/features.html#npm-dependency-resolving-and-pre-bundling)
+- [Vite Guide: Dependency Pre-Bundling](https://vitejs.dev/guide/dep-pre-bundling.html)
+- [Vite Guide: Env Variables and Modes](https://vitejs.dev/guide/env-and-mode.html)
+- [Vite Guide: Static Asset Handling](https://vitejs.dev/guide/assets.html)
+- [Vite Guide: Multi-Page App](https://vitejs.dev/guide/build.html#multi-page-app)
+- [Vite Guide: Features - Glob Import and CSS](https://vitejs.dev/guide/features.html#glob-import)
+- [Vite Guide: Server Proxy Configuration](https://vitejs.dev/config/server-options.html#server-proxy)
 - [Vite Guide: Building for Production](https://vitejs.dev/guide/build.html)
 - [Vite Guide: Static Site Deployment](https://vitejs.dev/guide/static-deploy.html)
 

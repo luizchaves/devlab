@@ -1,0 +1,296 @@
+---
+title: "npm: Playwright"
+description: "Testes de ponta a ponta (E2E) e automação de navegadores modernos com Playwright: Chromium, Firefox, WebKit, seletores acessíveis e testes visuais."
+course: npm
+sidebar:
+  label: "Playwright"
+---
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta o **Playwright**, um framework moderno da Microsoft para automação de navegadores e execução de testes de ponta a ponta (*End-to-End - E2E*) em aplicações web.
+
+Testes unitários com Vitest provam que funções individuais funcionam isoladamente, mas não garantem que botões, formulários, rotas e chamadas de rede reais funcionem em conjunto no navegador do usuário. No passado, ferramentas como Selenium e Cypress sofriam com lentidão, instabilidade (*flaky tests*) e limitações ao testar múltiplos navegadores. O Playwright resolve esses desafios controlando diretamente os motores de renderização reais (Chromium, Firefox e WebKit/Safari) via protocolos nativos de alta velocidade com auto-espera (*auto-waiting*).
+
+## Objetivo
+
+Compreender o papel e a arquitetura do Playwright em testes de ponta a ponta no front-end, aprendendo a interagir com elementos de interface e validar fluxos reais de usuário. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar as diferenças entre testes unitários, testes de integração e testes de ponta a ponta (E2E).
+- Instalar e inicializar o Playwright em projetos JavaScript e TypeScript.
+- Utilizar seletores acessíveis baseados em papéis semânticos e textos visíveis (`getByRole`, `getByLabel`).
+- Tirar proveito do mecanismo de auto-espera (*auto-waiting*) para evitar testes intermitentes.
+- Configurar o `playwright.config.js` para testes em múltiplos navegadores e dispositivos móveis.
+
+## O que é o Playwright?
+
+O Playwright é um framework completo para automação web que permite programar interações reais do usuário (digitar, clicar, rolar, navegar, fazer upload de arquivos e verificar respostas de rede) em múltiplos navegadores de forma paralela e determinística.
+
+A tabela a seguir compara o Playwright com outras ferramentas de teste E2E:
+
+| Recurso | Selenium (Legado) | Cypress | Playwright |
+| :--- | :--- | :--- | :--- |
+| **Motores Suportados** | Múltiplos (via drivers) | Apenas Chromium / Firefox | Chromium, Firefox e WebKit (Safari nativo) |
+| **Arquitetura de Controle** | Protocolo HTTP WebDriver | Injetado dentro de um `<iframe>` | WebSocket direto com o processo do navegador |
+| **Múltiplas Abas e Janelas** | Difícil configuração | Não suportado | Totalmente suportado nativamente |
+| **Auto-espera (*Auto-waiting*)** | Manual (`Thread.sleep`, timeouts) | Boa | Excelente (espera visibilidade, ação e clique) |
+| **Emulação de Dispositivos** | Básica | Parcial | Nativa (iPhone, Pixel, telas táteis) |
+
+O Playwright é a ferramenta recomendada pela indústria para validar fluxos críticos de negócio, como carrinhos de compra, autenticação, preenchimento de cadastros e relatórios.
+
+## Fundamentos e Modelo Mental
+
+Diferente de executores que rodam dentro do próprio JavaScript da página, o Playwright executa como um processo Node.js externo e se comunica com os binários reais dos navegadores através de conexões rápidas por WebSocket.
+
+O diagrama abaixo ilustra a arquitetura de execução do Playwright:
+
+<Mermaid title="Arquitetura de automação de navegadores com Playwright">
+{`
+flowchart TD
+  A["Playwright Test Runner (Node.js)"] -->|WebSocket CDP / DevTools| B["Browser Context Isolado"]
+  B --> C["Instância Chromium (Chrome / Edge)"]
+  B --> D["Instância Firefox (Gecko)"]
+  B --> E["Instância WebKit (Safari / iOS)"]
+  C --> F["Interação Real com DOM<br/>(clique, digitação, navegação)"]
+  D --> F
+  E --> F
+`}
+</Mermaid>
+
+Cada teste recebe um **Browser Context** isolado, que funciona como uma janela anônima limpa e independente, garantindo que cookies e estado local de um teste nunca afetem os demais.
+
+Além do isolamento por contexto, um dos maiores diferenciais do modelo mental do Playwright é a **auto-espera (*auto-waiting*)**. Enquanto executores legados falham ao tentar clicar em elementos que ainda estão carregando ou animando, o Playwright verifica automaticamente se o elemento:
+1. Está visível na árvore do DOM.
+2. Não está coberto por outro elemento.
+3. Não está desabilitado (`disabled`).
+4. Parou de se mover (animação concluída).
+
+Somente quando todas essas condições são atendidas é que o comando de clique é disparado, eliminando a necessidade de pausas manuais como `sleep()`.
+
+## Como Usar: Instalação e Inicialização
+
+Para adicionar o Playwright a um projeto web, execute o assistente de inicialização oficial:
+
+```bash title="Terminal"
+npm init playwright@latest
+```
+
+O instalador interativo faz perguntas sobre TypeScript/JavaScript, a pasta dos testes (geralmente `tests/`) e faz o download dos binários oficiais dos navegadores necessários.
+
+O arquivo principal de configuração é gerado na raiz:
+
+```js title="playwright.config.js"
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true, // Executa testes em paralelo
+  reporter: 'html', // Gera relatório interativo em HTML
+  use: {
+    baseURL: 'http://localhost:5173', // URL do servidor local
+    trace: 'on-first-retry', // Grava rastreamento visual em caso de falha
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'mobile', use: { ...devices['Pixel 5'] } },
+  ],
+});
+```
+
+## Sintaxe e Principais Recursos
+
+A escrita de testes no Playwright prioriza **seletores acessíveis**, que localizam elementos da mesma forma que um usuário real ou um leitor de tela os identifica.
+
+### Exemplo de Teste de Formulário
+
+O exemplo abaixo testa um fluxo de login em uma página web:
+
+```js title="tests/login.spec.js"
+import { test, expect } from '@playwright/test';
+
+test('deve realizar login com sucesso e redirecionar para o dashboard', async ({ page }) => {
+  // 1. Navega até a página de login
+  await page.goto('/login');
+
+  // 2. Localiza os campos por rótulo acessível e preenche os dados
+  await page.getByLabel('E-mail').fill('usuario@exemplo.com');
+  await page.getByLabel('Senha').fill('senhaSegura123');
+
+  // 3. Clica no botão de ação principal
+  await page.getByRole('button', { name: 'Entrar' }).click();
+
+  // 4. Valida a URL e a mensagem de boas-vindas no destino
+  await expect(page).toHaveURL('/dashboard');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Bem-vindo');
+});
+```
+
+A tabela a seguir descreve os principais métodos de localização do Playwright:
+
+| Localizador | Quando utilizar | Exemplo de código |
+| :--- | :--- | :--- |
+| `page.getByRole(role, { name })` | Botões, cabeçalhos, caixas de diálogo e links. | `page.getByRole('button', { name: 'Salvar' })` |
+| `page.getByLabel(text)` | Campos de formulário com elemento `<label>` associado. | `page.getByLabel('Nome completo')` |
+| `page.getByPlaceholder(text)` | Campos de texto pelo texto de exemplo temporário. | `page.getByPlaceholder('email@dominio.com')` |
+| `page.getByText(text)` | Elementos textuais não-interativos. | `page.getByText('Cadastro realizado!')` |
+| `page.getByTestId(id)` | Último recurso para elementos complexos sem semântica. | `page.getByTestId('custom-widget')` |
+
+### Interceptando e Mockando Respostas de Rede
+
+O Playwright permite interceptar rotas de rede para testar como o front-end se comporta diante de respostas lentas ou erros de servidor (HTTP 500):
+
+```js title="tests/network.spec.js"
+import { test, expect } from '@playwright/test';
+
+test('deve exibir aviso quando a API retornar erro 500', async ({ page }) => {
+  // Intercepta a rota da API e força status de erro
+  await page.route('/api/produtos', async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Erro interno no banco de dados' }),
+    });
+  });
+
+  await page.goto('/produtos');
+
+  // Verifica se a tela exibe o alerta de erro corretamente
+  await expect(page.getByText('Erro ao carregar produtos')).toBeVisible();
+});
+```
+
+## Boas Práticas e Depuração Visual
+
+O Playwright conta com uma suíte de ferramentas visuais para investigar falhas rapidamente.
+
+A tabela abaixo resume os recursos indispensáveis de depuração:
+
+| Recurso | Como acionar | Para que serve |
+| :--- | :--- | :--- |
+| **Playwright UI Mode** | `npx playwright test --ui` | Interface gráfica interativa que permite avançar e retroceder ações no tempo (*Time Travel*). |
+| **Gerador de Código (Codegen)** | `npx playwright codegen localhost:5173` | Abre o navegador e grava suas ações gerando código de teste automaticamente. |
+| **Visualizador de Traces** | `npx playwright show-report` | Exibe capturas de tela, logs de console e requisições HTTP de testes que falharam no CI. |
+
+<Aside type="caution" title="Dica de IA: Evite seletores frágeis baseados em classes CSS">
+  Assistentes de IA costumam sugerir seletores CSS frágeis como `page.locator('.btn-primary > div > span')`. Esses seletores quebram a qualquer mudança cosmética de layout. Use sempre `getByRole()` ou `getByLabel()`.
+
+  **Prompt:** *"Refatore os seletores deste teste do Playwright para utilizar seletores baseados em papéis de acessibilidade (`getByRole`, `getByLabel`), tornando os testes resistentes a alterações no CSS."*
+</Aside>
+
+## Executando
+
+Para executar seus testes com Playwright:
+
+<Steps>
+1. Execute todos os testes em segundo plano (*headless*):
+
+   ```bash title="Terminal"
+   npx playwright test
+   ```
+
+2. Execute abrindo as janelas dos navegadores visíveis na tela:
+
+   ```bash title="Terminal"
+   npx playwright test --headed
+   ```
+
+3. Abra o relatório interativo completo gerado após a execução:
+
+   ```bash title="Terminal"
+   npx playwright show-report
+   ```
+</Steps>
+
+## Exercício
+
+Escreva um teste do Playwright para uma página de lista de tarefas (*Todo App*) que:
+
+1. Acesse a página inicial `/`.
+2. Digite `"Estudar Playwright"` no campo de texto de nova tarefa.
+3. Pressione a tecla `Enter`.
+4. Valide que um novo item de lista com o texto `"Estudar Playwright"` está visível no documento.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="tests/todo.spec.js"
+  import { test, expect } from '@playwright/test';
+
+  test('deve adicionar uma nova tarefa na lista com sucesso', async ({ page }) => {
+    await page.goto('/');
+
+    const input = page.getByPlaceholder('O que precisa ser feito?');
+    await input.fill('Estudar Playwright');
+    await input.press('Enter');
+
+    const taskItem = page.getByRole('listitem').filter({ hasText: 'Estudar Playwright' });
+    await expect(taskItem).toBeVisible();
+  });
+  ```
+</details>
+
+## Desafio
+
+Implemente um teste de regressão visual com o Playwright utilizando `expect(page).toHaveScreenshot()`. O teste deve acessar a página inicial, tirar uma captura de tela do cabeçalho e compará-la com o *snapshot* de referência para garantir que nenhuma alteração indesejada de CSS quebre o design.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="tests/visual.spec.js"
+  import { test, expect } from '@playwright/test';
+
+  test('o cabeçalho deve manter a fidelidade visual com o design de referência', async ({ page }) => {
+    await page.goto('/');
+
+    const header = page.getByRole('banner');
+    await expect(header).toBeVisible();
+
+    // Compara o elemento renderizado com a imagem snapshot salva no projeto
+    await expect(header).toHaveScreenshot('header-desktop.png');
+  });
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para validar seu conhecimento:
+
+1. **Qual é a principal diferença entre testes unitários (Vitest) e testes de ponta a ponta (Playwright)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Testes unitários validam funções ou componentes isolados em memória com simulações, enquanto testes de ponta a ponta validam a aplicação completa rodando em navegadores reais como o usuário final a experimenta.
+   </details>
+
+2. **Como o mecanismo de auto-espera (*auto-waiting*) do Playwright previne testes intermitentes (*flaky tests*)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele aguarda automaticamente que os elementos estejam presentes no DOM, visíveis, habilitados e estáveis antes de disparar eventos de clique ou digitação, eliminando pausas manuais.
+   </details>
+
+3. **Por que o método `page.getByRole()` é preferível a seletores CSS tradicionais como `.btn-submit`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele replica a forma como tecnologias assistivas e usuários reais navegam na interface, tornando os testes mais resistentes a mudanças cosméticas de layout e garantindo acessibilidade.
+   </details>
+
+4. **Para que serve o recurso Playwright Codegen?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para abrir uma janela de navegador e gravar automaticamente as ações do desenvolvedor (cliques, digitações), gerando o código de teste correspondente em tempo real.
+   </details>
+
+## Referências
+
+- [Playwright | Documentação Oficial](https://playwright.dev/)
+- [Playwright Locators Guide](https://playwright.dev/docs/locators)
+- [Auto-waiting in Playwright](https://playwright.dev/docs/actionability)
+- [Mocking API traffic with Playwright](https://playwright.dev/docs/network)
+
+## Próximo tópico
+
+Com a camada de testes e qualidade compreendida, aprenda a automatizar verificações e padronizar o ciclo de commits no Git:
+
+- [Husky e Pre-commit](../git-hooks/): Automação de qualidade no ciclo Git com Husky, lint-staged e commitlint.

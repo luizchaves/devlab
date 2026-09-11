@@ -1,0 +1,248 @@
+---
+title: "npm: Valibot"
+description: "Validação de dados modular e ultraleve com Valibot: pipelines de validação, inferência de tipos TypeScript e redução drástica de bundle com tree-shaking."
+course: npm
+sidebar:
+  label: "Valibot"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O **Valibot** é uma biblioteca moderna de validação de esquemas em tempo de execução (*runtime schema validation*) projetada com foco obsessivo em **tamanho de pacote (*bundle size*)** e **eliminação de código morto (*tree-shaking*)**. Enquanto bibliotecas tradicionais baseadas em encadeamento de métodos em objetos (como Zod e Yup) empacotam de 12 kB a 15 kB no cliente mesmo quando apenas uma fração dos validadores é usada, o Valibot utiliza uma arquitetura baseada em funções puras que reduz o impacto para apenas **0,5 kB a 2 kB**.
+
+## Objetivo
+
+Compreender a arquitetura modular do Valibot, estruturando esquemas de validação através de funções e pipelines, inferindo tipos estáticos no TypeScript e comparando o impacto no bundle em relação ao Zod. Ao final do tópico, o leitor deve ser capaz de:
+
+- Instalar o Valibot e criar esquemas para objetos, strings, números e arrays.
+- Utilizar pipelines com `v.pipe()` para encadear validações, transformações e mensagens customizadas.
+- Extrair tipos de entrada e saída com `v.InferInput` e `v.InferOutput`.
+- Tratar erros de validação de forma síncrona com `v.safeParse()` e assíncrona com `v.safeParseAsync()`.
+- Identificar quando o Valibot é a melhor escolha em comparação ao Zod para aplicações front-end e edge.
+
+## A Filosofia Modular: Por que o Valibot é Tão Leve?
+
+No Zod, todos os métodos de validação pertencem à mesma classe ou protótipo (ex: `z.string().email().min().max()`). Isso impede que o empacotador (*bundler*, como Vite, Rollup ou Webpack) remova os métodos que você não utilizou.
+
+O Valibot adota o paradigma funcional (*function-first*). Cada validador, tipo e transformação é uma função isolada exportada pelo pacote:
+
+<Mermaid title="Comparação de arquitetura: Zod vs Valibot">
+{`
+flowchart TD
+  subgraph ZodArch["Zod (Orientado a Objeto / Métodos)"]
+    A["import { z } from 'zod'"] --> B["Objeto Monolítico z"]
+    B --> C["Bundle inclui validadores não utilizados (~14 kB)"]
+  end
+
+  subgraph ValibotArch["Valibot (Modular / Funções Puras)"]
+    D["import * as v from 'valibot'"] --> E["Apenas funções importadas entram no bundle"]
+    E --> F["Tree-shaking agressivo (~0.5 kB a 2 kB)"]
+  end
+`}
+</Mermaid>
+
+Essa diferença é vital para aplicações web onde o tempo de carregamento inicial (*First Contentful Paint* e LCP) e a performance em conexões móveis são métricas prioritárias.
+
+## 1. Instalação e Primeiro Esquema
+
+Instale o pacote Valibot no seu projeto:
+
+<PackageManagerTabs package="valibot" />
+
+A declaração de esquemas utiliza a convenção de importar o namespace `* as v` ou funções nomeadas individuais:
+
+```typescript title="src/schemas/userSchema.ts"
+import * as v from 'valibot';
+
+export const UserSchema = v.object({
+  id: v.pipe(v.string(), v.uuid('ID de usuário inválido')),
+  name: v.pipe(
+    v.string('O nome é obrigatório'),
+    v.trim(),
+    v.minLength(3, 'O nome deve ter no mínimo 3 caracteres')
+  ),
+  email: v.pipe(
+    v.string(),
+    v.trim(),
+    v.email('Formato de e-mail inválido')
+  ),
+  age: v.optional(
+    v.pipe(v.number(), v.minValue(18, 'A idade mínima é 18 anos'))
+  ),
+  role: v.picklist(['admin', 'editor', 'viewer'], 'Cargo inválido'),
+});
+```
+
+## 2. Pipelines e Transformações com `v.pipe()`
+
+Uma das principais inovações do Valibot é a função `v.pipe()`. Ela permite encadear regras de validação e etapas de transformação de dados na ordem exata em que devem ser processadas:
+
+```typescript title="src/schemas/loginSchema.ts"
+import * as v from 'valibot';
+
+export const LoginSchema = v.object({
+  email: v.pipe(
+    v.string(),
+    v.trim(),
+    v.toLowerCase(),
+    v.email('E-mail inválido')
+  ),
+  password: v.pipe(
+    v.string(),
+    v.minLength(8, 'A senha deve conter ao menos 8 caracteres')
+  ),
+});
+```
+
+No exemplo acima, a string do e-mail é automaticamente limpa de espaços extras (`v.trim()`) e convertida para minúsculas (`v.toLowerCase()`) antes da validação do formato.
+
+## 3. Inferência de Tipos TypeScript
+
+O Valibot oferece dois utilitários de inferência de tipos:
+
+- `v.InferOutput<typeof Schema>`: O tipo TypeScript dos dados **após** a validação e as transformações (recomendado para a regra de negócio).
+- `v.InferInput<typeof Schema>`: O tipo TypeScript bruto aceito antes das transformações (útil para formulários).
+
+```typescript title="src/types/user.ts"
+import * as v from 'valibot';
+import { UserSchema } from '../schemas/userSchema';
+
+export type User = v.InferOutput<typeof UserSchema>;
+export type UserInput = v.InferInput<typeof UserSchema>;
+```
+
+## 4. Validando Dados com `v.safeParse()`
+
+Para evitar que erros de validação lancem exceções inesperadas, utilize `v.safeParse()`:
+
+```typescript title="src/handlers/registerHandler.ts"
+import * as v from 'valibot';
+import { UserSchema } from '../schemas/userSchema';
+
+export function handleUserRegistration(payload: unknown) {
+  const result = v.safeParse(UserSchema, payload);
+
+  if (!result.success) {
+    // result.issues contém a lista estruturada de erros
+    console.error('Falha na validação:', result.issues);
+    return {
+      success: false,
+      errors: result.issues.map((issue) => ({
+        path: issue.path?.map((p) => p.key).join('.'),
+        message: issue.message,
+      })),
+    };
+  }
+
+  // result.output contém o dado sanitizado e estritamente tipado
+  console.log('Usuário validado:', result.output.name);
+  return { success: true, user: result.output };
+}
+```
+
+## Matriz de Decisão: Valibot vs Zod
+
+| Critério | Valibot | Zod |
+| --- | --- | --- |
+| **Tamanho do Bundle** | **0,5 kB a 2 kB** (com tree-shaking) | ~14 kB (monolítico) |
+| **Estilo da Sintaxe** | Funcional e modular (`v.pipe(...)`) | Encadeamento de métodos (`z.string().min()`) |
+| **Transformações** | Integradas no pipeline (`v.pipe`) | Métodos `.transform()` e `.refine()` |
+| **Ecossistema de Integrações** | Crescente (React Hook Form, TanStack Form, Hono) | Muito consolidado em todo o ecossistema |
+| **Ambiente Ideal** | Front-end, PWAs, Edge Workers, extensões | Back-end tradicional, APIs Node.js e Serverless |
+
+## Executando
+
+Siga os passos abaixo para testar o Valibot no seu projeto:
+
+<Steps>
+1. Instale o pacote:
+
+   <PackageManagerTabs package="valibot" />
+2. Crie um arquivo `src/validacao.ts` e declare um schema com `v.object()` e `v.pipe()`.
+3. Valide um objeto de exemplo com `v.safeParse()` e inspecione a saída no terminal.
+</Steps>
+
+## Exercício
+
+1. Qual é o motivo técnico pelo qual o Valibot consegue ser significativamente menor no pacote final compilado do que o Zod?
+2. Qual a diferença entre `v.InferInput` e `v.InferOutput` quando o schema utiliza transformações de dados como `v.trim()` ou `v.toLowerCase()`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O Valibot usa funções puras isoladas para cada validador em vez de uma classe com métodos encadeados. Com isso, os empacotadores modernos como Vite e Rollup aplicam *tree-shaking* e descartam todo o código que a sua aplicação não importou explicitamente.
+
+  2. `v.InferInput` representa o tipo do dado bruto que entra no validador (antes das transformações), enquanto `v.InferOutput` representa o tipo exato e sanitizado resultante após a execução de todos os pipes e transformações.
+</details>
+
+## Desafio
+
+Crie um schema de validação para um formulário de cadastro de cartão de crédito (`CreditCardSchema`). O schema deve validar:
+- `cardNumber`: string de 16 dígitos numéricos, removendo espaços automaticamente com `v.trim()`.
+- `holderName`: string em letras maiúsculas automáticas (`v.toUpperCase()`) com no mínimo 3 caracteres.
+- `expiryMonth`: número inteiro entre 1 e 12.
+- `cvv`: string com exatamente 3 ou 4 dígitos numéricos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/schemas/creditCardSchema.ts"
+  import * as v from 'valibot';
+
+  export const CreditCardSchema = v.object({
+    cardNumber: v.pipe(
+      v.string('Número do cartão obrigatório'),
+      v.trim(),
+      v.regex(/^\d{16}$/, 'O cartão deve conter exatamente 16 dígitos')
+    ),
+    holderName: v.pipe(
+      v.string('Nome do titular obrigatório'),
+      v.trim(),
+      v.toUpperCase(),
+      v.minLength(3, 'O nome deve ter no mínimo 3 letras')
+    ),
+    expiryMonth: v.pipe(
+      v.number('Mês de validade numérico obrigatório'),
+      v.integer('O mês deve ser um número inteiro'),
+      v.minValue(1, 'Mês inválido (mínimo 1)'),
+      v.maxValue(12, 'Mês inválido (máximo 12)')
+    ),
+    cvv: v.pipe(
+      v.string('CVV obrigatório'),
+      v.trim(),
+      v.regex(/^\d{3,4}$/, 'O CVV deve conter 3 ou 4 dígitos numéricos')
+    ),
+  });
+
+  export type CreditCard = v.InferOutput<typeof CreditCardSchema>;
+  ```
+</details>
+
+## Perguntas de revisão
+
+1. **Por que o Valibot é especialmente indicado para Cloudflare Workers e Edge Functions?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque em ambientes Edge o tamanho do bundle afeta diretamente o tempo de inicialização (*cold start*) e os limites de memória da execução. O Valibot introduz um impacto praticamente nulo no artefato compilado.
+</details>
+
+2. **Como o Valibot trata validações assíncronas (como verificar se um e-mail já existe no banco)?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Utilizando as variantes assíncronas do pacote, como `v.checkAsync()`, `v.parseAsync()` ou `v.safeParseAsync()`, que retornam Promises sem bloquear a thread síncrona.
+</details>
+
+## Referências
+
+- [Valibot Official Documentation](https://valibot.dev/)
+- [Valibot GitHub Repository](https://github.com/fabian-hiller/valibot)
+- [Bundlephobia: Valibot Size Comparison](https://bundlephobia.com/package/valibot)
+
+## Próximo tópico
+
+Com a validação de schemas em tempo de execução dominada em suas vertentes consolidadas e modulares, avance para [Day.js](../../datetime/dayjs/) para aprender a manipular datas, tempos e fusos horários de forma imutável.

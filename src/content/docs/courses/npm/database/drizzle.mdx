@@ -1,0 +1,289 @@
+---
+title: "npm: Drizzle ORM"
+description: "Mapeamento e consultas a banco de dados com Drizzle ORM: esquemas em TypeScript puro, zero overhead, Drizzle Kit e consultas SQL-like."
+course: npm
+sidebar:
+  label: "Drizzle ORM"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O **Drizzle ORM** é um mapeador objeto-relacional moderno para TypeScript com a proposta de ser **o mais próximo possível do SQL puro**, sem abstrações pesadas e com **zero overhead de performance**. Ao contrário de ORMs tradicionais que utilizam linguagens de modelagem proprietárias (DSLs) e engines binárias em tempo de execução, o Drizzle define tabelas, relacionamentos e tipos diretamente em código TypeScript nativo.
+
+## Objetivo
+
+Compreender a arquitetura e a operação do Drizzle ORM, declarando esquemas em TypeScript puro, executando consultas *SQL-like* e relacionais com tipagem estrita, e gerenciando o ciclo de vida de migrações com o Drizzle Kit. Ao final do tópico, o leitor deve ser capaz de:
+
+- Instalar o Drizzle ORM e configurar a conexão com bancos SQLite ou PostgreSQL.
+- Declarar tabelas, colunas, chaves primárias e relacionamentos utilizando as funções nativas de esquema.
+- Realizar consultas com `db.select()`, filtros condicionais (`eq`, `like`, `and`) e inserções tipadas.
+- Utilizar a API de *Relational Queries* (`db.query`) para carregar entidades aninhadas de forma declarativa.
+- Gerar e aplicar migrações de banco de dados através da CLI `drizzle-kit`.
+- Avaliar quando o Drizzle é preferível ao Prisma em aplicações *serverless*, *edge* ou microsserviços de alto desempenho.
+
+## Por que o Drizzle ORM?
+
+A arquitetura do Drizzle apoia-se em três pilares fundamentais:
+
+<Mermaid title="Pilares de Arquitetura do Drizzle ORM">
+{`
+flowchart TD
+  A["Drizzle ORM"] --> B["TypeScript como Schema: Sem DSL, sem arquivos intermediários"]
+  A --> C["SQL Transparente: Sintaxe intuitiva para quem já conhece SQL"]
+  A --> D["Zero Overhead: Sem runtime engine pesada, inicialização instantânea"]
+  B --> E["Tipagem automática em cada campo"]
+  C --> F["Queries previsíveis e sem gargalos ocultos"]
+  D --> G["Ideal para Cloudflare Workers, Vercel Edge e AWS Lambda"]
+`}
+</Mermaid>
+
+## 1. Instalação e Conexão
+
+Instale o Drizzle ORM junto com o driver do banco (por exemplo, `better-sqlite3` para SQLite ou `pg` para PostgreSQL) e a ferramenta de desenvolvimento `drizzle-kit`:
+
+<PackageManagerTabs package="drizzle-orm better-sqlite3" devPackage="drizzle-kit @types/better-sqlite3" />
+
+Inicialização do cliente de banco:
+
+```typescript title="src/db/index.ts"
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as schema from './schema';
+
+const sqlite = new Database('local.db');
+export const db = drizzle(sqlite, { schema });
+```
+
+## 2. Modelagem de Esquema em TypeScript
+
+No Drizzle, as tabelas são declaradas como objetos TypeScript tipados:
+
+```typescript title="src/db/schema.ts"
+import { relations } from 'drizzle-orm';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+
+export const posts = sqliteTable('posts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  title: text('title').notNull(),
+  content: text('content'),
+  published: integer('published', { mode: 'boolean' }).default(false),
+  authorId: integer('author_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+});
+
+// Definição dos relacionamentos para a Relational API
+export const usersRelations = relations(users, ({ many }) => ({
+  posts: many(posts),
+}));
+
+export const postsRelations = relations(posts, ({ one }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+}));
+```
+
+## 3. Consultas com Sintaxe SQL-Like
+
+O Drizzle preserva a estrutura mental do SQL tradicional em suas operações:
+
+### Seleção e Filtros
+
+```typescript title="src/services/userService.ts"
+import { and, desc, eq, like } from 'drizzle-orm';
+import { db } from '../db';
+import { users } from '../db/schema';
+
+export async function findActiveUsers(searchDomain: string) {
+  return await db
+    .select({
+      userId: users.id,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(users)
+    .where(like(users.email, `%@${searchDomain}`))
+    .orderBy(desc(users.createdAt))
+    .limit(10);
+}
+```
+
+### Inserção e Retorno
+
+```typescript title="src/services/userService.ts"
+export async function createNewUser(name: string, email: string) {
+  const [created] = await db
+    .insert(users)
+    .values({ name, email })
+    .returning();
+
+  return created;
+}
+```
+
+## 4. API de Consultas Relacionais (*Relational Queries*)
+
+Para consultas aninhadas sem a necessidade de escrever múltiplos `LEFT JOIN` manuais, o Drizzle oferece a interface `db.query`:
+
+```typescript title="src/services/postService.ts"
+import { db } from '../db';
+
+export async function getUserWithPublishedPosts(userId: number) {
+  return await db.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+    with: {
+      posts: {
+        where: (posts, { eq }) => eq(posts.published, true),
+      },
+    },
+  });
+}
+```
+
+## 5. Gerenciando Migrações com o Drizzle Kit
+
+O `drizzle-kit` é o utilitário de linha de comando para gerar e sincronizar o banco.
+
+Configure o arquivo `drizzle.config.ts`:
+
+```typescript title="drizzle.config.ts"
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+  schema: './src/db/schema.ts',
+  out: './drizzle',
+  dialect: 'sqlite',
+  dbCredentials: {
+    url: 'local.db',
+  },
+});
+```
+
+Comandos essenciais do Drizzle Kit:
+
+```bash title="Gerando arquivos de migração SQL"
+npx drizzle-kit generate
+```
+
+```bash title="Sincronizando esquema diretamente com o banco (Prototipagem rápida)"
+npx drizzle-kit push
+```
+
+```bash title="Abrindo o painel visual Drizzle Studio"
+npx drizzle-kit studio
+```
+
+## Executando
+
+Siga os passos abaixo para inicializar um banco com Drizzle:
+
+<Steps>
+1. Instale os pacotes no projeto:
+
+   <PackageManagerTabs package="drizzle-orm better-sqlite3" devPackage="drizzle-kit @types/better-sqlite3" />
+2. Crie o arquivo `src/db/schema.ts` com a definição da tabela `users`.
+3. Aplique o esquema no banco local com `npx drizzle-kit push`.
+4. Escreva um script `src/index.ts` que insira um usuário com `db.insert(users).values(...)` e leia com `db.select().from(users)`.
+</Steps>
+
+## Exercício
+
+1. Qual a vantagem de definir o esquema de banco de dados diretamente em TypeScript em comparação com linguagens de modelagem dedicadas?
+2. Para que serve o comando `npx drizzle-kit push` e quando ele deve ser evitado em favor de migrações formais (`drizzle-kit generate`)?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Não há necessidade de plugins de compilação proprietários ou processos de sincronização intermediários. Os tipos TypeScript nascem diretamente das definições de coluna e qualquer refatoração de código é checada instantaneamente pelo compilador `tsc`.
+
+  2. O `drizzle-kit push` sincroniza diretamente o schema com o banco sem gerar arquivos de migração versionados, sendo ideal para prototipagem rápida local. Ele deve ser evitado em produção, onde migrações SQL rastreáveis e determinísticas (`generate` + `migrate`) são obrigatórias para auditoria e controle de versão.
+</details>
+
+## Desafio
+
+Crie um schema no Drizzle ORM para uma tabela de produtos (`products`) e categorias (`categories`). A tabela de produtos deve conter: `id`, `name`, `priceInCents` (inteiro), `categoryId` (chave estrangeira referenciando `categories.id`) e `createdAt`. Implemente uma consulta utilizando a Relational Queries API (`db.query.categories.findMany`) que retorne todas as categorias junto com a lista de produtos pertencentes a cada uma.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/db/ecommerceSchema.ts"
+  import { relations } from 'drizzle-orm';
+  import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+  export const categories = sqliteTable('categories', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+  });
+
+  export const products = sqliteTable('products', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    priceInCents: integer('price_in_cents').notNull(),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
+  });
+
+  export const categoriesRelations = relations(categories, ({ many }) => ({
+    products: many(products),
+  }));
+
+  export const productsRelations = relations(products, ({ one }) => ({
+    category: one(categories, {
+      fields: [products.categoryId],
+      references: [categories.id],
+    }),
+  }));
+  ```
+
+  ```typescript title="src/services/catalogService.ts"
+  import { db } from '../db';
+
+  export async function listCategoriesWithProducts() {
+    return await db.query.categories.findMany({
+      with: {
+        products: true,
+      },
+    });
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+1. **Por que o Drizzle ORM possui tempo de inicialização (*cold start*) muito menor do que ORMs tradicionais em ambientes Edge/Serverless?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque o Drizzle é uma biblioteca puramente TypeScript em código fonte leve, sem uma engine binária intermediária em Rust/C++ rodando como processo em segundo plano para traduzir queries.
+</details>
+
+2. **O Drizzle ORM previne ataques de SQL Injection automaticamente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Sim. Todas as consultas construídas através de `db.select()`, `db.insert()`, `eq()` e templates SQL (`sql` tagged template) são automaticamente parametrizadas antes de serem enviadas ao driver do banco.
+</details>
+
+## Referências
+
+- [Drizzle ORM Documentation](https://orm.drizzle.team/)
+- [Drizzle Kit Documentation](https://orm.drizzle.team/kit-docs/overview)
+- [Drizzle GitHub Repository](https://github.com/drizzle-team/drizzle-orm)
+
+## Próximo tópico
+
+Com os principais ORMs do ecossistema TypeScript dominados, avance para o [Supabase Client](../../cloud/supabase/) para explorar serviços de banco de dados e autenticação gerenciados na nuvem.

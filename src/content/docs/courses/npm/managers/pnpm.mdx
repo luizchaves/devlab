@@ -1,0 +1,287 @@
+---
+title: "npm: pnpm"
+description: "Gerenciador de pacotes pnpm: arquitetura de armazenamento global baseada em conteúdo, links rígidos, symlinks, prevenção contra dependências fantasmas e workspaces monorepo."
+course: npm
+sidebar:
+  label: "pnpm"
+---
+import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o **pnpm** (*Performant npm*), um gerenciador de pacotes moderno focado em velocidade extrema, economia massiva de espaço em disco e resolução estrita da árvore de dependências.
+
+Em projetos convencionais com npm clássico ou Yarn v1, cada projeto clona cópias inteiras de todas as dependências para a sua pasta `node_modules`. Se você possui vinte projetos utilizando o pacote `lodash` ou `@types/node`, existem vinte cópias idênticas ocupando espaço no disco. Além disso, a estrutura achatada (*flat node_modules*) permite que o código importe bibliotecas que não foram formalmente declaradas no `package.json` (as chamadas *dependências fantasmas*). O pnpm soluciona esses problemas criando um repositório central de arquivos baseado em conteúdo e organizando o `node_modules` com links rígidos e simbólicos.
+
+## Objetivo
+
+Dominar o uso do gerenciador pnpm em projetos JavaScript e TypeScript, compreendendo sua arquitetura de armazenamento global, links simbólicos e suporte a monorepos com workspaces. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o funcionamento do *content-addressable store* e como ele economiza gigabytes em disco.
+- Descrever a diferença entre links rígidos (*hard links*) e links simbólicos (*symlinks*).
+- Identificar e prevenir o problema de dependências fantasmas (*phantom dependencies*).
+- Instalar e utilizar os comandos equivalentes do pnpm (`pnpm add`, `pnpm install`, `pnpm run`).
+- Configurar e gerenciar projetos monorepo com múltiplos pacotes através do `pnpm-workspace.yaml`.
+
+## O que é o pnpm?
+
+O pnpm é um gerenciador de pacotes rápido e eficiente em disco. Em vez de duplicar arquivos em cada projeto, o pnpm armazena uma única cópia global de cada versão de arquivo no disco da máquina e cria apontamentos leves para dentro da pasta `node_modules` de cada aplicação.
+
+A tabela a seguir compara o pnpm com o npm tradicional e o Yarn:
+
+| Característica | npm clássico | Yarn v1 (Classic) | pnpm |
+| :--- | :--- | :--- | :--- |
+| **Armazenamento de Arquivos** | Duplicado por projeto | Duplicado por projeto | Único global (*Content-addressable store*) |
+| **Estrutura de `node_modules`** | Achatada (*Flat*) | Achatada (*Flat*) | Aninhada com links simbólicos (*Symlinked*) |
+| **Proteção contra Dependências Fantasmas** | Não | Não | Sim (acesso estrito às declaradas) |
+| **Velocidade de Instalação** | Média | Boa | Muito Alta |
+| **Lockfile Padrão** | `package-lock.json` | `yarn.lock` | `pnpm-lock.yaml` |
+
+O pnpm é a escolha padrão recomendada para desenvolvedores com múltiplos projetos locais, equipes que trabalham com monorepos ou máquinas com espaço de armazenamento restrito.
+
+## Fundamentos e Modelo Mental
+
+A grande inovação do pnpm é o seu repositório global indexado por conteúdo (*Content-Addressable Store*). Quando um pacote é baixado, seus arquivos são gravados no diretório central da máquina (geralmente em `~/.local/share/pnpm/store`).
+
+Dentro do projeto, a pasta `node_modules` é estruturada em duas partes:
+1. Uma pasta oculta `.pnpm` contendo links rígidos (*hard links*) que apontam diretamente para o repositório global.
+2. Na raiz de `node_modules`, apenas links simbólicos (*symlinks*) dos pacotes declarados explicitamente no seu `package.json`.
+
+O diagrama abaixo ilustra essa arquitetura:
+
+<Mermaid title="Arquitetura de links e armazenamento global do pnpm">
+{`
+flowchart TD
+  A["Repositório Global pnpm<br/>(~/.local/share/pnpm/store)"] -->|Hard link| B["node_modules/.pnpm/axios@1.7.0/..."]
+  A -->|Hard link| C["node_modules/.pnpm/dayjs@1.11.0/..."]
+  B -->|Symlink| D["node_modules/axios<br/>(Acessível ao projeto)"]
+  C -->|Symlink| E["node_modules/dayjs<br/>(Acessível ao projeto)"]
+  D --> F["Aplicação (src/main.js)<br/>Apenas enxerga dependências declaradas"]
+`}
+</Mermaid>
+
+Graças a esse modelo, se dez projetos usam a mesma versão do `axios`, ele é baixado apenas uma vez e ocupa espaço em disco apenas uma vez.
+
+Outro benefício crucial dessa arquitetura é o **fim das dependências fantasmas**. No npm clássico, como a pasta `node_modules` é achatada para resolver conflitos de versão, todas as dependências indiretas (as dependências das suas dependências) ficam visíveis na raiz de `node_modules`. Isso permite que o código faça `import 'semver'` mesmo sem declarar `semver` no `package.json`. Se a biblioteca principal atualizar e deixar de usar `semver`, seu código quebra inesperadamente.
+
+No pnpm, a raiz de `node_modules` contém **apenas** os pacotes que você declarou no `package.json`. Qualquer tentativa de importar uma dependência fantasma resulta em erro imediato do interpretador, protegendo a integridade do projeto.
+
+## Como Usar: Instalação e Comandos Principais
+
+O pnpm pode ser ativado diretamente através do utilitário `corepack` (integrado ao Node.js) ou instalado via npm:
+
+```bash title="Terminal"
+# Ativação via Corepack (recomendado para Node.js 18+)
+corepack enable
+corepack prepare pnpm@latest --activate
+
+# Ou instalação via npm
+npm install -g pnpm
+```
+
+A tabela abaixo compara os comandos mais frequentes entre npm e pnpm:
+
+| Ação | Comando no npm | Comando no pnpm |
+| :--- | :--- | :--- |
+| Instalar todas as dependências | `npm install` | `pnpm install` (ou `pnpm i`) |
+| Adicionar dependência de produção | `npm install axios` | `pnpm add axios` |
+| Adicionar dependência de desenvolvimento | `npm install -D vitest` | `pnpm add -D vitest` |
+| Remover uma dependência | `npm uninstall lodash` | `pnpm remove lodash` |
+| Executar script do package.json | `npm run build` | `pnpm build` |
+| Executar binário sob demanda | `npx prettier .` | `pnpm dlx prettier .` |
+
+Observe que o pnpm permite omitir o termo `run` ao invocar scripts (`pnpm dev`, `pnpm build`, `pnpm test`), tornando a rotina de desenvolvimento mais ágil.
+
+## Monorepos e Workspaces com pnpm
+
+O pnpm possui suporte nativo de alta performance para gerenciar múltiplos pacotes dentro de um único repositório (*monorepo*), compartilhando dependências e permitindo referenciar pacotes internos via protocolo `workspace:`.
+
+Para habilitar workspaces, crie um arquivo `pnpm-workspace.yaml` na raiz do repositório:
+
+```yaml title="pnpm-workspace.yaml"
+packages:
+  - 'packages/*'
+  - 'apps/*'
+```
+
+A estrutura de pastas organiza os pacotes em subdiretórios independentes:
+
+<FileTree>
+- meu-monorepo
+  - package.json
+  - pnpm-lock.yaml
+  - pnpm-workspace.yaml
+  - apps
+    - web (app front-end)
+      - package.json
+    - api (servidor back-end)
+      - package.json
+  - packages
+    - ui (componentes compartilhados)
+      - package.json
+    - utils (funções utilitárias)
+      - package.json
+</FileTree>
+
+Para instalar dependências em pacotes específicos ou executar scripts filtrados no monorepo, utilize a flag `--filter`:
+
+```bash title="Terminal"
+# Adiciona o pacote compartilhado 'utils' como dependência do app 'web'
+pnpm --filter web add utils@workspace:*
+
+# Executa o build apenas no app 'web'
+pnpm --filter web build
+
+# Executa os testes em todos os pacotes do monorepo em paralelo
+pnpm -r test
+```
+
+A notação `workspace:*` garante que, em desenvolvimento, o pnpm crie um link simbólico direto para o código-fonte local do pacote sem precisar publicá-lo em nenhum registro.
+
+## Boas Práticas e Armadilhas
+
+A migração de projetos legados para o pnpm requer atenção com ferramentas que presumem uma pasta `node_modules` achatada.
+
+A tabela abaixo resume as boas práticas e armadilhas conhecidas:
+
+| Cenário | O que acontece | Como resolver |
+| :--- | :--- | :--- |
+| **Ferramenta legada busca dependência fantasma** | Ferramentas antigas (como React Native clássico) podem falhar ao buscar dependências aninhadas. | Configure `shamefully-hoist=true` no arquivo `.npmrc` apenas se a ferramenta legada não puder ser atualizada. |
+| **Limpeza do repositório global** | O store global pode acumular versões antigas de pacotes que nenhum projeto mais usa. | Execute `pnpm store prune` para liberar espaço em disco removendo pacotes não referenciados. |
+| **Lockfile de monorepo** | O monorepo deve possuir um único `pnpm-lock.yaml` na raiz. | Nunca comite lockfiles isolados dentro das subpastas `apps/` ou `packages/`. |
+
+<Aside type="caution" title="Dica de IA: Cuidado com shamefully-hoist desnecessário">
+  Assistentes costumam sugerir adicionar `node-linker=hoisted` ou `shamefully-hoist=true` ao menor sinal de erro de importação. Isso desativa a proteção contra dependências fantasmas e anula a principal vantagem arquitetural do pnpm.
+
+  **Prompt:** *"Em vez de ativar o hoist global de dependências, identifique qual dependência não declarada o código está tentando importar e forneça o comando pnpm add correto para registrá-la no package.json."*
+</Aside>
+
+## Executando
+
+Para criar um ambiente de testes com pnpm:
+
+<Steps>
+1. Inicialize uma pasta de testes:
+
+   ```bash title="Terminal"
+   mkdir pnpm-demo && cd pnpm-demo
+   pnpm init
+   ```
+
+2. Adicione os pacotes `dayjs` e `vitest`:
+
+   ```bash title="Terminal"
+   pnpm add dayjs
+   pnpm add -D vitest
+   ```
+
+3. Inspecione a estrutura da pasta `node_modules` criada pelo pnpm e veja a pasta oculta `.pnpm`:
+
+   ```bash title="Terminal"
+   ls -la node_modules
+   ```
+
+4. Verifique o status do repositório global de pacotes:
+
+   ```bash title="Terminal"
+   pnpm store status
+   ```
+</Steps>
+
+## Exercício
+
+Configure um arquivo `pnpm-workspace.yaml` e os manifestos `package.json` para um monorepo composto por dois pacotes:
+
+1. `packages/math`: Uma biblioteca utilitária que exporta uma função de soma.
+2. `apps/server`: Uma aplicação Node.js que consome a biblioteca `math` local através do protocolo `workspace:*`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```yaml title="pnpm-workspace.yaml"
+  packages:
+    - 'packages/*'
+    - 'apps/*'
+  ```
+
+  ```json title="packages/math/package.json"
+  {
+    "name": "@lab/math",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "index.js"
+  }
+  ```
+
+  ```json title="apps/server/package.json"
+  {
+    "name": "@lab/server",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+      "start": "node index.js"
+    },
+    "dependencies": {
+      "@lab/math": "workspace:*"
+    }
+  }
+  ```
+</details>
+
+## Desafio
+
+Crie um script no `package.json` raiz de um monorepo que execute simultaneamente o script `lint` em todos os pacotes em paralelo e interrompa a execução imediatamente se qualquer um dos pacotes falhar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="package.json (raiz do monorepo)"
+  {
+    "name": "meu-monorepo",
+    "private": true,
+    "scripts": {
+      "lint": "pnpm -r --bail run lint"
+    }
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para avaliar o conteúdo estudado:
+
+1. **Como o pnpm consegue economizar espaço em disco quando vários projetos utilizam as mesmas dependências?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele armazena uma única cópia física de cada arquivo no *Content-addressable store* global e cria links rígidos (*hard links*) para os projetos locais em vez de copiar os arquivos repetidamente.
+   </details>
+
+2. **O que são dependências fantasmas (*phantom dependencies*) e como o pnpm as impede?**
+   <details>
+     <summary>Possível resposta</summary>
+     São dependências indiretas acessadas pelo código sem terem sido declaradas no `package.json`. O pnpm as impede expondo na raiz de `node_modules` apenas os pacotes declarados explicitamente pelo desenvolvedor.
+   </details>
+
+3. **Qual comando é utilizado no pnpm para executar binários temporários sem instalação prévia?**
+   <details>
+     <summary>Possível resposta</summary>
+     O comando `pnpm dlx` (equivalente ao `npx`).
+   </details>
+
+4. **Para que serve o arquivo `pnpm-workspace.yaml`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para declarar os padrões de diretórios que contêm os subprojetos e pacotes gerenciados em conjunto dentro de um monorepo.
+   </details>
+
+## Referências
+
+- [pnpm | Documentação Oficial](https://pnpm.io/)
+- [pnpm vs npm vs Yarn | Comparativo](https://pnpm.io/motivation)
+- [Filtering / Monorepo | pnpm Docs](https://pnpm.io/filtering)
+- [pnpm CLI Commands](https://pnpm.io/pnpm-cli)
+
+## Próximo tópico
+
+Conhecido o pnpm, explore o ecossistema do **Yarn**, seu suporte a Corepack, Plug'n'Play e o conceito de instalações sem pasta `node_modules`:
+
+[Yarn](../yarn/): Gerenciamento moderno, Plug'n'Play (PnP), Zero-Installs e workspaces.

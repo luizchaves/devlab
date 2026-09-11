@@ -1,0 +1,369 @@
+---
+title: "npm: Supabase Client"
+description: "Uso do pacote @supabase/supabase-js: criação de cliente, autenticação de usuários, operações de CRUD no PostgreSQL, Storage e subscrição em tempo real."
+course: npm
+sidebar:
+  label: "Supabase Client"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+O pacote **`@supabase/supabase-js`** é o cliente oficial em JavaScript e TypeScript para integrar aplicações web, mobile e servidores Node.js ao **Supabase** (plataforma *Backend-as-a-Service* baseada em PostgreSQL). Em vez de configurar APIs REST manuais, servidores de autenticação e WebSockets do zero, o SDK fornece uma interface unificada e tipada para banco de dados relacional, autenticação de usuários, armazenamento de arquivos e eventos em tempo real.
+
+## Objetivo
+
+Compreender a integração do SDK `@supabase/supabase-js` em projetos JavaScript e TypeScript, inicializando o cliente com chaves públicas, realizando operações de persistência (*CRUD*) com segurança via Row Level Security (RLS), gerenciando autenticação de sessão e ouvindo eventos em tempo real. Ao final do tópico, o leitor deve ser capaz de:
+
+- Instalar e configurar o cliente `@supabase/supabase-js` utilizando variáveis de ambiente seguras.
+- Executar operações de consulta, inserção, atualização e deleção tipadas com o construtor de queries do Supabase.
+- Implementar fluxos de cadastro, login e observação de estado de autenticação com `supabase.auth`.
+- Enviar e recuperar arquivos estáticos utilizando o Supabase Storage.
+- Escutar alterações no banco de dados em tempo real via canais WebSocket com `supabase.channel`.
+- Isolar as chamadas do SDK em módulos de serviço para evitar acoplamento excessivo na camada visual.
+
+## O Modelo de Integração do Supabase
+
+O SDK atua como uma ponte declarativa entre o front-end e os serviços gerenciados na nuvem. Ao contrário de uma biblioteca que roda apenas na máquina local, o `@supabase/supabase-js` encapsula requisições HTTP para a Database API (PostgREST), autenticação (GoTrue) e conexões persistentes via WebSockets (Realtime).
+
+<Mermaid title="Arquitetura de comunicação do Supabase Client">
+{`
+flowchart TD
+  A["Aplicação (Vite / React / Node.js)"] --> B["@supabase/supabase-js<br/>createClient(url, anonKey)"]
+  B -->|"Database API (PostgREST)"| C["PostgreSQL (Tabelas e RLS)"]
+  B -->|"Auth API (GoTrue)"| D["Sessões, JWT e Usuários"]
+  B -->|"Storage API"| E["Buckets de Arquivos"]
+  B -->|"Realtime Engine"| F["WebSockets (Postgres Changes)"]
+`}
+</Mermaid>
+
+<Aside type="caution" title="Segurança: Chave Anônima vs Chave de Serviço">
+  No front-end (Vite, React, navegadores), use sempre a **Anon Public Key** (`NEXT_PUBLIC_SUPABASE_ANON_KEY` ou `VITE_SUPABASE_ANON_KEY`). A segurança dos dados no front-end não depende de esconder essa chave, mas sim de ativar as políticas de **Row Level Security (RLS)** no PostgreSQL. A chave `service_role` ignora todo o RLS e só deve ser utilizada em ambientes de servidor seguros (Node.js back-end / Edge Functions).
+</Aside>
+
+## 1. Instalação e Inicialização
+
+Instale o pacote oficial no seu projeto:
+
+<PackageManagerTabs package="@supabase/supabase-js" />
+
+Crie um módulo isolado para inicializar o cliente utilizando as credenciais do projeto:
+
+```typescript title="src/lib/supabase.ts"
+import { createClient } from '@supabase/supabase-js';
+
+// No Vite, use import.meta.env.VITE_*; no Node.js, use process.env.*
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('As variáveis de ambiente do Supabase não foram configuradas.');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+```
+
+## 2. Operações de Banco de Dados (PostgreSQL)
+
+O Supabase expõe as tabelas do PostgreSQL através de uma interface encadeada com suporte a filtros e ordenação:
+
+### Consulta de Registros (`select`)
+
+```typescript title="src/services/tasks.ts"
+import { supabase } from '../lib/supabase';
+
+export interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+  user_id: string;
+  created_at: string;
+}
+
+export async function fetchTasks(): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Erro ao buscar tarefas: ${error.message}`);
+  }
+
+  return data ?? [];
+}
+```
+
+### Inserção de Registros (`insert`)
+
+```typescript title="src/services/tasks.ts"
+export async function createTask(title: string) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert([{ title, completed: false }])
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Erro ao criar tarefa: ${error.message}`);
+  }
+
+  return data;
+}
+```
+
+### Atualização e Remoção (`update` e `delete`)
+
+```typescript title="src/services/tasks.ts"
+export async function toggleTaskStatus(id: string, completed: boolean) {
+  const { error } = await supabase
+    .from('tasks')
+    .update({ completed })
+    .eq('id', id);
+
+  if (error) {
+    throw new Error(`Erro ao atualizar tarefa: ${error.message}`);
+  }
+}
+
+export async function deleteTask(id: string) {
+  const { error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw new Error(`Erro ao excluir tarefa: ${error.message}`);
+  }
+}
+```
+
+## 3. Autenticação de Usuários (`auth`)
+
+O módulo `supabase.auth` gerencia sessões, armazenamento automático de tokens JWT no `localStorage` e renovação em segundo plano:
+
+```typescript title="src/services/auth.ts"
+import { supabase } from '../lib/supabase';
+
+// Cadastro de novo usuário
+export async function signUp(email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+  return data.user;
+}
+
+// Login com e-mail e senha
+export async function signIn(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+  return data.session;
+}
+
+// Logout do usuário
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}
+```
+
+Para observar mudanças de login ou logout em tempo real na interface da aplicação:
+
+```typescript title="src/services/authListener.ts"
+import { supabase } from '../lib/supabase';
+
+export function listenToAuthChanges(callback: (user: unknown) => void) {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      callback(session?.user ?? null);
+    }
+  );
+
+  // Retorna função para cancelar a escuta ao desmontar componente
+  return () => subscription.unsubscribe();
+}
+```
+
+## 4. Upload de Arquivos com Storage
+
+O Supabase Storage armazena mídias e documentos em *buckets* configuráveis:
+
+```typescript title="src/services/storage.ts"
+import { supabase } from '../lib/supabase';
+
+export async function uploadAvatar(userId: string, file: File) {
+  const fileExt = file.name.split('.').pop();
+  const filePath = `${userId}/avatar.${fileExt}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, { upsert: true });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
+```
+
+## 5. Eventos em Tempo Real (*Realtime*)
+
+Você pode receber alterações ocorridas no banco instantaneamente via WebSockets:
+
+```typescript title="src/services/realtimeTasks.ts"
+import { supabase } from '../lib/supabase';
+
+export function subscribeToTaskChanges(onInsert: (newTask: unknown) => void) {
+  const channel = supabase
+    .channel('tasks-channel')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'tasks' },
+      (payload) => {
+        onInsert(payload.new);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+```
+
+## Executando
+
+Siga os passos abaixo para configurar e testar o cliente do Supabase:
+
+<Steps>
+1. Instale o pacote no seu projeto:
+
+   <PackageManagerTabs package="@supabase/supabase-js" />
+2. Crie um arquivo `.env` na raiz do projeto contendo:
+
+   ```env title=".env"
+   VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+   VITE_SUPABASE_ANON_KEY=sua-chave-anonima-publica
+   ```
+3. Crie o arquivo `src/lib/supabase.ts` e inicialize o cliente com `createClient`.
+4. Crie uma tabela `tasks` no painel do Supabase com RLS ativo e execute uma consulta com `supabase.from('tasks').select()`.
+</Steps>
+
+## Exercício
+
+1. Por que o padrão de resposta do Supabase sempre retorna um objeto com a estrutura `{ data, error }` em vez de disparar exceções automaticamente?
+2. Qual é o risco de utilizar a chave `service_role` em uma aplicação front-end pública?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O formato `{ data, error }` força o desenvolvedor a tratar os erros explicitamente como valores em vez de depender de blocos `try/catch` dispersos, evitando falhas silenciosas e simplificando o fluxo assíncrono.
+
+  2. A chave `service_role` possui privilégios de superusuário e ignora todas as regras de Row Level Security (RLS) do banco de dados. Se exposta no navegador, qualquer usuário poderá ler, modificar ou deletar todos os dados de todas as tabelas do projeto.
+</details>
+
+## Desafio
+
+Crie uma função de serviço em TypeScript que realize uma consulta paginada na tabela `products`. A função deve receber a página atual (`page`, base 1) e o tamanho da página (`pageSize`), utilizando os métodos `.range(from, to)` do Supabase para buscar apenas o intervalo desejado de itens e retornar também a contagem total de registros (`count: 'exact'`).
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/services/products.ts"
+  import { supabase } from '../lib/supabase';
+
+  interface PaginatedResult<T> {
+    data: T[];
+    totalCount: number;
+    page: number;
+    pageSize: number;
+  }
+
+  export async function fetchPaginatedProducts<T>(
+    page = 1,
+    pageSize = 10
+  ): Promise<PaginatedResult<T>> {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error, count } = await supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+      .range(from, to)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Falha na paginação: ${error.message}`);
+    }
+
+    return {
+      data: (data as T[]) ?? [],
+      totalCount: count ?? 0,
+      page,
+      pageSize,
+    };
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Segurança e Arquitetura
+
+1. **O que é Row Level Security (RLS) e por que ela é indispensável ao usar o Supabase no front-end?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  RLS é um recurso nativo do PostgreSQL que define políticas de acesso linha por linha (ex: `auth.uid() = user_id`). Como o front-end acessa o banco diretamente via HTTP com uma chave pública, o RLS é o que garante que um usuário só consiga visualizar e editar os seus próprios registros.
+</details>
+
+2. **Como o Supabase gerencia os tokens de autenticação no navegador?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O SDK armazena o token JWT e o refresh token no `localStorage` por padrão, renovando a sessão automaticamente antes que o token expire sem exigir ação manual do desenvolvedor.
+</details>
+
+### Recursos do SDK
+
+3. **Qual a diferença entre `.select()` e `.select().single()` no Supabase?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `.select()` sempre retorna um array de registros (mesmo quando encontra apenas 1 item). O `.single()` retorna diretamente o objeto individual (ou um erro caso o resultado retorne 0 ou mais de 1 registro).
+</details>
+
+4. **Como o Realtime do Supabase detecta alterações no banco de dados?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O Supabase escuta o *Write-Ahead Log* (WAL) do PostgreSQL e transmite as operações de `INSERT`, `UPDATE` e `DELETE` através de canais WebSocket para os clientes conectados que subscreveram à tabela.
+</details>
+
+## Referências
+
+- [Supabase JavaScript Client Docs](https://supabase.com/docs/reference/javascript/introduction)
+- [Supabase Official Website](https://supabase.com/)
+- [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)
+- [Supabase Database & PostgREST](https://supabase.com/docs/guides/database)
+- [Supabase Row Level Security (RLS)](https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+## Próximo tópico
+
+Com os serviços de banco de dados e nuvem dominados, explore a construção de servidores e APIs com diferentes paradigmas:
+
+- [Frameworks de Servidor](../../backend/web-frameworks/): Comparativo arquitetural entre Express, Fastify, Hono e NestJS.

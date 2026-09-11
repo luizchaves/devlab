@@ -1,0 +1,315 @@
+---
+title: "npm: Git Hooks e Automação de Commits (Husky e lint-staged)"
+description: "Automação de qualidade e validação de código no fluxo Git com Husky, lint-staged, hooks de pre-commit e Conventional Commits com commitlint."
+course: npm
+sidebar:
+  label: "Husky e Pre-commit"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta a automação de verificações no ciclo de vida do Git utilizando **Husky**, **lint-staged** e **commitlint**, garantindo que código fora do padrão ou com erros de sintaxe seja interceptado antes de entrar no histórico de commits do repositório.
+
+Em equipes de desenvolvimento, confiar apenas na disciplina individual para rodar formatadores, linters e testes antes de cada envio frequentemente resulta em commits com erros evitáveis, quebras na esteira de integração contínua (CI) e discussões desnecessárias em revisões de código (*pull requests*). O ecossistema de *Git Hooks* permite criar barreiras de qualidade automatizadas e imediatas diretamente na máquina do desenvolvedor.
+
+## Objetivo
+
+Compreender a arquitetura de *hooks* do Git e implementar fluxos automáticos de validação pré-commit e padronização de mensagens de commit no ecossistema Node.js. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o papel dos *hooks* nativos do Git e a necessidade de ferramentas como o Husky para compartilhá-los na equipe.
+- Instalar e configurar o **Husky** moderno utilizando a funcionalidade nativa de configuração de *hooks* do Git.
+- Integrar o **lint-staged** para executar verificações rápidas de formatação e *linting* (Biome ou ESLint) exclusivamente nos arquivos modificados em *stage*.
+- Padronizar o histórico do projeto com a especificação *Conventional Commits* através do **commitlint**.
+- Identificar situações excepcionais e aplicar boas práticas para manter os *hooks* rápidos e confiáveis no dia a dia.
+
+## O que são Git Hooks?
+
+O Git possui um mecanismo nativo de gatilhos (*hooks*) que executa scripts customizados em momentos específicos do ciclo de vida dos comandos de versionamento, como antes de gravar um commit (`pre-commit`), ao validar a mensagem descritiva (`commit-msg`) ou antes de enviar alterações para o servidor remoto (`pre-push`).
+
+Por padrão, esses scripts ficam armazenados no diretório oculto `.git/hooks/` de cada clone local. No entanto, como o diretório `.git` não é sincronizado com o repositório remoto, os *hooks* nativos não são versionados nem distribuídos automaticamente entre os membros da equipe.
+
+O diagrama a seguir ilustra como o ciclo de um commit é interceptado por um *hook* de validação antes de ser gravado:
+
+<Mermaid title="Fluxo de interceptação do commit por Git Hooks">
+{`
+flowchart TD
+  A["Desenvolvedor executa<br/>git commit -m '...'"] --> B["Git dispara o hook<br/>.husky/pre-commit"]
+  B --> C{"Verificações<br/>(lint-staged, testes)?"}
+  C -- "Falha (código inválido)" --> D["Aborta o commit<br/>Histórico permanece limpo"]
+  C -- "Sucesso" --> E["Git grava o commit<br/>com sucesso no histórico"]
+`}
+</Mermaid>
+
+Quando o script executado pelo *hook* retorna um código de saída diferente de zero (`exit code 1`), o Git cancela a operação imediatamente. Isso impede que arquivos com erros de sintaxe ou violações de estilo cheguem a ser registrados.
+
+## O Papel do Husky
+
+O **Husky** é a biblioteca padrão do ecossistema JavaScript para resolver o problema de compartilhamento de *hooks*. Ele configura a variável `core.hooksPath` do Git para apontar para uma pasta versionada (geralmente `.husky/`), permitindo que os scripts de automação façam parte do código-fonte do projeto.
+
+A tabela abaixo resume os principais *hooks* utilizados no desenvolvimento web:
+
+| Hook do Git | Momento de execução | Uso típico no projeto |
+| :--- | :--- | :--- |
+| `pre-commit` | Antes de abrir o editor da mensagem de commit | Formatação, *linting* e testes rápidos nos arquivos em *stage*. |
+| `commit-msg` | Após a digitação da mensagem de commit | Validação de padrão descritivo (*Conventional Commits*). |
+| `pre-push` | Antes do envio para o repositório remoto (`git push`) | Execução da suíte completa de testes unitários ou build de produção. |
+
+Ao clonar o repositório e executar a instalação de dependências, o Husky é inicializado automaticamente pelo script de ciclo de vida `prepare` do `package.json`, garantindo que todos os colaboradores tenham os mesmos gatilhos ativos.
+
+## Otimização de Performance com lint-staged
+
+Executar o linter ou a suíte de testes em todo o repositório a cada pequeno commit torna o fluxo de trabalho lento e frustrante em projetos médios ou grandes. Se um projeto possui mil arquivos e o desenvolvedor alterou apenas dois, não faz sentido analisar os outros 998 arquivos naquele instante.
+
+O **lint-staged** resolve esse gargalo filtrando exclusivamente os arquivos que estão na área de preparação (*staged files*, adicionados via `git add`). Ele executa os comandos definidos apenas sobre essa lista restrita e reaplica as correções automáticas antes do commit ser finalizado.
+
+A estrutura abaixo exemplifica a organização dos arquivos de configuração do Husky e lint-staged em um projeto:
+
+<FileTree>
+- .husky/
+  - _/ (arquivos internos do Husky)
+  - commit-msg (script que valida a mensagem)
+  - pre-commit (script que dispara o lint-staged)
+- .lintstagedrc.json (regras de arquivos e comandos)
+- commitlint.config.mjs (regras de Conventional Commits)
+- package.json
+</FileTree>
+
+<Aside type="tip" title="Integração com Biome e ESLint">
+Com o Biome, o `lint-staged` roda em milissegundos, formatando e corrigindo erros de forma quase imperceptível durante o `git commit`.
+</Aside>
+
+## Padronização com commitlint
+
+Além de garantir a integridade do código, equipes profissionais frequentemente padronizam o formato das mensagens de commit para facilitar a leitura do histórico e permitir a geração automática de *changelogs* e versões SemVer.
+
+A especificação mais adotada é o *Conventional Commits*, que estrutura as mensagens no formato `<tipo>(<escopo opcional>): <descrição>`:
+
+- `feat:` introdução de uma nova funcionalidade no sistema.
+- `fix:` correção de um bug ou comportamento inesperado.
+- `docs:` alterações exclusivas em documentação ou comentários.
+- `refactor:` refatoração de código sem alteração de comportamento externo.
+- `test:` adição ou ajuste de testes automatizados.
+- `chore:` tarefas de manutenção em scripts, dependências ou configurações.
+
+O **commitlint** intercepta o hook `commit-msg` e rejeita qualquer mensagem que fuja desse padrão pré-acordado.
+
+## Configuração Passo a Passo
+
+A seguir, veja como configurar um ambiente completo com Husky, lint-staged, Biome e commitlint a partir do zero.
+
+<Steps>
+1. **Instalar as ferramentas de desenvolvimento:**
+
+   Instale o Husky, o lint-staged e os pacotes do commitlint como dependências de desenvolvimento:
+
+   <PackageManagerTabs command="install -D husky lint-staged @commitlint/cli @commitlint/config-conventional" />
+
+2. **Inicializar o Husky no projeto:**
+
+   Execute o comando de inicialização, que cria a pasta `.husky/` e adiciona o script `prepare` no `package.json`:
+
+   ```bash title="Terminal"
+   npx husky init
+   ```
+
+3. **Configurar o hook de pre-commit:**
+
+   Altere o arquivo `.husky/pre-commit` para delegar a validação ao `lint-staged`:
+
+   ```bash title=".husky/pre-commit"
+   npx lint-staged
+   ```
+
+4. **Configurar o arquivo .lintstagedrc.json:**
+
+   Crie o arquivo de regras na raiz do projeto, especificando as extensões e os comandos a serem executados:
+
+   ```json title=".lintstagedrc.json"
+   {
+     "*.{js,ts,jsx,tsx,json,css}": [
+       "biome check --write --no-errors-on-unmatched"
+     ]
+   }
+   ```
+
+5. **Configurar o hook de commit-msg com commitlint:**
+
+   Crie o arquivo `.husky/commit-msg` para interceptar a mensagem digitada:
+
+   ```bash title=".husky/commit-msg"
+   npx --no -- commitlint --edit "${1}"
+   ```
+
+6. **Definir a regra do commitlint:**
+
+   Crie o arquivo de configuração `commitlint.config.mjs` estendendo a convenção padrão:
+
+   ```js title="commitlint.config.mjs"
+   export default {
+     extends: ['@commitlint/config-conventional'],
+   };
+   ```
+</Steps>
+
+<Aside type="caution" title="Dica de IA: Validando comandos gerados para hooks">
+Assistentes de IA costumam sugerir comandos antigos do Husky (como `husky install` ou blocos `husky` dentro do `package.json`), que eram válidos nas versões 4 a 7 mas foram descontinuados a partir do Husky v9.
+
+**Prompt:** *"Atualize esta configuração do Husky para a sintaxe moderna da versão 9+, utilizando arquivos executáveis individuais em .husky/ e o comando npx husky init."*
+</Aside>
+
+## Resumo e Boas Práticas
+
+A automação de *hooks* deve acelerar o fluxo de trabalho, e não se tornar um obstáculo para os desenvolvedores.
+
+A tabela a seguir consolida as recomendações essenciais para uma esteira de *hooks* eficiente:
+
+| Prática recomendada | Motivo técnico |
+| :--- | :--- |
+| **Validar apenas arquivos modificados com lint-staged** | Mantém o tempo de execução do `git commit` abaixo de 2 segundos, sem travar o desenvolvedor. |
+| **Reservar testes longos para pre-push ou CI** | Testes de integração pesados e testes E2E (Playwright) devem rodar no `pre-push` ou no GitHub Actions. |
+| **Formatar automaticamente no stage** | O linter corrige espaços e pontuações automaticamente, evitando retrabalho manual. |
+| **Usar Conventional Commits com commitlint** | Permite rastrear histórico e automatizar deploys e *releases* com precisão. |
+| **Evitar o uso indiscriminado de `--no-verify`** | O parâmetro `git commit --no-verify` pula os *hooks*, mas deve ser reservado para emergências justificadas. |
+
+## Executando
+
+Veja o comportamento prático do fluxo de commits no terminal após a configuração dos *hooks*:
+
+### Testando Mensagem Inválida no commitlint
+
+Ao tentar criar um commit com uma mensagem fora do padrão:
+
+```bash title="Terminal"
+git add src/index.js
+git commit -m "ajuste no botao"
+```
+
+```txt title="Output" frame="terminal"
+⧗   input: ajuste no botao
+✖   subject may not be empty [subject-empty]
+✖   type may not be empty [type-empty]
+
+✖   found 2 problems, 0 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+husky - commit-msg script failed (code 1)
+```
+
+O Git aborta o commit e preserva os arquivos na área de preparação (*stage*).
+
+### Executando com Sucesso
+
+Ao utilizar a convenção correta e código válido:
+
+```bash title="Terminal"
+git commit -m "fix(ui): corrigir alinhamento do botao primario"
+```
+
+```txt title="Output" frame="terminal"
+✔ Preparing lint-staged...
+✔ Running tasks for staged files...
+✔ Applying modifications to index...
+✔ Cleaning up temporary files...
+[main a1b2c3d] fix(ui): corrigir alinhamento do botao primario
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+```
+
+## Exercício
+
+Pratique a configuração de automação de commits no projeto:
+
+1. Instale o `husky` e o `lint-staged` em um projeto JavaScript inicializado com Git.
+2. Crie a regra no `.lintstagedrc.json` para verificar arquivos `.js` com o Biome.
+3. Crie um arquivo com erro de formatação intencional (excesso de espaços ou aspas inconsistentes), adicione ao Git (`git add`) e tente realizar o commit.
+4. Verifique se o arquivo foi corrigido automaticamente pelo hook e se o commit foi gravado com sucesso.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No terminal do projeto:
+  ```bash
+  npm install -D husky lint-staged @biomejs/biome
+  npx husky init
+  echo "npx lint-staged" > .husky/pre-commit
+  ```
+
+  No arquivo `.lintstagedrc.json`:
+  ```json
+  {
+    "*.js": ["biome check --write --no-errors-on-unmatched"]
+  }
+  ```
+
+  Ao executar `git add index.js && git commit -m "chore: testar pre-commit"`, o Biome ajustará a formatação dos arquivos em *stage* antes de concluir o commit.
+</details>
+
+## Desafio
+
+Configure um *hook* de `pre-push` no Husky que execute apenas os testes unitários rápidos do Vitest (`npm run test:run`), impedindo que código que quebre os testes seja enviado acidentalmente para o repositório compartilhado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para criar o hook de pre-push no Husky v9:
+
+  ```bash title="Terminal"
+  echo "npm run test:run" > .husky/pre-push
+  chmod +x .husky/pre-push
+  ```
+
+  No `package.json`, certifique-se de que o script `test:run` executa os testes sem modo interativo (*watch*):
+
+  ```json title="package.json"
+  {
+    "scripts": {
+      "test:run": "vitest run"
+    }
+  }
+  ```
+
+  Dessa forma, sempre que o comando `git push` for disparado, o Vitest executará todas as asserções. Se qualquer teste falhar, o envio é bloqueado antes de afetar a equipe ou disparar o CI.
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para fixar os conceitos abordados:
+
+1. **Por que a pasta nativa `.git/hooks/` não é suficiente para padronizar *hooks* em projetos em equipe?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a pasta `.git/` é local de cada clone e nunca é enviada ao repositório remoto. O Husky resolve isso redirecionando os hooks para uma pasta versionada (`.husky/`).
+   </details>
+
+2. **Qual é a vantagem de utilizar o `lint-staged` em vez de executar `npm run lint` diretamente no pre-commit?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `lint-staged` roda os comandos apenas nos arquivos modificados que estão na área de preparação (*stage*), garantindo que a execução dure frações de segundo mesmo em projetos com milhares de arquivos.
+   </details>
+
+3. **Qual é a estrutura básica de uma mensagem segundo o padrão *Conventional Commits* validado pelo commitlint?**
+   <details>
+     <summary>Possível resposta</summary>
+     A estrutura é composta por `<tipo>(<escopo opcional>): <descrição>`, como em `feat(auth): adicionar autenticacao via jwt` ou `fix: corrigir calculo de frete`.
+   </details>
+
+4. **Quando é aceitável utilizar o argumento `--no-verify` no Git?**
+   <details>
+     <summary>Possível resposta</summary>
+     Apenas em situações pontuais e excepcionais, como *commits* parciais de trabalho em progresso (*WIP*) em branches isoladas ou correções emergenciais em que um hook com bug esteja impedindo o fluxo de trabalho.
+   </details>
+
+## Referências
+
+- [Husky | Modern native Git hooks](https://typicode.github.io/husky/)
+- [lint-staged | GitHub Repository](https://github.com/lint-staged/lint-staged)
+- [commitlint | Lint commit messages](https://commitlint.js.org/)
+- [Conventional Commits Specification](https://www.conventionalcommits.org/)
+- [Git Hooks | Git Documentation](https://git-scm.com/docs/githooks)
+
+## Próximo tópico
+
+Com os fluxos de automação, qualidade e integridade do código consolidados no ciclo de commits, avance para o empacotamento e servidor de desenvolvimento moderno:
+
+- [Vite](../../build/vite/): Servidor de desenvolvimento ultrarrápido com Hot Module Replacement (HMR) e build otimizado com Rollup.

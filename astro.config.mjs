@@ -32,7 +32,7 @@ export default defineConfig({
    * preservam links de slides, mapas mentais, exercícios e material externo.
    */
   redirects: {
-    // O guia de pacotes passou a se chamar "Guia de Pacotes npm" e mudou de rota,
+    // O guia de pacotes passou a se chamar "Guia de Pacotes JavaScript" e mudou de rota,
     // para abrir espaco a guias de pacotes de outras linguagens.
     '/courses/packages': withBase('/courses/npm/'),
     '/courses/packages/build/vite': withBase('/courses/npm/build/vite/'),
@@ -55,6 +55,11 @@ export default defineConfig({
     '/courses/npm/baas/firebase': withBase('/courses/cloud/firebase/'),
     '/courses/npm/baas/firebase-firestore': withBase('/courses/cloud/firebase/firestore/'),
     '/courses/npm/baas/firebase-auth': withBase('/courses/cloud/firebase/auth/'),
+    // Redirecionamento da reestruturacao do Guia de Pacotes JavaScript (Fundamentos -> Managers)
+    '/courses/npm/basics/introduction': withBase('/courses/npm/managers/npm/'),
+    '/courses/npm/basics/dependencies': withBase('/courses/npm/managers/npm/'),
+    '/courses/npm/basics/scripts': withBase('/courses/npm/managers/npm/'),
+    '/courses/npm/dev/dev-dependencies': withBase('/courses/npm/dev/linters/'),
     // As paginas de hospedagem viraram a secao "Recursos", organizada por recurso de nuvem.
     '/courses/cloud/hosting/static-hosting': withBase('/courses/cloud/resources/static-hosting/'),
     '/courses/cloud/hosting/serverless-functions': withBase(
@@ -1909,60 +1914,119 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Guia de Pacotes npm',
+          label: 'Guia de Pacotes JavaScript',
           items: [
             { label: 'Visão geral', link: '/courses/npm/' },
             {
-              label: 'Fundamentos do npm',
+              label: 'Gerenciadores de Pacotes',
               items: [
-                {
-                  label: 'Introdução e package.json',
-                  link: '/courses/npm/basics/introduction/',
-                },
-                {
-                  label: 'Dependências e SemVer',
-                  link: '/courses/npm/basics/dependencies/',
-                },
-                { label: 'Scripts e npx', link: '/courses/npm/basics/scripts/' },
+                { label: 'package.json', link: '/courses/npm/managers/package-json/' },
+                { label: 'npm', link: '/courses/npm/managers/npm/' },
+                { label: 'pnpm', link: '/courses/npm/managers/pnpm/' },
+                { label: 'Yarn', link: '/courses/npm/managers/yarn/' },
+                { label: 'Bun', link: '/courses/npm/managers/bun/' },
+                { label: 'JSR', link: '/courses/npm/managers/jsr/' },
+                { label: 'Comparativo de Comandos', link: '/courses/npm/managers/commands/' },
               ],
             },
             {
-              label: 'Build e Desenvolvimento',
+              label: 'Ferramentas e Qualidade',
               items: [
-                { label: 'Pacotes de Desenvolvimento', link: '/courses/npm/dev/dev-dependencies/' },
+                { label: 'Linters e Formatadores', link: '/courses/npm/dev/linters/' },
+                { label: 'Testes com Vitest', link: '/courses/npm/dev/testing/' },
+                { label: 'Playwright', link: '/courses/npm/dev/playwright/' },
+                { label: 'Husky e Pre-commit', link: '/courses/npm/dev/git-hooks/' },
                 { label: 'Vite', link: '/courses/npm/build/vite/' },
               ],
             },
             {
-              label: 'APIs de Prototipagem',
-              items: [{ label: 'JSON Server', link: '/courses/npm/mock/json-server/' }],
+              label: 'APIs, Dados e Validação',
+              items: [
+                { label: 'JSON Server', link: '/courses/npm/mock/json-server/' },
+                { label: 'Faker.js', link: '/courses/npm/mock/faker/' },
+                { label: 'Axios', link: '/courses/npm/http/axios/' },
+                { label: 'Apollo Client', link: '/courses/npm/http/apollo/' },
+                { label: 'Zod', link: '/courses/npm/validation/zod/' },
+                { label: 'Valibot', link: '/courses/npm/validation/valibot/' },
+                { label: 'Day.js', link: '/courses/npm/datetime/dayjs/' },
+              ],
             },
             {
-              label: 'HTTP e Clientes',
-              items: [{ label: 'Axios', link: '/courses/npm/http/axios/' }],
+              label: 'Interface e Feedback',
+              items: [
+                { label: 'Tailwind CSS', link: '/courses/npm/ui/tailwind/' },
+                { label: 'Primitivas de UI', link: '/courses/npm/ui/modern-ui-primitives/' },
+                { label: 'Suíte TanStack', link: '/courses/npm/ui/tanstack/' },
+                { label: 'Lucide Icons', link: '/courses/npm/ui/lucide/' },
+                { label: 'SweetAlert2', link: '/courses/npm/ui/sweetalert2/' },
+              ],
             },
             {
-              label: 'Validação de Dados',
-              items: [{ label: 'Zod', link: '/courses/npm/validation/zod/' }],
-            },
-            {
-              label: 'Interface',
+              label: 'Gráficos e Visualização',
               items: [
                 { label: 'Chart.js', link: '/courses/npm/ui/chartjs/' },
                 { label: 'D3.js', link: '/courses/npm/ui/d3/' },
-                { label: 'Apache ECharts', link: '/courses/npm/ui/echarts/' },
                 { label: 'Leaflet', link: '/courses/npm/ui/leaflet/' },
               ],
             },
             {
-              label: 'Referência',
+              label: 'Frameworks e Renderização',
               items: [
+                { label: 'Frameworks de UI', link: '/courses/npm/frameworks/ui-frameworks/' },
                 {
-                  label: 'Mapa de Pacotes',
-                  link: '/courses/npm/reference/package-map/',
+                  label: 'SSR, SSG e Meta-frameworks',
+                  link: '/courses/npm/frameworks/ssr-ssg/',
                 },
               ],
             },
+            {
+              label: 'Aplicações Multiplataforma',
+              items: [
+                {
+                  label: 'React Native e Expo',
+                  link: '/courses/npm/platforms/react-native/',
+                },
+                {
+                  label: 'Aplicações Desktop',
+                  link: '/courses/npm/platforms/desktop-apps/',
+                },
+              ],
+            },
+            {
+              label: 'Banco de Dados e BaaS',
+              items: [
+                {
+                  label: 'Prisma',
+                  link: '/courses/npm/database/prisma/',
+                },
+                {
+                  label: 'Drizzle ORM',
+                  link: '/courses/npm/database/drizzle/',
+                },
+                {
+                  label: 'Supabase Client',
+                  link: '/courses/npm/cloud/supabase/',
+                },
+              ],
+            },
+            {
+              label: 'Servidores, Segurança e IA',
+              items: [
+                {
+                  label: 'Frameworks de Servidor',
+                  link: '/courses/npm/backend/web-frameworks/',
+                },
+                {
+                  label: 'Autenticação e Identidade',
+                  link: '/courses/npm/auth/auth-providers/',
+                },
+                {
+                  label: 'IA e SDKs de LLM',
+                  link: '/courses/npm/ai/llm-sdks/',
+                },
+              ],
+            },
+            { label: 'Mapa de Pacotes', link: '/courses/npm/reference/package-map/' },
           ],
         },
         {

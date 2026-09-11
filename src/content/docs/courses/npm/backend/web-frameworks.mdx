@@ -1,0 +1,293 @@
+---
+title: "npm: Frameworks Web e APIs"
+description: "Comparativo e arquitetura dos principais frameworks de servidor em JavaScript/TypeScript: Express, Fastify, Hono e NestJS."
+course: npm
+sidebar:
+  label: "Frameworks de Servidor"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+No ecossistema Node.js e runtimes modernos (como Bun e Cloudflare Workers), a construção de servidores HTTP e APIs REST evoluiu de simples manipuladores de requisição para diferentes paradigmas arquiteturais: desde o minimalismo tradicional do **Express**, passando pelo alto desempenho orientado a schemas do **Fastify**, até a versatilidade multiplataforma baseada em padrões web do **Hono** e a estrutura corporativa modular do **NestJS**.
+
+## Objetivo
+
+Compreender o papel e a arquitetura dos principais frameworks de servidor em JavaScript e TypeScript, analisando diferenças de performance, modelo de execução, injeção de dependências e suporte a runtimes modernos. Ao final do tópico, o leitor deve ser capaz de:
+
+- Identificar os diferenciais e a sintaxe fundamental de **Express**, **Fastify**, **Hono** e **NestJS**.
+- Comparar o throughput e os mecanismos de roteamento e serialização de cada ferramenta.
+- Reconhecer a importância dos padrões web (*Web Standards* como `Request` e `Response`) adotados pelo Hono.
+- Compreender a arquitetura corporativa e injeção de dependências do NestJS.
+- Escolher o framework mais adequado com base nos requisitos de latência, escala, infraestrutura e equipe.
+
+## O Espectro dos Frameworks de Servidor
+
+Os frameworks de servidor no ecossistema npm distribuem-se entre dois eixos principais: **abstração arquitetural** (micro-frameworks minimalistas vs frameworks corporativos completos) e **compatibilidade de runtime** (Node.js exclusivo vs runtimes baseados em Web Standards):
+
+<Mermaid title="Distribuição dos frameworks de servidor">
+{`
+flowchart TD
+  subgraph Minimalistas["Micro-frameworks Minimalistas e Rápidos"]
+    A["Express: Clássico, simples e maduro"]
+    B["Fastify: Alta performance e validação JSON Schema"]
+    C["Hono: Web Standards, ultrarrápido para Edge, Bun e Node"]
+  end
+
+  subgraph Corporativos["Frameworks Corporativos Estruturados"]
+    D["NestJS: Injeção de Dependências, Decorators e TypeScript estrito"]
+  end
+`}
+</Mermaid>
+
+---
+
+## 1. Express: O Padrão Histórico e Maduro
+
+O **Express** é o framework mais utilizado da história do Node.js. Sua proposta é minimalista e não opinativa: ele fornece uma fina camada sobre o módulo `node:http` com suporte a roteamento e uma cadeia linear de middlewares (`(req, res, next) => {}`).
+
+Instalação:
+
+<PackageManagerTabs package="express" devPackage="@types/express" />
+
+Exemplo de servidor com Express:
+
+```javascript title="src/server-express.js"
+import express from 'express';
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.listen(3000, () => {
+  console.log('Express rodando na porta 3000');
+});
+```
+
+- **Vantagens**: Comunidade gigantesca, documentação abundante e compatibilidade com praticamente qualquer pacote existente no npm.
+- **Limitações**: Desempenho moderado em cargas extremas e arquitetura não padronizada para grandes equipes.
+
+---
+
+## 2. Fastify: Alta Performance Orientada a Schema
+
+O **Fastify** foi projetado para entregar o máximo de requisições por segundo (*throughput*) no Node.js. Ele alcança essa velocidade compilando esquemas JSON em funções de serialização ultraotimizadas (via `fast-json-stringify`) e utilizando uma árvore de roteamento radix (*radix tree*).
+
+Instalação:
+
+<PackageManagerTabs package="fastify" />
+
+Exemplo de servidor com Fastify e validação de schema:
+
+```typescript title="src/server-fastify.ts"
+import Fastify from 'fastify';
+
+const fastify = Fastify({ logger: true });
+
+fastify.get('/api/users/:id', {
+  schema: {
+    params: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer' },
+      },
+      required: ['id'],
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+        },
+      },
+    },
+  },
+}, async (request, reply) => {
+  const { id } = request.params as { id: number };
+  return { id, name: 'Alice Silva' };
+});
+
+await fastify.listen({ port: 3000 });
+```
+
+- **Vantagens**: Excelente performance, sistema de plugins desacoplado e validação/serialização nativa com JSON Schema.
+- **Limitações**: Específico do Node.js, com menor flexibilidade em runtimes leves de Edge.
+
+---
+
+## 3. Hono: Padrões Web e Multiplataforma
+
+O **Hono** é um framework moderno e ultraleve projetado para rodar em **qualquer ambiente JavaScript**: Cloudflare Workers, Fastly, Deno, Bun, AWS Lambda e Node.js. Ele utiliza nativamente os objetos padrão da web (`Request`, `Response`, `Fetch API`), garantindo inicialização instantânea e consumo mínimo de memória.
+
+Instalação:
+
+<PackageManagerTabs package="hono @hono/node-server" />
+
+Exemplo de API com Hono:
+
+```typescript title="src/server-hono.ts"
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+
+const app = new Hono();
+
+app.get('/api/greet', (c) => {
+  const name = c.req.query('name') || 'Visitante';
+  return c.json({ message: `Olá, ${name}!` });
+});
+
+// Executa em Node.js ou diretamente como export default em Cloudflare Workers
+serve({ fetch: app.fetch, port: 3000 });
+```
+
+- **Vantagens**: *Cold start* praticamente instantâneo, tipagem estrita de rotas com RPC e execução transparente em qualquer nuvem ou runtime.
+- **Limitações**: Ecossistema mais jovem se comparado ao Express.
+
+---
+
+## 4. NestJS: Arquitetura Corporativa e Injeção de Dependências
+
+O **NestJS** é um framework TypeScript corporativo completo e opinativo, fortemente inspirado na arquitetura modular do Angular. Ele estrutura aplicações em **Módulos**, **Controladores** e **Provedores/Serviços**, utilizando decoradores (*decorators*) e injeção automática de dependências (IoC). Por padrão, o NestJS pode rodar sobre o Express ou sobre o Fastify.
+
+Instalação do NestJS:
+
+<PackageManagerTabs package="@nestjs/core @nestjs/common reflect-metadata rxjs" devPackage="@nestjs/cli" />
+
+Exemplo de Controller e Service no NestJS:
+
+```typescript title="src/users/users.service.ts"
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class UsersService {
+  private users = [{ id: 1, name: 'Carlos Santos' }];
+
+  findAll() {
+    return this.users;
+  }
+}
+```
+
+```typescript title="src/users/users.controller.ts"
+import { Controller, Get } from '@nestjs/common';
+import { UsersService } from './users.service';
+
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get()
+  getAllUsers() {
+    return this.usersService.findAll();
+  }
+}
+```
+
+- **Vantagens**: Padronização arquitetural absoluta para times grandes, injeção de dependências robusta e ecossistema oficial com GraphQL, WebSockets, Microservices e OpenAPI/Swagger.
+- **Limitações**: Maior tempo de compilação, abstrações pesadas e curva de aprendizado inicial mais íngreme.
+
+---
+
+## Matriz Comparativa
+
+| Critério | Express | Fastify | Hono | NestJS |
+| --- | --- | --- | --- | --- |
+| **Paradigma** | Não opinativo / Minimalista | Orientado a plugins e schemas | Baseado em Web Standards | Arquitetura modular e opinativa |
+| **Performance** | Moderada | **Extremamente alta** | **Extremamente alta** | Alta (depende do core: Express/Fastify) |
+| **Runtimes** | Node.js | Node.js | **Node, Bun, Deno, Cloudflare Workers** | Node.js |
+| **Tipagem TypeScript** | Via `@types/express` | Nativa | **Nativa e com RPC** | **Nativa e obrigatória** |
+| **Injeção de Dependências** | Não | Não | Não | **Sim (Contêiner IoC nativo)** |
+| **Cenário Ideal** | Aplicações legadas, protótipos | Microsserviços e APIs com alta carga | Serverless, Edge Computing e microsserviços modernos | Sistemas corporativos complexos e monorepos |
+
+## Executando
+
+Siga os passos abaixo para testar o Hono localmente com Node.js:
+
+<Steps>
+1. Instale o Hono e seu adaptador Node:
+
+   <PackageManagerTabs package="hono @hono/node-server" />
+2. Crie o arquivo `src/app.ts` com uma rota que retorne JSON.
+3. Inicie o servidor com `node --watch src/app.ts` e envie uma requisição HTTP via navegador ou terminal (`curl http://localhost:3000/api/greet`).
+</Steps>
+
+## Exercício
+
+1. O que são os *Web Standards* (`Request`, `Response`, `Headers`) e por que frameworks modernos como o Hono os utilizam em vez dos objetos nativos do Node (`IncomingMessage` e `ServerResponse`)?
+2. Em que tipo de projeto o NestJS é consideravelmente mais recomendável do que o Express?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. São as interfaces padronizadas pela W3C/WHATWG para manipulação de requisições e respostas HTTP, adotadas por navegadores, Deno, Bun e Cloudflare Workers. Usá-las permite que o mesmo código de servidor rode de forma idêntica em qualquer infraestrutura sem adaptações.
+
+  2. Em projetos corporativos de grande porte com equipes numerosas, onde uma estrutura modular estrita com injeção de dependências, padrões de camadas (Controller/Service/Repository) e TypeScript rígido evitam a desorganização de código comum em bases Express não padronizadas.
+</details>
+
+## Desafio
+
+Crie uma rota no **Hono** que receba um parâmetro de rota `:id` e um cabeçalho `Authorization`. A rota deve validar se o token de autorização está presente; se ausente, deve retornar status HTTP 401 com JSON de erro. Se presente, deve retornar os detalhes de um item fictício com status 200.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/server-auth.ts"
+  import { Hono } from 'hono';
+
+  const app = new Hono();
+
+  app.get('/api/orders/:id', (c) => {
+    const authHeader = c.req.header('Authorization');
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json(
+        { error: 'Não autorizado: token Bearer ausente ou inválido.' },
+        401
+      );
+    }
+
+    const orderId = c.req.param('id');
+    return c.json({
+      orderId,
+      status: 'pago',
+      total: 250.0,
+      customer: 'João Paulo',
+    });
+  });
+
+  export default app;
+  ```
+</details>
+
+## Perguntas de revisão
+
+1. **Como o Fastify consegue ser mais rápido na serialização de respostas do que o `JSON.stringify` nativo?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele pré-compila uma função de serialização específica para o schema JSON informado na rota, eliminando a necessidade de inspecionar tipos de propriedades recursivamente a cada resposta emitida.
+</details>
+
+2. **O que é o conceito de Route Type Safety / RPC oferecido pelo Hono?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permite exportar o tipo das rotas do servidor e importá-las diretamente no cliente front-end (`hono/client`), gerando autocompletar e validação estrita de URLs, parâmetros de consulta e corpos de requisição sem ferramentas de geração de código intermediárias.
+</details>
+
+## Referências
+
+- [Express Documentation](https://expressjs.com/)
+- [Fastify Official Documentation](https://fastify.dev/)
+- [Hono Documentation](https://hono.dev/)
+- [NestJS Official Documentation](https://nestjs.com/)
+
+## Próximo tópico
+
+Agora que você conhece a arquitetura dos servidores web modernos, avance para [Autenticação e Identidade](../../auth/auth-providers/) para aprender a proteger rotas e gerenciar usuários com Clerk, Auth0, Passport.js e Keycloak.

@@ -1,0 +1,272 @@
+---
+title: "npm: IA e SDKs de LLM"
+description: "Integração de inteligência artificial generativa em JavaScript/TypeScript: Vercel AI SDK, OpenAI, Anthropic, streaming de texto, structured outputs e tool calling."
+course: npm
+sidebar:
+  label: "IA e SDKs de LLM"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+A integração de **Modelos de Linguagem de Grande Porte (*LLMs*)** e inteligência artificial generativa em aplicações JavaScript e TypeScript transformou a criação de chats inteligentes, assistentes autônomos e fluxos de extração de dados. Para conectar aplicações a provedores como OpenAI (GPT-4o), Anthropic (Claude 3.5 Sonnet) e Google (Gemini 2.5), o ecossistema oferece tanto os SDKs oficiais diretos quanto o **Vercel AI SDK** (`ai`), que padroniza streaming, chamada de funções (*tool calling*) e respostas estruturadas sob uma única interface unificada.
+
+## Objetivo
+
+Compreender como consumir modelos de inteligência artificial em JavaScript e TypeScript, utilizando o Vercel AI SDK e os SDKs oficiais dos provedores para gerar respostas em tempo real (*streaming*), extrair dados tipados com schemas (*structured outputs*) e executar ferramentas (*tool calling*). Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar o uso do **Vercel AI SDK** (`ai`) dos SDKs proprietários (`openai`, `@anthropic-ai/sdk`).
+- Configurar credenciais de API de forma segura no back-end.
+- Implementar geração e transmissão de texto em tempo real com `streamText`.
+- Forçar o modelo a responder exclusivamente em objetos JSON tipados com `generateObject` e Zod.
+- Configurar *tool calling* para que o modelo execute funções da aplicação de forma autônoma.
+- Reconhecer padrões de segurança, mitigação de custos e boas práticas contra injeção de prompt.
+
+## A Arquitetura de Integração com LLMs
+
+Integrar IA generativa exige decidir entre a API direta de um provedor ou uma camada unificada de abstração:
+
+<Mermaid title="Camadas de integração de LLMs em JavaScript">
+{`
+flowchart TD
+  A["Aplicação Web / Servidor"] --> B["Vercel AI SDK (ai)"]
+  A --> C["SDK Proprietário (openai, @anthropic-ai/sdk)"]
+  B --> D["Adaptador OpenAI (@ai-sdk/openai)"]
+  B --> E["Adaptador Anthropic (@ai-sdk/anthropic)"]
+  B --> F["Adaptador Google (@ai-sdk/google)"]
+  D --> G["GPT-4o / GPT-4o-mini"]
+  E --> H["Claude 3.5 Sonnet / Haiku"]
+  F --> I["Gemini 2.5 Flash / Pro"]
+  C --> G
+`}
+</Mermaid>
+
+O **Vercel AI SDK** permite trocar de provedor (por exemplo, de OpenAI para Anthropic ou Google) alterando apenas uma linha de código, sem reescrever a lógica de streaming ou de ferramentas.
+
+<Aside type="caution" title="Segurança de Chaves de API">
+  Nunca exponha chaves como `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY` no front-end do navegador. As chamadas a LLMs devem residir sempre em endpoints de servidor (Node.js, Next.js API Routes, Hono ou Express), protegendo seus créditos contra roubo.
+</Aside>
+
+## 1. Instalação do Vercel AI SDK e Provedores
+
+Instale o núcleo do SDK e o adaptador do modelo que deseja utilizar:
+
+<PackageManagerTabs package="ai @ai-sdk/openai @ai-sdk/anthropic zod" />
+
+## 2. Geração e Streaming de Texto com `streamText`
+
+Para fornecer uma experiência responsiva onde o usuário visualiza as palavras surgindo instantaneamente:
+
+```typescript title="src/services/aiChat.ts"
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+export async function askAssistant(prompt: string) {
+  const result = streamText({
+    model: openai('gpt-4o-mini'),
+    system: 'Você é um tutor amigável de programação focado em JavaScript e TypeScript.',
+    prompt,
+  });
+
+  // Itera pelos pedaços de texto conforme chegam da rede
+  for await (const textPart of result.textStream) {
+    process.stdout.write(textPart);
+  }
+}
+```
+
+## 3. Saídas Estruturadas com `generateObject` e Zod
+
+Uma das tarefas mais poderosas em sistemas de produção é transformar texto livre (como e-mails, currículos ou notas fiscais) em **objetos JSON estritamente tipados e validados**:
+
+```typescript title="src/services/dataExtractor.ts"
+import { generateObject } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { z } from 'zod';
+
+const InvoiceSchema = z.object({
+  companyName: z.string().describe('Nome da empresa emissora'),
+  invoiceNumber: z.string().describe('Número do documento fiscal'),
+  totalAmount: z.number().describe('Valor total da fatura em reais'),
+  dueDate: z.string().describe('Data de vencimento no formato AAAA-MM-DD'),
+  items: z.array(
+    z.object({
+      description: z.string(),
+      quantity: z.number(),
+      price: z.number(),
+    })
+  ),
+});
+
+export async function parseInvoiceText(rawText: string) {
+  const { object } = await generateObject({
+    model: anthropic('claude-3-5-sonnet-20241022'),
+    schema: InvoiceSchema,
+    prompt: `Extraia os dados estruturados desta fatura:\n\n${rawText}`,
+  });
+
+  // object possui o tipo exato inferido do InvoiceSchema
+  console.log(`Fatura de ${object.companyName} no valor de R$ ${object.totalAmount}`);
+  return object;
+}
+```
+
+## 4. Chamada de Ferramentas (*Tool Calling*)
+
+Com o *Tool Calling*, você declara funções que o modelo pode decidir chamar quando precisa de dados do mundo real (como consultar o clima, ler o banco de dados ou calcular impostos):
+
+```typescript title="src/services/agentWithTools.ts"
+import { generateText, tool } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+export async function runAgent(userQuestion: string) {
+  const { text } = await generateText({
+    model: openai('gpt-4o-mini'),
+    prompt: userQuestion,
+    tools: {
+      getWeather: tool({
+        description: 'Obtém a temperatura atual para uma cidade.',
+        parameters: z.object({
+          city: z.string().describe('Nome da cidade'),
+        }),
+        execute: async ({ city }) => {
+          // Lógica de consulta a API meteorológica
+          return { city, temperature: 28, condition: 'Ensolarado' };
+        },
+      }),
+    },
+    maxSteps: 3, // Permite que o modelo execute a ferramenta e resuma a resposta
+  });
+
+  return text;
+}
+```
+
+## 5. SDKs Oficiais Diretos (OpenAI / Anthropic)
+
+Quando não for necessário alternar entre modelos ou quando recursos experimentais específicos de um único provedor forem exigidos, os SDKs oficiais oferecem acesso direto:
+
+<PackageManagerTabs package="openai @anthropic-ai/sdk" />
+
+Exemplo com o cliente oficial da OpenAI:
+
+```typescript title="src/services/directOpenAi.ts"
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+export async function createSimpleCompletion(userPrompt: string) {
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  return response.choices[0]?.message.content;
+}
+```
+
+## Comparativo: Vercel AI SDK vs SDKs Diretos
+
+| Critério | Vercel AI SDK (`ai`) | SDKs Proprietários (`openai`, `@anthropic-ai/sdk`) |
+| --- | --- | --- |
+| **Portabilidade de Modelos** | **Total**: Troca de modelo alterando 1 linha | Preso à API do provedor específico |
+| **Streaming no Front-end** | **Hooks prontos**: `useChat`, `useCompletion` | Implementação manual de SSE/WebSockets |
+| **Structured Outputs** | **Nativo com Zod/Valibot** via `generateObject` | JSON Schema configurado manualmente |
+| **Tool Calling** | Interface unificada via `tool()` | Formato de tools específico de cada provedor |
+| **Recursos Beta de 1 Provedor** | Pode ter pequeno delay de suporte | Suporte imediato no dia do lançamento |
+
+## Executando
+
+Siga os passos abaixo para testar o Vercel AI SDK:
+
+<Steps>
+1. Instale os pacotes no projeto:
+
+   <PackageManagerTabs package="ai @ai-sdk/openai zod" />
+2. Obtenha uma chave no painel da OpenAI e declare no arquivo `.env`:
+
+   ```env title=".env"
+   OPENAI_API_KEY=sk-...
+   ```
+3. Crie um arquivo `src/teste-ia.ts` com a função `streamText` e execute com `npx tsx src/teste-ia.ts`.
+</Steps>
+
+## Exercício
+
+1. Qual é a principal vantagem de usar `generateObject` com Zod em vez de pedir ao modelo que responda em JSON via prompt de texto comum?
+2. Por que requisições que utilizam *Tool Calling* geralmente necessitam do parâmetro `maxSteps > 1`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O prompt de texto comum pode incluir explicações adicionais em Markdown (como ```json```), quebrar a formatação ou omitir campos obrigatórios. O `generateObject` utiliza os recursos nativos de *Structured Outputs* da LLM para garantir que a resposta seja rigorosamente válida contra o schema Zod.
+
+  2. Porque o fluxo envolve múltiplos passos: no primeiro passo, a LLM decide chamar a ferramenta e envia os parâmetros; o código executa a função e envia o resultado de volta para o modelo; no segundo passo, a LLM consome o resultado retornado para redigir a resposta final em linguagem natural para o usuário.
+</details>
+
+## Desafio
+
+Crie um extrator de sentimentos e tópicos (`analyzeFeedback`) com o Vercel AI SDK. O extrator deve receber um texto de avaliação de cliente e retornar um objeto com:
+- `sentiment`: enum com `'positivo'`, `'neutro'` ou `'negativo'`.
+- `rating`: número inteiro de 1 a 5 estimado com base no tom do comentário.
+- `topics`: array de strings listando os assuntos mencionados (ex: `['atendimento', 'entrega', 'preço']`).
+- `summary`: resumo em uma frase da mensagem do cliente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/services/feedbackAnalyzer.ts"
+  import { generateObject } from 'ai';
+  import { openai } from '@ai-sdk/openai';
+  import { z } from 'zod';
+
+  const FeedbackAnalysisSchema = z.object({
+    sentiment: z.enum(['positivo', 'neutro', 'negativo']),
+    rating: z.number().int().min(1).max(5),
+    topics: z.array(z.string()),
+    summary: z.string(),
+  });
+
+  export async function analyzeFeedback(customerComment: string) {
+    const { object } = await generateObject({
+      model: openai('gpt-4o-mini'),
+      schema: FeedbackAnalysisSchema,
+      prompt: `Analise a avaliação deste cliente:\n\n"${customerComment}"`,
+    });
+
+    return object;
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+1. **O que é streaming de respostas e por que ele é crucial para a experiência do usuário em aplicações de IA?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Modelos de linguagem levam vários segundos para gerar respostas longas. O streaming transmite os tokens conforme são gerados pela rede (*Server-Sent Events*), permitindo que o usuário comece a ler a resposta no primeiro segundo em vez de esperar a resposta completa.
+</details>
+
+2. **Como você pode proteger sua aplicação contra ataques de *Prompt Injection* ao processar textos de terceiros?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Separando claramente as instruções de sistema (`system`) das entradas do usuário (`prompt`), utilizando *Structured Outputs* que forçam a saída a obedecer a um schema restrito e nunca permitindo que o modelo execute comandos do sistema sem validação e permissões granulares.
+</details>
+
+## Referências
+
+- [Vercel AI SDK Documentation](https://sdk.vercel.ai/docs)
+- [OpenAI JavaScript SDK](https://github.com/openai/openai-node)
+- [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript)
+- [Google GenAI SDK](https://ai.google.dev/)
+
+## Próximo tópico
+
+Com todo o ecossistema de gerenciadores, ferramentas, bibliotecas de dados, UI, frameworks, servidores, bancos e inteligência artificial explorado, consulte o [Mapa de Pacotes](../../reference/package-map/) para revisar a matriz completa de decisões do guia.

@@ -1,0 +1,291 @@
+---
+title: "npm: Yarn"
+description: "O gerenciador de pacotes Yarn: evolução do Yarn Classic para o Yarn Modern (Berry), ativação via Corepack, arquitetura Plug'n'Play (PnP), Zero-Installs e workspaces."
+course: npm
+sidebar:
+  label: "Yarn"
+---
+import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o **Yarn**, um gerenciador de pacotes concebido originalmente pelo Facebook para resolver problemas históricos de velocidade, segurança e determinismo no ecossistema JavaScript.
+
+O Yarn foi o responsável por popularizar o conceito de *lockfiles* determinísticos (`yarn.lock`) e instalações paralelas de pacotes. Com a sua evolução para o **Yarn Modern** (família Berry / v2+), o projeto introduziu uma nova abordagem para a resolução de módulos: o **Plug'n'Play (PnP)**, que elimina a necessidade da pesada pasta `node_modules` e permite o versionamento de dependências compactadas diretamente no Git (*Zero-Installs*).
+
+## Objetivo
+
+Compreender a arquitetura e os recursos do Yarn Modern, diferenciando o modelo clássico de `node_modules` da abordagem Plug'n'Play e dominando o uso do Corepack. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a evolução do Yarn v1 (Classic) para o Yarn Berry (Modern) e como ativá-lo via Corepack.
+- Descrever a arquitetura Plug'n'Play (PnP) e como o arquivo `.pnp.cjs` substitui a pasta `node_modules`.
+- Explicar o conceito de *Zero-Installs* e os benefícios para pipelines de CI/CD.
+- Executar comandos cotidianos de adição, atualização e execução de scripts com o Yarn.
+- Configurar e estruturar monorepos com múltiplos workspaces utilizando Yarn.
+
+## O que é o Yarn?
+
+O Yarn é um gerenciador de dependências e automação de fluxos de trabalho. Ele existe em duas grandes fases arquiteturais que todo desenvolvedor precisa saber diferenciar:
+
+| Fase | Versão | Arquitetura de Módulos | Ativação recomendada |
+| :--- | :--- | :--- | :--- |
+| **Yarn Classic (v1)** | `1.22.x` | Tradicional (`node_modules` achatado) | Modo legado em manutenção. |
+| **Yarn Modern (Berry / v2+)** | `4.x+` | Plug'n'Play (PnP) ou `node_modules` moderno | Nativa via Node.js Corepack. |
+
+A tabela abaixo compara os modelos de instalação disponíveis no Yarn Modern:
+
+| Modo de Instalação | Como opera | Vantagem principal | Cenário de uso |
+| :--- | :--- | :--- | :--- |
+| **Plug'n'Play (PnP)** | Lê direto de arquivos compactados `.zip` via `.pnp.cjs`. | Instalação instantânea e Zero-Installs. | Projetos modernos e monorepos limpos. |
+| **`node-modules` linker** | Cria a pasta `node_modules` tradicional. | Compatibilidade total com ferramentas legadas. | Projetos com plugins que não suportam PnP. |
+
+O Yarn Modern é gerenciado e versionado por projeto, garantindo que todos os desenvolvedores e servidores de CI usem rigorosamente o mesmo binário do Yarn sem depender de instalações globais.
+
+## Fundamentos e Modelo Mental
+
+No modelo clássico de `node_modules`, o Node.js precisa navegar repetidamente pelo sistema de arquivos através de chamadas de disco (`stat` e `readdir`) para localizar onde cada pacote foi instalado.
+
+No modo **Plug'n'Play (PnP)**, o Yarn gera um mapa estático da árvore de dependências no arquivo `.pnp.cjs`. Em vez de descompactar milhares de arquivos em pastas, o Yarn armazena os pacotes em arquivos compactados `.zip` no diretório `.yarn/cache`.
+
+O diagrama a seguir compara a busca de módulos tradicional com a resolução direta do PnP:
+
+<Mermaid title="Comparativo: Resolução Tradicional vs Plug'n'Play (PnP) do Yarn">
+{`
+flowchart TD
+  subgraph Tradicional["Resolução com node_modules"]
+    direction TB
+    A["import 'axios'"] --> B["Busca em ./node_modules"]
+    B --> C["Busca em ../node_modules"]
+    C --> D["Leitura de dezenas de pastas no disco"]
+  end
+
+  subgraph PnP["Resolução com Yarn PnP"]
+    direction TB
+    E["import 'axios'"] --> F["Consulta direta em .pnp.cjs"]
+    F --> G["Lê axios direto de .yarn/cache/axios.zip"]
+  end
+`}
+</Mermaid>
+
+Com o PnP, o tempo de inicialização do projeto é reduzido e a instalação das dependências em pipelines de CI passa de minutos para poucos segundos.
+
+Esse modelo viabiliza também o conceito de **Zero-Installs**: como os pacotes ficam armazenados em arquivos `.zip` compactados e imutáveis dentro da pasta `.yarn/cache`, o tamanho total das dependências é significativamente menor. Isso possibilita incluir o cache do Yarn no próprio controle de versão Git. Quando um desenvolvedor clona o repositório (`git clone`), o projeto já está 100% pronto para executar, sem a necessidade de rodar `yarn install`.
+
+## Como Usar: Ativação via Corepack e Comandos
+
+O Node.js inclui nativamente o **Corepack**, uma ferramenta oficial que gerencia as versões dos gerenciadores de pacotes sem instalações globais via `npm install -g`.
+
+Para ativar o Yarn Modern no seu ambiente:
+
+```bash title="Terminal"
+# Habilita o Corepack no Node.js
+corepack enable
+
+# Inicializa um novo projeto com a versão mais recente do Yarn Berry
+yarn init -2
+```
+
+O comando gera o arquivo de configuração `.yarnrc.yml` e registra a versão do gerenciador no campo `packageManager` do `package.json`:
+
+```json title="package.json (campo packageManager)"
+{
+  "name": "meu-projeto-yarn",
+  "packageManager": "yarn@4.6.0"
+}
+```
+
+A tabela abaixo resume os comandos mais utilizados no Yarn Modern:
+
+| Ação | Comando Yarn Modern | Observação |
+| :--- | :--- | :--- |
+| Instalar dependências | `yarn install` (ou `yarn`) | Cria/atualiza o `.pnp.cjs` e o cache. |
+| Adicionar pacote de produção | `yarn add axios` | Adiciona em `dependencies`. |
+| Adicionar pacote de desenvolvimento | `yarn add -D vitest` | Adiciona em `devDependencies`. |
+| Remover um pacote | `yarn remove lodash` | Atualiza o manifesto e remove do cache. |
+| Executar script do projeto | `yarn dev` ou `yarn test` | Dispensa a palavra `run`. |
+| Executar binário sob demanda | `yarn dlx @biomejs/biome check .` | Equivalente ao `npx` / `pnpm dlx`. |
+
+## Configuração do `.yarnrc.yml` e Modos de Instalação
+
+O comportamento do Yarn Modern é configurado no arquivo declarativo `.yarnrc.yml` na raiz do projeto.
+
+Para utilizar o modo Plug'n'Play (padrão):
+
+```yaml title=".yarnrc.yml (modo PnP)"
+nodeLinker: pnp
+```
+
+Se o seu projeto utiliza ferramentas legadas que exigem a presença física da pasta `node_modules`, você pode alternar facilmente o renderizador para o modo compatível:
+
+```yaml title=".yarnrc.yml (modo node_modules)"
+nodeLinker: node-modules
+```
+
+Após alterar o arquivo, execute `yarn install` para aplicar a mudança na estrutura de diretórios.
+
+## Workspaces com Yarn
+
+O Yarn suporta monorepos através do recurso nativo de **Workspaces**, declarado diretamente no `package.json` raiz:
+
+```json title="package.json (Workspaces)"
+{
+  "name": "meu-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
+```
+
+Para interagir com workspaces específicos:
+
+```bash title="Terminal"
+# Executa o script de build apenas no app 'web'
+yarn workspace web build
+
+# Adiciona o pacote compartilhado 'utils' como dependência do app 'web'
+yarn workspace web add utils@workspace:*
+```
+
+## Boas Práticas e Integração com IDEs
+
+Ao utilizar o Yarn com Plug'n'Play (PnP), editores de código como o VS Code precisam de extensões de integração para que o autocompletar do TypeScript e a navegação por arquivos encontrem os pacotes armazenados em arquivos `.zip`.
+
+A tabela abaixo resume as etapas indispensáveis para garantir a produtividade:
+
+| Ação | Como configurar | Motivo |
+| :--- | :--- | :--- |
+| **SDKs de Editor para TypeScript** | Execute `yarn dlx @yarnpkg/sdks vscode`. | Permite que o VS Code e o TypeScript leiam tipos dentro dos arquivos compactados `.zip`. |
+| **Configuração de Git para Zero-Installs** | Ignore apenas o cache de builds em `.gitignore`, mantendo `.yarn/cache`. | Permite clonar o repositório pronto para execução imediata no CI. |
+| **Padronização com Corepack** | Sempre declare o campo `"packageManager": "yarn@4.x.x"` no `package.json`. | Garante que toda a equipe use exatamente a mesma versão da CLI do Yarn. |
+
+<Aside type="caution" title="Dica de IA: Não instale o Yarn globalmente no Node moderno">
+  Assistentes costumam sugerir o comando `npm install -g yarn`. Em ambientes com Node.js 18 ou superior, isso instala a versão legada 1.x (Classic). Use sempre `corepack enable` para ativar as versões modernas do Yarn.
+
+  **Prompt:** *"Configure o projeto para usar o Yarn Modern v4 através do Corepack nativo do Node.js, gerando o arquivo `.yarnrc.yml` com as configurações corretas para a IDE."*
+</Aside>
+
+## Executando
+
+Para criar um projeto de teste utilizando o Yarn Modern com Corepack:
+
+<Steps>
+1. Habilite o Corepack no terminal:
+
+   ```bash title="Terminal"
+   corepack enable
+   ```
+
+2. Crie uma pasta e inicialize o projeto com o Yarn Berry:
+
+   ```bash title="Terminal"
+   mkdir yarn-demo && cd yarn-demo
+   yarn init -2
+   ```
+
+3. Adicione o pacote `dayjs`:
+
+   ```bash title="Terminal"
+   yarn add dayjs
+   ```
+
+4. Verifique a estrutura gerada com o arquivo `.pnp.cjs` e o diretório `.yarn`:
+
+   ```bash title="Terminal"
+   ls -la
+   ```
+</Steps>
+
+## Exercício
+
+Configure um projeto Node.js com Yarn Modern contendo:
+
+1. O campo `packageManager` apontando para a versão mais recente do Yarn Berry.
+2. O arquivo `.yarnrc.yml` configurado com `nodeLinker: pnp`.
+3. A dependência `dayjs` instalada e o script `"start": "node src/index.js"`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```yaml title=".yarnrc.yml"
+  nodeLinker: pnp
+  ```
+
+  ```json title="package.json"
+  {
+    "name": "exercicio-yarn",
+    "version": "1.0.0",
+    "type": "module",
+    "packageManager": "yarn@4.6.0",
+    "scripts": {
+      "start": "node src/index.js"
+    },
+    "dependencies": {
+      "dayjs": "^1.11.13"
+    }
+  }
+  ```
+</details>
+
+## Desafio
+
+Configure um monorepo com Yarn Workspaces contendo duas aplicações: `apps/frontend` e `apps/backend`. Crie um script no `package.json` raiz que permita executar os testes em ambos os workspaces simultaneamente utilizando o comando `yarn workspaces foreach run test`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="package.json (raiz)"
+  {
+    "name": "monorepo-yarn",
+    "private": true,
+    "packageManager": "yarn@4.6.0",
+    "workspaces": [
+      "apps/*"
+    ],
+    "scripts": {
+      "test": "yarn workspaces foreach -p run test"
+    }
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para validar o aprendizado:
+
+1. **Qual é o papel da ferramenta Corepack no Node.js?**
+   <details>
+     <summary>Possível resposta</summary>
+     Gerenciar e ativar de forma transparente as versões oficiais de gerenciadores de pacotes como Yarn e pnpm diretamente a partir da propriedade `packageManager` do `package.json`.
+   </details>
+
+2. **Como a arquitetura Plug'n'Play (PnP) difere do modelo tradicional de `node_modules`?**
+   <details>
+     <summary>Possível resposta</summary>
+     O PnP elimina a pasta física `node_modules`, criando uma tabela estática de resolução no arquivo `.pnp.cjs` e lendo os pacotes diretamente de arquivos compactados `.zip`.
+   </details>
+
+3. **O que é o conceito de *Zero-Installs* proporcionado pelo Yarn?**
+   <details>
+     <summary>Possível resposta</summary>
+     A prática de comitar o diretório de cache compactado `.yarn/cache` no Git, permitindo que qualquer máquina ou servidor de CI execute o projeto imediatamente após o clone sem rodar `yarn install`.
+   </details>
+
+4. **Como alternar o Yarn Modern para gerar a pasta `node_modules` tradicional caso uma ferramenta seja incompatível com PnP?**
+   <details>
+     <summary>Possível resposta</summary>
+     Configurando a propriedade `nodeLinker: node-modules` no arquivo `.yarnrc.yml` e executando `yarn install`.
+   </details>
+
+## Referências
+
+- [Yarn | Documentação Oficial](https://yarnpkg.com/)
+- [Plug'n'Play Architecture | Yarn Docs](https://yarnpkg.com/features/pnp)
+- [Zero-Installs Guide | Yarn Docs](https://yarnpkg.com/features/zero-installs)
+- [Node.js Corepack Documentation](https://nodejs.org/api/corepack.html)
+
+## Próximo tópico
+
+Conheça o **Bun**, o gerenciador de pacotes e toolkit em Zig com resolução nativa ultra-rápida, hardlinks e compatibilidade com o ecossistema npm:
+
+- [Bun](../bun/): O gerenciador de pacotes de alta performance com instalação ultra-rápida, lockfile binário/textual e execução sob demanda.

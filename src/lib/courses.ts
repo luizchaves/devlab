@@ -65,8 +65,8 @@ const courses = {
     href: '/courses/react/',
   },
   npm: {
-    title: 'Guia de Pacotes npm',
-    shortTitle: 'npm',
+    title: 'Guia de Pacotes JavaScript',
+    shortTitle: 'Pacotes JS',
     href: '/courses/npm/',
   },
   cloud: {

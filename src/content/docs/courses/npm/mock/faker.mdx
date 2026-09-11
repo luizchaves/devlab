@@ -1,0 +1,316 @@
+---
+title: "npm: Faker.js"
+description: "Geração de dados simulados (fake data) com Faker.js: nomes, e-mails, endereços, localização pt_BR, determinismo com seed e povoamento de APIs de teste."
+course: npm
+sidebar:
+  label: "Faker.js"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta o **Faker.js** (`@faker-js/faker`), a biblioteca padrão no ecossistema JavaScript e TypeScript para gerar dados fictícios realistas e em grande volume para testes automatizados, desenvolvimento de interfaces, povoamento de bancos de dados (*database seeds*) e prototipagem de APIs.
+
+Criar manualmente dezenas de registros com nomes repetitivos (como "Teste 1", "Teste 2" ou "admin@teste.com") mascara problemas de layout, não reflete a diversidade dos dados reais de produção e torna os testes frágeis. O Faker automatiza essa tarefa fornecendo módulos especializados para dados pessoais, financeiros, geográficos, de internet e temporais, com suporte nativo à localização em Português do Brasil (`pt_BR`).
+
+## Objetivo
+
+Compreender o funcionamento e a aplicação da biblioteca Faker.js para geração de massas de dados simulados, integrando-a a testes unitários, scripts de seed e servidores de prototipagem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar as vantagens de utilizar dados simulados dinâmicos em vez de valores estáticos fixos (*hardcoded*).
+- Instalar e configurar o `@faker-js/faker` com localização em Português do Brasil (`pt_BR`).
+- Utilizar os principais módulos de dados (`person`, `internet`, `location`, `commerce`, `date`, `string`).
+- Aplicar sementes numéricas determinísticas (`faker.seed()`) para garantir reprodutibilidade em suítes de teste.
+- Criar scripts de geração de massa de dados para alimentar o [JSON Server](../json-server/) e bancos de dados locais.
+
+## Por que Usar o Faker.js?
+
+A tabela a seguir compara as abordagens mais comuns para lidar com dados durante a fase de desenvolvimento e teste:
+
+| Abordagem | Como funciona | Vantagens | Desvantagens |
+| :--- | :--- | :--- | :--- |
+| **Dados Manuais Estáticos** | Array com 3 ou 4 itens digitados à mão no código. | Rápido para o primeiro protótipo. | Não testa paginação, quebra de linha de textos longos ou caracteres especiais. |
+| **Cópia do Banco de Produção** | Dump de banco real de usuários da empresa. | Dados 100% reais. | Risco gravíssimo de vazamento de dados sensíveis e violação da LGPD/GDPR. |
+| **Geração com Faker.js** | Geração procedural de milhares de registros sintéticos. | Realismo, volume sob medida, conformidade com privacidade e suporte a `pt_BR`. | Exige configurar scripts de geração de massa de dados. |
+
+O Faker.js garante que você teste sua interface contra nomes com acentuação, sobrenomes compostos, números de telefone regionais e e-mails formatados sem expor nenhum dado real de clientes.
+
+## Fundamentos e Módulos Principais
+
+O Faker organiza suas funções em módulos semânticos de domínio.
+
+O diagrama abaixo ilustra como o Faker alimenta diferentes camadas da arquitetura:
+
+<Mermaid title="Fluxo de geração e consumo de dados simulados com Faker.js">
+{`
+flowchart TD
+  Faker["Faker.js (@faker-js/faker)<br/>(Localização pt_BR + Seed)"] --> Modulos["Módulos: person, internet, location, commerce, date"]
+  Modulos --> SeedScript["Script gerador (seed.js)"]
+  SeedScript --> JSON["Arquivo db.json (JSON Server)"]
+  SeedScript --> DB["Banco SQLite / Prisma"]
+  Modulos --> Tests["Testes Unitários / E2E (Vitest / Playwright)"]
+`}
+</Mermaid>
+
+### Instalação
+
+O pacote oficial mantido pela comunidade é instalado como dependência de desenvolvimento:
+
+<PackageManagerTabs package="@faker-js/faker" dev />
+
+### Principais Módulos de Geração
+
+```js title="Exemplo de geração de dados por categoria"
+import { fakerPT_BR as faker } from '@faker-js/faker';
+
+// 1. Dados Pessoais (Módulo person)
+const nome = faker.person.fullName(); // "Mariana Silva Costa"
+const cargo = faker.person.jobTitle(); // "Engenheira de Software Sênior"
+const genero = faker.person.gender(); // "Feminino"
+
+// 2. Internet e Acesso (Módulo internet)
+const email = faker.internet.email({ firstName: 'mariana', lastName: 'costa' }); // "mariana.costa@gmail.com"
+const usuario = faker.internet.username(); // "mariana_costa84"
+const avatar = faker.image.avatar(); // "https://avatars.githubusercontent.com/u/..."
+
+// 3. Localização e Endereço (Módulo location)
+const cidade = faker.location.city(); // "Campinas"
+const estado = faker.location.state(); // "São Paulo"
+const cep = faker.location.zipCode('#####-###'); // "13010-111"
+
+// 4. Comércio e Finanças (Módulo commerce)
+const produto = faker.commerce.productName(); // "Teclado Mecânico Ergonômico"
+const preco = faker.commerce.price({ min: 50, max: 800, dec: 2 }); // "349.90"
+
+// 5. Datas e Tempo (Módulo date)
+const dataPassada = faker.date.past({ years: 2 }); // Data nos últimos 2 anos
+const dataFutura = faker.date.future({ years: 1 }); // Data no próximo ano
+
+// 6. Identificadores e Strings (Módulo string)
+const uuid = faker.string.uuid(); // "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+```
+
+## Determinismo em Testes com Seeds
+
+Em testes automatizados com Vitest ou Playwright, a aleatoriedade pura pode causar **testes intermitentes** (*flaky tests*) que passam em uma execução e falham na seguinte.
+
+Para tornar a geração 100% previsível e determinística, utilize o método `faker.seed()` passando um número inteiro fixo:
+
+```js title="Garantindo resultados determinísticos com seed"
+import { faker } from '@faker-js/faker';
+
+// Define a semente fixa
+faker.seed(12345);
+
+const usuario1 = faker.person.fullName();
+const usuario2 = faker.person.fullName();
+
+// Em qualquer computador ou servidor de CI, os nomes gerados serão rigorosamente os mesmos!
+```
+
+Se o seu teste falhar, o mesmo conjunto de dados pode ser reproduzido imediatamente para depuração local.
+
+## Gerando uma Massa de Dados para o JSON Server
+
+Uma das integrações mais produtivas do Faker.js é a criação de um script de *seed* que constrói o arquivo `db.json` com centenas de itens para o [JSON Server](../json-server/):
+
+```js title="scripts/generate-db.js"
+import { fakerPT_BR as faker } from '@faker-js/faker';
+import fs from 'node:fs/promises';
+
+// Fixa a semente para gerar sempre a mesma base de teste
+faker.seed(42);
+
+function gerarUsuarios(quantidade = 20) {
+  return Array.from({ length: quantidade }, () => ({
+    id: faker.string.uuid(),
+    nome: faker.person.fullName(),
+    email: faker.internet.email().toLowerCase(),
+    avatar: faker.image.avatar(),
+    telefone: faker.phone.number({ style: 'national' }),
+    cidade: faker.location.city(),
+    cadastradoEm: faker.date.recent({ days: 30 }).toISOString(),
+  }));
+}
+
+function gerarProdutos(quantidade = 50) {
+  return Array.from({ length: quantidade }, () => ({
+    id: faker.string.uuid(),
+    titulo: faker.commerce.productName(),
+    preco: parseFloat(faker.commerce.price({ min: 10, max: 1500 })),
+    departamento: faker.commerce.department(),
+    estoque: faker.number.int({ min: 0, max: 100 }),
+  }));
+}
+
+const bancoDeDados = {
+  usuarios: gerarUsuarios(30),
+  produtos: gerarProdutos(60),
+};
+
+await fs.writeFile('db.json', JSON.stringify(bancoDeDados, null, 2), 'utf-8');
+console.log('Arquivo db.json gerado com sucesso com 30 usuários e 60 produtos!');
+```
+
+Para executar o script e subir a API falsa:
+
+```bash title="Terminal"
+node scripts/generate-db.js
+npx json-server --watch db.json
+```
+
+<Aside type="caution" title="Dica de IA: Não utilize Faker para criptografia ou senhas reais">
+O Faker gera valores pseudoaleatórios voltados exclusivamente para testes e prototipagem. Nunca utilize `faker.internet.password()` ou `faker.string.alphanumeric()` para gerar chaves de API reais, hashes de senha em produção ou tokens de sessão. Para segurança real, utilize o módulo nativo `node:crypto`.
+
+**Prompt:** *"Revise esta função para assegurar que o Faker seja utilizado apenas na camada de mocks e testes, utilizando a Crypto API nativa do runtime para geração de segredos e tokens de autenticação."*
+</Aside>
+
+## Executando
+
+Siga os passos abaixo para gerar dados sintéticos em um projeto Node.js:
+
+<Steps>
+1. **Inicialize um projeto de teste e instale o Faker:**
+
+   ```bash title="Terminal"
+   mkdir faker-demo && cd faker-demo
+   npm init -y
+   npm pkg set type="module"
+   npm install -D @faker-js/faker
+   ```
+
+2. **Crie um arquivo `index.js` com o gerador de clientes:**
+
+   ```js title="index.js"
+   import { fakerPT_BR as faker } from '@faker-js/faker';
+
+   const cliente = {
+     id: faker.string.uuid(),
+     nome: faker.person.fullName(),
+     cpf: faker.string.numeric('###.###.###-##'),
+     email: faker.internet.email(),
+     endereco: {
+       rua: faker.location.street(),
+       numero: faker.location.buildingNumber(),
+       cidade: faker.location.city(),
+       estado: faker.location.state({ abbreviated: true }),
+     },
+   };
+
+   console.log('Cliente fictício gerado:', JSON.stringify(cliente, null, 2));
+   ```
+
+3. **Execute o arquivo:**
+
+   ```bash title="Terminal"
+   node index.js
+   ```
+</Steps>
+
+## Exercício
+
+Escreva uma função `criarMassaDePosts(quantidade)` utilizando o Faker.js em português (`fakerPT_BR`) que retorne um array de objetos com o seguinte formato:
+
+- `id`: Um UUID único gerado por `faker.string.uuid()`.
+- `titulo`: Uma frase gerada por `faker.lorem.sentence()`.
+- `conteudo`: Um parágrafo com `faker.lorem.paragraph()`.
+- `autor`: O nome completo do autor com `faker.person.fullName()`.
+- `visualizacoes`: Um número inteiro entre 10 e 5000 gerado com `faker.number.int()`.
+- `publicadoEm`: Uma data recente nos últimos 60 dias em formato ISO string.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="exercicio-posts.js"
+  import { fakerPT_BR as faker } from '@faker-js/faker';
+
+  export function criarMassaDePosts(quantidade = 10) {
+    return Array.from({ length: quantidade }, () => ({
+      id: faker.string.uuid(),
+      titulo: faker.lorem.sentence({ min: 4, max: 8 }),
+      conteudo: faker.lorem.paragraph({ min: 2, max: 5 }),
+      autor: faker.person.fullName(),
+      visualizacoes: faker.number.int({ min: 10, max: 5000 }),
+      publicadoEm: faker.date.recent({ days: 60 }).toISOString(),
+    }));
+  }
+  ```
+</details>
+
+## Desafio
+
+Crie um gerador de e-commerce completo que gere 10 categorias e 50 produtos, onde cada produto esteja vinculado a um `categoriaId` válido existente no array de categorias. Utilize `faker.helpers.arrayElement()` para sortear a categoria pai de cada produto de forma consistente.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="desafio-ecommerce.js"
+  import { fakerPT_BR as faker } from '@faker-js/faker';
+
+  export function gerarCatalogoEcommerce() {
+    faker.seed(100);
+
+    // 1. Gera 10 categorias com IDs próprios
+    const categorias = Array.from({ length: 10 }, () => ({
+      id: faker.string.uuid(),
+      nome: faker.commerce.department(),
+    }));
+
+    // 2. Gera 50 produtos associados a uma categoria existente
+    const produtos = Array.from({ length: 50 }, () => {
+      const categoriaSorteada = faker.helpers.arrayElement(categorias);
+
+      return {
+        id: faker.string.uuid(),
+        nome: faker.commerce.productName(),
+        preco: parseFloat(faker.commerce.price({ min: 20, max: 2000, dec: 2 })),
+        categoriaId: categoriaSorteada.id,
+        categoriaNome: categoriaSorteada.nome,
+        emEstoque: faker.datatype.boolean({ probability: 0.85 }),
+      };
+    });
+
+    return { categorias, produtos };
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para consolidar o aprendizado:
+
+1. **Por que utilizar dados de produção em ambientes de desenvolvimento e teste representa um risco de segurança?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque expõe informações pessoais identificáveis (PII) de clientes reais (como nomes, senhas, CPFs e cartões) a máquinas locais e logs de desenvolvimento, violando leis de proteção de dados como a LGPD e a GDPR.
+   </details>
+
+2. **Como o método `faker.seed()` ajuda a evitar testes instáveis (*flaky tests*)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele inicializa o gerador de números pseudoaleatórios com um valor fixo, garantindo que a mesma sequência de nomes, e-mails e números seja gerada em todas as execuções do teste, tanto localmente quanto no CI.
+   </details>
+
+3. **Qual é a diferença entre importar `faker` do pacote raiz versus importar `fakerPT_BR`?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `faker` padrão utiliza a localização em inglês (`en_US`), gerando nomes e cidades americanas. O `fakerPT_BR` carrega o dicionário localizado em Português do Brasil com nomes, CEPs, cidades e estados brasileiros.
+   </details>
+
+4. **Para que serve a função utilitária `faker.helpers.arrayElement()`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ela seleciona aleatoriamente um item dentro de um array existente, facilitando a criação de relacionamentos (como chaves estrangeiras) e listas de opções controladas.
+   </details>
+
+## Referências
+
+- [Faker.js Official Documentation](https://fakerjs.dev/)
+- [Faker.js GitHub Repository](https://github.com/faker-js/faker)
+- [Faker Modules API Reference](https://fakerjs.dev/api/)
+
+## Próximo tópico
+
+Com a prototipagem e a massa de dados simulados configuradas, avance para o consumo de serviços web e APIs REST através do cliente HTTP:
+
+- [Axios](../../http/axios/): Cliente HTTP baseado em Promises com instâncias, interceptores e tratamento de exceções.

@@ -1,0 +1,291 @@
+---
+title: "npm: JSR (JavaScript Registry)"
+description: "O registro moderno para JavaScript e TypeScript: publicação nativa de TypeScript sem build manual, geração automática de documentação, pontuação de qualidade e compatibilidade multi-runtime."
+course: npm
+sidebar:
+  label: "JSR"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o **JSR** (*JavaScript Registry*), um registro público de pacotes moderno e de código aberto concebido pela equipe do Deno para atender todo o ecossistema JavaScript e TypeScript (Node.js, Deno, Bun, Cloudflare Workers e navegadores).
+
+Publicar uma biblioteca TypeScript no registro npm tradicional sempre exigiu um processo trabalhoso e frágil: configurar compiladores (`tsc`, `tsup`, `rollup`), gerar arquivos `.d.ts` e arquivos `.js` transpilados (muitas vezes em formato duplo ESM e CommonJS), cuidar de mapeamentos de `package.json` complexos (`exports`, `types`, `main`) e manter a documentação sincronizada. O JSR revoluciona esse fluxo ao aceitar arquivos TypeScript diretamente, cuidando da transpilação, da geração de documentação e da compatibilidade com o npm de forma totalmente automatizada.
+
+## Objetivo
+
+Compreender o papel do JSR como registro de nova geração para pacotes JavaScript e TypeScript, aprendendo a consumir e publicar módulos compatíveis com Node.js, npm e outros runtimes. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a proposta do JSR e suas vantagens em relação ao registro npm tradicional.
+- Descrever o suporte nativo a TypeScript e a geração automática de tipos `.d.ts` e documentação.
+- Instalar pacotes do JSR em projetos Node.js com npm, pnpm ou Yarn utilizando `npx jsr add`.
+- Interpretar o sistema de pontuação de qualidade (*package score*) e regras de tipagem rápida (*slow types*).
+- Criar e configurar o manifesto `jsr.json` para publicação direta de módulos.
+
+## O que é o JSR?
+
+O JSR não é um novo gerenciador de pacotes (*package manager*), mas sim um **registro moderno** (*package registry*) que funciona como uma evolução para o ecossistema. Ele é 100% interoperável com as ferramentas que você já usa (npm, pnpm, yarn, bun e deno).
+
+A tabela a seguir compara as principais diferenças entre o npm tradicional e o JSR:
+
+| Recurso | Registro npm tradicional | JSR (*JavaScript Registry*) |
+| :--- | :--- | :--- |
+| **Suporte a TypeScript** | Exige transpilação manual para `.js` antes de publicar. | Nativo (você publica código `.ts` direto). |
+| **Geração de Tipos `.d.ts`** | Responsabilidade manual do autor. | Automática pelo servidor do JSR. |
+| **Documentação da API** | Exige sites externos (TypeDoc, Readme). | Gerada automaticamente a partir de comentários JSDoc. |
+| **Escopos e Nomenclatura** | Opcional (qualquer um pode registrar nomes soltos). | Obrigatório (`@escopo/nome-do-pacote`). |
+| **Pontuação de Qualidade** | Inexistente (apenas downloads). | Nota de 0 a 100% baseada em boas práticas e tipagem. |
+| **Autenticação de Publicação** | Tokens estáticos de longa duração. | OpenID Connect (OIDC) nativo via GitHub Actions. |
+
+O JSR foi desenhado desde o primeiro dia com foco em segurança, desempenho de compilação e eliminação de etapas repetitivas de build para autores de bibliotecas.
+
+## Fundamentos e Modelo Mental
+
+Quando um autor publica um pacote no JSR, ele envia seus arquivos TypeScript puros. O servidor do JSR processa o código, gera a documentação interativa e disponibiliza os artefatos em dois formatos:
+1. Para ambientes Deno / Bun: arquivos TypeScript nativos com módulos ESM.
+2. Para ambientes Node.js (npm, pnpm, yarn): uma camada de compatibilidade (*npm compatibility layer*) que converte os módulos sob demanda.
+
+O diagrama abaixo ilustra o ciclo de publicação e consumo:
+
+<Mermaid title="Arquitetura de publicação e consumo multi-runtime no JSR">
+{`
+flowchart TD
+  A["Autor publica código<br/>(arquivos .ts puros + jsr.json)"] --> B["Servidor JSR<br/>(validação de tipos e documentação)"]
+  B --> C["Documentação interativa em jsr.io"]
+  B --> D["Camada nativa ESM / TS<br/>(Deno, Bun)"]
+  B --> E["Camada de compatibilidade npm<br/>(Node.js, npm, pnpm, yarn)"]
+  E --> F["Desenvolvedor instala via<br/>npx jsr add @scope/pacote"]
+`}
+</Mermaid>
+
+Graças a essa camada, os desenvolvedores que utilizam Node.js tradicional podem consumir pacotes do JSR sem alterar seus fluxos de trabalho habituais.
+
+## Como Usar: Instalando Pacotes do JSR no Node.js
+
+Para adicionar um pacote do JSR em um projeto Node.js gerenciado por npm, pnpm ou Yarn, utilize a ferramenta oficial `@jsr/cli`:
+
+No terminal do seu projeto:
+
+```bash title="Terminal"
+# Com npm
+npx jsr add @std/crypto
+
+# Com pnpm
+pnpm dlx jsr add @std/crypto
+
+# Com Yarn
+yarn dlx jsr add @std/crypto
+```
+
+O comando configura automaticamente o arquivo de mapeamento no seu `package.json`:
+
+```json title="package.json (dependência do JSR)"
+{
+  "dependencies": {
+    "@std/crypto": "npm:@jsr/std__crypto@^1.0.0"
+  }
+}
+```
+
+Após a instalação, o pacote é importado normalmente no código JavaScript ou TypeScript como qualquer outra biblioteca:
+
+```js title="src/main.js"
+import { crypto } from '@std/crypto';
+
+console.log('Algoritmos disponíveis:', crypto.subtle);
+```
+
+## Publicando um Pacote no JSR
+
+Para publicar uma biblioteca no JSR, basta criar o arquivo manifesto `jsr.json` (ou `deno.json`) na raiz do repositório:
+
+```json title="jsr.json"
+{
+  "name": "@meu-escopo/calculadora",
+  "version": "1.0.0",
+  "exports": "./src/index.ts"
+}
+```
+
+O arquivo de código TypeScript exporta funções documentadas com anotações JSDoc:
+
+```ts title="src/index.ts"
+/**
+ * Calcula a soma de dois números inteiros ou de ponto flutuante.
+ * @param a Primeiro valor numérico.
+ * @param b Segundo valor numérico.
+ * @returns O resultado da soma aritmética.
+ */
+export function add(a: number, b: number): number {
+  return a + b;
+}
+```
+
+Para publicar no registro:
+
+```bash title="Terminal"
+npx jsr publish
+```
+
+O JSR analisa o código, valida se os tipos exportados são explícitos e publica o módulo em segundos.
+
+## Regras de Tipagem Rápida (*Fast Check*) e Qualidade
+
+Para que o JSR consiga gerar documentação e tipos `.d.ts` instantaneamente sem rodar o compilador TypeScript completo para cada consumidor, ele exige que todas as funções, classes e variáveis exportadas publicamente declarem **tipos de retorno e de parâmetros explícitos**.
+
+A tabela abaixo resume a regra de *Fast Check*:
+
+| Forma | Código | Status no JSR |
+| :--- | :--- | :--- |
+| **Incorreto (tipo implícito)** | `export function multiply(a, b) { return a * b; }` | Rejeitado ou penalizado na pontuação. |
+| **Correto (tipo explícito)** | `export function multiply(a: number, b: number): number { return a * b; }` | Aprovado com pontuação máxima (100%). |
+
+O JSR atribui a cada pacote uma pontuação de qualidade pública (*Package Score*), incentivando autores a fornecerem documentação completa, licença clara e tipagem estrita.
+
+## Boas Práticas e Segurança
+
+A publicação moderna no JSR elimina a necessidade de armazenar tokens secretos permanentes de publicação no GitHub.
+
+A tabela abaixo resume as melhores práticas:
+
+| Prática | Como aplicar | Benefício |
+| :--- | :--- | :--- |
+| **Publicação sem senhas (OIDC)** | Utilize o GitHub Action oficial do JSR com permissões `id-token: write`. | Publicação segura autenticada diretamente pelo GitHub sem vazamento de tokens. |
+| **Documentação rica em JSDoc** | Adicione comentários de documentação em todas as funções exportadas. | Gera automaticamente uma página com busca e exemplos em `jsr.io/@escopo/pacote`. |
+| **Tipagem explícita nas bordas** | Declare os tipos de entrada e saída em todas as funções de `exports`. | Acelera a compilação para todos os usuários do pacote. |
+
+<Aside type="caution" title="Dica de IA: Cuidado com imports de APIs exclusivas do Node.js">
+  Assistentes podem sugerir o uso direto de módulos nativos do Node.js como `node:fs` em bibliotecas do JSR destinadas ao navegador ou Deno.
+
+  **Prompt:** *"Revise o módulo TypeScript abaixo para garantir que ele não dependa de APIs exclusivas de um único runtime, tornando-o universal para Node.js, Deno, Bun e navegadores."*
+</Aside>
+
+## Executando
+
+Para experimentar a instalação e o consumo de um pacote JSR em um projeto Node.js:
+
+<Steps>
+1. Inicialize um projeto temporário:
+
+   ```bash title="Terminal"
+   mkdir jsr-demo && cd jsr-demo
+   npm init -y
+   npm pkg set type=module
+   ```
+
+2. Adicione uma biblioteca utilitária do JSR com a CLI:
+
+   ```bash title="Terminal"
+   npx jsr add @std/bytes
+   ```
+
+3. Crie um arquivo `index.js` e utilize as funções importadas:
+
+   ```js title="index.js"
+   import { concat } from '@std/bytes';
+
+   const a = new Uint8Array([1, 2]);
+   const b = new Uint8Array([3, 4]);
+   console.log('Bytes concatenados:', concat([a, b]));
+   ```
+
+4. Execute o arquivo com o Node.js:
+
+   ```bash title="Terminal"
+   node index.js
+   ```
+</Steps>
+
+## Exercício
+
+Crie a estrutura de um manifesto `jsr.json` para um pacote chamado `@meu-usuario/formatador` na versão `1.0.0`, expondo dois pontos de entrada:
+
+1. `.` apontando para `./src/index.ts`.
+2. `./texto` apontando para `./src/text.ts`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="jsr.json"
+  {
+    "name": "@meu-usuario/formatador",
+    "version": "1.0.0",
+    "exports": {
+      ".": "./src/index.ts",
+      "./texto": "./src/text.ts"
+    }
+  }
+  ```
+</details>
+
+## Desafio
+
+Configure um workflow do GitHub Actions (`.github/workflows/publish.yml`) que publique automaticamente o pacote no JSR sempre que uma nova tag de versão for enviada para o repositório, utilizando autenticação segura sem tokens via OpenID Connect (OIDC).
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```yaml title=".github/workflows/publish.yml"
+  name: Publicar no JSR
+
+  on:
+    push:
+      tags:
+        - 'v*'
+
+  jobs:
+    publish:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: read
+        id-token: write
+
+      steps:
+        - name: Clonar repositório
+          uses: actions/checkout@v4
+
+        - name: Publicar pacote
+          run: npx jsr publish
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para consolidar o aprendizado:
+
+1. **Qual é a principal vantagem do JSR para desenvolvedores que escrevem em TypeScript?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele permite publicar código TypeScript nativo diretamente sem a necessidade de configurar ferramentas manuais de transpilação, gerando documentação e declarações `.d.ts` automaticamente.
+   </details>
+
+2. **Como projetos Node.js que usam npm tradicional conseguem instalar pacotes publicados no JSR?**
+   <details>
+     <summary>Possível resposta</summary>
+     Através da ferramenta `@jsr/cli` (`npx jsr add @escopo/pacote`), que configura um alias de compatibilidade apontando para a camada de resolução npm mantida pelo JSR.
+   </details>
+
+3. **Por que o JSR exige que as funções exportadas declarem tipos de parâmetros e de retorno explícitos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para permitir o *Fast Check*, um processo que extrai a documentação e os tipos de forma ultra-rápida sem a sobrecarga de executar uma verificação completa de tipos em todo o código interno.
+   </details>
+
+4. **Por que o modelo de autenticação OIDC do JSR é mais seguro que tokens de publicação tradicionais?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele utiliza credenciais temporárias de curta duração geradas diretamente pelo provedor de CI (como o GitHub Actions), eliminando tokens secretos de longa duração que podem vazar.
+   </details>
+
+## Referências
+
+- [JSR | Site Oficial e Registro](https://jsr.io/)
+- [JSR Docs | Documentação Oficial](https://jsr.io/docs)
+- [Publishing Packages on JSR](https://jsr.io/docs/publishing-packages)
+- [Using JSR packages with npm/yarn/pnpm](https://jsr.io/docs/with/npm)
+
+## Próximo tópico
+
+Com os gerenciadores e registros dominados, compare a sintaxe de comandos e equivalências operacionais entre as ferramentas:
+
+- [Comparativo de Comandos](../commands/): Tabela geral de equivalência de comandos, flags de CI/CD e execução sob demanda entre npm, pnpm e Yarn.

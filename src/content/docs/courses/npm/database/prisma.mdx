@@ -1,0 +1,294 @@
+---
+title: "npm: Prisma e ORMs"
+description: "Mapeamento objeto-relacional (ORM), modelagem declarativa e acesso type-safe a bancos de dados com Prisma e Drizzle ORM."
+course: npm
+sidebar:
+  label: "Prisma e ORMs"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+No ecossistema Node.js e TypeScript, o acesso a bancos de dados relacionais (PostgreSQL, MySQL, SQLite) e NoSQL (MongoDB) evoluiu de drivers com queries em texto puro para **Mapeadores Objeto-Relacionais (*ORMs*) com tipagem estrita**. Ferramentas como o **Prisma** e o **Drizzle ORM** eliminam inconsistências entre o esquema do banco de dados e o código da aplicação, gerando autocompletar e validação em tempo de compilação.
+
+## Objetivo
+
+Compreender o funcionamento de ORMs no ambiente Node.js e TypeScript, modelando esquemas de banco de dados relacionais, executando migrações e realizando consultas *type-safe* com Prisma e Drizzle ORM. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar o uso de drivers SQL puros, construtores de queries (*query builders*) e ORMs modernos.
+- Declarar modelos, tipos e relacionamentos no arquivo `schema.prisma`.
+- Executar migrações de banco com `prisma migrate` e gerar o cliente tipado `@prisma/client`.
+- Compreender a abordagem *SQL-like* e de zero overhead do **Drizzle ORM**.
+- Avaliar quando escolher Prisma ou Drizzle para projetos full-stack, APIs REST ou ambientes *serverless*.
+
+## Níveis de Acesso a Banco de Dados
+
+A escolha da camada de banco de dados equilibra flexibilidade, segurança de tipos e proximidade com o SQL nativo:
+
+<Mermaid title="Níveis de abstração de acesso ao banco">
+{`
+flowchart TD
+  A["Aplicação Node.js / TypeScript"] --> B{"Camada de Acesso"}
+  B -->|"SQL Puro"| C["Drivers: pg, mysql2, better-sqlite3<br/>Controle total, sem tipagem automática"]
+  B -->|"Query Builder"| D["Kysely, Knex<br/>Constrói queries com TS, sem schema declarativo"]
+  B -->|"ORM SQL-Like"| E["Drizzle ORM<br/>Schema em TypeScript, zero overhead, SQL transparente"]
+  B -->|"ORM Declarativo"| F["Prisma<br/>DSL schema.prisma, cliente auto-gerado, migrações"]
+`}
+</Mermaid>
+
+## 1. Prisma: O ORM Declarativo
+
+O **Prisma** é o ORM mais popular do ecossistema TypeScript. Ele utiliza uma linguagem declarativa própria de modelagem (`schema.prisma`) para descrever tabelas, índices e relacionamentos, gerando automaticamente um cliente fortemente tipado para a aplicação.
+
+Instalação do Prisma:
+
+<PackageManagerTabs package="@prisma/client" devPackage="prisma" />
+
+Inicialização do projeto Prisma:
+
+```bash title="Inicializando a estrutura do Prisma"
+npx prisma init --datasource-provider sqlite
+```
+
+### Modelagem Declarativa no `schema.prisma`
+
+O arquivo `prisma/schema.prisma` centraliza a conexão e os modelos de dados:
+
+```prisma title="prisma/schema.prisma"
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  posts     Post[]
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+```
+
+### Executando Migrações e Gerando Tipos
+
+Para aplicar as tabelas no banco de dados e sincronizar o cliente TypeScript:
+
+```bash title="Executando migração de desenvolvimento"
+npx prisma migrate dev --name init_database
+```
+
+### Consultas com `@prisma/client`
+
+As consultas possuem autocompletar de todos os campos e relações:
+
+```typescript title="src/services/userService.ts"
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Criando usuário com posts relacionados em uma única transação
+export async function createUserWithPost() {
+  return await prisma.user.create({
+    data: {
+      name: 'Maria Silva',
+      email: 'maria.silva@exemplo.com',
+      posts: {
+        create: [
+          { title: 'Primeiro artigo sobre TypeScript', published: true },
+        ],
+      },
+    },
+    include: {
+      posts: true,
+    },
+  });
+}
+
+// Busca com filtro tipado e ordenação
+export async function listActiveUsers() {
+  return await prisma.user.findMany({
+    where: {
+      posts: {
+        some: { published: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+```
+
+## 2. Drizzle ORM: A Abordagem SQL-Like e Zero Overhead
+
+O **Drizzle ORM** adota uma filosofia diferente: o esquema é escrito diretamente em TypeScript puro (sem DSL intermediária) e a sintaxe das consultas é praticamente idêntica ao SQL tradicional.
+
+Instalação do Drizzle:
+
+<PackageManagerTabs package="drizzle-orm" devPackage="drizzle-kit" />
+
+### Esquema em TypeScript Puro
+
+```typescript title="src/db/schema.ts"
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  createdAt: text('created_at').default('CURRENT_TIMESTAMP'),
+});
+```
+
+### Consultas com Drizzle
+
+```typescript title="src/db/queries.ts"
+import { eq } from 'drizzle-orm';
+import { db } from './connection';
+import { users } from './schema';
+
+export async function findUserByEmail(email: string) {
+  return await db.select().from(users).where(eq(users.email, email)).limit(1);
+}
+```
+
+## Matriz de Decisão: Prisma vs Drizzle vs SQL Puro
+
+| Critério | Prisma | Drizzle ORM | Drivers SQL Puros (`pg`, `sqlite3`) |
+| --- | --- | --- | --- |
+| **Definição de Esquema** | DSL própria (`schema.prisma`) | Código TypeScript puro | Scripts `.sql` manuais |
+| **Curva de Aprendizado** | Muito baixa (métodos intuitivos) | Média (exige conhecimento de SQL) | Exige domínio de SQL nativo |
+| **Desempenho e Overhead** | Camada interna de query engine | Zero overhead (gera queries diretas) | Desempenho máximo nativo |
+| **Serverless e Edge** | Requer drivers adapters leves | Excelente nativamente | Excelente |
+| **Migrações** | `prisma migrate` integrado | `drizzle-kit` integrado | Ferramentas manuais (*Knex*, *Flyway*) |
+
+## Executando
+
+Siga os passos para criar um banco SQLite local com Prisma:
+
+<Steps>
+1. Instale o Prisma no projeto:
+
+   <PackageManagerTabs package="@prisma/client" devPackage="prisma" />
+2. Inicialize a pasta `prisma/`:
+
+   ```bash
+   npx prisma init --datasource-provider sqlite
+   ```
+3. Defina um modelo no `schema.prisma` e rode a migração:
+
+   ```bash
+   npx prisma migrate dev --name init
+   ```
+4. Crie um script `index.ts` e execute `prisma.user.create()` para inserir o primeiro registro.
+</Steps>
+
+## Exercício
+
+1. Qual é a principal diferença na forma como o Prisma e o Drizzle definem o esquema do banco de dados?
+2. Por que o comando `prisma generate` é necessário após alterar o arquivo `schema.prisma`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. O Prisma usa uma linguagem de modelagem própria declarativa (`schema.prisma`), enquanto o Drizzle define tabelas diretamente como objetos e funções em arquivos TypeScript puros (`sqliteTable`, `pgTable`).
+
+  2. Porque o `prisma generate` lê o esquema atualizado e recompila o pacote `@prisma/client` dentro de `node_modules`, gerando os novos tipos TypeScript e métodos correspondentes aos modelos alterados.
+</details>
+
+## Desafio
+
+Projete um esquema de banco de dados para um sistema de comércio eletrônico no Prisma contendo três modelos relacionados: `Customer`, `Order` e `OrderItem`. Um cliente pode ter múltiplos pedidos (`1:N`), e cada pedido pode conter múltiplos itens (`1:N`). Configure a exclusão em cascata (`onDelete: Cascade`) para os itens quando um pedido for removido.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```prisma title="prisma/schema.prisma"
+  model Customer {
+    id     Int     @id @default(autoincrement())
+    name   String
+    email  String  @unique
+    orders Order[]
+  }
+
+  model Order {
+    id         Int         @id @default(autoincrement())
+    createdAt  DateTime    @default(now())
+    total      Float
+    customerId Int
+    customer   Customer    @relation(fields: [customerId], references: [id])
+    items      OrderItem[]
+  }
+
+  model OrderItem {
+    id          Int    @id @default(autoincrement())
+    productName String
+    quantity    Int
+    unitPrice   Float
+    orderId     Int
+    order       Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Modelagem e Migrações
+
+1. **O que é uma migração de banco de dados e por que ela é preferível a alterar tabelas manualmente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Uma migração é um script versionado que registra o histórico de alterações no esquema do banco. Ela garante que todos os ambientes da equipe (desenvolvimento, staging, produção e CI/CD) compartilhem exatamente a mesma estrutura de tabelas de forma determinística e reproduzível.
+</details>
+
+2. **Como o Prisma previne vulnerabilidades de SQL Injection?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O cliente do Prisma parametriza automaticamente todas as variáveis passadas nas consultas, impedindo que entradas maliciosas do usuário sejam executadas como comandos SQL.
+</details>
+
+### Performance e Arquitetura
+
+3. **Quando o Drizzle ORM pode ser mais vantajoso que o Prisma?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em ambientes *serverless* e *edge computing* onde o tempo de inicialização (*cold start*) é crítico, ou quando a equipe prefere manter o controle explícito sobre a estrutura das queries SQL sem abstrações pesadas.
+</details>
+
+4. **Como funcionam as transações no Prisma para garantir consistência em operações interdependentes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Através de `prisma.$transaction([op1, op2])` ou transações interativas `prisma.$transaction(async (tx) => { ... })`, garantindo que todas as alterações sejam confirmadas (*commit*) ou revertidas (*rollback*) atomicamente caso ocorra uma falha.
+</details>
+
+## Referências
+
+- [Prisma Official Documentation](https://www.prisma.io/docs)
+- [Drizzle ORM Documentation](https://orm.drizzle.team/)
+- [Kysely TypeScript SQL Query Builder](https://kysely.dev/)
+- [PostgreSQL Node.js Driver (node-postgres)](https://node-postgres.com/)
+
+## Próximo tópico
+
+Depois de explorar o modelo declarativo do Prisma, conheça a abordagem SQL-like em TypeScript puro com zero overhead:
+
+- [Drizzle ORM](../drizzle/): Esquemas em TypeScript puro, queries SQL-like e alta performance para edge e serverless.

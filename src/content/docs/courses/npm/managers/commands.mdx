@@ -1,0 +1,244 @@
+---
+title: "npm: Comandos e Equivalências (npm vs pnpm vs Yarn vs Bun)"
+description: "Tabela comparativa e guia de equivalência de comandos entre npm, pnpm, Yarn e Bun: instalação, adição de dependências, scripts, lockfiles, CI e execução com npx/dlx/bunx."
+course: npm
+sidebar:
+  label: "Comparativo de Comandos"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta um guia prático de equivalência de comandos e comportamentos entre os quatro principais gerenciadores de pacotes do ecossistema JavaScript: **npm**, **pnpm**, **Yarn** e **Bun**.
+
+Embora todos leiam o mesmo arquivo de manifesto `package.json` e baixem os mesmos pacotes do registro oficial, a sintaxe de linha de comando, a gestão de dependências na área de trabalho e a estratégia de isolamento variam consideravelmente entre as ferramentas. Dominar as correspondências diretas permite transitar com facilidade entre projetos de diferentes equipes sem hesitar no terminal.
+
+## Objetivo
+
+Compreender as correspondências diretas de sintaxe e as nuances arquiteturais entre npm, pnpm, Yarn e Bun, aplicando o comando exato para cada operação do fluxo de desenvolvimento. Ao final do tópico, o leitor deve ser capaz de:
+
+- Mapear comandos fundamentais de instalação, remoção, atualização e execução entre npm, pnpm, Yarn e Bun.
+- Identificar as *flags* equivalentes para ambientes de integração contínua (CI) e instalações determinísticas.
+- Executar binários e pacotes sob demanda usando os utilitários de execução remota (`npx`, `pnpm dlx`, `yarn dlx`, `bunx`).
+- Gerenciar monorepos e disparar tarefas filtradas por *workspace* em cada ferramenta.
+- Escolher o gerenciador mais adequado com base em métricas de performance, consumo de disco e rigor de isolamento.
+
+## Tabela Geral de Equivalência de Comandos
+
+A tabela a seguir reúne as operações mais frequentes do dia a dia e suas respectivas sintaxes em cada gerenciador:
+
+| Operação | npm | pnpm | Yarn (Berry) | Bun |
+| :--- | :--- | :--- | :--- | :--- |
+| **Inicializar projeto interativo** | `npm init` | `pnpm init` | `yarn init` | `bun init` |
+| **Inicializar com valores padrão** | `npm init -y` | `pnpm init` | `yarn init -2` | `bun init -y` |
+| **Instalar todas as dependências** | `npm install` | `pnpm install` | `yarn install` (ou `yarn`) | `bun install` (ou `bun i`) |
+| **Instalação imutável para CI** | `npm ci` | `pnpm install --frozen-lockfile` | `yarn install --immutable` | `bun install --frozen-lockfile` |
+| **Adicionar dependência de produção** | `npm i <pkg>` | `pnpm add <pkg>` | `yarn add <pkg>` | `bun add <pkg>` |
+| **Adicionar dependência de dev** | `npm i -D <pkg>` | `pnpm add -D <pkg>` | `yarn add -D <pkg>` | `bun add -d <pkg>` |
+| **Adicionar dependência exata** | `npm i -E <pkg>` | `pnpm add -E <pkg>` | `yarn add -E <pkg>` | `bun add -E <pkg>` |
+| **Adicionar dependência global** | `npm i -g <pkg>` | `pnpm add -g <pkg>` | `yarn global add <pkg>` | `bun add -g <pkg>` |
+| **Remover dependência** | `npm uninstall <pkg>` | `pnpm remove <pkg>` | `yarn remove <pkg>` | `bun remove <pkg>` |
+| **Atualizar todas as dependências** | `npm update` | `pnpm update` | `yarn up` | `bun update` |
+| **Executar script do manifesto** | `npm run <script>` | `pnpm <script>` (ou `pnpm run`) | `yarn <script>` (ou `yarn run`) | `bun <script>` (ou `bun run`) |
+| **Executar pacote sem instalar** | `npx <pkg>` | `pnpm dlx <pkg>` | `yarn dlx <pkg>` | `bunx <pkg>` |
+| **Auditoria de vulnerabilidades** | `npm audit` | `pnpm audit` | `yarn npm audit` | `bun pm audit` |
+| **Limpeza de cache local** | `npm cache clean --force`| `pnpm store prune` | `yarn cache clean` | `bun pm cache rm` |
+
+<Aside type="tip" title="Execução direta de scripts no pnpm, Yarn e Bun">
+Ao contrário do npm clássico (que exige `npm run build` para scripts não-padrão), o pnpm, o Yarn e o Bun permitem omitir a palavra `run`, aceitando diretamente `pnpm build`, `yarn dev` ou `bun test`.
+</Aside>
+
+## Execução sob Demanda: npx vs pnpm dlx vs yarn dlx vs bunx
+
+Ferramentas modernas evitam instalar utilitários de uso temporário ou geradores de scaffolding globalmente na máquina. Em vez disso, executam o binário baixando-o para uma pasta temporária descartável.
+
+O diagrama abaixo sintetiza o ciclo de vida da execução temporária:
+
+<Mermaid title="Fluxo de execução de pacotes sob demanda">
+{`
+flowchart TD
+  A["Comando disparado<br/>(npx / pnpm dlx / yarn dlx / bunx)"] --> B{"Binário existe no<br/>node_modules local?"}
+  B -- "Sim" --> C["Executa binário local<br/>(versão do projeto)"]
+  B -- "Não" --> D["Baixa versão recente<br/>em cache temporário"]
+  D --> E["Executa o comando"]
+  E --> F["Descarta arquivos temporários"]
+`}
+</Mermaid>
+
+A tabela a seguir compara as particularidades de cada utilitário de execução:
+
+| Utilitário | Gerenciador | Comportamento principal | Exemplo de uso |
+| :--- | :--- | :--- | :--- |
+| **`npx`** | npm | Procura localmente, depois no PATH global e por fim baixa do registro. | `npx create-vite meu-app` |
+| **`pnpm dlx`** | pnpm | Baixa sempre em ambiente isolado sem poluir dependências globais. | `pnpm dlx @biomejs/biome init` |
+| **`yarn dlx`** | Yarn Berry | Executa pacotes de forma efêmera sem criar `node_modules` local. | `yarn dlx degit usuario/repo` |
+| **`bunx`** | Bun | Executa o binário local instantaneamente ou baixa em cache nativo ultrarrápido. | `bunx @biomejs/biome check .` |
+
+## Lockfiles e Determinismo
+
+Cada gerenciador gera um arquivo de trava (*lockfile*) com formato próprio para garantir que toda a equipe instale exatamente as mesmas versões e hashes de integridade.
+
+A tabela a seguir resume os arquivos gerados por cada ferramenta:
+
+| Gerenciador | Arquivo de trava | Formato | Estrutura de armazenamento |
+| :--- | :--- | :--- | :--- |
+| **npm** | `package-lock.json` | JSON | `node_modules` aninhado e achatado (*hoisting*). |
+| **pnpm** | `pnpm-lock.yaml` | YAML | *Content-addressable store* global com links simbólicos (*symlinks*). |
+| **Yarn (v1)** | `yarn.lock` | Formato proprietário | `node_modules` clássico com *hoisting*. |
+| **Yarn (Berry)** | `yarn.lock` | YAML | *Plug'n'Play* (`.pnp.cjs`) ou `node_modules`. |
+| **Bun** | `bun.lock` / `bun.lockb` | Texto / Binário | Hardlinks e *clonefile* com cache global nativo. |
+
+<Aside type="caution" title="Dica de IA: Nunca misture lockfiles no mesmo projeto">
+Ter `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` e `bun.lock` juntos no mesmo repositório causa conflitos em esteiras de CI/CD e desperdício de disco. Defina um único gerenciador oficial para o projeto.
+
+**Prompt:** *"Analise a raiz deste projeto, identifique qual gerenciador de pacotes está sendo utilizado e gere o comando para remover os lockfiles e pastas duplicadas de outros gerenciadores."*
+</Aside>
+
+## Comandos em Monorepos e Workspaces
+
+Em repositórios que agrupam múltiplos pacotes ou aplicações (*monorepos*), os comandos podem ser direcionados a projetos específicos:
+
+A tabela abaixo compara a sintaxe de direcionamento de comandos em *workspaces*:
+
+| Ação em Monorepo | npm | pnpm | Yarn | Bun |
+| :--- | :--- | :--- | :--- | :--- |
+| **Instalar dependência no workspace 'web'** | `npm i zod -w web` | `pnpm --filter web add zod` | `yarn workspace web add zod` | `bun --filter web add zod` |
+| **Executar script em workspace específico** | `npm run test -w web` | `pnpm --filter web test` | `yarn workspace web test` | `bun --filter web test` |
+| **Executar script em todos os workspaces** | `npm run test --workspaces` | `pnpm -r test` | `yarn workspaces run test` | `bun --filter '*' run test` |
+
+## Padronização de Versões com Corepack
+
+O **Corepack** é uma ferramenta oficial mantida pelo time do Node.js que atua como uma ponte para gerenciar as versões exatas de pnpm e Yarn sem necessidade de instalação manual via npm global.
+
+Para ativar e vincular um gerenciador ao projeto:
+
+<Steps>
+1. **Habilitar o Corepack no sistema:**
+
+   ```bash title="Terminal"
+   corepack enable
+   ```
+
+2. **Fixar o gerenciador e versão no package.json:**
+
+   ```bash title="Terminal"
+   corepack use pnpm@10.5.0
+   ```
+
+3. **Verificar a declaração gerada:**
+
+   O Corepack insere o campo `"packageManager"` no `package.json`:
+
+   ```json title="package.json"
+   {
+     "packageManager": "pnpm@10.5.0"
+   }
+   ```
+</Steps>
+
+A partir desse momento, qualquer colaborador que tentar rodar comandos com outra versão ou outro gerenciador será instruído automaticamente a utilizar a versão definida no projeto.
+
+## Resumo e Boas Práticas
+
+A tabela a seguir sintetiza critérios objetivos para orientar a escolha do gerenciador:
+
+| Cenário de projeto | Gerenciador recomendado | Justificativa técnica |
+| :--- | :--- | :--- |
+| **Aplicações padrão e iniciantes** | **npm** | Já vem instalado com o Node.js, dispensando qualquer configuração adicional. |
+| **Monorepos grandes e economia de disco** | **pnpm** | *Content-addressable store* economiza dezenas de gigabytes e instala até 3x mais rápido. |
+| **Projetos enterprise com Zero-Installs** | **Yarn Berry** | O modo PnP permite versionar dependências zipadas no Git, eliminando o passo de instalação no CI. |
+| **Máxima velocidade no terminal e CI** | **Bun** | Escrito em Zig, utiliza syscalls nativas (`clonefile`/hardlinks) e instala em milissegundos. |
+
+## Exercício
+
+Converta os comandos a seguir do fluxo npm para seus equivalentes exatos em **pnpm**:
+
+1. `npm install --save-dev typescript @types/node`
+2. `npm ci`
+3. `npm run test`
+4. `npx prisma migrate dev`
+5. `npm uninstall lodash`
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Os comandos equivalentes no pnpm são:
+
+  1. `pnpm add -D typescript @types/node`
+  2. `pnpm install --frozen-lockfile`
+  3. `pnpm test` (ou `pnpm run test`)
+  4. `pnpm dlx prisma migrate dev` (ou `pnpm prisma migrate dev` se já instalado localmente)
+  5. `pnpm remove lodash`
+</details>
+
+## Desafio
+
+Dado um monorepo com dois pacotes (`apps/web` e `packages/ui`), escreva o arquivo de configuração de workspace para o pnpm (`pnpm-workspace.yaml`) e apresente os comandos necessários para:
+
+1. Adicionar o pacote interno `@meu-monorepo/ui` como dependência do `apps/web`.
+2. Executar a suíte de testes em paralelo em todos os pacotes do monorepo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No arquivo `pnpm-workspace.yaml` na raiz:
+
+  ```yaml title="pnpm-workspace.yaml"
+  packages:
+    - 'apps/*'
+    - 'packages/*'
+  ```
+
+  Comandos a executar:
+
+  1. Para ligar o pacote local com o protocolo workspace:
+     ```bash title="Terminal"
+     pnpm --filter web add @meu-monorepo/ui --workspace
+     ```
+
+  2. Para rodar testes recursivamente em todos os pacotes:
+     ```bash title="Terminal"
+     pnpm -r test
+     ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para testar seus conhecimentos:
+
+1. **Qual é o comando equivalente ao `npm ci` no pnpm e no Yarn Berry?**
+   <details>
+     <summary>Possível resposta</summary>
+     No pnpm é `pnpm install --frozen-lockfile`. No Yarn Berry é `yarn install --immutable`.
+   </details>
+
+2. **Por que `pnpm add <pacote>` é utilizado em vez de `pnpm install <pacote>` para adicionar novas dependências?**
+   <details>
+     <summary>Possível resposta</summary>
+     No pnpm, `pnpm install` é reservado para instalar as dependências já declaradas no manifesto. Para adicionar novos pacotes, o comando explícito é `pnpm add`, evitando ambiguidades.
+   </details>
+
+3. **Qual é o papel do utilitário `pnpm dlx`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele baixa e executa um pacote temporariamente em um ambiente isolado, funcionando como o equivalente direto do `npx` no ecossistema pnpm.
+   </details>
+
+4. **Para que serve o campo `"packageManager"` no `package.json` quando combinado com o Corepack?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele especifica exatamente o nome e a versão do gerenciador exigido pelo projeto (como `pnpm@10.5.0`), garantindo que todos os membros da equipe e os servidores de CI utilizem o mesmo binário.
+   </details>
+
+## Referências
+
+- [npm CLI Commands Documentation](https://docs.npmjs.com/cli/v10/commands)
+- [pnpm CLI Documentation](https://pnpm.io/pnpm-cli)
+- [Yarn CLI Documentation](https://yarnpkg.com/cli)
+- [Bun Documentation | Package Manager](https://bun.sh/docs/cli/install)
+- [Node.js Corepack Documentation](https://nodejs.org/api/corepack.html)
+
+## Próximo tópico
+
+Com o domínio dos gerenciadores e de seus comandos concluído, avance para as ferramentas modernas de garantia de qualidade, linting e formatação de código:
+
+- [Linters e Formatadores](../../dev/linters/): Qualidade estática e formatação de código com Biome, ESLint e Prettier.

@@ -1,0 +1,347 @@
+---
+title: "npm: Testes com Vitest"
+description: "Framework moderno de testes unitários e de integração com Vitest: execução nativa em ESM, modo watch com HMR, asserções, mocks, spies e cobertura de código."
+course: npm
+sidebar:
+  label: "Vitest"
+---
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta o **Vitest**, um framework moderno e ultrarrápido de testes unitários e de integração projetado nativamente para o ecossistema ESM (*ECMAScript Modules*) e impulsionado pelo motor do Vite.
+
+Testar aplicações em JavaScript historicamente exigia configurações complexas com frameworks como Jest, exigindo ferramentas de transpilação separadas (Babel ou `ts-jest`) para entender TypeScript e módulos ES. O Vitest resolve esses atritos reaproveitando as mesmas configurações, plugins e transformadores do Vite tanto para rodar a aplicação quanto para executar a suíte de testes, entregando feedback instantâneo no terminal com execução paralela multithread.
+
+## Objetivo
+
+Dominar a escrita e execução de testes automatizados com o Vitest no front-end e no back-end, utilizando asserções modernas, simulações (*mocks*) e relatórios de cobertura. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar as vantagens do Vitest em relação ao Jest em projetos modernos com Vite e ESM.
+- Instalar e configurar o Vitest através do arquivo `vitest.config.js` ou `vite.config.js`.
+- Escrever testes unitários estruturados com blocos `describe`, `it`/`test` e asserções `expect`.
+- Criar funções espiãs e simulações com `vi.fn()`, `vi.spyOn()` e `vi.mock()`.
+- Executar testes em modo interativo contínuo (*watch mode*) e gerar relatórios de cobertura de código (*coverage*).
+
+## O que é o Vitest?
+
+O Vitest é um executor de testes unitários de nova geração totalmente compatível com a API clássica do Jest, mas construído sobre a arquitetura moderna do Vite.
+
+A tabela abaixo compara o Vitest com os executores tradicionais:
+
+| Recurso | Jest | Mocha + Chai | Vitest |
+| :--- | :--- | :--- | :--- |
+| **Suporte Nativo a ESM** | Experimental / Complexo | Requer configuração | Nativo e instantâneo |
+| **Suporte a TypeScript** | Exige `ts-jest` ou Babel | Exige `ts-node` | Nativo (sem compilação prévia) |
+| **Modo Watch com HMR** | Lento em projetos grandes | Não suportado | Instantâneo com cache do Vite |
+| **Execução Paralela** | Processos pesados do Node | Threads manuais | *Worker Threads* leves em paralelo |
+| **API de Asserções e Mocks** | Embutida | Separada em bibliotecas | Embutida (compatível com Jest) |
+
+O Vitest é a escolha padrão para qualquer projeto moderno construído com Vite ou aplicações Node.js que utilizam módulos ES puros.
+
+## Fundamentos e Modelo Mental
+
+Quando você roda o Vitest, ele utiliza o mesmo pipeline de transformação do Vite para carregar seus arquivos de código e testes em memória sem precisar gerar arquivos intermediários no disco.
+
+O diagrama abaixo ilustra o ciclo de vida da execução de testes com recarregamento inteligente (*watch mode*):
+
+<Mermaid title="Fluxo de execução e modo watch inteligente do Vitest">
+{`
+flowchart TD
+  A["Arquivos de Código e Testes (.test.js / .test.ts)"] --> B["Vitest Engine (Baseado em Vite)"]
+  B --> C["Worker Threads em Paralelo"]
+  C --> D["Execução de asserções expect()"]
+  D --> E{"Resultado"}
+  E -->|"Sucesso"| F["Terminal: PASS em verde"]
+  E -->|"Falha"| G["Terminal: FAIL com diff visual"]
+  F --> H["Modo Watch aguardando alterações"]
+  G --> H
+  H -->|"Edição em arquivo específico"| B
+`}
+</Mermaid>
+
+Graças ao grafo de módulos do Vite, quando você altera uma única função, o Vitest reexecuta apenas os testes que dependem daquela função específica, sem rodar toda a suíte desnecessariamente.
+
+## Como Usar: Instalação e Configuração
+
+Para adicionar o Vitest ao seu projeto como dependência de desenvolvimento:
+
+<PackageManagerTabs package="vitest" dev />
+
+Se o seu projeto já utiliza o Vite, a configuração pode ser compartilhada diretamente no arquivo `vite.config.js`:
+
+```js title="vite.config.js"
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  test: {
+    globals: true, // Permite usar describe, it, expect sem importar em cada arquivo
+    environment: 'node', // Use 'jsdom' ou 'happy-dom' para testes de DOM front-end
+  },
+});
+```
+
+Caso prefira um arquivo separado, crie `vitest.config.js` com a mesma estrutura.
+
+Em seguida, adicione os comandos nos scripts do manifesto `package.json`:
+
+```json title="package.json (scripts)"
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  }
+}
+```
+
+- `npm test`: Executa a suíte uma vez e finaliza o processo (ideal para CI).
+- `npm run test:watch`: Mantém o terminal aberto escutando alterações nos arquivos em tempo real.
+
+## Sintaxe e Principais Recursos
+
+A sintaxe do Vitest segue o padrão consagrado da comunidade JavaScript (*Behavior-Driven Development*).
+
+### Estrutura de um Teste Unitário
+
+O exemplo a seguir testa uma função utilitária de cálculo de desconto:
+
+```js title="src/math.js"
+export function calculateDiscount(price, discountPercent) {
+  if (price < 0 || discountPercent < 0 || discountPercent > 100) {
+    throw new Error('Valores inválidos para cálculo');
+  }
+  return price - (price * discountPercent) / 100;
+}
+```
+
+O arquivo de teste correspondente utiliza `describe`, `it` e `expect`:
+
+```js title="src/math.test.js"
+import { describe, it, expect } from 'vitest';
+import { calculateDiscount } from './math.js';
+
+describe('calculateDiscount', () => {
+  it('deve aplicar 10% de desconto corretamente em um valor de 100', () => {
+    const result = calculateDiscount(100, 10);
+    expect(result).toBe(90);
+  });
+
+  it('deve retornar o preço original quando o desconto for 0%', () => {
+    const result = calculateDiscount(250, 0);
+    expect(result).toBe(250);
+  });
+
+  it('deve lançar erro se o percentual de desconto for maior que 100', () => {
+    expect(() => calculateDiscount(100, 150)).toThrow('Valores inválidos para cálculo');
+  });
+});
+```
+
+A tabela abaixo resume as asserções (`expect`) mais comuns:
+
+| Asserção | O que valida | Exemplo de uso |
+| :--- | :--- | :--- |
+| `toBe(value)` | Igualdade estrita (`===`) para tipos primitivos. | `expect(total).toBe(42)` |
+| `toEqual(object)` | Igualdade estrutural profunda de objetos e arrays. | `expect(user).toEqual({ id: 1, name: 'Ana' })` |
+| `toBeTruthy()` / `toBeFalsy()` | Converte o valor para booleano. | `expect(isActive).toBeTruthy()` |
+| `toContain(item)` | Verifica se um array ou string contém o item. | `expect(roles).toContain('admin')` |
+| `toThrow(message)` | Verifica se uma função síncrona lança exceção. | `expect(() => fn()).toThrow('Erro')` |
+| `resolves` / `rejects` | Desempacota Promises assíncronas. | `await expect(fetchData()).resolves.toBeDefined()` |
+
+### Funções Espiãs e Simulações (*Mocks & Spies*)
+
+O Vitest disponibiliza o objeto global `vi` para interceptar funções, simular chamadas de rede ou congelar temporizadores do sistema:
+
+```js title="src/notification.test.js"
+import { describe, it, expect, vi } from 'vitest';
+
+describe('Serviço de Notificação', () => {
+  it('deve chamar o callback quando a mensagem for entregue', () => {
+    // Cria uma função espiã simulada
+    const callbackSpy = vi.fn();
+
+    function notifyUser(userId, callback) {
+      callback(`Notificação enviada para o usuário ${userId}`);
+    }
+
+    notifyUser(42, callbackSpy);
+
+    // Valida se a função foi chamada e com quais argumentos
+    expect(callbackSpy).toHaveBeenCalledTimes(1);
+    expect(callbackSpy).toHaveBeenCalledWith('Notificação enviada para o usuário 42');
+  });
+});
+```
+
+## Boas Práticas e Isolamento de Testes
+
+Testes automatizados devem ser determinísticos e rápidos para incentivar a execução constante pela equipe.
+
+A tabela abaixo resume os cuidados fundamentais:
+
+| Prática | Como aplicar | Motivo |
+| :--- | :--- | :--- |
+| **Limpeza entre testes** | Use `beforeEach(() => { vi.clearAllMocks(); })`. | Garante que o estado de um teste não contamine o teste seguinte. |
+| **Evitar chamadas de rede reais** | Simule APIs remotas com `vi.fn()` ou bibliotecas como MSW (*Mock Service Worker*). | Testes unitários devem rodar offline e em menos de 1 segundo. |
+| **Nomear testes com intenção de negócio** | Escreva mensagens claras iniciando por *"deve..."* (`it('deve retornar 404 quando o item não existir', ...)`). | Facilita a leitura do relatório de falhas por qualquer membro da equipe. |
+
+<Aside type="caution" title="Dica de IA: Cuidado com asserções assíncronas sem await">
+  Assistentes costumam escrever `expect(promiseFunction()).resolves.toBe(...)` esquecendo de colocar a palavra-chave `await` antes do `expect`. Sem o `await`, o teste passa de forma falsa antes da Promise ser resolvida.
+
+  **Prompt:** *"Revise os testes assíncronos abaixo garantindo que todas as asserções sobre Promises utilizem a palavra-chave `await` ou blocos `async/await` com tratamento de erro."*
+</Aside>
+
+## Executando
+
+Para criar e rodar uma suíte de testes com Vitest:
+
+<Steps>
+1. Inicialize um projeto com Vitest:
+
+   ```bash title="Terminal"
+   mkdir vitest-lab && cd vitest-lab
+   npm init -y
+   npm pkg set type=module
+   npm install -D vitest
+   ```
+
+2. Crie o arquivo de teste `soma.test.js`:
+
+   ```js title="soma.test.js"
+   import { test, expect } from 'vitest';
+
+   test('1 + 2 deve ser igual a 3', () => {
+     expect(1 + 2).toBe(3);
+   });
+   ```
+
+3. Execute os testes no terminal:
+
+   ```bash title="Terminal"
+   npx vitest run
+   ```
+</Steps>
+
+## Exercício
+
+Crie uma função `formatUsername(rawName)` que:
+1. Remova espaços em branco no início e no fim.
+2. Converta todo o texto para letras minúsculas.
+3. Se o texto for vazio, lance um erro `"Nome de usuário inválido"`.
+
+Em seguida, escreva a suíte de testes com Vitest cobrindo todos os cenários válidos e o caso de erro.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="src/username.js"
+  export function formatUsername(rawName) {
+    if (!rawName || typeof rawName !== 'string') {
+      throw new Error('Nome de usuário inválido');
+    }
+    const trimmed = rawName.trim().toLowerCase();
+    if (trimmed.length === 0) {
+      throw new Error('Nome de usuário inválido');
+    }
+    return trimmed;
+  }
+  ```
+
+  ```js title="src/username.test.js"
+  import { describe, it, expect } from 'vitest';
+  import { formatUsername } from './username.js';
+
+  describe('formatUsername', () => {
+    it('deve remover espaços e converter para minúsculas', () => {
+      expect(formatUsername('  AnaMaria  ')).toBe('anamaria');
+    });
+
+    it('deve lançar erro quando o texto for apenas espaços', () => {
+      expect(() => formatUsername('   ')).toThrow('Nome de usuário inválido');
+    });
+
+    it('deve lançar erro quando a entrada for vazia ou nula', () => {
+      expect(() => formatUsername('')).toThrow('Nome de usuário inválido');
+    });
+  });
+  ```
+</details>
+
+## Desafio
+
+Crie um teste para uma função assíncrona `fetchUserProfile(userId)` que utiliza a Fetch API nativa. Utilize `vi.spyOn(globalThis, 'fetch')` para simular uma resposta HTTP com status `200` e dados JSON `{ id: 1, name: 'Lucas' }`, validando que a função retorna os dados esperados e restaura o mock ao final com `vi.restoreAllMocks()`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="src/user.test.js"
+  import { describe, it, expect, vi, afterEach } from 'vitest';
+
+  async function fetchUserProfile(userId) {
+    const response = await fetch(`/api/users/${userId}`);
+    if (!response.ok) throw new Error('Falha na requisição');
+    return response.json();
+  }
+
+  describe('fetchUserProfile', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('deve retornar o perfil do usuário mockado com sucesso', async () => {
+      const fakeUser = { id: 1, name: 'Lucas' };
+
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => fakeUser,
+      });
+
+      const data = await fetchUserProfile(1);
+      expect(data).toEqual(fakeUser);
+      expect(fetch).toHaveBeenCalledWith('/api/users/1');
+    });
+  });
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para consolidar os conceitos:
+
+1. **Por que o Vitest oferece tempos de inicialização menores que o Jest em projetos modernos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele aproveita o servidor de compilação do Vite em memória e o suporte nativo a módulos ESM, sem precisar compilar o código em arquivos intermediários através do Babel ou ts-jest.
+   </details>
+
+2. **Qual é a diferença entre `toBe()` e `toEqual()` no Vitest?**
+   <details>
+     <summary>Possível resposta</summary>
+     `toBe()` compara referências e tipos primitivos por igualdade estrita (`===`), enquanto `toEqual()` realiza uma comparação profunda recursiva entre as propriedades de objetos e arrays.
+   </details>
+
+3. **Para que serve o método `vi.fn()`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Criar uma função espiã (*spy/mock*) que grava quantas vezes foi chamada, quais argumentos recebeu e qual valor deve retornar.
+   </details>
+
+4. **Como o modo watch do Vitest decide quais testes reexecutar?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele analisa o grafo de dependências do Vite e dispara apenas os arquivos de teste que importam direta ou indiretamente o arquivo de código alterado.
+   </details>
+
+## Referências
+
+- [Vitest | Documentação Oficial](https://vitest.dev/)
+- [Vitest Guide | Getting Started](https://vitest.dev/guide/)
+- [Vitest API Reference](https://vitest.dev/api/)
+- [Vite Testing Guide](https://vitejs.dev/guide/features.html#testing)
+
+## Próximo tópico
+
+Depois de testar funções e componentes isolados com Vitest, aprenda a automatizar testes completos de ponta a ponta navegando em navegadores reais com o Playwright:
+
+[Playwright](../playwright/): Testes de ponta a ponta (E2E), automação de navegador e captura de telas com Playwright.

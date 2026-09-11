@@ -1,0 +1,350 @@
+---
+title: "npm: Bun"
+description: "O gerenciador de pacotes Bun: instalação ultra-rápida em Zig, compatibilidade com package.json, lockfile binário e textual (bun.lockb/bun.lock), execução com bunx e workspaces."
+course: npm
+sidebar:
+  label: "Bun"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o **Bun** atuando como gerenciador de pacotes (*package manager*), destacando sua velocidade de instalação, consumo otimizado de recursos e total compatibilidade com o ecossistema `package.json` do Node.js e npm.
+
+Embora o Bun seja frequentemente reconhecido como um runtime JavaScript e TypeScript completo de nova geração, seu cliente de gerenciamento de dependências (`bun install`, `bun add`, `bun remove` e `bunx`) pode ser utilizado isoladamente em qualquer projeto Node.js convencional, substituindo o npm ou o pnpm com ganhos substanciais de tempo no terminal e em esteiras de integração contínua (CI/CD).
+
+## Objetivo
+
+Compreender o funcionamento, a arquitetura de alta performance e os comandos do Bun como gerenciador de dependências, integrando-o a projetos JavaScript e TypeScript modernos. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar os motivos da velocidade do Bun (implementação nativa em Zig, chamadas de sistema eficientes e cache global).
+- Executar operações cotidianas de instalação, adição (`bun add`), atualização e remoção de dependências.
+- Compreender a diferença entre os formatos de trava `bun.lockb` (binário) e `bun.lock` (textual).
+- Executar pacotes e ferramentas de linha de comando sob demanda através do utilitário `bunx`.
+- Configurar preferências de rede, registro e comportamento no arquivo `bunfig.toml`.
+- Estruturar e gerenciar monorepos com múltiplos workspaces utilizando Bun.
+
+## O que é o Bun como Gerenciador de Pacotes?
+
+O Bun foi projetado do zero em **Zig** com foco obsessivo em desempenho, latência mínima e eliminação de sobrecargas de compilação ou inicialização de máquina virtual.
+
+A tabela a seguir compara o Bun com os outros gerenciadores de pacotes populares do ecossistema:
+
+| Característica | npm | pnpm | Yarn (Berry) | Bun |
+| :--- | :--- | :--- | :--- | :--- |
+| **Linguagem base** | JavaScript (Node.js) | JavaScript (Node.js) | JavaScript (Node.js) | Zig / C++ |
+| **Velocidade média** | Padrão | Rápida (com store) | Rápida (com PnP/cache) | Ultra-rápida (nativa) |
+| **Estrutura em disco** | `node_modules` com *hoisting* | *Symlinks* + store global | *Plug'n'Play* ou `node_modules` | Hardlinks/Clones + cache global |
+| **Formato de Lockfile** | `package-lock.json` (JSON) | `pnpm-lock.yaml` (YAML) | `yarn.lock` (YAML) | `bun.lock` (texto) / `bun.lockb` (binário) |
+| **Execução sob demanda** | `npx` | `pnpm dlx` | `yarn dlx` | `bunx` |
+
+Mesmo que a sua aplicação execute em produção sobre o Node.js tradicional, você pode usar o Bun exclusivamente na etapa de desenvolvimento e na instalação de dependências no pipeline de build.
+
+## Fundamentos e Modelo Mental
+
+A velocidade extrema do Bun na resolução e no download de dependências é resultado de decisões arquiteturais de baixo nível no nível do sistema operacional:
+
+1. **Chamadas de sistema de clonagem rápida (*copy-on-write* / *hardlinks*)**: No macOS, o Bun utiliza a syscall `clonefile` do APFS para duplicar arquivos do cache global para o projeto instantaneamente sem consumo extra de disco. No Linux, utiliza *hardlinks*.
+2. **Parser nativo de manifestos**: Em vez de carregar o interpretador V8 do Node.js e rodar parsers JSON em JavaScript, o Bun faz parsing de milhares de arquivos `package.json` paralelamente em código de máquina nativo.
+3. **Pilha de rede customizada**: O Bun implementa sua própria camada de requisições HTTP e descompressão gzip/tarball paralela diretamente na linguagem Zig.
+
+O diagrama abaixo ilustra o fluxo de resolução e clonagem de pacotes do Bun:
+
+<Mermaid title="Fluxo de instalação e cache global do Bun">
+{`
+flowchart TD
+  A["Comando bun install / bun add"] --> B["Parser nativo em Zig<br/>(lê package.json e lockfile)"]
+  B --> C{"Pacote já existe no<br/>cache global (~/.bun/install/cache)?"}
+  C -- "Não" --> D["Download paralelo otimizado<br/>do registro npmjs.org"]
+  D --> E["Armazena no cache global"]
+  C -- "Sim" --> F["Cria Hardlink / clonefile<br/>direto para node_modules"]
+  E --> F
+  F --> G["Projeto pronto em milissegundos"]
+`}
+</Mermaid>
+
+Como resultado, reinstalar um projeto com dezenas de dependências com o cache populado leva tipicamente menos de 100 milissegundos.
+
+## Lockfiles no Bun: bun.lock e bun.lockb
+
+O Bun suporta dois formatos de arquivo de trava para garantir instalações 100% reproduzíveis e determinísticas:
+
+1. **`bun.lock` (Formato textual)**: Formato legível e amigável ao controle de versão Git, introduzido nas versões modernas do Bun para simplificar a resolução de conflitos de merge e auditorias visuais em pull requests.
+2. **`bun.lockb` (Formato binário)**: Formato binário compacto de altíssima velocidade de leitura e escrita utilizado historicamente pelo Bun.
+
+Para inspecionar ou converter um lockfile binário legado para texto no terminal:
+
+```bash title="Terminal"
+# Visualiza o conteúdo de um lockfile binário no terminal
+bun bun.lockb
+
+# Converte o lockfile binário para o formato textual bun.lock
+bun install --save-text-lockfile
+```
+
+A recomendação atual para novos projetos é adotar o formato de texto `bun.lock`, facilitando revisões de código pela equipe.
+
+## Como Usar: Comandos Principais
+
+Os comandos do Bun foram projetados para serem intuitivos e compatíveis com a memória muscular de quem já utiliza npm ou Yarn:
+
+| Operação | Comando Bun | Observação |
+| :--- | :--- | :--- |
+| **Inicializar projeto** | `bun init` | Cria `package.json`, `tsconfig.json` e arquivo de entrada. |
+| **Instalar dependências declaradas** | `bun install` (ou `bun i`) | Instala pacotes a partir do `package.json` e lockfile. |
+| **Instalação imutável para CI** | `bun install --frozen-lockfile` | Falha caso o `package.json` divirja do lockfile. |
+| **Adicionar dependência de produção** | `bun add axios` | Adiciona em `dependencies`. |
+| **Adicionar dependência de dev** | `bun add -d vitest` (ou `-D`) | Adiciona em `devDependencies`. |
+| **Adicionar dependência exata** | `bun add -E zod` | Grava a versão sem prefixo `^` ou `~`. |
+| **Adicionar dependência global** | `bun add -g @biomejs/biome` | Instala binário no ambiente global do Bun. |
+| **Remover dependência** | `bun remove lodash` (ou `rm`) | Remove do manifesto e do `node_modules`. |
+| **Atualizar dependências** | `bun update` | Atualiza pacotes respeitando os limites do SemVer. |
+| **Executar script do manifesto** | `bun run build` (ou `bun build`) | Executa scripts do `package.json` com startup quase instantâneo. |
+| **Executar pacote sob demanda** | `bunx create-vite meu-app` | Equivalente direto ao `npx` e `pnpm dlx`. |
+| **Limpeza de cache local** | `bun pm cache rm` | Limpa o cache global de pacotes baixados. |
+
+<Aside type="tip" title="Execução veloz de scripts com 'bun run'">
+O comando `bun run` inicia scripts até 20x mais rápido que `npm run` porque não inicializa o interpretador do Node.js apenas para disparar o processo filho do shell.
+</Aside>
+
+## Execução Sob Demanda com bunx
+
+O utilitário **`bunx`** é o equivalente do Bun para o `npx` e `pnpm dlx`. Ele permite baixar e executar binários temporários do registro npm sem poluir as dependências permanentes do seu projeto:
+
+```bash title="Terminal"
+# Inicializar um projeto Vite
+bunx create-vite meu-projeto --template react-ts
+
+# Executar checagem de código com o Biome
+bunx @biomejs/biome check .
+
+# Rodar migrations com o Prisma
+bunx prisma migrate dev
+```
+
+Se o pacote já estiver instalado localmente nas dependências do projeto em `node_modules/.bin`, o `bunx` executará o binário local instantaneamente, sem realizar nenhuma requisição de rede.
+
+## Configuração com bunfig.toml
+
+O comportamento do Bun e do seu gerenciador de pacotes pode ser customizado através do arquivo declarativo `bunfig.toml` na raiz do projeto ou no diretório do usuário (`~/.bunfig.toml`):
+
+```toml title="bunfig.toml"
+[install]
+# Define o registro padrão de pacotes
+registry = "https://registry.npmjs.org/"
+
+# Define se o lockfile padrão gerado deve ser textual
+lockfile = { print = "yarn" }
+
+# Define o comportamento de links (hardlink, clonefile ou copy)
+backend = "hardlink"
+
+# Instala automaticamente tipos de TypeScript (@types/*) quando disponíveis
+auto = true
+
+[install.scopes]
+# Configuração de registro privado para escopo corporativo
+"@minha-empresa" = "https://npm.pkg.github.com"
+```
+
+## Workspaces e Monorepos com Bun
+
+O Bun suporta monorepos com múltiplos pacotes nativamente, lendo a mesma configuração de `workspaces` padronizada no `package.json`:
+
+```json title="package.json (raiz do monorepo)"
+{
+  "name": "meu-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
+```
+
+Para interagir com pacotes individuais do monorepo:
+
+```bash title="Terminal"
+# Adiciona a dependência 'zod' apenas no workspace 'web'
+bun --filter web add zod
+
+# Executa o script de build em todos os pacotes do monorepo em paralelo
+bun --filter '*' run build
+
+# Adiciona um pacote interno compartilhado no app frontend
+bun --filter web add @meu-monorepo/ui --workspace
+```
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as principais recomendações técnicas ao utilizar o Bun como gerenciador de pacotes:
+
+| Prática recomendada | Motivo técnico |
+| :--- | :--- |
+| **Utilizar no CI para acelerar builds** | Substituir `npm ci` por `bun install --frozen-lockfile` pode reduzir minutos de espera em pipelines. |
+| **Adotar o lockfile textual (`bun.lock`)** | Garante fácil visualização de diffs em revisões de código no GitHub/GitLab. |
+| **Declarar `"packageManager": "bun@1.2.x"`** | Documenta formalmente a versão exata do gerenciador esperada pelo time. |
+| **Preservar a compatibilidade do código** | Como o Bun produz uma pasta `node_modules` padrão, os artefatos funcionam normalmente no Node.js. |
+
+<Aside type="caution" title="Dica de IA: Bun como Package Manager vs Runtime">
+Assistentes de código frequentemente presumem que usar o Bun obriga a execução do servidor em produção sobre o runtime do Bun. Esclareça no prompt que você deseja utilizar o Bun apenas para gerenciamento de dependências e automação local.
+
+**Prompt:** *"Configure o projeto para usar o Bun como gerenciador de pacotes e executor de scripts, mantendo a compatibilidade do código para execução em produção com Node.js 22 LTS."*
+</Aside>
+
+## Executando
+
+Veja uma demonstração prática de criação de projeto e adição de dependências com o Bun:
+
+<Steps>
+1. **Inicialize um novo projeto com Bun:**
+
+   ```bash title="Terminal"
+   mkdir bun-demo && cd bun-demo
+   bun init -y
+   ```
+
+2. **Adicione as bibliotecas Day.js e Zod:**
+
+   ```bash title="Terminal"
+   bun add dayjs zod
+   ```
+
+   ```txt title="Output" frame="terminal"
+     bun add v1.2.4 (9a8c12b)
+
+     installed dayjs@1.11.13
+     installed zod@3.24.2
+
+     2 packages installed [42.00ms]
+   ```
+
+3. **Crie um script `index.ts` e execute diretamente:**
+
+   ```ts title="index.ts"
+   import dayjs from 'dayjs';
+   import { z } from 'zod';
+
+   const UserSchema = z.object({
+     name: z.string(),
+     createdAt: z.string(),
+   });
+
+   const user = UserSchema.parse({
+     name: 'DevLab Aluno',
+     createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+   });
+
+   console.log('Usuário validado:', user);
+   ```
+
+4. **Execute com o Bun:**
+
+   ```bash title="Terminal"
+   bun run index.ts
+   ```
+
+   ```txt title="Output" frame="terminal"
+   Usuário validado: { name: 'DevLab Aluno', createdAt: '2026-09-11 19:30:00' }
+   ```
+</Steps>
+
+## Exercício
+
+Converta a sequência de comandos tradicional do npm abaixo para seus comandos equivalentes no **Bun**:
+
+1. `npm init -y`
+2. `npm install axios lodash-es`
+3. `npm install --save-dev typescript @types/node vitest`
+4. `npm ci`
+5. `npx @biomejs/biome format --write .`
+6. `npm uninstall lodash-es`
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A sequência correspondente no Bun é:
+
+  1. `bun init -y`
+  2. `bun add axios lodash-es`
+  3. `bun add -d typescript @types/node vitest`
+  4. `bun install --frozen-lockfile`
+  5. `bunx @biomejs/biome format --write .`
+  6. `bun remove lodash-es`
+</details>
+
+## Desafio
+
+Configure a raiz de um monorepo com Bun contendo dois workspaces: `apps/api` e `apps/web`. Escreva o `package.json` raiz e descreva os comandos para:
+
+1. Instalar a dependência `express` exclusivamente no workspace `apps/api`.
+2. Executar o script `"dev"` em ambos os projetos paralelamente usando o comando `bun --filter`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No arquivo `package.json` na raiz do monorepo:
+
+  ```json title="package.json"
+  {
+    "name": "meu-monorepo-bun",
+    "private": true,
+    "workspaces": [
+      "apps/*"
+    ]
+  }
+  ```
+
+  Comandos a executar:
+
+  1. Para adicionar `express` apenas na API:
+     ```bash title="Terminal"
+     bun --filter api add express
+     ```
+
+  2. Para rodar o comando `dev` em todos os workspaces simultaneamente:
+     ```bash title="Terminal"
+     bun --filter '*' run dev
+     ```
+</details>
+
+## Perguntas de revisão
+
+Responda às perguntas abaixo para verificar a fixação dos conceitos:
+
+1. **Por que o Bun consegue instalar dependências e resolver o `package.json` muito mais rápido que o npm tradicional?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele é implementado nativamente em Zig/C++, possui parsers de manifesto em código de máquina, pilha de rede e descompressão paralela própria, e utiliza chamadas de sistema eficientes (como `clonefile` no macOS e *hardlinks* no Linux) para vincular pacotes do cache global sem cópia física lenta.
+   </details>
+
+2. **Qual é o utilitário do Bun correspondente ao `npx` do npm para execução de binários remotos e temporários?**
+   <details>
+     <summary>Possível resposta</summary>
+     O utilitário `bunx`, que baixa o pacote sob demanda ou executa o binário já presente no `node_modules` local de forma instantânea.
+   </details>
+
+3. **Qual é a diferença entre os arquivos de trava `bun.lock` e `bun.lockb`?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `bun.lockb` é um formato binário de alta velocidade, enquanto o `bun.lock` é um formato em texto simples introduzido para facilitar revisões de código, auditorias e resolução de conflitos em ferramentas de controle de versão como o Git.
+   </details>
+
+4. **É possível utilizar o Bun apenas como gerenciador de pacotes e manter o Node.js como runtime de produção?**
+   <details>
+     <summary>Possível resposta</summary>
+     Sim. O Bun gera a estrutura padrão de diretórios `node_modules` e respeita integralmente as convenções do `package.json`, permitindo que ele seja usado exclusivamente para instalação e automação de desenvolvimento enquanto o código final roda em Node.js.
+   </details>
+
+## Referências
+
+- [Bun Documentation | Package Manager](https://bun.sh/docs/cli/install)
+- [bun add | Bun Docs](https://bun.sh/docs/cli/add)
+- [bunx | Bun Docs](https://bun.sh/docs/cli/bunx)
+- [Workspaces in Bun | Bun Docs](https://bun.sh/docs/install/workspaces)
+- [bunfig.toml Configuration File](https://bun.sh/docs/runtime/bunfig)
+
+## Próximo tópico
+
+Conheça o **JSR**, o novo registro moderno de pacotes para o ecossistema JavaScript e TypeScript com suporte multi-runtime e publicação nativa sem build manual:
+
+- [JSR](../jsr/): O registro moderno para JavaScript e TypeScript com documentação automática e pontuação de qualidade.

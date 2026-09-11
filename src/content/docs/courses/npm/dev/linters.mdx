@@ -1,0 +1,357 @@
+---
+title: "npm: Linters e Formatadores"
+description: "Ferramentas de análise estática e padronização de código no JavaScript moderno: a ascensão do Biome em Rust, o ecossistema clássico ESLint e Prettier, configuração e automação no CI."
+course: npm
+sidebar:
+  label: "Linters e Formatadores"
+---
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta os **Linters e Formatadores**, ferramentas essenciais de desenvolvimento (*devDependencies*) dedicadas a garantir a qualidade estática, a consistência de estilo e a detecção precoce de bugs em bases de código JavaScript e TypeScript.
+
+Durante anos, a padronização de projetos no ecossistema Node.js exigiu a combinação de duas ferramentas separadas escritas em JavaScript: o **ESLint** (para regras de qualidade e boas práticas) e o **Prettier** (para formatação visual de espaçamento e quebras de linha). Essa combinação frequentemente gerava conflitos de plugins, dezenas de dependências e lentidão no CI. Hoje, o ecossistema passa por uma forte modernização liderada pelo **Biome**, uma ferramenta única escrita em Rust que unifica linter e formatador com velocidade até 35 vezes superior.
+
+## Objetivo
+
+Compreender o papel dos linters e formatadores no ciclo de desenvolvimento moderno, comparando a nova geração de ferramentas unificadas em Rust (Biome) com a cadeia tradicional (ESLint + Prettier). Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a diferença de responsabilidades entre um *linter* (regras de lógica e segurança) e um *formatador* (estilo visual).
+- Comparar o Biome com o ecossistema ESLint + Prettier em termos de performance, simplicidade de configuração e dependências.
+- Instalar e configurar o Biome em projetos com o manifesto `biome.json`.
+- Criar scripts de automação (`lint`, `lint:fix`, `format`) no `package.json` para uso local e no CI.
+- Identificar e corrigir automaticamente problemas comuns de código através da CLI.
+
+## Linter vs Formatador: Qual é a Diferença?
+
+Embora trabalhem juntos para manter a base de código limpa, cada ferramenta atua sobre uma dimensão diferente do código-fonte:
+
+| Ferramenta | O que analisa | Exemplos de problemas detectados |
+| :--- | :--- | :--- |
+| **Linter** (ex: Biome Linter, ESLint) | Qualidade, semântica, segurança e possíveis bugs lógicos. | Variáveis declaradas e não utilizadas, mutações acidentais, dependências ausentes em hooks, uso inseguro de `eval`. |
+| **Formatador** (ex: Biome Formatter, Prettier) | Aparência visual, consistência de layout e espaçamento. | Uso de aspas simples vs duplas, ponto e vírgula no fim de instruções, quebra de linhas longas, tamanho da indentação. |
+
+Um código pode estar perfeitamente formatado e conter bugs graves de lógica. Da mesma forma, um algoritmo correto pode estar mal formatado e ilegível. Por isso, toda equipe profissional adota ambas as camadas.
+
+## A Tendência Moderna: A Ascensão do Biome
+
+O **Biome** (sucessor do projeto Rome, vencedor do prêmio oficial de ferramentas do ecossistema JavaScript) representa a maior mudança na engenharia de ferramentas front-end dos últimos anos. Desenvolvido em Rust, ele substitui a pilha inteira de ESLint + Prettier + plugins auxiliares por um único binário ultrarrápido com zero dependências.
+
+A tabela a seguir compara o Biome com a cadeia clássica:
+
+| Dimensão | Cadeia Clássica (ESLint + Prettier) | Nova Tendência (Biome) |
+| :--- | :--- | :--- |
+| **Linguagem da Ferramenta** | JavaScript (interpretado no Node.js) | Rust (compilado nativo) |
+| **Velocidade de Execução** | Lenta em bases grandes (requer cache) | Até 25x a 35x mais rápida |
+| **Número de Dependências** | Dezenas (`eslint`, `prettier`, `@typescript-eslint/...`) | 1 pacote único (`@biomejs/biome`) |
+| **Conflitos de Regras** | Frequentes (exige `eslint-config-prettier`) | Zero (linter e formatador integrados) |
+| **Suporte Nativo** | JS, TS, JSX, JSON | JS, TS, JSX, JSON, CSS, GraphQL |
+| **Arquivo de Configuração** | `eslint.config.js` + `.prettierrc` | Arquivo único `biome.json` |
+
+O próprio portal DevLab utiliza o Biome para manter todas as suas páginas, componentes e scripts validados e formatados em milissegundos.
+
+## Fundamentos e Modelo Mental
+
+Tanto o Biome quanto o ESLint analisam o código transformando o texto em uma **Árvore Sintática Abstrata** (*AST - Abstract Syntax Tree*). A diferença está no custo computacional e na arquitetura de execução.
+
+O diagrama abaixo ilustra como o Biome processa os arquivos em paralelo utilizando todos os núcleos do processador:
+
+<Mermaid title="Pipeline de análise estática e formatação com Biome em Rust">
+{`
+flowchart TD
+  A["Arquivos de Código (.js, .ts, .json)"] --> B["Biome CLI (Binário em Rust)"]
+  B --> C["Parser Multithread ultrarrápido"]
+  C --> D["AST em memória"]
+  D --> E["Linter<br/>(regras semânticas e segurança)"]
+  D --> F["Formatter<br/>(reorganização de espaçamento)"]
+  E --> G["Relatório de Erros + Correção Automática (lint:fix)"]
+  F --> G
+  G --> H["Código limpo e padronizado em milissegundos"]
+`}
+</Mermaid>
+
+Como o parser do Biome é construído em Rust nativo e não aloca objetos pesados na memória do Node.js, ele consegue varrer milhares de arquivos em frações de segundo sem travar o terminal.
+
+## Como Usar o Biome: Instalação e Configuração
+
+Para adotar o Biome no seu projeto com npm, pnpm ou Yarn, instale o pacote oficial como dependência de desenvolvimento:
+
+<PackageManagerTabs package="@biomejs/biome" dev />
+
+### Inicializando a Configuração (`biome.json`)
+
+Para criar o arquivo de configuração padrão na raiz do projeto:
+
+```bash title="Terminal"
+npx @biomejs/biome init
+```
+
+O comando gera o arquivo `biome.json`. A seguir, apresentamos um modelo de configuração recomendado para projetos profissionais com JavaScript e TypeScript:
+
+```json title="biome.json"
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**/*.js", "**/*.ts", "**/*.jsx", "**/*.tsx", "**/*.json"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "es5"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUndeclaredVariables": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn"
+      }
+    }
+  }
+}
+```
+
+### Configurando Scripts no `package.json`
+
+Adicione os comandos de verificação e correção automática nos scripts do seu `package.json`:
+
+```json title="package.json (scripts)"
+{
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
+  }
+}
+```
+
+Com essa configuração:
+- `npm run lint`: Checa qualidade e formatação sem alterar os arquivos (ideal para o CI).
+- `npm run lint:fix`: Aplica correções seguras e formata todo o código automaticamente.
+
+## A Abordagem Clássica: ESLint e Prettier
+
+Caso você precise manter projetos legados que ainda dependem do ecossistema clássico, o ESLint moderno utiliza o formato de configuração plana (*Flat Config* em `eslint.config.js`), acompanhado do Prettier:
+
+```bash title="Terminal"
+npm install -D eslint prettier eslint-config-prettier @eslint/js
+```
+
+O arquivo `eslint.config.js` precisa desativar as regras que colidem com a formatação do Prettier:
+
+```js title="eslint.config.js (configuração clássica)"
+import js from '@eslint/js';
+import prettierConfig from 'eslint-config-prettier';
+
+export default [
+  js.configs.recommended,
+  prettierConfig,
+  {
+    rules: {
+      'no-unused-vars': 'error',
+      'no-console': 'warn',
+    },
+  },
+];
+```
+
+O arquivo `.prettierrc` define o estilo visual correspondente:
+
+```json title=".prettierrc"
+{
+  "singleQuote": true,
+  "semi": true,
+  "tabWidth": 2,
+  "printWidth": 100
+}
+```
+
+## Boas Práticas e Automação no CI
+
+A padronização de código só é realmente eficaz quando é aplicada de forma inegociável nos fluxos de trabalho da equipe.
+
+A tabela abaixo resume as melhores práticas de automação:
+
+| Prática | Como implementar | Benefício |
+| :--- | :--- | :--- |
+| **Verificação no CI** | Execute `biome check .` no GitHub Actions. | Impede que Pull Requests com erros de lint ou formatação sejam integrados. |
+| **Formatação no Save (IDE)** | Instale a extensão oficial do Biome no VS Code e ative `"editor.formatOnSave": true`. | Formata o arquivo instantaneamente a cada salvamento sem esforço manual. |
+| **Respeito ao `.gitignore`** | Ative `"useIgnoreFile": true` no `biome.json`. | Garante que pastas como `dist/` e `node_modules/` sejam ignoradas automaticamente. |
+
+<Aside type="caution" title="Dica de IA: Não misture regras conflitantes de linters">
+  Ao migrar do ESLint para o Biome, lembre-se de remover scripts antigos do ESLint e Prettier do `package.json`. Manter os dois executando simultaneamente desperdiça tempo de CPU no CI e causa conflitos de estilo.
+
+  **Prompt:** *"Analise o package.json e o biome.json abaixo para migrar completamente todas as regras antigas do ESLint para as regras equivalentes nativas do Biome."*
+</Aside>
+
+## Executando
+
+Para testar o Biome em um projeto local do zero:
+
+<Steps>
+1. Crie uma pasta e instale o Biome:
+
+   ```bash title="Terminal"
+   mkdir biome-demo && cd biome-demo
+   npm init -y
+   npm install -D @biomejs/biome
+   ```
+
+2. Inicialize o arquivo de configuração:
+
+   ```bash title="Terminal"
+   npx @biomejs/biome init
+   ```
+
+3. Crie um arquivo `index.js` com formatação inconsistente e uma variável não utilizada:
+
+   ```js title="index.js"
+   const unusedVariable = 10;
+   function soma( a,b ){ return a+b}
+   ```
+
+4. Execute o comando de checagem e observe os avisos no terminal:
+
+   ```bash title="Terminal"
+   npx @biomejs/biome check index.js
+   ```
+
+5. Aplique a correção automática:
+
+   ```bash title="Terminal"
+   npx @biomejs/biome check --write index.js
+   ```
+</Steps>
+
+## Exercício
+
+Configure um arquivo `biome.json` que atenda às seguintes regras corporativas:
+
+1. A indentação deve utilizar 2 espaços.
+2. Todas as strings devem ser formatadas com aspas simples (`'single'`).
+3. O ponto e vírgula no final de instruções é obrigatório.
+4. O linter deve acusar erro quando houver variáveis declaradas que não forem utilizadas.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="biome.json"
+  {
+    "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+    "formatter": {
+      "enabled": true,
+      "indentStyle": "space",
+      "indentWidth": 2
+    },
+    "javascript": {
+      "formatter": {
+        "quoteStyle": "single",
+        "semicolons": "always"
+      }
+    },
+    "linter": {
+      "enabled": true,
+      "rules": {
+        "recommended": true,
+        "correctness": {
+          "noUnusedVariables": "error"
+        }
+      }
+    }
+  }
+  ```
+</details>
+
+## Desafio
+
+Configure uma etapa de verificação no GitHub Actions (`.github/workflows/lint.yml`) que instale o Biome com cache de dependências e execute a verificação estrita (`biome ci .`) em todos os Pull Requests abertos contra a branch `main`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```yaml title=".github/workflows/lint.yml"
+  name: Qualidade de Código (Lint)
+
+  on:
+    pull_request:
+      branches: [main]
+
+  jobs:
+    biome:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Clonar repositório
+          uses: actions/checkout@v4
+
+        - name: Configurar Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: 22
+
+        - name: Instalar dependências
+          run: npm ci
+
+        - name: Executar verificação Biome CI
+          run: npx @biomejs/biome ci .
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para avaliar o conteúdo estudado:
+
+1. **Qual é a diferença fundamental entre um linter e um formatador de código?**
+   <details>
+     <summary>Possível resposta</summary>
+     O linter analisa a qualidade lógica, boas práticas e potenciais bugs no código (AST semântica), enquanto o formatador cuida exclusivamente da estética visual (espaçamento, quebras de linha e aspas).
+   </details>
+
+2. **Por que o Biome é consideravelmente mais rápido que a combinação de ESLint e Prettier?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele é compilado nativamente em Rust e executa o parsing, linting e formatação em uma única passagem paralela multithread, sem a sobrecarga de intermediários e plugins do runtime JavaScript do Node.js.
+   </details>
+
+3. **Como o Biome evita conflitos entre regras de estilo e regras de linter?**
+   <details>
+     <summary>Possível resposta</summary>
+     Como o linter e o formatador são projetados juntos pela mesma ferramenta e compartilham a mesma árvore sintática, não existem regras concorrentes ou divergentes de espaçamento.
+   </details>
+
+4. **Qual é a utilidade do comando `biome check --write .`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Verificar todo o projeto, aplicar automaticamente as correções seguras sugeridas pelo linter e reformatar os arquivos no disco.
+   </details>
+
+## Referências
+
+- [Biome | Site Oficial](https://biomejs.dev/)
+- [Biome Docs | Guia de Configuração](https://biomejs.dev/guides/getting-started/)
+- [ESLint | Documentação Oficial](https://eslint.org/)
+- [Prettier | Documentação Oficial](https://prettier.io/)
+
+## Próximo tópico
+
+Com a qualidade e formatação estática garantidas, aprenda a validar o comportamento da sua aplicação com testes automatizados ultrarrápidos:
+
+[Testes com Vitest](../testing/): Testes unitários e de integração de nova geração integrados com ESM e Vite.

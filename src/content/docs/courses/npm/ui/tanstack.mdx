@@ -1,0 +1,293 @@
+---
+title: "npm: Suíte TanStack"
+description: "Gerenciamento de estado de servidor, tabelas interativas e formulários reativos headless com a suíte TanStack: Query, Table e Form."
+course: npm
+sidebar:
+  label: "Suíte TanStack"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+A **Suíte TanStack** (criada por Tanner Linsley) é um conjunto de bibliotecas *headless* de alta performance para resolver os três desafios mais complexos de aplicações front-end: sincronização de dados remotos (**TanStack Query**), visualização de tabelas e matrizes de dados (**TanStack Table**) e ciclo de vida de formulários reativos (**TanStack Form**).
+
+A filosofia do TanStack baseia-se na separação estrita entre **lógica de dados** e **camada de apresentação visual**: as bibliotecas cuidam de algoritmos, cache, estados e validação, enquanto o desenvolvedor estiliza os elementos com o Tailwind CSS ou o framework de sua preferência.
+
+## Objetivo
+
+Compreender o modelo mental e a aplicação prática da suíte TanStack, diferenciando estado de cliente e de servidor, configurando cache de consultas assíncronas com TanStack Query, modelando tabelas *headless* com TanStack Table e estruturando formulários type-safe com TanStack Form. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar *Server State* (dados assíncronos) de *Client State* (dados locais e efêmeros).
+- Utilizar o **TanStack Query** para gerenciar cache, deduplicação de requisições e mutações com feedback otimista.
+- Estruturar tabelas ordenáveis e paginadas com o **TanStack Table** sem dependência de temas ou CSS engessado.
+- Validar e controlar o ciclo de vida de formulários com o **TanStack Form** integrado ao Zod.
+- Identificar quando adotar a suíte TanStack em vez de soluções artesanais baseadas em `useEffect` e `useState`.
+
+## O Modelo Mental: Estado de Servidor vs Estado de Cliente
+
+Em aplicações web, grande parte dos bugs de sincronização ocorre ao tentar armazenar dados de APIs REST ou GraphQL em variáveis de estado puramente locais (como `useState` no React ou `ref` no Vue).
+
+<Mermaid title="Diferença entre Client State e Server State">
+{`
+flowchart TD
+  subgraph ClientState["Client State (Estado Local)"]
+    A["Menu aberto/fechado"]
+    B["Aba selecionada"]
+    C["Tema claro/escuro"]
+  end
+
+  subgraph ServerState["Server State (TanStack Query)"]
+    D["Lista de Usuários / Posts"]
+    E["Dados desatualizam com o tempo"]
+    F["Pertence ao servidor remoto"]
+    G["Exige cache, refetch e deduplicação"]
+  end
+`}
+</Mermaid>
+
+O *Server State* não pertence ao navegador: ele é um instantâneo temporário do banco de dados remoto que pode ser alterado por outros usuários a qualquer segundo. O TanStack Query atua como a camada de sincronização contínua desse estado.
+
+## 1. TanStack Query: O Padrão para Dados Assíncronos
+
+O **TanStack Query** (conhecido originalmente como *React Query*, hoje agnóstico a frameworks com adaptadores para React, Vue, Svelte, Solid e Angular) automatiza o ciclo de vida das requisições assíncronas.
+
+Instalação do pacote:
+
+<PackageManagerTabs package="@tanstack/react-query" />
+
+Entre os seus principais recursos para gerenciamento de requisições estão:
+
+- **Cache Inteligente**: armazena respostas anteriores e exibe dados instantaneamente enquanto revalida em segundo plano (*stale-while-revalidate*).
+- **Deduplicação Automática**: múltiplas chamadas ao mesmo endpoint na mesma tela geram apenas uma requisição HTTP real.
+- **Refetch em Eventos do Usuário**: revalidação automática ao focar a aba do navegador (`refetchOnWindowFocus`) ou reconectar à internet.
+- **Paginação e Scroll Infinito**: controle integrado de cursores e números de página.
+
+Exemplo de consulta com `useQuery`:
+
+```typescript title="src/services/useUsers.ts"
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+async function fetchUsers(): Promise<User[]> {
+  const { data } = await axios.get('https://jsonplaceholder.typicode.com/users');
+  return data;
+}
+
+export function useUsers() {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 1000 * 60 * 5, // Dados considerados frescos por 5 minutos
+  });
+}
+```
+
+## 2. TanStack Table: Motor Headless de Tabelas
+
+Ao contrário de bibliotecas de tabelas que injetam HTML com estilos difíceis de customizar, o **TanStack Table** fornece apenas os hooks e funções de cálculo para paginação, ordenação múltipla, filtros por coluna e virtualização.
+
+Instalação do pacote:
+
+<PackageManagerTabs package="@tanstack/react-table" />
+
+Exemplo de modelagem de colunas e dados com TypeScript:
+
+```typescript title="src/components/UserTable.ts"
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+
+interface UserRow {
+  id: number;
+  name: string;
+  role: string;
+  status: 'active' | 'inactive';
+}
+
+const columnHelper = createColumnHelper<UserRow>();
+
+export const userColumns = [
+  columnHelper.accessor('name', {
+    header: 'Nome do Usuário',
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor('role', {
+    header: 'Cargo / Função',
+    cell: (info) => info.getValue(),
+  }),
+  columnHelper.accessor('status', {
+    header: 'Status',
+    cell: (info) => (info.getValue() === 'active' ? '🟢 Ativo' : '🔴 Inativo'),
+  }),
+];
+```
+
+Com essa estrutura, você desenha a tag `<table>`, `<thead>`, `<tbody>` e `<tr>` usando suas próprias classes Tailwind CSS, mantendo a tabela responsiva e perfeitamente integrada ao design system.
+
+## 3. TanStack Form: Formulários Reativos e Type-Safe
+
+O **TanStack Form** gerencia formulários complexos com re-renderização cirúrgica (apenas os campos alterados são atualizados na tela) e integração profunda com schemas do **Zod**.
+
+Instalação do pacote:
+
+<PackageManagerTabs package="@tanstack/react-form zod" />
+
+Exemplo de validação de formulário com schema:
+
+```typescript title="src/forms/userForm.ts"
+import { z } from 'zod';
+
+export const userSchema = z.object({
+  fullName: z.string().min(3, 'O nome deve ter pelo menos 3 caracteres'),
+  email: z.string().email('E-mail em formato inválido'),
+  age: z.number().min(18, 'A idade mínima é 18 anos'),
+});
+
+export type UserFormData = z.infer<typeof userSchema>;
+```
+
+## Quando Usar Cada Pacote do TanStack?
+
+A tabela abaixo compara as ferramentas da suíte:
+
+| Pacote | Problema que Resolve | Alternativas Tradicionais |
+| --- | --- | --- |
+| **TanStack Query** | Cache, sincronização assíncrona, refetch e mutações de APIs. | `useEffect` + `fetch`, Redux Thunk manual. |
+| **TanStack Table** | Paginação, filtros, ordenação e exibição de matrizes de dados. | Grid.js, DataTables clássico, tabelas manuais sem paginação. |
+| **TanStack Form** | Controle de estado de formulários, validação por campo e performance. | React Hook Form, Formik, inputs não controlados manuais. |
+
+## Executando
+
+Siga os passos para configurar o `QueryClient` em uma aplicação web:
+
+<Steps>
+1. Instale o TanStack Query no projeto:
+
+   <PackageManagerTabs package="@tanstack/react-query" />
+2. Crie uma instância global do `QueryClient`:
+
+   ```typescript title="src/lib/queryClient.ts"
+   import { QueryClient } from '@tanstack/react-query';
+
+   export const queryClient = new QueryClient({
+     defaultOptions: {
+       queries: {
+         refetchOnWindowFocus: false,
+         retry: 1,
+       },
+     },
+   });
+   ```
+3. Envolva sua aplicação no provedor `QueryClientProvider` para disponibilizar o cache global para todos os componentes.
+</Steps>
+
+## Exercício
+
+1. Por que fazer requisições HTTP dentro de um `useEffect` puro pode resultar em problemas de corrida (*race conditions*) e desperdício de banda?
+2. O que significa dizer que o TanStack Table é uma biblioteca *headless*?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o `useEffect` não gerencia cache compartilhado entre telas, não cancela requisições pendentes se o componente for desmontado rapidamente e refaz a busca sempre que a tela é recarregada, sem deduplicar chamadas simultâneas.
+
+  2. Significa que a biblioteca não gera HTML próprio nem impõe regras de CSS. Ela fornece apenas a lógica matemática (cálculo de páginas, ordenação e visibilidade de colunas), permitindo que você monte a marcação visual livremente.
+</details>
+
+## Desafio
+
+Projete uma camada de consulta para um painel financeiro utilizando **TanStack Query**. Defina uma chave de consulta (`queryKey`) dinâmica que receba o mês e o ano selecionados pelo usuário, implementando um tempo de frescor de cache (`staleTime`) de 10 minutos para evitar chamadas redundantes ao trocar de abas.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/services/useFinancialReport.ts"
+  import { useQuery } from '@tanstack/react-query';
+  import axios from 'axios';
+
+  interface ReportParams {
+    month: number;
+    year: number;
+  }
+
+  interface FinancialReport {
+    totalRevenue: number;
+    totalExpenses: number;
+    netBalance: number;
+  }
+
+  async function getReport({ month, year }: ReportParams): Promise<FinancialReport> {
+    const { data } = await axios.get('/api/financial/report', {
+      params: { month, year },
+    });
+    return data;
+  }
+
+  export function useFinancialReport(params: ReportParams) {
+    return useQuery({
+      queryKey: ['financial-report', params.year, params.month],
+      queryFn: () => getReport(params),
+      staleTime: 1000 * 60 * 10, // 10 minutos
+    });
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Cache e Estado de Servidor
+
+1. **O que é a estratégia *stale-while-revalidate* utilizada pelo TanStack Query?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  É uma estratégia onde a biblioteca exibe imediatamente os dados já presentes em cache (mesmo que considerados antigos/stale) para não travar a interface do usuário, enquanto dispara uma requisição em segundo plano para atualizar o cache com os dados mais recentes do servidor.
+</details>
+
+2. **Como a propriedade `queryKey` afeta o comportamento do cache?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A `queryKey` funciona como o identificador único do cache. Sempre que qualquer variável dentro do array da chave mudar (como um ID ou filtro de busca), o TanStack Query dispara automaticamente uma nova busca para a nova combinação.
+</details>
+
+### Headless Architecture
+
+3. **Qual é a vantagem do TanStack Table sobre bibliotecas visuais como o Grid.js?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O TanStack Table dá controle absoluto sobre cada elemento do DOM e classe CSS, ideal para design systems customizados e controle granular de acessibilidade e animações.
+</details>
+
+4. **Por que o TanStack Form oferece melhor performance em formulários extensos?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque ele atualiza apenas o campo que sofreu interação, evitando a re-renderização de toda a árvore de componentes da tela a cada caractere digitado.
+</details>
+
+## Referências
+
+- [TanStack Official Website](https://tanstack.com/)
+- [TanStack Query Documentation](https://tanstack.com/query/latest)
+- [TanStack Table Documentation](https://tanstack.com/table/latest)
+- [TanStack Form Documentation](https://tanstack.com/form/latest)
+
+## Próximo tópico
+
+Agora que você compreende como sincronizar e gerenciar dados e tabelas complexas na interface, enriqueça seus componentes visuais com [Lucide Icons](../lucide/).

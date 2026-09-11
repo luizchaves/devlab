@@ -1,0 +1,321 @@
+---
+title: "npm: Primitivas e Utilitários de UI"
+description: "Construção de design systems modernos com utilitários e primitivas headless: cva, tailwind-merge, sonner, cmdk, motion e Base UI."
+course: npm
+sidebar:
+  label: "Primitivas de UI"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+A construção de interfaces web modernas evoluiu de bibliotecas monolíticas com estilos engessados (como o Bootstrap clássico) para uma arquitetura baseada em **primitivas desacopladas (*headless UI*)** e **utilitários de composição**. Nesse modelo, popularizado pelo ecossistema *shadcn/ui*, o desenvolvedor mantém controle total sobre o HTML e o Tailwind CSS, enquanto delega a lógica de acessibilidade, teclado, animações e variantes para bibliotecas especializadas e leves.
+
+## Objetivo
+
+Compreender a função de cada primitiva e utilitário no ecossistema de UI moderna, aplicando resolução de conflitos de classes, criação de variantes tipadas, notificações *toast*, paletas de comando e animações fluidas. Ao final do tópico, o leitor deve ser capaz de:
+
+- Combinar `clsx` e `tailwind-merge` na função auxiliar `cn()` para compor classes utilitárias sem conflitos de precedência.
+- Criar componentes com variantes e tamanhos tipados em TypeScript usando `cva` (*Class Variance Authority*).
+- Implementar notificações *toast* empilháveis e animadas com `sonner`.
+- Integrar uma paleta de comandos rápida e acessível (`Cmd + K`) com `cmdk`.
+- Adicionar animações declarativas e transições de layout com `motion`.
+- Identificar o papel de bibliotecas *headless* como `Base UI` e `Radix UI` na garantia de acessibilidade (WAI-ARIA).
+
+## A Arquitetura de UI Moderna
+
+Em vez de instalar uma biblioteca que impõe temas e classes fechadas, a arquitetura moderna divide a interface em três camadas complementares:
+
+<Mermaid title="Camadas da Arquitetura de UI Moderna">
+{`
+flowchart TD
+  A["Design System / Aplicação"] --> B["Utilitários de Estilo: cva, tailwind-merge, clsx"]
+  A --> C["Primitivas Headless: Base UI, Radix UI, cmdk, sonner"]
+  A --> D["Motor de Animação: motion"]
+  B --> E["Tailwind CSS (Tokens e Classes)"]
+  C --> F["Acessibilidade WAI-ARIA e Teclado"]
+  D --> G["Transições e Gestos na GPU"]
+`}
+</Mermaid>
+
+Essa separação garante que seu código nunca fique preso a um pacote que quebra quando o design da empresa muda. O visual permanece no Tailwind, enquanto o comportamento fica nas primitivas.
+
+## 1. Composição de Classes com `clsx` e `tailwind-merge`
+
+Ao construir componentes reutilizáveis, é comum receber classes extras via propriedade `className`. No entanto, concatenar strings simples gera conflitos no CSS do Tailwind quando duas classes afetam a mesma propriedade (por exemplo, `px-2` e `px-4`).
+
+A biblioteca `tailwind-merge` analisa a precedência real das regras do Tailwind e descarta a classe anterior em favor da mais recente. A combinação padrão com `clsx` dá origem ao utilitário `cn()`:
+
+Instalação dos pacotes de utilitários:
+
+<PackageManagerTabs package="clsx tailwind-merge" />
+
+Criação da função auxiliar `cn`:
+
+```typescript title="src/lib/utils.ts"
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+Exemplo prático de resolução de conflito de estilos:
+
+```typescript title="src/exemplo-conflito.ts"
+import { cn } from './lib/utils';
+
+// Sem tailwind-merge: "p-2 p-4" -> CSS decide por ordem de declaração no stylesheet, não pelo último argumento.
+// Com cn(): o "p-4" substitui corretamente o "p-2".
+const resultado = cn('rounded-md p-2 bg-blue-500', 'p-4 bg-red-600');
+console.log(resultado);
+// Saída: "rounded-md p-4 bg-red-600"
+```
+
+## 2. Variantes Tipadas com `cva` (*Class Variance Authority*)
+
+O pacote `cva` permite declarar variantes visuais (como `primary`, `secondary`, `destructive`), tamanhos (`sm`, `md`, `lg`) e valores padrão de forma declarativa e com inferência automática de tipos no TypeScript.
+
+Instalação do `cva`:
+
+<PackageManagerTabs package="class-variance-authority" />
+
+Exemplo de definição de um botão com múltiplas variantes:
+
+```typescript title="src/components/Button.ts"
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '../lib/utils';
+
+export const buttonVariants = cva(
+  'inline-flex items-center justify-center font-medium transition-colors rounded-md focus:outline-none focus:ring-2 disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-400',
+        secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-300',
+        outline: 'border border-gray-300 bg-transparent hover:bg-gray-50',
+        destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-400',
+      },
+      size: {
+        sm: 'h-8 px-3 text-xs',
+        md: 'h-10 px-4 text-sm',
+        lg: 'h-12 px-6 text-base',
+      },
+    },
+    defaultVariants: {
+      variant: 'primary',
+      size: 'md',
+    },
+  }
+);
+
+export type ButtonProps = VariantProps<typeof buttonVariants> & {
+  className?: string;
+};
+
+export function createButtonClasses({ variant, size, className }: ButtonProps) {
+  return cn(buttonVariants({ variant, size }), className);
+}
+```
+
+## 3. Notificações Modernas com `sonner`
+
+O `sonner` é uma biblioteca moderna de *toasts* empilháveis criada por Emil Kowalski. Ao contrário de diálogos bloqueantes ou bibliotecas legadas que ocupam grande espaço no bundle, o Sonner é extremamente leve, expansível ao passar o mouse e visualmente elegante.
+
+Instalação do `sonner`:
+
+<PackageManagerTabs package="sonner" />
+
+Exemplo de exibição de toasts informativos e com promessas assíncronas:
+
+```typescript title="src/notifications.ts"
+import { toast } from 'sonner';
+
+// Toast simples de sucesso
+export function notifySuccess() {
+  toast.success('Perfil atualizado com sucesso!');
+}
+
+// Toast assíncrono com ciclo de vida (Loading -> Success ou Error)
+export function saveUserData(promise: Promise<unknown>) {
+  toast.promise(promise, {
+    loading: 'Salvando dados no servidor...',
+    success: 'Alterações persistidas com êxito!',
+    error: 'Falha ao conectar com o servidor.',
+  });
+}
+```
+
+## 4. Paleta de Comandos com `cmdk`
+
+O `cmdk` é o componente padrão da indústria para criar menus de navegação rápida via teclado (`Cmd + K` ou `Ctrl + K`), como os encontrados no GitHub, Raycast e Vercel.
+
+Instalação do `cmdk`:
+
+<PackageManagerTabs package="cmdk" />
+
+Características fundamentais do `cmdk`:
+
+- **Filtro em tempo real**: pontuação automática de relevância conforme o usuário digita.
+- **Navegação acessível**: suporte nativo a setas do teclado, tecla Enter e leitores de tela.
+- **Sem estilos embutidos**: totalmente estilizável através de classes Tailwind ou CSS puro.
+
+## 5. Animações e Transições com `motion`
+
+O `motion` (evolução do consagrado *Framer Motion*) oferece animações declarativas de alta performance rodando diretamente na GPU do navegador, facilitando transições de entrada, saída e layouts fluidos.
+
+Instalação do `motion`:
+
+<PackageManagerTabs package="motion" />
+
+Exemplo de animação declarativa simples:
+
+```typescript title="src/animation-example.ts"
+import { animate } from 'motion';
+
+// Animação direta de elemento do DOM
+export function animateCardEntrance(element: HTMLElement) {
+  animate(
+    element,
+    { opacity: [0, 1], transform: ['translateY(20px)', 'translateY(0px)'] },
+    { duration: 0.4, easing: 'ease-out' }
+  );
+}
+```
+
+## 6. Primitivas Headless: `Base UI` e `Radix UI`
+
+Componentes complexos como modais acessíveis (`<dialog>`), menus flutuantes (`dropdown`), abas (`tabs`) e menus de contexto exigem conformidade estrita com o padrão **WAI-ARIA** (foco preso no modal, tecla Esc para fechar, anúncios em leitores de tela).
+
+Bibliotecas como **Base UI** (da equipe do Material UI) e **Radix UI** fornecem essa lógica comportamental completa sem um único byte de CSS. O desenvolvedor aplica o Tailwind nas tags fornecidas pela biblioteca, garantindo acessibilidade nativa sem perder flexibilidade visual.
+
+## Quando Usar Cada Pacote?
+
+A tabela abaixo resume o momento ideal para adotar cada utilitário:
+
+| Necessidade | Pacote Recomendado | Papel Principal |
+| --- | --- | --- |
+| Concatenação segura de classes | `clsx` + `tailwind-merge` | Evitar conflitos de regras Tailwind em propriedades `className`. |
+| Gerenciamento de variantes de UI | `cva` | Tipar e combinar estilos de botões, badges, inputs e cards. |
+| Notificações e feedback ao usuário | `sonner` | *Toasts* não bloqueantes, empilháveis e com suporte a Promises. |
+| Menu rápido de comandos globais | `cmdk` | Paleta de atalhos acessível (`Cmd + K`). |
+| Animações e transições na tela | `motion` | Transições de entrada/saída e animações de layout na GPU. |
+| Componentes acessíveis complexos | `Base UI` / `Radix UI` | Modais, dropdowns, popovers e tooltips sem estilos fixos. |
+
+## Executando
+
+Siga os passos abaixo para configurar a base utilitária em um projeto Vite com Tailwind CSS:
+
+<Steps>
+1. Instale os utilitários fundamentais no seu projeto:
+
+   <PackageManagerTabs package="clsx tailwind-merge class-variance-authority sonner" />
+2. Crie o arquivo `src/lib/utils.ts` contendo a função `cn()`.
+3. Defina um componente de botão reutilizável com `cva` e teste a aplicação das variantes `primary` e `destructive`.
+4. Dispare uma notificação de sucesso com `toast.success()` usando o `sonner`.
+</Steps>
+
+## Exercício
+
+1. Por que a simples concatenação de strings com template literals (ex: `` `${classePadrao} ${classeCustom}` ``) pode falhar ao customizar classes do Tailwind CSS?
+2. Qual é a principal vantagem de usar componentes *headless* (como Base UI e Radix UI) em vez de bibliotecas tradicionais como Bootstrap?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a ordem das classes na propriedade `class` do HTML não define a precedência no CSS. O navegador aplica a regra de acordo com a ordem em que as classes foram geradas no arquivo de estilo compilado. O `tailwind-merge` resolve isso sobrescrevendo a propriedade conflitante.
+
+  2. Componentes *headless* fornecem toda a lógica de acessibilidade (WAI-ARIA, foco de teclado, tecla Esc) sem impor nenhum CSS ou marcação visual fixa, permitindo que você estilize 100% dos elementos com o Tailwind CSS do seu próprio projeto.
+</details>
+
+## Desafio
+
+Crie um componente de cartão de alerta (`Alert`) utilizando `cva` e `cn()` com três variantes: `info` (fundo azul claro), `warning` (fundo amarelo/âmbar) e `error` (fundo vermelho). O componente deve aceitar uma classe adicional `className` para customizações pontuais e utilizar o `tailwind-merge` para garantir a sobrescrita correta de cores e espaçamentos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```typescript title="src/components/Alert.ts"
+  import { cva, type VariantProps } from 'class-variance-authority';
+  import { cn } from '../lib/utils';
+
+  export const alertVariants = cva(
+    'p-4 rounded-lg border text-sm flex items-start gap-3 transition-all',
+    {
+      variants: {
+        variant: {
+          info: 'bg-blue-50 border-blue-200 text-blue-900',
+          warning: 'bg-amber-50 border-amber-200 text-amber-900',
+          error: 'bg-red-50 border-red-200 text-red-900',
+        },
+      },
+      defaultVariants: {
+        variant: 'info',
+      },
+    }
+  );
+
+  export type AlertProps = VariantProps<typeof alertVariants> & {
+    className?: string;
+    message: string;
+  };
+
+  export function createAlertHtml({ variant, className, message }: AlertProps) {
+    const classes = cn(alertVariants({ variant }), className);
+    return `<div class="${classes}">${message}</div>`;
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+### Composição e Variantes
+
+1. **Como o `cva` auxilia na manutenibilidade de design systems grandes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Ele centraliza a tabela de variantes, tamanhos e valores padrão em um único local declarativo, exportando tipos TypeScript automáticos que impedem a passagem de strings inválidas para os componentes.
+</details>
+
+2. **Qual é o papel do `clsx` quando utilizado em conjunto com o `tailwind-merge`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `clsx` lida com a lógica condicional de classes (valores booleanos, objetos e arrays), enquanto o `tailwind-merge` recebe a string final e remove os conflitos específicos de propriedades do Tailwind.
+</details>
+
+### Notificações e Animações
+
+3. **Por que o `sonner` é preferível a `window.alert()` em aplicações web modernas?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `window.alert()` é síncrono e bloqueia toda a thread principal do navegador. O `sonner` renderiza notificações assíncronas, não bloqueantes, com animações suaves e suporte a promessas assíncronas de requisições de rede.
+</details>
+
+4. **Como o `cmdk` melhora a experiência de navegação do usuário?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Permite que usuários realizem ações frequentes e naveguem por rotas inteiras sem tirar as mãos do teclado, com busca instantânea e indexação flexível.
+</details>
+
+## Referências
+
+- [Class Variance Authority (cva) Documentation](https://cva.style/docs)
+- [tailwind-merge GitHub Repository](https://github.com/dcastilho/tailwind-merge)
+- [Sonner Documentation](https://sonner.emilkowal.ski/)
+- [cmdk GitHub Repository](https://cmdk.paco.me/)
+- [Motion Documentation](https://motion.dev/)
+- [Base UI Documentation](https://base-ui.com/)
+- [Radix UI Primitives](https://www.radix-ui.com/primitives)
+
+## Próximo tópico
+
+Depois de estruturar a interface com utilitários e primitivas modernas, avance para a [Suíte TanStack](../tanstack/) para explorar o gerenciamento de estado remoto assíncrono, tabelas headless e formulários reativos.

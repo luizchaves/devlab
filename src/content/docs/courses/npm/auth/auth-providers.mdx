@@ -1,0 +1,365 @@
+---
+title: Autenticação e Provedores de Identidade
+description: Guia completo sobre autenticação e gestão de identidade no ecossistema JavaScript com Clerk, Auth0, Passport.js e Keycloak.
+course: npm
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A camada de autenticação e controle de acesso é um dos pilares mais críticos no desenvolvimento de aplicações web modernas. No ecossistema JavaScript e Node.js, as soluções variam desde bibliotecas de baixo nível baseadas em middlewares locais até plataformas completas de Identidade como Serviço (IDaaS) e soluções corporativas de código aberto para auto-hospedagem (*self-hosted*).
+
+Neste tópico, exploramos os quatro principais ecossistemas de autenticação utilizados no mercado: Clerk, Auth0, Passport.js e Keycloak, analisando suas arquiteturas, formas de integração e critérios de escolha técnica.
+
+## Objetivo
+
+Compreender os diferentes modelos arquiteturais de autenticação (IDaaS gerenciado, IAM corporativo e middlewares de estratégias locais) e aprender a integrar soluções como Clerk, Auth0, Passport.js e Keycloak em aplicações Node.js e TypeScript.
+
+## Panorama dos Modelos de Autenticação
+
+A escolha de uma biblioteca ou serviço de autenticação depende do nível de controle sobre os dados de usuários, da complexidade operacional aceitável e dos requisitos de segurança da aplicação.
+
+O diagrama a seguir ilustra a distribuição dos principais padrões de autenticação no ecossistema JavaScript:
+
+```mermaid
+graph TD
+    Auth[Estratégias de Autenticação em JS] --> IDaaS[IDaaS Gerenciado SaaS]
+    Auth --> SelfIAM[IAM Corporativo Self-Hosted]
+    Auth --> FrameworkAuth[Frameworks de Sessão e Banco Próprio]
+    Auth --> LocalMW[Middlewares e Primitivas Locais]
+
+    IDaaS --> Clerk[Clerk: Foco em DX e React/Next.js]
+    IDaaS --> Auth0[Auth0: Padrão Corporativo e OIDC]
+    
+    SelfIAM --> Keycloak[Keycloak: Open Source da Red Hat]
+    
+    FrameworkAuth --> AuthJS[Auth.js / Better Auth: Banco próprio]
+    
+    LocalMW --> Passport[Passport.js: Estratégias Express]
+    LocalMW --> Jose[jose / jsonwebtoken: Criptografia pura]
+```
+
+Cada abordagem atende a diferentes perfis de projeto, equilibrando velocidade de entrega e custo de manutenção:
+
+| Modelo | Principais Soluções | Armazenamento de Credenciais | Recursos Nativos | Esforço de Manutenção |
+| :--- | :--- | :--- | :--- | :--- |
+| **IDaaS Gerenciado** | Clerk, Auth0 | Nuvem do provedor | MFA, Passkeys, Social Login, UI Pronta | Mínimo (SaaS) |
+| **IAM Corporativo** | Keycloak, Authentik | Banco corporativo próprio | SSO Central, LDAP, SAML 2.0, Realms | Médio a Alto (DevOps) |
+| **Frameworks de Sessão** | Auth.js, Better Auth | Banco da própria aplicação | OAuth 2.0, Sessões em banco (ORM) | Baixo a Médio |
+| **Middlewares Locais** | Passport.js | Banco da própria aplicação | Estratégias modulares configuradas à mão | Médio (Implementação manual) |
+
+## Clerk: Autenticação Moderna e Experiência do Desenvolvedor
+
+O Clerk é uma plataforma de autenticação moderna focada em frameworks full-stack como Next.js, Remix, Astro e aplicações SPA com React. Ele fornece componentes de interface de usuário prontos para produção, gestão completa de perfil de usuário e suporte nativo a Passkeys e autenticação sem senha (*passwordless*).
+
+A instalação dos pacotes oficiais para backend Node.js e frontend React é feita via gerenciador de pacotes:
+
+```bash
+pnpm add @clerk/clerk-sdk-node @clerk/nextjs
+```
+
+### Integração no Backend com Express
+
+No backend, o SDK do Clerk atua como middleware validando os tokens de sessão emitidos no frontend e injetando as informações da sessão no objeto de requisição:
+
+```typescript
+import express from 'express';
+import { ClerkExpressRequireAuth, type StrictAuthProp } from '@clerk/clerk-sdk-node';
+
+declare global {
+  namespace Express {
+    interface Request extends StrictAuthProp {}
+  }
+}
+
+const app = express();
+
+app.get('/api/protected', ClerkExpressRequireAuth(), (req, res) => {
+  const userId = req.auth.userId;
+  res.json({ message: 'Acesso autorizado', userId });
+});
+
+app.listen(3000, () => {
+  console.log('Servidor com Clerk rodando na porta 3000');
+});
+```
+
+### Componentes de Interface no Frontend
+
+No frontend, o Clerk se destaca por disponibilizar componentes visuais acessíveis e customizáveis que eliminam a necessidade de construir telas de login, cadastro e gerenciamento de perfil manualmente:
+
+```tsx
+import { ClerkProvider, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs';
+
+export default function Header() {
+  return (
+    <header className="flex justify-between p-4 border-b">
+      <h1>Minha Aplicação</h1>
+      <SignedOut>
+        <SignInButton mode="modal">
+          <button className="px-4 py-2 bg-blue-600 text-white rounded">Entrar</button>
+        </SignInButton>
+      </SignedOut>
+      <SignedIn>
+        <UserButton afterSignOutUrl="/" />
+      </SignedIn>
+    </header>
+  );
+}
+```
+
+<Aside type="tip">
+  O Clerk gerencia sessões de curta duração no cliente sincronizadas via cookies e tokens JWT rotacionados automaticamente, facilitando a arquitetura em Server-Side Rendering (SSR).
+</Aside>
+
+## Auth0: Padrão da Indústria para OIDC e SSO Corporativo
+
+O Auth0 (parte da Okta) é uma das plataformas de identidade mais consolidadas do mercado, com suporte rigoroso aos padrões OpenID Connect (OIDC), OAuth 2.0 e SAML 2.0. Ele é amplamente utilizado em cenários corporativos que demandam federação de identidade com provedores empresariais (como Active Directory, Google Workspace e Okta).
+
+A biblioteca oficial `express-openid-connect` simplifica a integração de aplicações web com o fluxo de autorização do Auth0:
+
+```bash
+pnpm add express-openid-connect
+```
+
+O middleware intercepta rotas de autenticação (`/login`, `/logout`, `/callback`), gerencia cookies de sessão criptografados e fornece helpers para proteção de endpoints:
+
+```typescript
+import express from 'express';
+import { auth, requiresAuth } from 'express-openid-connect';
+
+const app = express();
+
+const config = {
+  authRequired: false,
+  auth0Logout: true,
+  secret: process.env.AUTH0_SECRET || 'uma-chave-secreta-com-pelo-menos-32-caracteres',
+  baseURL: 'http://localhost:3000',
+  clientID: process.env.AUTH0_CLIENT_ID,
+  issuerBaseURL: 'https://seu-dominio.us.auth0.com',
+};
+
+// Registra os middlewares de autenticação
+app.use(auth(config));
+
+app.get('/', (req, res) => {
+  res.send(req.oidc.isAuthenticated() ? `Conectado como ${req.oidc.user?.name}` : 'Desconectado');
+});
+
+// Rota protegida que exige autenticação ativa
+app.get('/perfil', requiresAuth(), (req, res) => {
+  res.json(req.oidc.user);
+});
+
+app.listen(3000, () => {
+  console.log('Servidor com Auth0 rodando na porta 3000');
+});
+```
+
+<Aside type="note">
+  O Auth0 utiliza o conceito de *Universal Login*, onde a autenticação acontece em uma página centralizada e segura hospedada no domínio do Auth0, mitigando riscos de captura de credenciais no frontend da aplicação.
+</Aside>
+
+## Passport.js: O Padrão Clássico de Estratégias
+
+O Passport.js é o middleware de autenticação mais tradicional do ecossistema Node.js. Ele baseia-se em um padrão de design modular centrado no conceito de **Estratégias** (*Strategies*), permitindo que a aplicação combine autenticação por nome de usuário e senha (`passport-local`), tokens JWT (`passport-jwt`) e provedores OAuth 2.0 (`passport-google-oauth20`, `passport-github2`).
+
+Para trabalhar com autenticação baseada em tokens JWT no Passport, instale os pacotes correspondentes:
+
+```bash
+pnpm add passport passport-jwt
+pnpm add -D @types/passport @types/passport-jwt
+```
+
+A estratégia JWT extrai o token do cabeçalho `Authorization: Bearer <token>`, valida a assinatura criptográfica e localiza o usuário correspondente:
+
+```typescript
+import express from 'express';
+import passport from 'passport';
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
+
+const app = express();
+
+const jwtOptions = {
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  secretOrKey: process.env.JWT_SECRET || 'chave-secreta-de-producao',
+};
+
+passport.use(
+  new JwtStrategy(jwtOptions, async (jwtPayload, done) => {
+    try {
+      // Busca usuário no banco de dados com base no payload do token
+      const user = { id: jwtPayload.sub, role: jwtPayload.role };
+      if (user) {
+        return done(null, user);
+      }
+      return done(null, false);
+    } catch (error) {
+      return done(error, false);
+    }
+  })
+);
+
+app.use(passport.initialize());
+
+// Endpoint protegido exigindo token JWT valido
+app.get('/api/dashboard', passport.authenticate('jwt', { session: false }), (req, res) => {
+  res.json({ message: 'Dados confidenciais', user: req.user });
+});
+
+app.listen(3000, () => {
+  console.log('Servidor com Passport.js rodando na porta 3000');
+});
+```
+
+<Aside type="caution">
+  Ao contrário do Clerk e do Auth0, o Passport.js não gerencia banco de dados, senhas, telas de login ou envio de e-mails de recuperação. Ele é exclusivamente uma camada de validação e middleware de requisições.
+</Aside>
+
+## Keycloak: IAM Corporativo Open Source e Self-Hosted
+
+O Keycloak é uma solução de Gerenciamento de Identidade e Acesso (IAM) de código aberto desenvolvida sob chancela da Red Hat. Ele é a escolha padrão em empresas que exigem soberania total sobre seus dados, conformidade estrita (LGPD/GDPR) e infraestrutura executada em servidores locais (*on-premises*) ou clusters Kubernetes privados.
+
+O Keycloak atua como um servidor de autorização independente, gerenciando *Realms* (ambientes isolados de usuários e clientes), *Clients*, *Roles* e federação com LDAP/Active Directory.
+
+No Node.js, a verificação de tokens emitidos pelo Keycloak pode ser realizada diretamente via bibliotecas padrão de OpenID Connect como `openid-client` ou validadores de JWT assimétricos (JWKS):
+
+```bash
+pnpm add openid-client jose
+```
+
+Como o Keycloak expõe um conjunto público de chaves criptográficas (JWKS), o backend em Node.js pode validar tokens de forma assíncrona e desacoplada sem consultar o servidor do Keycloak a cada requisição:
+
+```typescript
+import express from 'express';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+
+const app = express();
+
+const KEYCLOAK_URL = 'http://localhost:8080/realms/meu-realm';
+const JWKS_URI = new URL(`${KEYCLOAK_URL}/protocol/openid-connect/certs`);
+
+// Cache de chaves publicas do Keycloak
+const jwks = createRemoteJWKSet(JWKS_URI);
+
+async function authenticateKeycloak(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token nao fornecido' });
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: KEYCLOAK_URL,
+    });
+    
+    req.user = payload;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token invalido ou expirado' });
+  }
+}
+
+app.get('/api/admin-data', authenticateKeycloak, (req, res) => {
+  res.json({ message: 'Acesso autorizado pelo Keycloak', user: req.user });
+});
+
+app.listen(3000, () => {
+  console.log('Servidor com validacao Keycloak rodando na porta 3000');
+});
+```
+
+## Alternativas Modernas: Better Auth e Auth.js
+
+Além das ferramentas clássicas e dos serviços gerenciados, o ecossistema TypeScript tem evoluído para bibliotecas que rodam no servidor da própria aplicação, utilizando ORMs modernos (Prisma e Drizzle) para persistência:
+
+Os dois principais expoentes dessa categoria moderna são:
+
+- **Better Auth**: framework de autenticação moderno para TypeScript com suporte completo a 2FA, Passkeys, controle de organizações e plugins modulares, integrando-se diretamente a schemas do Drizzle e Prisma.
+- **Auth.js (anteriormente NextAuth.js)**: solução amplamente adotada em aplicações React e Next.js com dezenas de adaptadores para provedores OAuth e bancos de dados relacionais ou NoSQL.
+
+## Guia de Decisão Técnica
+
+A tabela a seguir resume as principais características de cada solução para orientar a tomada de decisão em projetos reais:
+
+| Critério | Clerk | Auth0 | Passport.js | Keycloak |
+| :--- | :--- | :--- | :--- | :--- |
+| **Público Principal** | Startups, SaaS B2C/B2B, Apps React/Next.js | Médias e grandes empresas, B2B, Enterprise SSO | APIs Node.js clássicas, microsserviços Express | Órgãos públicos, bancos, infraestrutura On-Premises |
+| **Componentes de UI** | Prontos, customizáveis e acessíveis | Universal Login hospedado | Não possui (manual) | Formulários personalizáveis no servidor |
+| **Soberania dos Dados** | Hospedado na nuvem do Clerk | Hospedado na nuvem da Okta | Totalmente no seu banco | Totalmente na sua infraestrutura |
+| **Custo Inicial** | Gratuito até limite de MAU | Gratuito até limite de MAU | 100% gratuito (Open Source) | 100% gratuito (Open Source) |
+| **Custo de Operação** | Zero manutenção de infra | Zero manutenção de infra | Baixo (código no app) | Alto (manutenção de cluster e JVM) |
+
+## Boas Práticas de Segurança em Autenticação
+
+Independentemente da ferramenta escolhida, o desenvolvimento seguro de sistemas de autenticação exige atenção a padrões consolidados na indústria.
+
+A lista a seguir resume as diretrizes essenciais para proteção de credenciais e sessões:
+
+1. **Tokens em Cookies HttpOnly e SameSite**: Evite armazenar tokens JWT de sessão no `localStorage` do navegador para prevenir vulnerabilidades de roubo de token via Cross-Site Scripting (XSS).
+2. **Assinatura Assimétrica com JWKS**: Em arquiteturas de microsserviços, utilize chaves assimétricas (algoritmos RS256 ou EdDSA) para que as APIs consumidoras validem tokens apenas com a chave pública, sem acesso ao segredo de emissão.
+3. **Validação Rigorosa de Escopos e Roles**: Não confie apenas no fato de um token ser válido; confira sempre as permissões (`roles`, `permissions` ou `scopes`) antes de executar operações protegidas.
+4. **Armazenamento de Senhas com Funções de Derivação Lenta**: Se você optar por gerenciar senhas no próprio banco de dados, utilize algoritmos robustos como Argon2id ou Scrypt, evitando funções rápidas como MD5, SHA-1 ou SHA-256 simples.
+
+## Executando
+
+Para experimentar uma autenticação simples com validação JWT em Node.js usando pacotes modernos, você pode criar um projeto mínimo:
+
+```bash
+mkdir auth-demo && cd auth-demo
+pnpm init
+pnpm add express jose
+pnpm add -D typescript @types/node @types/express tsx
+```
+
+Execute o servidor de desenvolvimento com o comando a seguir:
+
+```bash
+pnpm tsx server.ts
+```
+
+## Exercício
+
+1. Crie uma rota Express protegida que extraia um token do cabeçalho `Authorization: Bearer <token>`.
+2. Configure a verificação de assinatura utilizando a biblioteca `jose` com uma chave secreta em variável de ambiente.
+3. Retorne `401 Unauthorized` caso o cabeçalho esteja ausente ou o token esteja expirado, e `200 OK` com os dados do usuário decodificados quando válido.
+
+## Desafio
+
+Implemente um fluxo de autorização baseado em papéis (*Role-Based Access Control - RBAC*) no Express:
+- Crie um middleware `requireRole('admin')` que receba o papel exigido para a rota.
+- O middleware deve inspecionar o payload do token JWT previamente autenticado e checar se o usuário possui a role informada.
+- Se o usuário estiver autenticado mas não possuir o papel necessário, retorne o código de status HTTP `403 Forbidden` com uma mensagem descritiva em JSON.
+
+## Perguntas de revisão
+
+1. **Por que o armazenamento de tokens de sessão em `localStorage` é desaconselhado para autenticação crítica?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O `localStorage` é acessível por qualquer script JavaScript executado no mesmo domínio. Se a aplicação sofrer um ataque de Cross-Site Scripting (XSS) através de uma dependência comprometida ou injeção de HTML malicioso, o atacante poderá ler o token diretamente e utilizá-lo para impersonar a vítima. Cookies com as flags `HttpOnly`, `Secure` e `SameSite=Lax/Strict` não podem ser lidos pelo JavaScript do navegador, mitigando essa classe de ataque.
+</details>
+
+2. **Qual é a principal diferença entre autenticação federada corporativa (SAML/Enterprise OIDC no Auth0/Keycloak) e autenticação social comum (Login com Google/GitHub no Clerk)?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A autenticação social comum permite que qualquer usuário com uma conta pública no provedor (como uma conta Gmail) acesse o sistema. Já a autenticação corporativa integra a aplicação diretamente ao diretório centralizado de funcionários da empresa (como Active Directory, Okta ou LDAP), permitindo que administradores de TI revoguem o acesso do funcionário centralmente no momento em que ele sai da organização, além de aplicar políticas estritas de segurança de rede e MFA obrigatório da companhia.
+</details>
+
+## Referências
+
+- [Clerk Documentation](https://clerk.com/docs)
+- [Auth0 Documentation](https://auth0.com/docs)
+- [Passport.js Documentation](https://www.passportjs.org/)
+- [Keycloak Official Documentation](https://www.keycloak.org/documentation)
+- [Better Auth Documentation](https://www.better-auth.com/)
+- [Auth.js Documentation](https://authjs.dev/)
+- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
+
+## Próximo tópico
+
+Agora que você compreende as estratégias e bibliotecas para autenticação e gestão de identidade, avance para [IA e SDKs de LLM](../../ai/llm-sdks/) para aprender a integrar modelos de inteligência artificial em aplicações JavaScript.

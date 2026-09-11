@@ -1,0 +1,351 @@
+---
+title: "npm: Apollo Client"
+description: "Cliente GraphQL Apollo Client: queries declarativas, mutations, cache normalizado InMemoryCache, tratamento de erros e integração no ecossistema JavaScript."
+course: npm
+sidebar:
+  label: "Apollo Client"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import PackageManagerTabs from '@components/PackageManagerTabs.astro';
+
+Este tópico apresenta o **Apollo Client** (`@apollo/client`), a biblioteca padrão no ecossistema JavaScript e TypeScript para consumo e gerenciamento de estado baseado em APIs **GraphQL**.
+
+Enquanto clientes HTTP tradicionais como o [Axios](../axios/) operam sobre endpoints REST disparando múltiplas requisições para recursos diferentes, o Apollo Client conecta a aplicação a um endpoint GraphQL unificado, permitindo solicitar exatamente os campos necessários em uma única requisição e mantendo um cache inteligente e normalizado em memória.
+
+## Objetivo
+
+Compreender a arquitetura e a operação do Apollo Client em aplicações web, dominando a configuração do cliente, a execução de queries e mutations e o funcionamento do cache normalizado. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar o consumo de APIs REST com Axios do consumo de APIs GraphQL com Apollo Client.
+- Instalar e instanciar o `ApolloClient` configurando o `HttpLink` e o `InMemoryCache`.
+- Escrever consultas declarativas com a tag `gql` para buscar dados com campos exatos.
+- Executar operações de mutação (*mutations*) para criar, atualizar e remover dados no servidor.
+- Compreender a normalização automática de entidades no cache em memória (`InMemoryCache`).
+- Configurar cabeçalhos de autorização e tratamento global de erros GraphQL e de rede.
+
+## REST vs GraphQL: Quando Usar o Apollo Client?
+
+A escolha entre Axios e Apollo Client reflete a arquitetura da API que a sua aplicação consome no back-end.
+
+A tabela abaixo compara os dois modelos de comunicação:
+
+| Dimensão | API REST com Axios | API GraphQL com Apollo Client |
+| :--- | :--- | :--- |
+| **Padrão de Endpoints** | Múltiplas URLs (`/usuarios`, `/pedidos/123`). | Endpoint único (`/graphql`). |
+| **Formato de Dados** | Fixo pelo servidor (risco de *over-fetching* ou *under-fetching*). | Definido pelo cliente na consulta (*exact-fetching*). |
+| **Gerenciamento de Cache** | Manual ou via bibliotecas extras (TanStack Query/SWR). | Integrado e normalizado nativamente pelo `InMemoryCache`. |
+| **Operações de Escrita** | Verbos HTTP semânticos (`POST`, `PUT`, `DELETE`). | Mutações explícitas (`mutation { ... }`). |
+| **Tipagem de Contrato** | Exige validação em runtime (Zod) ou schemas OpenAPI. | Schema fortemente tipado em SDL (Schema Definition Language). |
+
+O Apollo Client se destaca quando a interface precisa agregar dados de múltiplos relacionamentos complexos sem disparar cascatas de chamadas HTTP sequenciais.
+
+## Fundamentos e Modelo Mental
+
+O núcleo do Apollo Client é composto por três engrenagens essenciais:
+
+1. **`HttpLink`**: A camada de transporte responsável por serializar a consulta GraphQL em uma requisição HTTP POST para o servidor.
+2. **`InMemoryCache`**: Um banco de dados em memória que desmembra os objetos retornados em entidades identificadas por chave única (`__typename:id`), evitando requisições duplicadas.
+3. **`ApolloClient`**: A interface unificada que orquestra as operações da aplicação.
+
+O diagrama abaixo ilustra o ciclo de vida de uma consulta GraphQL com cache em memória:
+
+<Mermaid title="Fluxo de consulta e resolução de cache no Apollo Client">
+{`
+flowchart TD
+  App["Componente / Aplicação"] -->|"client.query(gql\`...\`)"| Apollo["Apollo Client"]
+  Apollo --> Cache{"Entidade já existe<br/>no InMemoryCache?"}
+  Cache -- "Sim (Cache Hit)" --> App
+  Cache -- "Não (Cache Miss)" --> Link["HttpLink (POST /graphql)"]
+  Link --> Server["Servidor GraphQL"]
+  Server --> Link
+  Link --> Store["Normaliza e grava no Cache"]
+  Store --> App
+`}
+</Mermaid>
+
+Quando uma mutação altera uma entidade no servidor, o Apollo Client atualiza automaticamente qualquer tela que exiba aquele registro se o identificador único for retornado.
+
+## Instalação e Configuração
+
+Para instalar o pacote oficial e a biblioteca de parsing do GraphQL:
+
+<PackageManagerTabs package="@apollo/client graphql" />
+
+A criação da instância base costuma ser isolada em um módulo de serviço:
+
+```js title="src/services/apollo.js"
+import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client/core';
+
+// 1. Configura o link de transporte HTTP
+const httpLink = createHttpLink({
+  uri: 'https://api.exemplo.com/graphql',
+  headers: {
+    authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  },
+});
+
+// 2. Cria a instância do cliente com cache normalizado
+export const client = new ApolloClient({
+  link: httpLink,
+  cache: new InMemoryCache(),
+});
+```
+
+## Consultas Declarativas (*Queries*)
+
+As consultas são escritas na sintaxe GraphQL utilizando a tag de template `gql`:
+
+```js title="src/queries/users.js"
+import { gql } from '@apollo/client/core';
+
+export const GET_USERS = gql`
+  query ObterUsuarios($limite: Int) {
+    users(limit: $limite) {
+      id
+      name
+      email
+      role
+    }
+  }
+`;
+```
+
+Para disparar a consulta no código da aplicação:
+
+```js title="Buscando dados com client.query"
+import { client } from './services/apollo.js';
+import { GET_USERS } from './queries/users.js';
+
+async function carregarUsuarios() {
+  try {
+    const { data, loading } = await client.query({
+      query: GET_USERS,
+      variables: { limite: 10 },
+    });
+
+    console.log('Usuários recebidos:', data.users);
+  } catch (erro) {
+    console.error('Erro na consulta GraphQL:', erro.message);
+  }
+}
+
+carregarUsuarios();
+```
+
+## Operações de Mutação (*Mutations*)
+
+As mutações representam operações de criação, modificação ou exclusão de dados:
+
+```js title="src/mutations/createUser.js"
+import { gql } from '@apollo/client/core';
+
+export const CREATE_USER = gql`
+  mutation CriarUsuario($input: CreateUserInput!) {
+    createUser(input: $input) {
+      id
+      name
+      email
+    }
+  }
+`;
+```
+
+Para disparar a mutação:
+
+```js title="Executando mutação"
+import { client } from './services/apollo.js';
+import { CREATE_USER } from './mutations/createUser.js';
+
+async function cadastrarNovoUsuario(nome, email) {
+  try {
+    const { data } = await client.mutate({
+      mutation: CREATE_USER,
+      variables: {
+        input: { name: nome, email: email },
+      },
+    });
+
+    console.log('Usuário cadastrado com ID:', data.createUser.id);
+  } catch (erro) {
+    console.error('Falha ao criar usuário:', erro.message);
+  }
+}
+```
+
+## Tratamento de Erros e Autenticação
+
+APIs GraphQL respondem quase sempre com status HTTP 200, mesmo quando ocorrem falhas de validação ou de regras de negócio. Os erros retornam em uma lista no campo `errors` do JSON de resposta.
+
+O Apollo Client separa esses erros em duas categorias:
+
+1. **`graphQLErrors`**: Erros de validação de schema, campos inexistentes ou regras de autorização no resolver.
+2. **`networkError`**: Falhas de conexão física, servidor fora do ar ou erros HTTP no nível de transporte (ex: 500 ou 503).
+
+A tabela abaixo sintetiza o tratamento:
+
+```js title="Tratamento granular de erros"
+try {
+  const resposta = await client.query({ query: GET_USERS });
+} catch (erro) {
+  if (erro.graphQLErrors?.length) {
+    erro.graphQLErrors.forEach(({ message, locations, path }) => {
+      console.error(`[Erro GraphQL]: ${message} no campo ${path}`);
+    });
+  }
+  if (erro.networkError) {
+    console.error('[Erro de Rede]: Não foi possível conectar ao endpoint GraphQL.');
+  }
+}
+```
+
+<Aside type="caution" title="Dica de IA: Não instale o Apollo Client para APIs REST">
+Assistentes às vezes sugerem `@apollo/client` apenas pela fama de seu cache, mesmo quando o projeto consome rotas REST puras. Para REST com cache avançado, utilize `axios` em conjunto com TanStack Query.
+
+**Prompt:** *"Antes de sugerir Apollo Client, verifique se o backend do projeto expõe um endpoint GraphQL ou se expõe rotas REST, recomendando a biblioteca de transporte apropriada para o contrato."*
+</Aside>
+
+## Executando
+
+Veja um exemplo funcional consumindo uma API pública GraphQL (como a API de países):
+
+<Steps>
+1. **Instale os pacotes no projeto:**
+
+   <PackageManagerTabs package="@apollo/client graphql" />
+
+2. **Crie um arquivo de teste `apollo-demo.js`:**
+
+   ```js title="apollo-demo.js"
+   import { ApolloClient, InMemoryCache, gql } from '@apollo/client/core';
+
+   const client = new ApolloClient({
+     uri: 'https://countries.trevorblades.com/',
+     cache: new InMemoryCache(),
+   });
+
+   const GET_COUNTRIES = gql`
+     query {
+       countries(filter: { code: { in: ["BR", "PT"] } }) {
+         code
+         name
+         emoji
+       }
+     }
+   `;
+
+   const { data } = await client.query({ query: GET_COUNTRIES });
+   console.log('Países retornados:', data.countries);
+   ```
+
+3. **Execute o arquivo com o Node.js:**
+
+   ```bash title="Terminal"
+   node apollo-demo.js
+   ```
+
+   ```txt title="Output" frame="terminal"
+   Países retornados: [
+     { code: 'BR', name: 'Brazil', emoji: '🇧🇷' },
+     { code: 'PT', name: 'Portugal', emoji: '🇵🇹' }
+   ]
+   ```
+</Steps>
+
+## Exercício
+
+Configure um cliente Apollo Client e monte a query para buscar os detalhes de um produto pelo seu ID numérico:
+
+1. A query deve receber uma variável obrigatória `$id: ID!`.
+2. Deve solicitar apenas os campos `id`, `title`, `price` e `category`.
+3. Deve instanciar o cliente apontando para `https://meu-ecommerce.com/graphql`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="src/queries/product.js"
+  import { ApolloClient, InMemoryCache, gql } from '@apollo/client/core';
+
+  export const client = new ApolloClient({
+    uri: 'https://meu-ecommerce.com/graphql',
+    cache: new InMemoryCache(),
+  });
+
+  export const GET_PRODUCT_BY_ID = gql`
+    query ObterProdutoPorId($id: ID!) {
+      product(id: $id) {
+        id
+        title
+        price
+        category
+      }
+    }
+  `;
+  ```
+</details>
+
+## Desafio
+
+Crie uma função utilitária `executarMutacaoComRetry` que receba uma mutação GraphQL e suas variáveis. Caso a requisição falhe por erro de rede (`networkError`), tente novamente até duas vezes antes de propagar o erro para a interface.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="src/utils/apolloRetry.js"
+  export async function executarMutacaoComRetry(client, mutation, variables, tentativas = 2) {
+    for (let i = 0; i <= tentativas; i++) {
+      try {
+        const resultado = await client.mutate({ mutation, variables });
+        return resultado.data;
+      } catch (erro) {
+        if (erro.networkError && i < tentativas) {
+          console.warn(`Tentativa ${i + 1} falhou por erro de rede. Tentando novamente...`);
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+          continue;
+        }
+        throw erro;
+      }
+    }
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para validar a fixação dos conceitos:
+
+1. **Qual é a principal diferença estrutural entre o Axios e o Apollo Client?**
+   <details>
+     <summary>Possível resposta</summary>
+     O Axios é um cliente HTTP de propósito geral voltado para chamadas REST em múltiplas URLs, enquanto o Apollo Client é especializado no protocolo GraphQL com endpoint único, permitindo consultas com campos específicos e fornecendo cache normalizado integrado.
+   </details>
+
+2. **Como o `InMemoryCache` do Apollo Client identifica objetos retornados para evitar requisições repetidas?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele utiliza por padrão a combinação do tipo da entidade (`__typename`) e do seu identificador (`id` ou `_id`), criando uma entrada normalizada global que é compartilhada por todas as consultas da aplicação.
+   </details>
+
+3. **Por que uma requisição GraphQL com erro no resolver costuma retornar código HTTP 200?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o transporte HTTP foi bem-sucedido; o GraphQL separa falhas de comunicação de rede das falhas de execução de schema, retornando as mensagens no campo `errors` da resposta JSON.
+   </details>
+
+4. **Para que serve a tag `gql` no Apollo Client?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ela converte strings de consultas GraphQL em uma Árvore de Sintaxe Abstrata (AST) que o cliente consegue analisar, validar e enviar de forma estruturada.
+   </details>
+
+## Referências
+
+- [Apollo Client Documentation](https://www.apollographql.com/docs/react/)
+- [GraphQL Official Specification](https://graphql.org/)
+- [Apollo InMemoryCache Guide](https://www.apollographql.com/docs/react/caching/overview/)
+
+## Próximo tópico
+
+Com os clientes de transporte HTTP e GraphQL dominados, proteja e valide os dados recebidos externamente com schemas estritos em tempo de execução:
+
+- [Zod](../../validation/zod/): Validação de schemas e inferência estática de tipos TypeScript.

@@ -1,0 +1,478 @@
+---
+title: "npm: Node Package Manager"
+description: "O gerenciador padrão do Node.js: criação de projetos com npm init, anatomia detalhada do package.json, scripts e ciclo de vida, SemVer, package-lock.json, npm ci, npx e auditoria de segurança."
+course: npm
+sidebar:
+  label: "npm"
+---
+import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta o **npm** (*Node Package Manager*), o gerenciador de pacotes padrão que acompanha o Node.js e a porta de entrada para o maior registro público de código aberto do mundo (`npmjs.com`).
+
+Antes do surgimento de gerenciadores automatizados, reaproveitar código no JavaScript exigia baixar arquivos manualmente, copiá-los para dentro do projeto, resolver conflitos de dependências transitivas e torcer para que todos os membros da equipe mantivessem as mesmas versões em suas máquinas. O npm transformou esse processo em um padrão determinístico ao introduzir o manifesto declarativo `package.json`, o versionamento semântico (*SemVer*), o travamento exato com `package-lock.json` e a automação de tarefas por scripts e execução sob demanda com `npx`.
+
+## Objetivo
+
+Dominar o ecossistema e as operações fundamentais do npm no gerenciamento de dependências, versionamento semântico e automação de scripts em projetos JavaScript. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar as três dimensões do npm (linha de comando, registro público e formato de pacote).
+- Inicializar projetos com `npm init` e reconhecer a finalidade de cada campo do `package.json` (`name`, `version`, `type`, `main`, `scripts`, `dependencies`, `devDependencies`).
+- Justificar por que a pasta `node_modules` nunca deve ser versionada no Git e como ela é reconstruída de forma determinística.
+- Diferenciar as notações de versionamento semântico (*SemVer*) como `^`, `~`, versões exatas e faixas de compatibilidade.
+- Explicar o papel do `package-lock.json` e escolher adequadamente entre `npm install` e `npm ci`.
+- Criar scripts com argumentos (`--`), ganchos de ciclo de vida (`pre*` e `post*`) e executar comandos pontuais com segurança usando `npx`.
+
+## O que é o npm?
+
+O termo **npm** refere-se simultaneamente a três componentes interligados que sustentam o compartilhamento de código em JavaScript:
+
+| Dimensão | O que representa | Onde opera |
+| :--- | :--- | :--- |
+| **A ferramenta CLI** | O programa executável `npm` instalado junto com o Node.js. | No terminal da máquina local e nos servidores de CI/CD. |
+| **O registro (*Registry*)** | O banco de dados público centralizado em `registry.npmjs.org`. | Na nuvem, hospedando milhões de pacotes abertos e privados. |
+| **O pacote** | Um diretório contendo código e um arquivo `package.json` descritivo. | No registro, e depois na pasta `node_modules` do projeto. |
+
+A ferramenta acompanha o Node.js por padrão, e a primeira conferência no terminal é sempre a verificação de versões:
+
+```bash title="Terminal"
+node -v && npm -v
+```
+
+```txt title="Output" frame="terminal"
+v24.16.0
+11.13.0
+```
+
+<Aside type="note" title="npm, pnpm e yarn">
+  O npm é o gerenciador padrão do Node.js. O **pnpm** e o **Yarn** leem o mesmo `package.json` e baixam pacotes do mesmo registro público, variando principalmente na velocidade e na forma de armazenar os arquivos no disco. O que você aprender sobre `package.json`, SemVer e scripts vale para todos eles.
+</Aside>
+
+## Fundamentos e Modelo Mental
+
+O funcionamento do npm gira em torno de dois arquivos descritivos: o manifesto declarativo (`package.json`) e o mapa exato de resolução da árvore de dependências (`package-lock.json`).
+
+O diagrama a seguir representa o fluxo completo de resolução, download e execução de pacotes:
+
+<Mermaid title="Fluxo de resolução e instalação de pacotes com npm">
+{`
+flowchart TD
+  A["Comando npm install<br/>(lê package.json)"] --> B{"package-lock.json<br/>existe?"}
+  B -->|"Sim"| C["Baixa versões exatas<br/>e confere hashes de integridade"]
+  B -->|"Não"| D["Consulta registro remoto<br/>e calcula compatibilidade SemVer"]
+  D --> E["Gera novo package-lock.json"]
+  C --> F["Grava pacotes em<br/>node_modules local"]
+  E --> F
+  F --> G["Aplicação importa código<br/>via import ou require"]
+`}
+</Mermaid>
+
+A separação entre manifesto e lockfile garante que toda a equipe instale exatamente os mesmos bytes, mesmo quando o `package.json` utiliza faixas flexíveis de versão.
+
+## Criando um Projeto e Anatomia do `package.json`
+
+Um projeto JavaScript começa quando existe um `package.json`. É esse arquivo que transforma uma pasta comum em um projeto que o npm sabe instalar, executar e publicar.
+
+O comando `npm init` faz perguntas interativas sobre a identificação do projeto; a *flag* `-y` aceita todas as respostas padrão de uma vez:
+
+```bash title="Terminal"
+npm init -y
+```
+
+O comando gera imediatamente um arquivo `package.json` na raiz do diretório:
+
+```json title="package.json"
+{
+  "name": "meu-projeto",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
+```
+
+A tabela abaixo detalha a finalidade de cada campo do manifesto:
+
+| Campo | Para que serve | Importância prática |
+| :--- | :--- | :--- |
+| `name` | Identifica o projeto/pacote. | Precisa ser único no registro se o pacote for publicado. |
+| `version` | Versão do projeto no formato SemVer (`MAJOR.MINOR.PATCH`). | Controla a versão atual da aplicação. |
+| `description` e `keywords` | Texto de busca no registro. | Útil em pacotes publicados; opcional em projetos privados. |
+| `main` | Ponto de entrada carregado quando alguém importa o pacote pelo nome. | Ex: `"dist/index.js"`. |
+| `scripts` | Atalhos de linha de comando para automação da equipe. | Ex: `{"dev": "vite", "build": "vite build"}`. |
+| `type` | Define o sistema de módulos: `"commonjs"` (`require`) ou `"module"` (`import`). | Campo vital para evitar erros de importação. |
+| `license` | Licença de distribuição (`MIT`, `ISC`, `UNLICENSED`). | Define permissões legais de uso. |
+
+Por padrão histórico, o Node.js assume `"type": "commonjs"`. Para habilitar a sintaxe moderna de `import` e `export` em todo o projeto, configure o campo `type` utilizando `npm pkg set`:
+
+```bash title="Terminal"
+npm pkg set type=module
+```
+
+<Aside type="caution" title="Dica de IA: Cole o package.json antes de pedir código">
+  A primeira dúvida que um assistente de IA costuma ter é qual sistema de módulos o projeto adota. Sem o `package.json` no contexto, ele pode sugerir `require()` clássico por padrão estatístico, o que lança erro fatal em projetos configurados com `"type": "module"`.
+
+  **Prompt:** *"Este é o package.json do meu projeto (colado abaixo). Escreva o código pedido utilizando módulos ES nativos (import/export) e caminhos relativos com extensão .js explícita."*
+</Aside>
+
+## Instalando Dependências: `dependencies` vs `devDependencies`
+
+Nem todo pacote precisa acompanhar a aplicação em produção. O npm separa as dependências em dois campos distintos no `package.json`:
+
+```bash title="Terminal"
+# Instala pacote de produção (ex: cliente HTTP, utilitário de data)
+npm install dayjs axios
+
+# Instala ferramenta exclusiva de desenvolvimento (ex: linter, testes, bundler)
+npm install -D vitest @biomejs/biome
+```
+
+O resultado é gravado em seções separadas do `package.json`:
+
+```json title="package.json (dependências)"
+{
+  "dependencies": {
+    "axios": "^1.7.9",
+    "dayjs": "^1.11.13"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "vitest": "^3.0.0"
+  }
+}
+```
+
+A tabela a seguir estabelece a regra de decisão:
+
+| Categoria | Quando utilizar | Exemplos |
+| :--- | :--- | :--- |
+| `dependencies` | O pacote é importado por código executado pelo usuário final ou servidor em produção. | `express`, `dayjs`, `axios`, `zod`, `chart.js` |
+| `devDependencies` | O pacote participa apenas das etapas de compilação, testes, formatação e revisão local. | `@biomejs/biome`, `vitest`, `playwright`, `vite`, `typescript` |
+
+Em servidores de produção, rodar `npm install --omit=dev` baixa apenas as `dependencies`, economizando tempo de rede e reduzindo drasticamente o tamanho da imagem do container Docker.
+
+## A Pasta `node_modules` e o `.gitignore`
+
+Quando você instala um pacote, o npm baixa os arquivos dele e de todas as dependências transitivas para a pasta `node_modules`.
+
+Essa pasta **nunca** deve entrar no controle de versão Git, por três motivos essenciais:
+1. **É 100% reconstruível**: `package.json` e `package-lock.json` contêm a receita exata para recriá-la em qualquer computador.
+2. **É pesada e volátil**: Possui milhares de arquivos pequenos que mudam frequentemente, inflando o histórico do repositório.
+3. **Pode conter binários compilados**: Alguns pacotes trazem código nativo em C++ compilado para a arquitetura do sistema operacional de quem instalou.
+
+Por isso, todo projeto em JavaScript deve iniciar com o arquivo `.gitignore`:
+
+```txt title=".gitignore"
+node_modules/
+dist/
+.env
+```
+
+A regra de ouro: **versione os arquivos que descrevem o projeto (`package.json`, `package-lock.json`), ignore os artefatos que os comandos reconstroem (`node_modules`)**.
+
+## Versionamento Semântico (*SemVer*)
+
+Todas as versões publicadas no registro npm seguem a especificação SemVer (`MAJOR.MINOR.PATCH`):
+
+| Posição | Quando muda | O que promete a quem consome |
+| :--- | :--- | :--- |
+| **MAJOR (`2`.0.0)** | Mudança incompatível (*breaking change*). | Pode quebrar seu código existente; exige leitura do guia de migração. |
+| **MINOR (1.`12`.0)** | Novo recurso adicionado de forma retrocompatível. | Nada quebra; novos métodos ou parâmetros estão disponíveis. |
+| **PATCH (1.11.`24`)** | Correção de bug ou segurança retrocompatível. | Nada quebra; comportamento anterior foi consertado. |
+
+Os símbolos colocados antes do número no `package.json` definem quanta flexibilidade de atualização automática o projeto aceita:
+
+| Notação | O que significa | Exemplo com `^1.11.13` |
+| :--- | :--- | :--- |
+| `^1.11.13` (Circunflexo) | Aceita atualizações de **Minor** e **Patch** (padrão do npm). | Atualiza para `1.11.14` ou `1.12.0`, mas **nunca** para `2.0.0`. |
+| `~1.11.13` (Til) | Aceita apenas atualizações de **Patch**. | Atualiza para `1.11.14`, mas **não** para `1.12.0`. |
+| `1.11.13` (Exata) | Trava na versão exata sem nenhuma alteração. | Permanece estritamente em `1.11.13`. |
+| `*` ou `latest` | Aceita qualquer versão mais recente. | Não recomendado: torna cada instalação imprevisível. |
+
+## O Papel do `package-lock.json` e `npm ci`
+
+Enquanto o `package.json` declara um **intervalo de versões aceitáveis** (ex: `^1.11.13`), o `package-lock.json` registra a **versão exata** instalada, a URL de origem e o *hash* criptográfico de integridade (`integrity sha512-...`) de cada dependência:
+
+```json title="package-lock.json (trecho ilustrativo)"
+{
+  "name": "meu-projeto",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "packages": {
+    "node_modules/dayjs": {
+      "version": "1.11.13",
+      "resolved": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.13.tgz",
+      "integrity": "sha512-..."
+    }
+  }
+}
+```
+
+Em ambientes de integração contínua (CI) e servidores de deploy, utilize sempre `npm ci` em vez de `npm install`:
+
+```bash title="Terminal"
+npm ci
+```
+
+A tabela abaixo resume as diferenças operacionais:
+
+| Critério | `npm install` | `npm ci` (*Clean Install*) |
+| :--- | :--- | :--- |
+| **Ambiente ideal** | Desenvolvimento local. | Servidores de CI/CD e produção. |
+| **Tratamento do lockfile** | Pode atualizar o lockfile se o `package.json` mudou. | Exige que o lockfile coincida exatamente com o `package.json`. |
+| **Pasta `node_modules`** | Atualiza incrementalmente a pasta existente. | Apaga a pasta `node_modules` e reinstala do zero. |
+| **Velocidade** | Mais lenta (recalcula dependências). | Muito mais rápida (instalação direta a partir do lockfile). |
+
+## Automação com Scripts no `package.json`
+
+A seção `scripts` do `package.json` funciona como a documentação executável dos comandos do projeto:
+
+```json title="package.json (scripts)"
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "check": "npm run lint && npm run test"
+  }
+}
+```
+
+Ao executar um script com `npm run <nome>`, o npm temporariamente adiciona a pasta `node_modules/.bin` ao `PATH` do sistema, permitindo que binários locais (como `vite` e `biome`) sejam executados diretamente sem instalação global.
+
+### Ganchos de Ciclo de Vida (`pre*` e `post*`)
+
+O npm executa automaticamente scripts prefixados com `pre` e `post`:
+
+```json title="package.json (ganchos de ciclo de vida)"
+{
+  "scripts": {
+    "prestart": "echo Preparando banco de dados...",
+    "start": "node src/server.js",
+    "poststart": "echo Servidor encerrado com sucesso."
+  }
+}
+```
+
+Ao rodar `npm start`, o npm executa `prestart` $\to$ `start` $\to$ `poststart` em sequência.
+
+### Passando Argumentos com `--`
+
+Para repassar parâmetros adicionais da linha de comando para o binário executado pelo script, utilize o separador `--`:
+
+```bash title="Terminal"
+# Passa a flag --coverage para o script de teste
+npm test -- --coverage
+```
+
+## `npx`: Executando Pacotes Sem Instalar Globalmente
+
+O utilitário `npx` (embutido no npm) permite executar ferramentas de uso único ou geradores de projeto sem instalá-los globalmente no sistema:
+
+```bash title="Terminal"
+# Cria um projeto novo com Vite sem poluir o sistema operacional
+npx create-vite@latest meu-app --template vanilla
+
+# Executa um gerador de HTTP mock sob demanda
+npx json-server db.json
+```
+
+O fluxo de busca do `npx` é previsível:
+1. Procura o comando na pasta local `node_modules/.bin` do projeto atual.
+2. Procura nos executáveis globais da máquina.
+3. Se não encontrar, baixa o pacote para um diretório de cache temporário, executa o comando e descarta o binário.
+
+<Aside type="caution" title="Dica de IA: Fixe a versão ao executar comandos com npx">
+  Como o `npx` baixa pacotes na hora da execução, assistentes podem sugerir nomes de pacotes obsoletos. Sempre que possível, especifique a versão desejada (ex: `npx cowsay@1.6.0`).
+
+  **Prompt:** *"Antes de sugerir um comando com npx, verifique se o pacote oficial existe no registro do npm e forneça o comando com a versão fixada."*
+</Aside>
+
+## Auditoria de Segurança e Gerenciamento
+
+O npm oferece ferramentas nativas para inspecionar dependências desatualizadas e auditar vulnerabilidades na cadeia de suprimentos:
+
+```bash title="Terminal"
+# Lista dependências que possuem versões mais recentes disponíveis no registro
+npm outdated
+
+# Atualiza pacotes respeitando os limites SemVer do package.json
+npm update
+
+# Varre a árvore de dependências em busca de vulnerabilidades de segurança
+npm audit
+```
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as principais decisões práticas para o dia a dia com npm:
+
+| Prática | Motivo |
+| :--- | :--- |
+| **Inicie todo projeto com `npm init -y`** | Cria a estrutura básica do `package.json` em 1 segundo. |
+| **Defina `"type": "module"` em projetos novos** | Habilita a sintaxe padrão de ESM (`import`/`export`) nativa da linguagem. |
+| **Separe `dependencies` de `devDependencies`** | Reduz o tamanho das imagens de produção e evita carregar compiladores no servidor. |
+| **Nunca envie `node_modules` para o Git** | A pasta é volumosa, volátil e integralmente reconstruível. |
+| **Sempre versione o `package-lock.json`** | Garante instalações idênticas e determinísticas para toda a equipe. |
+| **Utilize `npm ci` no pipeline de CI/CD** | Acelera os builds e impede instalações com versões divergentes. |
+| **Crie scripts padronizados no `package.json`** | Permite que qualquer desenvolvedor execute `dev`, `test`, `build` e `lint` sem decorar comandos. |
+
+## Executando
+
+Para criar e testar um projeto completo gerenciado por npm:
+
+<Steps>
+1. Crie uma pasta e inicialize o projeto:
+
+   ```bash title="Terminal"
+   mkdir npm-lab && cd npm-lab
+   npm init -y
+   npm pkg set type=module
+   ```
+
+2. Instale o pacote `dayjs` em produção e o `vitest` em desenvolvimento:
+
+   ```bash title="Terminal"
+   npm install dayjs
+   npm install -D vitest
+   ```
+
+3. Configure os scripts `"dev"` e `"test"` no `package.json`:
+
+   ```bash title="Terminal"
+   npm pkg set scripts.dev="node src/index.js" scripts.test="vitest run"
+   ```
+
+4. Crie o arquivo `src/index.js` utilizando o pacote instalado:
+
+   ```js title="src/index.js"
+   import dayjs from 'dayjs';
+
+   console.log('Projeto npm iniciado com sucesso em:', dayjs().format('DD/MM/YYYY HH:mm'));
+   ```
+
+5. Execute a aplicação via script do npm:
+
+   ```bash title="Terminal"
+   npm run dev
+   ```
+
+6. Simule a reconstrução da pasta `node_modules` a partir dos arquivos versionados:
+
+   ```bash title="Terminal"
+   rm -rf node_modules
+   npm ci
+   ```
+</Steps>
+
+## Exercício
+
+Configure um arquivo `package.json` para uma aplicação web com os seguintes requisitos:
+
+1. O projeto deve utilizar módulos ES nativos (`"type": "module"`).
+2. Deve conter `dayjs` em `dependencies` aceitando atualizações de Minor e Patch.
+3. Deve conter `vitest` e `@biomejs/biome` em `devDependencies` com versões fixas.
+4. Deve disponibilizar os scripts `"dev"`, `"test"`, `"lint"` e um script `"check"` que execute lint e testes em sequência com `&&`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```json title="package.json"
+  {
+    "name": "exercicio-npm-completo",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+      "dev": "node src/index.js",
+      "lint": "biome check .",
+      "test": "vitest run",
+      "check": "npm run lint && npm run test"
+    },
+    "dependencies": {
+      "dayjs": "^1.11.13"
+    },
+    "devDependencies": {
+      "@biomejs/biome": "1.9.4",
+      "vitest": "3.0.0"
+    }
+  }
+  ```
+</details>
+
+## Desafio
+
+Crie um script personalizado no `package.json` chamado `"env-check"` que imprima na tela as variáveis de ambiente injetadas automaticamente pelo npm (como `process.env.npm_package_name`, `process.env.npm_package_version` e `process.env.npm_lifecycle_event`). Em seguida, configure um gancho `"predev"` que execute o `"env-check"` automaticamente antes do comando `"dev"`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```js title="scripts/env-check.js"
+  console.log(`--- Executando ciclo de vida: ${process.env.npm_lifecycle_event} ---`);
+  console.log(`Pacote: ${process.env.npm_package_name} (v${process.env.npm_package_version})`);
+  ```
+
+  ```json title="package.json (trecho)"
+  {
+    "scripts": {
+      "env-check": "node scripts/env-check.js",
+      "predev": "npm run env-check",
+      "dev": "node src/index.js"
+    }
+  }
+  ```
+</details>
+
+## Perguntas de revisão
+
+Responda às questões para consolidar todo o conteúdo abordado:
+
+1. **Por que a pasta `node_modules` nunca deve ser enviada para o repositório Git?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ela contém milhares de arquivos que podem ser reconstruídos a qualquer momento através dos comandos `npm install` ou `npm ci` a partir das informações do `package.json` e `package-lock.json`.
+   </details>
+
+2. **Qual é a diferença entre o prefixo `^` e o prefixo `~` no SemVer?**
+   <details>
+     <summary>Possível resposta</summary>
+     O prefixo `^` permite atualizações de Minor e Patch (mantendo o Major fixo), enquanto o prefixo `~` aceita exclusivamente atualizações de Patch (mantendo Major e Minor fixos).
+   </details>
+
+3. **Por que `npm ci` é o comando recomendado em servidores de integração contínua (CI)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque ele realiza uma instalação limpa e ultra-rápida baseada estritamente no `package-lock.json`, sem recalcular versões e garantindo que o ambiente de produção seja idêntico ao de desenvolvimento.
+   </details>
+
+4. **Como o comando `npm run` consegue executar binários locais de dependências (como `vite` ou `biome`) sem que eles estejam instalados globalmente?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque durante a execução de qualquer script do `package.json`, o npm adiciona temporariamente a pasta `node_modules/.bin` ao `PATH` do interpretador.
+   </details>
+
+5. **Qual é a ordem de busca do utilitário `npx` ao executar um comando?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele procura primeiro na pasta local `node_modules/.bin` do projeto, depois nos binários globais da máquina e, caso não encontre, baixa o pacote temporariamente do registro para executar e descartar.
+   </details>
+
+## Referências
+
+- [npm Docs | Documentação Oficial](https://docs.npmjs.com/)
+- [About semantic versioning | npm Docs](https://docs.npmjs.com/about-semantic-versioning)
+- [package.json anatomy | npm Docs](https://docs.npmjs.com/cli/v10/configuring-npm/package-json)
+- [npm-ci | npm Docs](https://docs.npmjs.com/cli/v10/commands/npm-ci)
+- [npm scripts | npm Docs](https://docs.npmjs.com/cli/using-npm/scripts)
+
+## Próximo tópico
+
+Conhecido o gerenciador padrão em detalhes, descubra como o **pnpm** economiza gigabytes de espaço em disco através de um repositório central baseado em conteúdo:
+
+[pnpm](../pnpm/): Alta performance, economia de disco por content-addressable store e isolamento rigoroso de dependências.
