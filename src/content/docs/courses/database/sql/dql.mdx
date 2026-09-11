@@ -1,0 +1,293 @@
+---
+title: "Linguagem SQL: DQL e Consulta de Dados"
+description: "Data Query Language (SELECT), projeção, predicados WHERE, lógica trivalente de valores NULL, ordenação (ORDER BY) e técnicas de paginação."
+course: database
+sidebar:
+  label: "SQL DQL (Consulta)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+O subconjunto **DQL** (*Data Query Language*) da SQL é dedicado à leitura, filtragem e recuperação de dados armazenados. O comando `SELECT` é a instrução mais utilizada e versátil de toda a linguagem SQL, permitindo extrair projeções precisas de colunas, aplicar predicados lógicos sofisticados com `WHERE`, ordenar conjuntos de resultados com `ORDER BY` e paginar grandes volumes de dados com `LIMIT` e `OFFSET`.
+
+---
+
+## Objetivo
+
+Compreender as capacidades de consulta do comando `SELECT`, dominando filtros lógicos, tratamento de valores nulos e paginação eficiente contra o projeto `invest-db`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Projetar colunas específicas e criar apelidos com `AS` para transformar a apresentação dos resultados.
+- Filtrar registros utilizando operadores relacionais (`=`, `<>`, `<`, `>`) e operadores lógicos (`AND`, `OR`, `NOT`).
+- Aplicar predicados de busca avançados: `IN`, `BETWEEN`, `LIKE` (com curingas `%` e `_`) e operadores de valor nulo (`IS NULL`, `IS NOT NULL`).
+- Explicar a lógica trivalente da SQL (*Three-Valued Logic*) e por que comparações com `= NULL` sempre falham.
+- Ordenar dados com `ORDER BY` (múltiplas colunas, `ASC`, `DESC`) e implementar paginação por `LIMIT/OFFSET` e por cursor.
+
+---
+
+## Projeção de Dados com SELECT
+
+A **projeção** é o ato de escolher quais atributos (colunas) devem fazer parte da tabela de saída retornada pelo banco.
+
+Evite o uso indiscriminado de `SELECT *` em aplicações de produção, pois ele transfere dados desnecessários pela rede e impede que o otimizador utilize índices de cobertura (*Covering Indexes*). Prefira sempre listar explicitamente os campos desejados:
+
+<SourceCode path="examples/courses/database/invest-db/crud.sql" region="read" mark={[8, 10]} />
+
+```txt title="Output"
+-- [{ id: 1, name: 'Ana Silva', email: 'ana@example.com', createdAt: '2026-01-10' }, ...]
+-- [{ id: 1, name: 'Ana Silva' }]
+```
+
+### Expressões Computadas e Apelidos com `AS`
+
+Você pode realizar operações aritméticas, manipulação de texto e atribuir nomes mais claros às colunas com a cláusula `AS`:
+
+```sql
+SELECT
+  id,
+  name AS produto_nome,
+  price AS preco_original,
+  price * 0.90 AS preco_com_desconto
+FROM Product;
+```
+
+---
+
+## Filtragem e Predicados com WHERE
+
+A cláusula `WHERE` filtra as linhas da tabela antes que qualquer projeção ou ordenação seja aplicada, avaliando uma expressão booleana para cada tupla.
+
+<Mermaid title="Fluxo de filtragem do comando SELECT com WHERE">
+{`
+flowchart TD
+    Tabela["Tabela de Dados (Milhares de Linhas)"] --> Predicado{"Avaliação do WHERE<br/>(Expressão Booleana)"}
+    Predicado -- TRUE --> Projecao["Projeção das Colunas (SELECT)"]
+    Predicado -- FALSE / UNKNOWN --> Descarte["Linha Descartada"]
+    Projecao --> Ordenacao["Ordenação (ORDER BY) & Paginação (LIMIT)"]
+    Ordenacao --> Saida["Conjunto de Resultados (Result Set)"]
+`}
+</Mermaid>
+
+O arquivo `filters.sql` demonstra as diversas formas de filtragem suportadas pela SQL:
+
+<SourceCode path="examples/courses/database/invest-db/filters.sql" mark={[2, 5, 8, 11, 14]} />
+
+```txt title="Output"
+-- [{ id: 1, name: 'Ana Silva' }, { id: 2, name: 'Ana Costa' }]
+-- [{ id: 1, name: 'Ana Silva' }, { id: 3, name: 'Carlos Lima' }, { id: 5, name: 'Eduardo' }]
+-- [{ id: 2, title: 'SQL Avançado', views: 85 }]
+-- [{ id: 4, title: 'Rascunho Sem Conteúdo' }]
+-- [{ id: 3, title: 'Guia de Índices' }]
+```
+
+### Operadores de Busca Especiais
+
+1. **`LIKE` e `ILIKE`**: Busca por casamento de padrões em strings:
+   - `%`: Casa com zero, um ou múltiplos caracteres (ex: `'Ana%'` encontra "Ana", "Anacleto", "Ana Maria").
+   - `_`: Casa com exatamente um único caractere (ex: `'A_a'` encontra "Ana", "Aba", mas não "Anna").
+2. **`IN (...)`**: Verifica se o valor da coluna pertence a uma lista finita de opções literais ou a uma subconsulta.
+3. **`BETWEEN min AND max`**: Avalia se o valor está contido no intervalo fechado (inclusivo) entre `min` e `max`.
+
+---
+
+## O Valor NULL e a Lógica Trivalente (*3VL*)
+
+Na linguagem SQL, `NULL` não representa o número zero nem uma string vazia `""`. `NULL` representa a **ausência de valor** ou um valor **desconhecido**.
+
+Por essa razão, a SQL adota a lógica trivalente (*Three-Valued Logic*), onde uma expressão condicional pode resultar em **TRUE**, **FALSE** ou **UNKNOWN**:
+
+<Aside type="danger" title="Por que campo = NULL nunca funciona?">
+  Qualquer comparação direta de igualdade ou desigualdade com `NULL` (como `WHERE content = NULL` ou `WHERE content != NULL`) resulta em **UNKNOWN**, que é tratado pelo `WHERE` como falso. Para verificar nulos, utilize exclusivamente **`IS NULL`** ou **`IS NOT NULL`**.
+</Aside>
+
+A tabela verdade abaixo ilustra o comportamento de operações com `UNKNOWN`:
+
+| Expressão | Resultado |
+| :--- | :--- |
+| `TRUE AND UNKNOWN` | `UNKNOWN` |
+| `FALSE AND UNKNOWN` | `FALSE` |
+| `TRUE OR UNKNOWN` | `TRUE` |
+| `NOT UNKNOWN` | `UNKNOWN` |
+| `NULL = NULL` | `UNKNOWN` (Nunca é verdadeiro!) |
+| `NULL IS NULL` | `TRUE` |
+
+---
+
+## Ordenação com ORDER BY
+
+A álgebra relacional define que uma tabela é um conjunto não ordenado de tuplas. Sem uma cláusula `ORDER BY` explícita, o SGBD tem a liberdade de retornar os registros em qualquer ordem física disponível em disco.
+
+Para garantir previsibilidade e estabilidade nos resultados, utilize `ORDER BY`:
+
+<SourceCode path="examples/courses/database/invest-db/ordering.sql" mark={[2, 5]} />
+
+```txt title="Output"
+-- [{ id: 1, name: 'Ana Costa' }, { id: 2, name: 'Ana Silva' }, { id: 3, name: 'Carlos Lima' }]
+-- [{ id: 1, title: 'Aprenda SQL', views: 120 }, { id: 3, title: 'Guia de Índices', views: 95 }]
+```
+
+### Múltiplos Critérios e Direção
+
+Você pode combinar colunas com sentidos opostos de ordenação:
+
+```sql
+SELECT id, category, price
+FROM Product
+ORDER BY category ASC, price DESC;
+```
+
+---
+
+## Paginação de Resultados: OFFSET versus Cursor
+
+Apresentar dados em páginas (como em tabelas de dashboards ou feeds de redes sociais) pode ser implementado de duas maneiras:
+
+<Mermaid title="Comparativo: Paginação por OFFSET vs Paginação por Cursor">
+{`
+flowchart TD
+    subgraph OffsetPaging ["1. Paginação por OFFSET (Simples, Lenta em Escala)"]
+        direction TB
+        O1["SELECT * FROM Post ORDER BY id LIMIT 10 OFFSET 50000;"] --> O2["O banco lê 50.010 linhas e descarta as primeiras 50.000."]
+    end
+
+    subgraph CursorPaging ["2. Paginação por Cursor / Keyset (Alta Performance)"]
+        direction TB
+        C1["SELECT * FROM Post WHERE id > 50000 ORDER BY id LIMIT 10;"] --> C2["O banco salta direto para o ID via índice B-Tree."]
+    end
+`}
+</Mermaid>
+
+1. **`LIMIT` e `OFFSET` (Paginação Clássica)**:
+   - Fácil de implementar na interface (`página = 5`).
+   - **Problema de Desempenho**: Em offsets elevados (`OFFSET 100000`), o banco é forçado a varrer cem mil linhas para descartá-las antes de retornar as dez solicitadas.
+2. **Paginação por Cursor / *Keyset Pagination***:
+   - Utiliza a última chave primária da página anterior (`WHERE id > :ultimo_id`).
+   - **Vantagem**: Acesso instantâneo de tempo logarítmico $O(\log n)$ via índice B-Tree, independente da profundidade da página.
+
+---
+
+## Eliminação de Duplicatas com SELECT DISTINCT
+
+Quando uma consulta pode retornar linhas com dados redundantes, a cláusula `DISTINCT` remove as cópias do conjunto resultante:
+
+```sql
+SELECT DISTINCT category
+FROM Post
+WHERE published = 1;
+```
+
+---
+
+## Executando os Exemplos
+
+Você pode executar os scripts de consulta e filtragem no projeto `invest-db`:
+
+<FileTree>
+{`
+invest-db/
+├── filters.sql
+├── ordering.sql
+├── crud.sql
+├── run.mjs
+└── package.json
+`}
+</FileTree>
+
+<Steps>
+1. Abra o terminal na pasta do projeto:
+   ```bash
+   cd examples/courses/database/invest-db
+   ```
+2. Execute as consultas de filtro:
+   ```bash
+   node run.mjs filters.sql
+   ```
+3. Execute as consultas de ordenação e paginação:
+   ```bash
+   node run.mjs ordering.sql
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base nas técnicas de consulta DQL:
+
+1. Por que a instrução `SELECT * FROM Post WHERE content = NULL` nunca retorna nenhuma linha, mesmo que existam posts com conteúdo nulo?
+2. Qual a diferença de resultado entre o padrão `LIKE '%Tech%'` e o padrão `LIKE 'Tech%'`?
+3. O que acontece se uma consulta com `LIMIT 10 OFFSET 20` for executada em uma tabela que possui apenas 15 linhas no total?
+4. Como a paginação baseada em cursor (*Keyset Pagination*) supera a degradação de desempenho do `OFFSET` em tabelas com milhões de registros?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque qualquer comparação com `NULL` através de operadores tradicionais (`=`, `!=`) avalia para `UNKNOWN` na lógica trivalente do SQL. O filtro `WHERE` descarta qualquer linha cujo resultado não seja estritamente `TRUE`. O correto é escrever `WHERE content IS NULL`.
+  2. `LIKE 'Tech%'` casa apenas com textos que **começam** com o prefixo "Tech". Já `LIKE '%Tech%'` casa com qualquer texto que contenha "Tech" em qualquer posição (início, meio ou fim).
+  3. A consulta retornará um conjunto vazio (`0` linhas), pois o `OFFSET 20` descarta as primeiras 20 linhas e a tabela só contém 15.
+  4. Porque o cursor transforma a busca em um filtro direto por índice (`WHERE id > ultimo_id LIMIT 10`), permitindo que a árvore B-Tree localize o ponto de partida em milissegundos sem precisar ler e descartar milhares de páginas de dados anteriores.
+</details>
+
+---
+
+## Desafio
+
+Você precisa construir uma consulta de busca para a tela de produtos de um e-commerce que atenda aos seguintes requisitos em uma única instrução SQL:
+1. Buscar produtos cujo nome contenha o termo `'Gamer'` (sem diferenciar maiúsculas/minúsculas).
+2. O preço deve estar entre R\$ 100,00 e R\$ 800,00 (inclusive).
+3. Apenas produtos que possuam descrição preenchida (não nula) e pertençam às categorias `'Periféricos'` ou `'Acessórios'`.
+4. Ordenar do mais caro para o mais barato, e trazer os 10 primeiros itens da segunda página de resultados (usando `LIMIT`/`OFFSET`).
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  SELECT id, name, price, category
+  FROM Product
+  WHERE name LIKE '%Gamer%'
+    AND price BETWEEN 100.00 AND 800.00
+    AND description IS NOT NULL
+    AND category IN ('Periféricos', 'Acessórios')
+  ORDER BY price DESC
+  LIMIT 10 OFFSET 10;
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Projeção e Filtragem
+
+1. **Qual é o principal comando do subconjunto DQL?**
+   <details><summary>Possível resposta</summary>O comando `SELECT`.</details>
+
+2. **Para que serve a cláusula `AS` em uma consulta `SELECT`?**
+   <details><summary>Possível resposta</summary>Para definir um apelido (*alias*) temporário para uma coluna ou tabela, melhorando a legibilidade ou nomeando colunas calculadas.</details>
+
+3. **O que faz o predicado `BETWEEN 10 AND 50`?**
+   <details><summary>Possível resposta</summary>Filtra valores que sejam maiores ou iguais a 10 e menores ou iguais a 50 (intervalo fechado inclusivo).</details>
+
+### Valores Nulos e Paginação
+
+4. **Quais são os três valores de verdade possíveis na lógica trivalente (*3VL*) da SQL?**
+   <details><summary>Possível resposta</summary>`TRUE`, `FALSE` e `UNKNOWN`.</details>
+
+5. **Qual é o risco de ordenar dados por uma coluna não indexada com `ORDER BY` em uma tabela de grande porte?**
+   <details><summary>Possível resposta</summary>O SGBD precisará carregar todas as linhas na memória RAM e executar um algoritmo de ordenação em disco (*External Merge Sort*), causando alto consumo de CPU e lentidão extrema.</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: Queries and the SELECT Command](https://www.postgresql.org/docs/current/queries.html)
+- [SQLite Documentation: SELECT Statement Syntax](https://www.sqlite.org/lang_select.html)
+- [MySQL 8.4 Reference: SELECT Syntax and Optimization](https://dev.mysql.com/doc/refman/8.4/en/select.html)
+- [Use The Index, Luke: Paging with Keyset Pagination](https://use-the-index-luke.com/sql/partial-results/fetch-next-page)
+
+---
+
+## Próximo tópico
+
+[Junções e Agregações](../joins-aggregations/): Aprenda a combinar múltiplas tabelas com `INNER`, `LEFT`, `RIGHT` e `FULL JOIN`, agrupar com `GROUP BY` e filtrar agregações com `HAVING`.

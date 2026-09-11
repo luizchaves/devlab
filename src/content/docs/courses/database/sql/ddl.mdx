@@ -1,0 +1,275 @@
+---
+title: "Linguagem SQL: DDL e Definição de Dados"
+description: "Data Definition Language (CREATE, ALTER, DROP, TRUNCATE), tipos de dados SQL, esquemas e restrições de integridade estrutural (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK)."
+course: database
+sidebar:
+  label: "SQL DDL (Definição)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+O subconjunto **DDL** (*Data Definition Language*) da SQL é responsável por criar, modificar e remover a estrutura lógica dos objetos do banco de dados (esquemas, tabelas, colunas, tipos de dados, chaves e restrições de integridade). Com comandos DDL, você define o esqueleto estrutural que protege os dados contra inconsistências antes mesmo de qualquer linha ser inserida.
+
+---
+
+## Objetivo
+
+Dominar a sintaxe e o comportamento dos comandos DDL para projetar esquemas relacionais íntegros e consistentes, executados contra o banco de dados de exemplo do projeto `invest-db`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Criar tabelas relacionais com `CREATE TABLE`, definindo tipos de dados apropriados e colunas autoincrementadas.
+- Aplicar restrições de integridade (*Constraints*): `PRIMARY KEY`, `NOT NULL`, `UNIQUE`, `DEFAULT` e `CHECK`.
+- Estabelecer integridade referencial com `FOREIGN KEY` e configurar ações em cascata (`ON DELETE CASCADE`, `ON DELETE SET NULL`, `RESTRICT`).
+- Alterar esquemas existentes com `ALTER TABLE` (`ADD COLUMN`, `DROP COLUMN`, `RENAME`).
+- Comparar os impactos de destruição estrutural entre `DROP TABLE` e `TRUNCATE TABLE`.
+
+---
+
+## O Ciclo de Vida Estrutural no DDL
+
+As instruções DDL governam o ciclo de vida completo dos metadados e objetos em um banco relacional:
+
+<Mermaid title="Ciclo de vida dos objetos com comandos DDL">
+{`
+flowchart LR
+    C["1. CREATE<br/>Cria tabela e restrições"] --> A["2. ALTER<br/>Adiciona/remove colunas"]
+    A --> T["3. TRUNCATE<br/>Esvazia dados (mantém estrutura)"]
+    T --> D["4. DROP<br/>Remove tabela e metadados"]
+`}
+</Mermaid>
+
+---
+
+## Criação de Tabelas e Restrições de Integridade
+
+O comando fundamental do DDL é o `CREATE TABLE`. Uma tabela bem definida combina nomes de atributos, tipos de dados estritos e restrições de integridade (*constraints*) que garantem a coerência dos dados no nível mais baixo do sistema.
+
+As principais restrições incluem:
+
+- **`PRIMARY KEY`**: Identificador único de cada linha. Garante unicidade e impede valores nulos (`NOT NULL + UNIQUE`).
+- **`NOT NULL`**: Impede que a coluna armazene valores nulos (`NULL`), forçando o preenchimento obrigatório.
+- **`UNIQUE`**: Garante que não existam dois registros com o mesmo valor na coluna (ou combinação de colunas), embora permita múltiplos valores nulos no padrão ANSI.
+- **`DEFAULT`**: Atribui um valor padrão automático caso a inserção não forneça dados para a coluna (por exemplo, data atual ou contador zero).
+- **`CHECK`**: Valida se o valor inserido satisfaz uma expressão booleana arbitrária (por exemplo, `price > 0` ou `views >= 0`).
+
+O arquivo `schema.sql` do projeto cria a tabela `User` aplicando essas regras:
+
+<SourceCode path="examples/courses/database/invest-db/schema.sql" region="user" mark={[2, 3, 4, 5, 6]} />
+
+```txt title="Output"
+-- ok
+```
+
+---
+
+## Chave Estrangeira e Integridade Referencial
+
+Uma **chave estrangeira** (`FOREIGN KEY`) conecta registros de uma tabela dependente (filha) à chave primária de uma tabela de referência (pai). A integridade referencial assegura que nunca existam registros órfãos apontando para identidades inexistentes.
+
+A cláusula `ON DELETE` define o comportamento automático do SGBD quando a linha pai é removida:
+
+| Ação Referencial | Comportamento ao excluir o pai | Cenário de Uso Recomendado |
+| :--- | :--- | :--- |
+| **`CASCADE`** | Exclui automaticamente todos os filhos vinculados. | Relações de composição forte (ex: itens de um pedido). |
+| **`SET NULL`** | Mantém os registros filhos e define a coluna de FK como `NULL`. | Relações opcionais (ex: autor de um artigo desativado). |
+| **`RESTRICT` / `NO ACTION`** | Rejeita a exclusão do pai com erro se houver filhos vinculados. | Padrão seguro para proteger dados críticos (ex: contas bancárias). |
+
+A tabela `Post` vincula cada artigo a um autor da tabela `User`, configurando exclusão em cascata:
+
+<SourceCode path="examples/courses/database/invest-db/schema.sql" region="post" mark={[11, 18, 19]} />
+
+```txt title="Output"
+-- ok
+```
+
+A tabela `Product` exemplifica uma entidade independente com restrições numéricas:
+
+<SourceCode path="examples/courses/database/invest-db/schema.sql" region="product" mark={[24, 26, 27]} />
+
+```txt title="Output"
+-- ok
+```
+
+---
+
+## Alteração e Remoção com ALTER, DROP e TRUNCATE
+
+Sistemas em produção evoluem continuamente, exigindo modificações na estrutura de tabelas sem que seja necessário recriar o banco de dados do zero.
+
+### 1. `ALTER TABLE`
+Permite adicionar novas colunas (`ADD COLUMN`), renomear colunas ou tabelas (`RENAME TO`) e remover colunas existentes (`DROP COLUMN`).
+
+O arquivo `alter-drop.sql` demonstra o ciclo: adiciona a coluna `status`, popula dados de teste, renomeia uma coluna e descarta a tabela temporária:
+
+<SourceCode path="examples/courses/database/invest-db/alter-drop.sql" region="alter" mark={[3, 11, 14]} />
+
+```txt title="Output"
+-- ok
+-- 1 linha(s) afetada(s)
+-- 1 linha(s) afetada(s)
+```
+
+### 2. `DROP TABLE` versus `TRUNCATE TABLE`
+
+Quando uma tabela não é mais necessária ou precisa ter todos os seus dados eliminados instantaneamente:
+
+<SourceCode path="examples/courses/database/invest-db/alter-drop.sql" region="drop" mark={[2]} />
+
+```txt title="Output"
+-- ok
+```
+
+A tabela abaixo compara as diferenças técnicas cruciais entre os comandos de destruição estrutural e limpeza:
+
+| Característica | `DROP TABLE` (DDL) | `TRUNCATE TABLE` (DDL) | `DELETE FROM` (DML) |
+| :--- | :--- | :--- | :--- |
+| **Escopo da Operação** | Remove a tabela e todos os metadados do disco. | Esvazia todas as linhas; preserva a estrutura. | Remove linhas selecionadas pelo filtro `WHERE`. |
+| **Velocidade** | Instantâneo (desaloca páginas de disco). | Instantâneo (desaloca páginas de disco). | Lento em massa (grava log linha a linha). |
+| **Reinício de Autoincremento** | A tabela deixa de existir. | Reinicia o contador `AUTO_INCREMENT` para 1. | Mantém o contador na última posição gerada. |
+| **Disparo de Triggers** | Não dispara triggers de linha. | Não dispara triggers de linha (na maioria dos SGBDs). | Dispara triggers `BEFORE/AFTER DELETE` para cada linha. |
+| **Capacidade de Rollback** | Suportado no PostgreSQL/SQLite; não no MySQL. | Suportado no PostgreSQL; não no MySQL. | Sempre suportado em transações ativas. |
+
+---
+
+## Tipos de Dados Fundamentais na SQL
+
+A integridade do banco começa na escolha do tipo de dado ideal para cada coluna:
+
+1. **Numéricos**:
+   - `INTEGER` / `BIGINT`: Para chaves substitutas, quantidades e contadores exatos.
+   - `NUMERIC(p, s)` / `DECIMAL`: Para valores monetários e financeiros de precisão arbitrária exata (evita erros de arredondamento de ponto flutuante).
+   - `REAL` / `DOUBLE PRECISION`: Para cálculos científicos e coordenadas de ponto flutuante aproximado.
+2. **Caracteres e Texto**:
+   - `VARCHAR(n)`: Strings de comprimento variável com limite máximo.
+   - `TEXT`: Cadeias de texto longas sem limite rígido.
+   - `CHAR(n)`: Strings de comprimento fixo (preenchidas com espaços).
+3. **Datas e Horas**:
+   - `DATE`: Apenas ano, mês e dia (`2026-05-01`).
+   - `TIMESTAMP`: Data e hora sem fuso horário.
+   - `TIMESTAMPTZ`: Data e hora com fuso horário UTC padronizado (recomendado para aplicações distribuídas e web).
+4. **Booleanos**:
+   - `BOOLEAN` (`TRUE` ou `FALSE`), representado como `INTEGER (0 ou 1)` no SQLite.
+
+---
+
+## Executando os Exemplos
+
+Você pode clonar e rodar o projeto de exemplo localmente para verificar a criação das tabelas e a execução das instruções DDL:
+
+<FileTree>
+{`
+invest-db/
+├── schema.sql
+├── alter-drop.sql
+├── crud.sql
+├── filters.sql
+├── ordering.sql
+├── run.mjs
+└── package.json
+`}
+</FileTree>
+
+<Steps>
+1. Abra o terminal na raiz do projeto `invest-db`:
+   ```bash
+   cd examples/courses/database/invest-db
+   ```
+2. Instale as dependências:
+   ```bash
+   pnpm install
+   ```
+3. Execute o script de criação de esquema:
+   ```bash
+   node run.mjs schema.sql
+   ```
+4. Execute o script de alteração e remoção:
+   ```bash
+   node run.mjs alter-drop.sql
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base nas propriedades do subconjunto DDL:
+
+1. Qual é a diferença fundamental entre uma chave primária (`PRIMARY KEY`) e uma restrição de unicidade (`UNIQUE`)?
+2. Em um relacionamento 1:N entre `Departamento` e `Funcionario`, o que acontece se o departamento for excluído e a FK estiver configurada com `ON DELETE RESTRICT`? E se estiver configurada com `ON DELETE CASCADE`?
+3. Por que campos monetários em tabelas financeiras nunca devem ser tipados como `FLOAT` ou `REAL`?
+4. Em qual situação prática o comando `TRUNCATE TABLE` é preferível em relação ao `DELETE FROM`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A `PRIMARY KEY` identifica unicamente o registro na tabela, é obrigatória e rejeita terminantemente valores nulos (`NOT NULL`), podendo existir apenas uma por tabela. A restrição `UNIQUE` impede repetições de valores válidos, mas permite a inserção de múltiplos registros com `NULL` (no padrão ANSI) e uma tabela pode ter dezenas de restrições `UNIQUE`.
+  2. Com `ON DELETE RESTRICT`, o SGBD impede a exclusão do departamento e retorna um erro se houver funcionários associados a ele. Com `ON DELETE CASCADE`, o SGBD exclui automaticamente o departamento e todos os funcionários que trabalhavam nele.
+  3. Porque tipos de ponto flutuante (`FLOAT`/`REAL`) utilizam a representação binária IEEE 754, sujeita a imprecisões decimais acumuladas em somas e multiplicações. Valores monetários exigem tipos de ponto fixo exato (`NUMERIC` ou `DECIMAL`).
+  4. Quando se deseja limpar uma tabela inteira de log ou dados temporários instantaneamente, reiniciando o autoincremento e economizando I/O de gravação de transação linha a linha.
+</details>
+
+---
+
+## Desafio
+
+Projete o DDL de uma tabela `Account` para um sistema bancário com as seguintes regras de negócio estritas:
+- Identificador primário autoincrementado.
+- Número da conta no formato texto obrigatório e único.
+- Saldo (`balance`) decimal com 2 casas de precisão, padrão `0.00`, que nunca pode ser negativo.
+- Status da conta que aceita exclusivamente os valores `'ACTIVE'`, `'BLOCKED'` ou `'CLOSED'`.
+- Data de criação registrada automaticamente no fuso horário atual.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  ```sql
+  CREATE TABLE Account (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_num VARCHAR(20) NOT NULL UNIQUE,
+    balance     NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    status      VARCHAR(10) NOT NULL DEFAULT 'ACTIVE',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_positive_balance CHECK (balance >= 0.00),
+    CONSTRAINT chk_account_status   CHECK (status IN ('ACTIVE', 'BLOCKED', 'CLOSED'))
+  );
+  ```
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Comandos e Estruturas
+
+1. **Quais são os quatro comandos fundamentais do subconjunto DDL?**
+   <details><summary>Possível resposta</summary>`CREATE`, `ALTER`, `DROP` e `TRUNCATE`.</details>
+
+2. **O que acontece ao executar `ALTER TABLE ... DROP COLUMN` em um banco de dados em produção?**
+   <details><summary>Possível resposta</summary>A coluna é removida do esquema e os dados armazenados nela deixam de ser acessíveis, podendo invalidar consultas, visões e códigos de aplicação que dependiam desse atributo.</details>
+
+### Restrições e Integridade
+
+3. **Qual a finalidade da restrição `CHECK`?**
+   <details><summary>Possível resposta</summary>Validar se os valores atribuídos a uma ou mais colunas atendem a uma condição lógica predeterminada antes de autorizar a gravação.</details>
+
+4. **Como o `TRUNCATE` consegue ser muito mais rápido que o `DELETE` em tabelas com milhões de linhas?**
+   <details><summary>Possível resposta</summary>O `TRUNCATE` desaloca diretamente as páginas de armazenamento em disco sem registrar a remoção individual de cada linha no log de transações (*Write-Ahead Log*).</details>
+
+5. **O que é uma chave primária composta?**
+   <details><summary>Possível resposta</summary>É uma chave primária formada pela combinação de duas ou mais colunas para identificar unicamente uma linha (comum em tabelas de relacionamento N:N).</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: Data Definition (DDL)](https://www.postgresql.org/docs/current/ddl.html)
+- [SQLite Documentation: CREATE TABLE Syntax](https://www.sqlite.org/lang_createtable.html)
+- [MySQL 8.4 Reference: Data Definition Statements](https://dev.mysql.com/doc/refman/8.4/en/sql-data-definition-statements.html)
+- [ANSI SQL: Integrity Constraints and Constraints Enforcement](https://www.iso.org/standard/76583.html)
+
+---
+
+## Próximo tópico
+
+[SQL DML (Manipulação de Dados)](../dml/): Domine as instruções de escrita `INSERT`, `UPDATE`, `DELETE`, padrões de `UPSERT` e gestão de mutação de dados.

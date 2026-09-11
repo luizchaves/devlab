@@ -167,8 +167,12 @@ export default defineConfig({
     ),
     '/courses/dw-cstrc-jp/database/dbms': withBase('/courses/database/basics/introduction/'),
     '/courses/database/basics/dbms': withBase('/courses/database/basics/introduction/'),
-    '/courses/database/nosql/paradigms': withBase('/courses/database/basics/paradigms/'),
-    '/courses/dw-cstrc-jp/database/sql': withBase('/courses/database/sql/fundamentals/'),
+    '/courses/dw-cstrc-jp/database/sql': withBase('/courses/database/sql/introduction/'),
+    '/courses/database/sql/fundamentals': withBase('/courses/database/sql/introduction/'),
+    '/courses/database/sql/transactions': withBase('/courses/database/sql/tcl/'),
+    '/courses/database/relational-comparison': withBase(
+      '/courses/database/sql/engines-comparison/'
+    ),
     '/courses/dw-cstrc-jp/database/sql-node': withBase(
       '/courses/expressjs/persistence/node-sqlite/'
     ),
@@ -1370,12 +1374,15 @@ export default defineConfig({
                 {
                   label: 'Linguagem SQL',
                   items: [
-                    { label: 'SQL DDL e DML', link: '/courses/database/sql/fundamentals/' },
+                    { label: 'Introdução ao SQL', link: '/courses/database/sql/introduction/' },
+                    { label: 'SQL DDL (Definição)', link: '/courses/database/sql/ddl/' },
+                    { label: 'SQL DML (Manipulação)', link: '/courses/database/sql/dml/' },
+                    { label: 'SQL DQL (Consulta)', link: '/courses/database/sql/dql/' },
                     {
                       label: 'Junções e Agregações',
                       link: '/courses/database/sql/joins-aggregations/',
                     },
-                    { label: 'Transações', link: '/courses/database/sql/transactions/' },
+                    { label: 'SQL TCL e Transações', link: '/courses/database/sql/tcl/' },
                     { label: 'SQL DCL e Permissões', link: '/courses/database/sql/dcl/' },
                     {
                       label: 'Procedures, Functions e Triggers',

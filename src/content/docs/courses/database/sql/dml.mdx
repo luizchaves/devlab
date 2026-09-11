@@ -1,0 +1,284 @@
+---
+title: "Linguagem SQL: DML e Manipulação de Dados"
+description: "Data Manipulation Language (INSERT, UPDATE, DELETE), cláusula RETURNING, padrões de UPSERT e MERGE, e segurança em mutações de dados relacionais."
+course: database
+sidebar:
+  label: "SQL DML (Manipulação)"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import SourceCode from '@components/SourceCode.astro';
+import Mermaid from '@components/Mermaid.astro';
+
+O subconjunto **DML** (*Data Manipulation Language*) da linguagem SQL reúne as instruções responsáveis por alterar o estado dos dados armazenados nas tabelas: inserir novos registros (`INSERT`), modificar valores existentes (`UPDATE`) e remover linhas (`DELETE`). Enquanto o DDL molda a estrutura do banco, o DML dá vida aos dados operacionais da aplicação.
+
+---
+
+## Objetivo
+
+Compreender o funcionamento das instruções de escrita e mutação de dados em SQL, aplicando técnicas seguras de manipulação com o projeto `invest-db`. Ao final do tópico, o leitor deve ser capaz de:
+
+- Inserir dados individuais e em lote com `INSERT INTO`, compreendendo o preenchimento automático de chaves primárias e valores padrão.
+- Atualizar registros existentes com `UPDATE`, utilizando filtros `WHERE` precisos e expressões aritméticas.
+- Excluir linhas com `DELETE`, avaliando os riscos de exclusões acidentais e o impacto da integridade referencial.
+- Aplicar padrões modernos de escrita condicional (*UPSERT* com `ON CONFLICT` / `ON DUPLICATE KEY`).
+- Utilizar a cláusula `RETURNING` para recuperar identificadores e valores calculados imediatamente após a gravação.
+
+---
+
+## O Ciclo de Mutação com DML
+
+As instruções DML realizam as operações de gravação e mutação do CRUD (*Create, Update, Delete*):
+
+<Mermaid title="Operações de mutação de dados com DML">
+{`
+flowchart LR
+    I["1. INSERT<br/>Adiciona novas linhas"] --> U["2. UPDATE<br/>Modifica colunas existentes"]
+    U --> D["3. DELETE<br/>Remove linhas específicas"]
+`}
+</Mermaid>
+
+Cada instrução DML altera o estado do banco e gera um número de **linhas afetadas** (*rows affected*), indicando à aplicação quantos registros foram criados, alterados ou removidos.
+
+---
+
+## Inserção de Dados com INSERT INTO
+
+O comando `INSERT INTO` adiciona novas tuplas (linhas) a uma tabela existente. Ao inserir dados, você pode declarar explicitamente a lista de colunas que receberão valores.
+
+Colunas configuradas com `AUTOINCREMENT` ou com valores `DEFAULT` (como carimbos de data automáticos) podem ser omitidas da instrução:
+
+<SourceCode path="examples/courses/database/invest-db/crud.sql" region="create" mark={[3]} />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+```
+
+### Inserção em Lote (*Batch Insert*)
+
+Inserir múltiplos registros em uma única instrução SQL é significativamente mais rápido do que executar centenas de instruções `INSERT` individuais, pois reduz o tráfego de rede e o número de gravações no log de transações:
+
+```sql
+INSERT INTO Product (name, price) VALUES
+  ('Teclado Mecânico', 350.00),
+  ('Mouse Sem Fio',     120.00),
+  ('Monitor 27 Pol',   1400.00);
+```
+
+### Inserção a partir de Consulta (`INSERT INTO ... SELECT`)
+
+Você também pode popular uma tabela copiando dados processados de outra:
+
+```sql
+INSERT INTO ArchivePost (id, title, authorId)
+SELECT id, title, authorId
+FROM Post
+WHERE published = 0 AND createdAt < '2025-01-01';
+```
+
+---
+
+## Atualização de Dados com UPDATE
+
+O comando `UPDATE` modifica o conteúdo de uma ou mais colunas em registros já existentes.
+
+<Aside type="caution" title="Perigo do UPDATE sem WHERE">
+  Um comando `UPDATE` executado sem a cláusula `WHERE` atualizará **todas as linhas de toda a tabela** indiscriminadamente. Sempre valide o filtro com um `SELECT` equivalente antes de aplicar a alteração em ambientes de produção.
+</Aside>
+
+O exemplo do projeto atualiza o nome do usuário com `id = 1`:
+
+<SourceCode path="examples/courses/database/invest-db/crud.sql" region="update" mark={[15]} />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- [{ id: 1, name: 'Ana Maria Silva' }]
+```
+
+### Atualização com Expressões e Cálculos
+
+O `UPDATE` permite utilizar o próprio valor atual da coluna para computar o novo estado (por exemplo, conceder 10% de reajuste nos preços):
+
+```sql
+UPDATE Product
+SET price = price * 1.10
+WHERE price < 500.00;
+```
+
+---
+
+## Exclusão de Dados com DELETE
+
+O comando `DELETE FROM` remove linhas específicas de uma tabela com base em um critério de seleção `WHERE`.
+
+Assim como no `UPDATE`, a ausência de `WHERE` causará a remoção de todos os dados da tabela:
+
+<SourceCode path="examples/courses/database/invest-db/crud.sql" region="delete" mark={[22]} />
+
+```txt title="Output"
+-- 1 linha(s) afetada(s)
+-- [{ total: 4 }]
+```
+
+### `DELETE` versus `TRUNCATE` versus `DROP`
+
+A distinção entre esses três comandos é um dos pontos mais cobrados na engenharia de banco de dados:
+
+<Mermaid title="Comparativo: DELETE (DML) vs TRUNCATE (DDL) vs DROP (DDL)">
+{`
+flowchart TD
+    DML["DELETE FROM (DML)"] -->|"Varre linhas, dispara Triggers, permite ROLLBACK granular"| R1["Lento em tabelas gigantes"]
+    TRUNC["TRUNCATE TABLE (DDL)"] -->|"Desaloca páginas de disco, reinicia AUTO_INCREMENT"| R2["Instantâneo, preserva esquema"]
+    DRP["DROP TABLE (DDL)"] -->|"Destrói estrutura, metadados e arquivos de disco"| R3["Tabela deixa de existir"]
+`}
+</Mermaid>
+
+---
+
+## Padrões Modernos: UPSERT e Cláusula RETURNING
+
+Aplicações modernas que sincronizam dados frequentemente precisam de operações atômicas que insiram um registro se ele não existir, ou atualizem o registro existente se já houver conflito de chave.
+
+### 1. Padrão UPSERT (*Insert or Update*)
+
+A sintaxe varia entre os motores:
+
+- **PostgreSQL e SQLite (Padrão Moderno)**:
+  ```sql
+  INSERT INTO User (email, name)
+  VALUES ('ana@example.com', 'Ana Silva')
+  ON CONFLICT(email) DO UPDATE SET
+    name = excluded.name;
+  ```
+- **MySQL**:
+  ```sql
+  INSERT INTO User (email, name)
+  VALUES ('ana@example.com', 'Ana Silva')
+  ON DUPLICATE KEY UPDATE
+    name = VALUES(name);
+  ```
+- **Oracle / Padrão ANSI**:
+  ```sql
+  MERGE INTO User u
+  USING (SELECT 'ana@example.com' AS email, 'Ana Silva' AS name) n
+  ON (u.email = n.email)
+  WHEN MATCHED THEN UPDATE SET u.name = n.name
+  WHEN NOT MATCHED THEN INSERT (email, name) VALUES (n.email, n.name);
+  ```
+
+### 2. Cláusula `RETURNING`
+
+Em SGBDs como PostgreSQL e SQLite 3.35+, a cláusula `RETURNING` permite que instruções `INSERT`, `UPDATE` e `DELETE` retornem imediatamente as colunas gravadas sem exigir uma segunda consulta `SELECT`:
+
+```sql
+INSERT INTO Product (name, price)
+VALUES ('Webcam 4K', 450.00)
+RETURNING id, name, price;
+```
+
+Essa técnica elimina viagens de rede (*round-trips*) adicionais e é amplamente utilizada por ORMs (como Prisma e TypeORM) para obter o ID gerado pelo banco.
+
+---
+
+## Executando os Exemplos
+
+Você pode executar os comandos de mutação do projeto `invest-db` para observar as linhas afetadas:
+
+<FileTree>
+{`
+invest-db/
+├── crud.sql
+├── schema.sql
+├── run.mjs
+└── package.json
+`}
+</FileTree>
+
+<Steps>
+1. Abra o terminal no diretório do projeto:
+   ```bash
+   cd examples/courses/database/invest-db
+   ```
+2. Execute o arquivo de CRUD:
+   ```bash
+   node run.mjs crud.sql
+   ```
+</Steps>
+
+---
+
+## Exercício
+
+Com base nos comandos DML estudados:
+
+1. Qual é o perigo de executar um comando `UPDATE` ou `DELETE` sem a cláusula `WHERE`?
+2. Como a cláusula `RETURNING` otimiza a comunicação entre uma API backend e o banco de dados relacional?
+3. O que é o padrão *UPSERT* e qual problema de concorrência ele resolve?
+4. Em uma tabela `ItemVenda`, por que fazer inserções em lote (*Batch Insert*) é muito mais eficiente do que chamar um `INSERT` individual dentro de um laço `for` na aplicação?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Sem a cláusula `WHERE`, o comando afetará todas as linhas da tabela, sobrescrevendo ou apagando o banco inteiro.
+  2. A cláusula `RETURNING` devolve os dados persistidos (como chaves primárias autogeradas e carimbos de data) na mesma resposta da instrução de escrita, evitando que a aplicação precise executar um `SELECT` subsequente.
+  3. O *UPSERT* realiza uma inserção ou atualização condicional atômica em uma única instrução SQL, evitando erros de chave duplicada ou condições de corrida (*race conditions*) que ocorrem quando a aplicação tenta fazer um `SELECT` seguido de `INSERT/UPDATE` separado.
+  4. Porque o envio em lote agrupa centenas de registros em uma única requisição de rede e em uma única transação no log do SGBD, economizando conexões TCP e operações de escrita síncrona em disco.
+</details>
+
+---
+
+## Desafio
+
+Um e-commerce precisa implementar uma rotina de cancelamento seguro de pedidos:
+1. Escreva uma instrução `UPDATE` que altere o status de um pedido com `id = 1042` para `'CANCELLED'`, mas **apenas** se o status atual for `'PENDING'` ou `'AWAITING_PAYMENT'`.
+2. Como a aplicação backend pode verificar se a atualização realmente ocorreu ou se o pedido já estava em outro estado (ex: `'SHIPPED'`)?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Instrução SQL:
+     ```sql
+     UPDATE OrderTable
+     SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
+     WHERE id = 1042 AND status IN ('PENDING', 'AWAITING_PAYMENT');
+     ```
+  2. A aplicação deve inspecionar a contagem de **linhas afetadas** (*rows affected / changes*) retornada pelo driver do banco. Se o valor retornado for `1`, o cancelamento foi concluído; se o valor retornado for `0`, significa que o pedido não existia ou já estava em um estado incompatível (como já despachado).
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Instruções e Comportamento
+
+1. **Quais são os três comandos principais que compõem o subconjunto DML?**
+   <details><summary>Possível resposta</summary>`INSERT`, `UPDATE` e `DELETE`.</details>
+
+2. **O que acontece se uma instrução `INSERT` violar uma restrição `UNIQUE` ou `NOT NULL`?**
+   <details><summary>Possível resposta</summary>O SGBD rejeita a instrução imediatamente, aborta a operação e retorna um erro de violação de integridade (*constraint violation error*), sem gravar dados parciais.</details>
+
+3. **Como funciona a sintaxe `INSERT INTO ... SELECT`?**
+   <details><summary>Possível resposta</summary>Ela executa uma consulta de busca em uma ou mais tabelas e insere diretamente o conjunto de linhas resultante na tabela de destino, sem passar os dados pela memória da aplicação backend.</details>
+
+### Otimização e Padrões
+
+4. **Por que o comando `DELETE` é transacional e reversível com `ROLLBACK`, ao contrário do `TRUNCATE` em alguns motores?**
+   <details><summary>Possível resposta</summary>Porque o `DELETE` registra a remoção de cada registro individual no log de transações (*Write-Ahead Log*), permitindo reconstruir as linhas caso a transação seja abortada.</details>
+
+5. **Qual é o resultado da expressão `UPDATE Produto SET estoque = estoque - 1 WHERE id = 10` se executada concorrentemente por duas transações simultâneas?**
+   <details><summary>Possível resposta</summary>O SGBD utiliza travas em nível de linha (*Row-Level Locks*), enfileirando as duas transações para que o decremento ocorra sequencialmente, garantindo que o estoque final seja reduzido em 2 unidades sem perda de dados (*Lost Update*).</details>
+
+---
+
+## Referências
+
+- [PostgreSQL Documentation: Data Manipulation (DML)](https://www.postgresql.org/docs/current/dml.html)
+- [SQLite Documentation: INSERT, UPDATE and DELETE Syntax](https://www.sqlite.org/lang_insert.html)
+- [MySQL 8.4 Reference: Data Manipulation Statements](https://dev.mysql.com/doc/refman/8.4/en/sql-data-manipulation-statements.html)
+- [Prisma ORM: Raw Database Mutations and Batching](https://www.prisma.io/docs/orm/prisma-client/queries/raw-database-access)
+
+---
+
+## Próximo tópico
+
+[SQL DQL (Consulta de Dados)](../dql/): Aprenda a projetar colunas, filtrar registros com `WHERE`, aplicar lógica trivalente de valores nulos e ordenar com `ORDER BY`.
