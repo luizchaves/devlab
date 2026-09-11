@@ -67,6 +67,35 @@ Embora a estrutura de **Árvore B-Tree** (ou B+Tree) seja o padrão universal pa
 
 Compreender o comportamento do índice em cada motor permite escolher a melhor estratégia de indexação para cada volume de dados e padrão de acesso da aplicação.
 
+### 3. Índices para Busca Textual no PostgreSQL (GIN e Text Search)
+
+Enquanto os índices B-Tree tradicionais são eficientes para valores exatos e ordenação, buscas textuais em corpos de artigos ou buscas parciais (`LIKE '%termo%'`) provocam varreduras completas (*Table Scans*). O PostgreSQL oferece soluções nativas de alta performance baseadas em índices **GIN** (*Generalized Inverted Index*):
+
+1. **Full-Text Search com `tsvector` e `tsquery`**:
+   Indexa documentos decompondo o texto em lexemas normalizados (com remoção de palavras vazias e redução a radicais no idioma configurado):
+
+   ```sql
+   -- Criação do índice GIN sobre o vetor de busca em português
+   CREATE INDEX idx_post_content_fts ON Post USING GIN (to_tsvector('portuguese', content));
+
+   -- Consulta ultra-rápida utilizando o operador @@ de casamento textual
+   SELECT id, title
+   FROM Post
+   WHERE to_tsvector('portuguese', content) @@ to_tsquery('portuguese', 'banco & dados');
+   ```
+
+2. **Busca por Trigramas com `pg_trgm` (Acelera `LIKE '%termo%'`)**:
+   A extensão nativa `pg_trgm` divide as palavras em sequências de três caracteres consecutivos (trigramas), permitindo que consultas com curinga inicial (`LIKE '%termo%'`) utilizem o índice GIN em vez de varrer a tabela:
+
+   ```sql
+   -- Habilita a extensão de trigramas e cria o índice GIN
+   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+   CREATE INDEX idx_post_title_trgm ON Post USING GIN (title gin_trgm_ops);
+
+   -- Esta consulta com '%SQL%' agora utiliza o índice GIN diretamente
+   SELECT id, title FROM Post WHERE title LIKE '%SQL%';
+   ```
+
 ---
 
 ## O Plano de Execução
@@ -99,7 +128,7 @@ A segunda linha mostra o índice em uso: `SEARCH ... (views>?)` lê só o interv
 | `col * 2 > 200` | Não | `col > 100` |
 | `LOWER(col) = 'ana'` | Não | Índice sobre a expressão, ou coluna já normalizada |
 | `col LIKE 'Ana%'` | Sim, em muitos motores | |
-| `col LIKE '%Ana'` | Não | Busca textual dedicada |
+| `col LIKE '%Ana'` | Não no B-Tree | Índice GIN com `pg_trgm` ou Full-Text Search |
 | `CAST(col AS TEXT) = '1'` | Não | Comparar com o tipo certo |
 | `col IS NULL` | Depende do motor | |
 
