@@ -1,0 +1,282 @@
+---
+title: "Nuvem: Gateways e Meios de Pagamento"
+description: "Processamento de pagamentos na nuvem: conformidade PCI-DSS e tokenização, Hosted Checkout vs Elements, Pix, boletos, assinaturas recorrentes e webhooks assíncronos."
+course: cloud
+sidebar:
+  label: "Meios de Pagamento"
+  order: 10
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta como integrar o processamento de transações financeiras, cobranças avulsas e assinaturas recorrentes (*SaaS Billing*) em aplicações hospedadas na nuvem. A arquitetura moderna de pagamentos separa a captura segura de dados no cliente da reconciliação definitiva no servidor, apoiando-se em tokenização e webhooks assinados.
+
+---
+
+## Objetivo
+
+Compreender a arquitetura de integração de gateways de pagamento na nuvem, dominando os requisitos de conformidade com o padrão PCI-DSS, os modelos de checkout hospedado e customizado, o suporte a métodos locais (como Pix e boleto) e o tratamento idempotente de eventos financeiros via webhooks. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar como o processo de tokenização protege dados de cartão e reduz o escopo de conformidade com o PCI-DSS.
+- Comparar a experiência de desenvolvimento e de uso entre *Hosted Checkout* (Checkout Hospedado) e componentes embutidos (*Elements*).
+- Integrar métodos de pagamento síncronos (cartão de crédito) e assíncronos (Pix dinâmico e boletos bancários).
+- Estruturar modelos de cobrança recorrente para assinaturas com gestão de planos, faturas e cancelamentos.
+- Processar webhooks de pagamento de forma segura validando assinaturas criptográficas e garantindo idempotência.
+
+---
+
+## Segurança Financeira e o Padrão PCI-DSS
+
+O padrão **PCI-DSS** (*Payment Card Industry Data Security Standard*) é o conjunto internacional de normas de segurança exigido pelas bandeiras de cartão (Visa, Mastercard, Elo, etc.) para qualquer entidade que processe, armazene ou transmita dados de cartão de crédito.
+
+Cumprir todas as exigências do PCI-DSS em infraestrutura própria é extremamente oneroso. Por esse motivo, as aplicações em nuvem **nunca recebem nem gravam números de cartão, CVV ou datas de validade em seus próprios servidores**.
+
+Em vez disso, utiliza-se a técnica de **Tokenização**:
+
+<Steps>
+1. **Captura no Cliente**: O formulário de pagamento é renderizado por um SDK seguro (em um iframe isolado fornecido pelo gateway, como Stripe Elements ou Mercado Pago SDK).
+2. **Envio Direto ao Gateway**: Os dados do cartão são transmitidos diretamente do navegador para os servidores certificados do gateway de pagamento, sem passar pelo seu backend.
+3. **Geração do Token**: O gateway responde ao navegador com um identificador opaco e seguro (como `pm_1N4u...` ou `tok_abc...`).
+4. **Cobrança no Servidor**: O navegador envia apenas o token para a sua API, e o seu servidor usa esse token com sua chave secreta para autorizar a cobrança.
+</Steps>
+
+O diagrama a seguir ilustra o fluxo completo de tokenização:
+
+<Mermaid title="Fluxo de tokenização e autorização de pagamento">
+{`
+flowchart TD
+  Client["Navegador / Cliente"] -->|"1. Digita dados no iframe seguro"| Gateway["Servidores do Gateway<br/>(Stripe / Mercado Pago)"]
+  Gateway -->|"2. Devolve token opaco (pm_123)"| Client
+  Client -->|"3. Envia token para API própria"| Backend["Seu Servidor Backend na Nuvem"]
+  Backend -->|"4. Cobra com Chave Secreta + Token"| Gateway
+  Gateway -->|"5. Confirma autorização"| Backend
+`}
+</Mermaid>
+
+---
+
+## Modelos de Checkout: Hospedado versus Elements
+
+Ao integrar um gateway de pagamento em uma aplicação web, existem duas abordagens arquiteturais principais:
+
+A tabela a seguir compara as características entre Checkout Hospedado e Componentes Embutidos:
+
+| Critério | Checkout Hospedado (*Hosted Checkout*) | Componentes Embutidos (*Elements / Custom*) |
+| :--- | :--- | :--- |
+| **Onde o usuário paga?** | Redirecionado para a página do gateway (ex: `checkout.stripe.com`) | Dentro da própria página da sua aplicação via iframes/SDK |
+| **Experiência Visual (UX)** | Padronizada pelo provedor, com sua logomarca e cores | 100% customizável para combinar com o design system da sua aplicação |
+| **Complexidade de Código** | Mínima: criar uma sessão no backend e redirecionar a URL | Média: montar o layout no frontend e gerenciar estados de loading |
+| **Escopo de PCI-DSS** | O mais simples (Formulário SAQ A) | Simples (Formulário SAQ A-EP) |
+| **Recursos Nativos** | Suporte automático a Apple Pay, Google Pay, Pix e conversão de moeda | Requer ativar e renderizar cada método individualmente |
+
+Projetos que estão iniciando ou que desejam validar um produto rapidamente costumam adotar o *Hosted Checkout*. Aplicações de grande volume ou SaaS maduros preferem *Elements* para manter o usuário o tempo todo dentro do próprio domínio.
+
+---
+
+## Meios de Pagamento Modernos: Cartão, Pix e Boleto
+
+Diferentes modelos de negócio e localizações geográficas exigem meios de pagamento com dinâmicas de liquidação variadas:
+
+| Meio de Pagamento | Confirmação | Experiência de Pagamento | Taxa de Estorno (*Chargeback*) |
+| :--- | :--- | :--- | :--- |
+| **Cartão de Crédito** | Imediata (síncrona) | Autorização em tempo real, com suporte a parcelamento e autenticação 3D Secure (3DS). | **Risco existente**: o titular pode contestar a compra no banco. |
+| **Pix Dinâmico** | Quase instantânea (1–5 segundos) | Geração de QR Code e código Copia e Cola com tempo de expiração curto (ex: 15–30 min). | **Quase nulo**: transação irrevogável iniciada pelo próprio pagador. |
+| **Boleto Bancário** | D+1 a D+2 dias úteis | Geração de linha digitável e PDF para pagamento na rede bancária. | **Zero**: não existe estorno após a compensação bancária. |
+| **Carteiras Digitais** | Imediata (síncrona) | Pagamento biométrico via Apple Pay ou Google Pay em um toque no celular. | **Muito baixo**: protegido por autenticação biométrica do dispositivo. |
+
+---
+
+## Cobrança Recorrente e Assinaturas (SaaS Billing)
+
+Para modelos de software como serviço (SaaS), o gateway de pagamento atua como um motor de assinatura que gerencia todo o ciclo de vida financeiro do cliente:
+
+<Steps>
+1. **Modelagem de Planos**: Cadastro de produtos com intervalos de faturamento (mensal, anual) e cobrança por assento (*per-seat*) ou por uso (*metered billing*).
+2. **Geração Automática de Faturas**: No início de cada ciclo, o gateway gera a fatura (*Invoice*) e tenta debitar automaticamente o método de pagamento padrão do cliente.
+3. **Gestão de Falhas (*Dunning*)**: Se o cartão falhar (por limite ou expiração), o gateway retenta o pagamento em dias estratégicos e dispara e-mails automáticos pedindo a atualização do cartão.
+4. **Prorating**: Ajuste proporcional no valor da fatura quando o cliente faz upgrade ou downgrade de plano no meio do mês.
+</Steps>
+
+---
+
+## Webhooks e a Fonte da Verdade Financeira
+
+O erro mais grave em arquiteturas de pagamento é **liberar o acesso a um produto com base apenas na resposta do frontend** (por exemplo, ao receber a promessa resolvida do JavaScript no navegador).
+
+O cliente pode sofrer oscilação de rede, fechar o navegador antes do término da requisição ou tentar burlar o código JavaScript local.
+
+Por isso, **a única fonte confiável da confirmação de pagamento é o Webhook** enviado pelo gateway para o seu servidor backend:
+
+```javascript title="api/webhooks/stripe.js"
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export async function handleWebhook(req, res) {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    // Validação criptográfica da assinatura do webhook
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    return res.status(400).send(`Webhook Signature Error: ${err.message}`);
+  }
+
+  // Tratamento do evento confirmado
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    await activateSubscriptionInDatabase(session.client_reference_id);
+  }
+
+  res.status(200).json({ received: true });
+}
+```
+
+### Idempotência no Tratamento de Eventos
+
+Em redes distribuídas, gateways de pagamento podem reenviar o mesmo webhook mais de uma vez caso a primeira tentativa sofra timeout.
+
+Sua aplicação deve registrar o identificador do evento (`event.id`) no banco de dados e garantir que a liberação do produto ou crédito seja executada **exatamente uma vez** (*Idempotência*).
+
+<Aside type="danger" title="Dica de IA: Isole chaves secretas no backend">
+  Assistentes de código podem acidentalmente incluir a chave secreta (`sk_live_...`) no arquivo `.env` do frontend. A chave secreta concede permissão total para criar reembolsos e transferir dinheiro. No frontend, utilize estritamente a chave publicável (`pk_live_...`).
+
+  **Prompt:** *"Analise os arquivos do projeto e certifique-se de que nenhuma chave com prefixo `sk_` ou segredos de webhook sejam importados em componentes do cliente."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+O mercado de processamento de pagamentos divide-se entre soluções globais maduras, líderes regionais e modelos de *Merchant of Record*:
+
+| Provedor | Modelo Principal | Destaque Técnico | Meios Nativos | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **Stripe** | Gateway global e SaaS Billing | O mais avançado em APIs, Webhooks, Customer Portal e React Elements | Cartão global, Pix, Boleto, Wallets | [Outras Plataformas](../../reference/other-platforms/) |
+| **Mercado Pago** | Gateway líder na América Latina | Integração robusta com Pix instantâneo, QR Code e Checkout Pro | Pix, Cartão parcelado, Boleto, Saldo MP | [Outras Plataformas](../../reference/other-platforms/) |
+| **Asaas / Pagar.me / Efi** | Gateways brasileiros | Especialistas em automação financeira nacional, carnês e split de pagamentos | Pix instantâneo, Boleto com baixa rápida, Cartão | [Outras Plataformas](../../reference/other-platforms/) |
+| **Paddle / Lemon Squeezy** | *Merchant of Record (MoR)* | Assume o recolhimento de impostos globais (VAT/Sales Tax) e burocracia internacional | Cartão internacional, PayPal, Apple Pay | [Outras Plataformas](../../reference/other-platforms/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha do provedor ideal depende do público-alvo, do tipo de cobrança e da abrangência geográfica.
+
+A tabela a seguir orienta as decisões:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| SaaS B2B ou B2C internacional | **Stripe ou Paddle** | Gestão de assinaturas com faturas em múltiplas moedas e conversão de câmbio. |
+| E-commerce ou produto digital com foco 100% no Brasil | **Mercado Pago ou Asaas** | Experiência nativa excelente para Pix, parcelamento sem juros e suporte em português. |
+| Venda de software para o mundo sem abrir empresa no exterior | **Merchant of Record (Paddle / Lemon Squeezy)** | A plataforma atua como revendedora legal e recolhe todos os tributos locais por você. |
+| Validação rápida de protótipo | **Stripe Checkout ou Mercado Pago Checkout Pro** | Criação de links de pagamento em poucos minutos sem codificar formulários. |
+
+---
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as recomendações essenciais para arquiteturas de pagamento seguras:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Validar a assinatura criptográfica de todo webhook recebido | Impede que cibercriminosos simulem pagamentos forjados enviando payloads falsos para sua API. |
+| Implementar controle de idempotência por `event.id` | Evita entregar produtos duplicados ou emitir créditos repetidos em caso de reenvio de webhooks. |
+| Utilizar o portal de autoatendimento do cliente (*Customer Portal*) | Permite que os usuários troquem de cartão e cancelem planos sem que você precise criar telas extras. |
+| Nunca armazenar dados sensíveis de cartão no banco de dados | Mantém sua aplicação em total conformidade com o padrão PCI-DSS. |
+
+---
+
+## Exercício
+
+Com base nos princípios de gateways de pagamento e conformidade na nuvem:
+
+1. O que é a tokenização e qual problema de conformidade regulatória (PCI-DSS) ela resolve?
+2. Por que a liberação de um produto ou assinatura nunca deve depender apenas do retorno síncrono do frontend?
+3. O que é o *Merchant of Record* (MoR) e qual é sua principal vantagem para desenvolvedores que vendem software globalmente?
+4. Como a aplicação deve lidar com o recebimento de webhooks duplicados com o mesmo `event.id`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. É o processo no qual os dados sensíveis do cartão são enviados diretamente do navegador para o gateway, que devolve um token opaco para o seu servidor. Isso impede que o seu backend toque em números de cartão, reduzindo drasticamente as exigências e custos de auditoria do padrão PCI-DSS.
+
+  2. Porque o código JavaScript do navegador é executável no dispositivo do usuário e pode ser interceptado, manipulado ou sofrer perda de conexão antes de concluir o envio. O webhook recebido diretamente pelo servidor backend com assinatura criptográfica é a única fonte confiável e definitiva da confirmação do pagamento.
+
+  3. É uma entidade legal intermediária (como Paddle ou Lemon Squeezy) que assume a responsabilidade fiscal de revender o software, calculando, recolhendo e repassando os impostos de consumo (como VAT europeu e Sales Tax americano) em centenas de países.
+
+  4. A aplicação deve consultar o banco de dados antes de processar o evento. Se aquele `event.id` já tiver sido registrado e executado anteriormente, o backend simplesmente responde com `200 OK` sem reaplicar os créditos ou liberar o produto novamente, garantindo idempotência.
+</details>
+
+---
+
+## Desafio
+
+Uma startup de SaaS brasileira está implementando pagamentos com Pix dinâmico via Mercado Pago em uma função serverless. O cliente gera o QR Code na tela, mas a função serverless não pode manter uma conexão aberta esperando o usuário pagar no app do banco.
+
+Desenhe a arquitetura completa de integração em três etapas: a criação do pagamento na API, o recebimento do webhook assinado de confirmação e a atualização em tempo real da tela do usuário.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **Arquitetura em Três Etapas:**
+  1. **Criação do Pagamento (Síncrono)**: O frontend chama a API serverless `POST /api/pay/pix`. O backend cria o pagamento no Mercado Pago com expiração de 15 minutos e retorna a chave Copia e Cola e o QR Code em Base64 para exibição na tela. O backend salva o pedido no banco com status `PENDING`.
+  2. **Confirmação via Webhook (Assíncrono)**: Quando o cliente paga no banco, o Mercado Pago dispara um webhook `POST /api/webhooks/mercadopago`. O backend valida a assinatura, confere se o pedido ainda está `PENDING`, atualiza o status para `PAID` no banco de dados e registra a transação.
+  3. **Atualização da Tela do Cliente**: O frontend pode escutar a mudança do pedido via **Realtime / WebSockets** (como Supabase Realtime ou Firebase Firestore) ou realizar uma consulta periódica (*polling*) a cada 3 segundos. Assim que o banco muda para `PAID`, a tela transiciona instantaneamente para "Pagamento Aprovado com Sucesso!".
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Segurança e Arquitetura
+
+1. **Por que formulários de cartão de crédito são encapsulados em iframes hospedados pelo gateway?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para garantir o isolamento da memória do navegador. Scripts maliciosos ou extensões de terceiros que estejam rodando na página principal da aplicação não conseguem ler o conteúdo digitado dentro de um iframe de domínio cruzado protegido.
+   </details>
+
+2. **Como a assinatura criptográfica de um webhook protege a API contra requisições forjadas?**
+   <details>
+     <summary>Possível resposta</summary>
+     O gateway calcula uma assinatura HMAC baseada no corpo exato da requisição e em um segredo compartilhado (*Webhook Secret*). O seu servidor recalcula o hash na chegada e rejeita qualquer requisição cuja assinatura não coincida perfeitamente.
+   </details>
+
+3. **O que acontece se uma chamada de webhook falhar por erro temporário na sua API?**
+   <details>
+     <summary>Possível resposta</summary>
+     O gateway registra que a resposta não foi `2xx` e entra em uma política de retentativa com recuo exponencial (*exponential backoff*), reenviando o evento periodicamente durante as próximas 24 a 72 horas.
+   </details>
+
+### Modelos de Negócio e Operação
+
+4. **O que é o processo de *Dunning* em sistemas de assinatura?**
+   <details>
+     <summary>Possível resposta</summary>
+     É o conjunto automatizado de ações tomadas quando uma cobrança de fatura falha, incluindo o reenvio automático em dias alternados, notificações por e-mail para atualização de dados e suspensão temporária do serviço caso o débito não seja quitado.
+   </details>
+
+5. **Qual é a vantagem do Pix sobre o cartão de crédito quanto ao risco de chargeback?**
+   <details>
+     <summary>Possível resposta</summary>
+     O Pix é uma transferência bancária direta e instantânea autenticada pelo próprio usuário dentro do app do seu banco com senha ou biometria, eliminando disputas arbitrárias de contestação de compra que ocorrem frequentemente com cartões de crédito clonados.
+   </details>
+
+---
+
+## Referências
+
+- [Stripe Documentation](https://stripe.com/docs)
+- [Mercado Pago Developers](https://www.mercadopago.com.br/developers/pt/reference)
+- [PCI Security Standards Council](https://www.pcisecuritystandards.org/)
+- [Paddle Developer Documentation](https://developer.paddle.com/)
+- [Lemon Squeezy Documentation](https://docs.lemonsqueezy.com/)
+
+---
+
+## Próximo tópico
+
+[Storage de Arquivos](../file-storage/): Armazenamento durável de arquivos, documentos e mídias em buckets na nuvem com controle de acesso por políticas.

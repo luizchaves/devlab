@@ -1,0 +1,272 @@
+---
+title: "Nuvem: CDN e Cache de Borda"
+description: "Redes de distribuição de conteúdo (CDN), pontos de presença (PoPs), controle de cache HTTP (Cache-Control, s-maxage, stale-while-revalidate), blindagem de origem e proteção DDoS."
+course: cloud
+sidebar:
+  label: "CDN e Cache de Borda"
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta como as Redes de Distribuição de Conteúdo (CDN - *Content Delivery Network*) e as estratégias de cache na borda aceleram a entrega de aplicações web e protegem os servidores de origem contra picos de tráfego. Uma CDN atua como uma malha global de servidores intermediários que armazenam respostas e entregam dados a poucos milissegundos do usuário final.
+
+---
+
+## Objetivo
+
+Compreender o funcionamento das Redes de Distribuição de Conteúdo (CDN) e a hierarquia de cache HTTP na nuvem, dominando as diretivas do cabeçalho `Cache-Control`, as técnicas de revalidação em segundo plano (*stale-while-revalidate*), o isolamento de dados privados e as estratégias de blindagem da origem (*Origin Shielding*). Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar como o roteamento Anycast direciona o tráfego para os Pontos de Presença (PoPs) mais próximos do usuário.
+- Configurar adequadamente o cabeçalho `Cache-Control` utilizando diretivas como `max-age`, `s-maxage`, `immutable` e `stale-while-revalidate`.
+- Distinguir o cache privado do navegador do cache compartilhado da CDN para evitar vazamento de dados sensíveis.
+- Implementar estratégias de invalidação de cache via *Cache Busting* (hashes em arquivos) e *Purge* programático sob demanda.
+- Descrever o papel da CDN na mitigação de ataques DDoS e na prevenção de sobrecarga da origem (*cache stampede*).
+
+---
+
+## Anatomia de uma CDN: Anycast e Pontos de Presença
+
+Em uma arquitetura tradicional sem CDN, todos os usuários do mundo se conectam ao mesmo datacenter centralizado (por exemplo, em São Paulo ou na Virgínia). Um visitante no Japão precisa percorrer milhares de quilômetros de cabos submarinos, acumulando centenas de milissegundos de latência em cada pacote.
+
+Uma CDN resolve esse problema espalhando centenas de **Pontos de Presença (PoPs - Points of Presence)** ao redor do globo. Utilizando o protocolo de roteamento **Anycast**, o mesmo endereço IP é anunciado por todos os datacenters da rede simultaneamente. A infraestrutura da internet automaticamente direciona cada usuário para o PoP mais próximo geograficamente.
+
+O diagrama a seguir ilustra a diferença de fluxo entre um acerto de cache (*Cache Hit*) e uma falha (*Cache Miss*):
+
+<Mermaid title="Fluxo de requisições com Ponto de Presença e Cache de Borda">
+{`
+flowchart TD
+  User1["Usuário (São Paulo)"] -->|"1. Requisita imagem.png"| Edge["Ponto de Presença (PoP Brasil)"]
+  subgraph CDN["Rede de Distribuição (CDN)"]
+    Edge -->|"Verifica Cache"| CacheStatus{"Está no Cache?"}
+  end
+  CacheStatus -->|"Sim (Cache Hit)"| ResponseQuick["Retorna do Edge (5ms)"]
+  ResponseQuick --> User1
+  CacheStatus -->|"Não (Cache Miss)"| Origin["Servidor de Origem / VPS / S3<br/>(EUA - 120ms)"]
+  Origin -->|"Devolve com Cache-Control"| Edge
+  Edge -->|"Salva no Edge e responde"| User1
+`}
+</Mermaid>
+
+Quando ocorre um *Cache Hit*, a resposta é entregue instantaneamente a partir da memória do servidor de borda, sem que o servidor de origem receba qualquer requisição ou consuma recursos de CPU e banco de dados.
+
+---
+
+## O Cabeçalho Cache-Control e Suas Diretivas
+
+O comportamento de cache na web é governado primordialmente pelo cabeçalho HTTP `Cache-Control`, enviado nas respostas do servidor.
+
+A tabela a seguir descreve as principais diretivas e seu significado para navegadores e CDNs:
+
+| Diretiva | Destino Afetado | Efeito Prático |
+| :--- | :--- | :--- |
+| **`public`** | Navegadores e CDNs | Indica que a resposta pode ser armazenada em caches públicos compartilhados por múltiplos usuários. |
+| **`private`** | Apenas Navegador | Apenas o navegador do usuário que fez a requisição pode guardar o dado (nunca a CDN). |
+| **`max-age=<segundos>`** | Navegador e CDN | Define por quanto tempo (em segundos) a resposta é considerada fresca (*fresh*). |
+| **`s-maxage=<segundos>`** | Apenas CDN / Proxies | Sobrescreve o `max-age` exclusivamente para a CDN, permitindo tempos distintos. |
+| **`immutable`** | Navegador e CDN | Garante que o arquivo nunca mudará durante sua vida útil, eliminando requisições condicionais de revalidação. |
+| **`no-cache`** | Navegador e CDN | Permite guardar em cache, mas **obriga** o cliente a revalidar com o servidor (`ETag`) antes de cada uso. |
+| **`no-store`** | Nenhum | Proíbe terminantemente o armazenamento da resposta em qualquer nível de cache. |
+
+### Exemplo para Assets Estáticos com Hash
+
+Arquivos gerados pelo build do Vite ou Next.js (como `bundle-B3x9z.js` ou `logo-9871.webp`) possuem um hash do conteúdo no próprio nome. Se o arquivo for alterado, o nome muda. Portanto, eles podem ser armazenados com segurança máxima:
+
+```http title="Resposta para assets versionados"
+Cache-Control: public, max-age=31536000, immutable
+```
+
+### Exemplo para o Arquivo HTML Raiz
+
+O arquivo `index.html` não tem hash no nome e aponta para os scripts mais recentes. Se ele for retido em cache por muito tempo, os usuários não receberão as atualizações da aplicação:
+
+```http title="Resposta para o index.html"
+Cache-Control: public, max-age=0, must-revalidate
+```
+
+---
+
+## O Padrão Stale-While-Revalidate (SWR)
+
+Em páginas dinâmicas ou respostas de API que mudam periodicamente (como catálogo de produtos ou notícias), o tempo de espera pela origem pode degradar a experiência do usuário.
+
+A diretiva `stale-while-revalidate` resolve isso combinando velocidade máxima com atualização em segundo plano:
+
+```http title="Cache com revalidação assíncrona"
+Cache-Control: public, max-age=60, stale-while-revalidate=86400
+```
+
+Nesse exemplo:
+1. Durante os primeiros 60 segundos (`max-age`), a resposta é considerada fresca e entregue direto da CDN.
+2. Entre 60 segundos e 24 horas (`stale-while-revalidate`), a CDN entrega a resposta guardada imediatamente ao usuário (sem esperar a origem), e simultaneamente dispara uma requisição assíncrona em segundo plano para a origem para renovar o cache para os próximos visitantes.
+
+---
+
+## Blindagem de Origem (*Origin Shield*) e Invalidação
+
+Quando uma notícia de última hora é publicada ou um produto recebe milhares de acessos simultâneos, pode ocorrer o fenômeno de **Cache Stampede** (ou *Thundering Herd*): milhares de servidores de borda da CDN ao redor do mundo tentam consultar a origem no mesmo milissegundo.
+
+Para proteger a infraestrutura, CDNs modernas implementam uma camada intermediária chamada **Origin Shield**:
+
+<Steps>
+1. **Ponto de Consolidação**: Apenas um servidor intermediário da CDN consulta a origem.
+2. **Distribuição em Cascata**: Esse servidor central alimenta todos os outros PoPs de borda.
+3. **Redução Drástica de Carga**: O servidor de banco de dados recebe apenas 1 consulta, enquanto a rede entrega milhões de respostas.
+</Steps>
+
+### Invalidação sob Demanda (Purge)
+
+Quando dados no banco são atualizados, esperar o tempo do `max-age` expirar pode exibir dados desatualizados aos clientes. As CDNs oferecem mecanismos de **Purge** via API:
+
+- **Purge por URL**: Invalida rotas específicas (ex: `/api/produtos/123`).
+- **Purge por Cache-Tag / Surrogate-Key**: Associa tags personalizadas às respostas (ex: `Cache-Tag: categoria-eletronicos`). Uma única chamada de API invalida milhares de produtos daquela categoria instantaneamente.
+
+<Aside type="caution" title="Dica de IA: Cuidado com s-maxage em respostas com dados do usuário">
+  Assistentes de código frequentemente sugerem adicionar `s-maxage=3600` em respostas de API para melhorar o desempenho. Se a rota retornar dados específicos do usuário (como `/api/meu-perfil`), a CDN guardará a resposta do primeiro usuário e a entregará para todos os outros visitantes subsequentes.
+
+  **Prompt:** *"Revise os cabeçalhos de resposta desta rota e certifique-se de que endpoints autenticados incluam `Cache-Control: private, no-store` para impedir que a CDN compartilhe dados pessoais entre usuários distintos."*
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+O ecossistema de CDNs divide-se entre redes especializadas em infraestrutura global e plataformas que embutem a CDN em seus fluxos de publicação:
+
+| Provedor | Modelo de CDN | Pontos Fortes | Purge e Revalidação | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **Cloudflare** | CDN global com Proxy reverso | Mais de 330 cidades; proteção DDoS gratuita; Tiered Cache | Purge instantâneo por URL ou Tag (plano Enterprise) | [Cloudflare Pages](../../cloudflare/pages/) |
+| **AWS CloudFront** | CDN de infraestrutura integrada | Integração nativa com S3, ALB e Lambda@Edge; Origin Shield | Invalidações via AWS CLI / SDK | [Fundamentos](../../foundations/cloud-computing/) |
+| **Vercel** | Edge Network integrada | Otimização automática para frameworks, ISR (*Incremental Static Regeneration*) | Revalidação sob demanda por Tag (`revalidateTag`) | [Deployments Vercel](../../vercel/deployments/) |
+| **Netlify** | High-Performance Edge | Edge Cache automático para static assets e Edge Functions | Invalidação atômica a cada novo deploy | [Deployments Netlify](../../netlify/deployments/) |
+| **Fastly** | CDN programável em VCL/Wasm | Latência ultra baixa de purge (sub-150ms global) e observabilidade em tempo real | Purge instantâneo por Surrogate-Key em qualquer plano | [Outras Plataformas](../../reference/other-platforms/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A CDN é altamente recomendada para qualquer serviço público na internet, mas a aplicação das políticas de cache varia drasticamente pelo tipo de conteúdo.
+
+A tabela a seguir orienta as decisões:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Assets estáticos (JS, CSS, imagens, fontes) | **Cache público longo + immutable** | Os arquivos são imutáveis e protegidos por hash no nome. |
+| Páginas de catálogo, posts de blog, notícias | **Cache com stale-while-revalidate** | Entrega instantânea na borda com atualização em segundo plano. |
+| APIs autenticadas com dados do usuário | **Cache-Control: private, no-store** | Impede categoricamente o compartilhamento de dados sensíveis na CDN. |
+| API pública de consulta pesada (ex: cotação de moedas) | **Cache na CDN com s-maxage curto (ex: 10s)** | Reduz a carga no servidor em 99% absorvendo requisições repetidas. |
+
+---
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as recomendações essenciais para gestão de cache na nuvem:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Adicionar hashes únicos aos nomes de arquivos compilados | Permite fixar `max-age=31536000` sem risco de reter versões antigas no deploy. |
+| Definir `must-revalidate` para o `index.html` | Garante que novos deploys sejam reconhecidos imediatamente pelos navegadores. |
+| Habilitar compressão moderna (Brotli / Gzip) na CDN | Reduz o tamanho transferido em até 70% comparado ao tráfego em texto puro. |
+| Nunca permitir que a CDN guarde cabeçalhos `Set-Cookie` | Evita que a sessão de um usuário seja entregue inadvertidamente para outro visitante. |
+
+---
+
+## Exercício
+
+Com base nos conceitos de CDN e controle de cache HTTP:
+
+1. Qual é a diferença fundamental entre as diretivas `max-age` e `s-maxage`?
+2. Como a diretiva `stale-while-revalidate` melhora o tempo de carregamento para o usuário final?
+3. O que é o fenômeno de *Cache Stampede* e como o *Origin Shield* o mitiga?
+4. Por que arquivos JavaScript e CSS gerados por ferramentas como Vite recebem a diretiva `immutable`?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A diretiva `max-age` aplica-se tanto ao navegador do usuário quanto a proxies intermediários e CDNs. A diretiva `s-maxage` (shared max-age) aplica-se exclusivamente a caches públicos compartilhados (como a CDN), permitindo que o servidor configure um tempo de retenção na borda diferente do tempo no navegador.
+
+  2. Ela permite que a CDN responda instantaneamente com uma versão ligeiramente desatualizada guardada no cache enquanto dispara uma requisição assíncrona para a origem em segundo plano, eliminando o tempo de espera para o visitante.
+
+  3. É a sobrecarga massiva no servidor de origem quando um cache expira e centenas de nós de borda tentam consultar a origem ao mesmo tempo. O *Origin Shield* atua como um nó intermediário centralizado que faz apenas uma consulta à origem e repassa o resultado aos demais PoPs da CDN.
+
+  4. Porque o nome desses arquivos traz um hash do conteúdo (ex: `index-C56ycdGA.js`). Se o código mudar, o build gera um arquivo com nome diferente, garantindo que o arquivo antigo nunca será alterado em produção.
+</details>
+
+---
+
+## Desafio
+
+Um desenvolvedor configurou uma API de produtos em Express na nuvem. A rota `GET /api/produtos` retorna uma lista pública de 500 itens que muda apenas algumas vezes por semana. No entanto, o banco de dados está sofrendo com picos de 10.000 requisições por segundo.
+
+Escreva o cabeçalho `Cache-Control` ideal para ser retornado pelo servidor Express, permitindo que a CDN atenda a maioria das requisições com respostas em menos de 10ms e garantindo que o banco de dados nunca receba mais de 1 consulta por minuto.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O cabeçalho ideal deve utilizar cache público, retenção na CDN de 60 segundos e revalidação assíncrona em segundo plano:
+
+  ```http title="Cabeçalho Cache-Control Otimizado"
+  Cache-Control: public, max-age=10, s-maxage=60, stale-while-revalidate=86400
+  ```
+
+  **Efeito prático:**
+  - O navegador do usuário guarda a resposta por 10 segundos (`max-age=10`).
+  - A CDN guarda a resposta por 60 segundos (`s-maxage=60`), absorvendo todo o tráfego global durante esse período.
+  - Após 60 segundos, a CDN continua entregando a resposta em 5ms enquanto busca a nova lista no banco em segundo plano (`stale-while-revalidate=86400`).
+  - O banco de dados passa a receber no máximo **1 requisição por minuto**, reduzindo a carga em mais de 99,99%.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Conceitos de Cache
+
+1. **Qual é a diferença entre uma resposta com status `200 OK` (vindo do cache) e `304 Not Modified`?**
+   <details>
+     <summary>Possível resposta</summary>
+     O `200 OK` do cache é retornado localmente sem trafegar dados na rede. O `304 Not Modified` é uma resposta curta do servidor confirmando que a versão que o cliente tem no cache (validada por `ETag`) continua idêntica, sem reenviar o corpo dos dados.
+   </details>
+
+2. **Por que uma rota com autenticação via cookie ou token Bearer nunca deve conter `Cache-Control: public`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a diretiva `public` autoriza a CDN a armazenar a resposta e servi-la para qualquer outro visitante da internet, o que causaria o vazamento dos dados privados daquele usuário autenticado para terceiros.
+   </details>
+
+3. **Como o roteamento Anycast difere do roteamento Unicast convencional?**
+   <details>
+     <summary>Possível resposta</summary>
+     No Unicast, cada endereço IP pertence a um único servidor físico no mundo. No Anycast, o mesmo endereço IP é compartilhado por dezenas de datacenters globais, e os roteadores da internet direcionam os pacotes pelo caminho mais curto até o datacenter mais próximo do usuário.
+   </details>
+
+### Arquitetura e Nuvem
+
+4. **O que é a invalidação de cache por Cache-Tag e qual é sua vantagem sobre o Purge por URL?**
+   <details>
+     <summary>Possível resposta</summary>
+     O Cache-Tag permite etiquetar respostas com categorias (ex: `autor-123`). Quando o autor edita seu perfil, uma única chamada de purge na tag `autor-123` invalida centenas de páginas e posts associados a ele de uma só vez, sem precisar listar cada URL individualmente.
+   </details>
+
+5. **Por que as CDNs modernas são essenciais na defesa contra ataques DDoS volumétricos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a capacidade combinada de banda de uma grande rede de CDN (com dezenas de terabits por segundo distribuídos em centenas de datacenters) consegue absorver e filtrar o tráfego malicioso na borda antes que ele sobrecarregue a conexão limitada do servidor de origem.
+   </details>
+
+---
+
+## Referências
+
+- [MDN: Cache-Control HTTP Header](https://developer.mozilla.org/docs/Web/HTTP/Headers/Cache-Control)
+- [RFC 9111: HTTP Caching](https://datatracker.ietf.org/doc/html/rfc9111)
+- [Cloudflare: How CDN Caching Works](https://www.cloudflare.com/learning/cdn/what-is-caching/)
+- [Vercel: Edge Network and Caching](https://vercel.com/docs/edge-network/caching)
+- [AWS CloudFront Developer Guide](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html)
+
+---
+
+## Próximo tópico
+
+[Funções Serverless](../serverless-functions/): Execução de lógica de negócio e APIs sob demanda, cobradas por fração de segundo e sem servidores permanentes.

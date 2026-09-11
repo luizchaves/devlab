@@ -2045,6 +2045,10 @@ export default defineConfig({
                   link: '/courses/cloud/foundations/service-comparison/',
                 },
                 { label: 'Backend as a Service', link: '/courses/cloud/foundations/baas/' },
+                {
+                  label: 'CI/CD e Automação',
+                  link: '/courses/cloud/foundations/ci-cd/',
+                },
               ],
             },
             {
@@ -2058,6 +2062,10 @@ export default defineConfig({
                 {
                   label: 'HTTPS e Certificados',
                   link: '/courses/cloud/resources/https-certificates/',
+                },
+                {
+                  label: 'CDN e Cache de Borda',
+                  link: '/courses/cloud/resources/cdn-caching/',
                 },
                 {
                   label: 'Funções Serverless',
@@ -2079,6 +2087,10 @@ export default defineConfig({
                 {
                   label: 'E-mails Transacionais',
                   link: '/courses/cloud/resources/transactional-email/',
+                },
+                {
+                  label: 'Meios de Pagamento',
+                  link: '/courses/cloud/resources/payment-gateways/',
                 },
                 { label: 'Storage de Arquivos', link: '/courses/cloud/resources/file-storage/' },
                 { label: 'Realtime', link: '/courses/cloud/resources/realtime/' },

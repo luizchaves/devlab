@@ -1,0 +1,241 @@
+---
+title: "Nuvem: CI/CD e Automação de Deploy"
+description: "Integração Contínua e Entrega Contínua na nuvem: GitOps, validação automática, Deploy Previews, estratégias de deploy (Rolling, Blue-Green, Canary) e rollback instantâneo."
+course: cloud
+sidebar:
+  label: "CI/CD e Automação"
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Este tópico apresenta como a automação de integração e entrega contínuas (CI/CD) funciona no ecossistema de computação em nuvem moderno. A nuvem transformou o repositório Git no centro de comando da infraestrutura (*GitOps*): alterações no código disparam testes automatizados, constroem artefatos imutáveis e publicam aplicações em produção sem intervenção humana manual.
+
+---
+
+## Objetivo
+
+Compreender os princípios de Integração Contínua (CI) e Entrega/Deploy Contínuo (CD), dominando os modelos de execução em pipelines, a criação de ambientes efêmeros de pré-visualização (*Deploy Previews*) e as estratégias de publicação sem indisponibilidade (*Zero Downtime*) para garantir entregas frequentes e seguras na nuvem. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar as etapas de Integração Contínua (CI), Entrega Contínua (CD) e Deploy Contínuo.
+- Explicar o funcionamento de ambientes efêmeros de pré-visualização (*Deploy Previews*) gerados por Pull Requests.
+- Comparar as estratégias de deploy: *Rolling Update*, *Blue-Green Deployment* e *Canary Release*.
+- Executar reversões instantâneas (*rollbacks*) apoiando-se em artefatos imutáveis com identificadores únicos.
+- Avaliar quando utilizar pipelines dedicados (como GitHub Actions) versus sistemas integrados de *Push-to-Deploy* das plataformas de nuvem.
+
+---
+
+## A Linha de Montagem: CI versus CD
+
+No desenvolvimento de software na nuvem, qualquer alteração enviada ao repositório passa por uma linha de montagem automatizada dividida em duas fases complementares:
+
+<Steps>
+1. **Integração Contínua (CI - Continuous Integration)**: Garante a qualidade técnica do código antes que ele seja aceito. A cada commit ou abertura de *Pull Request*, robôs executam checagem de formatação, lint, validação de tipos, suítes de testes automatizados e compilação (*build*).
+2. **Entrega e Deploy Contínuo (CD - Continuous Delivery / Deployment)**: Pega o artefato aprovado no CI e o publica na infraestrutura de destino. Na *Entrega Contínua*, a publicação aguarda uma aprovação manual; no *Deploy Contínuo*, a publicação em produção ocorre de forma 100% automática assim que os testes passam.
+</Steps>
+
+O diagrama a seguir ilustra a sequência clássica de um fluxo moderno orientado a eventos do Git:
+
+<Mermaid title="Fluxo de execução de um pipeline moderno de CI/CD">
+{`
+flowchart TD
+  Dev["Desenvolvedor<br/>git push"] --> PR["Pull Request / Branch"]
+  subgraph CI["Integração Contínua (CI)"]
+    direction TB
+    PR --> Lint["Lint & Tipos (Biome / tsc)"]
+    Lint --> Test["Testes Automatizados (Vitest / Playwright)"]
+    Test --> Build["Build do Artefato"]
+  end
+  subgraph CD["Deploy Contínuo (CD)"]
+    direction TB
+    Build --> Preview["Deploy Preview (Ambiente Efêmero)"]
+    Preview --> Merge["Merge na branch main"]
+    Merge --> Prod["Produção Global (Zero-Downtime)"]
+  end
+`}
+</Mermaid>
+
+---
+
+## Ambientes Efêmeros e Deploy Previews
+
+Uma das maiores inovações das plataformas de nuvem modernas (como Vercel, Netlify, Cloudflare Pages e Railway) é a geração automática de **ambientes efêmeros de pré-visualização** (*Deploy Previews*).
+
+Para cada *Pull Request* aberto, a plataforma executa o build e disponibiliza uma URL pública única e isolada (como `https://projeto-git-feat-login-empresa.vercel.app`).
+
+A tabela a seguir destaca os benefícios práticos dessa abordagem:
+
+| Benefício | Como Funciona | Impacto no Time |
+| :--- | :--- | :--- |
+| **Revisão Visual e UX** | Designers e gerentes de produto testam a funcionalidade viva na web antes do merge. | Elimina a necessidade de rodar o projeto localmente para validar telas. |
+| **Testes End-to-End (E2E)** | Frameworks como Playwright executam testes na URL real de preview. | Detecta quebras em integrações de API antes de afetar usuários reais. |
+| **Isolamento de Erros** | Cada branch tem seu próprio deploy; falhas em um PR não afetam os outros desenvolvedores. | Reduz conflitos em ambientes de desenvolvimento compartilhados. |
+| **Descarte Automático** | Ao fechar ou mesclar o PR, a infraestrutura daquele preview é desalocada automaticamente. | Evita acúmulo de instâncias zumbis e custos desnecessários. |
+
+---
+
+## Estratégias de Deploy com Zero Indisponibilidade
+
+Publicar uma nova versão de um serviço de backend sem derrubar requisições ativas (*Zero Downtime*) exige coordenar o tráfego de rede enquanto as novas instâncias inicializam.
+
+A tabela a seguir compara as três estratégias de deploy mais utilizadas na nuvem:
+
+| Estratégia | Mecanismo de Funcionamento | Vantagens | Desvantagens / Custos |
+| :--- | :--- | :--- | :--- |
+| **Rolling Update** | Substitui instâncias antigas por novas gradualmente (ex: 1 por 1) após o *health check* responder `200`. | Não exige o dobro de capacidade computacional; padrão no Kubernetes e PaaS. | Durante o deploy, duas versões do código coexistem atendendo requisições. |
+| **Blue-Green** | Sobe um ambiente novo idêntico (Green) em paralelo ao atual (Blue); após validação, o roteador/DNS chaveia 100% do tráfego. | Chaveamento instantâneo e reversão imediata caso ocorra erro. | Exige o dobro de capacidade e recursos de servidor durante o deploy. |
+| **Canary Release** | Encaminha uma pequena fração do tráfego real (ex: 5%) para a versão nova, monitorando taxas de erro antes de migrar os 100%. | Minimiza o raio de impacto de bugs críticos em produção. | Requer balanceadores inteligentes e telemetria avançada com métricas em tempo real. |
+
+---
+
+## Imutabilidade e Rollback Instantâneo
+
+No modelo tradicional de servidores, atualizar uma aplicação significava sobrescrever arquivos em disco na mesma máquina. Se a atualização falhasse no meio do processo, o servidor ficava em estado corrompido, e reverter exigia rodar novos scripts manuais.
+
+Na nuvem, cada deploy gera um **artefato imutável** identificado por um hash único (o *Deployment ID* ou tag da imagem Docker). O artefato antigo não é deletado imediatamente: ele continua armazenado e pronto para execução.
+
+<Aside type="tip" title="Rollback em segundos sem novo build">
+  Se um bug crítico for descoberto em produção, a operação de reversão (*rollback*) não executa um novo build do commit anterior. A plataforma simplesmente instrui o balanceador de carga a redirecionar o tráfego de volta para o *Deployment ID* anterior, restabelecendo o serviço saudável em poucos segundos.
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+O ecossistema de CI/CD na nuvem combina motores de automação genéricos com plataformas que realizam o deploy diretamente a partir do repositório:
+
+| Plataforma / Ferramenta | Modelo Principal | Destaque em CI/CD | Modelo de Previews | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **GitHub Actions** | Motor de pipelines genérico via YAML | Execução em runners Linux, macOS e Windows; catálogo com milhares de *Actions* | Por workflows customizados | [Fundamentos](../../foundations/cloud-computing/) |
+| **Vercel** | Git Push-to-Deploy nativo | Deploy Previews automáticos por PR, comentários visuais na tela e rollback instantâneo | Nativo por branch e PR | [Deployments Vercel](../../vercel/deployments/) |
+| **Netlify** | Git Push-to-Deploy nativo | Previews com formulários de feedback, split testing de tráfego e deploy locks | Nativo por branch e PR | [Deployments Netlify](../../netlify/deployments/) |
+| **Cloudflare Pages** | Git Push-to-Deploy nativo | Builds ultra rápidos, previews ilimitados com proteção por senha na borda | Nativo por branch e PR | [Cloudflare Pages](../../cloudflare/pages/) |
+| **Render / Railway** | Git Push-to-Deploy para PaaS | Criação de serviços e bancos efêmeros para cada PR (*Ephemeral Environments*) | Ambientes completos por PR | [Render](../../render/), [Railway](../../railway/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha entre confiar no *Push-to-Deploy* nativo da plataforma ou estruturar um pipeline completo no GitHub Actions depende da complexidade dos testes e dos passos de validação.
+
+A tabela a seguir orienta a decisão:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Front-end estático, SSR ou monorepo em framework web | **Push-to-Deploy nativo (Vercel, Netlify, Cloudflare)** | Configuração zero, detecção de framework automática e previews instantâneos. |
+| Suíte pesada de testes E2E, testes de carga e lint estrito | **GitHub Actions + Push-to-Deploy** | O GitHub Actions valida os testes no PR; a plataforma só publica se os testes passarem. |
+| Aplicação corporativa com aprovação manual de segurança | **Pipeline com etapas de aprovação (GitHub / GitLab CI)** | Exige controle formal de quem pode liberar a versão para produção. |
+| Projeto pessoal ou protótipo rápido | **Push-to-Deploy direto na branch `main`** | Menor atrito possível entre a escrita do código e a visualização no ar. |
+
+---
+
+## Resumo e Boas Práticas
+
+A tabela a seguir consolida as recomendações essenciais para pipelines de deploy na nuvem:
+
+| Prática | Motivo |
+| :--- | :--- |
+| Tratar variáveis e segredos em *Environment Secrets* | Evita o vazamento de chaves de API e senhas de banco nos arquivos versionados do repositório. |
+| Manter migrações de banco compatíveis com versões anteriores | Durante o deploy, as instâncias antigas e novas coexistem e devem funcionar no mesmo esquema. |
+| Exigir que a suíte de CI passe antes de permitir o *merge* | Impede que código quebrado ou com erros de tipagem chegue à branch principal. |
+| Configurar *health checks* precisos nas aplicações | Garante que o balanceador só envie tráfego para instâncias que já inicializaram conexões com sucesso. |
+
+---
+
+## Exercício
+
+Com base nos princípios de automação e estratégias de entrega contínua:
+
+1. Qual é a diferença fundamental entre *Entrega Contínua* e *Deploy Contínuo*?
+2. O que é um *Deploy Preview* e por que ele previne incidentes em produção?
+3. Em uma estratégia de *Blue-Green Deployment*, por que a reversão de falhas é praticamente instantânea?
+4. Por que as migrações de banco de dados devem ser compatíveis com a versão antiga da aplicação durante um *Rolling Update*?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Na Entrega Contínua (*Continuous Delivery*), o código é automaticamente testado e empacotado, ficando pronto para publicação a qualquer momento, mas o envio para produção exige um gatilho ou aprovação manual. No Deploy Contínuo (*Continuous Deployment*), toda alteração aprovada nos testes é publicada em produção automaticamente sem intervenção humana.
+
+  2. É um ambiente temporário publicado em uma URL isolada a cada Pull Request aberto. Ele permite que o time teste o código executando em condições reais de nuvem antes de mesclá-lo na branch principal, identificando quebras visuais e de integração previamente.
+
+  3. Porque o ambiente antigo (Blue) continua rodando saudável em paralelo enquanto o novo (Green) recebe o tráfego. Caso o novo ambiente apresente erros, o balanceador de carga apenas redireciona o tráfego de volta para o ambiente Blue anterior em questão de milissegundos.
+
+  4. Porque durante o *Rolling Update* as instâncias da versão antiga ainda estão atendendo requisições enquanto as instâncias da versão nova sobem. Se a migração remover ou renomear uma coluna abruptamente, a versão antiga quebrará no meio do processo de deploy.
+</details>
+
+---
+
+## Desafio
+
+Uma equipe de engenharia configurou um pipeline de deploy contínuo que publica uma API diretamente no Render a cada merge na branch `main`. No entanto, ao publicar uma nova funcionalidade que incluía uma nova tabela no banco de dados e rotas atualizadas, os usuários enfrentaram erros `500` por cerca de 45 segundos durante o deploy.
+
+Identifique duas possíveis causas desse erro e descreva a arquitetura de pipeline ideal (incluindo etapas de migração de banco, *health check* e validação prévia) para eliminar essa instabilidade.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **Possíveis Causas:**
+  1. O tráfego foi direcionado para as novas instâncias antes que o comando de migração do banco (`prisma migrate deploy`) tivesse terminado de rodar.
+  2. A aplicação subiu e o balanceador enviou tráfego antes que a conexão com o banco estivesse estabelecida, por falta de um *health check* adequado que validasse a prontidão do serviço.
+
+  **Arquitetura de Pipeline Ideal:**
+  1. **Etapa de Pre-Deploy / Release Command**: Executar as migrações de banco em um processo isolado e preliminar antes de iniciar as novas instâncias da aplicação.
+  2. **Compatibilidade Retroativa**: Garantir que as mudanças no esquema do banco sejam puramente aditivas (sem quebrar a versão em execução).
+  3. **Health Check com Validação de Prontidão**: A rota `/health` deve responder `200 OK` apenas quando o servidor HTTP e a conexão com o banco estiverem prontos.
+  4. **Substituição Gradual**: O balanceador de carga só direciona o tráfego para a nova instância após receber respostas saudáveis do *health check*, encerrando as instâncias antigas com sinal `SIGTERM` de forma limpa.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Conceitos e Pipelines
+
+1. **Por que o modelo GitOps considera o repositório como a fonte única da verdade?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque todo o estado desejado da aplicação (código, dependências, configurações e variáveis de ambiente não secretas) está versionado no Git. Qualquer alteração em produção é rastreável a um commit ou Pull Request assinado por um desenvolvedor.
+   </details>
+
+2. **Qual é a vantagem de executar testes de ponta a ponta (E2E) em Deploy Previews em vez de mocks locais?**
+   <details>
+     <summary>Possível resposta</summary>
+     Os Deploy Previews executam na infraestrutura real da nuvem (com cabeçalhos reais, certificados HTTPS e resolução de rotas da plataforma), testando o comportamento autêntico do sistema sem as simplificações de um ambiente simulado.
+   </details>
+
+3. **O que é um artefato imutável de build?**
+   <details>
+     <summary>Possível resposta</summary>
+     É o pacote compilado (como uma pasta estática ou imagem Docker) que, uma vez gerado e aprovado nos testes, nunca mais é alterado. A mesma versão exata testada no ambiente de staging é promovida para produção sem sofrer novo build.
+   </details>
+
+### Estratégias e Operação
+
+4. **Como o Canary Deployment ajuda a detectar bugs de concorrência ou vazamento de memória?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ele expõe a versão nova a uma pequena amostra de tráfego real de usuários enquanto coleta métricas de erro e telemetria. Se anomalias forem detectadas, o tráfego é cortado imediatamente sem impactar a totalidade dos clientes.
+   </details>
+
+5. **Por que a injeção de variáveis de ambiente deve ser isolada entre ambientes de Preview e Produção?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para evitar que testes e pré-visualizações executados em branches de desenvolvimento alterem ou corrompam os dados reais do banco de dados e serviços de terceiros da produção.
+   </details>
+
+---
+
+## Referências
+
+- [GitHub Actions Documentation](https://docs.github.com/actions)
+- [Vercel: Deployments and Previews](https://vercel.com/docs/deployments/overview)
+- [Netlify: Continuous Deployment](https://docs.netlify.com/site-deploys/overview/)
+- [Martin Fowler: Continuous Integration](https://martinfowler.com/articles/continuousIntegration.html)
+- [Martin Fowler: BlueGreenDeployment](https://martinfowler.com/bliki/BlueGreenDeployment.html)
+
+---
+
+## Próximo tópico
+
+[Hospedagem Estática](../../resources/static-hosting/): A publicação de assets compilados na borda com distribuição global e custo próximo de zero.
