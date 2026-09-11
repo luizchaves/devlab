@@ -177,9 +177,40 @@ CREATE TABLE audit_log (
 );
 ```
 
-### 4. Razão Contábil Imutável (Append-Only Ledger)
+### 4. Razão Contábil Imutável e Bancos Ledger (Append-Only)
 
-Em sistemas bancários e carteiras digitais, saldos **nunca sofrem `UPDATE`**. O banco opera exclusivamente por inserções (`INSERT`) de lançamentos a débito e a crédito. O saldo atual é a soma cumulativa de todas as transações, garantindo rastreabilidade matemática perfeita contra fraudes.
+Em sistemas bancários, carteiras digitais, custódia de investimentos e auditoria regulatória, saldos **nunca sofrem `UPDATE`**. O banco opera exclusivamente por inserções (`INSERT`) de lançamentos a débito e a crédito (*Event Sourcing / Ledger*). O saldo atual é sempre a soma cumulativa de todas as transações, garantindo rastreabilidade matemática perfeita contra fraudes.
+
+Para assegurar que nenhum registro possa ser adulterado ou excluído acidentalmente, aplica-se uma restrição estrita via gatilho (*trigger*) no banco de dados:
+
+```sql title="Bloqueio estrito de UPDATE e DELETE no PostgreSQL"
+CREATE OR REPLACE FUNCTION prevent_ledger_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Operação proibida: a tabela ledger é estritamente append-only (imutável).';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_protect_ledger
+BEFORE UPDATE OR DELETE ON financial_ledger
+FOR EACH ROW EXECUTE FUNCTION prevent_ledger_modification();
+```
+
+Para cenários onde a conformidade jurídica exige prova de não-repúdio (garantia de que nem mesmo um administrador de banco com privilégios de superusuário alterou o histórico), utiliza-se o padrão de **Encadeamento Criptográfico de Hashes** (*Hash Chaining*):
+
+```sql title="Estrutura de tabela com encadeamento de hash SHA-256"
+CREATE TABLE security_audit_ledger (
+  id            BIGSERIAL PRIMARY KEY,
+  user_id       INTEGER NOT NULL,
+  action_type   TEXT NOT NULL,
+  payload_json  JSONB NOT NULL,
+  previous_hash TEXT NOT NULL, -- SHA-256 da linha id - 1
+  current_hash  TEXT NOT NULL, -- SHA-256(previous_hash + payload_json + recorded_at)
+  recorded_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Ao gravar uma nova linha, a aplicação calcula o `current_hash` combinando os dados do evento com o `current_hash` da linha anterior. Caso alguém modifique uma linha histórica diretamente nos arquivos de disco ou no banco, todos os hashes subsequentes se tornam inválidos, expondo imediatamente o ponto exato da fraude. Para ambientes de altíssima criticidade, adotam-se bancos de dados imutáveis nativos (como o **immudb**), que gerenciam árvores de Merkle de forma transparente e com desempenho de dezenas de milhares de transações por segundo.
 
 ---
 
