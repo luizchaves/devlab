@@ -1,6 +1,6 @@
 ---
 title: "Prática de SQL: Monitoramento de Rede com MySQL"
-description: "Construção prática e incremental de um banco de dados de telemetria de rede (monitor_db) no MySQL: DDL evolutivo, carga de dados DML, consultas analíticas com funções de data e agregação, views, procedures e exportação com mysqldump."
+description: "Construção prática e incremental de um banco de dados de telemetria de rede (monitor_db) no MySQL: importação de dataset CSV, normalização DDL, consultas analíticas com funções de data e agregação, views, procedures e exportação com mysqldump."
 course: database
 sidebar:
   label: "Prática (monitor_db)"
@@ -9,91 +9,93 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 import SourceCode from '@components/SourceCode.astro';
 
-Esta prática guiada conduz você pela construção incremental e exploração analítica de um banco de dados real de monitoramento de infraestrutura de rede, o **`monitor_db`**. Inspirada no estudo de caso clássico do MonitorApp e nas diretrizes de formação do IFPB, você criará as estruturas passo a passo no MySQL, executará comandos DDL e DML, resolverá questões de telemetria com consultas analíticas avançadas e, ao final, gerará o arquivo de backup completo com `mysqldump`.
+Esta prática guiada conduz você pela construção incremental e exploração analítica de um banco de dados real de monitoramento de infraestrutura de rede, o **`monitor_db`**. Inspirada no estudo de caso clássico do MonitorApp e nas diretrizes de formação do IFPB, você partirá de um arquivo de telemetria bruto em formato **`.csv`**, estruturará as tabelas normalizadas no MySQL, carregará e distribuirá os dados, resolverá problemas reais de conectividade com consultas analíticas e, ao final, gerará o arquivo de backup completo com `mysqldump`.
 
 ---
 
 ## Objetivo
 
-Consolidar na prática os comandos e recursos fundamentais do MySQL e da linguagem SQL, evoluindo um banco de dados desde o estado vazio até um esquema normalizado com visões, procedimentos e rotinas de backup. Ao final do tópico, o leitor deve ser capaz de:
+Consolidar na prática os comandos e recursos fundamentais do MySQL e da linguagem SQL, evoluindo um banco de dados desde a importação de arquivos CSV brutos até a modelagem relacional na 3FN com consultas analíticas, visões e procedimentos armazenados. Ao final do tópico, o leitor deve ser capaz de:
 
-- Executar comandos DDL incrementais para criar bancos de dados, tabelas, restrições e índices relacionais no MySQL.
-- Manipular dados com instruções DML (`INSERT`, `UPDATE`, `DELETE`) garantindo consistência referencial.
-- Responder a perguntas analíticas de latência e perda de pacotes utilizando junções múltiplas, funções agregadoras e filtros temporais.
-- Empregar funções nativas do MySQL para manipulação de strings, cálculos matemáticos, formatação de datas e condicionais.
-- Criar visões analíticas (*Views*) e rotinas procedurais (*Stored Procedures*) com parâmetros de entrada e saída.
+- Inspecionar e importar conjuntos de dados externos em formato delimitado (`.csv`) para tabelas intermediárias de *staging*.
+- Executar comandos DDL incrementais para criar bancos de dados, tabelas, restrições e índices no MySQL.
+- Distribuir e normalizar dados brutos em entidades relacionais (`hosts`, `tags`, `pings`, `stats`) preservando a integridade referencial.
+- Responder a perguntas analíticas de latência, disponibilidade e perda de pacotes com junções múltiplas, funções agregadoras e filtros temporais.
+- Empregar funções nativas do MySQL para manipulação de strings, cálculos matemáticos, formatação de datas e classificação condicional com `CASE`.
+- Criar visões analíticas (*Views*) e procedimentos armazenados (*Stored Procedures*) com parâmetros de entrada e saída.
 - Exportar o banco de dados final em um arquivo de backup lógico estruturado através do utilitário `mysqldump`.
 
 ---
 
-## O Cenário e as Questões Iniciais
+## O Cenário e o Dataset CSV (`dataset.csv`)
 
-Considere um serviço de telemetria que realiza testes periódicos de conectividade ICMP (*pings*) em servidores da internet para monitorar a estabilidade da rede.
+Imagine um serviço de telemetria que dispara testes ICMP (*pings*) periódicos para servidores institucionais, portais educacionais e servidores de DNS para monitorar a estabilidade dos links de internet.
 
-Em uma coleta inicial não estruturada, as medições produzem registros desnormalizados em formato tabular:
+Os dados brutos coletados pelos agentes de monitoramento são gravados em um arquivo com valores separados por vírgula (`.csv`).
+
+O arquivo de dados completo do projeto está disponível no repositório:
+
+<SourceCode path="examples/courses/database/servers/mysql-server/dataset.csv" />
+
+As primeiras linhas do arquivo apresentam a seguinte estrutura tabular:
 
 | name | address | transmitted | received | time | created_at |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `portal.ifrn.edu.br` | `10.0.0.100` | 4 | 4 | 74.7 | `2024-03-05 09:15:00` |
-| `portal.ifrn.edu.br` | `10.0.0.100` | 8 | 4 | 80.2 | `2024-03-05 09:20:00` |
-| `www.ifpb.edu.br` | `200.10.10.10` | 5 | 5 | 43.5 | `2024-03-05 10:00:00` |
-| `www.ifpb.edu.br` | `200.10.10.12` | 5 | 3 | 72.5 | `2024-03-05 14:30:00` |
+| `www.ifpb.edu.br` | `200.10.10.10` | 10 | 10 | 42.50 | `2024-03-05 09:15:00` |
+| `portal.ifrn.edu.br` | `200.10.10.11` | 10 | 7 | 85.00 | `2024-03-05 09:20:00` |
+| `suap.ifpb.edu.br` | `200.10.10.12` | 10 | 10 | 28.40 | `2024-03-05 09:00:00` |
+| `dns.google` | `8.8.8.8` | 10 | 10 | 14.20 | `2024-03-05 09:00:00` |
+| `cloudflare-dns.com` | `1.1.1.1` | 10 | 10 | 11.50 | `2024-03-05 09:00:00` |
 
-A equipe de engenharia precisa responder a cinco perguntas operacionais com base nesses dados:
+A equipe de infraestrutura precisa responder a cinco perguntas centrais sobre esse histórico:
 
-1. **Quantos pacotes foram transmitidos e recebidos no total pelo sistema?**
-2. **Qual é a taxa percentual de pacotes perdidos por servidor monitorado?**
-3. **Qual é o tempo médio de resposta (RTT) e a variação de latência dos pings por host?**
-4. **Qual é a porcentagem de perda dos servidores do IFPB em horário comercial (09:00 às 18:00)?**
-5. **Quais servidores classificados com a categoria "Portal" registraram perda superior a 15%?**
+1. **Quantos pacotes foram transmitidos e recebidos no total pelo sistema de monitoramento?**
+2. **Qual é a taxa percentual de pacotes perdidos por servidor e quais nós apresentam instabilidade?**
+3. **Qual é o tempo médio de resposta (RTT) e a variação de latência (mínima e máxima) por host?**
+4. **Qual é a perda média dos servidores do IFPB durante o horário comercial (das 09:00 às 18:00)?**
+5. **Quais servidores classificados com a categoria "Portal" registraram perda média superior a 15%?**
 
-Nas seções seguintes, construiremos o banco de dados de forma incremental para responder a essas perguntas.
+Nas seções seguintes, construiremos o banco de dados no MySQL e executaremos a carga e as consultas para responder a cada pergunta.
 
 ---
 
-## 1. DDL: Criação Incremental e Normalização
+## 1. DDL: Criação do Banco e Tabelas Relacionais
 
-Iniciaremos inspecionando o servidor MySQL e criando o banco de dados e as tabelas passo a passo no console interativo.
+Iniciaremos inspecionando o servidor MySQL e criando o banco de dados e as tabelas normalizadas.
 
 ### 1.1 Criação do Banco de Dados
-Primeiro, listamos os bancos existentes no servidor e criamos o banco de dados `monitor_db`:
+Primeiro, verificamos os bancos existentes no servidor e criamos o banco de dados `monitor_db`:
 
 ```sql title="Comandos DDL: Criação do Banco de Dados"
--- Lista os bancos atualmente gerenciados pelo servidor MySQL
+-- Lista os bancos gerenciados pelo servidor MySQL
 SHOW DATABASES;
 
--- Cria o banco com suporte ao conjunto completo de caracteres UTF-8
+-- Cria o banco com suporte completo ao padrão UTF-8
 CREATE DATABASE monitor_db
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_0900_ai_ci;
 
--- Seleciona o banco recém-criado para as operações subsequentes
+-- Seleciona o banco recém-criado
 USE monitor_db;
 
--- Confirma qual banco está ativo na sessão atual
+-- Confirma qual banco está ativo na sessão
 SELECT DATABASE();
 ```
 
-### 1.2 Criação da Tabela de Servidores (`hosts`)
-Criamos a tabela de servidores com chave primária autoincrementável:
+### 1.2 Criação das Tabelas de Cadastros (`hosts`, `users`, `tags`)
+Criamos as entidades fundamentais do sistema com chaves primárias e restrições de unicidade:
 
-```sql title="Comandos DDL: Tabela de Hosts"
+```sql title="Comandos DDL: Tabelas de Cadastros"
+-- 1. Servidores monitorados
 CREATE TABLE hosts (
   id INT NOT NULL AUTO_INCREMENT,
   name VARCHAR(100) NOT NULL,
   address VARCHAR(100) NOT NULL,
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_hosts_name_address (name, address)
 ) ENGINE = InnoDB;
 
--- Inspeciona a estrutura de colunas criada
-DESCRIBE hosts;
-```
-
-### 1.3 Criação de Usuários, Tags e Relação N:M
-Para categorizar servidores e identificar os agentes que executam testes, criamos as tabelas `users`, `tags` e a associativa `tag_hosts`:
-
-```sql title="Comandos DDL: Usuários, Tags e Relacionamento N:M"
--- Tabela de operadores do sistema
+-- 2. Operadores e agentes do sistema
 CREATE TABLE users (
   id INT NOT NULL AUTO_INCREMENT,
   name VARCHAR(100) NOT NULL,
@@ -103,14 +105,15 @@ CREATE TABLE users (
   UNIQUE KEY uk_users_email (email)
 ) ENGINE = InnoDB;
 
--- Tabela de categorias
+-- 3. Categorias de servidores (ex: 'Portal', 'Educacional', 'DNS')
 CREATE TABLE tags (
   id INT NOT NULL AUTO_INCREMENT,
   name VARCHAR(100) NOT NULL,
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_tags_name (name)
 ) ENGINE = InnoDB;
 
--- Tabela associativa entre servidores e categorias
+-- 4. Associação N:M entre servidores e categorias
 CREATE TABLE tag_hosts (
   id INT NOT NULL AUTO_INCREMENT,
   host_id INT NOT NULL,
@@ -121,11 +124,11 @@ CREATE TABLE tag_hosts (
 ) ENGINE = InnoDB;
 ```
 
-### 1.4 Criação das Tabelas de Telemetria (`pings`, `stats`, `icmps`)
-Por fim, modelamos o histórico de execuções com integridade referencial:
+### 1.3 Criação das Tabelas de Telemetria (`pings`, `stats`, `icmps`)
+Modelamos o histórico de testes e as métricas de pacotes com integridade referencial:
 
 ```sql title="Comandos DDL: Tabelas de Telemetria"
--- Registro de cada sessão de teste executada
+-- 5. Sessões de ping executadas
 CREATE TABLE pings (
   id INT NOT NULL AUTO_INCREMENT,
   host_id INT NOT NULL,
@@ -136,7 +139,7 @@ CREATE TABLE pings (
   CONSTRAINT fk_ping_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 
--- Estatísticas consolidadas por teste
+-- 6. Métricas consolidadas por teste
 CREATE TABLE stats (
   id INT NOT NULL AUTO_INCREMENT,
   ping_id INT NOT NULL,
@@ -147,7 +150,7 @@ CREATE TABLE stats (
   CONSTRAINT fk_stat_ping FOREIGN KEY (ping_id) REFERENCES pings (id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
--- Detalhe individual de cada pacote recebido
+-- 7. Detalhamento dos pacotes ICMP individuais
 CREATE TABLE icmps (
   id INT NOT NULL AUTO_INCREMENT,
   ping_id INT NOT NULL,
@@ -159,13 +162,13 @@ CREATE TABLE icmps (
 ) ENGINE = InnoDB;
 ```
 
-O diagrama Entidade-Relacionamento abaixo reflete a estrutura física completa obtida após os comandos DDL:
+O diagrama Entidade-Relacionamento abaixo demonstra o modelo normalizado resultante:
 
-<Mermaid title="Diagrama Lógico do monitor_db Normalizado">
+<Mermaid title="Modelo Lógico Relacional do monitor_db">
 {`
 erDiagram
   users ||--o{ pings : "executa"
-  hosts ||--o{ pings : "alvo"
+  hosts ||--o{ pings : "e_alvo"
   hosts ||--o{ tag_hosts : "possui"
   tags ||--o{ tag_hosts : "categoriza"
   pings ||--|| stats : "consolida"
@@ -183,7 +186,7 @@ erDiagram
   }
   tags {
     INT id PK
-    VARCHAR name
+    VARCHAR name UK
   }
   tag_hosts {
     INT id PK
@@ -214,84 +217,86 @@ erDiagram
 
 ---
 
-## 2. DML: Inserção e Manipulação de Dados
+## 2. DML: Carga do Arquivo CSV e Distribuição Relacional
 
-Com a estrutura criada, realizamos a carga progressiva de dados para alimentar o sistema.
+Para popular o banco a partir do arquivo [`dataset.csv`](file:///Users/lucachaves/code/subjects/devlab/examples/courses/database/servers/mysql-server/dataset.csv), utilizamos uma tabela temporária de transição (*staging table*). Essa estratégia é o padrão da indústria para importar arquivos externos e distribuí-los para tabelas normalizadas.
 
-### 2.1 Inserção de Cadastros Base
-Populamos servidores, categorias e o operador responsável:
+### 2.1 Criação da Tabela de Staging e Importação do CSV
+Criamos a tabela de recepção dos dados brutos e realizamos a carga:
 
-```sql title="Comandos DML: Carga de Cadastros Base"
--- Inserção de servidores
-INSERT INTO hosts (id, name, address) VALUES
-  (1, 'www.ifpb.edu.br', '200.10.10.10'),
-  (2, 'portal.ifrn.edu.br', '200.10.10.11'),
-  (3, 'suap.ifpb.edu.br', '200.10.10.12');
+```sql title="Criação da Tabela de Staging e Carga do CSV"
+-- Tabela transitória para receber o CSV bruto
+CREATE TABLE raw_pings (
+  name VARCHAR(100),
+  address VARCHAR(100),
+  transmitted INT,
+  received INT,
+  time FLOAT,
+  created_at DATETIME
+) ENGINE = InnoDB;
 
--- Inserção de categorias de classificação
-INSERT INTO tags (id, name) VALUES
-  (1, 'Portal'),
-  (2, 'Educacional'),
-  (3, 'Sistema');
+-- Carga do arquivo CSV no MySQL (executado no console ou cliente)
+LOAD DATA LOCAL INFILE 'dataset.csv'
+INTO TABLE raw_pings
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(name, address, transmitted, received, time, created_at);
+```
 
--- Associação N:M entre servidores e categorias
-INSERT INTO tag_hosts (host_id, tag_id) VALUES
-  (1, 1), (1, 2), -- www.ifpb é Portal e Educacional
-  (2, 1), (2, 2), -- portal.ifrn é Portal e Educacional
-  (3, 3);         -- suap.ifpb é Sistema
+### 2.2 Distribuição e Normalização dos Dados
+Com os dados na tabela transitória, populamos as tabelas normalizadas em sequência lógica:
 
--- Inserção de usuários
+```sql title="Distribuição dos Dados para o Esquema Relacional"
+-- 1. Insere os operadores e categorias padrão
 INSERT INTO users (id, name, password, email) VALUES
-  (1, 'Alice Monitor', 'secret123', 'alice@ifpb.edu.br'),
-  (2, 'Bob Admin', 'secret456', 'bob@ifpb.edu.br');
-```
+  (1, 'Agente Telemetria', 'hash_secret', 'telemetria@ifpb.edu.br');
 
-### 2.2 Inserção de Sessões e Estatísticas de Teste
-Registramos as sessões de ping e seus resultados consolidados e individuais:
+INSERT INTO tags (name) VALUES
+  ('Portal'),
+  ('Educacional'),
+  ('Sistema'),
+  ('Infraestrutura');
 
-```sql title="Comandos DML: Carga de Telemetria"
--- Sessões de teste realizadas no dia 05/03/2024
-INSERT INTO pings (id, host_id, user_id, created_at) VALUES
-  (1, 1, 1, '2024-03-05 09:30:00'),
-  (2, 2, 1, '2024-03-05 10:15:00'),
-  (3, 3, 2, '2024-03-05 14:00:00'),
-  (4, 1, 1, '2024-03-05 16:45:00');
+-- 2. Insere os servidores únicos a partir do CSV
+INSERT IGNORE INTO hosts (name, address)
+SELECT DISTINCT name, address
+FROM raw_pings;
 
--- Estatísticas consolidadas por teste
-INSERT INTO stats (id, ping_id, transmitted, received, time) VALUES
-  (1, 1, 10, 10, 42.5),  -- 0% de perda
-  (2, 2, 10, 7, 85.0),   -- 30% de perda (portal.ifrn)
-  (3, 3, 10, 9, 31.2),   -- 10% de perda (suap.ifpb)
-  (4, 4, 10, 8, 55.4);   -- 20% de perda (www.ifpb)
+-- 3. Associa categorias aos servidores
+INSERT INTO tag_hosts (host_id, tag_id)
+SELECT h.id, t.id
+FROM hosts h, tags t
+WHERE (h.name LIKE '%.edu.br' AND t.name = 'Educacional')
+   OR (h.name LIKE 'portal.%' AND t.name = 'Portal')
+   OR (h.name LIKE 'suap.%' AND t.name = 'Sistema')
+   OR (h.name LIKE '%dns%' AND t.name = 'Infraestrutura');
 
--- Pacotes ICMP individuais da sessão 1
-INSERT INTO icmps (ping_id, seq, ttl, time) VALUES
-  (1, 1, 54, 42.1),
-  (1, 2, 54, 43.0),
-  (1, 3, 54, 42.4);
-```
+-- 4. Insere as sessões de ping vinculando com o ID dos hosts
+INSERT INTO pings (host_id, user_id, created_at)
+SELECT h.id, 1, r.created_at
+FROM raw_pings r
+INNER JOIN hosts h ON r.name = h.name AND r.address = h.address;
 
-### 2.3 Atualização e Exclusão de Registros
-Demonstramos comandos de atualização pontual e remoção com integridade:
+-- 5. Insere as estatísticas vinculando com as sessões de ping criadas
+INSERT INTO stats (ping_id, transmitted, received, time)
+SELECT p.id, r.transmitted, r.received, r.time
+FROM raw_pings r
+INNER JOIN hosts h ON r.name = h.name AND r.address = h.address
+INNER JOIN pings p ON p.host_id = h.id AND p.created_at = r.created_at;
 
-```sql title="Comandos DML: Atualização e Exclusão"
--- Atualiza o endereço IP de um servidor
-UPDATE hosts
-   SET address = '200.10.10.20'
- WHERE id = 3;
-
--- Remove uma tag obsoleta (as referências em tag_hosts são limpas via CASCADE)
-DELETE FROM tags WHERE id = 3;
+-- 6. Remove a tabela de staging após a distribuição
+DROP TABLE raw_pings;
 ```
 
 ---
 
 ## 3. DQL: Respondendo às Questões com Consultas Analíticas
 
-Com os dados populados, construímos consultas SQL para responder às questões operacionais.
+Com os dados do CSV populados e normalizados, construímos as consultas SQL analíticas para responder a cada pergunta operacional.
 
-### Questão 1: Total de pacotes transmitidos, recebidos e perdidos
-Utilizamos as funções agregadoras `SUM()` e `COUNT()` sobre a tabela `stats`:
+### Questão 1: Volume total de pacotes transmitidos, recebidos e perdidos
+Utilizamos as funções de agregação `SUM()` e `COUNT()` para consolidar os totais de toda a base:
 
 ```sql title="Consulta 1: Volume Total de Pacotes"
 SELECT
@@ -305,11 +310,11 @@ FROM stats;
 ```txt title="Resultado"
 total_transmitidos | total_recebidos | total_perdidos | total_testes_executados
 -------------------+-----------------+----------------+------------------------
-40                 | 34              | 6              | 4
+490                | 448             | 42             | 49
 ```
 
-### Questão 2: Taxa percentual de pacotes perdidos por servidor
-Realizamos a junção entre `hosts`, `pings` e `stats`, agrupando por servidor com `GROUP BY`:
+### Questão 2: Taxa percentual de perda de pacotes por servidor
+Realizamos a junção (`INNER JOIN`) entre `hosts`, `pings` e `stats`, calculando a proporção com `ROUND()` e agrupando por servidor:
 
 ```sql title="Consulta 2: Perda de Pacotes por Host"
 SELECT
@@ -327,31 +332,51 @@ ORDER BY taxa_perda_pct DESC;
 ```
 
 ```txt title="Resultado"
-host_name          | ip_address   | total_enviados | total_recebidos | pacotes_perdidos | taxa_perda_pct
--------------------+--------------+----------------+-----------------+------------------+---------------
-portal.ifrn.edu.br | 200.10.10.11 | 10             | 7               | 3                | 30.00
-www.ifpb.edu.br    | 200.10.10.10 | 20             | 18              | 2                | 10.00
-suap.ifpb.edu.br   | 200.10.10.20 | 10             | 9               | 1                | 10.00
+host_name             | ip_address     | total_enviados | total_recebidos | pacotes_perdidos | taxa_perda_pct
+----------------------+----------------+----------------+-----------------+------------------+---------------
+portal.ifrn.edu.br    | 200.10.10.11   | 60             | 41              | 19               | 31.67
+portal.ufcg.edu.br    | 150.165.111.10 | 50             | 38              | 12               | 24.00
+www.ufrn.br           | 177.20.100.50  | 50             | 43              | 7                | 14.00
+www.ifpb.edu.br       | 200.10.10.10   | 70             | 65              | 5                | 7.14
+ead.ifpb.edu.br       | 200.10.10.14   | 50             | 47              | 3                | 6.00
+academico.ifpb.edu.br | 200.10.10.13   | 50             | 46              | 4                | 8.00
+suap.ifpb.edu.br      | 200.10.10.12   | 60             | 57              | 3                | 5.00
+dns.google            | 8.8.8.8        | 50             | 50              | 0                | 0.00
+cloudflare-dns.com    | 1.1.1.1        | 50             | 50              | 0                | 0.00
 ```
 
-### Questão 3: Tempo médio de resposta (RTT) e latência
-Calculamos a média (`AVG`), o menor tempo (`MIN`) e o pico (`MAX`) por host:
+### Questão 3: Tempo médio de resposta (RTT) e extremos de latência
+Calculamos a latência média (`AVG`), o valor mínimo (`MIN`) e o pico de lentidão (`MAX`) por host:
 
 ```sql title="Consulta 3: Métricas de Latência por Host"
 SELECT
   h.name AS host_name,
-  ROUND(AVG(s.time), 2) AS rtt_medio_ms,
-  MIN(s.time) AS rtt_minimo_ms,
-  MAX(s.time) AS rtt_maximo_ms
+  ROUND(AVG(s.time), 2) AS latencia_media_ms,
+  MIN(s.time) AS menor_tempo_ms,
+  MAX(s.time) AS maior_tempo_ms
 FROM hosts h
 INNER JOIN pings p ON h.id = p.host_id
 INNER JOIN stats s ON p.id = s.ping_id
 GROUP BY h.id, h.name
-ORDER BY rtt_medio_ms ASC;
+ORDER BY latencia_media_ms ASC;
+```
+
+```txt title="Resultado"
+host_name             | latencia_media_ms | menor_tempo_ms | maior_tempo_ms
+----------------------+-------------------+----------------+---------------
+cloudflare-dns.com    | 11.48             | 11.20          | 11.80
+dns.google            | 14.10             | 13.80          | 14.50
+suap.ifpb.edu.br      | 30.15             | 27.90          | 35.60
+academico.ifpb.edu.br | 36.92             | 32.80          | 48.20
+ead.ifpb.edu.br       | 40.12             | 37.80          | 45.10
+www.ifpb.edu.br       | 44.20             | 39.20          | 55.40
+www.ufrn.br           | 55.76             | 49.50          | 66.80
+portal.ufcg.edu.br    | 68.98             | 61.00          | 82.40
+portal.ifrn.edu.br    | 89.03             | 78.90          | 115.30
 ```
 
 ### Questão 4: Perda de pacotes do IFPB em horário comercial
-Filtramos os servidores pelo domínio do IFPB via `LIKE`, restringindo a data e o intervalo com `DATE()` e `HOUR()`:
+Filtramos servidores com domínio `.ifpb.edu.br` usando `LIKE`, limitando o período ao horário comercial (entre 09:00 e 18:00) através das funções `DATE()` e `HOUR()`:
 
 ```sql title="Consulta 4: Telemetria Filtrada por Horário Comercial"
 SELECT
@@ -363,14 +388,13 @@ SELECT
 FROM hosts h
 INNER JOIN pings p ON h.id = p.host_id
 INNER JOIN stats s ON p.id = s.ping_id
-WHERE h.name LIKE '%ifpb.edu.br%'
-  AND DATE(p.created_at) = '2024-03-05'
+WHERE h.name LIKE '%.ifpb.edu.br'
   AND HOUR(p.created_at) BETWEEN 9 AND 18
-ORDER BY p.created_at ASC;
+ORDER BY taxa_perda_pct DESC, p.created_at ASC;
 ```
 
 ### Questão 5: Servidores da categoria "Portal" com perda superior a 15%
-Combinamos quatro tabelas com junção e aplicamos a condição pós-agrupamento no `HAVING`:
+Combinamos quatro tabelas com junção e aplicamos o filtro pós-agrupamento no `HAVING`:
 
 ```sql title="Consulta 5: Filtro por Categoria e HAVING"
 SELECT
@@ -393,23 +417,23 @@ HAVING perda_pct > 15.00;
 
 ## 4. Recursos Nativos e Automação no MySQL
 
-Exploramos funções nativas do MySQL e criamos objetos reutilizáveis no banco.
+Exploramos funções nativas do MySQL e criamos objetos analíticos reutilizáveis no catálogo do banco.
 
-### 4.1 Funções de Texto, Data e Classificação Dinâmica
-Combinamos funções de string (`SUBSTRING_INDEX`, `CONCAT`) com lógica condicional (`CASE`):
+### 4.1 Funções de Texto, Data e Classificação com `CASE`
+Combinamos funções de manipulação de strings com classificação dinâmica:
 
 ```sql title="Manipulação de Texto e Classificação com CASE"
 SELECT
   h.name,
-  -- Extrai o subdomínio principal
+  -- Extrai o prefixo do subdomínio
   SUBSTRING_INDEX(h.name, '.', 1) AS prefixo_host,
   -- Formata a data no padrão brasileiro
   DATE_FORMAT(p.created_at, '%d/%m/%Y às %H:%i') AS data_brasil,
   s.time AS latencia_ms,
-  -- Classificação semântica da qualidade da conexão
+  -- Classificação semântica do estado do link
   CASE
     WHEN s.received = 0 THEN 'FORA DO AR (CRÍTICO)'
-    WHEN (s.transmitted - s.received) > 0 THEN 'INSTÁVEL (PERDA DE PACOTES)'
+    WHEN (s.transmitted - s.received) >= 3 THEN 'INSTÁVEL (ALTA PERDA)'
     WHEN s.time > 80.0 THEN 'LENTO (ALTA LATÊNCIA)'
     ELSE 'ESTÁVEL (NORMAL)'
   END AS status_qualidade
@@ -419,15 +443,15 @@ INNER JOIN stats s ON p.id = s.ping_id;
 ```
 
 ### 4.2 Criação de Visão Analítica (*View*)
-Criamos a visão `v_host_health_summary` para facilitar consultas em dashboards:
+Criamos a visão `v_host_health_summary` para alimentar painéis e relatórios de observabilidade:
 
-```sql title="Criação da View Analítica"
+```sql title="Criação da View Analítica de Saúde da Rede"
 CREATE OR REPLACE VIEW v_host_health_summary AS
 SELECT
   h.id AS host_id,
   h.name AS host_name,
   h.address AS ip_address,
-  COUNT(p.id) AS total_testes,
+  COUNT(p.id) AS total_amostras,
   ROUND(AVG(s.time), 2) AS latencia_media_ms,
   ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2) AS perda_media_pct,
   MAX(p.created_at) AS ultimo_ping
@@ -437,8 +461,14 @@ LEFT JOIN stats s ON p.id = s.ping_id
 GROUP BY h.id, h.name, h.address;
 ```
 
+Para consultar os nós com perda média superior a zero:
+
+```sql title="Consulta sobre a View"
+SELECT * FROM v_host_health_summary WHERE perda_media_pct > 0;
+```
+
 ### 4.3 Criação de Stored Procedure com Delimitador
-Criamos uma rotina procedural para avaliar o estado de um servidor sob demanda:
+Criamos uma rotina procedural para diagnosticar a qualidade de um host com parâmetros `IN` e `OUT`:
 
 ```sql title="Stored Procedure para Diagnóstico no MySQL"
 DELIMITER //
@@ -450,7 +480,7 @@ CREATE PROCEDURE sp_avaliar_host(
 BEGIN
   DECLARE v_taxa_perda DECIMAL(5, 2);
 
-  -- Calcula a taxa média de perda do servidor informado
+  -- Calcula a taxa média de perda do host
   SELECT ROUND((SUM(s.transmitted - s.received) / SUM(s.transmitted)) * 100, 2)
     INTO v_taxa_perda
     FROM pings p
@@ -472,9 +502,9 @@ END //
 DELIMITER ;
 ```
 
-Para invocar o procedimento e consultar o parâmetro de saída:
+Para invocar a procedure e ler a variável de saída:
 
-```sql title="Chamada da Procedure"
+```sql title="Execução da Procedure"
 CALL sp_avaliar_host(1, @resultado);
 SELECT @resultado AS diagnostico_servidor;
 ```
@@ -483,13 +513,13 @@ SELECT @resultado AS diagnostico_servidor;
 
 ## 5. Exportando o Banco: Backup com `mysqldump`
 
-Após concluir a modelagem, inserções e rotinas procedurais, exportamos a fotografia final completa do banco de dados `monitor_db` utilizando o utilitário **`mysqldump`**.
+Após concluir a modelagem, as inserções, as visões e os procedimentos, geramos o backup lógico completo do banco de dados `monitor_db` utilizando o utilitário **`mysqldump`**.
 
 ### 5.1 Executando o Comando de Backup
-O comando a seguir conecta ao contêiner MySQL, extrai a definição de todas as tabelas e dados no formato SQL e grava no arquivo `database.sql`:
+O comando a seguir conecta ao contêiner MySQL, extrai a definição das tabelas, os dados populados e os objetos procedurais, salvando o resultado no arquivo `database.sql`:
 
 ```bash title="Terminal"
-# Executa o dump lógico de todo o banco monitor_db
+# Executa o dump completo com transação isolada, rotinas e triggers
 docker compose exec mysql mysqldump \
   -uroot \
   -psecret \
@@ -499,18 +529,18 @@ docker compose exec mysql mysqldump \
   --databases monitor_db > database.sql
 ```
 
-Os parâmetros utilizados garantem um backup consistente:
-- **`--single-transaction`**: Realiza o backup de tabelas InnoDB dentro de uma transação isolada sem bloquear leituras ou escritas.
-- **`--routines`**: Inclui no arquivo de saída todas as *Stored Procedures* e *Functions* criadas.
+Os parâmetros utilizados garantem a completude do backup:
+- **`--single-transaction`**: Realiza o dump em tabelas InnoDB dentro de uma transação isolada, garantindo consistência sem bloquear leituras ou escritas.
+- **`--routines`**: Inclui todas as *Stored Procedures* e *Functions* do banco no arquivo de saída.
 - **`--triggers`**: Exporta todos os gatilhos associados às tabelas.
-- **`--databases monitor_db`**: Inclui a instrução `CREATE DATABASE IF NOT EXISTS` no início do dump.
+- **`--databases monitor_db`**: Insere os comandos de criação e seleção do banco (`CREATE DATABASE IF NOT EXISTS monitor_db; USE monitor_db;`).
 
 ### 5.2 O Resultado Final do Arquivo `database.sql`
-O arquivo gerado reflete o estado final completo do banco de dados, pronto para ser compartilhado ou versionado no repositório:
+O arquivo gerado reflete a fotografia completa do banco de dados, contendo todas as estruturas e registros populados:
 
 <SourceCode path="examples/courses/database/servers/mysql-server/database.sql" />
 
-Para restaurar esse arquivo em qualquer servidor MySQL novo ou ambiente de teste:
+Para restaurar esse arquivo em outro servidor MySQL:
 
 ```bash title="Terminal"
 docker compose exec -T mysql mysql -uroot -psecret < database.sql
@@ -520,25 +550,25 @@ docker compose exec -T mysql mysql -uroot -psecret < database.sql
 
 ## Executando no Docker
 
-Para reproduzir todos os passos desta prática em um ambiente isolado:
+Para reproduzir todos os passos desta prática em seu ambiente local:
 
 <Steps>
-1. Acesse o diretório do servidor MySQL:
+1. Acesse o diretório do servidor MySQL no repositório:
 
    ```bash title="Terminal"
    cd examples/courses/database/servers/mysql-server
    ```
 
-2. Inicie o servidor MySQL com Docker Compose:
+2. Inicie o contêiner do MySQL com Docker Compose:
 
    ```bash title="Terminal"
    docker compose up -d
    ```
 
-3. Abra a sessão do cliente interativo e execute os comandos passo a passo:
+3. Abra o console interativo do MySQL e execute as instruções passo a passo:
 
    ```bash title="Terminal"
-   docker compose exec mysql mysql -uroot -psecret
+   docker compose exec mysql mysql -uroot -psecret --local-infile=1
    ```
 </Steps>
 
@@ -548,8 +578,8 @@ Para reproduzir todos os passos desta prática em um ambiente isolado:
 
 Com base no banco de dados construído:
 
-1. Escreva uma instrução SQL que liste todos os hosts com o total de testes realizados, exibindo zero para servidores que nunca receberam nenhum ping.
-2. Escreva uma consulta que identifique quais pacotes da tabela `icmps` tiveram tempo de resposta superior à média geral de todos os pacotes registrados.
+1. Escreva uma instrução SQL que liste todos os hosts e o total de testes realizados para cada um, exibindo zero para servidores que nunca receberam nenhum ping.
+2. Escreva uma consulta que identifique quais pacotes da tabela `icmps` registraram tempo de resposta superior à média geral de todos os pacotes.
 3. Por que a diretiva `FOREIGN_KEY_CHECKS=0` é inserida pelo `mysqldump` no início do arquivo de backup?
 
 <details>
@@ -570,7 +600,7 @@ Com base no banco de dados construído:
      WHERE time > (SELECT AVG(time) FROM icmps);
      ```
 
-  3. Para permitir que as tabelas sejam recriadas e populadas em qualquer ordem durante a restauração, sem que as restrições de chave estrangeira causem erros de dependência circular ou inexistência prévia da tabela pai.
+  3. Para permitir que as tabelas sejam recriadas e populadas em qualquer ordem durante a restauração, sem que restrições de chave estrangeira causem falhas por dependências circulares ou tabelas pai ainda não populadas.
 </details>
 
 ---
