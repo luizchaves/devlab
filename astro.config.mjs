@@ -2030,6 +2030,52 @@ export default defineConfig({
                 },
               ],
             },
+            {
+              label: 'Na Prática',
+              items: [
+                {
+                  label: 'InvestBaaS',
+                  items: [
+                    {
+                      label: 'Visão geral',
+                      link: '/courses/npm/practice/investbaas/',
+                    },
+                    {
+                      label: 'Backlog do projeto',
+                      link: '/courses/npm/practice/investbaas/backlog/',
+                    },
+                    {
+                      label: '1. Frontend estático',
+                      link: '/courses/npm/practice/investbaas/front-static/',
+                    },
+                    {
+                      label: '2. Autenticação BaaS',
+                      link: '/courses/npm/practice/investbaas/auth/',
+                    },
+                    {
+                      label: '3. Banco de Dados e RLS',
+                      link: '/courses/npm/practice/investbaas/database/',
+                    },
+                    {
+                      label: '4. Cotações com Edge Functions',
+                      link: '/courses/npm/practice/investbaas/edge-quotes/',
+                    },
+                    {
+                      label: '5. Armazenamento de Comprovantes',
+                      link: '/courses/npm/practice/investbaas/storage/',
+                    },
+                    {
+                      label: '6. Analytics e Painel Admin',
+                      link: '/courses/npm/practice/investbaas/analytics/',
+                    },
+                    {
+                      label: 'Próximos passos',
+                      link: '/courses/npm/practice/investbaas/next-steps/',
+                    },
+                  ],
+                },
+              ],
+            },
             { label: 'Mapa de Pacotes', link: '/courses/npm/reference/package-map/' },
           ],
         },

@@ -8,7 +8,7 @@
 
 export type ProjectLevel = 'Iniciante' | 'Intermediário' | 'Avançado';
 
-export type ProjectCategory = 'express' | 'invest-app' | 'monitor-app' | 'web-api';
+export type ProjectCategory = 'express' | 'invest-app' | 'monitor-app' | 'web-api' | 'npm';
 
 export interface Project {
   /** Identificador estável, igual ao diretório em `examples/`. */
@@ -31,6 +31,25 @@ export interface Project {
 
 export const projects: Project[] = [
   // --- APLICAÇÕES COMPLETAS (TRILHAS INTEGRADAS) ---
+  {
+    id: 'investbaas-static',
+    name: 'InvestBaaS — Gestão & BaaS Supabase',
+    description:
+      'Plataforma de gestão de carteira de investimentos e cálculo de matriz de rentabilidade mensal/anual construída com Vanilla JS, Tailwind CSS e Backend as a Service (BaaS) com Supabase (PostgreSQL, RLS, Auth, Storage e Edge Functions).',
+    level: 'Intermediário',
+    category: 'npm',
+    featured: true,
+    tech: ['Supabase', 'PostgreSQL', 'RLS', 'Edge Functions', 'Tailwind CSS', 'Vanilla JS'],
+    concepts: [
+      'BaaS',
+      'Row Level Security',
+      'Matriz de Rentabilidade',
+      'Edge Serverless',
+      'Storage',
+    ],
+    docs: '/courses/npm/practice/investbaas/',
+    source: 'examples/courses/npm/projects/investbaas-static',
+  },
   {
     id: 'invest-app',
     name: 'InvestApp — Gestão Financeira',
@@ -132,8 +151,9 @@ export function getFeaturedProjects(): Project[] {
   const categoryOrder: Record<ProjectCategory, number> = {
     'invest-app': 1,
     'monitor-app': 2,
-    express: 3,
-    'web-api': 4,
+    npm: 3,
+    express: 4,
+    'web-api': 5,
   };
 
   return featured.sort(
