@@ -11,6 +11,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Etapa **2 de 6** · Nível **Intermediário** · Supabase Auth · JWT · Sessão · Perfil
 
@@ -99,27 +100,42 @@ As tasks mantêm a chave de projeto em um único módulo e separam evento de for
 
 ## Estrutura da aplicação
 
-O projeto versionado termina na Sprint 1. A árvore abaixo é o alvo da Sprint 2: três módulos novos em `src/`, os formulários de sessão ligados a eles e a primeira migration. Ela deixa explícito que `supabase-client.js` não é um local para a `service_role`.
+A sprint nasce como cópia da Sprint 1 mais o delta: três módulos em `src/`, os formulários ligados a eles, a primeira migration e as três camadas de teste. `supabase-client.js` é o único lugar em que a chave do projeto aparece, e é a chave **anônima**.
 
-<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer="investbaas-static" />
+<ProjectLinks path="examples/courses/npm/projects/investbaas-auth" devcontainer="investbaas-auth" />
 
 <FileTree>
 {`
-  investbaas-static/
-  ├── .env.example                  VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY
-  ├── package.json                  + @supabase/supabase-js
+  investbaas-auth/
+  ├── .env.example                      VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY e a chave dos testes
+  ├── package.json                      + supabase-js, vitest, jsdom, playwright e os scripts db:* e test:*
+  ├── vite.config.js                    as seis páginas como entradas do build
+  ├── vitest.config.js                  dois projetos: unit (jsdom) e integration (node)
+  ├── playwright.config.js              sobe o Vite e roda tests/e2e
+  ├── supabase/
+  │   ├── config.toml                   stack local (supabase init)
+  │   └── migrations/
+  │       └── 20260912000001_profiles.sql   tabela, grants, RLS e trigger
   ├── src/
-  │   ├── lib/supabase-client.js    URL + anon key, nunca service role
-  │   ├── services/auth.js          signUp, signIn, signOut e onSessionEnd
-  │   ├── guards/require-session.js proteção das páginas privadas
+  │   ├── lib/
+  │   │   ├── supabase-client.js        URL + anon key, nunca service role
+  │   │   ├── supabase-client.test.js
+  │   │   └── form.js                   showError()
+  │   ├── services/
+  │   │   ├── auth.js                   signUp, signIn, signOut, getSession, onSessionEnd
+  │   │   └── auth.test.js              SDK mockado
+  │   ├── guards/
+  │   │   ├── require-session.js        proteção das páginas privadas
+  │   │   └── require-session.test.js
   │   └── pages/
-  │       ├── signup.js             o formulário de cadastro fala com o Auth
-  │       └── signin.js             o formulário de login fala com o Auth
-  ├── signup.html                   sem action; carrega src/pages/signup.js
-  ├── signin.html                   sem action; carrega src/pages/signin.js
-  ├── dashboard.html                + guarda, e-mail do usuário e botão Sair
-  └── supabase/migrations/
-      └── 0001_profiles.sql         profiles, RLS e trigger de auth.users
+  │       ├── signup.js                 o formulário de cadastro fala com o Auth
+  │       ├── signin.js                 o formulário de login fala com o Auth
+  │       └── private.js                guarda, e-mail do usuário e botão Sair
+  ├── tests/
+  │   ├── integration/auth.test.js      SDK real contra a stack local
+  │   └── e2e/auth.spec.js              Playwright
+  ├── signup.html · signin.html         sem action; carregam src/pages/*.js
+  └── dashboard.html · analytics.html · admin.html   carregam src/pages/private.js
 `}
 </FileTree>
 
@@ -136,10 +152,10 @@ A Sprint 1 desenhou `signin.html` e `signup.html` com `action="./dashboard.html"
 | Nenhuma dependência | `@supabase/supabase-js` no `package.json` |
 | Nenhuma variável de ambiente | `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` |
 
-<Aside type="note" title="O código desta etapa é o alvo, não o repositório">
-  Os trechos abaixo mostram o que cada task escreve quando a sprint for executada sobre o
-  `investbaas-static`. Eles não vêm de arquivos de `examples/`, e por isso não têm caminho de
-  arquivo no título. A [Sprint 1](../front-static/) é a única com código versionado.
+<Aside type="note" title="Um projeto por sprint">
+  Como nas trilhas do Express.js, cada sprint é uma pasta em `examples/`: `investbaas-auth` é a
+  cópia de `investbaas-static` mais o delta desta página. Comparar as duas com
+  `git diff --no-index` mostra exatamente o que a sprint acrescentou.
 </Aside>
 
 ## Descrição das tarefas
@@ -148,181 +164,173 @@ Abaixo estão detalhadas as tarefas de implementação desta etapa, com orienta�
 
 ### TK02-1 · Criar o cliente Supabase (URL e chave anônima)
 
-O SDK é instalado como dependência do Vite. Nada de `<script src>` de CDN: o módulo entra no `package.json` e é resolvido pelo build, o que permite trocar a versão em um lugar só.
+O SDK é instalado como dependência do Vite. Nada de `<script src>` de CDN: o módulo entra no `package.json` e é resolvido pelo build, o que permite trocar a versão em um lugar só. Entram junto as três ferramentas de teste da sprint, todas de desenvolvimento.
 
-```bash title="Terminal"
-pnpm add @supabase/supabase-js
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/package.json"
+  title="package.json"
+  showLineNumbers
+  mark="13-19,21-23,25-29"
+/>
+
+O cliente é criado uma vez e importado por todo mundo. As duas variáveis vêm de `import.meta.env`, e o prefixo `VITE_` é o que autoriza o Vite a embuti-las no bundle: é a marca de "público". Uma variável sem o prefixo nunca chega ao navegador, e é assim que a `SUPABASE_SERVICE_ROLE_KEY` do `.env` (usada só pelos testes) continua fora do HTML publicado.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/lib/supabase-client.js"
+  title="src/lib/supabase-client.js"
+  region="client"
+/>
+
+O `.env.example` documenta as três variáveis; o `.env` real fica no `.gitignore`. Com a stack local, os valores saem de `supabase status -o env`:
+
+```ini title=".env.example"
+# Valores da stack local (supabase start). Os dois sao publicos: vao para o bundle.
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=<anon key exibida por supabase status>
+
+# Usada SOMENTE pelos testes de integracao, para ler entre contas e provar o isolamento.
+# Nunca importada por src/. Sem o prefixo VITE_, o Vite nao a coloca no bundle.
+SUPABASE_SERVICE_ROLE_KEY=<service_role key exibida por supabase status>
 ```
 
-O cliente é criado uma vez e importado por todo mundo. As duas variáveis vêm de `import.meta.env`, e o prefixo `VITE_` é o que autoriza o Vite a embuti-las no bundle: é a marca de "público". Uma variável sem o prefixo nunca chega ao navegador, e é assim que um `SUPABASE_SERVICE_ROLE_KEY` colocado por engano no `.env` continua fora do HTML publicado.
+O teste de unidade da task prova as duas faces do módulo: ele expõe um cliente com a URL configurada, e recusa subir com uma mensagem clara quando falta variável.
 
-```js title="Cliente único do Supabase (alvo de src/lib/supabase-client.js)"
-import { createClient } from '@supabase/supabase-js';
-
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!url || !anonKey) {
-  throw new Error('Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env');
-}
-
-// A chave anonima identifica o projeto; quem limita o acesso e o RLS da Sprint 3.
-export const supabase = createClient(url, anonKey);
-```
-
-O `.env.example` documenta as duas variáveis e nada mais. Ele é versionado; o `.env` real fica no `.gitignore`, como já acontece nas trilhas do InvestApp e do MonitorApp.
-
-```ini title=".env.example (alvo)"
-VITE_SUPABASE_URL=https://<projeto>.supabase.co
-VITE_SUPABASE_ANON_KEY=<chave anonima do projeto>
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/lib/supabase-client.test.js"
+  title="src/lib/supabase-client.test.js"
+  showLineNumbers
+  mark="12-19"
+/>
 
 ### TK02-2 · Implementar o cadastro (`signUp`)
 
 O `signUp` recebe e-mail, senha e, em `options.data`, os metadados que o Supabase grava em `raw_user_meta_data`. É de lá que a trigger da TK02-6 vai copiar o nome para `profiles`. O serviço devolve `{ data, error }` em vez de lançar: a decisão de como mostrar o erro fica com a tela.
 
-```js title="Serviço de conta (alvo de src/services/auth.js)"
-import { supabase } from '../lib/supabase-client.js';
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/services/auth.js"
+  title="src/services/auth.js"
+  region="sign-up"
+/>
 
-export async function signUp({ fullName, email, password }) {
-  return supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName } },
-  });
-}
-```
+Em `signup.html` o `action` sai e entra um módulo. Os campos ganham `name` (`fullName`, `email`, `password`), o formulário ganha uma caixa `[data-error]` e o script só lê e envia. Localmente a confirmação de e-mail está desligada (`enable_confirmations = false` no `config.toml`), então a conta já nasce pronta; em um projeto na nuvem com confirmação ligada, o comportamento da tela é o mesmo: avisar e levar ao login.
 
-Em `signup.html` o `action` sai e entra um módulo. Os campos já tinham `id` desde a Sprint 1, então o script só lê e envia. Com a confirmação de e-mail ligada no projeto Supabase, o cadastro não devolve sessão: a tela avisa para conferir a caixa de entrada e leva para o login.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/pages/signup.js"
+  title="src/pages/signup.js"
+  region="submit"
+/>
 
-```js title="Envio do formulário de cadastro (alvo de src/pages/signup.js)"
-import { signUp } from '../services/auth.js';
+Como o SDK inteiro vira um dublê no teste de unidade (o objeto `auth` das linhas 6 a 12 e o `vi.mock` da linha 14), o que se prova é o que o serviço faz **com** o SDK: o nome vai em `options.data.full_name`. O que o Supabase faz com isso é assunto do teste de integração.
 
-const form = document.querySelector('form');
-
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  const { error } = await signUp({
-    fullName: form.elements.fullName.value,
-    email: form.elements.email.value,
-    password: form.elements.password.value,
-  });
-
-  if (error) {
-    return showError(form, error.message);
-  }
-
-  window.location.href = './signin.html?registered=1';
-});
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/services/auth.test.js"
+  title="src/services/auth.test.js"
+  showLineNumbers
+  mark="6-14,22-33"
+  collapse="37-91"
+/>
 
 ### TK02-3 · Implementar o login (`signInWithPassword`)
 
-O login segue o mesmo desenho. A diferença está no erro: e-mail inexistente e senha errada voltam como o **mesmo** `AuthApiError` (`Invalid login credentials`), e a tela repete essa indistinção. Traduzir para "e-mail não encontrado" entregaria a lista de contas a quem tentasse de fora.
+O login segue o mesmo desenho, com uma decisão a mais no serviço: e-mail inexistente e senha errada voltam do Supabase como o **mesmo** `AuthApiError` (`Invalid login credentials`), e o serviço os traduz para uma frase só, `INVALID_CREDENTIALS`. Traduzir para "e-mail não encontrado" entregaria a lista de contas a quem tentasse de fora.
 
-```js title="Login e a mensagem única (alvo de src/pages/signin.js)"
-import { signIn } from '../services/auth.js';
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/services/auth.js"
+  title="src/services/auth.js"
+  region="sign-in"
+/>
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  const { error } = await signIn({
-    email: form.elements.email.value,
-    password: form.elements.password.value,
-  });
-
-  if (error) {
-    // A mesma frase para e-mail inexistente e senha errada.
-    return showError(form, 'E-mail ou senha invalidos');
-  }
-
-  window.location.href = './dashboard.html';
-});
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/pages/signin.js"
+  title="src/pages/signin.js"
+  region="submit"
+/>
 
 A sessão devolvida pelo `signInWithPassword` é guardada pelo SDK no `localStorage`, sob a chave `sb-<projeto>-auth-token`, e renovada sozinha antes de expirar. O front não toca no JWT: ele pede ao SDK, e o SDK anexa o `Authorization: Bearer` em cada chamada ao banco e ao Storage.
 
+A regra da mensagem única é provada duas vezes. Na unidade, com o dublê devolvendo dois erros diferentes e o serviço respondendo a mesma frase; na integração, contra o Auth real, onde as duas falhas já chegam com o mesmo `status` e a mesma `message`:
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/tests/integration/auth.test.js"
+  title="tests/integration/auth.test.js"
+  region="signin"
+/>
+
 ### TK02-4 · Criar a guarda de sessão (`requireSession`)
 
-`dashboard.html`, `analytics.html` e `admin.html` importam a guarda antes de qualquer outro módulo. Sem sessão, a página redireciona e o resto do script nem executa. A guarda é uma cortesia de interface, e a página deixa isso claro: quem impede uma consulta de outra conta é o RLS da Sprint 3, não este `if`.
+`dashboard.html`, `analytics.html` e `admin.html` importam a guarda antes de qualquer outro módulo. Sem sessão, a página redireciona e o resto do script nem executa, porque a promessa devolvida nunca resolve. A guarda é uma cortesia de interface, e o código diz isso: quem impede uma consulta de outra conta é o RLS da Sprint 3, não este `if`.
 
-```js title="Guarda das paginas privadas (alvo de src/guards/require-session.js)"
-import { supabase } from '../lib/supabase-client.js';
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/guards/require-session.js"
+  title="src/guards/require-session.js"
+  region="guard"
+/>
 
-export async function requireSession() {
-  const { data } = await supabase.auth.getSession();
+`location` é um parâmetro com padrão `window.location` por um motivo: no teste, um objeto com `replace` de mentira registra o redirecionamento sem sair do jsdom. O `Promise.race` com um `setTimeout` é o que prova que a promessa ficou pendente.
 
-  if (!data.session) {
-    window.location.replace('./signin.html');
-    // A promessa nunca resolve: o resto da pagina nao roda sem sessao.
-    return new Promise(() => {});
-  }
-
-  return data.session;
-}
-```
-
-```html title="Uso da guarda no topo de uma pagina privada"
-<script type="module">
-  import { requireSession } from './src/guards/require-session.js';
-
-  const session = await requireSession();
-  document.querySelector('#user-email').textContent = session.user.email;
-</script>
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/guards/require-session.test.js"
+  title="src/guards/require-session.test.js"
+  region="guard"
+/>
 
 ### TK02-5 · Implementar sessão, logout e e-mail do usuário
 
-O botão "Sair" chama `signOut()`, que apaga a sessão do `localStorage` e revoga o *refresh token* no servidor. O `onAuthStateChange` cobre a outra ponta: se a sessão acabar em outra aba, ou o token for revogado, a página privada volta ao login sem esperar um clique.
+O botão **Sair** chama `signOut()`, que apaga a sessão do `localStorage` e revoga o *refresh token* no servidor. O `onAuthStateChange` cobre a outra ponta: se a sessão acabar em outra aba, ou o token for revogado, a página privada volta ao login sem esperar um clique.
 
-```js title="Logout e reacao a mudanca de sessao (alvo de src/services/auth.js)"
-export function signOut() {
-  return supabase.auth.signOut();
-}
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/services/auth.js"
+  title="src/services/auth.js"
+  region="session"
+/>
 
-export function onSessionEnd(callback) {
-  return supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') callback();
-  });
-}
-```
+As três páginas privadas compartilham um módulo só. Ele chama a guarda com `await` no topo do arquivo (por isso o `target: 'es2022'` no `vite.config.js`), escreve o e-mail no cabeçalho e liga o botão. No HTML, o `investidor@devlab.com` fixo da Sprint 1 vira `<div data-user-email>` e o link "Sair" vira `<button data-sign-out>`.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/src/pages/private.js"
+  title="src/pages/private.js"
+  region="private"
+/>
 
 ### TK02-6 · Criar `profiles` vinculada a `auth.users`
 
-`auth.users` pertence ao Supabase e não recebe colunas de domínio. Nome de exibição e papel (`investor` ou `admin`) moram em `public.profiles`, com o **mesmo** `id`. A trigger copia o `full_name` dos metadados do cadastro, então a tela não precisa de uma segunda chamada para criar o perfil, e o RLS já nasce ligado: cada pessoa lê e edita apenas a própria linha.
+`auth.users` pertence ao Supabase e não recebe colunas de domínio. Nome de exibição e papel (`investor` ou `admin`) moram em `public.profiles`, com o **mesmo** `id`. A migration é aplicada por `supabase db reset` na stack local e por `supabase db push` na nuvem.
 
-```sql title="Migration de profiles (alvo de supabase/migrations/0001_profiles.sql)"
-create table public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  full_name text not null,
-  role text not null default 'investor' check (role in ('investor', 'admin')),
-  created_at timestamptz not null default now()
-);
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/supabase/migrations/20260912000001_profiles.sql"
+  title="supabase/migrations/20260912000001_profiles.sql"
+  region="table"
+/>
 
-alter table public.profiles enable row level security;
+A segurança da tabela tem **duas camadas**, e as duas são explícitas nesta versão do Supabase: uma tabela nova não concede `select` nem `update` a ninguém. O `grant` decide quais operações e quais **colunas** cada papel alcança; a policy RLS decide quais **linhas**. O grant por coluna é o detalhe que importa: sem ele, a policy de `update` da própria linha deixaria qualquer conta escrever `role = 'admin'` em si mesma pelo SDK.
 
-create policy "profiles: dono le" on public.profiles
-  for select using (auth.uid() = id);
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/supabase/migrations/20260912000001_profiles.sql"
+  title="supabase/migrations/20260912000001_profiles.sql"
+  region="grants"
+/>
 
-create policy "profiles: dono edita" on public.profiles
-  for update using (auth.uid() = id) with check (auth.uid() = id);
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/supabase/migrations/20260912000001_profiles.sql"
+  title="supabase/migrations/20260912000001_profiles.sql"
+  region="rls"
+/>
 
-create function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  insert into public.profiles (id, full_name)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email));
-  return new;
-end;
-$$;
+A trigger copia o `full_name` dos metadados do cadastro, então a tela não precisa de uma segunda chamada para criar o perfil. `security definer` é o que permite à função inserir em `profiles` mesmo sem policy de `insert`: ela roda com os privilégios de quem a criou, não com os do usuário que acabou de se cadastrar. O `set search_path` fecha a brecha clássica dessa opção, que é um objeto homônimo em outro schema desviando a função.
 
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/supabase/migrations/20260912000001_profiles.sql"
+  title="supabase/migrations/20260912000001_profiles.sql"
+  region="trigger"
+/>
 
-`security definer` é o que permite à trigger inserir em `profiles` mesmo sem policy de `insert`: ela roda com os privilégios de quem a criou, não com os do usuário que acabou de se cadastrar. O `set search_path` fecha a brecha clássica dessa opção, que é um objeto homônimo em outro schema desviando a função.
+Nada disso se prova com dublê: o teste de integração cadastra pela chave anônima e confere, pela chave de serviço, que a trigger criou a linha. E o teste de RLS é o que a etapa 9 do InvestApp faz com `supertest`: duas contas, e a leitura cruzada devolve **lista vazia**, não erro, para não confirmar que a outra linha existe.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/tests/integration/auth.test.js"
+  title="tests/integration/auth.test.js"
+  region="rls"
+/>
 
 ## Fluxo de autenticação
 
@@ -365,38 +373,93 @@ A tabela separa o que pertence à sessão do que ainda depende da modelagem de c
 
 ## Testando
 
-Sem uma API própria, os testes desta etapa acontecem em dois lugares: no navegador, pelas telas, e no painel do Supabase, pelas tabelas. Cada item abaixo prova um critério da seção de requisitos.
+Sem uma API própria, os testes vivem em três camadas, e cada task da sprint é provada em pelo menos uma delas. A unidade roda em jsdom com o SDK mockado e não precisa de nada no ar; a integração e o E2E rodam contra a stack local (`pnpm db:start`).
 
-| Verificação | Como fazer | Critério |
-| ----------- | ---------- | -------- |
-| Cadastro cria conta e perfil | Cadastre `ana@example.com`; em **Authentication › Users** o usuário aparece, e em **Table Editor › profiles** existe uma linha com o mesmo `id` e o nome informado | CA02.1 |
-| Login válido e inválido | Entre com a senha certa e chegue ao `dashboard.html`; repita com senha errada e com um e-mail que não existe: a mensagem é a mesma nas duas falhas | CA02.2 |
-| Recuperação de sessão | Com a sessão aberta, recarregue `dashboard.html`: a página fica, e o e-mail aparece no cabeçalho | CA02.3 |
-| Guarda de página | Em uma janela anônima, abra `dashboard.html`, `analytics.html` e `admin.html`: as três redirecionam para `signin.html` | CA02.4 |
-| Logout | Clique em **Sair** e volte a `dashboard.html`: o redirecionamento acontece de novo | CA02.5 |
-| Só valores públicos no bundle | Rode `pnpm build` e procure a chave de serviço no resultado: `grep -r service_role dist/` não encontra nada | RNF02 |
+| Camada | Comando | O que prova | Tasks |
+| ------ | ------- | ----------- | ----- |
+| Unidade (Vitest + jsdom) | `pnpm test:unit` | o que serviço e guarda fazem com o SDK | TK02-1, TK02-2, TK02-3, TK02-4, TK02-5 |
+| Integração (Vitest + SDK real) | `pnpm test:integration` | cadastro em `auth.users`, trigger de `profiles`, mensagem única e RLS | TK02-2, TK02-3, TK02-6 |
+| E2E (Playwright) | `pnpm test:e2e` | o fluxo pela tela: guarda, cadastro, login, recarga e logout | CA02.1 a CA02.5 |
 
-O `localStorage` mostra o que o SDK guarda. Depois do login, a chave `sb-<projeto>-auth-token` contém `access_token`, `refresh_token` e `expires_at`; é esse objeto que `getSession()` lê na recarga da página.
+```bash title="Terminal"
+pnpm test
+```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/services/auth.test.js (5 tests)
+ ✓ |unit| src/lib/supabase-client.test.js (2 tests)
+ ✓ |unit| src/guards/require-session.test.js (2 tests)
+ ✓ |integration| tests/integration/auth.test.js (6 tests)
+
+ Test Files  4 passed (4)
+      Tests  15 passed (15)
+```
+
+O E2E é o único que passa pelas telas de verdade. Cada teste cita o critério que fecha, e o último faz o ciclo inteiro: login, recarga com a sessão mantida (a chave `sb-…-auth-token` está no `localStorage`), logout e a guarda voltando a redirecionar.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-auth/tests/e2e/auth.spec.js"
+  title="tests/e2e/auth.spec.js"
+  region="flow"
+/>
+
+```bash title="Terminal"
+pnpm test:e2e
+```
+
+```txt title="Output" frame="terminal"
+  ✓  1 › pagina privada sem sessao redireciona para o login (CA02.4) (1.1s)
+  ✓  2 › cadastro leva ao login com aviso (CA02.1) (961ms)
+  ✓  3 › senha errada e e-mail inexistente mostram a mesma mensagem (CA02.2) (956ms)
+  ✓  4 › login, sessao mantida na recarga e logout (CA02.2, CA02.3, CA02.5) (1.2s)
+
+  4 passed (5.2s)
+```
+
+Fica uma verificação manual, porque nenhuma suíte a cobre bem: `pnpm build` seguido de `grep -r service_role dist/` não encontra nada (`RNF02`). A chave de serviço está no `.env`, mas sem o prefixo `VITE_` o Vite não a embute.
 
 ## Executando
 
-A Sprint 2 requer um projeto Supabase configurado e variáveis públicas do cliente. Antes de ligar as páginas, execute o protótipo e confirme que o ambiente de desenvolvimento segue saudável.
+A stack local do Supabase roda em Docker e substitui um projeto na nuvem para tudo que esta sprint precisa.
 
 <Steps>
 
-1. **Inicie o protótipo atual**:
+1. Entre no projeto e instale as dependências:
 
    ```bash title="Terminal"
-   cd examples/courses/npm/projects/investbaas-static
+   cd examples/courses/npm/projects/investbaas-auth
    pnpm install
+   ```
+
+2. Suba a stack local e copie os valores para o `.env` (o `.env.example` diz quais):
+
+   ```bash title="Terminal"
+   pnpm db:start
+   supabase status -o env
+   ```
+
+3. Aplique a migration de `profiles`:
+
+   ```bash title="Terminal"
+   pnpm db:reset
+   ```
+
+4. Suba o Vite e abra `http://localhost:5173/signup.html`:
+
+   ```bash title="Terminal"
    pnpm dev
    ```
 
-2. **Configure a etapa quando ela for implementada**: crie um projeto Supabase, habilite login por e-mail e preencha somente URL e chave anônima no mecanismo de configuração escolhido.
+5. Rode as suítes (o Playwright pede `pnpm exec playwright install chromium` na primeira vez):
 
-3. **Teste os critérios**: crie uma conta, teste credencial inválida, recarregue uma página privada e finalize com logout.
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
 
 </Steps>
+
+O Studio local fica em `http://127.0.0.1:54323`: em **Authentication › Users** aparecem as contas criadas, e em **Table Editor › profiles** as linhas que a trigger gerou.
 
 ## Conceitos abordados
 

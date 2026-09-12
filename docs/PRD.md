@@ -89,7 +89,7 @@ fora do calendário letivo.
 | Páginas de aula         | 255 (`.mdx`)                                                    |
 | Projetos executáveis    | 77 projetos com `package.json` em `examples/courses/`           |
 | Slides / mapas mentais  | 66 / 66                                                         |
-| Devcontainers           | 25                                                              |
+| Devcontainers           | 26                                                              |
 | Projetos na homepage    | 6 (`src/lib/projects.ts`)                                       |
 
 As duas aplicações-fio-condutor são o **InvestApp** (controle de investimentos, usado
