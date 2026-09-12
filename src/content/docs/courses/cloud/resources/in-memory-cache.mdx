@@ -34,14 +34,14 @@ O diagrama abaixo ilustra o papel do cache como camada de amortecimento entre a 
 <Mermaid title="Camada de Cache em Memória amortecendo requisições ao Banco Relacional">
 {`
 flowchart TD
-  Client["Cliente / Front-end"] -->|1. Requisição GET /products| API["API Web"]
-  API -->|2. Consulta chave no Cache| Cache[("Cache em Memória<br/>Redis / Key-Value (RAM)<br/>Latência: < 2ms")]
-  Cache -->|3a. Cache Hit (85% das chamadas)| API
-  API -->|4a. Resposta imediata (2ms)| Client
+  Client["Cliente / Front-end"] -->|"1. Requisição GET /products"| API["API Web"]
+  API -->|"2. Consulta chave no Cache"| Cache[("Cache em Memória<br/>Redis / Key-Value (RAM)<br/>Latência: < 2ms")]
+  Cache -->|"3a. Cache Hit (85% das chamadas)"| API
+  API -->|"4a. Resposta imediata (2ms)"| Client
   
-  Cache -.->|3b. Cache Miss (15%)| DB[("Banco de Dados<br/>PostgreSQL / MySQL (Disco)<br/>Latência: 45ms")]
-  DB -.->|4b. Retorna dados e grava no Cache| Cache
-  API -.->|5b. Resposta ao cliente| Client
+  Cache -.->|"3b. Cache Miss (15%)"| DB[("Banco de Dados<br/>PostgreSQL / MySQL (Disco)<br/>Latência: 45ms")]
+  DB -.->|"4b. Retorna dados e grava no Cache"| Cache
+  API -.->|"5b. Resposta ao cliente"| Client
 `}
 </Mermaid>
 
@@ -97,10 +97,10 @@ O diagrama abaixo ilustra o bloqueio de requisições abusivas pelo Rate Limiter
 <Mermaid title="Middleware de Rate Limiting com Redis bloqueando excesso de tráfego com HTTP 429">
 {`
 flowchart TD
-  User["Cliente / Bot"] -->|Requisição HTTP| MW["Middleware de Rate Limiting"]
-  MW -->|Incrementa contador atômico| Redis[("Redis em Memória")]
-  Redis -->|Contador <= Limite (ex: 45/100)| Allow["Acesso Permitido: Executa rota da API"]
-  Redis -->|Contador > Limite (ex: 101/100)| Block["Acesso Bloqueado: HTTP 429 Too Many Requests"]
+  User["Cliente / Bot"] -->|"Requisição HTTP"| MW["Middleware de Rate Limiting"]
+  MW -->|"Incrementa contador atômico"| Redis[("Redis em Memória")]
+  Redis -->|"Contador <= Limite (ex: 45/100)"| Allow["Acesso Permitido: Executa rota da API"]
+  Redis -->|"Contador > Limite (ex: 101/100)"| Block["Acesso Bloqueado: HTTP 429 Too Many Requests"]
 `}
 </Mermaid>
 
@@ -116,6 +116,24 @@ A tabela a seguir compara os algoritmos mais utilizados em arquiteturas de nuvem
 | **Token Bucket** | Um balde acumula créditos (*tokens*) a uma taxa constante; cada requisição consome 1 token. Permite pequenas rajadas de tráfego (*bursts*). | Alta (padrão de APIs públicas como AWS e Stripe). | Baixo e previsível. |
 
 Quando o limite é atingido, o servidor deve retornar o código HTTP `429 Too Many Requests` acompanhado do cabeçalho padronizado `Retry-After: 30`, informando em quantos segundos o cliente poderá tentar novamente.
+
+---
+
+## Key-Value Store: Cache Distribuído na Borda
+
+O Redis vive em uma região e responde em milissegundos para quem está perto dele. Funções de borda, porém, executam em centenas de pontos de presença ao mesmo tempo, e cada ida ao Redis atravessa o oceano. Para esse cenário as plataformas oferecem o **key-value store**: um armazenamento de chave e valor **replicado globalmente**, otimizado para muitas leituras e poucas escritas, com consistência eventual.
+
+A tabela a seguir compara o key-value store de borda com o Redis gerenciado:
+
+| Critério | Redis gerenciado (Upstash, ElastiCache) | Key-value store de borda (Cloudflare KV, Deno KV) |
+| :--- | :--- | :--- |
+| **Onde vive** | Uma região (ou réplicas configuradas) | Replicado em todos os pontos de presença |
+| **Consistência** | Forte dentro da instância | Eventual: uma escrita leva segundos para chegar a todas as bordas |
+| **Latência de leitura** | Baixa perto da região, alta longe dela | Baixa em qualquer lugar do mundo |
+| **Estruturas de dados** | Strings, hashes, listas, sets, streams, operações atômicas | Chave e valor (texto ou binário), com TTL e metadados |
+| **Uso típico** | Sessões, rate limiting, filas leves, contadores | Configuração, feature flags, redirecionamentos, catálogo lido milhões de vezes |
+
+A consistência eventual é o que define o uso: um contador de rate limiting precisa de `INCR` atômico e leitura imediata, então fica no Redis; uma tabela de redirecionamentos ou o JSON de uma [feature flag](../preview-environments-flags/) muda raramente e pode levar alguns segundos para propagar, então cabe no KV. Cloudflare também oferece **Durable Objects** para quando a borda precisa de consistência forte por chave, ao custo de concentrar cada objeto em um único ponto.
 
 ---
 

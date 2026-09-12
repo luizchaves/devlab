@@ -1,0 +1,260 @@
+---
+title: "Nuvem: Notificações Push e SMS"
+description: "Canais de notificação além do e-mail em aplicações na nuvem: Web Push (VAPID e Service Worker), push mobile com FCM e APNs, SMS e WhatsApp por API (Twilio, Zenvia), consentimento, custo por mensagem e comparação de provedores."
+course: cloud
+sidebar:
+  label: Notificações Push e SMS
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O e-mail transacional resolve confirmação de cadastro e recibo, mas não chega a tempo quando o usuário precisa saber **agora** que a ordem foi executada, que o servidor caiu ou que o código de verificação expira em dois minutos. Para esses casos, as plataformas de nuvem oferecem canais de notificação em tempo quase real: **push** no navegador e no celular, **SMS** e mensageria como **WhatsApp**. Cada canal tem um custo, um nível de consentimento e uma taxa de leitura diferentes, e a aplicação raramente usa só um.
+
+---
+
+## Objetivo
+
+Compreender como aplicações na nuvem enviam notificações fora do e-mail, quais componentes cada canal exige e quando cada um se justifica. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar Web Push, push mobile (FCM e APNs), SMS e mensageria por API quanto a alcance, custo e consentimento.
+- Explicar o papel do Service Worker, da assinatura (*subscription*) e das chaves VAPID no Web Push.
+- Descrever por que o envio de SMS exige provedor especializado e registro de remetente.
+- Integrar um provedor de notificação a partir de uma função serverless ou worker, tratando falhas e limites de envio.
+- Escolher o canal certo para cada tipo de evento, respeitando a LGPD e o cansaço de notificação do usuário.
+
+---
+
+## Os Canais e Seus Compromissos
+
+Antes de escolher um provedor, é preciso entender o que cada canal entrega e o que cobra em troca. A tabela a seguir compara os quatro canais mais usados em aplicações web:
+
+| Canal | Como chega ao usuário | Consentimento | Custo típico | Taxa de leitura |
+| :--- | :--- | :--- | :--- | :--- |
+| **Web Push** | Navegador, mesmo com a aba fechada (desktop e Android; iOS a partir de PWA instalada) | Permissão do navegador, revogável a qualquer momento | Gratuito (protocolo aberto) | Média; depende de o navegador estar aberto |
+| **Push mobile (FCM / APNs)** | Aplicativo nativo instalado | Permissão do sistema operacional | Gratuito no envio; custo está em manter o app | Alta |
+| **SMS** | Qualquer celular, sem app nem internet | Opt-in registrado e opção de descadastro | Pago por mensagem (centavos por envio no Brasil) | Muito alta (mais de 90% em minutos) |
+| **WhatsApp / mensageria** | Aplicativo de mensagens, com templates aprovados | Opt-in explícito e templates aprovados pela Meta | Pago por conversa | Muito alta |
+
+O SMS continua sendo o canal de maior alcance: funciona em qualquer aparelho, sem instalação e sem dados móveis, e por isso é o padrão para códigos de verificação (OTP) e alertas críticos. O preço por mensagem e a regulação contra spam, porém, o tornam inviável para notificações frequentes de baixo valor, que cabem melhor no push.
+
+<Aside type="caution" title="Notificação é interrupção">
+  Cada canal desta página interrompe o usuário. Um evento que pode esperar cabe no e-mail ou em uma lista dentro da aplicação; só o que exige ação imediata justifica push ou SMS. Aplicações que abusam perdem a permissão do navegador e passam a ser marcadas como spam nas operadoras.
+</Aside>
+
+---
+
+## Web Push: Service Worker, Assinatura e VAPID
+
+O Web Push é um padrão aberto (RFC 8030) que permite ao servidor entregar uma mensagem ao navegador do usuário mesmo com o site fechado. Três peças participam: o **Service Worker** registrado pela página, o **serviço de push do navegador** (Google, Mozilla e Apple operam o próprio) e o **servidor da aplicação**, identificado por um par de chaves **VAPID**.
+
+O diagrama a seguir mostra o fluxo completo, do pedido de permissão à exibição da notificação:
+
+<Mermaid title="Fluxo do Web Push, da assinatura à entrega">
+{`
+sequenceDiagram
+  participant P as Página (navegador)
+  participant SW as Service Worker
+  participant PS as Serviço de Push (navegador)
+  participant API as Função serverless
+  P->>P: 1. Pede permissão ao usuário
+  P->>PS: 2. pushManager.subscribe(chave pública VAPID)
+  PS-->>P: 3. Devolve endpoint + chaves da assinatura
+  P->>API: 4. Envia a assinatura para guardar no banco
+  API->>PS: 5. POST no endpoint, assinado com a chave privada VAPID
+  PS->>SW: 6. Evento "push"
+  SW->>SW: 7. showNotification(título, corpo, ação)
+`}
+</Mermaid>
+
+O passo 3 é o que muda em relação ao e-mail: a aplicação não conhece o usuário por um endereço, e sim por uma **assinatura** (`endpoint` mais duas chaves) que pertence àquele navegador naquele aparelho. A assinatura precisa ser guardada no banco associada ao usuário, e removida quando o serviço de push responder `410 Gone`, o que indica que a permissão foi revogada.
+
+O trecho a seguir ilustra o envio a partir de uma função serverless com a biblioteca `web-push`, que cuida da assinatura VAPID e da criptografia do payload:
+
+```javascript
+import webpush from 'web-push';
+
+webpush.setVapidDetails(
+  'mailto:suporte@exemplo.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+export async function notifyOrderExecuted(subscription, order) {
+  const payload = JSON.stringify({
+    title: 'Ordem executada',
+    body: `${order.ticker}: ${order.quantity} cotas a R$ ${order.price}`,
+    url: `/orders/${order.id}`,
+  });
+
+  try {
+    await webpush.sendNotification(subscription, payload, { TTL: 60 * 10 });
+  } catch (error) {
+    if (error.statusCode === 410) {
+      await removeSubscription(subscription.endpoint); // permissão revogada
+      return;
+    }
+    throw error;
+  }
+}
+```
+
+O parâmetro `TTL` diz ao serviço de push por quanto tempo guardar a mensagem se o aparelho estiver offline. Uma cotação vale dez minutos; um código de verificação, muito menos.
+
+---
+
+## Push Mobile: FCM e APNs
+
+Em aplicativos nativos, o navegador sai de cena e entram os serviços de push dos sistemas operacionais: o **Firebase Cloud Messaging (FCM)** no Android e o **Apple Push Notification service (APNs)** no iOS. O app obtém um **token de dispositivo** ao ser instalado e o envia ao back-end, que passa a usá-lo como endereço.
+
+Na prática, a maioria das equipes não fala com o APNs diretamente. O FCM funciona como intermediário para as duas plataformas: o back-end envia uma requisição HTTP ao FCM com o token e o conteúdo, e o FCM encaminha ao APNs quando o destino é um iPhone. Isso reduz o trabalho a uma única integração, com a contrapartida de depender do Google mesmo para usuários Apple.
+
+A tabela a seguir resume o que muda entre Web Push e push mobile:
+
+| Aspecto | Web Push | Push mobile (FCM / APNs) |
+| :--- | :--- | :--- |
+| Endereço do destinatário | Assinatura (`endpoint` + chaves) por navegador | Token de dispositivo por instalação do app |
+| Autenticação do servidor | Par de chaves VAPID | Conta de serviço do Firebase ou chave `.p8` da Apple |
+| Recursos visuais | Título, corpo, ícone, ações | Idem, mais badges, sons, ações ricas e notificações silenciosas |
+| Renovação | Assinatura muda ao limpar dados do navegador | Token muda ao reinstalar o app ou restaurar backup |
+
+---
+
+## SMS e WhatsApp por API
+
+Nenhuma plataforma de nuvem envia SMS por conta própria: o envio passa por **provedores de comunicação** (CPaaS, *Communications Platform as a Service*) que mantêm contratos com as operadoras. No Brasil, a Anatel e as operadoras exigem que o remetente seja registrado e que o conteúdo siga regras contra spam, o que os provedores intermediam.
+
+O fluxo de uma verificação por SMS (OTP) a partir de uma função serverless segue os passos abaixo:
+
+<Steps>
+1. **Gerar e guardar o código**: A função gera um código de seis dígitos, guarda um hash dele com prazo curto (cinco minutos) em cache ou no banco, associado ao telefone.
+2. **Enviar pela API do provedor**: Uma requisição HTTP ao provedor (Twilio, Zenvia, AWS SNS) com o número de destino e o texto. A resposta confirma o **enfileiramento**, não a entrega.
+3. **Receber o status por webhook**: O provedor chama a aplicação quando a operadora confirma a entrega (`delivered`) ou falha (`undelivered`, número inválido, bloqueio). Sem tratar esse webhook, a aplicação não sabe se o código chegou.
+4. **Validar e limitar tentativas**: A função de verificação compara o código com o hash guardado, limita tentativas por telefone com [rate limiting](../in-memory-cache/) e invalida o código após o uso.
+</Steps>
+
+O WhatsApp segue o mesmo desenho, com uma diferença importante: mensagens iniciadas pela empresa só podem usar **templates previamente aprovados** pela Meta, com variáveis em posições fixas. Isso torna o canal excelente para confirmação de agendamento e status de pedido, e inadequado para textos livres gerados na hora.
+
+<Aside type="tip" title="OTP por SMS não é o único caminho">
+  Códigos por SMS são vulneráveis a troca de chip (*SIM swap*). Para autenticação de dois fatores, prefira aplicativos TOTP ou passkeys, apresentados em [Autenticação Gerenciada](../managed-auth/), e deixe o SMS como canal de recuperação.
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+O mercado divide-se entre serviços de push integrados às plataformas de aplicativos, provedores de comunicação por API e serviços agregadores que abstraem os canais:
+
+| Provedor | Canais | Destaque técnico | Modelo de cobrança | Página do guia |
+| :--- | :--- | :--- | :--- | :--- |
+| **Firebase Cloud Messaging** | Push mobile e Web Push | Gratuito, integra FCM e APNs em uma só API, segmentação por tópicos | Gratuito | [Visão geral do Firebase](../../firebase/) |
+| **Twilio** | SMS, WhatsApp, voz | API madura, SDKs em todas as linguagens, webhooks de status detalhados | Por mensagem | [Outras Plataformas](../../reference/other-platforms/) |
+| **Zenvia** | SMS, WhatsApp, RCS | Provedor brasileiro com cobertura das operadoras nacionais e templates em português | Por mensagem | [Outras Plataformas](../../reference/other-platforms/) |
+| **AWS SNS** | SMS, push (via FCM/APNs), e-mail | Integra com Lambda e filas; custo baixo em volume | Por mensagem | [Amplify Functions](../../amplify/functions/) |
+| **OneSignal** | Web Push, push mobile, e-mail, SMS | Agregador com painel, segmentação e testes A/B sem código | Gratuito até certo volume, depois por assinatura | [Outras Plataformas](../../reference/other-platforms/) |
+| **Novu** | Todos, por provedores plugáveis | Open source; orquestra preferências do usuário e *digest* de notificações | Self-hosted ou SaaS | [Outras Plataformas](../../reference/other-platforms/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A escolha do canal depende da urgência do evento, do alcance necessário e do custo por envio:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Código de verificação de telefone ou recuperação de conta | **SMS** | Alcance universal e leitura em minutos; custo aceitável por ser esporádico. |
+| Alerta de preço, ordem executada, mensagem recebida | **Web Push ou push mobile** | Gratuito, imediato e revogável pelo usuário sem atrito. |
+| Confirmação de agendamento e status de pedido | **WhatsApp com template** | Canal onde o usuário brasileiro já está; template aprovado garante entrega. |
+| Resumo diário, recibo, relatório | **[E-mail transacional](../transactional-email/)** | Não exige ação imediata e o e-mail preserva histórico. |
+| Aviso interno entre serviços do sistema | **[Fila ou webhook](../message-queues/)** | Notificação é para pessoas; entre serviços, use mensageria. |
+
+---
+
+## Exercício
+
+Com base nos canais apresentados:
+
+1. Por que a aplicação precisa guardar a assinatura do Web Push no banco, e o que fazer quando o serviço de push responde `410 Gone`?
+2. Qual é o papel das chaves VAPID, e por que a chave privada nunca vai ao navegador?
+3. Por que uma resposta `200 OK` do provedor de SMS não significa que a mensagem chegou ao celular?
+4. Em que situação o WhatsApp é preferível ao SMS, e qual restrição ele impõe ao conteúdo?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque a assinatura é o único endereço daquele navegador naquele aparelho; sem ela, o servidor não tem como enviar nada. O `410 Gone` indica que o usuário revogou a permissão ou limpou os dados, então a assinatura deve ser removida do banco para não gerar envios inúteis e não contar como falha recorrente.
+
+  2. As chaves VAPID identificam o servidor da aplicação perante o serviço de push: a chave pública vai ao navegador na hora de assinar, e a privada assina cada envio no servidor. Se a privada vazasse ao navegador, qualquer pessoa poderia enviar notificações em nome da aplicação para todos os assinantes.
+
+  3. Porque o `200 OK` confirma apenas que o provedor aceitou e enfileirou a mensagem. A entrega depende da operadora, do aparelho estar ligado e do número ser válido, e é informada depois por webhook de status (`delivered` ou `undelivered`).
+
+  4. Quando o conteúdo é rico (botões, imagens) e o usuário já usa o WhatsApp como canal principal, como em confirmação de agendamento e status de pedido. A restrição é que mensagens iniciadas pela empresa só podem usar templates aprovados previamente pela Meta, sem texto livre.
+</details>
+
+---
+
+## Desafio
+
+O InvestApp quer avisar o usuário quando uma ação da carteira variar mais de 5% no dia. A equipe propôs enviar SMS para todos os usuários a cada variação.
+
+Aponte dois problemas dessa proposta e desenhe uma alternativa em três camadas: qual canal usar por padrão, como o usuário controla o que recebe e o que fazer quando o canal padrão falhar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **Problemas**: (1) custo, porque o SMS é pago por mensagem e variações de 5% podem acontecer várias vezes ao dia em dezenas de ativos, multiplicando a fatura; (2) consentimento e cansaço, porque enviar SMS sem opt-in específico para alertas de preço viola a LGPD e leva o usuário a bloquear o remetente.
+
+  **Alternativa em três camadas**:
+  1. **Canal padrão: Web Push e push mobile**, gratuitos e imediatos. Um worker consome a fila de variações, agrupa os eventos por usuário em uma janela de um minuto (*digest*) e envia uma única notificação com os ativos afetados.
+  2. **Preferências do usuário**: uma tela em que ele escolhe quais ativos acompanhar, o limiar (5%, 10%) e os canais permitidos, gravada no banco e consultada pelo worker antes de cada envio.
+  3. **Fallback**: se o usuário não tem assinatura de push válida ou marcou "alerta crítico por SMS", o worker envia SMS apenas para variações acima de um limiar maior (por exemplo 15%), com limite de um SMS por ativo por dia, e registra o status devolvido pelo webhook do provedor.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Web Push e push mobile
+
+1. **Por que o Web Push funciona com a aba fechada, e o que acontece se o navegador estiver totalmente encerrado?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a entrega é feita ao Service Worker, que o navegador acorda em segundo plano ao receber o evento de push. Se o navegador estiver encerrado, o serviço de push guarda a mensagem pelo tempo definido no `TTL` e a entrega quando ele abrir; passado o prazo, a mensagem é descartada.
+   </details>
+
+2. **Qual é a vantagem de usar o FCM como intermediário para o APNs, e qual é o custo dessa escolha?**
+   <details>
+     <summary>Possível resposta</summary>
+     A vantagem é uma única integração e um único formato de mensagem para Android e iOS. O custo é a dependência do Google mesmo para usuários Apple, além de uma etapa a mais no caminho da mensagem.
+   </details>
+
+### SMS e mensageria
+
+3. **Por que aplicações na nuvem não enviam SMS diretamente, como fariam com uma requisição HTTP qualquer?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o envio exige contrato com operadoras, registro de remetente e conformidade com regras contra spam. Provedores de comunicação por API (CPaaS) intermediam tudo isso e expõem uma API HTTP que a aplicação consome.
+   </details>
+
+4. **O que é um digest de notificações e qual problema ele resolve?**
+   <details>
+     <summary>Possível resposta</summary>
+     É o agrupamento de vários eventos em uma única notificação dentro de uma janela de tempo. Resolve o excesso de interrupções e, nos canais pagos, o custo, sem deixar de informar o usuário.
+   </details>
+
+---
+
+## Referências
+
+- [RFC 8030: Generic Event Delivery Using HTTP Push](https://datatracker.ietf.org/doc/html/rfc8030)
+- [MDN: Push API](https://developer.mozilla.org/docs/Web/API/Push_API)
+- [web-push (biblioteca Node.js)](https://github.com/web-push-libs/web-push)
+- [Firebase Cloud Messaging](https://firebase.google.com/docs/cloud-messaging)
+- [Twilio: Programmable Messaging](https://www.twilio.com/docs/messaging)
+- [WhatsApp Business Platform: Message Templates](https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates)
+
+---
+
+## Próximo tópico
+
+[Busca e Banco Vetorial](../search-vector/): Busca textual com ranking e tolerância a erros, índices gerenciados e busca por similaridade com embeddings para aplicações com IA.

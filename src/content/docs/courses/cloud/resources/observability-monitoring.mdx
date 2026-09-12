@@ -92,7 +92,7 @@ O diagrama a seguir demonstra a árvore hierárquica de *spans* durante o proces
 
 <Mermaid title="Cascata de Spans em um Trace Distribuído">
 {`
-flowchart TD
+flowchart LR
   Root["Trace: POST /api/checkout (Total: 450ms)"] --> S1["Span 1: Auth Middleware (25ms)"]
   Root --> S2["Span 2: PostgreSQL SELECT cart_items (40ms)"]
   Root --> S3["Span 3: HTTP POST /v1/charges - Gateway Externo (320ms)"]
@@ -155,7 +155,9 @@ Além do rastreamento de falhas e performance técnica, o monitoramento moderno 
 Ferramentas de análise de produto registram eventos de navegação, taxas de conversão de formulários e retenção de usuários ao longo do tempo.
 
 - **Foco em Privacidade e Simplicidade (Plausible, Umami)**: Não utilizam cookies, dispensam banners intrusivos de consentimento de cookies da LGPD/GDPR e coletam apenas métricas agregadas de visitantes, visualizações de página e origens de tráfego.
-- **Plataformas Completas de Produto (PostHog, Mixpanel, GA4)**: Acompanham funis de conversão detalhados, testes A/B (*feature flags*), cohortes de usuários e retenção por grupo de clientes.
+- **Plataformas Completas de Produto (PostHog, Mixpanel, Google Analytics 4)**: Acompanham funis de conversão detalhados, testes A/B (*feature flags*), cohortes de usuários e retenção por grupo de clientes.
+
+O **Google Analytics 4 (GA4)** merece atenção à parte por ser a ferramenta mais difundida do mercado: é gratuito, orientado a eventos (cada clique, rolagem ou compra vira um evento com parâmetros), integra-se nativamente ao Google Ads e ao Search Console para atribuição de campanhas e permite exportar os dados brutos para o BigQuery. A contrapartida está na privacidade: o GA4 depende de cookies e identificadores de usuário, o que obriga a exibir banner de consentimento sob a LGPD/GDPR, e autoridades de proteção de dados europeias já questionaram a transferência desses dados para servidores nos Estados Unidos. Por isso sites institucionais, portais públicos e projetos que priorizam a privacidade costumam preferir Plausible ou Umami, enquanto o GA4 permanece a escolha natural quando o time de marketing já opera no ecossistema Google.
 
 ### Gravação de Sessão (*Session Replay*) e Mapas de Calor
 
@@ -180,6 +182,51 @@ Exemplos de eventos que pertencem a logs de auditoria:
 
 ---
 
+## Alertas, Uptime Monitoring e Status Page
+
+Telemetria que ninguém lê não evita incidente. Os três pilares e o APM produzem dados; são os **alertas** que transformam esses dados em ação, o **uptime monitoring** que confirma de fora se o serviço responde, e a **status page** que comunica ao usuário o que está acontecendo.
+
+### Alerting
+
+Um alerta é uma regra sobre uma métrica ou um padrão de log que, ao ser violada, notifica alguém por um canal (e-mail, Slack, [push ou SMS](../push-notifications-sms/), PagerDuty). A qualidade do alerta está na regra, não na ferramenta. A tabela a seguir contrasta regras que geram ruído com regras que geram ação:
+
+| Regra ruidosa | Regra acionável | Por quê |
+| :--- | :--- | :--- |
+| CPU acima de 80% | Latência p95 acima de 800 ms por 5 minutos | CPU alta sem lentidão não afeta o usuário; latência afeta. |
+| Qualquer erro 5xx | Taxa de erro acima de 2% das requisições em 10 minutos | Um erro isolado é normal; uma taxa indica falha real. |
+| Fila com mais de 100 mensagens | Idade da mensagem mais antiga acima de 15 minutos | Fila cheia processando rápido está saudável; mensagem velha não. |
+| Disco em 70% | Disco esgota em menos de 24 horas na tendência atual | Alerta com antecedência de agir, sem acordar ninguém à toa. |
+
+Alertas devem ter **dono**, **runbook** (o que fazer ao recebê-lo) e **severidade**: o que acorda alguém de madrugada é diferente do que vira um item para a manhã seguinte. Alertas que disparam sem ação são silenciados com o tempo, e o dia em que importam ninguém olha.
+
+### Uptime Monitoring
+
+Métricas internas não detectam o DNS que parou de resolver nem o certificado que expirou. O **uptime monitoring** verifica o serviço **de fora**, a partir de vários pontos do mundo, em intervalos de 30 segundos a poucos minutos, e alerta quando a verificação falha. As verificações mais comuns são:
+
+- **HTTP**: uma requisição a uma rota de *health check* (`GET /health`) que deve responder `200` com um corpo esperado, em menos de um limite de tempo.
+- **TLS**: validade do certificado e aviso alguns dias antes de expirar.
+- **DNS e porta TCP**: resolução do domínio e conexão à porta do banco ou do broker.
+- **Transação sintética**: um script que faz login e executa uma ação, para detectar falha que a rota de saúde não mostra.
+
+A rota de *health check* deve verificar dependências (banco, cache) sem custo alto, e responder com detalhe suficiente para diferenciar "a aplicação subiu" de "a aplicação consegue trabalhar". É a mesma rota que [Containers e PaaS](../containers-paas/) usam para decidir se uma instância recebe tráfego.
+
+### Status Page
+
+A **status page** é a página pública (ou interna) em que a organização comunica o estado dos serviços e o andamento de incidentes: "operacional", "degradado", "indisponível", com histórico e mensagens de atualização. Ela reduz a carga no suporte durante um incidente e constrói confiança pela transparência, desde que seja atualizada por gente, não só por robô: o uptime monitoring alimenta o status automático, e a equipe escreve o que está sendo feito.
+
+A tabela a seguir reúne as ferramentas mais comuns para as três funções:
+
+| Ferramenta | Alerting | Uptime | Status page | Modelo |
+| :--- | :--- | :--- | :--- | :--- |
+| **Grafana Alerting + OnCall** | Regras sobre qualquer fonte de dados, escalonamento | Via Synthetic Monitoring | Não nativo | Open source ou Grafana Cloud |
+| **Better Stack** (Uptime + Logs) | Por verificação e por log | Verificações globais, TLS, DNS | Página pública personalizável | SaaS com plano gratuito |
+| **UptimeRobot** | E-mail, Slack, webhook | HTTP, porta, keyword, a cada 5 minutos no gratuito | Página pública simples | SaaS com plano gratuito |
+| **Atlassian Statuspage** | Integra com PagerDuty/Opsgenie | Por integração | Referência do mercado, componentes e assinantes | SaaS pago |
+| **Upptime** | Issues no GitHub | GitHub Actions a cada 5 minutos | Site estático no GitHub Pages | Open source, custo zero |
+| **PagerDuty / Opsgenie** | Escalonamento, plantão, telefone | Por integração | Integração com Statuspage | SaaS pago |
+
+---
+
 ## Comparativo de Soluções de Observabilidade
 
 A tabela a seguir consolida as principais ferramentas e plataformas de monitoramento e telemetria disponíveis no ecossistema de nuvem:
@@ -190,6 +237,7 @@ A tabela a seguir consolida as principais ferramentas e plataformas de monitoram
 | **Sentry** | APM & Error Tracking | Captura de exceções em tempo real, rastreamento de releases, Source Maps, RUM básico | SaaS ou Self-Hosted Open Source | Projetos que precisam identificar e corrigir bugs no front-end e no back-end com máxima agilidade. |
 | **Datadog / New Relic** | Observabilidade Empresarial All-in-One | APM completo, logs, métricas de infraestrutura, tracing, RUM, alertas com IA | SaaS Gerenciado Proprietário | Grandes empresas que buscam centralização total em um único painel e possuem orçamento dedicado. |
 | **PostHog** | Product Analytics & Observabilidade | Analytics de eventos, Session Replay, Feature Flags, Testes A/B e Error Tracking | SaaS ou Self-Hosted Open Source | Equipes de produto e engenharia que desejam correlacionar erros técnicos com atrito na jornada do usuário. |
+| **Google Analytics 4** | Product Analytics (Web & App) | Eventos personalizados, funis, atribuição de campanhas com Google Ads e Search Console, exportação para BigQuery | SaaS Gratuito (Google) | Times de marketing que já operam no ecossistema Google e precisam medir origem e conversão de campanhas; exige banner de consentimento de cookies. |
 | **Vercel Speed Insights / Cloudflare Analytics** | RUM & Analytics de Borda | Medição automática de Core Web Vitals e tráfego na borda sem cookies | SaaS Gerenciado na Nuvem | Aplicações web modernas publicadas em plataformas de hospedagem gerenciada com foco em performance de front-end. |
 | **AWS CloudWatch / GCP Cloud Monitoring** | Monitoramento Nativo de Nuvem | Métricas de instâncias, logs de lambdas, alarmes de custo e faturamento | SaaS Integrado ao Provedor Cloud | Aplicações profundamente integradas aos serviços proprietários de hyperscalers (AWS, Google Cloud, Azure). |
 
@@ -313,6 +361,7 @@ Projete uma estratégia completa de observabilidade para diagnosticar e resolver
 - [Google Web Vitals Guide](https://web.dev/explore/learn-core-web-vitals)
 - [Sentry Documentation & Performance Monitoring](https://docs.sentry.io/)
 - [PostHog Docs: Product Analytics & Session Replay](https://posthog.com/docs)
+- [Google Analytics 4: Introdução e modelo de eventos](https://support.google.com/analytics/answer/10089681)
 - [Grafana Labs: Observability with Prometheus, Loki and Tempo](https://grafana.com/docs/)
 - [OWASP Logging and Monitoring Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
 

@@ -1,0 +1,277 @@
+---
+title: "Nuvem: Busca e Banco Vetorial"
+description: "Busca em aplicações na nuvem: por que LIKE não escala, full-text search no PostgreSQL, motores de busca gerenciados (Algolia, Meilisearch, Typesense), embeddings e busca por similaridade com pgvector e bancos vetoriais para aplicações com IA."
+course: cloud
+sidebar:
+  label: Busca e Banco Vetorial
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Toda aplicação com mais de algumas centenas de registros acaba precisando de uma caixa de busca. O primeiro instinto é um `WHERE nome LIKE '%termo%'`, e ele funciona até o dia em que a tabela cresce, o usuário digita com erro de ortografia ou espera que "notebook" encontre "notebooks". A partir daí, a busca vira um **recurso de nuvem** com duas famílias: a **busca textual** (*full-text search*), que entende palavras, e a **busca vetorial**, que entende significado e sustenta aplicações com IA.
+
+---
+
+## Objetivo
+
+Compreender as opções de busca disponíveis em plataformas de nuvem, do índice textual do próprio banco aos motores gerenciados e aos bancos vetoriais. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar por que `LIKE` com curinga inicial não usa índice e degrada com o volume.
+- Usar a busca textual nativa do PostgreSQL (`tsvector`, `tsquery`, índice GIN) para ranking e stemming em português.
+- Comparar motores de busca gerenciados (Algolia, Meilisearch, Typesense) quanto a tolerância a erros, facetas e custo.
+- Descrever o que é um embedding e como a busca por similaridade funciona com `pgvector` ou um banco vetorial dedicado.
+- Escolher entre busca no banco, motor dedicado e busca vetorial conforme o volume, a experiência esperada e o orçamento.
+
+---
+
+## Por Que `LIKE` Não Escala
+
+O operador `LIKE '%termo%'` obriga o banco a ler todas as linhas da tabela e comparar o texto uma a uma, porque um índice B-tree só ajuda quando o padrão começa por um prefixo conhecido. Além do custo, ele não entende variações da língua: não sabe que "investimentos" e "investir" têm a mesma raiz, nem que "açao" foi um erro de digitação de "ação".
+
+A tabela a seguir compara as três abordagens quanto ao que cada uma resolve:
+
+| Abordagem | Como funciona | Entende a língua? | Tolera erro de digitação? | Escala |
+| :--- | :--- | :--- | :--- | :--- |
+| **`LIKE '%termo%'`** | Varre todas as linhas comparando texto | Não | Não | Degrada linearmente com a tabela |
+| **Full-text search** | Índice invertido de palavras normalizadas (stemming, *stop words*) | Sim, por idioma configurado | Parcial (com extensões como `pg_trgm`) | Índice GIN, milhões de linhas |
+| **Motor de busca gerenciado** | Índice dedicado com ranking, facetas e sugestões | Sim | Sim, nativo | Serviço separado, latência de milissegundos |
+| **Busca vetorial** | Compara embeddings por distância no espaço vetorial | Entende significado, não só palavras | Sim, por natureza | Índice aproximado (HNSW), milhões de vetores |
+
+---
+
+## Full-Text Search no PostgreSQL
+
+Antes de contratar um serviço, vale conhecer o que o banco relacional gerenciado já entrega. O PostgreSQL, presente em Supabase, Neon, Render e Railway, tem busca textual nativa: o texto é convertido em um `tsvector` (lista de lexemas normalizados), a consulta em um `tsquery`, e um índice GIN torna a comparação rápida.
+
+O trecho a seguir cria uma coluna gerada com o vetor de busca em português e o índice correspondente:
+
+```sql
+ALTER TABLE assets
+  ADD COLUMN search_vector tsvector
+  GENERATED ALWAYS AS (
+    setweight(to_tsvector('portuguese', coalesce(ticker, '')), 'A') ||
+    setweight(to_tsvector('portuguese', coalesce(name, '')), 'B') ||
+    setweight(to_tsvector('portuguese', coalesce(description, '')), 'C')
+  ) STORED;
+
+CREATE INDEX assets_search_idx ON assets USING GIN (search_vector);
+```
+
+Os pesos `A`, `B` e `C` fazem uma ocorrência no `ticker` valer mais que uma na descrição, o que ordena o resultado como o usuário espera. A consulta usa o mesmo dicionário e ordena pelo ranking:
+
+```sql
+SELECT ticker, name, ts_rank(search_vector, query) AS rank
+FROM assets, websearch_to_tsquery('portuguese', 'fundo imobiliario') AS query
+WHERE search_vector @@ query
+ORDER BY rank DESC
+LIMIT 20;
+```
+
+A função `websearch_to_tsquery` aceita a sintaxe que o usuário já conhece de buscadores (aspas para frase, `-` para excluir). Com o dicionário `portuguese`, "imobiliario" encontra "imobiliários" pelo stemming. Para tolerar erros de digitação, a extensão `pg_trgm` compara trigramas e permite `similarity(name, 'petrobraz') > 0.3`, ao custo de um segundo índice.
+
+<Aside type="tip" title="No Supabase, isso já está pronto">
+  O Supabase expõe a busca textual pela API gerada: `.textSearch('search_vector', 'fundo imobiliario', { type: 'websearch', config: 'portuguese' })`. A extensão `pg_trgm` e a `pgvector` podem ser ativadas no painel, sem servidor à parte.
+</Aside>
+
+---
+
+## Motores de Busca Gerenciados
+
+Quando a busca é o centro da experiência (catálogo de produtos, documentação, marketplace), o índice do banco deixa a desejar em três pontos: tolerância a erros de digitação em tempo real, **facetas** (filtrar por categoria, faixa de preço, marca com contagens) e sugestões conforme o usuário digita. Motores dedicados resolvem isso com um índice separado, alimentado pela aplicação.
+
+O diagrama a seguir mostra o desenho típico, em que o banco continua sendo a fonte da verdade e o motor recebe uma cópia indexada:
+
+<Mermaid title="Sincronização entre o banco e o motor de busca">
+{`
+flowchart TD
+  App["Aplicação"] -->|"1. Grava"| DB[("PostgreSQL<br/>fonte da verdade")]
+  DB -->|"2. Trigger, webhook ou worker"| Idx["Indexador"]
+  Idx -->|"3. Upsert do documento"| Search["Motor de busca<br/>(Meilisearch / Algolia / Typesense)"]
+  UI["Caixa de busca"] -->|"4. Consulta com chave pública<br/>(somente leitura)"| Search
+  Search -->|"5. Resultados com facetas<br/>em ~20 ms"| UI
+`}
+</Mermaid>
+
+O passo 4 é a diferença arquitetural: o front-end consulta o motor **diretamente**, com uma chave restrita a leitura, sem passar pela API da aplicação. É o que dá a resposta instantânea a cada tecla. O passo 2 é a parte que exige cuidado: qualquer alteração no banco precisa chegar ao índice, normalmente por um [worker](../workers-jobs/) que consome eventos ou por um job periódico de reindexação.
+
+A tabela a seguir compara os motores mais usados com plataformas de nuvem:
+
+| Motor | Modelo | Destaque técnico | Cobrança | Cenário ideal |
+| :--- | :--- | :--- | :--- | :--- |
+| **Meilisearch** | Open source, self-hosted ou Meilisearch Cloud | Tolerância a erros e ranking prontos por padrão, API simples, baixo consumo | Gratuito self-hosted; Cloud por documentos e buscas | Projetos pequenos e médios que querem busca instantânea sem ajuste fino. |
+| **Typesense** | Open source, self-hosted ou Typesense Cloud | Índice em memória, facetas e geobusca, compatível com a interface do Algolia | Gratuito self-hosted; Cloud por hora de instância | Catálogos que precisam de facetas e latência previsível. |
+| **Algolia** | SaaS proprietário | Rede global de índices, biblioteca de UI (InstantSearch), personalização e analytics de busca | Por buscas e registros, cresce rápido com o tráfego | E-commerce e produtos em que a busca é a principal conversão. |
+| **Elasticsearch / OpenSearch** | Open source, self-hosted ou gerenciado (Elastic Cloud, AWS OpenSearch) | Consultas complexas, agregações, logs e observabilidade no mesmo cluster | Por instância, exige operação | Volumes grandes com necessidade de análise além da busca. |
+
+---
+
+## Embeddings e Busca Vetorial
+
+A busca textual encontra palavras; a busca vetorial encontra **significado**. Um modelo de embedding transforma um texto (ou imagem) em um vetor de centenas de números, de modo que conteúdos parecidos fiquem próximos no espaço vetorial. Buscar passa a ser calcular a distância entre o vetor da pergunta e os vetores guardados.
+
+Esse é o recurso que sustenta aplicações com IA generativa: o padrão **RAG** (*Retrieval-Augmented Generation*) busca os trechos mais relevantes de uma base de conhecimento por similaridade e os entrega ao modelo de linguagem como contexto para responder. A busca vetorial, portanto, aparece tanto em "encontre produtos parecidos com este" quanto em "responda com base na documentação da empresa".
+
+O fluxo de indexação e consulta segue os passos abaixo:
+
+<Steps>
+1. **Dividir o conteúdo em trechos** (*chunks*) de tamanho controlado, por exemplo parágrafos ou seções de um documento.
+2. **Gerar o embedding de cada trecho** chamando a API de um modelo (OpenAI, Cohere, modelos abertos via Hugging Face) e guardar o vetor junto do texto e dos metadados.
+3. **Criar um índice aproximado** (HNSW ou IVFFlat) sobre a coluna de vetores, porque comparar com todos os registros a cada consulta não escala.
+4. **Na consulta**, gerar o embedding da pergunta com o **mesmo modelo** e buscar os *k* vetores mais próximos, filtrando por metadados quando necessário.
+</Steps>
+
+No PostgreSQL, a extensão **`pgvector`** faz tudo isso dentro do banco relacional, o que evita um serviço a mais e permite combinar similaridade com filtros SQL comuns. O trecho a seguir mostra a coluna, o índice e a consulta por distância de cosseno:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+ALTER TABLE documents ADD COLUMN embedding vector(1536);
+
+CREATE INDEX documents_embedding_idx
+  ON documents USING hnsw (embedding vector_cosine_ops);
+
+SELECT id, title, 1 - (embedding <=> $1) AS similarity
+FROM documents
+WHERE course = 'cloud'
+ORDER BY embedding <=> $1
+LIMIT 5;
+```
+
+O operador `<=>` calcula a distância de cosseno; quanto menor, mais parecido. O `WHERE course = 'cloud'` mostra a vantagem de manter os vetores no mesmo banco: o filtro de metadados é SQL comum.
+
+Bancos vetoriais dedicados (Pinecone, Qdrant, Weaviate, Milvus) entram quando o volume passa de dezenas de milhões de vetores, quando a latência precisa ser garantida sob carga alta ou quando a equipe quer o índice separado do banco transacional. A tabela a seguir orienta a escolha:
+
+| Opção | Modelo | Quando escolher |
+| :--- | :--- | :--- |
+| **pgvector** (Supabase, Neon, RDS) | Extensão do PostgreSQL | Até alguns milhões de vetores, com filtros relacionais e sem serviço extra. Padrão para começar. |
+| **Pinecone** | SaaS serverless proprietário | Escala grande sem operação, cobrança por leitura, escrita e armazenamento. |
+| **Qdrant / Weaviate** | Open source, self-hosted ou Cloud | Filtros ricos por metadados, busca híbrida (texto + vetor) e controle da infraestrutura. |
+| **Cloudflare Vectorize** | Índice vetorial na borda | Aplicações em Workers que já usam o ecossistema Cloudflare (AI Gateway, Workers AI). |
+
+<Aside type="caution" title="O modelo de embedding faz parte do esquema">
+  Vetores gerados por modelos diferentes não são comparáveis. Trocar o modelo exige reindexar todo o conteúdo, então registre qual modelo e qual dimensão geraram cada índice, e trate a troca como uma migração de banco.
+</Aside>
+
+---
+
+## O Que Cada Plataforma Entrega
+
+As plataformas do guia se posicionam de forma diferente: as que oferecem PostgreSQL entregam busca textual e vetorial por extensão; as de borda oferecem índices próprios; motores dedicados entram por integração.
+
+| Plataforma | Busca textual | Busca vetorial | Página do guia |
+| :--- | :--- | :--- | :--- |
+| **Supabase** | Nativa (`tsvector`, `pg_trgm`) pela API gerada | `pgvector` ativável no painel, com funções de similaridade prontas | [Database API](../../supabase/api/) |
+| **Firebase** | Não nativa; extensões oficiais para Algolia, Typesense e Meilisearch | Firestore Vector Search (busca por vizinhos mais próximos) | [Cloud Firestore](../../firebase/firestore/) |
+| **Cloudflare** | Não nativa; D1 com `LIKE` e FTS5 do SQLite | Vectorize, integrado a Workers AI | [Cloudflare Workers](../../cloudflare/workers/) |
+| **Render / Railway / Neon** | PostgreSQL com extensões | `pgvector` disponível | [Banco Relacional Gerenciado](../relational-database/) |
+| **AWS Amplify** | OpenSearch por integração | OpenSearch com k-NN ou Aurora com `pgvector` | [Amplify Data](../../amplify/data/) |
+
+---
+
+## Quando usar, e quando não usar?
+
+A regra é começar pelo que o banco já faz e só acrescentar um serviço quando a experiência exigir:
+
+| Cenário | Escolha | Por quê |
+| :--- | :--- | :--- |
+| Filtrar por campo exato (ticker, e-mail, status) | **Índice B-tree comum** | Não é busca textual; `WHERE ticker = 'PETR4'` com índice resolve. |
+| Buscar em nome e descrição com ranking, até centenas de milhares de linhas | **Full-text search do PostgreSQL** | Sem serviço extra, com stemming em português e índice GIN. |
+| Caixa de busca instantânea com facetas e tolerância a erros | **Meilisearch ou Typesense** (Algolia se a busca for a conversão principal) | Índice dedicado, resposta a cada tecla e filtros com contagem. |
+| Perguntas em linguagem natural, recomendação por semelhança, RAG | **`pgvector`**, depois banco vetorial dedicado se o volume exigir | Busca por significado; começa no banco que já existe. |
+| Logs e análise de eventos em grande volume | **OpenSearch ou plataforma de [observabilidade](../observability-monitoring/)** | Busca em logs é outro problema, com ferramentas próprias. |
+
+---
+
+## Exercício
+
+Com base nas abordagens apresentadas:
+
+1. Por que `WHERE name LIKE '%petro%'` não se beneficia de um índice B-tree na coluna `name`?
+2. O que os pesos `A`, `B` e `C` fazem na construção do `tsvector`, e por que importam para o usuário?
+3. Em um desenho com motor de busca dedicado, por que o front-end consulta o motor diretamente, e que cuidado isso exige com a chave de acesso?
+4. O que é um embedding, e por que dois embeddings gerados por modelos diferentes não podem ser comparados?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque o índice B-tree ordena os valores e só permite localizar rapidamente um prefixo. Com o curinga no início, qualquer posição da string pode conter o termo, então o banco precisa ler e comparar todas as linhas.
+
+  2. Eles dão importância diferente a cada campo no cálculo do `ts_rank`: uma ocorrência no `ticker` (peso `A`) vale mais que uma na descrição (peso `C`). Para o usuário, isso faz o ativo cujo código coincide com a busca aparecer antes de um cuja descrição apenas menciona o termo.
+
+  3. Para obter resposta a cada tecla sem o custo de passar pela API da aplicação. A chave usada no front-end precisa ser restrita a leitura, com escopo limitado ao índice público; a chave de escrita fica só no indexador, no servidor.
+
+  4. É um vetor numérico que representa o significado de um texto, gerado por um modelo, de modo que conteúdos parecidos fiquem próximos no espaço vetorial. Cada modelo define o próprio espaço e a própria dimensão, então distâncias entre vetores de modelos diferentes não têm significado; trocar o modelo exige reindexar tudo.
+</details>
+
+---
+
+## Desafio
+
+O InvestApp tem uma tabela `assets` com 8 mil ativos (ticker, nome, setor, descrição) e uma base de 3 mil notícias e relatórios em texto. A equipe quer duas funcionalidades: uma caixa de busca que encontre ativos conforme o usuário digita, tolerando erros como "petrobraz", e um assistente que responda perguntas do tipo "quais fundos imobiliários de logística tiveram relatório este mês?" com base nos textos.
+
+Proponha a arquitetura de busca para cada funcionalidade, justificando por que não usar a mesma abordagem para as duas e indicando o que precisa ser mantido sincronizado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **Caixa de busca de ativos**: 8 mil registros é pouco para justificar um motor dedicado. Use full-text search no PostgreSQL com coluna `tsvector` gerada (pesos: ticker `A`, nome `B`, setor e descrição `C`) e a extensão `pg_trgm` para tolerar "petrobraz" via `similarity`. No Supabase, a API gerada expõe `textSearch` direto ao front-end sob RLS. Se a experiência exigir facetas por setor com contagem e sugestões instantâneas, o passo seguinte é Meilisearch alimentado por um worker que reindexa ao gravar em `assets`.
+
+  **Assistente sobre notícias e relatórios**: a pergunta é semântica e mistura filtro ("fundos imobiliários de logística", "este mês") com significado. Divida os textos em trechos, gere embeddings com um modelo fixo, guarde em uma tabela `document_chunks` com `pgvector` e metadados (`asset_id`, `published_at`, `sector`). A consulta gera o embedding da pergunta, filtra por `published_at` no mês e `sector = 'logística'` em SQL, e busca os *k* trechos mais próximos com `<=>`, que vão como contexto ao modelo de linguagem (RAG).
+
+  **Por que não a mesma abordagem**: a busca de ativos precisa de correspondência de palavras com ranking e erro de digitação, que o full-text resolve barato e sem chamar modelo externo; o assistente precisa de significado, que só o embedding entrega, e chamar um modelo de embedding a cada tecla na caixa de busca seria lento e caro.
+
+  **Sincronização**: a coluna `tsvector` gerada se mantém sozinha. Os embeddings não: um worker precisa gerar o vetor ao inserir ou alterar um documento, e o modelo usado deve ficar registrado para uma futura reindexação.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Busca textual
+
+1. **O que é stemming, e por que o dicionário `portuguese` importa no `to_tsvector`?**
+   <details>
+     <summary>Possível resposta</summary>
+     Stemming reduz palavras à raiz ("investimentos", "investir" viram o mesmo lexema). O dicionário define as regras de redução e as *stop words* do idioma; com o dicionário errado, "imobiliários" não encontra "imobiliario".
+   </details>
+
+2. **Qual é o risco de manter um motor de busca separado do banco, e como mitigá-lo?**
+   <details>
+     <summary>Possível resposta</summary>
+     O índice ficar desatualizado em relação ao banco, mostrando resultados que não existem mais ou omitindo novos. Mitiga-se com indexação orientada a eventos (worker consumindo alterações) e um job periódico de reindexação completa como rede de segurança.
+   </details>
+
+### Busca vetorial
+
+3. **Por que a busca vetorial usa índices aproximados (HNSW) em vez de comparar com todos os vetores?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque calcular a distância contra milhões de vetores de centenas de dimensões a cada consulta é caro demais. Índices aproximados trocam uma pequena perda de precisão por consultas em milissegundos.
+   </details>
+
+4. **Quando vale trocar o `pgvector` por um banco vetorial dedicado?**
+   <details>
+     <summary>Possível resposta</summary>
+     Quando o volume passa de dezenas de milhões de vetores, quando a latência sob carga precisa ser garantida ou quando a equipe quer isolar a carga de busca do banco transacional. Antes disso, manter os vetores no PostgreSQL evita um serviço a mais e permite filtros SQL.
+   </details>
+
+---
+
+## Referências
+
+- [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html)
+- [PostgreSQL: pg_trgm](https://www.postgresql.org/docs/current/pgtrgm.html)
+- [pgvector](https://github.com/pgvector/pgvector)
+- [Supabase: Full Text Search](https://supabase.com/docs/guides/database/full-text-search)
+- [Supabase: AI & Vectors](https://supabase.com/docs/guides/ai)
+- [Meilisearch Documentation](https://www.meilisearch.com/docs)
+- [Typesense Documentation](https://typesense.org/docs/)
+- [Algolia Documentation](https://www.algolia.com/doc/)
+- [Cloudflare Vectorize](https://developers.cloudflare.com/vectorize/)
+
+---
+
+## Próximo tópico
+
+[Visão geral do Supabase](../../supabase/): Com todos os recursos e serviços de nuvem mapeados, conheça a primeira plataforma BaaS em detalhe, a partir do banco PostgreSQL gerenciado que sustenta a aplicação.

@@ -70,7 +70,7 @@ const courses = {
     href: '/courses/npm/',
   },
   cloud: {
-    title: 'Guia de Computação em Nuvem',
+    title: 'Guia de Serviços em Nuvem',
     shortTitle: 'Nuvem',
     href: '/courses/cloud/',
   },

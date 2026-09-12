@@ -46,7 +46,7 @@ export default defineConfig({
     '/courses/packages/baas/firebase': withBase('/courses/cloud/firebase/'),
     '/courses/packages/baas/firebase-firestore': withBase('/courses/cloud/firebase/firestore/'),
     '/courses/packages/baas/firebase-auth': withBase('/courses/cloud/firebase/auth/'),
-    // O BaaS saiu do guia de pacotes e virou o "Guia de Computação em Nuvem",
+    // O BaaS saiu do guia de pacotes e virou o "Guia de Serviços em Nuvem",
     // porque o assunto e a infraestrutura hospedada, nao o registro npm.
     '/courses/npm/baas/supabase': withBase('/courses/cloud/supabase/'),
     '/courses/npm/baas/supabase-api': withBase('/courses/cloud/supabase/api/'),
@@ -2030,7 +2030,7 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Guia de Computação em Nuvem',
+          label: 'Guia de Serviços em Nuvem',
           items: [
             { label: 'Visão geral', link: '/courses/cloud/' },
             {
@@ -2041,13 +2041,33 @@ export default defineConfig({
                   link: '/courses/cloud/foundations/cloud-computing/',
                 },
                 {
-                  label: 'Comparação de Serviços',
-                  link: '/courses/cloud/foundations/service-comparison/',
+                  label: 'Regiões, Zonas e Borda',
+                  link: '/courses/cloud/foundations/regions-zones-edge/',
+                },
+                {
+                  label: 'Custos de Nuvem e FinOps',
+                  link: '/courses/cloud/foundations/cloud-costs-finops/',
+                },
+                {
+                  label: 'Segurança, VPC e IAM',
+                  link: '/courses/cloud/foundations/cloud-security-iam/',
+                },
+                {
+                  label: 'Infraestrutura como Código',
+                  link: '/courses/cloud/foundations/infrastructure-as-code/',
+                },
+                {
+                  label: 'Arquitetura Serverless',
+                  link: '/courses/cloud/foundations/serverless-architecture/',
                 },
                 { label: 'Backend as a Service', link: '/courses/cloud/foundations/baas/' },
                 {
                   label: 'CI/CD e Automação',
                   link: '/courses/cloud/foundations/ci-cd/',
+                },
+                {
+                  label: 'Comparação de Serviços',
+                  link: '/courses/cloud/foundations/service-comparison/',
                 },
               ],
             },
@@ -2122,6 +2142,14 @@ export default defineConfig({
                 {
                   label: 'WAF e Segurança de Borda',
                   link: '/courses/cloud/resources/waf-edge-security/',
+                },
+                {
+                  label: 'Notificações Push e SMS',
+                  link: '/courses/cloud/resources/push-notifications-sms/',
+                },
+                {
+                  label: 'Busca e Banco Vetorial',
+                  link: '/courses/cloud/resources/search-vector/',
                 },
               ],
             },
