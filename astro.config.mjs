@@ -2069,6 +2069,10 @@ export default defineConfig({
                       link: '/courses/npm/practice/investbaas/analytics/',
                     },
                     {
+                      label: '7. Origem e Evolução',
+                      link: '/courses/npm/practice/investbaas/origins/',
+                    },
+                    {
                       label: 'Próximos passos',
                       link: '/courses/npm/practice/investbaas/next-steps/',
                     },

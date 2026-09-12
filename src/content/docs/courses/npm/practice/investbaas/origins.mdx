@@ -1,0 +1,204 @@
+---
+title: "InvestBaaS: Origem e evolução"
+description: "Sétima sprint do InvestBaaS: a carteira vista pela origem (corretora, categoria e emissor) em um treemap, e a linha de aportes acumulados contra o valor de mercado, por ativo e para a carteira inteira."
+course: npm
+project: investbaas-static
+sidebar:
+  label: "7. Origem e evolução"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Etapa **7 de 7** · Nível **Avançado** · Views · SVG · Treemap · Séries temporais
+
+A carteira da Sprint 3 diz **o que** a pessoa tem; a matriz da Sprint 6 diz **quanto rendeu** por mês. Esta sprint responde às duas perguntas que faltam: **onde** o patrimônio está (em qual corretora, de qual emissor, em qual categoria) e **quanto do valor de hoje é aporte e quanto é rendimento**, ao longo do tempo. As duas visões são SVG escrito à mão, sem biblioteca de gráficos, no mesmo critério de dependências da trilha.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  Consulte [Canvas](../../../../web-api/media/canvas/) para o desenho por código (aqui em SVG, pela mesma lógica de coordenadas) e [relacionamentos](../../../../expressjs/persistence/relations/) para as views que cruzam ativo, corretora e transações.
+</Aside>
+
+## Objetivo
+
+Construir duas leituras derivadas dos mesmos fatos (ativos, transações e cotações) sem criar nenhuma tabela nova. Ao final da etapa, o leitor deve ser capaz de:
+
+- Modelar uma view de agregação por dimensão (corretora, categoria, emissor) que respeite o RLS.
+- Implementar um treemap *squarified* como função pura e renderizá-lo em SVG.
+- Separar, em uma série temporal, o que foi aportado do que o mercado fez com o aporte.
+
+## Requisitos, histórias e critérios
+
+**Épico EP07 · Origem e evolução** › **Feature FT07 · Onde está e quanto rendeu**
+
+| Requisito | Recorte da etapa | Estado ao final |
+| --------- | ---------------- | --------------- |
+| RF09 | Treemap por corretora, categoria e emissor. | atendido |
+| RF10 | Aportes acumulados versus valor de mercado, por ativo e carteira. | atendido |
+| RNF01 | As duas views correm com `security_invoker`. | atendido |
+
+### US12 · Ver a carteira pela origem · RF09
+
+> **Como** investidor,
+> **quero** ver a carteira agrupada por corretora, por categoria e por emissor,
+> **para** saber onde o patrimônio está custodiado e de quem depende (o CDB do BB vem do BB).
+
+```gherkin
+Cenário: CA07.1 - Treemap por corretora
+  Dados ativos em duas corretoras
+  Quando abro origins.html
+  Então vejo um bloco por corretora
+  E a área de cada bloco é proporcional ao valor atual custodiado nela
+
+Cenário: CA07.2 - Troca de recorte
+  Quando escolho "emissor" no seletor
+  Então os blocos passam a ser os emissores, sem recarregar a página
+  E a soma das áreas continua igual ao patrimônio
+
+Cenário: CA07.3 - Só a própria carteira
+  Dadas duas contas com ativos
+  Quando a conta A consulta allocation_by_origin
+  Então recebe apenas as próprias linhas
+```
+
+### US13 · Comparar aportes com o valor atual · RF10
+
+> **Como** investidor,
+> **quero** ver, ao longo do tempo, a linha do que aportei e a linha do que a carteira vale,
+> **para** deduzir o rendimento de um ativo ou da carteira inteira sem confundir aporte com ganho.
+
+```gherkin
+Cenário: CA07.4 - Série da carteira
+  Dadas transações e cotações conhecidas
+  Quando abro analytics.html
+  Então vejo duas linhas no mesmo eixo de tempo: aportado acumulado e valor de mercado
+
+Cenário: CA07.5 - Série do ativo
+  Quando abro asset.html de um ativo
+  Então vejo as mesmas duas linhas restritas àquele ativo
+
+Cenário: CA07.6 - A diferença é o rendimento
+  Quando comparo as duas linhas em um mês
+  Então a distância entre elas é o resultado acumulado até ali
+  E um mês sem cotação fica sem ponto na linha de valor, e não em zero
+```
+
+### Tasks da etapa
+
+As seis tasks se dividem em duas trilhas paralelas, uma por história, e terminam nos testes das duas.
+
+<Steps>
+
+1. **TK07-1 · Criar a view `allocation_by_origin`**: dono, corretora, categoria, emissor e valor atual, com `security_invoker`.
+2. **TK07-2 · Criar `src/lib/treemap.js`**: o algoritmo *squarified* como função pura e a renderização em SVG.
+3. **TK07-3 · Criar `origins.html` e `src/pages/origins.js`**: a página, o seletor de recorte e a legenda.
+4. **TK07-4 · Criar a view `portfolio_evolution`**: mês a mês, aportado acumulado e valor de mercado, por ativo.
+5. **TK07-5 · Criar `src/lib/line-chart.js`**: duas séries em SVG, ligadas em `analytics.html` e `asset.html`.
+6. **TK07-6 · Testes da sprint**: unidade para os dois módulos de desenho, integração para as views, E2E para o seletor.
+
+</Steps>
+
+## Duas perguntas, duas views
+
+As duas leituras partem dos mesmos fatos. A de origem agrupa a posição atual por três dimensões que já existem em `assets` desde a Sprint 3; a de evolução acumula as transações no tempo e as encontra com a cotação do mês.
+
+<Mermaid title="Dos fatos às duas visões">
+{`
+flowchart LR
+  A[("assets<br/>broker_id · category · issuer")] --> O["allocation_by_origin<br/>valor atual por dimensão"]
+  T[("transactions")] --> O
+  T --> E["portfolio_evolution<br/>aportado acumulado × valor de mercado por mês"]
+  Q[("quotes_history")] --> E
+  O --> TM["Treemap (SVG)<br/>origins.html"]
+  E --> LC["Linhas (SVG)<br/>analytics.html · asset.html"]
+`}
+</Mermaid>
+
+## Estrutura da aplicação
+
+A sprint ainda não está implementada. A árvore abaixo é o alvo: nenhuma tabela nova, duas views, dois módulos de desenho e uma página.
+
+<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer="investbaas-static" />
+
+<FileTree>
+{`
+  investbaas-origins/
+  ├── supabase/migrations/
+  │   └── 0013_origin_and_evolution_views.sql   allocation_by_origin e portfolio_evolution
+  ├── src/
+  │   ├── lib/
+  │   │   ├── treemap.js                        squarified (função pura) + render SVG
+  │   │   ├── treemap.test.js
+  │   │   ├── line-chart.js                     duas séries em SVG
+  │   │   └── line-chart.test.js
+  │   └── pages/
+  │       ├── origins.js                        seletor de recorte e legenda
+  │       ├── analytics.js                      + gráfico da carteira
+  │       └── asset.js                          + gráfico do ativo
+  ├── tests/
+  │   ├── integration/origins.test.js           as duas views com dados de referência
+  │   └── e2e/origins.spec.js                   o seletor de recorte
+  └── origins.html                              novo
+`}
+</FileTree>
+
+## Decisões de desenho
+
+| Decisão | Regra | Razão |
+| ------- | ----- | ----- |
+| Sem biblioteca de gráficos | Treemap e linhas em SVG escrito à mão. | O algoritmo *squarified* cabe em 40 linhas e é uma função pura testável; uma biblioteca traria mais código que a página inteira. |
+| Emissor é texto, corretora é tabela | `assets.issuer` livre; `brokers` por dono. | A corretora reaparece em muitos ativos e vira filtro; o emissor descreve o ativo e raramente se repete além do próprio banco. |
+| Aportado acumulado, não custo | A linha soma compras menos vendas ao preço da transação. | É o dinheiro que entrou; a diferença para o valor de mercado é o resultado, inclusive o realizado. |
+| Mês sem cotação fica sem ponto | A linha de valor tem lacuna. | Interpolar inventaria um patrimônio que ninguém observou. |
+
+<Aside type="caution" title="Dica de IA: Peça o algoritmo como função pura, não como componente">
+  Um assistente tende a devolver um treemap acoplado ao DOM, com dados de exemplo dentro. Peça a separação: uma função que recebe `[{ label, value }]` e a largura e altura, e devolve `[{ label, x, y, w, h }]`; a renderização em SVG é outra função. É o que torna o teste de unidade possível (a soma das áreas tem que ser a área total).
+
+  **Prompt:** *"Implemente o algoritmo squarified treemap em JavaScript como função pura `layout(items, width, height)` que devolve retângulos; sem DOM, sem biblioteca. Depois escreva os testes: soma das áreas igual a `width * height`, itens em ordem decrescente, e nenhum retângulo fora dos limites."*
+</Aside>
+
+## Executando
+
+A Sprint 7 parte do projeto da Sprint 6 com a stack local no ar e os dados de referência da matriz de rentabilidade.
+
+<Steps>
+
+1. **Confirme a base**: `pnpm db:reset` aplica as views novas sobre as tabelas das sprints 3 a 6.
+2. **Alimente dados de referência**: dois ativos em corretoras diferentes, com emissores distintos, e transações em três meses.
+3. **Rode as suítes**: `pnpm test` (unidade e integração) e `pnpm test:e2e`.
+
+</Steps>
+
+## Conceitos abordados
+
+- View com `security_invoker` como agregação que respeita o RLS
+- Treemap *squarified*: proporção de área e ordem decrescente
+- SVG gerado por JavaScript, sem biblioteca
+- Série temporal derivada de transações e cotações, com lacuna explícita
+- Separar aporte de rendimento
+
+## Exercício
+
+Escreva a consulta que devolve, por corretora, o valor atual da carteira do usuário logado. Depois explique o que muda se a view não tiver `security_invoker`.
+
+## Desafio
+
+Acrescente um terceiro nível ao treemap: dentro de cada corretora, os ativos. Discuta quando o aninhamento ajuda e quando a página fica ilegível em um celular.
+
+## Perguntas de revisão
+
+1. Por que o emissor é uma coluna de texto e a corretora uma tabela?
+2. O que a distância entre as duas linhas representa em um mês?
+3. Por que um mês sem cotação não pode virar zero na linha de valor?
+4. Qual é a propriedade que o teste de unidade do treemap tem que provar?
+
+## Referências
+
+- [Squarified treemaps (Bruls, Huizing, van Wijk)](https://www.win.tue.nl/~vanwijk/stm.pdf)
+- [MDN: SVG](https://developer.mozilla.org/en-US/docs/Web/SVG)
+- [Supabase: views e `security_invoker`](https://supabase.com/docs/guides/database/postgres/row-level-security#views)
+
+## Próxima etapa
+
+Em [Próximos passos](../next-steps/), a trilha avalia as limitações deliberadas desta versão e organiza a evolução sem transformar escopo futuro em requisito já atendido.

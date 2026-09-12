@@ -14,6 +14,7 @@ O **InvestBaaS** é uma plataforma de gestão e análise de carteira de investim
 - **EP04 - Cotações & Edge Functions**: Atualização manual de valor patrimonial diário e gatilho assíncrono para cotações automatizadas de tickers B3 via Deno Edge Functions.
 - **EP05 - Analytics & Matriz de Rentabilidade**: Heatmap histórico mensal x anual de rendimento nominal (R$) e percentual (%), distribuição por classe e métricas de desempenho.
 - **EP06 - Painel Administrativo**: Métricas globais de contabilidade de usuários ativos, AUM consolidado e status do sistema.
+- **EP07 - Origem & Evolução**: Corretora de custódia e emissor/gestor por ativo, treemap por corretora, categoria e emissor, tela de cada investimento com todos os aportes e gráfico de aportes acumulados versus valor de mercado por ativo e por carteira.
 
 ## 4. Requisitos Não Funcionais & Arquitetura
 - **Frontend**: Vanilla JavaScript (ES Modules), Tailwind CSS via utilitários sem framework pesado.

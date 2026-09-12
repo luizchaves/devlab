@@ -1,7 +1,7 @@
 # Planejamento de Sprints - InvestBaaS
 
-O desenvolvimento do InvestBaaS segue um modelo cumulativo em 6 sprints. A Sprint 1 entrega o
-protótipo estático já versionado neste projeto. As sprints 2 a 6 conectam a aplicação aos serviços
+O desenvolvimento do InvestBaaS segue um modelo cumulativo em 7 sprints. A Sprint 1 entrega o
+protótipo estático já versionado neste projeto. As sprints 2 a 7 conectam a aplicação aos serviços
 do Supabase e completam a arquitetura BaaS planejada no PRD.
 
 ## Visão geral
@@ -14,6 +14,7 @@ do Supabase e completam a arquitetura BaaS planejada no PRD.
 | Sprint 4 | Edge Functions para cotações e atualização diária de preços | 8 | Planejado |
 | Sprint 5 | Supabase Storage, comprovantes privados e URLs assinadas | 5 | Planejado |
 | Sprint 6 | Analytics, AUM, painel administrativo e status operacional | 13 | Planejado |
+| Sprint 7 | Origem (treemap por corretora, categoria e emissor) e aportes vs. valor | 8 | Planejado |
 
 ## Sprint 1 - Frontend estático e governança
 
@@ -42,7 +43,7 @@ do Supabase e completam a arquitetura BaaS planejada no PRD.
 
 | Task ID | História | Descrição | Estimativa | Validação |
 | :--- | :--- | :--- | :---: | :--- |
-| TK03-1 | US05 | Criar migration SQL para assets com tipos, categorias, constraints e user_id. | 2 | Inserir ativo válido e recusar categoria inválida. |
+| TK03-1 | US05 | Criar migration SQL para assets com tipos, categorias, issuer, broker_id, constraints e user_id. | 2 | Inserir ativo válido e recusar categoria inválida. |
 | TK03-2 | US05 | Criar migration SQL para transactions com compra, venda, preço, data e comprovante. | 2 | Inserir transação vinculada a ativo existente. |
 | TK03-3 | US07, US09 | Criar quotes_history para histórico de preços por ativo e data. | 1 | Inserir cotação e consultar por ativo. |
 | TK03-4 | US06 | Habilitar RLS em profiles, assets, transactions e quotes_history. | 1 | Consultar tabelas como usuário autenticado e anônimo. |
@@ -51,6 +52,8 @@ do Supabase e completam a arquitetura BaaS planejada no PRD.
 | TK03-7 | US05 | Implementar criação de ativo e transação pelo front-end. | 2 | Cadastrar compra e conferir atualização da carteira. |
 | TK03-8 | US05, US09 | Calcular patrimônio, custo, lucro e rentabilidade a partir dos registros. | 1 | Comparar cálculo exibido com dados de teste conhecidos. |
 | TK03-9 | US06 | Criar índices para user_id, asset_id, ticker e datas de consulta. | 1 | Executar consultas comuns e revisar plano ou tempo de resposta. |
+| TK03-10 | US05 | Criar brokers por dono e a criação automática de corretora nova no cadastro do ativo; assets ganha broker_id e issuer. | 1 | Cadastrar dois ativos na mesma corretora e conferir uma única linha em brokers. |
+| TK03-11 | US11 | Criar asset.html e src/pages/asset.js com a lista de aportes e o formulário de nova transação. | 2 | Abrir um ativo próprio e um alheio; registrar um aporte e ver a posição mudar. |
 
 ## Sprint 4 - Cotações com Edge Functions
 
@@ -90,6 +93,17 @@ do Supabase e completam a arquitetura BaaS planejada no PRD.
 | TK06-7 | US10 | Exibir status de Auth, banco, cotações, Storage e jobs no admin. | 1 | Simular falha operacional e conferir indicador visual. |
 | TK06-8 | US09, US10 | Revisar responsividade de analytics e admin com dados reais. | 1 | Testar mobile e desktop com tabelas largas. |
 | TK06-9 | US09, US10 | Documentar limites conhecidos, riscos e próximos passos técnicos. | 1 | Atualizar página de próximos passos e checklist de publicação. |
+
+## Sprint 7 - Origem e evolução
+
+| Task ID | História | Descrição | Estimativa | Validação |
+| :--- | :--- | :--- | :---: | :--- |
+| TK07-1 | US12 | Criar a view allocation_by_origin (dono, corretora, categoria, emissor, valor atual) com security_invoker. | 1 | Consultar como dois usuários e conferir a soma contra assets. |
+| TK07-2 | US12 | Criar src/lib/treemap.js: algoritmo squarified como função pura e renderização em SVG, sem biblioteca. | 2 | Testes de unidade com áreas conhecidas; soma das áreas igual ao total. |
+| TK07-3 | US12 | Criar origins.html e src/pages/origins.js com seletor de recorte (corretora, categoria, emissor) e legenda. | 1 | Trocar o recorte e conferir os blocos. |
+| TK07-4 | US13 | Criar a view portfolio_evolution (dono, ativo, mês, aportado acumulado, valor de mercado) com security_invoker. | 1 | Comparar com a planilha de referência da Sprint 6. |
+| TK07-5 | US13 | Criar src/lib/line-chart.js (SVG, duas séries, eixo de tempo) e ligar em analytics.html e asset.html. | 2 | Ver as duas linhas e a lacuna em mês sem cotação. |
+| TK07-6 | US12, US13 | Testes de unidade, integração e E2E da sprint. | 1 | pnpm test e pnpm test:e2e verdes. |
 
 ## Critério de pronto para qualquer task
 
