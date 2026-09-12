@@ -90,3 +90,27 @@ O papel nunca é alterado por uma tela: uma conta comum recebe `42501` ao tentar
 ```sql
 update public.profiles set role = 'admin' where id = '<id da conta>';
 ```
+
+## Deploy na Vercel
+
+O front é estático: o `vite build` gera `dist/` com as sete páginas, e a Vercel só precisa das
+duas variáveis públicas. O `vercel.json` já define framework, build, saída, `cleanUrls` e os
+cabeçalhos de segurança; o `.vercelignore` deixa `supabase/`, testes e docs fora do upload.
+
+1. **Projeto Supabase na nuvem**: crie em [supabase.com](https://supabase.com/), aplique as
+   migrations (`supabase link` + `supabase db push`), publique a função (`supabase functions deploy
+   update-quotes`) e grave `MARKET_PROVIDER=yahoo` em **Edge Functions › Secrets**.
+2. **Projeto na Vercel** apontando para este repositório, com **Root Directory** =
+   `examples/courses/npm/projects/investbaas-analytics` (a Vercel precisa saber que o app vive
+   numa subpasta do monorepo).
+3. **Variáveis de ambiente** no painel da Vercel (Production e Preview): `VITE_SUPABASE_URL` e
+   `VITE_SUPABASE_ANON_KEY`. **Nunca** `SUPABASE_SERVICE_ROLE_KEY`: ela é só dos testes.
+4. **Redirect do Auth**: em **Authentication › URL Configuration** do Supabase, coloque a URL da
+   Vercel em *Site URL* e em *Redirect URLs*, senão o login não devolve para a aplicação.
+5. Pela CLI, na pasta do projeto: `vercel login`, `vercel link` e `vercel --prod`.
+
+Com o [MCP da Vercel](https://vercel.com/docs/mcp) ligado ao assistente, os passos 2, 3 e 5
+podem ser conduzidos por prompt: *"crie o projeto InvestBaaS na Vercel com root directory
+`examples/courses/npm/projects/investbaas-analytics`, defina `VITE_SUPABASE_URL` e
+`VITE_SUPABASE_ANON_KEY` em Production e Preview, faça o deploy de produção e me devolva a URL e
+o log do build"*.

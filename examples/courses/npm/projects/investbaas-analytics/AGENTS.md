@@ -14,7 +14,8 @@ Plataforma moderna de gestão e inteligência de investimentos construída com *
 2. **Isolamento de Dados com Row Level Security (RLS)**: Toda tabela pública deve possuir RLS ativado (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`). Clientes só acessam seus próprios registros (`auth.uid() = user_id`).
 3. **Visão Administrativa Segura**: O acesso administrativo a métricas agregadas (total de contas, patrimônio sob custódia) é protegido por policies RLS baseadas em `role = 'admin'` em `profiles` ou claims seguras no token.
 4. **Cotações Automáticas via Edge Functions**: A consulta a APIs externas de mercado financeiro (bolsa B3) é realizada exclusivamente por Edge Functions Serverless (Deno/TypeScript), garantindo sigilo de chaves e execução desacoplada.
-5. **Idioma dos Identificadores**: Identificadores de código (funções, variáveis, colunas SQL, tipos) em inglês; interface do usuário, comentários didáticos e documentação em português do Brasil.
+5. **Deploy sem segredo**: o front publicado (Vercel) recebe apenas as duas variáveis `VITE_*`; chave de serviço, token de provedor e segredos de função ficam no Supabase (`secrets`, `vault`).
+6. **Idioma dos Identificadores**: Identificadores de código (funções, variáveis, colunas SQL, tipos) em inglês; interface do usuário, comentários didáticos e documentação em português do Brasil.
 
 ## Comandos
 
@@ -30,6 +31,7 @@ Plataforma moderna de gestão e inteligência de investimentos construída com *
 | `pnpm db:reset` | Recria o banco local aplicando `supabase/migrations/` |
 | `pnpm test` | Testes de unidade (jsdom, SDK mockado) e de integração (stack local) com Vitest |
 | `pnpm test:e2e` | Fluxo completo no navegador com Playwright (exige Vite e stack local) |
+| `vercel --prod` | Publica o `dist/` na Vercel; só `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` entram como variáveis |
 
 ## Fluxo Spec-Driven Development
 
