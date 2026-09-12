@@ -11,6 +11,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Etapa **5 de 7** · Nível **Avançado** · Supabase Storage · Policies · URLs assinadas
 
@@ -113,20 +114,27 @@ sequenceDiagram
 
 ## Estrutura da aplicação
 
-Como as outras etapas BaaS, esses módulos são o alvo da Sprint 5 e não estão presentes no projeto estático ainda. A árvore também impede confundir *path* de Storage com URL pública.
+A sprint nasce como cópia da Sprint 4 mais o delta: uma migration, dois módulos e o campo de arquivo no lançamento. A árvore também impede confundir *path* de Storage com URL pública.
 
-<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer="investbaas-static" />
+<ProjectLinks path="examples/courses/npm/projects/investbaas-storage" devcontainer="investbaas-storage" />
 
 <FileTree>
 {`
-  investbaas-static/
+  investbaas-storage/
   ├── supabase/migrations/
-  │   └── 0008_storage_receipts.sql    bucket privado e policies em storage.objects
+  │   └── 20260912000008_storage_receipts.sql   TK05-1, TK05-2, TK05-7: bucket, policies e contagem
   ├── src/
-  │   ├── services/receipts.js         upload, vínculo e URL assinada
-  │   ├── lib/file-validation.js       tipo e tamanho (função pura)
-  │   └── pages/dashboard.js           + campo de arquivo e ação Ver comprovante
-  └── dashboard.html                   formulário de transação com <input type="file">
+  │   ├── lib/
+  │   │   ├── file-validation.js               TK05-3, TK05-4: validateReceipt() e receiptPath()
+  │   │   └── file-validation.test.js
+  │   ├── services/
+  │   │   ├── receipts.js                      TK05-4, TK05-5: uploadReceipt() e receiptUrl()
+  │   │   └── receipts.test.js
+  │   └── pages/asset.js                       TK05-6: campo de arquivo e Ver comprovante
+  ├── tests/
+  │   ├── integration/receipts.test.js         Storage real: bucket, policies, URL assinada
+  │   └── e2e/receipts.spec.js                 anexar e abrir pela tela
+  └── asset.html                               <input type="file"> e a coluna Comprovante
 `}
 </FileTree>
 
@@ -138,146 +146,91 @@ A coluna `receipt_path` existe desde a Sprint 3 e ficou vazia até aqui. Esta et
 | ---------------- | ---------------- |
 | `receipt_path` sempre nulo | Path do objeto no bucket `receipts`, gravado junto da transação |
 | Nenhum bucket | `receipts`, privado, com policies em `storage.objects` |
-| Formulário de transação só com números | `<input type="file">` aceitando PDF, PNG e JPG até 5 MB |
+| Formulário de lançamento só com números | `<input type="file">` opcional no `asset.html`, aceitando PDF, PNG e JPG até 5 MB |
 | Nenhuma leitura de arquivo | Botão **Ver comprovante** gerando uma URL assinada de 60 segundos |
 | Admin sem visão de arquivos | Contagem agregada de uploads e falhas, sem listar objetos |
 
-<Aside type="note" title="O código desta etapa é o alvo, não o repositório">
-  Os trechos abaixo mostram o que cada task escreve quando a sprint for executada sobre o
-  `investbaas-static`. Eles não vêm de arquivos de `examples/`, e por isso não têm caminho de
-  arquivo no título. A [Sprint 1](../front-static/) é a única com código versionado.
-</Aside>
-
 ## Descrição das tarefas
 
-Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código que cada uma produz.
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto.
 
 ### TK05-1 · Criar o bucket privado `receipts`
 
-O bucket é criado por migration, e não pelo painel, para que o ambiente seja reproduzível. `public = false` é a linha que importa: em um bucket público, qualquer pessoa com a URL lê o objeto para sempre; em um privado, só quem passa por uma policy, e só pelo tempo de uma URL assinada.
+O bucket é criado por migration, e não pelo painel, para que o ambiente seja reproduzível. `public = false` é a linha que importa: em um bucket público, qualquer pessoa com a URL lê o objeto para sempre; em um privado, só quem passa por uma policy, e só pelo tempo de uma URL assinada. O limite de tamanho e a lista de tipos ficam no próprio bucket e valem para qualquer cliente, inclusive um `curl` que pule a validação do navegador; o teste de integração envia um `.exe` pelo SDK e recebe a recusa do bucket.
 
-```sql title="Bucket privado (inicio de supabase/migrations/0008_storage_receipts.sql)"
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'receipts',
-  'receipts',
-  false,
-  5 * 1024 * 1024,
-  array['application/pdf', 'image/png', 'image/jpeg']
-);
-```
-
-O limite de tamanho e a lista de tipos ficam no próprio bucket. Eles valem para qualquer cliente, inclusive um `curl` que pule a validação do navegador.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/supabase/migrations/20260912000008_storage_receipts.sql"
+  title="supabase/migrations/20260912000008_storage_receipts.sql"
+  region="bucket"
+/>
 
 ### TK05-2 · Criar as policies em `storage.objects`
 
-O Storage guarda cada objeto como uma linha de `storage.objects`, e o RLS vale ali como em qualquer tabela. A regra é uma só, repetida por operação: o primeiro segmento do *path* tem que ser o `auth.uid()` de quem chama. `storage.foldername(name)` devolve os segmentos do caminho como array, e `[1]` é a pasta de primeiro nível.
+O Storage guarda cada objeto como uma linha de `storage.objects`, e o RLS vale ali como em qualquer tabela. A regra é uma só, repetida por operação: o primeiro segmento do *path* tem que ser o `auth.uid()` de quem chama. `storage.foldername(name)` devolve os segmentos do caminho como array, e `[1]` é a pasta de primeiro nível. Não há policy de `update`: um comprovante não é editado, é substituído por outro upload.
 
-```sql title="Policies do bucket (continuacao de 0008_storage_receipts.sql)"
-create policy "receipts: dono envia" on storage.objects
-  for insert to authenticated
-  with check (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text);
-
-create policy "receipts: dono le" on storage.objects
-  for select to authenticated
-  using (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text);
-
-create policy "receipts: dono remove" on storage.objects
-  for delete to authenticated
-  using (bucket_id = 'receipts' and (storage.foldername(name))[1] = auth.uid()::text);
-```
-
-Não há policy de `update`: um comprovante não é editado, é substituído por outro upload.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/supabase/migrations/20260912000008_storage_receipts.sql"
+  title="supabase/migrations/20260912000008_storage_receipts.sql"
+  region="policies"
+/>
 
 ### TK05-3 · Validar o upload no navegador
 
-A validação do cliente existe para a pessoa, não para a segurança: ela responde antes de subir 5 MB pela rede. É uma função pura, sem DOM, e por isso o tipo e o limite ficam declarados uma vez e testáveis.
+A validação do cliente existe para a pessoa, não para a segurança: ela responde antes de subir 5 MB pela rede. É uma função pura, sem DOM, e por isso o tipo e o limite ficam declarados uma vez e testáveis. `file.type` é o MIME que o **navegador** declara a partir da extensão: um `virus.exe` renomeado para `nota.pdf` passa aqui; é o bucket, com `allowed_mime_types`, e a policy que fecham o caminho.
 
-```js title="Validacao de arquivo (alvo de src/lib/file-validation.js)"
-export const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
-export const MAX_SIZE = 5 * 1024 * 1024;
-
-export function validateReceipt(file) {
-  if (!ALLOWED_TYPES.includes(file.type)) return 'Envie um PDF, PNG ou JPG';
-  if (file.size > MAX_SIZE) return 'O arquivo pode ter no maximo 5 MB';
-  return null;
-}
-```
-
-`file.type` é o MIME que o **navegador** declara a partir da extensão. Um `virus.exe` renomeado para `nota.pdf` passa aqui; é o bucket, com `allowed_mime_types`, e a policy que fecham o caminho. A página repete a lição da etapa de upload das outras trilhas: validação no cliente é ergonomia, validação no servidor é segurança.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/src/lib/file-validation.js"
+  title="src/lib/file-validation.js"
+  region="validate"
+/>
 
 ### TK05-4 · Enviar o arquivo e vincular à transação
 
-O *path* é decidido pelo código, nunca pelo nome do arquivo: `<user_id>/<transaction_id>/<uuid>.<ext>`. O primeiro segmento é o que a policy confere; o segundo permite encontrar os comprovantes de uma transação; o terceiro evita colisão e esconde o nome original. Depois do upload, a transação recebe o *path* (e só o *path*).
+O *path* é decidido pelo código, nunca pelo nome do arquivo: `<user_id>/<transaction_id>/<uuid>.<ext>`. O primeiro segmento é o que a policy confere; o segundo permite encontrar os comprovantes de uma transação; o terceiro evita colisão e esconde o nome original. O teste de unidade envia `../../etc/Passwd.PDF` e confere que nada do nome sobrevive além da extensão.
 
-```js title="Upload e vinculo (alvo de src/services/receipts.js)"
-import { supabase } from '../lib/supabase-client.js';
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/src/lib/file-validation.js"
+  title="src/lib/file-validation.js"
+  region="path"
+/>
 
-export async function uploadReceipt({ userId, transactionId, file }) {
-  const ext = file.name.split('.').pop().toLowerCase();
-  const path = `${userId}/${transactionId}/${crypto.randomUUID()}.${ext}`;
+Depois do upload, a transação recebe o *path* (e só o *path*). Gravar a URL assinada no banco seria guardar uma credencial que expira: em um minuto a coluna estaria apontando para um link morto. Se o upload falhar, a transação não é tocada.
 
-  const { error: uploadError } = await supabase.storage
-    .from('receipts')
-    .upload(path, file, { contentType: file.type });
-
-  if (uploadError) return { error: uploadError };
-
-  return supabase
-    .from('transactions')
-    .update({ receipt_path: path })
-    .eq('id', transactionId);
-}
-```
-
-Gravar a URL assinada no banco seria guardar uma credencial que expira: em um minuto a coluna estaria apontando para um link morto. O *path* é estável; a URL nasce a cada leitura.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/src/services/receipts.js"
+  title="src/services/receipts.js"
+  region="upload"
+/>
 
 ### TK05-5 · Gerar a URL assinada de curta duração
 
-`createSignedUrl` só funciona para quem passa pela policy de `select`: pedir a URL de um *path* de outra conta responde erro, não link. Sessenta segundos bastam para abrir o documento em uma aba; quem precisar de novo pede de novo.
+`createSignedUrl` só funciona para quem passa pela policy de `select`: pedir a URL de um *path* de outra conta responde `Object not found`, não link, e sem confirmar que o objeto existe. Sessenta segundos bastam para abrir o documento em uma aba; quem precisar de novo pede de novo.
 
-```js title="URL temporaria (continuacao de src/services/receipts.js)"
-export async function receiptUrl(path) {
-  const { data, error } = await supabase.storage
-    .from('receipts')
-    .createSignedUrl(path, 60);
-
-  return error ? { error } : { url: data.signedUrl };
-}
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/src/services/receipts.js"
+  title="src/services/receipts.js"
+  region="signed-url"
+/>
 
 ### TK05-6 · Exibir o comprovante na tela
 
-Na tabela de transações, a linha que tem `receipt_path` ganha o botão **Ver comprovante**. O clique pede a URL e abre uma aba; a URL não é escrita no HTML, e um `Ctrl+C` no botão não copia nada reutilizável.
+No `asset.html`, o diálogo de lançamento ganha um `<input type="file">` opcional, e a linha que tem `receipt_path` ganha o botão **Ver comprovante**. O clique pede a URL e abre uma aba; a URL não é escrita no HTML, e um `Ctrl+C` no botão não copia nada reutilizável. O E2E substitui `window.open` por um espião, lê a URL que ele recebeu e confere que ela entrega o PDF.
 
-```js title="Acao Ver comprovante (trecho de src/pages/dashboard.js)"
-table.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-receipt]');
-  if (!button) return;
-
-  const { url, error } = await receiptUrl(button.dataset.receipt);
-  if (error) return showToast('Comprovante indisponivel');
-
-  window.open(url, '_blank', 'noopener');
-});
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/src/pages/asset.js"
+  title="src/pages/asset.js"
+  region="receipt"
+/>
 
 ### TK05-7 · Medir a operação para o admin
 
-O admin da Sprint 6 mostra quantos comprovantes existem e quantos uploads falharam, sem listar um arquivo sequer. A contagem vem de uma função `security definer` que lê `storage.objects` agregado; a função é chamável só por quem tem `role = 'admin'` em `profiles`, checagem feita dentro dela.
+O admin da Sprint 6 mostra quantos comprovantes existem e quando foi o último upload, sem listar um arquivo sequer. A contagem vem de uma função `security definer` que lê `storage.objects` agregado; um investidor recebe **zero linhas**. O teste de integração pegou um detalhe de SQL: `count(*)` sempre devolve uma linha, então o `exists` de papel precisa ficar **por fora** da agregação, ou o investidor receberia `(0, null)` em vez de nada.
 
-```sql title="Contagem agregada (alvo de supabase/migrations/0009_admin_receipts_stats.sql)"
-create function public.admin_receipts_stats()
-returns table (total bigint, last_upload timestamptz)
-language sql security definer set search_path = public, storage as $$
-  select count(*), max(created_at)
-  from storage.objects
-  where bucket_id = 'receipts'
-    and exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
-$$;
-```
-
-Sem o `exists`, qualquer conta poderia chamar a função e ler o total. Com ele, um investidor recebe zero linhas, e não um erro que confirme a existência da função.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/supabase/migrations/20260912000008_storage_receipts.sql"
+  title="supabase/migrations/20260912000008_storage_receipts.sql"
+  region="stats"
+/>
 
 ## Regras de segurança
 
@@ -297,33 +250,75 @@ Sem o `exists`, qualquer conta poderia chamar a função e ler o total. Com ele,
 
 ## Testando
 
-Os cenários desta etapa exigem **duas contas**: um upload que funciona para a Ana não prova nada sobre o Bruno. Com os dois logados em navegadores diferentes, o roteiro é o seguinte.
+Os cenários desta etapa exigem **duas contas**: um upload que funciona para a Ana não prova nada sobre o Bruno. O teste de integração as cria e roda os cenários contra o Storage local.
 
-| Verificação | Como fazer | Critério |
-| ----------- | ---------- | -------- |
-| Bucket privado | Em **Storage › receipts**, o cadeado indica *private*; a URL pública de um objeto (`/storage/v1/object/public/receipts/...`) responde `400` | RNF04 |
-| Upload válido | Como Ana, anexe um PDF de até 5 MB a uma transação: o objeto aparece em `receipts/<id da Ana>/<id da transacao>/` e `receipt_path` é preenchido | CA05.1 |
-| Tipo e tamanho | Tente um `.exe` e um PDF de 8 MB: o navegador recusa antes de enviar, e um `curl` direto recebe erro do bucket | CA05.2 |
-| Leitura própria | Como Ana, clique em **Ver comprovante**: a aba abre, e a URL contém `token=` e expira em 60 segundos | CA05.3 |
-| Leitura cruzada | Como Bruno, chame `createSignedUrl` com o *path* da Ana no console do navegador: a resposta é `Object not found`, sem confirmar que o arquivo existe | CA05.4 |
-| URL não persistida | No **Table Editor**, `receipt_path` guarda `<uuid>/<uuid>/<uuid>.pdf`, e não uma URL | CA05.5 |
+| Camada | Comando | O que prova | Tasks |
+| ------ | ------- | ----------- | ----- |
+| Unidade (Vitest) | `pnpm test:unit` | tipo e tamanho; *path* sem o nome original; upload que não toca a transação se falhar; URL de 60 s | TK05-3, TK05-4, TK05-5 |
+| Integração (Vitest + Storage real) | `pnpm test:integration` | bucket privado com limite e tipos; upload do dono; `.exe` recusado pelo bucket; pasta alheia barrada pela policy; URL assinada que abre; *path* alheio "not found"; URL pública `400`; contagem só para admin | TK05-1, TK05-2, TK05-7, CA05.3, CA05.4 |
+| E2E (Playwright) | `pnpm test:e2e` | anexar um PDF ao aporte, o *path* guardado no formato certo, a URL assinada entregando o arquivo; `.exe` recusado antes do upload | CA05.1, CA05.2, CA05.3, CA05.5 |
 
-```js title="Console do navegador, logado como Bruno"
-const { data, error } = await supabase.storage
-  .from('receipts')
-  .createSignedUrl('<id da Ana>/<id da transacao>/<uuid>.pdf', 60);
-// error.message === 'Object not found'
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-storage/tests/integration/receipts.test.js"
+  title="tests/integration/receipts.test.js"
+  region="read"
+/>
+
+```bash title="Terminal"
+pnpm test
 ```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/lib/file-validation.test.js (4 tests)
+ ✓ |unit| src/services/receipts.test.js (3 tests)
+ ✓ |unit| (as suítes das sprints 2 a 4: 24 tests)
+ ✓ |integration| tests/integration/receipts.test.js (8 tests)
+ ✓ |integration| (as suítes das sprints 2 a 4: 24 tests)
+
+ Test Files  13 passed (13)
+      Tests  63 passed (63)
+```
+
+```bash title="Terminal"
+pnpm test:e2e
+```
+
+```txt title="Output" frame="terminal"
+  ✓ anexa um comprovante ao aporte e abre a URL assinada (CA05.1, CA05.3, CA05.5) (2.3s)
+  ✓ um tipo fora da lista e recusado antes do upload (CA05.2) (1.2s)
+  ✓ (os nove testes das sprints 2 a 4)
+
+  11 passed (7.8s)
+```
+
+No Studio local, **Storage › receipts** mostra o cadeado de *private* e a pasta com o `id` da conta; a URL pública de um objeto (`/storage/v1/object/public/receipts/…`) responde `400`.
 
 ## Executando
 
-Crie o bucket privado e as policies antes de conectar o formulário. Valide com duas contas reais de teste, pois um upload bem-sucedido de uma conta não prova que o isolamento funciona.
-
 <Steps>
 
-1. **Aplique as migrations de Storage**: confirme no painel que `receipts` não é público.
-2. **Teste upload e URL assinada**: envie um arquivo permitido e abra-o como o proprietário.
-3. **Teste o caso negativo**: tente ler o path da primeira conta com a segunda e confirme a recusa.
+1. Entre no projeto, instale e suba a stack:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investbaas-storage
+   pnpm install
+   pnpm db:start
+   supabase status -o env   # preencha o .env
+   pnpm db:reset
+   ```
+
+2. Suba o Vite, abra um ativo e registre um aporte com um PDF anexado:
+
+   ```bash title="Terminal"
+   pnpm dev
+   ```
+
+3. Rode as suítes:
+
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
 
 </Steps>
 

@@ -157,7 +157,7 @@ to `specs/executed/`, fill `Result`.
 - [x] Phase 1 — Sprint 2 (`investbaas-auth`): 15 Vitest (9 unit + 6 integration) and 4 Playwright tests green against `supabase start`; `auth.mdx` rewritten with `<SourceCode>` cuts and real outputs. Found and fixed during the work: the local stack grants no `select`/`update` on new tables by default, and a whole-row `update` policy would have let any account promote itself to `admin`; the migration now grants `select, update (full_name)` to `authenticated`.
 - [x] Phase 2 — Sprint 3 (`investbaas-database`): 36 Vitest (18 unit + 18 integration) and 8 Playwright tests green; `brokers`, `assets.issuer` and `asset.html` (TK03-10, TK03-11) added per the backlog revision of `e1336dfd`; every RLS policy has an integration test with two accounts.
 - [x] Phase 3 — Sprint 4 (`investbaas-edge-quotes`): 48 Vitest (24 unit + 24 integration, the latter `fetch`ing the local edge runtime) and 9 Playwright tests green; providers `fake` / `yahoo` / `brapi`; `pg_cron` scheduling via a `security definer` function whose `EXECUTE` is revoked from `PUBLIC` (found by the test).
-- [ ] Phase 4 — Sprint 5
+- [x] Phase 4 — Sprint 5 (`investbaas-storage`): 63 Vitest (31 unit + 32 integration against the local Storage) and 11 Playwright tests green; the aggregate stats function needed the role check outside the `count(*)` (found by the test).
 - [ ] Phase 5 — Sprint 6
 - [ ] Phase 6 — Sprint 7
 - [ ] Phase 7 — Closing
