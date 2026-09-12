@@ -1,137 +1,433 @@
 ---
-title: Autenticação BaaS
-description: Autenticação segura de usuários no InvestBaaS utilizando Supabase Auth, tokens JWT e proteção de rotas.
+title: "InvestBaaS: Autenticação BaaS"
+description: "Segunda sprint do InvestBaaS: Supabase Auth, perfil de usuário, sessão persistente e proteção de páginas privadas sem expor segredos no navegador."
 course: npm
 project: investbaas-static
+sidebar:
+  label: "2. Autenticação BaaS"
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
 
-A segurança e o isolamento de contas no InvestBaaS são gerenciados pelo **Supabase Auth**, eliminando a necessidade de construir um microsserviço de autenticação dedicado.
+Etapa **2 de 6** · Nível **Intermediário** · Supabase Auth · JWT · Sessão · Perfil
 
-O Supabase Auth gerencia o ciclo de vida dos usuários, emite JSON Web Tokens (JWT) assinados e propaga a identidade do investidor para o banco de dados PostgreSQL.
+A Sprint 1 desenhou as telas de entrada; esta etapa torna a identidade real. O Supabase Auth cria a conta, entrega uma sessão e assina o JWT. O front-end usa a chave anônima do projeto, mas as decisões de autorização ficam para o banco na próxima sprint.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  Esta etapa combina [pacotes npm](../../../) com os conceitos de [autenticação](../../../../expressjs/auth/authentication/) e [autorização](../../../../expressjs/auth/authorization/).
+</Aside>
 
 ## Objetivo
 
-Compreender o funcionamento do Supabase Auth no InvestBaaS, implementando cadastro de usuários, login seguro com e-mail/senha e proteção de páginas no cliente.
+Integrar identidade e sessão ao protótipo sem expor privilégios do ambiente BaaS. Ao final da etapa, o leitor deve ser capaz de:
 
-## Fluxo de Autenticação
+- Explicar o papel de `auth.users`, profile, JWT e sessão.
+- Implementar cadastro, entrada, saída e guarda de páginas privadas.
+- Separar a chave anônima pública de segredos que nunca pertencem ao navegador.
 
-O fluxo de autenticação baseia-se em tokens JWT armazenados com segurança no navegador do cliente.
+## Requisitos, histórias e critérios
 
-O diagrama a seguir descreve a troca de credenciais entre o cliente e o serviço Supabase Auth:
+**Épico EP02 · Identidade e perfil** › **Feature FT02 · Conta, sessão e páginas privadas**
 
-```mermaid
-sequenceDiagram
-  autonumber
-  actor User as Investidor
-  participant Client as Frontend (Vanilla JS)
-  participant Auth as Supabase Auth
-  participant DB as PostgreSQL (RLS)
+| Requisito | Recorte da etapa | Estado ao final |
+| --------- | ---------------- | --------------- |
+| RF02 | Cadastro, login, recuperação de sessão e logout. | atendido |
+| RNF01 | Identidade disponível para policies futuras. | preparado |
+| RNF02 | Apenas URL e chave anônima no front-end. | atendido |
 
-  User->>Client: Informa e-mail e senha
-  Client->>Auth: supabase.auth.signInWithPassword()
-  Auth-->>Client: Retorna Session { access_token (JWT), user }
-  Client->>Client: Armazena token na sessão
-  Client->>DB: Consulta investimentos com Header Authorization: Bearer JWT
-  DB-->>Client: Retorna apenas linhas onde user_id == auth.uid()
+### US03 · Criar conta e entrar · RF02
+
+> **Como** investidor,
+> **quero** criar uma conta e entrar com e-mail e senha,
+> **para** ter uma identidade estável antes de registrar minha carteira.
+
+```gherkin
+Cenário: CA02.1 - Cadastro válido
+  Quando envio nome, e-mail e senha válidos pelo formulário
+  Então o Supabase Auth cria o usuário
+  E um profile é criado com o mesmo identificador
+
+Cenário: CA02.2 - Login válido e inválido
+  Quando entro com credenciais válidas
+  Então recebo uma sessão com access token
+  Mas quando uso credenciais inválidas
+  Então a interface informa a falha sem revelar qual campo está cadastrado
+
+Cenário: CA02.3 - Recuperação de sessão
+  Dado que já entrei no sistema
+  Quando recarrego dashboard.html
+  Então a sessão é recuperada pelo SDK
+  E a tela não redireciona para signin.html
 ```
 
-O token JWT é automaticamente enviado em todas as requisições subsequentes ao banco de dados e aos buckets de armazenamento.
+### US04 · Proteger telas privadas · RF02, RNF01
 
-## Inicializando o Cliente Supabase
+> **Como** investidor,
+> **quero** ser direcionado ao login ao abrir uma tela privada sem sessão,
+> **para** não confundir uma interface disponível com acesso autorizado.
 
-Para interagir com o serviço BaaS a partir do frontend Vanilla JS, inicializa-se o cliente oficial com as credenciais públicas do projeto.
+```gherkin
+Cenário: CA02.4 - Guarda de página
+  Dado que não existe sessão ativa
+  Quando abro dashboard.html, analytics.html ou admin.html
+  Então sou redirecionado para signin.html
 
-O exemplo de código a seguir demonstra a configuração do cliente Supabase:
+Cenário: CA02.5 - Logout
+  Dado que tenho uma sessão ativa
+  Quando escolho sair
+  Então o SDK encerra a sessão
+  E uma nova abertura de página privada exige login
+```
 
-```javascript
+### Tasks da etapa
+
+As tasks mantêm a chave de projeto em um único módulo e separam evento de formulário de regra de sessão. Essa organização permite substituir o HTML estático sem espalhar configuração sensível.
+
+<Steps>
+
+1. **TK02-1 · Criar o cliente Supabase**: URL e chave anônima em configuração pública controlada.
+2. **TK02-2 · Implementar cadastro**: `signUp`, metadados de nome e feedback de confirmação.
+3. **TK02-3 · Implementar login**: `signInWithPassword` e erros de credencial na interface.
+4. **TK02-4 · Criar guarda de sessão**: `getSession` antes de renderizar páginas privadas.
+5. **TK02-5 · Implementar sessão e logout**: recuperação, evento de mudança e botão de saída.
+6. **TK02-6 · Criar profiles**: migration ou trigger vinculando `auth.users` ao perfil público.
+
+</Steps>
+
+## Estrutura da aplicação
+
+O projeto versionado termina na Sprint 1. A árvore abaixo é o alvo da Sprint 2: três módulos novos em `src/`, os formulários de sessão ligados a eles e a primeira migration. Ela deixa explícito que `supabase-client.js` não é um local para a `service_role`.
+
+<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer={false} />
+
+<FileTree>
+{`
+  investbaas-static/
+  ├── .env.example                  VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY
+  ├── package.json                  + @supabase/supabase-js
+  ├── src/
+  │   ├── lib/supabase-client.js    URL + anon key, nunca service role
+  │   ├── services/auth.js          signUp, signIn, signOut e onSessionEnd
+  │   ├── guards/require-session.js proteção das páginas privadas
+  │   └── pages/
+  │       ├── signup.js             o formulário de cadastro fala com o Auth
+  │       └── signin.js             o formulário de login fala com o Auth
+  ├── signup.html                   sem action; carrega src/pages/signup.js
+  ├── signin.html                   sem action; carrega src/pages/signin.js
+  ├── dashboard.html                + guarda, e-mail do usuário e botão Sair
+  └── supabase/migrations/
+      └── 0001_profiles.sql         profiles, RLS e trigger de auth.users
+`}
+</FileTree>
+
+## O que muda nesta etapa?
+
+A Sprint 1 desenhou `signin.html` e `signup.html` com `action="./dashboard.html"`: o formulário "entra" navegando para a carteira, sem conferir nada. Esta etapa troca essa navegação por uma sessão real e passa a exigir a sessão em toda página privada.
+
+| Antes (Sprint 1) | Agora (Sprint 2) |
+| ---------------- | ---------------- |
+| `<form action="./dashboard.html">` | `form.onsubmit` chamando `signInWithPassword()` |
+| Cadastro sem efeito | `signUp()` cria a conta em `auth.users` e um `profile` |
+| Qualquer página abre direto do disco | `requireSession()` redireciona para `signin.html` sem sessão |
+| Nenhum módulo JavaScript | `src/lib/supabase-client.js`, `src/services/auth.js` e `src/guards/require-session.js` |
+| Nenhuma dependência | `@supabase/supabase-js` no `package.json` |
+| Nenhuma variável de ambiente | `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` |
+
+<Aside type="note" title="O código desta etapa é o alvo, não o repositório">
+  Os trechos abaixo mostram o que cada task escreve quando a sprint for executada sobre o
+  `investbaas-static`. Eles não vêm de arquivos de `examples/`, e por isso não têm caminho de
+  arquivo no título. A [Sprint 1](../front-static/) é a única com código versionado.
+</Aside>
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código que cada uma produz.
+
+### TK02-1 · Criar o cliente Supabase (URL e chave anônima)
+
+O SDK é instalado como dependência do Vite. Nada de `<script src>` de CDN: o módulo entra no `package.json` e é resolvido pelo build, o que permite trocar a versão em um lugar só.
+
+```bash title="Terminal"
+pnpm add @supabase/supabase-js
+```
+
+O cliente é criado uma vez e importado por todo mundo. As duas variáveis vêm de `import.meta.env`, e o prefixo `VITE_` é o que autoriza o Vite a embuti-las no bundle: é a marca de "público". Uma variável sem o prefixo nunca chega ao navegador, e é assim que um `SUPABASE_SERVICE_ROLE_KEY` colocado por engano no `.env` continua fora do HTML publicado.
+
+```js title="Cliente único do Supabase (alvo de src/lib/supabase-client.js)"
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://seu-projeto.supabase.co';
-const SUPABASE_ANON_KEY = 'sua-chave-anonima-publica';
+const url = import.meta.env.VITE_SUPABASE_URL;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+if (!url || !anonKey) {
+  throw new Error('Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env');
+}
+
+// A chave anonima identifica o projeto; quem limita o acesso e o RLS da Sprint 3.
+export const supabase = createClient(url, anonKey);
 ```
 
-## Cadastro e Login de Usuários
+O `.env.example` documenta as duas variáveis e nada mais. Ele é versionado; o `.env` real fica no `.gitignore`, como já acontece nas trilhas do InvestApp e do MonitorApp.
 
-O registro de novos investidores e a autenticação ocorrem através de métodos declarativos do SDK.
+```ini title=".env.example (alvo)"
+VITE_SUPABASE_URL=https://<projeto>.supabase.co
+VITE_SUPABASE_ANON_KEY=<chave anonima do projeto>
+```
 
-O trecho a seguir ilustra a implementação das funções de cadastro e login:
+### TK02-2 · Implementar o cadastro (`signUp`)
 
-```javascript
-// Cadastro de novo usuário
-export async function registerUser(email, password, fullName) {
-  const { data, error } = await supabase.auth.signUp({
+O `signUp` recebe e-mail, senha e, em `options.data`, os metadados que o Supabase grava em `raw_user_meta_data`. É de lá que a trigger da TK02-6 vai copiar o nome para `profiles`. O serviço devolve `{ data, error }` em vez de lançar: a decisão de como mostrar o erro fica com a tela.
+
+```js title="Serviço de conta (alvo de src/services/auth.js)"
+import { supabase } from '../lib/supabase-client.js';
+
+export async function signUp({ fullName, email, password }) {
+  return supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: { full_name: fullName }
-    }
+    options: { data: { full_name: fullName } },
   });
-  if (error) throw error;
-  return data;
-}
-
-// Login de usuário existente
-export async function loginUser(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-  if (error) throw error;
-  return data;
 }
 ```
 
-## Proteção de Rotas no Frontend
+Em `signup.html` o `action` sai e entra um módulo. Os campos já tinham `id` desde a Sprint 1, então o script só lê e envia. Com a confirmação de e-mail ligada no projeto Supabase, o cadastro não devolve sessão: a tela avisa para conferir a caixa de entrada e leva para o login.
 
-Para evitar que usuários não autenticados acessem a carteira, uma verificação de sessão é executada no carregamento das páginas protegidas.
+```js title="Envio do formulário de cadastro (alvo de src/pages/signup.js)"
+import { signUp } from '../services/auth.js';
 
-O trecho a seguir demonstra a validação de sessão ativa:
+const form = document.querySelector('form');
 
-```javascript
-export async function requireAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    window.location.href = './signin.html';
-    return null;
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const { error } = await signUp({
+    fullName: form.elements.fullName.value,
+    email: form.elements.email.value,
+    password: form.elements.password.value,
+  });
+
+  if (error) {
+    return showError(form, error.message);
   }
-  return session.user;
+
+  window.location.href = './signin.html?registered=1';
+});
+```
+
+### TK02-3 · Implementar o login (`signInWithPassword`)
+
+O login segue o mesmo desenho. A diferença está no erro: e-mail inexistente e senha errada voltam como o **mesmo** `AuthApiError` (`Invalid login credentials`), e a tela repete essa indistinção. Traduzir para "e-mail não encontrado" entregaria a lista de contas a quem tentasse de fora.
+
+```js title="Login e a mensagem única (alvo de src/pages/signin.js)"
+import { signIn } from '../services/auth.js';
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const { error } = await signIn({
+    email: form.elements.email.value,
+    password: form.elements.password.value,
+  });
+
+  if (error) {
+    // A mesma frase para e-mail inexistente e senha errada.
+    return showError(form, 'E-mail ou senha invalidos');
+  }
+
+  window.location.href = './dashboard.html';
+});
+```
+
+A sessão devolvida pelo `signInWithPassword` é guardada pelo SDK no `localStorage`, sob a chave `sb-<projeto>-auth-token`, e renovada sozinha antes de expirar. O front não toca no JWT: ele pede ao SDK, e o SDK anexa o `Authorization: Bearer` em cada chamada ao banco e ao Storage.
+
+### TK02-4 · Criar a guarda de sessão (`requireSession`)
+
+`dashboard.html`, `analytics.html` e `admin.html` importam a guarda antes de qualquer outro módulo. Sem sessão, a página redireciona e o resto do script nem executa. A guarda é uma cortesia de interface, e a página deixa isso claro: quem impede uma consulta de outra conta é o RLS da Sprint 3, não este `if`.
+
+```js title="Guarda das paginas privadas (alvo de src/guards/require-session.js)"
+import { supabase } from '../lib/supabase-client.js';
+
+export async function requireSession() {
+  const { data } = await supabase.auth.getSession();
+
+  if (!data.session) {
+    window.location.replace('./signin.html');
+    // A promessa nunca resolve: o resto da pagina nao roda sem sessao.
+    return new Promise(() => {});
+  }
+
+  return data.session;
 }
 ```
 
-Caso o usuário não possua uma sessão válida, o navegador é redirecionado para a página de login.
+```html title="Uso da guarda no topo de uma pagina privada"
+<script type="module">
+  import { requireSession } from './src/guards/require-session.js';
+
+  const session = await requireSession();
+  document.querySelector('#user-email').textContent = session.user.email;
+</script>
+```
+
+### TK02-5 · Implementar sessão, logout e e-mail do usuário
+
+O botão "Sair" chama `signOut()`, que apaga a sessão do `localStorage` e revoga o *refresh token* no servidor. O `onAuthStateChange` cobre a outra ponta: se a sessão acabar em outra aba, ou o token for revogado, a página privada volta ao login sem esperar um clique.
+
+```js title="Logout e reacao a mudanca de sessao (alvo de src/services/auth.js)"
+export function signOut() {
+  return supabase.auth.signOut();
+}
+
+export function onSessionEnd(callback) {
+  return supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') callback();
+  });
+}
+```
+
+### TK02-6 · Criar `profiles` vinculada a `auth.users`
+
+`auth.users` pertence ao Supabase e não recebe colunas de domínio. Nome de exibição e papel (`investor` ou `admin`) moram em `public.profiles`, com o **mesmo** `id`. A trigger copia o `full_name` dos metadados do cadastro, então a tela não precisa de uma segunda chamada para criar o perfil, e o RLS já nasce ligado: cada pessoa lê e edita apenas a própria linha.
+
+```sql title="Migration de profiles (alvo de supabase/migrations/0001_profiles.sql)"
+create table public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text not null,
+  role text not null default 'investor' check (role in ('investor', 'admin')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+create policy "profiles: dono le" on public.profiles
+  for select using (auth.uid() = id);
+
+create policy "profiles: dono edita" on public.profiles
+  for update using (auth.uid() = id) with check (auth.uid() = id);
+
+create function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, full_name)
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email));
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+```
+
+`security definer` é o que permite à trigger inserir em `profiles` mesmo sem policy de `insert`: ela roda com os privilégios de quem a criou, não com os do usuário que acabou de se cadastrar. O `set search_path` fecha a brecha clássica dessa opção, que é um objeto homônimo em outro schema desviando a função.
+
+## Fluxo de autenticação
+
+Autenticação identifica a pessoa; autorização decide o que ela pode consultar. Nesta etapa o JWT prepara a segunda parte, mas RLS é a camada que efetivamente limita linhas de banco na Sprint 3.
+
+<Mermaid title="Cadastro, sessão e acesso a páginas privadas">
+{`
+sequenceDiagram
+  actor Investor as Investidor
+  participant UI as Front-end
+  participant Auth as Supabase Auth
+  participant Profile as profiles
+  Investor->>UI: Envia cadastro ou login
+  UI->>Auth: signUp ou signInWithPassword
+  Auth-->>UI: user + session (JWT)
+  Auth->>Profile: trigger cria profile no cadastro
+  Investor->>UI: Abre dashboard
+  UI->>Auth: getSession()
+  Auth-->>UI: sessão ativa ou nula
+  UI-->>Investor: página privada ou redirecionamento
+`}
+</Mermaid>
+
+## Limites e decisões da etapa
+
+A tabela separa o que pertence à sessão do que ainda depende da modelagem de carteira. Isso evita usar o estado da interface como substituto de regras de banco.
+
+| Entra na Sprint 2 | Fica para a Sprint 3 |
+| ----------------- | -------------------- |
+| Usuário, sessão, JWT e profile. | `assets`, `transactions` e `quotes_history`. |
+| Guarda de navegação no navegador. | Policies RLS nas tabelas de domínio. |
+| Chave anônima pública. | `service_role` limitada ao ambiente de Edge Function. |
+| Logout e recuperação de sessão. | Listagem real da carteira. |
+
+<Aside type="caution" title="Dica de IA: Confirme o tipo da chave antes de publicar">
+  Um assistente pode sugerir `SUPABASE_SERVICE_ROLE_KEY` no cliente para resolver um erro de permissão. Isso remove a proteção de RLS para qualquer pessoa que abra as ferramentas do navegador.
+
+  **Prompt:** *"Examine estas variáveis usadas pelo front-end do InvestBaaS; classifique cada uma como pública ou secreta e recuse qualquer solução que coloque service_role, senha de banco ou token de provedor no bundle."*
+</Aside>
+
+## Testando
+
+Sem uma API própria, os testes desta etapa acontecem em dois lugares: no navegador, pelas telas, e no painel do Supabase, pelas tabelas. Cada item abaixo prova um critério da seção de requisitos.
+
+| Verificação | Como fazer | Critério |
+| ----------- | ---------- | -------- |
+| Cadastro cria conta e perfil | Cadastre `ana@example.com`; em **Authentication › Users** o usuário aparece, e em **Table Editor › profiles** existe uma linha com o mesmo `id` e o nome informado | CA02.1 |
+| Login válido e inválido | Entre com a senha certa e chegue ao `dashboard.html`; repita com senha errada e com um e-mail que não existe: a mensagem é a mesma nas duas falhas | CA02.2 |
+| Recuperação de sessão | Com a sessão aberta, recarregue `dashboard.html`: a página fica, e o e-mail aparece no cabeçalho | CA02.3 |
+| Guarda de página | Em uma janela anônima, abra `dashboard.html`, `analytics.html` e `admin.html`: as três redirecionam para `signin.html` | CA02.4 |
+| Logout | Clique em **Sair** e volte a `dashboard.html`: o redirecionamento acontece de novo | CA02.5 |
+| Só valores públicos no bundle | Rode `pnpm build` e procure a chave de serviço no resultado: `grep -r service_role dist/` não encontra nada | RNF02 |
+
+O `localStorage` mostra o que o SDK guarda. Depois do login, a chave `sb-<projeto>-auth-token` contém `access_token`, `refresh_token` e `expires_at`; é esse objeto que `getSession()` lê na recarga da página.
 
 ## Executando
 
-Para testar as telas de login e cadastro na etapa atual do projeto, abra as páginas `signin.html` e `signup.html` no navegador.
+A Sprint 2 requer um projeto Supabase configurado e variáveis públicas do cliente. Antes de ligar as páginas, execute o protótipo e confirme que o ambiente de desenvolvimento segue saudável.
 
-Execute o comando a seguir:
+<Steps>
 
-```bash
-pnpm dev
-```
+1. **Inicie o protótipo atual**:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investbaas-static
+   pnpm install
+   pnpm dev
+   ```
+
+2. **Configure a etapa quando ela for implementada**: crie um projeto Supabase, habilite login por e-mail e preencha somente URL e chave anônima no mecanismo de configuração escolhido.
+
+3. **Teste os critérios**: crie uma conta, teste credencial inválida, recarregue uma página privada e finalize com logout.
+
+</Steps>
+
+## Conceitos abordados
+
+| Conceito | Aplicação no InvestBaaS |
+| -------- | ------------------------ |
+| Identidade | `auth.users` identifica a conta criada. |
+| Sessão | O SDK persiste e renova o JWT do usuário. |
+| Profile | Dados de domínio, como nome e papel, ficam fora de `auth.users`. |
+| Guarda de interface | Evita abrir páginas privadas sem sessão, mas não substitui RLS. |
 
 ## Exercício
 
-Descreva como o Supabase Auth injeta a identidade do usuário nas requisições HTTP para que o PostgreSQL possa aplicar regras de segurança.
+Explique por que `profiles.id` deve ser igual a `auth.users.id`. Em seguida, descreva o que uma trigger de criação de perfil precisa fazer quando o cadastro falhar parcialmente.
 
 ## Desafio
 
-Crie uma função para realizar o logout do usuário através do método `supabase.auth.signOut()` e redirecioná-lo para a landing page.
+Desenhe o fluxo de recuperação de senha: quais telas mudam, que ação é enviada pelo Auth e qual estado de sessão deve ser validado antes de permitir a troca de senha?
 
 ## Perguntas de revisão
 
-1. O que é um JWT e qual sua finalidade na autenticação BaaS?
-2. Por que a chave anônima (`anon key`) do Supabase pode ser exposta no código frontend?
-3. Como o método `getSession()` recupera a sessão do usuário após o recarregamento da página?
+1. Qual é a diferença entre autenticação e autorização?
+2. Por que a chave anônima pode estar no navegador?
+3. Qual cenário precisa redirecionar para `signin.html`?
+4. Por que um profile não deve ser confundido com o registro de autenticação?
+5. Em que ambiente a `service_role` pode existir?
 
 ## Referências
 
-- Supabase Auth Documentation: [https://supabase.com/docs/guides/auth](https://supabase.com/docs/guides/auth)
+- [Supabase Auth: visão geral](https://supabase.com/docs/guides/auth)
+- [Supabase Auth: sessões](https://supabase.com/docs/guides/auth/sessions)
 
-## Próximo tópico
+## Próxima etapa
 
-Avance para [Banco de Dados & RLS](../database/) para modelar as tabelas do InvestBaaS e implementar políticas de segurança no PostgreSQL.
+O [Banco de dados e RLS](../database/) usa a identidade criada aqui para persistir carteira e garantir o isolamento de cada investidor dentro do PostgreSQL.

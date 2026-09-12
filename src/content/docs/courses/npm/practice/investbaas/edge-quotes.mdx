@@ -1,144 +1,449 @@
 ---
-title: Cotações com Edge Functions
-description: Execução de rotinas serverless em Deno com Supabase Edge Functions para cotações automatizadas de ativos na B3.
+title: "InvestBaaS: Cotações com Edge Functions"
+description: "Quarta sprint do InvestBaaS: Edge Function Deno para atualizar preços e histórico de cotações com segredos isolados, falhas parciais e execução agendada."
 course: npm
 project: investbaas-static
+sidebar:
+  label: "4. Cotações"
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ApiRequest from '@components/ApiRequest.astro';
+import ApiResponse from '@components/ApiResponse.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
 
-As **Supabase Edge Functions** permitem executar código TypeScript/JavaScript no ambiente **Deno** em servidores distribuídos globalmente com baixíssima latência.
+Etapa **4 de 6** · Nível **Avançado** · Deno · Edge Functions · Idempotência · Agendamento
 
-No InvestBaaS, as Edge Functions são utilizadas para buscar cotações em tempo real de ativos negociados na B3 (Ações e FIIs), calcular variações diárias e atualizar o histórico de preços dos ativos cadastrados.
+O preço de mercado não deve ser buscado pelo navegador com uma chave de provedor. Nesta etapa, a Edge Function concentra a integração externa, atualiza o preço atual e acrescenta uma observação ao histórico sem parar toda a execução quando um ticker falha.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  Compare este desenho com [chamadas de sistema](../../../../expressjs/advanced/system-call/): nos dois casos, uma integração externa fica fora da superfície exposta diretamente ao usuário.
+</Aside>
 
 ## Objetivo
 
-Compreender o papel das Edge Functions na arquitetura do InvestBaaS, desenvolvendo funções serverless para consulta de APIs de mercado e atualização programada de cotações.
+Projetar uma atualização de cotações que preserve segredos, histórico e transparência operacional. Ao final da etapa, o leitor deve ser capaz de:
 
-## Arquitetura Serverless de Cotações
+- Justificar por que a integração de mercado reside em uma Edge Function.
+- Definir resultado idempotente para cada ticker e para a execução completa.
+- Tratar falha parcial sem fabricar preço ou ocultar atraso de cotação.
 
-O fluxo de atualização de cotações pode ser acionado por requisição direta do usuário ou por agendamento cron no Supabase.
+## Requisitos, histórias e critérios
 
-O diagrama a seguir descreve o fluxo de coleta e gravação das cotações:
+**Épico EP04 · Cotações e operação** › **Feature FT04 · Atualização segura de preços**
 
-```mermaid
+| Requisito | Recorte da etapa | Estado ao final |
+| --------- | ---------------- | --------------- |
+| RF05 | Atualizar ativos elegíveis e gravar o histórico. | atendido |
+| RF07 | Exibir a última execução e falhas agregadas. | preparado |
+| RNF02 | Segredo do provedor somente no ambiente da função. | atendido |
+
+### US07 · Atualizar cotações · RF05
+
+> **Como** investidor,
+> **quero** solicitar uma atualização de preços e receber um resumo confiável,
+> **para** distinguir o valor calculado da carteira de uma cotação antiga ou indisponível.
+
+```gherkin
+Cenário: CA04.1 - Atualização bem-sucedida
+  Dado que existem ativos elegíveis com tickers válidos
+  Quando update-quotes é executada
+  Então current_price é atualizado
+  E quotes_history recebe um registro para a data
+
+Cenário: CA04.2 - Falha parcial
+  Dado um ticker inválido e outro válido
+  Quando a função consulta o provedor
+  Então o ticker válido é atualizado
+  E a resposta informa a falha do ticker inválido
+
+Cenário: CA04.3 - Segredo isolado
+  Quando inspeciono o bundle do navegador
+  Então não encontro token do provedor nem service_role
+```
+
+### Tasks da etapa
+
+<Steps>
+
+1. **TK04-1 · Criar `update-quotes`**: estrutura Deno e contrato de resposta.
+2. **TK04-2 · Buscar ativos elegíveis**: leitura privilegiada somente no ambiente da função.
+3. **TK04-3 · Criar adaptador de provedor**: contrato estável e alternativa simulada para testes.
+4. **TK04-4 · Persistir preço e histórico**: atualização e inserção em uma operação idempotente.
+5. **TK04-5 · Registrar falhas por ticker**: resumo parcial, sem abortar todos os ativos.
+6. **TK04-6 · Ligar o botão do dashboard**: invocação autenticada e feedback de resultado.
+7. **TK04-7 · Registrar status operacional**: instante, total processado, sucessos e falhas.
+8. **TK04-8 · Agendar execução diária**: procedimento versionado e observável.
+
+</Steps>
+
+## Caminho de uma cotação
+
+A invocação do usuário não recebe privilégio de banco. A função valida a chamada, usa os segredos do ambiente para falar com o provedor e devolve apenas um resumo que a interface pode exibir.
+
+<Mermaid title="Do botão do dashboard ao histórico de cotações">
+{`
 sequenceDiagram
-  autonumber
-  participant User as Frontend / Cron Trigger
-  participant Edge as Supabase Edge Function (Deno)
-  participant Market as API de Mercado (B3 / Brapi)
-  participant DB as PostgreSQL (Supabase)
+  actor Investor as Investidor
+  participant UI as Dashboard
+  participant Edge as update-quotes
+  participant Market as Provedor
+  participant DB as PostgreSQL
+  Investor->>UI: Atualizar cotações
+  UI->>Edge: invoke com JWT
+  Edge->>DB: listar ativos elegíveis
+  Edge->>Market: consultar tickers em lote
+  Market-->>Edge: preços e erros parciais
+  Edge->>DB: atualizar assets e quotes_history
+  Edge-->>UI: resumo de sucesso e falhas
+`}
+</Mermaid>
 
-  User->>Edge: POST /functions/v1/update-quotes
-  Edge->>DB: Consulta tickers de ativos ativos (ex: ITUB4, HGLG11)
-  DB-->>Edge: Lista de tickers
-  Edge->>Market: GET /api/quote/ITUB4,HGLG11
-  Market-->>Edge: Preços atuais e variação do dia
-  Edge->>DB: UPDATE assets SET current_price = ...
-  Edge->>DB: INSERT INTO quotes_history ...
-  Edge-->>User: Retorna 200 OK com resumo das atualizações
+## Estrutura da aplicação
+
+O protótipo atual não possui Supabase CLI nem função publicada. A estrutura abaixo é o destino da Sprint 4, e os segredos ficam no painel ou no ambiente de execução, nunca nesses arquivos.
+
+<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer={false} />
+
+<FileTree>
+{`
+  investbaas-static/
+  ├── supabase/
+  │   ├── config.toml                      gerado por supabase init
+  │   ├── functions/update-quotes/
+  │   │   ├── index.ts                     handler Deno: valida o JWT e orquestra
+  │   │   ├── market-provider.ts           adaptador do provedor e o simulado
+  │   │   └── types.ts                     Quote, QuoteFailure e RunSummary
+  │   └── migrations/
+  │       └── 0006_quote_runs.sql          status operacional de cada execução
+  ├── src/services/quotes.js               invocação pelo front
+  └── dashboard.html                       botão Atualizar Cotações com feedback
+`}
+</FileTree>
+
+## O que muda nesta etapa?
+
+Pela primeira vez a trilha escreve código que roda **fora** do navegador e com privilégio que o navegador não tem. É a única camada da aplicação que conhece a chave de serviço e o token do provedor de mercado.
+
+| Antes (Sprint 3) | Agora (Sprint 4) |
+| ---------------- | ---------------- |
+| `current_price` digitado à mão ou nulo | Preenchido pela função a partir do provedor |
+| `quotes_history` vazia | Uma linha por ativo e por dia, idempotente |
+| Botão **Atualizar Cotações** sem efeito | `supabase.functions.invoke('update-quotes')` com o JWT da sessão |
+| Só a chave anônima existe | `SUPABASE_SERVICE_ROLE_KEY` e `MARKET_API_TOKEN`, ambos só no ambiente da função |
+| Nenhum registro de operação | `quote_runs` com instante, totais e falhas de cada execução |
+| Nada agendado | `pg_cron` chamando a função uma vez por dia |
+
+<Aside type="note" title="O código desta etapa é o alvo, não o repositório">
+  Os trechos abaixo mostram o que cada task escreve quando a sprint for executada sobre o
+  `investbaas-static`. Eles não vêm de arquivos de `examples/`, e por isso não têm caminho de
+  arquivo no título. A [Sprint 1](../front-static/) é a única com código versionado.
+</Aside>
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código que cada uma produz.
+
+### TK04-1 · Criar a estrutura da `update-quotes`
+
+A CLI cria a pasta e o esqueleto. Uma Edge Function é um servidor HTTP em Deno: `Deno.serve` recebe uma `Request` e devolve uma `Response`, o mesmo par que o navegador usa no `fetch`. O contrato de saída é definido antes do primeiro `fetch` ao provedor, porque é ele que o dashboard e o admin vão consumir.
+
+```bash title="Terminal"
+supabase init
+supabase functions new update-quotes
 ```
 
-## Estrutura de uma Edge Function em Deno
+```ts title="Contrato da funcao (alvo de supabase/functions/update-quotes/types.ts)"
+export type Quote = { ticker: string; price: number; quoteDate: string };
+export type QuoteFailure = { ticker: string; reason: 'not_found' | 'provider_error' };
 
-As Edge Functions no Supabase são escritas em TypeScript moderno sem necessidade de etapas de compilação manuais.
+export type RunSummary = {
+  ranAt: string;
+  updated: number;
+  failed: QuoteFailure[];
+};
+```
 
-O exemplo a seguir apresenta o código da função `update-quotes`:
+### TK04-2 · Buscar os ativos elegíveis com a chave de serviço
 
-```typescript
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+A função precisa dos tickers de **todas** as contas, e o RLS impediria isso com a chave anônima. Por isso ela cria um segundo cliente, com a `service_role`, lida de `Deno.env`. É a única linha da aplicação em que essa chave aparece, e ela nunca sai da função.
 
-serve(async (req) => {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+Antes disso, a função confere quem chamou: o cabeçalho `Authorization` do `invoke` é validado com um cliente comum, e uma chamada sem sessão válida termina em `401` antes de qualquer acesso privilegiado.
 
-    // Buscar tickers cadastrados na carteira
-    const { data: assets, error: fetchError } = await supabase
-      .from('assets')
-      .select('ticker')
-      .in('category', ['ACOES', 'FIIS']);
+```ts title="Dois clientes, dois privilegios (alvo de supabase/functions/update-quotes/index.ts)"
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
-    if (fetchError) throw fetchError;
+Deno.serve(async (req) => {
+  // 1. Quem chamou? O JWT do usuario e verificado com a chave anonima.
+  const anon = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+  );
+  const { data: { user } } = await anon.auth.getUser();
+  if (!user) return Response.json({ error: 'Sessao invalida' }, { status: 401 });
 
-    const tickers = [...new Set(assets.map(a => a.ticker))];
+  // 2. O que atualizar? A chave de servico ignora o RLS e ve todos os ativos.
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+  const { data: assets } = await admin
+    .from('assets')
+    .select('id, ticker')
+    .in('category', ['acoes', 'fiis']);
 
-    // Simulação de consulta a API de cotações da B3
-    const quotes = await fetchMarketQuotes(tickers);
-
-    // Atualização em lote dos preços atuais
-    for (const quote of quotes) {
-      await supabase
-        .from('assets')
-        .update({ current_price: quote.price })
-        .eq('ticker', quote.ticker);
-    }
-
-    return new Response(JSON.stringify({ updated: quotes.length, quotes }), {
-      headers: { 'Content-Type': 'application/json' },
-      status: 200,
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      headers: { 'Content-Type': 'application/json' },
-      status: 500,
-    });
-  }
+  // ... TK04-3 a TK04-5
 });
+```
 
-async function fetchMarketQuotes(tickers: string[]) {
-  // Chamada simulada de cotação de mercado
-  return tickers.map(ticker => ({
-    ticker,
-    price: +(Math.random() * 50 + 20).toFixed(2),
-    timestamp: new Date().toISOString()
-  }));
+Só `acoes` e `fiis` são elegíveis: são as categorias com ticker negociado em bolsa. Renda fixa, fundos e cripto ficam com o preço informado pela pessoa, e a página deixa esse limite explícito.
+
+### TK04-3 · Criar o adaptador do provedor
+
+O provedor real muda de contrato, de limite de requisições e de preço. O adaptador isola isso atrás de uma função `fetchQuotes(tickers)` que devolve o tipo `Quote[]` da TK04-1, e um adaptador **simulado** implementa o mesmo contrato com uma tabela fixa de preços. O simulado é escolhido por variável de ambiente, e é o que os testes locais usam: ele nunca inventa preço para um ticker que não conhece.
+
+```ts title="Adaptador real e simulado (alvo de supabase/functions/update-quotes/market-provider.ts)"
+import type { Quote } from './types.ts';
+
+export interface MarketProvider {
+  fetchQuotes(tickers: string[]): Promise<Quote[]>;
+}
+
+export const brapiProvider: MarketProvider = {
+  async fetchQuotes(tickers) {
+    const token = Deno.env.get('MARKET_API_TOKEN')!;
+    const res = await fetch(`https://brapi.dev/api/quote/${tickers.join(',')}?token=${token}`);
+    if (!res.ok) throw new Error(`Provedor respondeu ${res.status}`);
+
+    const { results } = await res.json();
+    return results.map((r: any) => ({
+      ticker: r.symbol,
+      price: r.regularMarketPrice,
+      quoteDate: new Date().toISOString().slice(0, 10),
+    }));
+  },
+};
+
+export const fakeProvider: MarketProvider = {
+  async fetchQuotes(tickers) {
+    const table: Record<string, number> = { PETR4: 38.42, VALE3: 61.1, HGLG11: 162.3 };
+    // Ticker desconhecido fica de fora: a falha e registrada, nao mascarada.
+    return tickers.filter((t) => t in table).map((ticker) => ({
+      ticker, price: table[ticker], quoteDate: new Date().toISOString().slice(0, 10),
+    }));
+  },
+};
+
+export const provider = Deno.env.get('MARKET_PROVIDER') === 'fake' ? fakeProvider : brapiProvider;
+```
+
+### TK04-4 · Persistir preço e histórico de forma idempotente
+
+Duas escritas por ticker: o `current_price` em `assets` e a linha do dia em `quotes_history`. A segunda usa `upsert` com `onConflict: 'asset_id,quote_date'`, a chave única da Sprint 3. Rodar a função duas vezes no mesmo dia sobrescreve a mesma linha em vez de duplicar a série.
+
+```ts title="Gravar preco atual e historico (trecho de index.ts)"
+for (const quote of quotes) {
+  const asset = assets.find((a) => a.ticker === quote.ticker)!;
+
+  await admin.from('assets').update({ current_price: quote.price }).eq('id', asset.id);
+
+  await admin
+    .from('quotes_history')
+    .upsert(
+      { asset_id: asset.id, price: quote.price, quote_date: quote.quoteDate },
+      { onConflict: 'asset_id,quote_date' },
+    );
 }
 ```
 
-## Disparo a partir do Frontend
+### TK04-5 · Registrar falhas por ticker sem abortar a execução
 
-O investidor pode forçar a atualização imediata das cotações da sua carteira clicando no botão "Atualizar Cotações" no dashboard.
+Um ticker que o provedor não conhece não pode derrubar a atualização dos outros trinta. O resultado é calculado pela diferença entre o que foi pedido e o que voltou; um erro do provedor inteiro (rede, `429`, `500`) marca **todos** os tickers como `provider_error`, e a função ainda responde `200` com o resumo, porque a chamada em si funcionou.
 
-O trecho a seguir demonstra a invocação da Edge Function via SDK:
+```ts title="Falha parcial vira dado, nao excecao (trecho de index.ts)"
+const tickers = assets.map((a) => a.ticker);
+let quotes: Quote[] = [];
+let failed: QuoteFailure[] = [];
 
-```javascript
-export async function triggerQuoteUpdate() {
-  const { data, error } = await supabase.functions.invoke('update-quotes', {
-    body: { refresh: true }
-  });
-  if (error) {
-    console.error('Erro ao atualizar cotações:', error);
-    return false;
+try {
+  quotes = await provider.fetchQuotes(tickers);
+  const found = new Set(quotes.map((q) => q.ticker));
+  failed = tickers.filter((t) => !found.has(t)).map((ticker) => ({ ticker, reason: 'not_found' }));
+} catch {
+  failed = tickers.map((ticker) => ({ ticker, reason: 'provider_error' }));
+}
+```
+
+### TK04-6 · Ligar o botão do dashboard
+
+Do lado do navegador, uma linha: `functions.invoke` já envia o JWT da sessão no `Authorization`. O botão fica desabilitado durante a chamada, e o resumo devolvido vira uma frase: "12 atualizados, 1 sem cotação (XPTO3)". Em seguida a carteira é recarregada, porque os `current_price` mudaram.
+
+```js title="Invocacao autenticada (alvo de src/services/quotes.js)"
+import { supabase } from '../lib/supabase-client.js';
+
+export async function updateQuotes() {
+  return supabase.functions.invoke('update-quotes');
+}
+```
+
+```js title="O botao do dashboard (trecho de src/pages/dashboard.js)"
+refreshButton.addEventListener('click', async () => {
+  refreshButton.disabled = true;
+
+  const { data, error } = await updateQuotes();
+
+  refreshButton.disabled = false;
+  if (error) return showToast('Nao foi possivel atualizar as cotacoes');
+
+  showToast(`${data.updated} atualizados, ${data.failed.length} sem cotacao`);
+  await renderPortfolio();
+});
+```
+
+### TK04-7 · Registrar o status operacional
+
+O admin da Sprint 6 precisa responder "quando foi a última atualização, e ela deu certo?" sem ler carteira nenhuma. A tabela `quote_runs` guarda um resumo por execução, gravado pela função com a chave de serviço no fim do processamento. O RLS fica ligado e sem policy: ninguém lê pela chave anônima, e a Sprint 6 abre a leitura só para `role = 'admin'`.
+
+```sql title="Migration de quote_runs (alvo de supabase/migrations/0006_quote_runs.sql)"
+create table public.quote_runs (
+  id uuid primary key default gen_random_uuid(),
+  ran_at timestamptz not null default now(),
+  requested integer not null,
+  updated integer not null,
+  failed jsonb not null default '[]'::jsonb
+);
+
+alter table public.quote_runs enable row level security;
+```
+
+```ts title="O resumo gravado e devolvido (fim de index.ts)"
+const summary: RunSummary = { ranAt: new Date().toISOString(), updated: quotes.length, failed };
+
+await admin.from('quote_runs').insert({ requested: tickers.length, updated: quotes.length, failed });
+
+return Response.json(summary);
+```
+
+### TK04-8 · Agendar a execução diária
+
+O botão cobre o uso manual; o agendamento cobre o dia em que ninguém clica. O `pg_cron` roda dentro do PostgreSQL e chama a função por HTTP com `pg_net`, uma vez por dia depois do fechamento do pregão. O segredo usado nessa chamada é o mesmo `service_role`, guardado no cofre do banco (`vault`), não na string do `cron.schedule`.
+
+```sql title="Agendamento (alvo de supabase/migrations/0007_schedule_quotes.sql)"
+select cron.schedule(
+  'update-quotes-daily',
+  '30 21 * * 1-5',  -- 18h30 em Brasilia, de segunda a sexta
+  $$
+  select net.http_post(
+    url := 'https://<projeto>.supabase.co/functions/v1/update-quotes',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
+    )
+  );
+  $$
+);
+```
+
+Na chamada agendada não há usuário: a função reconhece a `service_role` no `Authorization` e pula a checagem de sessão da TK04-2. É a única exceção, e ela está documentada no `README.md` do projeto junto com o horário.
+
+## Decisões de implementação
+
+| Decisão | Regra | Razão |
+| ------- | ----- | ----- |
+| Segredo | Token do provedor em variável do ambiente Edge. | O navegador não pode reutilizá-lo. |
+| Histórico | Uma cotação por ativo e data, ou chave de idempotência equivalente. | Reexecuções não duplicam a série. |
+| Erro | Resultado por ticker. | Um ativo indisponível não invalida os demais. |
+| Auditoria | Guardar data, totais e mensagem de falha. | Admin identifica atraso sem ler carteiras. |
+
+<Aside type="caution" title="Dica de IA: Não use preços aleatórios como cotação">
+  Um fallback aleatório parece manter a tela viva, mas contamina rentabilidade e mascara uma falha de integração. Um adaptador simulado é aceitável somente quando identificado e isolado para teste.
+
+  **Prompt:** *"Revise o contrato de update-quotes do InvestBaaS; proponha um resultado por ticker que diferencie preço válido, ativo sem cotação e erro temporário, sem inventar valores financeiros."*
+</Aside>
+
+## Testando
+
+A CLI do Supabase roda a função na sua máquina, contra o banco local ou o remoto. Com o provedor simulado, os três cenários da etapa se provam sem tocar na internet.
+
+```bash title="Terminal"
+supabase functions serve update-quotes --env-file supabase/.env.local
+```
+
+```ini title="supabase/.env.local (nunca versionado)"
+MARKET_PROVIDER=fake
+SUPABASE_SERVICE_ROLE_KEY=<chave de servico do projeto local>
+```
+
+<details>
+  <summary>Requisição .http correspondente</summary>
+
+  ```http
+  ### Atualizar cotacoes com a sessao da Ana
+  POST http://localhost:54321/functions/v1/update-quotes
+  Authorization: Bearer {{token}}
+  ```
+</details>
+
+<ApiRequest method="POST" path="/functions/v1/update-quotes" baseUrl="http://localhost:54321" description="Com o JWT de uma sessão válida" />
+
+<ApiResponse status={200}>
+{`
+  {
+    "ranAt": "2026-09-12T21:30:04.118Z",
+    "updated": 2,
+    "failed": [
+      { "ticker": "XPTO3", "reason": "not_found" }
+    ]
   }
-  return data;
-}
-```
+`}
+</ApiResponse>
+
+Os demais cenários seguem daí. Sem `Authorization`, a resposta é `401` antes de qualquer consulta. Rodar a mesma chamada duas vezes deixa `quotes_history` com **uma** linha por ativo para o dia, o que confere a idempotência no SQL Editor com `select asset_id, count(*) from quotes_history group by 1`. E trocar `MARKET_PROVIDER` para o real, com o token no ambiente, atualiza `current_price` dos ativos de bolsa sem que o navegador tenha visto o token em momento algum.
 
 ## Executando
 
-Para testar localmente Edge Functions do Supabase, utiliza-se o Supabase CLI com o comando `supabase functions serve`.
+Implemente a função com a CLI do Supabase, configure os segredos no ambiente da função e exercite primeiro o adaptador simulado. Só depois conecte um provedor real e o botão do dashboard.
+
+<Steps>
+
+1. **Confirme a base da Sprint 3**: duas contas de teste, ativos isolados e `quotes_history` migrada.
+2. **Teste a função localmente**: execute os casos de ticker válido, inválido e lista vazia.
+3. **Publique e agende**: registre a execução diária e valide a métrica de última execução no admin.
+
+</Steps>
+
+## Conceitos abordados
+
+- Edge Function como o único lugar da aplicação com privilégio de serviço
+- Dois clientes na mesma função: o anônimo verifica quem chamou, o de serviço lê o que precisa
+- Adaptador de provedor com contrato estável e alternativa simulada para testes
+- `upsert` sobre chave única como garantia de idempotência
+- Falha parcial registrada por ticker, sem preço inventado e sem abortar a execução
+- Resumo operacional gravado em tabela fechada por RLS
+- `pg_cron` e `pg_net` para a execução diária, com o segredo no `vault`
 
 ## Exercício
 
-Explique por que a Edge Function utiliza a `SUPABASE_SERVICE_ROLE_KEY` em vez da chave anônima para executar rotinas de atualização em lote.
+Defina uma chave de idempotência para uma cotação diária e explique o que deve acontecer se a função for executada duas vezes no mesmo dia.
 
 ## Desafio
 
-Adicione tratamento de erros na função para que uma falha na consulta de um ticker individual não interrompa a atualização dos demais ativos.
+Projete uma política de retentativa com limite e atraso para erros temporários do provedor. Indique quais falhas nunca devem receber retentativa automática.
 
 ## Perguntas de revisão
 
-1. Quais são as principais diferenças entre executar código no Deno versus Node.js em Edge Functions?
-2. Como funciona a proteção de rotas e o envio de headers de autorização para Edge Functions?
-3. O que são variáveis de ambiente em Edge Functions e como acessá-las com segurança?
+1. Por que o provedor de preços não deve ser chamado pelo navegador?
+2. O que uma resposta parcial precisa informar?
+3. Como o histórico difere do preço atual em `assets`?
+4. Por que agendamento requer observabilidade?
 
 ## Referências
 
-- Supabase Edge Functions: [https://supabase.com/docs/guides/functions](https://supabase.com/docs/guides/functions)
+- [Supabase Edge Functions](https://supabase.com/docs/guides/functions)
+- [Supabase: secrets](https://supabase.com/docs/guides/functions/secrets)
 
-## Próximo tópico
+## Próxima etapa
 
-Avance para [Armazenamento de Comprovantes](../storage/) para gerenciar notas de corretagem e recibos no Supabase Storage.
+O [Armazenamento de comprovantes](../storage/) aplica o mesmo princípio de acesso mínimo a arquivos financeiros privados.
