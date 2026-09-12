@@ -1177,6 +1177,10 @@ export default defineConfig({
                       link: '/courses/expressjs/practice/taskapi/test/',
                     },
                     {
+                      label: 'Backlog do produto',
+                      link: '/courses/expressjs/practice/taskapi/backlog/',
+                    },
+                    {
                       label: 'Especificação da API',
                       link: '/courses/expressjs/practice/taskapi/api-spec/',
                     },
