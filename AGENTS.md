@@ -318,13 +318,19 @@ Em `.agents/skills/`, use quando a tarefa for a delas:
 | `devlab-content-reviewer`    | Revisar/auditar página, diff ou curso já escrito  |
 | `devlab-quiz-coverage`       | Varrer as questões do BrainCheck e achar assunto cobrado sem conteúdo |
 | `devlab-release-generator`   | Gerar versão (SemVer), CHANGELOG.md e tag Git     |
-| `task-spec-generator`        | Gerar spec técnica e criar branch de task a partir do `docs/PRD.md` |
-| `task-pr-finalizer`          | Finalizar task, validar, arquivar spec, commitar e criar Pull Request |
 | `marp-slides-generator`      | Deck `.slide.md` de um tópico                     |
 | `markmap-mindmap-generator`  | Mapa mental `.mindmap.md`                         |
 | `excalidraw-generator`       | Diagrama/slides no estilo lousa (`.excalidraw`)   |
 
 As skills de slides e mapas mentais utilizam o diretório `materials/`, com os sufixos `.slide.md` e `.mindmap.md`.
+
+Nos projetos práticos em `examples/courses/**` que possuem `AGENTS.md` e `.agents/`,
+use as skills locais do próprio projeto: `task-spec-generator`, `task-pr-finalizer`,
+`task-code-review`, `task-bug-fixer`, `task-release-generator`,
+`task-kanban-sync` e `task-requirements-planner`. Elas orientam o fluxo de requisitos,
+spec, PR, review, correção de bugs, Kanban, releases próprias, verificação de CI e hooks
+(`.github/workflows/`, `.husky/`, `pre-commit` e `pre-push`) dentro do projeto em foco.
+Cada projeto prático mantém o próprio mapa dos fluxos em `docs/agent-skill-workflows.md`.
 
 ### Validação ao alterar Skills
 

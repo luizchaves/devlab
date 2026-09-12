@@ -1,162 +1,52 @@
 ---
 name: task-pr-finalizer
 description: >-
-  Finaliza uma task técnica, valida qualidade (check/build/test), arquiva a spec
-  de specs/active/ para specs/archived/, realiza commit atômico e cria um Pull Request
-  completo e detalhado para a branch main via GitHub CLI (gh pr create) com base no PRD e na spec.
+  Finaliza uma task tecnica, valida qualidade, arquiva specs, cria commit atomico,
+  abre Pull Request e, quando autorizado, aceita o PR com merge na main e limpeza de branch.
 ---
 
-# Finalizador de Tasks e Gerador de Pull Request (Task PR Finalizer)
+# Task PR Finalizer
 
-Esta skill orienta assistentes e agentes de IA a concluírem uma tarefa técnica no fluxo Spec-Driven Development, realizando a validação de qualidade, verificação de build, arquivamento da especificação técnica, commit atômico, push da branch e criação de um **Pull Request rico e exaustivo** para integração na branch `main`.
+Use esta skill para concluir uma task de projeto pratico depois da implementacao: validar, arquivar spec, criar commit, enviar branch, abrir Pull Request e, se o usuario pedir, finalizar o PR aprovado com merge na `main`.
 
----
+## Finalizacao Da Task
 
-## Fluxo de Execução
+1. Confirme a branch atual e a task relacionada no `docs/PRD.md`.
+2. Localize a spec em `specs/active/`, quando o projeto usar specs.
+3. Rode a validacao definida pelo projeto em `AGENTS.md` e pelos scripts do `package.json`. Exemplos comuns: `pnpm lint`, `pnpm check`, `pnpm build`, `pnpm test` e `pnpm test:e2e`.
+4. Verifique automacoes locais e remotas: `.github/workflows/`, `.husky/`, `pre-commit`, `pre-push`, `lint-staged` e script `prepare`.
+5. Atualize a spec para concluida e mova de `specs/active/` para `specs/archived/` quando aplicavel.
+6. Crie commit atomico com Conventional Commits em ingles e tag da task, por exemplo `feat: [TK01.2] add task validation`.
+7. Faca push da branch e crie o Pull Request com resumo, validacao, riscos e criterios atendidos.
 
-1. **Identificar a Task e a Branch**:
-   - Confirmar a branch Git atual (`git branch --show-current`). A branch deve seguir o padrão `feat/<task-id-kebab>-<nome-kebab>` (ou `fix/`, `refactor/`, etc.).
-   - Localizar o arquivo de especificação ativo correspondente em `specs/active/spec-<task-id>-*.md`.
+## Descricao Do PR
 
-2. **Executar a Suíte de Qualidade e Homologação**:
-   - Executar os comandos de validação estática, checagem de tipos, integridade de build e testes do projeto:
-     ```bash
-     pnpm check       # checagem estática e de tipos sem inconformidades
-     pnpm build       # compilação da aplicação (não deve apresentar nenhum erro de build)
-     pnpm format      # formatação de código com o Biome
-     pnpm test        # suíte de testes automatizados (quando aplicável)
-     ```
-   - Garantir **0 erros de build**, **0 erros de checagem** e **0 warnings impeditivos** antes de avançar.
+A descricao deve ser factual e revisavel:
 
-3. **Arquivar a Especificação Técnica**:
-   - Atualizar os metadados da spec em `specs/active/spec-<task-id>-*.md`:
-     - Alterar `- **Status**: Ativa` para `- **Status**: Concluída`.
-     - Adicionar `- **Data de Homologação**: AAAA-MM-DD`.
-   - Mover o arquivo para `specs/archived/`:
-     ```bash
-     git mv specs/active/spec-<task-id>-<nome-kebab>.md specs/archived/
-     ```
+- resumo da mudanca;
+- task, historia de usuario, requisitos e spec relacionados;
+- principais arquivos ou areas alteradas;
+- comandos de validacao executados;
+- riscos, migracoes, dependencias novas ou pontos de atencao;
+- evidencias manuais quando houver UI, API ou banco.
 
-4. **Realizar o Commit Atômico**:
-   - Adicionar os arquivos modificados e criar o commit no padrão **Conventional Commits** em inglês com a tag da task:
-     ```bash
-     git add .
-     git commit -m "<tipo>: [<TASK-ID>] <descrição imperativa e concisa em inglês>"
-     # Exemplo: git commit -m "feat: [TK01.1] setup project governance, biome quality scripts and spec skill"
-     ```
+Nao declare teste, build ou validacao que nao foi executada.
 
-5. **Enviar a Branch para o Repositório Remoto**:
-   - Realizar o push da branch:
-     ```bash
-     git push -u origin <branch-name>
-     ```
+## Aceitar PR, Mergear Na Main E Finalizar Branch
 
-6. **Gerar e Criar o Pull Request Rico**:
-   - Extrair as informações do `docs/PRD.md` e da spec arquivada (`specs/archived/spec-<task-id>-*.md`).
-   - Montar a descrição do PR seguindo o **Template Padrão de Pull Request** abaixo, preenchendo todos os campos, checklists e evidências.
-   - Criar o Pull Request utilizando a GitHub CLI (`gh`):
-     ```bash
-     gh pr create --base main --head <branch-name> --title "<tipo>: [<TASK-ID>] <título em inglês>" --body "<corpo-formatado-do-pr>"
-     ```
-   - Caso a CLI `gh` não esteja autenticada no ambiente, exibir a mensagem e salvar o corpo formatado em um arquivo de rascunho de PR ou apresentar o markdown diretamente para o usuário abrir via interface web.
+Quando o usuario pedir para aceitar o PR ou finalizar a branch apos aprovacao:
 
----
+1. Confirme que nao ha achados bloqueadores no review.
+2. Confirme que o CI remoto passou ou rode validacao local equivalente quando nao houver CI.
+3. Verifique `git status` e preserve mudancas locais nao relacionadas.
+4. Atualize a `main` local a partir do remoto.
+5. Realize o merge conforme o pedido do usuario ou a politica do projeto: merge commit, squash ou fast-forward.
+6. Rode uma validacao final na `main` quando o risco justificar.
+7. Faca push da `main` somente quando autorizado.
+8. Remova branch local ou remota somente quando o usuario pedir ou quando essa limpeza estiver claramente incluida na solicitacao.
+9. Relate commit final, comandos executados, estado de `git status` e situacao da branch.
 
-## Template Padrão de Pull Request
+Nunca use `git reset --hard`, force push ou exclusao de branch remota sem pedido explicito.
+## Sincronizacao Com Kanban
 
-```markdown
-## 📌 Resumo da Mudança
-
-| Item | Detalhe |
-| ---- | ------- |
-| **Task ID** | `<TASK-ID>` (ex: `TK01.1`) |
-| **Branch** | `<branch-name>` |
-| **História de Usuário** | `<USXX>` — <Título da US> |
-| **Épico / Feature** | `<EPXX>` · <Nome do Épico> / `<FTXX>` · <Nome da Feature> |
-| **Spec Técnica** | [`specs/archived/spec-<task-id>-<nome>.md`](file:///specs/archived/spec-<task-id>-<nome>.md) |
-
----
-
-### 🎯 Objetivo e Contexto
-<Descrição detalhada do problema resolvido, da motivação técnica e do impacto da alteração na aplicação.>
-
----
-
-## 📋 Requisitos Atendidos (RF / RNF)
-
-- **Requisitos Funcionais**:
-  - `RFXX`: <Descrição sucinta do RF atendido>
-- **Requisitos Não-Funcionais**:
-  - `RNFXX`: <Descrição sucinta do RNF atendido (ex: tipagem estrita, isolamento, performance)>
-
----
-
-## 🔄 Alterações Realizadas (Changes)
-
-### Resumo das Mudanças
-- <Resumo em tópicos do que foi adicionado ou refatorado>
-- <Principais decisões arquiteturais e arquivos criados>
-
-### Arquivos Modificados
-| Arquivo | Ação | Responsabilidade / Mudança Principal |
-| ------- | ---- | ------------------------------------- |
-| `src/...` | Criado / Modificado | <Descrição sucinta da responsabilidade> |
-| `specs/archived/...` | Movido | Especificação técnica homologada e arquivada |
-
----
-
-## ✅ Critérios de Aceitação Homologados (BDD)
-
-- [x] **CAXX.Y · <Título do Cenário>**
-  \`\`\`gherkin
-  Dado <condição inicial>
-  Quando <ação executada>
-  Então <resultado verificado>
-  \`\`\`
-
----
-
-## 🧪 Como Testar (How to Test)
-
-### 1. Comandos de Validação e Qualidade
-\`\`\`bash
-# 1. Checagem estática e de tipos
-pnpm check
-
-# 2. Compilação e build da aplicação (sem erros de build)
-pnpm build
-
-# 3. Testes automatizados (quando aplicável)
-pnpm test
-\`\`\`
-
-### 2. Roteiro de Teste Manual / Funcional
-1. Iniciar o ambiente: `pnpm dev`
-2. <Passo a passo: chamada via requests.http / curl, formulário a testar ou tela a navegar>
-3. <Comportamento esperado a verificar>
-
----
-
-## 📸 Screenshots & Evidências de Execução
-
-### Front-end / UI (Screenshots)
-<!-- Insira aqui capturas de tela ou GIFs demonstrando a interface / componentes renderizados -->
-<!-- ![Screenshot da tela](url_ou_caminho_da_imagem) -->
-> *N/A se a alteração for puramente backend.*
-
-### Back-end / API (Logs & Chamadas HTTP)
-\`\`\`text
-<Cole aqui o log da execução, saída dos testes ou resposta HTTP das requisições>
-\`\`\`
-
----
-
-## 📋 Checklist de Engenharia e Governança
-
-- [x] A branch segue o padrão `feat/<task-id>-*` (ou `fix/`, `chore/`).
-- [x] A especificação técnica foi movida de `specs/active/` para `specs/archived/`.
-- [x] O commit segue a convenção Conventional Commits em inglês com tag de task (`feat: [TKXX.Y] ...`).
-- [x] O build e a compilação passaram sem nenhum erro (`0 errors`).
-- [x] Nenhuma dependência externa não autorizada foi adicionada ao `package.json`.
-- [x] Todas as regras invioláveis de arquitetura descritas em `AGENTS.md` foram respeitadas.
-```
+Quando o PR for criado, acione ou recomende `task-kanban-sync` para mover o item para `REVIEW` e vincular o Pull Request. Quando o review for concluido, o PR for mergeado na `main` e a validacao final passar, mova o item para `DONE` se o usuario autorizou sincronizacao remota.

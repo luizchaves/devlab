@@ -85,3 +85,13 @@ Comandos e asserções que provam a conclusão com sucesso:
 - `pnpm test`: execução da suíte de testes automatizados.
 - Verificação manual ou chamadas HTTP via `requests.http`.
 ```
+## Kanban E GitHub Projects
+
+Ao criar a spec e a branch, sugira sincronizar o Kanban com a skill `task-kanban-sync`:
+
+- criar ou localizar o card/issue da task;
+- colocar o item em `TODO` quando ainda nao houver responsavel executando;
+- mover para `DOING` quando a task for atribuida a uma pessoa ou o usuario pedir inicio imediato;
+- vincular o card a `docs/PRD.md`, a spec em `specs/active/` e a branch criada.
+
+Criar ou mover card remoto exige autorizacao explicita ou pedido claro do usuario. Sem autorizacao, entregue a sugestao e os comandos/passos manuais.

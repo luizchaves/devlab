@@ -200,3 +200,20 @@ Utilize a skill [`.agents/skills/task-pr-finalizer/SKILL.md`](.agents/skills/tas
 - `feat: [TK07.3] migrate investment model to prisma orm`
 - `test: [TK12.4] add playwright e2e tests for investment creation flow`
 - `docs: [TK01.1] add full product requirements document and ai guidelines`
+## Skills Operacionais De Desenvolvimento
+
+Este projeto pode usar skills locais em `.agents/skills/` para o fluxo de engenharia:
+
+| Skill | Quando usar |
+| ----- | ----------- |
+| `task-spec-generator` | Criar branch e spec tecnica a partir de uma task do `docs/PRD.md`. |
+| `task-pr-finalizer` | Validar, arquivar spec, commitar, abrir PR e, quando autorizado, finalizar merge na `main`. |
+| `task-code-review` | Revisar PRs, branches ou diffs, incluindo testes, CI, hooks e necessidade de atualizar `AGENTS.md` ou skills. |
+| `task-bug-fixer` | Investigar, reproduzir, corrigir e validar bugs ou regressoes. |
+| `task-release-generator` | Gerar release SemVer, `CHANGELOG.md` e tag quando o projeto tiver ciclo proprio de release. |
+| `task-kanban-sync` | Criar ou mover cards em GitHub Projects/Kanban entre TODO, DOING, REVIEW e DONE. |
+| `task-requirements-planner` | Levantar requisitos, atualizar PRD, sugerir tasks e impacto na sprint. |
+
+Antes de depender de automacao, confira se o projeto possui `.github/workflows/`, `.husky/`, hooks de `pre-commit`/`pre-push` ou scripts equivalentes no `package.json`. Se nao houver hooks locais, trate a validacao manual e o CI como barreiras obrigatorias antes de merge.
+
+O mapa dos fluxos entre essas skills esta em [`docs/agent-skill-workflows.md`](docs/agent-skill-workflows.md).
