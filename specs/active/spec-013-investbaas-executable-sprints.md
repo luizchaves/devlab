@@ -140,7 +140,13 @@ Views, `returns.js`, `admin_metrics()`, `require-admin.js`. Unit tests for `year
 integration tests reproduce the reference spreadsheet and prove `admin_metrics()` returns no
 rows for an investor; e2e for the matrix and the admin redirect.
 
-### Phase 6 — Closing
+### Phase 6 — Sprint 7 (`investbaas-origins`)
+
+Views `allocation_by_origin` and `portfolio_evolution`; `treemap.js` (squarified, pure) and
+`line-chart.js` in hand-written SVG; `origins.html`; charts on `analytics.html` and `asset.html`.
+Unit tests for both drawing modules, integration for the views, e2e for the cut selector.
+
+### Phase 7 — Closing
 
 `docs/TODO.md`, `AGENTS.md` counts (projects, devcontainers), `README.md` tree, move this spec
 to `specs/executed/`, fill `Result`.
@@ -148,11 +154,12 @@ to `specs/executed/`, fill `Result`.
 ## Progress
 
 - [x] Phase 1 — Sprint 2 (`investbaas-auth`): 15 Vitest (9 unit + 6 integration) and 4 Playwright tests green against `supabase start`; `auth.mdx` rewritten with `<SourceCode>` cuts and real outputs. Found and fixed during the work: the local stack grants no `select`/`update` on new tables by default, and a whole-row `update` policy would have let any account promote itself to `admin`; the migration now grants `select, update (full_name)` to `authenticated`.
-- [ ] Phase 2 — Sprint 3
+- [x] Phase 2 — Sprint 3 (`investbaas-database`): 36 Vitest (18 unit + 18 integration) and 8 Playwright tests green; `brokers`, `assets.issuer` and `asset.html` (TK03-10, TK03-11) added per the backlog revision of `e1336dfd`; every RLS policy has an integration test with two accounts.
 - [ ] Phase 3 — Sprint 4
 - [ ] Phase 4 — Sprint 5
 - [ ] Phase 5 — Sprint 6
-- [ ] Phase 6 — Closing
+- [ ] Phase 6 — Sprint 7
+- [ ] Phase 7 — Closing
 
 ## Risks & Mitigations
 

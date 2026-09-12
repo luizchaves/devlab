@@ -11,6 +11,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Etapa **3 de 7** · Nível **Avançado** · PostgreSQL · Migrations · RLS · Dados financeiros
 
@@ -158,26 +159,36 @@ Para valores de dinheiro, use `numeric`, não `real` ou `double precision`. Quan
 
 ## Estrutura da aplicação
 
-Esta é a estrutura esperada ao final da Sprint 3. Ela ainda não existe no projeto estático, por isso serve como contrato de implementação e não como árvore de arquivos já publicada. Entram quatro migrations, dois serviços e o módulo que dá vida ao `dashboard.html`.
+A sprint nasce como cópia da Sprint 2 mais o delta: quatro migrations, três serviços, a função pura dos indicadores, o dashboard ligado ao banco e a tela nova do investimento. Os testes acompanham cada camada.
 
-<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer="investbaas-static" />
+<ProjectLinks path="examples/courses/npm/projects/investbaas-database" devcontainer="investbaas-database" />
 
 <FileTree>
 {`
-  investbaas-static/
+  investbaas-database/
   ├── supabase/migrations/
-  │   ├── 0001_profiles.sql             da Sprint 2
-  │   ├── 0002_assets.sql               TK03-1
-  │   ├── 0003_transactions.sql         TK03-2
-  │   ├── 0004_quotes_history.sql       TK03-3
-  │   └── 0005_rls_policies.sql         TK03-4, TK03-5 e TK03-9
+  │   ├── 20260912000001_profiles.sql          da Sprint 2
+  │   ├── 20260912000002_assets.sql            TK03-1 e TK03-10: brokers e assets
+  │   ├── 20260912000003_transactions.sql      TK03-2
+  │   ├── 20260912000004_quotes_history.sql    TK03-3
+  │   └── 20260912000005_rls_policies.sql      TK03-4, TK03-5 e TK03-9: grants, RLS, policies e índices
   ├── src/
+  │   ├── lib/
+  │   │   ├── portfolio.js                     TK03-8: summarize() e totals(), funções puras
+  │   │   └── portfolio.test.js
   │   ├── services/
-  │   │   ├── assets.js                 listar e criar ativos
-  │   │   └── transactions.js           registrar compra e venda
-  │   ├── lib/portfolio.js              custo, patrimônio e rentabilidade (funções puras)
-  │   └── pages/dashboard.js            liga a tabela e os formulários ao banco
-  └── dashboard.html                    tabela e formulários alimentados pelo SDK
+  │   │   ├── assets.js                        listar, buscar por id e criar (com a corretora)
+  │   │   ├── assets.test.js
+  │   │   ├── brokers.js                       TK03-10: findOrCreateBroker()
+  │   │   └── transactions.js                  registrar compra ou venda
+  │   └── pages/
+  │       ├── dashboard.js                     TK03-6 e TK03-7: tabela, KPIs e diálogo de novo ativo
+  │       └── asset.js                         TK03-11: a tela do investimento
+  ├── tests/
+  │   ├── integration/portfolio.test.js        migrations, CHECKs, corretora e cada policy
+  │   └── e2e/portfolio.spec.js                do cadastro do ativo à tela com dois aportes
+  ├── dashboard.html                           sem linhas escritas à mão; + <dialog> de novo ativo
+  └── asset.html                               nova: indicadores, aportes e resgates do ativo
 `}
 </FileTree>
 
@@ -189,58 +200,38 @@ A carteira deixa de ser cinco linhas escritas no HTML e passa a vir de tabelas q
 | ---------------- | ---------------- |
 | Cinco posições escritas em `dashboard.html` | Linhas geradas a partir de `assets` e `transactions` |
 | Só a tabela `profiles` | `+ assets`, `transactions` e `quotes_history` |
-| Botão **+ Novo Ativo** sem efeito | Formulário que insere pelo SDK e recarrega a lista |
-| Isolamento só na guarda de página | RLS em todas as tabelas de domínio, com `USING` e `WITH CHECK` |
-| KPIs de exemplo | Custo, patrimônio, lucro e rentabilidade calculados das transações |
-| — | Índices para `user_id`, `asset_id`, `ticker` e datas |
-
-<Aside type="note" title="O código desta etapa é o alvo, não o repositório">
-  Os trechos abaixo mostram o que cada task escreve quando a sprint for executada sobre o
-  `investbaas-static`. Eles não vêm de arquivos de `examples/`, e por isso não têm caminho de
-  arquivo no título. A [Sprint 1](../front-static/) é a única com código versionado.
-</Aside>
+| Botão **+ Novo Ativo** sem efeito | `<dialog>` que insere pelo SDK, cria a corretora se for nova e recarrega a lista |
+| Nome do ativo sem link | Clique abre `asset.html?id=…`, com todos os aportes e resgates |
+| Ativo sem origem | `broker_id` (corretora de custódia) e `issuer` (emissor ou gestor) |
+| Isolamento só na guarda de página | RLS em todas as tabelas de domínio, com `USING` e `WITH CHECK`, e grants explícitos |
+| KPIs de exemplo | Custo, patrimônio, resultado não realizado e realizado calculados das transações |
+| — | Índices para `user_id`, `asset_id`, `broker_id` e datas |
 
 ## Descrição das tarefas
 
-Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código que cada uma produz.
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto. As migrations vêm primeiro, porque tudo o mais depende delas.
 
 ### TK03-1 · Criar a migration de `assets`
 
-O ativo é o instrumento que está na carteira: um ticker, um nome, uma categoria e o preço mais recente. As cinco categorias são as mesmas que a Sprint 1 desenhou como *badges*, e o `check` é o que impede um sexto valor de entrar por qualquer caminho, inclusive pelo SQL Editor. `numeric(14, 4)` guarda quatro casas para o preço, porque um FII pode ser negociado a `R$ 9,8750`; `real` e `double precision` não representam esse valor com exatidão.
+O ativo é o instrumento que está na carteira: um ticker, um nome, uma categoria, onde está custodiado (`broker_id`), quem o emite ou administra (`issuer`) e o preço mais recente. As cinco categorias são as mesmas que a Sprint 1 desenhou como *badges*, e o `check` é o que impede um sexto valor de entrar por qualquer caminho, inclusive pelo SQL Editor. `numeric(14, 4)` guarda quatro casas para o preço, porque um FII pode ser negociado a `R$ 9,8750`; `real` e `double precision` não representam esse valor com exatidão.
 
-```sql title="Migration de assets (alvo de supabase/migrations/0002_assets.sql)"
-create table public.assets (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles (id) on delete cascade,
-  ticker text not null,
-  name text not null,
-  category text not null
-    check (category in ('renda_fixa', 'acoes', 'fiis', 'fundos', 'cripto')),
-  current_price numeric(14, 4),
-  created_at timestamptz not null default now(),
-  unique (user_id, ticker)
-);
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000002_assets.sql"
+  title="supabase/migrations/20260912000002_assets.sql"
+  region="assets"
+/>
 
-O `unique (user_id, ticker)` segue a regra que a TaskAPI e o InvestApp já usam para o título: único **por dono**, não no sistema inteiro. Duas contas podem ter `PETR4`; a mesma conta, não.
+O `unique (user_id, ticker)` segue a regra que a TaskAPI e o InvestApp já usam para o título: único **por dono**, não no sistema inteiro. Duas contas podem ter `PETR4`; a mesma conta, não. O `issuer` é texto livre de propósito: ele descreve o ativo (o BB de um CDB do BB, a gestora de um fundo) e raramente se repete além do próprio emissor; a Sprint 7 o usa como um dos recortes do treemap.
 
 ### TK03-2 · Criar a migration de `transactions`
 
 A transação é um fato: aconteceu uma compra ou uma venda, de tanta quantidade, a tanto, em tal dia. Ela nunca é editada para "corrigir" a posição; um erro vira outra transação. É essa imutabilidade que torna a carteira auditável e permite recalcular qualquer métrica a partir da origem.
 
-```sql title="Migration de transactions (alvo de supabase/migrations/0003_transactions.sql)"
-create table public.transactions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles (id) on delete cascade,
-  asset_id uuid not null references public.assets (id) on delete cascade,
-  type text not null check (type in ('buy', 'sell')),
-  quantity numeric(18, 8) not null check (quantity > 0),
-  price numeric(14, 4) not null check (price >= 0),
-  transaction_date date not null default current_date,
-  receipt_path text,
-  created_at timestamptz not null default now()
-);
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000003_transactions.sql"
+  title="supabase/migrations/20260912000003_transactions.sql"
+  region="transactions"
+/>
 
 `user_id` aparece de novo, mesmo já existindo em `assets`. É redundância de propósito: a policy RLS da TK03-5 compara `auth.uid()` com uma coluna da **própria** tabela, sem `join`, o que a torna mais simples de ler e mais barata de executar. `receipt_path` fica vazio até a Sprint 5.
 
@@ -248,154 +239,147 @@ create table public.transactions (
 
 Uma linha por ativo e por dia. A chave `unique (asset_id, quote_date)` é o que torna a atualização da Sprint 4 idempotente: rodar a função duas vezes no mesmo dia faz `upsert`, e não duplica.
 
-```sql title="Migration de quotes_history (alvo de supabase/migrations/0004_quotes_history.sql)"
-create table public.quotes_history (
-  id uuid primary key default gen_random_uuid(),
-  asset_id uuid not null references public.assets (id) on delete cascade,
-  price numeric(14, 4) not null check (price >= 0),
-  quote_date date not null,
-  created_at timestamptz not null default now(),
-  unique (asset_id, quote_date)
-);
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000004_quotes_history.sql"
+  title="supabase/migrations/20260912000004_quotes_history.sql"
+  region="quotes_history"
+/>
 
 ### TK03-4 · Habilitar RLS nas quatro tabelas
 
-Uma tabela recém-criada no Supabase é **legível pela chave anônima** até que o RLS seja ligado. Por isso a migration de policies começa ligando o RLS antes de escrever a primeira regra: com RLS ligado e nenhuma policy, a tabela fica fechada para todo mundo, que é o estado seguro para partir.
+Nesta versão do Supabase uma tabela nova não concede **nada** a ninguém: `select`, `insert`, `update` e `delete` são grants explícitos por papel, e a Sprint 2 já mostrou isso em `profiles`. A migration de segurança começa pelos grants (o que cada papel pode fazer) e liga o RLS antes de escrever a primeira policy (com RLS ligado e nenhuma policy, a tabela fica fechada para todo mundo, que é o estado seguro para partir). Repare em `quotes_history`: `authenticated` só tem `select`.
 
-```sql title="Ligar o RLS (inicio de supabase/migrations/0005_rls_policies.sql)"
-alter table public.assets enable row level security;
-alter table public.transactions enable row level security;
-alter table public.quotes_history enable row level security;
--- profiles ja foi ligada na Sprint 2.
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000005_rls_policies.sql"
+  title="supabase/migrations/20260912000005_rls_policies.sql"
+  region="grants"
+/>
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000005_rls_policies.sql"
+  title="supabase/migrations/20260912000005_rls_policies.sql"
+  region="enable"
+/>
 
 ### TK03-5 · Criar as policies por `auth.uid()`
 
 Quatro operações, quatro regras, e a distinção que a seção de decisões de segurança explica: `using` filtra as linhas que já existem, `with check` julga a linha que está tentando entrar. Sem o `with check` no `insert`, um cliente poderia gravar um ativo com o `user_id` de outra conta.
 
-```sql title="Policies de assets (alvo de supabase/migrations/0005_rls_policies.sql)"
-create policy "assets: dono le" on public.assets
-  for select using (auth.uid() = user_id);
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000005_rls_policies.sql"
+  title="supabase/migrations/20260912000005_rls_policies.sql"
+  region="policies"
+/>
 
-create policy "assets: dono insere" on public.assets
-  for insert with check (auth.uid() = user_id);
+`quotes_history` não tem `user_id`: a leitura passa por uma subconsulta no ativo, e a escrita fica **sem policy**, porque só a Edge Function da Sprint 4 grava ali, com a chave de serviço, que ignora RLS.
 
-create policy "assets: dono edita" on public.assets
-  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000005_rls_policies.sql"
+  title="supabase/migrations/20260912000005_rls_policies.sql"
+  region="quotes-policy"
+/>
 
-create policy "assets: dono remove" on public.assets
-  for delete using (auth.uid() = user_id);
-```
+Cada policy tem um teste de integração com duas contas. Os quatro cenários abaixo cobrem leitura, escrita em nome de outro, busca por id de ativo alheio e o `update`/`delete` cruzado, que não devolve erro: devolve **zero linhas afetadas**, como um `UPDATE` sem `WHERE` satisfeito.
 
-`transactions` repete as quatro, trocando a tabela. `quotes_history` não tem `user_id`: a leitura passa por uma subconsulta no ativo, e a escrita fica **sem policy**, porque só a Edge Function da Sprint 4 grava ali, com a chave de serviço, que ignora RLS.
-
-```sql title="Policy de leitura de quotes_history"
-create policy "quotes: dono do ativo le" on public.quotes_history
-  for select using (
-    exists (
-      select 1 from public.assets a
-      where a.id = quotes_history.asset_id and a.user_id = auth.uid()
-    )
-  );
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/tests/integration/portfolio.test.js"
+  title="tests/integration/portfolio.test.js"
+  region="rls"
+/>
 
 ### TK03-6 · Ligar a carteira ao banco
 
-O serviço encapsula a consulta. `select('*, transactions(*)')` traz as transações aninhadas em uma chamada só, no estilo do `include` do Prisma; o `order` garante uma tabela estável entre recargas. Repare no que **não** está aqui: nenhum `.eq('user_id', …)`. O filtro por dono é do RLS, e escrevê-lo no cliente só daria a falsa impressão de que a segurança mora nele.
+O serviço encapsula a consulta. `select('…, broker:brokers(id, name), transactions(…)')` traz a corretora e as transações aninhadas em uma chamada só, no estilo do `include` do Prisma; o `order` garante uma tabela estável entre recargas. Repare no que **não** está aqui: nenhum `.eq('user_id', …)`. O filtro por dono é do RLS, e escrevê-lo no cliente só daria a falsa impressão de que a segurança mora nele. O teste de unidade do serviço afirma exatamente isso: a string do `select` não contém `user_id`.
 
-```js title="Servico de ativos (alvo de src/services/assets.js)"
-import { supabase } from '../lib/supabase-client.js';
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/services/assets.js"
+  title="src/services/assets.js"
+  region="list"
+/>
 
-export async function listAssets() {
-  return supabase
-    .from('assets')
-    .select('id, ticker, name, category, current_price, transactions(type, quantity, price)')
-    .order('ticker');
-}
+`getAsset` usa `maybeSingle()`, e não `single()`: zero linhas vira `null` em vez de erro. É o que deixa "não é seu" e "não existe" indistinguíveis para o cliente, o mesmo `404` sem `403` das outras trilhas.
 
-export async function createAsset({ ticker, name, category }) {
-  const { data: { user } } = await supabase.auth.getUser();
+### TK03-7 · Criar o formulário de ativo
 
-  return supabase
-    .from('assets')
-    .insert({ user_id: user.id, ticker: ticker.toUpperCase(), name, category })
-    .select()
-    .single();
-}
-```
+O botão **+ Novo Ativo** da Sprint 1 passa a abrir um `<dialog>` com o formulário: ticker, nome, categoria, corretora (com `<datalist>` das já cadastradas) e emissor. O `user_id` vai no `insert` porque a policy `with check` exige que ele seja o do token; enviar o de outra pessoa não "funciona": o banco responde `42501`.
 
-O `user_id` vai no `insert` porque a policy `with check` exige que ele seja o do token. Enviar o de outra pessoa não "funciona": o banco responde `42501`, *new row violates row-level security policy*.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/services/assets.js"
+  title="src/services/assets.js"
+  region="create"
+/>
 
-### TK03-7 · Criar os formulários de ativo e transação
+Na página, o erro do banco chega com `code`; `23505` é a violação do `unique (user_id, ticker)`, e a tela o traduz para uma frase. O resto é renderizar: uma linha por ativo, com o nome linkado à tela do investimento, e os quatro KPIs vindos de `totals()`.
 
-O botão **+ Novo Ativo** da Sprint 1 passa a abrir um `<dialog>` com o formulário. O módulo da página lê os campos, chama o serviço e, em caso de sucesso, recarrega a lista. O erro do banco chega com `code` e `message`; o `23505` é a violação do `unique (user_id, ticker)`, e a tela o traduz para uma frase.
-
-```js title="Cadastro de ativo pela tela (alvo de src/pages/dashboard.js)"
-assetForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  const { error } = await createAsset({
-    ticker: assetForm.elements.ticker.value,
-    name: assetForm.elements.name.value,
-    category: assetForm.elements.category.value,
-  });
-
-  if (error?.code === '23505') return showError(assetForm, 'Voce ja tem esse ticker');
-  if (error) return showError(assetForm, error.message);
-
-  assetDialog.close();
-  await renderPortfolio();
-});
-```
-
-A transação segue o mesmo desenho, com `asset_id` vindo da linha da tabela em que o botão **Comprar** ou **Vender** foi clicado.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/pages/dashboard.js"
+  title="src/pages/dashboard.js"
+  region="create"
+/>
 
 ### TK03-8 · Calcular os indicadores da carteira
 
 Custo, quantidade e patrimônio nascem das transações, e é por isso que este módulo é uma função pura: recebe o ativo com as transações aninhadas e devolve números. Sem `fetch`, sem DOM, ele é o candidato natural para o primeiro teste de unidade do projeto.
 
-```js title="Indicadores de uma posicao (alvo de src/lib/portfolio.js)"
-export function summarize(asset) {
-  let quantity = 0;
-  let cost = 0;
+A venda é o caso que merece atenção: ela baixa o custo pelo **preço médio**, não pelo preço de venda. O que sai da carteira é o custo daquela quantidade; a diferença entre o preço de venda e o preço médio é resultado **realizado**, mostrado à parte. E `value` fica `null` para um ativo sem cotação: a tela mostra `—`, não `R$ 0,00`.
 
-  for (const t of asset.transactions) {
-    if (t.type === 'buy') {
-      quantity += Number(t.quantity);
-      cost += Number(t.quantity) * Number(t.price);
-    } else {
-      // Venda baixa o custo pelo preco medio, nao pelo preco de venda.
-      cost -= Number(t.quantity) * (cost / quantity);
-      quantity -= Number(t.quantity);
-    }
-  }
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/lib/portfolio.js"
+  title="src/lib/portfolio.js"
+  region="summarize"
+/>
 
-  const value = quantity * Number(asset.current_price ?? 0);
+A conversão com `Number()` é obrigatória: o PostgREST devolve `numeric` como **string**, justamente para não perder precisão no caminho. Somar sem converter concatena texto, e há um teste só para isso. Os números dos testes são os da planilha de referência da seção Testando: duas compras de 100, a `R$ 30,00` e a `R$ 34,00`.
 
-  return {
-    quantity,
-    cost,
-    value,
-    averagePrice: quantity ? cost / quantity : 0,
-    returnPct: cost ? (value - cost) / cost : 0,
-  };
-}
-```
-
-A conversão com `Number()` é obrigatória: o PostgREST devolve `numeric` como **string**, justamente para não perder precisão no caminho. Somar sem converter concatena texto.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/lib/portfolio.test.js"
+  title="src/lib/portfolio.test.js"
+  region="summarize"
+/>
 
 ### TK03-9 · Criar os índices
 
 Toda consulta desta etapa filtra por `user_id` (o RLS faz isso em cada linha) e ordena ou agrupa por ativo e data. Sem índice, o PostgreSQL varre a tabela inteira para aplicar a policy, e o custo cresce com o número de contas, não com o tamanho da carteira de quem consulta.
 
-```sql title="Indices (fim de supabase/migrations/0005_rls_policies.sql)"
-create index assets_user_id_idx on public.assets (user_id);
-create index transactions_user_id_idx on public.transactions (user_id);
-create index transactions_asset_date_idx on public.transactions (asset_id, transaction_date);
-create index quotes_history_asset_date_idx on public.quotes_history (asset_id, quote_date desc);
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000005_rls_policies.sql"
+  title="supabase/migrations/20260912000005_rls_policies.sql"
+  region="indexes"
+/>
 
+### TK03-10 · Criar `brokers` e a corretora automática
+
+A corretora é a instituição de custódia, e reaparece em muitos ativos: por isso é tabela, e não texto como o emissor. Ela é **por dono** (`unique (user_id, name)`) e nasce sozinha quando um ativo cita um nome novo, como no InvestApp. O `upsert` sobre a chave única é o que garante uma linha só para `XP` citada dez vezes.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/supabase/migrations/20260912000002_assets.sql"
+  title="supabase/migrations/20260912000002_assets.sql"
+  region="brokers"
+/>
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/services/brokers.js"
+  title="src/services/brokers.js"
+  region="find-or-create"
+/>
+
+### TK03-11 · Criar `asset.html`, a tela do investimento
+
+Clicar em um ativo da carteira abre `asset.html?id=…`. A tela lê o ativo com `getAsset(id)`, mostra nome, ticker, categoria, corretora e emissor, os cinco indicadores de `summarize()` e a tabela de **todos os aportes e resgates** em ordem cronológica, com a posição acumulada depois de cada lançamento. O botão **+ Registrar aporte ou resgate** abre um `<dialog>` que insere a transação e recalcula tudo.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/src/pages/asset.js"
+  title="src/pages/asset.js"
+  region="render"
+/>
+
+Um `id` que não existe ou pertence a outra conta chega como `null`, e a tela mostra "não encontrado" sem distinguir os dois casos. O E2E prova a sequência inteira: cadastro do ativo com corretora e emissor, dois aportes pela tela, posição `200`, preço médio `R$ 32,00`, custo `R$ 6.400,00`, e o id alheio.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-database/tests/e2e/portfolio.spec.js"
+  title="tests/e2e/portfolio.spec.js"
+  region="flow"
+/>
 
 ## Decisões de segurança
 
@@ -416,10 +400,54 @@ RLS não é apenas uma `SELECT` com filtro. Cada operação precisa de uma regra
 
 ## Testando
 
-O melhor lugar para provar RLS é o **SQL Editor** do Supabase, porque ele permite executar uma consulta *como* um usuário específico. Crie duas contas pela tela (`ana@example.com` e `bruno@example.com`), cadastre um ativo em cada uma e rode os cenários abaixo.
+As três camadas da Sprint 2 continuam, e cada task desta sprint entra em pelo menos uma. Os números de referência são os mesmos em todas: duas compras de 100 `PETR4`, a `R$ 30,00` e a `R$ 34,00`, com cotação `R$ 33,00`.
+
+| Camada | Comando | O que prova | Tasks |
+| ------ | ------- | ----------- | ----- |
+| Unidade (Vitest + jsdom) | `pnpm test:unit` | `summarize()` e `totals()` com a planilha de referência, venda pelo preço médio, ativo sem cotação; o serviço não filtra `user_id` no cliente | TK03-6, TK03-7, TK03-8, TK03-10 |
+| Integração (Vitest + SDK real) | `pnpm test:integration` | `CHECK` de categoria e quantidade, `unique` por dono, corretora única, e **cada policy** com duas contas (leitura, `with check`, id alheio, `update`/`delete` cruzados, `quotes_history` só de leitura) | TK03-1 a TK03-5, TK03-9, TK03-10 |
+| E2E (Playwright) | `pnpm test:e2e` | carteira vazia → novo ativo com corretora e emissor → ticker repetido → tela do ativo com dois aportes e a posição recalculada → ativo alheio | CA03.1, CA03.3, CA03.7 a CA03.10 |
+
+| Mês | Compra | Posição | Custo | Preço médio |
+| --- | ------ | ------- | ----- | ----------- |
+| jan | 100 × 30 | 100 | 3.000 | 30,00 |
+| fev | 100 × 34 | 200 | 6.400 | **32,00** |
+| valor a 33 | | | | 200 × 33 = **6.600** (+3,13%) |
+
+```bash title="Terminal"
+pnpm test
+```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/services/auth.test.js (5 tests)
+ ✓ |unit| src/services/assets.test.js (3 tests)
+ ✓ |unit| src/lib/portfolio.test.js (6 tests)
+ ✓ |unit| src/guards/require-session.test.js (2 tests)
+ ✓ |unit| src/lib/supabase-client.test.js (2 tests)
+ ✓ |integration| tests/integration/portfolio.test.js (12 tests)
+ ✓ |integration| tests/integration/auth.test.js (6 tests)
+
+ Test Files  7 passed (7)
+      Tests  36 passed (36)
+```
+
+```bash title="Terminal"
+pnpm test:e2e
+```
+
+```txt title="Output" frame="terminal"
+  ✓ Sprint 3 › carteira vazia, cadastro de ativo com corretora e emissor (CA03.1, CA03.7) (3.2s)
+  ✓ Sprint 3 › ticker repetido e recusado com mensagem (unique por dono) (1.0s)
+  ✓ Sprint 3 › tela do ativo lista os aportes e recalcula a posicao (CA03.8, CA03.9, CA03.3) (1.3s)
+  ✓ Sprint 3 › ativo de outra conta mostra nao encontrado (CA03.10) (973ms)
+  ✓ Sprint 2 › (os quatro testes da sprint anterior)
+
+  8 passed (7.8s)
+```
+
+O SQL Editor do Studio (`http://127.0.0.1:54323`) permite repetir o cenário de RLS à mão, consultando *como* uma conta. É o equivalente manual do teste de integração, e vale fazer uma vez para ver o `auth.uid()` em ação:
 
 ```sql title="SQL Editor: consultar como a Ana"
--- O JWT simulado faz auth.uid() devolver o id da Ana.
 select set_config('request.jwt.claims',
   json_build_object('sub', (select id from auth.users where email = 'ana@example.com'), 'role', 'authenticated')::text,
   true);
@@ -429,32 +457,42 @@ select ticker, user_id from public.assets;
 -- Esperado: so os ativos da Ana (CA03.4)
 ```
 
-```sql title="SQL Editor: tentar gravar em nome do Bruno"
-insert into public.transactions (user_id, asset_id, type, quantity, price)
-values ((select id from auth.users where email = 'bruno@example.com'),
-        (select id from public.assets limit 1), 'buy', 10, 30.5);
--- Esperado: ERROR 42501 new row violates row-level security policy (CA03.5)
-```
-
-Pela tela, os critérios restantes se provam em sequência: cadastre `PETR4` na conta da Ana e tente cadastrar de novo (a mensagem "Voce ja tem esse ticker" cobre o `unique`); registre uma compra de 100 a `R$ 30,00` e outra de 100 a `R$ 34,00`, e confira preço médio `R$ 32,00` e custo `R$ 6.400,00` na tabela (CA03.3). Por fim, abra a carteira do Bruno: o `PETR4` da Ana não aparece, e a resposta da API não traz sequer o `id` dele.
-
 ## Executando
-
-A implementação requer um projeto Supabase e uma forma reprodutível de aplicar migrations. Antes de conectar o dashboard, aplique o esquema, crie duas contas de teste e rode os cenários de RLS como cada uma delas.
 
 <Steps>
 
-1. **Revise a base estática**:
+1. Entre no projeto e instale as dependências:
 
    ```bash title="Terminal"
-   cd examples/courses/npm/projects/investbaas-static
+   cd examples/courses/npm/projects/investbaas-database
    pnpm install
+   ```
+
+2. Suba a stack local e copie os valores para o `.env` (o `.env.example` diz quais):
+
+   ```bash title="Terminal"
+   pnpm db:start
+   supabase status -o env
+   ```
+
+3. Aplique as cinco migrations:
+
+   ```bash title="Terminal"
+   pnpm db:reset
+   ```
+
+4. Suba o Vite, crie uma conta e cadastre o primeiro ativo em `http://localhost:5173/dashboard.html`:
+
+   ```bash title="Terminal"
    pnpm dev
    ```
 
-2. **Implemente e aplique as migrations**: use o fluxo de migrations definido pelo projeto Supabase, sem executar DDL manual não versionado no ambiente compartilhado.
+5. Rode as suítes:
 
-3. **Valide isolamento**: crie dados para duas contas e teste leitura, inserção, atualização e exclusão nos dois contextos autenticados.
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
 
 </Steps>
 
@@ -467,6 +505,8 @@ A implementação requer um projeto Supabase e uma forma reprodutível de aplica
 | Integridade | `CHECK`, `NOT NULL` e `UNIQUE` recusam estados inválidos. |
 | RLS | Aplica autorização no ponto onde os dados residem. |
 | Índice | Protege o tempo das consultas que filtram dono e período. |
+| Grant por papel | Decide quais operações cada papel alcança, antes de a policy decidir quais linhas. |
+| Fato imutável | A transação nunca é editada; posição, custo e resultado são derivados dela. |
 
 ## Exercício
 
