@@ -2099,6 +2099,10 @@ export default defineConfig({
                   link: '/courses/cloud/resources/workers-jobs/',
                 },
                 { label: 'Containers e PaaS', link: '/courses/cloud/resources/containers-paas/' },
+                {
+                  label: 'Observabilidade e Monitoramento',
+                  link: '/courses/cloud/resources/observability-monitoring/',
+                },
               ],
             },
             {
