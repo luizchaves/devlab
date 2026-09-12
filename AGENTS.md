@@ -20,7 +20,7 @@ Markdown/MDX e o código dos tópicos e exemplos existe de verdade, em projetos 
 | Páginas de tópicos            | 479 arquivos `.mdx`                           |
 | Projetos executáveis          | 87 projetos em `examples/courses/`            |
 | Slides / mapas mentais        | 66 / 66 em `materials/`                       |
-| Devcontainers (Codespaces)    | 24 pastas em `.devcontainer/`                 |
+| Devcontainers (Codespaces)    | 25 pastas em `.devcontainer/`                 |
 | Idioma                        | Português do Brasil                           |
 
 ## Regras invioláveis
