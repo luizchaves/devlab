@@ -100,7 +100,9 @@ MVC → autenticação → testes → documentação → tempo real.
 O **Guia de Express.js** tem ainda uma terceira trilha, a **TaskAPI** — doze etapas,
 **só API**, sem front-end. Ela não é uma aplicação para construir: é a referência
 executável de onde as 33 páginas de conceito do guia recortam o código, de modo que
-nenhum bloco publicado seja um arquivo que não existe.
+nenhum bloco publicado seja um arquivo que não existe. Como as outras duas, ela tem
+requisitos, backlog (épicos, features, histórias, critérios em Gherkin e tasks) e
+especificação da API, distribuídos entre a visão geral e as páginas de cada etapa.
 
 ## 6. Requisitos funcionais
 
