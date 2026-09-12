@@ -80,12 +80,12 @@
   - [x] `[TASK-031.7]` Expandir a trilha de Desenho e Mídia do Guia de Web APIs com páginas dedicadas, projetos executáveis, slides e mapas mentais para `media/media-devices.mdx` (câmera e áudio), `media/streaming.mdx` (WebRTC e MSE) e `media/webgl-webgpu.mdx` (gráficos 3D e computação); atualizar catálogo, diagrama SVG interativo e páginas de referência (`cheat-sheet.mdx` e `other-apis.mdx`)
 - [ ] **[TASK-032] Guia de Express.js — ajustes gerais:**
   - [ ] `[TASK-032.1]` Ajustar as imagens ruins de ver do guia (baixa resolução, contraste ou legibilidade)
-  - [ ] `[TASK-032.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
+  - [x] `[TASK-032.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
 - [ ] **[TASK-033] TaskAPI — ajustes e páginas pendentes:**
   - [ ] `[TASK-033.1]` Ajustar as imagens ruins de ver na trilha `task-api-*`
-  - [ ] `[TASK-033.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
-  - [ ] `[TASK-033.3]` Escrever a página de Especificação da API (contrato OpenAPI consolidado da TaskAPI)
-  - [ ] `[TASK-033.4]` Escrever a página de Próximos Passos da TaskAPI (débitos técnicos, features e desafios, no molde da `[TASK-017.1]`)
+  - [x] `[TASK-033.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
+  - [x] `[TASK-033.3]` Escrever a página de Especificação da API (contrato OpenAPI consolidado da TaskAPI)
+  - [x] `[TASK-033.4]` Escrever a página de Próximos Passos da TaskAPI (débitos técnicos, features e desafios, no molde da `[TASK-017.1]`)
   - [ ] `[TASK-033.5]` Validar cookies com Zod na etapa de autenticação
 - [ ] **[TASK-034] Novas validações de segurança:**
   - [ ] `[TASK-034.1]` Validar o JWT (assinatura, expiração e claims) na etapa de autenticação da TaskAPI
