@@ -11,7 +11,7 @@ import {
 } from '@/schemas/category.schema.ts';
 import { readBrokerByIdSchema, readBrokersSchema } from '@/schemas/broker.schema.ts';
 import { createUserSchema } from '@/schemas/user.schema.ts';
-import { signinSchema } from '@/schemas/auth.schema.ts';
+import { bearerSecurityScheme, signinSchema } from '@/schemas/auth.schema.ts';
 
 /**
  * O Zod 4 converte um schema em JSON Schema sem biblioteca auxiliar. Como o
@@ -142,7 +142,7 @@ export const openapi = {
   ],
   components: {
     securitySchemes: {
-      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      bearerAuth: bearerSecurityScheme,
     },
   },
   // Todas as rotas de investimento exigem token desde a etapa 9. Declarar aqui

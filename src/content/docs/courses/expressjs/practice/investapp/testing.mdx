@@ -79,6 +79,12 @@ Cenário: CA13.5 - A regra crítica tem teste
 Cenário: CA13.6 - Testar quase não altera a aplicação
   Quando comparo src/ com a etapa anterior
   Então a única mudança é o index.ts passar a exportar o app
+
+Cenário: CA13.7 - A forma do cabeçalho e o parser de cookies estão fixados
+  Quando leio src/routes.test.ts
+  Então existe um teste com "Authorization: Token abc" afirmando 401 e a mensagem do schema
+  E quando leio src/utils/cookies.test.ts
+  Então parseCookies é testado sem servidor, com cabeçalho ausente e encoding inválido
 ```
 
 ### Tasks da etapa
@@ -93,6 +99,7 @@ seção detalhada logo em seguida.
 3. **TK12.3 · Criar `public/js/services/api.test.js`**: Testes do front com Vitest, JSDOM e mocks de `fetch` e `localStorage`.
 4. **TK12.4 · Criar `tests/invest-app.spec.js`**: Teste End-to-End do fluxo completo com Playwright.
 5. **TK12.5 · Criar `playwright.config.js` e os scripts do `package.json`**: Configuração dos navegadores e dos comandos de execução.
+6. **TK12.6 · Criar `src/utils/cookies.test.ts` e o caso de cabeçalho malformado**: `parseCookies` como função pura e `Authorization: Token abc` respondendo `401` com a mensagem do schema.
 
 </Steps>
 
@@ -113,9 +120,12 @@ Playwright tem executor e configuração próprios.
   │   ├── routes.test.ts          rotas com node:test + supertest
   │   ├── controllers/
   │   ├── models/
-  │   └── schemas/
-  │       ├── investment.schema.ts
-  │       └── investment.schema.test.ts  unidade: o schema sem HTTP
+  │   ├── schemas/
+  │   │   ├── investment.schema.ts
+  │   │   └── investment.schema.test.ts  unidade: o schema sem HTTP
+  │   └── utils/
+  │       ├── cookies.ts
+  │       └── cookies.test.ts     unidade: o parser de cookies
   ├── public/
   │   ├── css/
   │   │   └── tailwind.css        UI final, sem Bootstrap
@@ -182,6 +192,15 @@ A linha 9 tem a armadilha que justifica o teste existir: `toLocaleString` separa
   mark="7-9,23-28"
 />
 
+O outro candidato do servidor é o `parseCookies` da etapa 4: uma string entra, um objeto sai, e os casos de borda (valor com `=`, cabeçalho ausente, *percent-encoding* inválido) cabem em quatro asserções. É o teste que garante que um cookie malformado nunca derruba a requisição antes de o schema opinar.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/invest-app-test/src/utils/cookies.test.ts"
+  title="src/utils/cookies.test.ts"
+  showLineNumbers
+  mark="11-16,27-29"
+/>
+
 <Aside type="caution" title="Fuso horário: um teste que falta">
   `formatDate('2025-02-10')`, sem hora, devolve **09/02/2025** em qualquer fuso negativo: a
   string é interpretada como meia-noite UTC. Como o `home.js` usa essa função para preencher o
@@ -200,14 +219,14 @@ As linhas 10 a 24 resolvem o problema mais chato de testar autenticação. O `cr
 
 O `before` das linhas 31 a 43 monta o cenário uma vez: cria o usuário, pega o token e lê o id de uma categoria — tudo pela própria API, sem tocar no banco por fora.
 
-Daí em diante, o padrão se repete: para cada rota, um caso feliz e pelo menos um de erro. Cadastro com e-mail repetido (`409`), e-mail inválido (`400`), leitura sem token (`401`), corpo inválido (`400`), id de rota que não é UUID (`400`).
+Daí em diante, o padrão se repete: para cada rota, um caso feliz e pelo menos um de erro. Cadastro com e-mail repetido (`409`), e-mail inválido (`400`), leitura sem token (`401`), cabeçalho fora do formato `Bearer` (`401`, com a mensagem do `bearerSchema`), corpo inválido (`400`), id de rota que não é UUID (`400`).
 
 <SourceCode
   path="examples/courses/expressjs/projects/invest-app-test/src/routes.test.ts"
   title="src/routes.test.ts"
   showLineNumbers
   mark="3,7,10-24,31-43"
-  collapse="45-140"
+  collapse="45-149"
 />
 
 O último bloco é o mais importante da suíte: ele cria um investimento com um usuário, cria um **segundo** usuário e confirma que o segundo recebe `404` ao tentar ler o registro do primeiro. É o isolamento por dono da etapa 9 virando teste automatizado.
@@ -215,7 +234,7 @@ O último bloco é o mais importante da suíte: ele cria um investimento com um 
 <SourceCode
   path="examples/courses/expressjs/projects/invest-app-test/src/routes.test.ts"
   title="src/routes.test.ts — o teste de isolamento"
-  lines="142-165"
+  lines="151-174"
   showLineNumbers
 />
 

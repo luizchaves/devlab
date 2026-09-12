@@ -94,6 +94,15 @@ describe('InvestApp', () => {
       assert.equal(response.statusCode, 401);
     });
 
+    it('recusa cabecalho fora do formato Bearer, com a mensagem do schema', async () => {
+      const response = await request(app)
+        .get('/api/investments')
+        .set('Authorization', 'Token abc');
+
+      assert.equal(response.statusCode, 401);
+      assert.equal(response.body.error, 'Esperado: Authorization: Bearer <jwt>');
+    });
+
     it('responde com token valido', async () => {
       const response = await request(app)
         .get('/api/investments')

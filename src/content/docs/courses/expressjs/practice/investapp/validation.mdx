@@ -69,6 +69,11 @@ Cenário: CA04.5 - Filtro opcional, mas nunca vazio
 Cenário: CA04.6 - A validação sai dos controllers
   Quando abro qualquer controller
   Então não existe nenhum if de validação de entrada
+
+Cenário: CA04.7 - Cabeçalho e cookie também são entrada
+  Quando abro src/middlewares/validate.ts
+  Então o objeto validado traz body, query, params, headers e cookies
+  E cookies vem de um parseCookies escrito no projeto, sem cookie-parser
 ```
 
 ### Tasks da etapa
@@ -78,16 +83,17 @@ seção detalhada logo em seguida.
 
 <Steps>
 
-1. **TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts`**: Middleware genérico que valida `body`, `query` e `params` contra um schema.
+1. **TK04.1 · Instalar Zod e criar `src/middlewares/validate.ts`**: Middleware genérico que valida `body`, `query`, `params`, `headers` e `cookies` contra um schema.
 2. **TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas**: Um schema por fonte de dados, composto pelas rotas que os usam.
+3. **TK04.3 · Criar `src/utils/cookies.ts`**: `parseCookies` sem dependência, para que o cabeçalho `Cookie` chegue ao schema como objeto.
 
 </Steps>
 
 ## Estrutura da aplicação
 
-A etapa acrescenta dois arquivos e altera um: entram `src/middlewares/validate.ts` e
-`src/schemas/investment.schema.ts`, e o roteador passa a compor os schemas nas rotas. Todo o
-resto vem intacto da etapa 3.
+A etapa acrescenta três arquivos e altera um: entram `src/middlewares/validate.ts`,
+`src/schemas/investment.schema.ts` e `src/utils/cookies.ts`, e o roteador passa a compor os
+schemas nas rotas. Todo o resto vem intacto da etapa 3.
 
 <ProjectLinks path="examples/courses/expressjs/projects/invest-app-validation" />
 
@@ -111,8 +117,10 @@ resto vem intacto da etapa 3.
       │   └── validate.ts           novo: o middleware genérico desta etapa
       ├── routes/
       │   └── investments.routes.ts nas rotas entram os schemas
-      └── schemas/
-          └── investment.schema.ts  novo: body, params e query
+      ├── schemas/
+      │   └── investment.schema.ts  novo: body, params e query
+      └── utils/
+          └── cookies.ts            novo: o cabeçalho Cookie como objeto
 `}
 </FileTree>
 
@@ -146,17 +154,19 @@ Abaixo estão detalhadas as tarefas de implementação desta etapa, com orienta�
 
 <PackageManagerTabs package="zod" />
 
-A função `validate` da linha 11 não é um middleware: ela **devolve** um. Esse padrão é o que permite escrever `validate(createInvestmentSchema)` na declaração da rota e ainda assim entregar ao Express a assinatura `(req, res, next)` que ele espera.
+A função `validate` da linha 13 não é um middleware: ela **devolve** um. Esse padrão é o que permite escrever `validate(createInvestmentSchema)` na declaração da rota e ainda assim entregar ao Express a assinatura `(req, res, next)` que ele espera.
 
-O `safeParse` das linhas 13 a 17 é o coração do arquivo. Repare que ele não valida `req.body` sozinho: monta um objeto com as **três** fontes de dados de uma requisição (`body`, `query` e `params`) e valida o conjunto. É por isso que todo schema desta etapa começa com uma dessas três chaves.
+O `safeParse` das linhas 15 a 21 é o coração do arquivo. Repare que ele não valida `req.body` sozinho: monta um objeto com as **cinco** fontes de dados de uma requisição (`body`, `query`, `params`, `headers` e `cookies`) e valida o conjunto. É por isso que todo schema desta etapa começa com uma dessas chaves. Cabeçalho e cookie entram na lista pelo mesmo motivo que o corpo: chegam do cliente e podem vir forjados. Nesta etapa nenhum schema os usa; a [etapa 9](../auth/) valida a forma do `Authorization` por aqui, e uma sessão em cookie teria onde entrar.
 
-O restante é a bifurcação. Dados inválidos viram um `HttpError` com as issues do Zod anexadas (linha 20), e quem transforma isso em resposta é o `errorHandler` que a etapa 3 já tinha — nenhum middleware novo monta resposta de erro. Dados válidos seguem para o handler com o `next()` da linha 23.
+A linha 20 merece atenção: `req.cookies` não existe sem o `cookie-parser`, e a trilha não instala o que o Node resolve. O cabeçalho `Cookie` é `nome=valor; outro=valor`, e o `parseCookies` de `src/utils/cookies.ts` o converte em objeto com um `split` e um `decodeURIComponent`. O Node também entrega `req.headers` com os nomes em minúsculas, então um schema escreve `authorization`, nunca `Authorization`.
+
+O restante é a bifurcação. Dados inválidos viram um `HttpError` com as issues do Zod anexadas (linha 24), e quem transforma isso em resposta é o `errorHandler` que a etapa 3 já tinha — nenhum middleware novo monta resposta de erro. Dados válidos seguem para o handler com o `next()` da linha 27.
 
 <SourceCode
   path="examples/courses/expressjs/projects/invest-app-validation/src/middlewares/validate.ts"
   title="src/middlewares/validate.ts"
   showLineNumbers
-  mark="11,13-17,20,23"
+  mark="13,15-21,24,27"
 />
 
 ### TK04.2 · Criar `src/schemas/investment.schema.ts` e injetar nas rotas
@@ -190,6 +200,19 @@ No roteador, cada rota ganha o seu `validate`. Compare com a etapa 3: a lista de
 />
 
 Repare no que **não** mudou: os controllers e o model vieram intactos da etapa 3. A verificação não foi movida para dentro deles — ela vive na fronteira, e o handler só executa depois que o schema aprova.
+
+### TK04.3 · Criar `src/utils/cookies.ts` (O cabeçalho `Cookie` como objeto)
+
+O arquivo inteiro é uma função pura. O `for` da linha 11 percorre os pares separados por `;`, a linha 12 corta cada par no primeiro `=` (o `...rest` preserva um `=` que faça parte do valor) e a linha 18 decodifica o *percent-encoding*. O `try`/`catch` das linhas 17 a 22 existe porque `decodeURIComponent` lança em uma sequência inválida, e um cookie malformado não pode derrubar a requisição: o valor fica como veio, e o schema decide o que fazer com ele.
+
+Nenhuma rota lê cookie nesta etapa, nem nas seguintes. O parser está aqui porque o `validate` já monta a fonte, e uma sessão em cookie `HttpOnly` (a alternativa ao `localStorage` que o tópico de [Autenticação](../../../auth/authentication/) discute) entraria sem tocar no middleware.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/invest-app-validation/src/utils/cookies.ts"
+  title="src/utils/cookies.ts"
+  showLineNumbers
+  mark="11-12,17-22"
+/>
 
 ## As três camadas de validação
 

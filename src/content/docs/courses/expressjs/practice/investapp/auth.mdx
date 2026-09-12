@@ -68,6 +68,12 @@ Cenário: CA09.5 - A sessão vive no navegador
   Quando faço login pela tela de signin.html
   Então o token é guardado no localStorage
   E as requisições seguintes enviam o cabeçalho Authorization
+
+Cenário: CA09.6 - A forma do cabeçalho vem do schema
+  Quando envio GET /api/investments com "Authorization: Token abc"
+  Então recebo o status 401, e não 400
+  E a mensagem é "Esperado: Authorization: Bearer <jwt>"
+  E a mesma frase descreve o bearerAuth em /api/openapi.json
 ```
 
 ### US10 — Ver apenas a minha carteira · RF04
@@ -111,6 +117,7 @@ seção detalhada logo em seguida.
 3. **TK09.3 · Modificar `src/models/Investment.ts`**: Consultas escopadas pelo `userId` do dono.
 4. **TK09.4 · Modificar o front**: Token em `localStorage` e cabeçalho `Authorization` na camada de API.
 5. **TK09.5 · Proteger as rotas e expor `GET /api/users/me`**: `isAuthenticated` em cada rota privada e o perfil de quem chama.
+6. **TK09.6 · Acrescentar `bearerSchema` e `cookieSessionSchema` em `src/schemas/auth.schema.ts`**: o `isAuthenticated` confere a forma do cabeçalho pelo schema, e o `openapi.ts` descreve o `bearerAuth` com a mesma frase.
 
 </Steps>
 
@@ -189,15 +196,15 @@ A verificação, recolhida acima, faz três conferências em ordem: recalcula a 
   cartão ou permissão que o servidor não possa reconferir.
 </Aside>
 
-O middleware então usa esse utilitário. A linha 7 lê o cabeçalho `authorization` e descarta a palavra `Bearer` com uma desestruturação que ignora o primeiro item do `split(' ')`. Sem token, a linha 10 já encerra com `401`.
+O middleware então usa esse utilitário, em duas verificações. A linha 9 confere a **forma** do cabeçalho com o `bearerSchema` da TK09.6 (`Bearer` e três blocos separados por ponto), e a linha 12 encerra com `401` devolvendo a mensagem do próprio schema. É `401`, e não o `400` do `validate`: cabeçalho errado é "identifique-se", não "campo inválido". Por isso o schema é chamado aqui dentro, e não como `validate(bearerSchema)` na rota, onde alguém poderia esquecê-lo.
 
-A linha 14 chama o `verifyJwt`, e a linha 17 é a que conecta o middleware ao resto da aplicação: `req.userId = payload.sub` deixa o dono da requisição disponível para qualquer rota que venha depois. O `sub` (de *subject*) é o campo padrão do JWT para identificar de quem é o token.
+A linha 15 só corta o prefixo `Bearer ` depois que a forma passou. A linha 19 chama o `verifyJwt`, a verificação de **confiança** (assinatura e expiração), e a linha 22 é a que conecta o middleware ao resto da aplicação: `req.userId = payload.sub` deixa o dono da requisição disponível para qualquer rota que venha depois. O `sub` (de *subject*) é o campo padrão do JWT para identificar de quem é o token.
 
 <SourceCode
   path="examples/courses/expressjs/projects/invest-app-auth/src/middlewares/isAuthenticated.ts"
   title="src/middlewares/isAuthenticated.ts"
   showLineNumbers
-  mark="7,10,14,17,22"
+  mark="9,12,15,19,22,26"
 />
 
 Para o TypeScript aceitar `req.userId`, o `Request` do Express precisa ser ampliado. É o que faz o arquivo abaixo, por *declaration merging* — ele não gera código nenhum, só ensina o compilador.
@@ -228,15 +235,15 @@ Repare no `catch` da linha 26: e-mail inexistente e senha errada produzem exatam
   mark="12,16,20,26"
 />
 
-O schema e o roteador que expõem esse controller são curtos. O `signinSchema` valida apenas
-e-mail e senha — sem `minlength`, porque conferir o tamanho da senha no login apenas diria ao
-atacante quando ele acertou o formato. O roteador é público por definição: é a porta de entrada
-de quem ainda não tem token.
+O roteador que expõe esse controller é curto e público por definição: é a porta de entrada
+de quem ainda não tem token. O `signinSchema` (linhas 3 a 8 do schema) valida apenas e-mail e
+senha — sem `minlength`, porque conferir o tamanho da senha no login apenas diria ao atacante
+quando ele acertou o formato. O restante do arquivo é a TK09.6, descrita a seguir.
 
 <CodeTabs
   files={[
-    { path: 'examples/courses/expressjs/projects/invest-app-auth/src/schemas/auth.schema.ts', label: 'auth.schema.ts' },
     { path: 'examples/courses/expressjs/projects/invest-app-auth/src/routes/auth.routes.ts', label: 'auth.routes.ts', mark: '9' },
+    { path: 'examples/courses/expressjs/projects/invest-app-auth/src/schemas/auth.schema.ts', label: 'auth.schema.ts', mark: '3-8' },
   ]}
 />
 
@@ -420,6 +427,21 @@ o `signinSchema` agora exige.
 
 {/* cobertura: src/docs/openapi.ts — o restante do diff acrescenta a resposta 401 às rotas que já
     existiam, repetindo a referência ao objeto `unauthorized` mostrado acima */}
+
+### TK09.6 · Acrescentar `bearerSchema` e `cookieSessionSchema` (A forma do cabeçalho em um schema)
+
+O `validate` da etapa 4 já monta `headers` e `cookies` como fontes. É aqui que a primeira delas ganha um schema. A constante `BEARER_FORMAT` da linha 14 é uma frase só, usada em dois lugares: na mensagem de erro do `bearerSchema` (linha 27) e na descrição do `bearerSecurityScheme` (linha 36), que o `openapi.ts` passa a usar no lugar do objeto escrito à mão. Mudar a frase muda o `401` e o `/api/docs` ao mesmo tempo.
+
+Repare no que o schema **não** faz: ele confere a forma (`Bearer` e três blocos separados por ponto, o *regex* da linha 27), não a assinatura. Quem decide se o token é de confiança continua sendo o `verifyJwt`. E é `z.object`, não `strictObject`, porque `req.headers` traz dezenas de chaves que não são erro.
+
+O `cookieSessionSchema` das linhas 43 a 45 é a mesma regra lida da outra fonte. Nenhuma rota o usa: ele existe para que a sessão em cookie `HttpOnly`, a alternativa ao `localStorage` discutida em [Autenticação](../../../auth/authentication/), tenha onde entrar sem reescrever o `validate`.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/invest-app-auth/src/schemas/auth.schema.ts"
+  title="src/schemas/auth.schema.ts"
+  showLineNumbers
+  mark="14,23-29,32-37,43-45"
+/>
 
 ## O fluxo
 
@@ -625,6 +647,8 @@ Uma linha (a 44) é o que separa uma API multiusuário de um vazamento de dados.
 - JWT HS256 assinado e verificado com `node:crypto`, sem dependência externa
 - `sub`, `iat` e `exp`: os campos padrão de um token
 - Middleware de autenticação populando `req.userId`
+- A forma do `Authorization` em um schema Zod, e a confiança no `verifyJwt`
+- O gancho `cookieSessionSchema` para uma sessão em cookie
 - Filtro por dono aplicado na consulta, e não depois dela
 - `select` impedindo o hash do dono de vazar no `include`
 - Sessão no front-end com `localStorage` e `401` derrubando o token
