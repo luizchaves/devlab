@@ -240,7 +240,11 @@ Convenções dessas trilhas, já estabelecidas no código:
   MonitorApp usam `tsx`; a TaskAPI executa `.ts` nativamente, sem `tsx` e sem build.
 - **Autenticação sem dependência externa**: `node:crypto` para hash de senha e para
   assinar o JWT. Não instale `bcrypt`, `jsonwebtoken` nem `dotenv`.
-- **Zod** para validação estrita de `body`, `query` e `params`.
+- **Zod** para validação estrita de `body`, `query`, `params`, `headers` e `cookies` (o
+  `validate` monta as cinco fontes; `cookies` vem de um `parseCookies` próprio, sem
+  `cookie-parser`). A forma do `Authorization: Bearer <jwt>` é o `bearerSchema` de
+  `schemas/auth*.ts`, consumido pelo middleware de autenticação (que continua respondendo
+  `401`) e pelo `securitySchemes` do OpenAPI.
 - **Prisma 7** com driver adapter (`@prisma/adapter-better-sqlite3`) nas etapas
   atuais; projetos antigos ainda em Prisma 5/6 e Express 4 são legado — não os
   migre de passagem.

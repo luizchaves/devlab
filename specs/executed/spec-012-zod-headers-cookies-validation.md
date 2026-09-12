@@ -1,6 +1,6 @@
 # Spec 012 — Validating `Authorization` and Cookies with Zod
 
-Status: **Active**
+Status: **Completed**
 Date: 2026-09-11
 Related: `docs/TODO.md` → `[TASK-033.5]`, `[TASK-034.1]`
 
@@ -240,4 +240,36 @@ only `schemas/auth.ts`.
 
 ## Result
 
-_To be filled when the spec is executed._
+Executed on 2026-09-11 in four commits (`f3d15c8f`, `baa52a65`, `0083a26d` and the
+closing one), one per trail plus closing.
+
+| Measure | Before | After |
+| ------- | ------ | ----- |
+| `validate.ts` copies building five sources | 0 / 26 | **26 / 26** |
+| Auth middlewares reading `req.headers.authorization` by hand | 11 | **0** (all go through `bearerSchema`; the only remaining read is `parsed.data.headers.authorization` after the schema) |
+| `parseCookies` (`utils/cookies.ts`) | 0 projects | 26 projects, no `cookie-parser` |
+| `securitySchemes.bearerAuth` derived from the schema | 0 | 11 (TaskAPI 9–12, InvestApp 9–12, MonitorApp 10–12) |
+| Step-12 tests | TaskAPI 21 · InvestApp 20 · MonitorApp 26 | **26 · 25 · 31** (`parseCookies` unit tests + `Authorization: Token abc` → `401` with the schema message) |
+| Backlog criteria / tasks | TaskAPI 127/67 · InvestApp 83/51 · MonitorApp — | 130/70 · 86/54 · +3 CA / +4 TK |
+
+Deviations from the plan:
+
+- `securitySchemes` only existed from the authentication step on in every trail, so the
+  planned "steps 6–8 keep the hand-written declaration" case never arose.
+- The `openapi.ts` files of InvestApp and MonitorApp were changed without shifting any
+  line (the `bearerSecurityScheme` import was added to the existing `auth.schema` import
+  line), so the `lines=` references of `auth.mdx`, `upload.mdx`, `user.mdx`, `prisma.mdx`,
+  `swagger.mdx` and `realtime.mdx` stayed valid.
+- The step-12 `routes.test.ts` of InvestApp and MonitorApp grew by 9 and 7 lines; the
+  `lines=`, `mark=` and `collapse=` references in `testing.mdx` were shifted accordingly and
+  `pnpm check:doc-lines` passes.
+- The MonitorApp step-10 page listed `TK10.6` as a section but not in the `<Steps>` list;
+  fixed in passing, since the list was being edited anyway.
+
+Known, pre-existing and out of scope: `pnpm test` in `task-api-hardening` and
+`task-api-services` fails on `jwt.test.ts` because those steps' `test` script does not load
+`.env` (only step 12 does). It failed identically before this spec.
+
+Validation run: `pnpm lint`, `pnpm check`, `pnpm build:fast`, `pnpm check:links`,
+`pnpm check:doc-lines` all pass; `pnpm test` passes in `task-api-test` (26),
+`invest-app-test` (25, plus `front:test` 8) and `monitor-app-test/back` (31).
