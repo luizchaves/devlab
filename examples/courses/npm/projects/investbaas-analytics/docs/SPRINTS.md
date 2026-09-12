@@ -13,7 +13,7 @@ do Supabase e completam a arquitetura BaaS planejada no PRD.
 | Sprint 3 | PostgreSQL, migrations, RLS, ativos e transações | 13 | Concluído |
 | Sprint 4 | Edge Functions para cotações e atualização diária de preços | 8 | Concluído |
 | Sprint 5 | Supabase Storage, comprovantes privados e URLs assinadas | 5 | Concluído |
-| Sprint 6 | Analytics, AUM, painel administrativo e status operacional | 13 | Planejado |
+| Sprint 6 | Analytics, AUM, painel administrativo e status operacional | 13 | Concluído |
 | Sprint 7 | Origem (treemap por corretora, categoria e emissor) e aportes vs. valor | 8 | Planejado |
 
 ## Sprint 1 - Frontend estático e governança

@@ -113,28 +113,34 @@ flowchart LR
 
 ## Estrutura da aplicação
 
-`analytics.html` e `admin.html` existem como *mockups* na Sprint 1. Os módulos e migrations abaixo são a entrega esperada para conectá-los com dados reais.
+A sprint nasce como cópia da Sprint 5 mais o delta: duas migrations (views e funções), um módulo puro de cálculo, a guarda por papel, dois serviços e as duas páginas ligadas. Nenhuma tabela nova.
 
-<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer="investbaas-static" />
+<ProjectLinks path="examples/courses/npm/projects/investbaas-analytics" devcontainer="investbaas-analytics" />
 
 <FileTree>
 {`
-  investbaas-static/
+  investbaas-analytics/
   ├── supabase/migrations/
-  │   ├── 0010_analytics_views.sql     monthly_returns e allocation_by_category
-  │   ├── 0011_admin_metrics.sql       admin_metrics() e policy de quote_runs
-  │   └── 0012_admin_role_policy.sql   leitura de profiles.role pelo front
+  │   ├── 20260912000009_analytics_views.sql   TK06-1, TK06-4: position_at(), monthly_returns, allocation_by_category
+  │   └── 20260912000010_admin_metrics.sql     TK06-5, TK06-6, TK06-7: is_admin(), admin_metrics(), policy de quote_runs, ping()
   ├── src/
+  │   ├── lib/
+  │   │   ├── returns.js                       TK06-2, TK06-3: monthlyPct(), yearlyPct(), matrixByYear()
+  │   │   └── returns.test.js
+  │   ├── guards/
+  │   │   ├── require-admin.js                 TK06-6
+  │   │   └── require-admin.test.js
   │   ├── services/
-  │   │   ├── analytics.js             views da sessão
-  │   │   └── admin.js                 admin_metrics() e status
-  │   ├── lib/returns.js               acumulado anual (função pura)
-  │   ├── guards/require-admin.js      guarda por papel
+  │   │   ├── analytics.js                     as duas views
+  │   │   └── admin.js                         admin_metrics() e as cinco sondas
   │   └── pages/
-  │       ├── analytics.js             matriz e distribuição
-  │       └── admin.js                 métricas e status operacional
-  ├── analytics.html
-  └── admin.html
+  │       ├── analytics.js                     TK06-3, TK06-4: matriz e distribuição
+  │       └── admin.js                         TK06-6, TK06-7: métricas e status
+  ├── tests/
+  │   ├── integration/analytics.test.js        views e funções com a planilha de referência
+  │   └── e2e/analytics.spec.js                matriz, redirecionamento e painel admin
+  ├── analytics.html                           tbody vazio, seção de distribuição
+  └── admin.html                               métricas com data-metric e cinco luzes de status
 `}
 </FileTree>
 
@@ -151,198 +157,123 @@ As duas telas de leitura da Sprint 1 passam a ler dados de verdade, e o painel a
 | `quote_runs` fechada | Policy de leitura só para `admin` |
 | Célula sem dado renderizada como `0` | Célula vazia com `—` e sem cor |
 
-<Aside type="note" title="O código desta etapa é o alvo, não o repositório">
-  Os trechos abaixo mostram o que cada task escreve quando a sprint for executada sobre o
-  `investbaas-static`. Eles não vêm de arquivos de `examples/`, e por isso não têm caminho de
-  arquivo no título. A [Sprint 1](../front-static/) é a única com código versionado.
-</Aside>
-
 ## Descrição das tarefas
 
-Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código que cada uma produz.
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto.
 
 ### TK06-1 · Criar a view de rentabilidade mensal
 
-O retorno de um mês é a variação do patrimônio **descontados os aportes**: se a carteira valia 10.000, recebeu 1.000 de compras e fechou em 11.500, o ganho de mercado foi 500, não 1.500. A view calcula, para cada investidor e mês, o valor da carteira no último dia com cotação e o fluxo líquido de transações; a diferença entre meses consecutivos, menos o fluxo, é o retorno.
+O retorno de um mês é a variação do patrimônio **descontados os aportes**: se a carteira valia 10.000, recebeu 1.000 de compras e fechou em 11.500, o ganho de mercado foi 500, não 1.500. A view calcula, para cada investidor e mês, o valor da carteira na última cotação do mês (posição × preço) e o fluxo líquido de transações; a diferença entre meses consecutivos, menos o fluxo, é o retorno. A posição em uma data sai de `position_at()`, uma função SQL que a Sprint 7 também vai usar.
 
-```sql title="View monthly_returns (alvo de supabase/migrations/0010_analytics_views.sql)"
-create view public.monthly_returns with (security_invoker = true) as
-with month_value as (
-  -- Patrimonio de cada ativo no ultimo dia com cotacao do mes
-  select a.user_id, date_trunc('month', q.quote_date)::date as month,
-         sum(p.quantity * q.price) as value
-  from public.assets a
-  join public.quotes_history q on q.asset_id = a.id
-  join lateral (
-    select coalesce(sum(case when t.type = 'buy' then t.quantity else -t.quantity end), 0) as quantity
-    from public.transactions t
-    where t.asset_id = a.id and t.transaction_date <= q.quote_date
-  ) p on true
-  where q.quote_date = (
-    select max(quote_date) from public.quotes_history
-    where asset_id = a.id and date_trunc('month', quote_date) = date_trunc('month', q.quote_date)
-  )
-  group by a.user_id, 2
-),
-month_flow as (
-  select user_id, date_trunc('month', transaction_date)::date as month,
-         sum(case when type = 'buy' then quantity * price else -quantity * price end) as net_flow
-  from public.transactions
-  group by user_id, 2
-)
-select v.user_id, v.month,
-       v.value,
-       coalesce(f.net_flow, 0) as net_flow,
-       v.value
-         - coalesce(lag(v.value) over (partition by v.user_id order by v.month), 0)
-         - coalesce(f.net_flow, 0) as return_brl
-from month_value v
-left join month_flow f on f.user_id = v.user_id and f.month = v.month;
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/supabase/migrations/20260912000009_analytics_views.sql"
+  title="supabase/migrations/20260912000009_analytics_views.sql"
+  region="position"
+/>
 
-`security_invoker = true` é a linha que mantém o RLS: a view roda com os privilégios de quem consulta, então o `auth.uid()` das policies de `assets` e `transactions` continua filtrando. Sem essa opção, a view rodaria como o dono (o `postgres`) e devolveria a matriz de todo mundo.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/supabase/migrations/20260912000009_analytics_views.sql"
+  title="supabase/migrations/20260912000009_analytics_views.sql"
+  region="monthly_returns"
+/>
+
+`security_invoker = true` é a linha que mantém o RLS: a view roda com os privilégios de quem consulta, então o `auth.uid()` das policies de `assets` e `transactions` continua filtrando. Sem essa opção, a view rodaria como o dono (o `postgres`) e devolveria a matriz de todo mundo; o teste de integração consulta como Bruno e recebe lista vazia.
 
 ### TK06-2 · Calcular o acumulado anual
 
-O acumulado do ano não é a soma dos retornos mensais em reais dividida pelo patrimônio: é a **composição** dos percentuais. Um mês de +10% seguido de -10% deixa a carteira em 99%, não em 100%. A função é pura e recebe a lista de meses da view.
+O acumulado do ano não é a soma dos retornos: é a **composição** dos percentuais. Um mês de +10% seguido de -10% deixa a carteira em 99%, não em 100%, e há um teste só para isso. A função é pura e recebe a lista de meses da view; mês sem dado devolve `null`, e `null` não entra na composição. É o que impede um mês sem cotação de virar "0%" e achatar o ano.
 
-```js title="Composicao anual (alvo de src/lib/returns.js)"
-export function monthlyPct(row) {
-  const base = Number(row.value) - Number(row.return_brl);
-  return base ? Number(row.return_brl) / base : null;
-}
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/src/lib/returns.js"
+  title="src/lib/returns.js"
+  region="yearly"
+/>
 
-export function yearlyPct(rows) {
-  const factors = rows.map(monthlyPct).filter((pct) => pct !== null);
-  if (factors.length === 0) return null;
-  return factors.reduce((acc, pct) => acc * (1 + pct), 1) - 1;
-}
-```
-
-Mês sem dado devolve `null`, e `null` não entra na composição. É o que impede um mês sem cotação de virar "0%" e achatar o ano.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/src/lib/returns.test.js"
+  title="src/lib/returns.test.js"
+  region="unit"
+/>
 
 ### TK06-3 · Ligar `analytics.html` à view
 
-A tela pede a view pelo SDK, agrupa por ano e desenha a matriz que a Sprint 1 desenhou à mão. A lógica de cor é a mesma do protótipo (verde para positivo, vermelho para negativo), e a célula sem dado recebe `—`, sem classe de cor.
+A tela pede a view pelo SDK, agrupa por ano com `matrixByYear()` e desenha a matriz que a Sprint 1 desenhou à mão. A lógica de cor é a mesma do protótipo (verde para positivo, rosa para negativo), e a célula sem dado recebe `—`, sem classe de cor. Repare que a consulta não filtra `user_id`: a view é `security_invoker`, e o RLS entrega só os meses de quem está logado.
 
-```js title="Da view para a matriz (alvo de src/pages/analytics.js)"
-import { supabase } from '../lib/supabase-client.js';
-import { monthlyPct, yearlyPct } from '../lib/returns.js';
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/src/pages/analytics.js"
+  title="src/pages/analytics.js"
+  region="matrix"
+/>
 
-const { data: rows } = await supabase
-  .from('monthly_returns')
-  .select('month, value, net_flow, return_brl')
-  .order('month');
+### TK06-4 · Criar a distribuição por classe
 
-const byYear = Object.groupBy(rows, (row) => row.month.slice(0, 4));
+A distribuição é uma view curta: posição atual × cotação atual, somadas por categoria. A tela mostra o valor e a fatia de cada classe em uma barra.
 
-for (const [year, months] of Object.entries(byYear)) {
-  const cells = Array.from({ length: 12 }, (_, i) => {
-    const row = months.find((m) => Number(m.month.slice(5, 7)) === i + 1);
-    return row ? monthlyPct(row) : null;
-  });
-
-  matrixBody.append(renderYearRow(year, cells, yearlyPct(months)));
-}
-```
-
-Repare que a consulta não filtra `user_id`: a view é `security_invoker`, e o RLS entrega só os meses de quem está logado.
-
-### TK06-4 · Criar a distribuição por classe e a evolução patrimonial
-
-A distribuição é uma view curta sobre `assets` e a posição atual; a evolução patrimonial reutiliza `month_value` da TK06-1, então a migration a expõe como uma segunda view em vez de repetir o SQL.
-
-```sql title="View allocation_by_category (continuacao de 0010_analytics_views.sql)"
-create view public.allocation_by_category with (security_invoker = true) as
-select a.user_id, a.category,
-       sum(p.quantity * coalesce(a.current_price, 0)) as value
-from public.assets a
-join lateral (
-  select coalesce(sum(case when type = 'buy' then quantity else -quantity end), 0) as quantity
-  from public.transactions where asset_id = a.id
-) p on true
-group by a.user_id, a.category;
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/supabase/migrations/20260912000009_analytics_views.sql"
+  title="supabase/migrations/20260912000009_analytics_views.sql"
+  region="allocation"
+/>
 
 ### TK06-5 · Criar a métrica administrativa agregada
 
-`admin_metrics()` devolve **uma linha**: contas ativas, AUM (a soma de todas as carteiras) e o instante da última execução de cotações. Ela é `security definer` para enxergar todas as contas, e por isso a primeira coisa que faz é conferir o papel de quem chama. Um investidor recebe zero linhas.
+`admin_metrics()` devolve **uma linha**: contas ativas, AUM (a soma de todas as carteiras) e o instante da última execução de cotações. Ela é `security definer` para enxergar todas as contas, e por isso a primeira coisa que faz é conferir o papel de quem chama, por `is_admin()`, a única definição de "é admin" do banco. Um investidor recebe zero linhas, e o `exists` fica por fora da agregação, a lição da Sprint 5.
 
-```sql title="Funcao admin_metrics (alvo de supabase/migrations/0011_admin_metrics.sql)"
-create function public.admin_metrics()
-returns table (active_accounts bigint, aum numeric, last_quote_run timestamptz)
-language sql security definer set search_path = public as $$
-  select
-    (select count(*) from public.profiles),
-    (select coalesce(sum(value), 0) from public.allocation_by_category),
-    (select max(ran_at) from public.quote_runs)
-  where exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
-$$;
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/supabase/migrations/20260912000010_admin_metrics.sql"
+  title="supabase/migrations/20260912000010_admin_metrics.sql"
+  region="is_admin"
+/>
 
-create policy "quote_runs: admin le" on public.quote_runs
-  for select using (
-    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
-  );
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/supabase/migrations/20260912000010_admin_metrics.sql"
+  title="supabase/migrations/20260912000010_admin_metrics.sql"
+  region="admin_metrics"
+/>
 
-A agregação acontece **dentro** da função. Uma alternativa que devolvesse uma linha por conta para o JavaScript somar já teria exposto o patrimônio de cada pessoa, ainda que a tela mostrasse só o total.
+A agregação acontece **dentro** da função. Uma alternativa que devolvesse uma linha por conta para o JavaScript somar já teria exposto o patrimônio de cada pessoa, ainda que a tela mostrasse só o total. O E2E do admin grava todas as respostas da API durante o carregamento do painel e afirma que nenhuma contém `"ticker"` ou `"quantity"`.
 
 ### TK06-6 · Proteger o painel por papel
 
-A guarda de admin estende a de sessão: além de exigir login, lê `profiles.role`. Como a policy de `profiles` da Sprint 2 só deixa cada pessoa ler a própria linha, essa consulta é segura por construção. E, como toda guarda de front, ela é cortesia: quem realmente barra o investidor é o `exists` da função `admin_metrics()`.
+A guarda de admin estende a de sessão: além de exigir login, lê `profiles.role`. Como a policy de `profiles` da Sprint 2 só deixa cada pessoa ler a própria linha, essa consulta é segura por construção. E, como toda guarda de front, ela é cortesia: quem realmente barra o investidor é o `is_admin()` dentro de `admin_metrics()`. O papel é promovido no SQL Editor, nunca por uma tela; o grant por coluna da Sprint 2 garante que nem o próprio usuário consegue se promover pelo SDK.
 
-```js title="Guarda por papel (alvo de src/guards/require-admin.js)"
-import { supabase } from '../lib/supabase-client.js';
-import { requireSession } from './require-session.js';
-
-export async function requireAdmin() {
-  const session = await requireSession();
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', session.user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
-    window.location.replace('./dashboard.html');
-    return new Promise(() => {});
-  }
-
-  return session;
-}
-```
-
-O papel é promovido no SQL Editor, nunca por uma tela: `update public.profiles set role = 'admin' where id = '<id>'`. Não existe policy de `update` em `role`, então nem o próprio usuário consegue se promover pelo SDK.
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/src/guards/require-admin.js"
+  title="src/guards/require-admin.js"
+  region="guard"
+/>
 
 ### TK06-7 · Exibir o status operacional
 
-Os cinco indicadores do `admin.html` da Sprint 1 ganham fonte. Cada um é uma chamada barata e independente, e um indicador que falha não derruba os outros: o `Promise.allSettled` transforma cada resultado em verde, vermelho ou "sem dado".
+Os cinco indicadores do `admin.html` da Sprint 1 ganham fonte. Cada um é uma chamada barata e independente, e um indicador que falha não derruba os outros: o `Promise.allSettled` transforma cada resultado em verde ou vermelho.
 
 | Indicador | Como é medido | Verde quando |
 | --------- | ------------- | ------------ |
 | Auth | `supabase.auth.getSession()` | há sessão válida |
-| Banco | `select 1` via `rpc('ping')` ou leitura de `profiles` | responde em menos de 1 s |
+| Banco | `rpc('ping')`, uma função que não toca em tabela | responde `pong` |
 | Cotações | `last_quote_run` de `admin_metrics()` | última execução nas últimas 24 h |
-| Storage | `admin_receipts_stats()` da Sprint 5 | a função responde |
-| Jobs | `select * from cron.job_run_details order by 1 desc limit 1` via função `security definer` | último status é `succeeded` |
+| Storage | `rpc('admin_receipts_stats')` da Sprint 5 | a função responde |
+| Jobs | última linha de `quote_runs`, agora legível por admin | sem falhas |
 
-```js title="Status com falhas independentes (trecho de src/pages/admin.js)"
-const checks = await Promise.allSettled([checkAuth(), checkDatabase(), checkQuotes(), checkStorage(), checkJobs()]);
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/src/services/admin.js"
+  title="src/services/admin.js"
+  region="checks"
+/>
 
-checks.forEach((result, i) => {
-  const ok = result.status === 'fulfilled' && result.value;
-  statusCells[i].dataset.status = ok ? 'up' : 'down';
-});
-```
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/src/pages/admin.js"
+  title="src/pages/admin.js"
+  region="status"
+/>
 
 ### TK06-8 · Revisar a responsividade com dados reais
 
-A matriz tem treze colunas, e em um celular ela não cabe. O protótipo já a envolvia em `overflow-x-auto`; com dados reais a revisão confere três coisas: a primeira coluna (ano) fixa com `sticky left-0` enquanto os meses rolam, a fonte não menor que `text-xs`, e a tabela do admin quebrando em cartões abaixo de `sm`. A verificação é feita no *device toolbar* do navegador, em 375 px e 1280 px.
+A matriz tem catorze colunas, e em um celular ela não cabe. O protótipo já a envolvia em `overflow-x-auto`; com dados reais a revisão confere que a matriz rola dentro do próprio cartão sem barra lateral na página, que a fonte não fica menor que `text-xs` e que os cinco cartões de status quebram em duas colunas abaixo de `sm`. A verificação é feita no *device toolbar* do navegador, em 375 px e 1280 px.
 
 ### TK06-9 · Documentar limites e próximos passos
 
-A última task não escreve código: atualiza o `README.md` do projeto com o que a versão sabe e não sabe fazer. Entram as premissas do cálculo (retorno mensal pelo último dia com cotação, aportes descontados, categorias sem ticker com preço manual), os atrasos conhecidos (cotação uma vez por dia) e os riscos (rate limit em memória inexistente, sem teste automatizado). É o material que alimenta a página de [próximos passos](../next-steps/).
+A última task não escreve código: atualiza o `README.md` do projeto com o que a versão sabe e não sabe fazer. Entram as premissas do cálculo (retorno mensal pela última cotação do mês, aportes descontados, categorias sem ticker com preço manual), os atrasos conhecidos (cotação uma vez por dia) e o que ficou para a [Sprint 7](../origins/) e os [próximos passos](../next-steps/).
 
 ## Leitura do protótipo
 
@@ -371,47 +302,85 @@ O arquivo atual é referência de interface, não algoritmo financeiro. Ele cont
 
 ## Testando
 
-O cálculo se prova com um conjunto pequeno o bastante para conferir na mão. Como Ana, cadastre `PETR4`, registre uma compra de 100 a `R$ 30,00` em 10 de janeiro e outra de 100 a `R$ 32,00` em 10 de fevereiro, e insira as cotações abaixo pelo SQL Editor (a Edge Function faria isso, mas o teste precisa de datas passadas).
-
-```sql title="SQL Editor: cotacoes de referencia"
-insert into public.quotes_history (asset_id, price, quote_date)
-select id, p.price, p.quote_date
-from public.assets, (values (31.0, date '2026-01-31'), (33.0, date '2026-02-28')) as p(price, quote_date)
-where ticker = 'PETR4';
-```
-
-A planilha de referência tem duas linhas, e a view precisa reproduzi-las:
+O cálculo se prova com um conjunto pequeno o bastante para conferir na mão, e ele é o mesmo nas três camadas. Como Ana: `PETR4`, compra de 100 a `R$ 30,00` em 10 de janeiro e outra de 100 a `R$ 34,00` em 10 de fevereiro; cotações `R$ 31,00` em 31 de janeiro e `R$ 33,00` em 28 de fevereiro; março sem nada.
 
 | Mês | Patrimônio no fim | Aportes | Retorno (R$) | Retorno (%) |
 | --- | ----------------- | ------- | ------------ | ----------- |
 | jan | 100 × 31 = 3.100 | 3.000 | 3.100 − 0 − 3.000 = **100** | 100 / 3.000 = **3,33%** |
-| fev | 200 × 33 = 6.600 | 3.200 | 6.600 − 3.100 − 3.200 = **300** | 300 / 6.300 = **4,76%** |
+| fev | 200 × 33 = 6.600 | 3.400 | 6.600 − 3.100 − 3.400 = **100** | 100 / 6.500 = **1,54%** |
+| mar | sem cotação | 0 | **—** | **—** |
+| ano | | | | (1,0333 × 1,0154) − 1 = **4,92%** |
 
-```sql title="SQL Editor: a view como a Ana"
-select month, value, net_flow, return_brl from public.monthly_returns order by month;
--- Esperado: 2026-01-01 | 3100 | 3000 | 100  e  2026-02-01 | 6600 | 3200 | 300 (CA06.2)
+| Camada | Comando | O que prova | Tasks |
+| ------ | ------- | ----------- | ----- |
+| Unidade (Vitest) | `pnpm test:unit` | os percentuais da planilha, a composição (+10%/−10% ≠ 0%), a lacuna como `null`, a matriz por ano; a guarda de admin | TK06-2, TK06-3, TK06-6 |
+| Integração (Vitest + SDK real) | `pnpm test:integration` | `monthly_returns` devolve exatamente as duas linhas da planilha e nenhuma para março; Bruno vê lista vazia; `allocation_by_category` = 6.600; `admin_metrics()` vazio/uma linha; `quote_runs` por papel; ninguém se promove; `ping()` | TK06-1, TK06-4, TK06-5, TK06-6, TK06-7 |
+| E2E (Playwright) | `pnpm test:e2e` | a matriz nasce dos aportes e da cotação da Edge Function, com `—` nos meses sem dado; investidor sai do admin; admin vê totais e luzes, e nenhuma resposta traz `ticker` ou `quantity` | CA06.1 a CA06.5, RNF05 |
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-analytics/tests/integration/analytics.test.js"
+  title="tests/integration/analytics.test.js"
+  region="returns"
+/>
+
+```bash title="Terminal"
+pnpm test
 ```
 
-Março não tem cotação nem transação: a matriz mostra `—` na célula e o acumulado do ano fica em `(1,0333 × 1,0476) − 1 = 8,25%`, sem que o mês vazio o dilua (CA06.1). Logado como Bruno, a mesma view devolve zero linhas (CA06.3).
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/lib/returns.test.js (6 tests)
+ ✓ |unit| src/guards/require-admin.test.js (2 tests)
+ ✓ |unit| (as suítes das sprints 2 a 5: 31 tests)
+ ✓ |integration| tests/integration/analytics.test.js (8 tests)
+ ✓ |integration| (as suítes das sprints 2 a 5: 32 tests)
 
-Para o painel, promova a Ana no SQL Editor (`update public.profiles set role = 'admin' where id = '<id da Ana>'`) e compare as duas contas:
+ Test Files  16 passed (16)
+      Tests  79 passed (79)
+```
 
-| Verificação | Como Bruno (investidor) | Como Ana (admin) | Critério |
-| ----------- | ----------------------- | ---------------- | -------- |
-| Abrir `admin.html` | redireciona para `dashboard.html` | abre | CA06.4 |
-| `select * from admin_metrics()` no console | `data: []` | uma linha com `active_accounts`, `aum` e `last_quote_run` | CA06.5 |
-| `select * from quote_runs` | `data: []` | as execuções | CA06.5 |
-| Aba **Network** durante o carregamento do admin | — | nenhuma resposta contém `ticker`, `quantity` ou `user_id` | RNF05 |
+```bash title="Terminal"
+pnpm test:e2e
+```
+
+```txt title="Output" frame="terminal"
+  ✓ a matriz nasce dos aportes e das cotacoes, com lacuna nos meses sem dado (CA06.1, CA06.2)
+  ✓ investidor e mandado de volta ao abrir o admin (CA06.4)
+  ✓ admin ve totais e status, nunca posicoes (CA06.5, TK06-7)
+  ✓ (os onze testes das sprints 2 a 5)
+
+  14 passed (40.0s)
+```
+
+Escrever a planilha à mão foi o que pegou um erro **na página**, não no código: a primeira versão desta tabela somava o aporte de fevereiro como 3.200, e a view devolveu 3.400 (100 × 34). O teste de integração compara com a planilha, e a planilha estava errada. Confira o cálculo de referência antes de confiar nele.
 
 ## Executando
 
-A Sprint 6 depende das migrations e dos dados reais das etapas anteriores. Use uma planilha de referência pequena para validar cálculo antes de aplicar dados de demonstração maiores.
-
 <Steps>
 
-1. **Prepare um conjunto conhecido**: duas contas, transações, preços e pelo menos um mês sem cotação.
-2. **Valide a consulta**: compare cada célula e acumulado com cálculo externo documentado.
-3. **Teste papéis**: entre como investidor e administrador, verificando tanto o acesso permitido quanto a resposta que não deve chegar ao navegador.
+1. Entre no projeto, instale e suba a stack:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investbaas-analytics
+   pnpm install
+   pnpm db:start
+   supabase status -o env   # preencha o .env
+   pnpm db:reset
+   ```
+
+2. Suba o Vite, cadastre um ativo de bolsa com dois aportes, atualize as cotações e abra `analytics.html`:
+
+   ```bash title="Terminal"
+   pnpm dev
+   ```
+
+3. Promova uma conta no SQL Editor (`update public.profiles set role = 'admin' where id = '<id>'`) e abra `admin.html` com ela.
+
+4. Rode as suítes:
+
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
 
 </Steps>
 

@@ -93,8 +93,10 @@ describe.skipIf(!hasStack)('Sprint 4 contra o edge runtime local', () => {
 
     expect(after).toBe(before + 1);
 
-    const { error } = await ana.client.from('quote_runs').select('id');
-    expect(error.code).toBe('42501');
+    // Sprint 6: authenticated tem select, mas a policy so libera admin -> lista vazia.
+    const { data, error } = await ana.client.from('quote_runs').select('id');
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
   });
 
   it('TK04-2: a chamada agendada usa a chave de servico e nao precisa de sessao', async () => {

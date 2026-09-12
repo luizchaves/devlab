@@ -18,9 +18,9 @@ Markdown/MDX e o código dos tópicos e exemplos existe de verdade, em projetos 
 | ----------------------------- | --------------------------------------------- |
 | Cursos e guias                | 15 (`src/lib/courses.ts`)                     |
 | Páginas de tópicos            | 479 arquivos `.mdx`                           |
-| Projetos executáveis          | 91 projetos em `examples/courses/`            |
+| Projetos executáveis          | 92 projetos em `examples/courses/`            |
 | Slides / mapas mentais        | 66 / 66 em `materials/`                       |
-| Devcontainers (Codespaces)    | 29 pastas em `.devcontainer/`                 |
+| Devcontainers (Codespaces)    | 30 pastas em `.devcontainer/`                 |
 | Idioma                        | Português do Brasil                           |
 
 ## Regras invioláveis
@@ -331,6 +331,9 @@ use as skills locais do próprio projeto: `task-spec-generator`, `task-pr-finali
 spec, PR, review, correção de bugs, Kanban, releases próprias, verificação de CI e hooks
 (`.github/workflows/`, `.husky/`, `pre-commit` e `pre-push`) dentro do projeto em foco.
 Cada projeto prático mantém o próprio mapa dos fluxos em `docs/agent-skill-workflows.md`.
+Os projetos `invest-app-*`, `monitor-app-*`, `task-api-*` e `investbaas-*` possuem
+Husky configurado com `.husky/pre-commit` e `.husky/pre-push`; o runner
+`scripts/run-git-hook.mjs` executa apenas os scripts existentes em cada pacote.
 
 ### Validação ao alterar Skills
 

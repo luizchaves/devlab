@@ -1,9 +1,9 @@
-# InvestBaaS — Sprint 5: Armazenamento de comprovantes
+# InvestBaaS — Sprint 6: Analytics e painel admin
 
-Quinta sprint do InvestBaaS: cada aporte ou resgate pode receber um comprovante (PDF, PNG ou
-JPG até 5 MB) em um bucket **privado** do Supabase Storage. O *path* é `<user>/<transação>/<uuid>`,
-as policies em `storage.objects` só deixam o dono enviar e ler a própria pasta, a transação guarda
-só o *path*, e a leitura acontece por URL assinada de 60 segundos. Sprints 2 a 4 incluídas.
+Sexta sprint do InvestBaaS: a matriz de rentabilidade e a distribuição por classe passam a vir
+de views `security_invoker` (`monthly_returns`, `allocation_by_category`), e o painel
+administrativo ganha `admin_metrics()` (uma linha agregada, só para `role = 'admin'`), a
+guarda por papel e o status dos serviços. Sprints 2 a 5 incluídas.
 
 ## Pré-requisitos
 
@@ -56,10 +56,10 @@ pronta para o login.
 
 | Comando | Camada | O que prova |
 | ------- | ------ | ----------- |
-| `pnpm test:unit` | Vitest + jsdom, SDK mockado | `validateReceipt()` e `receiptPath()` (TK05-3, TK05-4), `uploadReceipt()` e `receiptUrl()` (TK05-4, TK05-5) e as sprints anteriores |
-| `pnpm test:integration` | Vitest + node, SDK real contra o Storage local | bucket privado com limite e tipos (TK05-1), upload do dono, tipo recusado pelo bucket, pasta alheia barrada pela policy (TK05-2), URL assinada que abre, path alheio "not found", URL pública recusada (CA05.3, CA05.4, RNF04), contagem agregada só para admin (TK05-7) |
-| `pnpm test` | as duas anteriores | 63 testes |
-| `pnpm test:e2e` | Playwright + Vite + stack local | anexar um PDF ao aporte, ver o path guardado e a URL assinada entregando o arquivo; `.exe` recusado antes do upload (CA05.1 a CA05.5) |
+| `pnpm test:unit` | Vitest + jsdom, SDK mockado | `monthlyPct`, `yearlyPct` (composição, não soma) e `matrixByYear` (TK06-2, TK06-3); `requireAdmin` (TK06-6); e as sprints anteriores |
+| `pnpm test:integration` | Vitest + node, SDK real contra a stack local | `monthly_returns` reproduz a planilha de referência e omite o mês sem cotação (CA06.1, CA06.2); Bruno não vê a série da Ana (CA06.3); `allocation_by_category`; `admin_metrics()` vazio para investidor e uma linha para admin (CA06.5); `quote_runs` só para admin; ninguém se promove; `ping()` |
+| `pnpm test` | as duas anteriores | 79 testes |
+| `pnpm test:e2e` | Playwright + Vite + stack local | matriz com lacunas a partir de aportes e cotação real; investidor redirecionado do admin; admin vê totais e status e nenhuma resposta traz `ticker` ou `quantity` (CA06.1 a CA06.5, RNF05) |
 
 ## Dependências
 
@@ -72,11 +72,21 @@ pronta para o login.
 
 ## Telas
 
-| Página | Sprint 5 |
+| Página | Sprint 6 |
 | ------ | -------- |
-| `asset.html?id=…` | campo de comprovante no lançamento e botão **Ver comprovante** por linha; o resto como nas sprints 3 e 4 |
+| `analytics.html` | matriz mês × ano e distribuição por classe vindas das views |
+| `admin.html` | `requireAdmin()`, contas ativas, AUM, última execução de cotações e cinco luzes de status |
 | `signup.html`, `signin.html`, `analytics.html`, `admin.html`, `index.html` | como na Sprint 2 |
 
 ## Modelo
 
 `profiles` → `brokers` (corretora, por dono) → `assets` (`broker_id`, `issuer`, `category`, `current_price`) → `transactions` (fato imutável: `buy`/`sell`, quantidade, preço, data) e `quotes_history` (uma cotação por ativo e dia, escrita só pela Edge Function da Sprint 4). Toda tabela tem RLS ligado e policies por `auth.uid()`; os grants são explícitos por papel.
+
+## Promover um administrador
+
+O papel nunca é alterado por uma tela: uma conta comum recebe `42501` ao tentar. No SQL Editor
+(ou com a chave de serviço nos testes):
+
+```sql
+update public.profiles set role = 'admin' where id = '<id da conta>';
+```
