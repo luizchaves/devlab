@@ -148,9 +148,10 @@
   - [ ] `[TASK-016.1]` Criar `PRD.md` com as features e o `README`
   - [ ] `[TASK-016.2]` Definir Requisitos Não Funcionais (RNF), garantindo um bom design responsivo (Mobile-First / layout adaptável)
   - [ ] `[TASK-016.3]` Verificar e Auditar a segurança dos projetos contra vulnerabilidades comuns (ex: CSRF, XSS, CORS mal configurado, SQL Injection)
-  - [ ] `[TASK-016.4]` Definir spec gradual e plan por etapa
-  - [ ] `[TASK-016.5]` Incluir .agents/, SKILLs, `AGENT.md`…
-  - [ ] `[TASK-016.6]` Ajustar projetos com boas práticas
+  - [x] `[TASK-016.4]` Definir spec gradual e plan por etapa
+  - [x] `[TASK-016.5]` Incluir .agents/, SKILLs, `AGENT.md`…
+  - [x] `[TASK-016.6]` Ajustar projetos com boas práticas
+  - [x] `[TASK-016.7]` Simulação de Sprints e alocação de backlog (`docs/SPRINTS.md`) para as 203 tasks atribuídas a `luiz.chaves`
 - [ ] **[TASK-017] Página Final do Projeto (Desafios & Evolução):**
   - [x] `[TASK-017.1]` Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
   - [ ] `[TASK-017.2]` Exemplos de melhorias: migração do front vanilla para React/Vue/Svelte, implementação de GraphQL, testes automatizados, integração com serviços externos, performance e escalabilidade, linter e formatter, CI/CD, monitoramento e logging, segurança, autenticação/autorização, otimização de queries e caching
