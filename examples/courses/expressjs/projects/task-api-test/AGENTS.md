@@ -200,6 +200,6 @@ Este projeto pode usar skills locais em `.agents/skills/` para o fluxo de engenh
 | `task-kanban-sync` | Criar ou mover cards em GitHub Projects/Kanban entre TODO, DOING, REVIEW e DONE. |
 | `task-requirements-planner` | Levantar requisitos, atualizar PRD, sugerir tasks e impacto na sprint. |
 
-Antes de depender de automacao, confira se o projeto possui `.github/workflows/`, `.husky/`, hooks de `pre-commit`/`pre-push` ou scripts equivalentes no `package.json`. Se nao houver hooks locais, trate a validacao manual e o CI como barreiras obrigatorias antes de merge.
+Este projeto possui Husky configurado em `.husky/pre-commit` e `.husky/pre-push`. O `pre-commit` executa os scripts disponiveis de `lint` e `typecheck`; o `pre-push` executa os scripts disponiveis de `test` e `build`. Quando houver `back/` e `front/`, o runner `scripts/run-git-hook.mjs` percorre os pacotes internos e roda apenas os scripts existentes.
 
 O mapa dos fluxos entre essas skills esta em [`docs/agent-skill-workflows.md`](docs/agent-skill-workflows.md).

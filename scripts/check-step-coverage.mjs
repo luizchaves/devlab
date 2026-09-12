@@ -77,7 +77,7 @@ const ISENTOS = [
 
 /** Nunca entram na conta: gerados, binários ou fora do assunto da aula (`.gitignore`, docs). */
 const IGNORADOS =
-  /(^|\/)(package-lock\.json|app\.css|\.DS_Store|\.gitignore)$|\.(db|db-journal|log|png|jpe?g|gif|ico|webp|woff2?|ttf|md)$/;
+  /(^|\/)(package-lock\.json|app\.css|\.DS_Store|\.gitignore)$|^\.husky\/|^scripts\/run-git-hook\.mjs$|\.(db|db-journal|log|png|jpe?g|gif|ico|webp|woff2?|ttf|md)$/;
 const PASTAS_IGNORADAS = new Set([
   'node_modules',
   '.git',
