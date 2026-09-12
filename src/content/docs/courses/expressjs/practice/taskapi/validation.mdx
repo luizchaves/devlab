@@ -69,6 +69,11 @@ Cenário: CA06.6 - A regra que o schema não conhece
   Dado uma tarefa chamada "Estudar rotas do Express"
   Quando envio POST /tasks com o mesmo título
   Então recebo o status 409
+
+Cenário: CA06.7 - Cabeçalho e cookie também são entrada
+  Quando abro src/middlewares/validate.ts
+  Então o objeto validado traz body, query, params, headers e cookies
+  E cookies vem de um parseCookies escrito no projeto, sem cookie-parser
 ```
 
 ### US07 — Encontrar tarefas sem baixar tudo · RF02
@@ -121,6 +126,7 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 3. **TK05.3 · Modificar `src/errors/HttpError.ts` e `error-handler.ts`**: o erro carrega `issues` e o 422 as devolve.
 4. **TK05.4 · Modificar `src/models/task-model.ts`**: os campos novos e a listagem que filtra, ordena e só então corta a página.
 5. **TK05.5 · Modificar `src/routes/task-router.ts` e `task-controller.ts`**: `validate(schema)` em cada rota e o controller sem `if`.
+6. **TK05.6 · Criar `src/utils/cookies.ts` e ampliar o `validate`**: `parseCookies` sem dependência, e `headers` e `cookies` como quarta e quinta fontes do schema.
 
 </Steps>
 
@@ -133,6 +139,7 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 | Campo extra no corpo era ignorado | `strictObject` responde `422` |
 | `GET /tasks` devolvia o array inteiro | `page`, `perPage`, `done`, `priority`, `q` e `sort` |
 | Erro só com `message` | erro com `issues`, campo a campo |
+| Só `body`, `query` e `params` eram entrada | `headers` e `cookies` também passam pelo schema |
 
 A tarefa também cresce: ganha `description`, `priority`, `dueDate` e `createdAt`.
 
@@ -161,9 +168,11 @@ A tarefa também cresce: ganha `description`, `priority`, `dueDate` e `createdAt
       │   └── task-router.ts
       ├── schemas/
       │   └── task.ts          novo
-      └── types/
-          ├── express.d.ts     novo
-          └── task.ts
+      ├── types/
+      │   ├── express.d.ts     novo
+      │   └── task.ts
+      └── utils/
+          └── cookies.ts       novo
 `}
 </FileTree>
 
@@ -200,12 +209,27 @@ não manda nada:
 ## O middleware de fábrica
 
 `validate` recebe o schema e devolve o middleware — o mesmo padrão de `express.json()`.
-Ele valida as três fontes de uma vez e guarda o resultado em `req.valid`:
+Ele valida as cinco fontes de uma vez e guarda o resultado em `req.valid`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-validation/src/middlewares/validate.ts"
   title="src/middlewares/validate.ts"
   region="validate"
+/>
+
+Cinco fontes, e não três: cabeçalho e cookie chegam do cliente exatamente como o corpo, e
+podem vir forjados da mesma forma. Nesta etapa nenhum schema declara `headers` ou
+`cookies`; a chave existe para que a [etapa 9](../auth/) valide a forma do
+`Authorization` pelo mesmo caminho, e para que uma sessão em cookie tenha onde entrar. O
+Node entrega `req.headers` com os nomes em minúsculas, então um schema escreve
+`authorization`, nunca `Authorization`. E `req.cookies` não existe sem o `cookie-parser`:
+o cabeçalho `Cookie` é `nome=valor; outro=valor`, e uma função de dez linhas o converte
+em objeto, pelo mesmo critério que dispensa `dotenv` e `bcrypt` na trilha:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-validation/src/utils/cookies.ts"
+  title="src/utils/cookies.ts"
+  region="parse"
 />
 
 O resultado não volta para `req.params` nem para `req.query` porque os tipos do Express
@@ -259,6 +283,7 @@ só então corta a página. Inverter isso pagina o conjunto errado:
     { path: 'examples/courses/expressjs/projects/task-api-validation/src/models/task-model.ts', title: 'src/models/task-model.ts', showLineNumbers: true },
     { path: 'examples/courses/expressjs/projects/task-api-validation/src/middlewares/error-handler.ts', title: 'src/middlewares/error-handler.ts', showLineNumbers: true },
     { path: 'examples/courses/expressjs/projects/task-api-validation/src/types/express.d.ts', title: 'src/types/express.d.ts', showLineNumbers: true },
+    { path: 'examples/courses/expressjs/projects/task-api-validation/src/utils/cookies.ts', title: 'src/utils/cookies.ts', showLineNumbers: true },
   ]}
 />
 
@@ -401,7 +426,8 @@ validação vira também proteção contra abuso:
 
 ## Conceitos abordados
 
-- Schemas Zod para `body`, `params` e `query` na mesma validação
+- Schemas Zod para `body`, `params`, `query`, `headers` e `cookies` na mesma validação
+- Cabeçalho e cookie como entrada não confiável, e o `Cookie` lido sem dependência
 - `strictObject` e a recusa de campos não declarados
 - `z.coerce` e valores padrão em parâmetros de query
 - Middleware de fábrica e *declaration merging* para `req.valid`

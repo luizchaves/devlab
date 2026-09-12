@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 import { z as zod } from 'zod';
 
-import { signinSchema, signupSchema } from '#schemas/auth.ts';
+import { bearerSecurityScheme, signinSchema, signupSchema } from '#schemas/auth.ts';
 import {
   createTaskSchema,
   listTasksSchema,
@@ -123,7 +123,7 @@ export const openapi = {
   // #region security
   components: {
     securitySchemes: {
-      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      bearerAuth: bearerSecurityScheme,
     },
   },
   // Vale para toda a API; as rotas publicas sobrescrevem com `security: []`.

@@ -59,10 +59,17 @@ describe('protecoes de /tasks', () => {
     assert.equal((await request(app).get('/tasks')).status, 401);
   });
 
+  it('recusa cabecalho fora do formato Bearer, com a mensagem do schema', async () => {
+    const { status, body } = await request(app).get('/tasks').set('Authorization', 'Token abc');
+
+    assert.equal(status, 401);
+    assert.equal(body.error.message, 'Esperado: Authorization: Bearer <jwt>');
+  });
+
   it('recusa token adulterado', async () => {
     const { status } = await request(app)
       .get('/tasks')
-      .set('Authorization', 'Bearer nao.e.um.token');
+      .set('Authorization', 'Bearer cabecalho.payload.assinatura-falsa');
 
     assert.equal(status, 401);
   });

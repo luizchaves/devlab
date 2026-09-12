@@ -106,6 +106,12 @@ Cenário: CA12.6 - O payload não é secreto
   Quando decodifico o payload do token
   Então vejo sub, name, email e role
   E nunca a senha
+
+Cenário: CA12.7 - A forma do cabeçalho vem do schema
+  Quando envio GET /tasks com "Authorization: Token abc"
+  Então recebo o status 401, e não 422
+  E a mensagem é "Esperado: Authorization: Bearer <jwt>"
+  E a mesma frase descreve o bearerAuth em /openapi.json
 ```
 
 ### US13 — Ver apenas as minhas tarefas · RF06
@@ -164,6 +170,7 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 5. **TK09.5 · Criar `src/schemas/auth.ts`, `src/controllers/auth-controller.ts` e `src/routes/auth-router.ts`**: `signup`, `signin` e `me`.
 6. **TK09.6 · Criar `src/middlewares/authenticate.ts` e `authorize.ts`**: quem é e o que pode, com `authenticate` aplicado ao router inteiro de `/tasks`.
 7. **TK09.7 · Modificar `src/models/task-model.ts` e `src/controllers/task-controller.ts`**: toda consulta escopada pelo `userId`, lido de `req.auth.sub`.
+8. **TK09.8 · Acrescentar `bearerSchema` e `cookieSessionSchema` em `src/schemas/auth.ts`**: o `authenticate` passa a conferir a forma do cabeçalho pelo schema, e o `openapi.ts` descreve o `bearerAuth` com a mesma frase.
 
 </Steps>
 
@@ -176,6 +183,7 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 | Título único no sistema | `@@unique([userId, title])` — único por dono |
 | — | `POST /auth/signup`, `POST /auth/signin`, `GET /auth/me` |
 | — | `authenticate` e `requireRole` |
+| `Authorization` lido com `split(' ')` | `bearerSchema` define a forma do cabeçalho; `verifyJwt` confere a assinatura |
 | — | `pnpm test` com os testes de hash e JWT |
 
 Nenhuma dependência nova: o hash e a assinatura do token saem de `node:crypto`.
@@ -199,7 +207,7 @@ Nenhuma dependência nova: o hash e a assinatura do token saem de `node:crypto`.
       │   └── user-model.ts        novo
       ├── routes/
       │   └── auth-router.ts       novo
-      ├── schemas/auth.ts          novo
+      ├── schemas/auth.ts          novo — signup, signin, bearer e o gancho do cookie
       ├── types/express.d.ts       + req.auth
       └── utils/
           ├── jwt.ts               assinatura HS256
@@ -276,11 +284,42 @@ consegue **ler** o payload; o que a assinatura garante é que ele não foi alter
   o Base64. Senha, CPF e chave de API não entram ali.
 </Aside>
 
+## O cabeçalho também tem schema
+
+O `validate` da etapa 5 já monta `headers` e `cookies` como fontes. É aqui que a primeira
+delas ganha um schema: `bearerSchema` diz como o `Authorization` precisa chegar, e a
+constante `BEARER_FORMAT` é a mesma frase que a mensagem de erro usa e que o OpenAPI vai
+mostrar em `/docs`. Repare no que o schema **não** faz: ele confere a forma (`Bearer` e três
+blocos separados por ponto), não a assinatura. Quem decide se o token é de confiança
+continua sendo `verifyJwt`, com `node:crypto`.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts"
+  title="src/schemas/auth.ts"
+  region="bearer"
+/>
+
+O `cookieSessionSchema` é a mesma regra lida da outra fonte. Nenhuma rota o usa: ele existe
+para que a sessão em cookie `HttpOnly`, a alternativa ao `localStorage` discutida em
+[Autenticação](../../../auth/authentication/), tenha onde entrar sem reescrever o
+`validate`.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts"
+  title="src/schemas/auth.ts"
+  region="cookie"
+/>
+
 ## Autenticação e autorização são coisas diferentes
 
 `authenticate` responde **quem é**; `requireRole` responde **o que pode**. Confundir os
 dois status é o erro clássico: `401` significa "identifique-se", `403` significa
 "identificado, mas não pode".
+
+O middleware chama o `bearerSchema` por dentro, e não como `validate(bearerSchema)` na
+rota, por duas razões: a falha tem que responder `401`, e não o `422` do `validate`; e
+uma rota não pode ter como esquecer a checagem. O `throw` devolve ao cliente a mensagem do
+próprio schema, e o `slice` só corta o prefixo `Bearer ` depois que a forma passou:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/middlewares/authenticate.ts"
@@ -338,6 +377,7 @@ existe em lugar nenhum do código:
     { path: 'examples/courses/expressjs/projects/task-api-auth/prisma/schema.prisma', title: 'prisma/schema.prisma', showLineNumbers: true },
     { path: 'examples/courses/expressjs/projects/task-api-auth/src/utils/password.ts', title: 'src/utils/password.ts', showLineNumbers: true, collapse: '11-30' },
     { path: 'examples/courses/expressjs/projects/task-api-auth/src/utils/jwt.ts', title: 'src/utils/jwt.ts', showLineNumbers: true },
+    { path: 'examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts', title: 'src/schemas/auth.ts', showLineNumbers: true },
     { path: 'examples/courses/expressjs/projects/task-api-auth/src/models/user-model.ts', title: 'src/models/user-model.ts', showLineNumbers: true },
     { path: 'examples/courses/expressjs/projects/task-api-auth/src/controllers/auth-controller.ts', title: 'src/controllers/auth-controller.ts', showLineNumbers: true },
     { path: 'examples/courses/expressjs/projects/task-api-auth/src/middlewares/authenticate.ts', title: 'src/middlewares/authenticate.ts', showLineNumbers: true },
@@ -505,6 +545,8 @@ indistinguível de uma que não existe.
 - `timingSafeEqual` e o vazamento por tempo de resposta
 - JWT HS256 assinado à mão, e por que o payload não é secreto
 - `401` (identifique-se) contra `403` (identificado, sem permissão)
+- A forma do `Authorization` em um schema Zod, e a confiança no `verifyJwt`
+- O gancho `cookieSessionSchema` para uma sessão em cookie
 - Middleware aplicado ao router inteiro
 - O dono vindo do token, nunca do corpo
 - `404` em vez de `403` para não permitir enumeração
