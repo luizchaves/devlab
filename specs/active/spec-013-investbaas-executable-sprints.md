@@ -51,8 +51,9 @@ cloud project.
 
 - **Not** connecting to a cloud Supabase project: everything runs on the local stack. The
   pages explain how to point the `.env` at a cloud project, but no test depends on it.
-- **Not** a real market-data provider: the Edge Function ships the `fake` adapter as default
-  and the real adapter behind `MARKET_PROVIDER=brapi` with the token in the function secrets.
+- **Not** paid market data: the Edge Function ships the `fake` adapter as default (tests),
+  `yahoo` (public chart endpoint, no token) as the free real provider and `brapi` (free tier
+  with token) as the batch alternative; the selection lives in the function's env.
 - **Not** e-mail confirmation flows: the local stack runs with `enable_confirmations = false`;
   the page states the difference.
 - **Not** touching the InvestApp/MonitorApp trails, nor changing the sprint scope in
@@ -155,7 +156,7 @@ to `specs/executed/`, fill `Result`.
 
 - [x] Phase 1 — Sprint 2 (`investbaas-auth`): 15 Vitest (9 unit + 6 integration) and 4 Playwright tests green against `supabase start`; `auth.mdx` rewritten with `<SourceCode>` cuts and real outputs. Found and fixed during the work: the local stack grants no `select`/`update` on new tables by default, and a whole-row `update` policy would have let any account promote itself to `admin`; the migration now grants `select, update (full_name)` to `authenticated`.
 - [x] Phase 2 — Sprint 3 (`investbaas-database`): 36 Vitest (18 unit + 18 integration) and 8 Playwright tests green; `brokers`, `assets.issuer` and `asset.html` (TK03-10, TK03-11) added per the backlog revision of `e1336dfd`; every RLS policy has an integration test with two accounts.
-- [ ] Phase 3 — Sprint 4
+- [x] Phase 3 — Sprint 4 (`investbaas-edge-quotes`): 48 Vitest (24 unit + 24 integration, the latter `fetch`ing the local edge runtime) and 9 Playwright tests green; providers `fake` / `yahoo` / `brapi`; `pg_cron` scheduling via a `security definer` function whose `EXECUTE` is revoked from `PUBLIC` (found by the test).
 - [ ] Phase 4 — Sprint 5
 - [ ] Phase 5 — Sprint 6
 - [ ] Phase 6 — Sprint 7
