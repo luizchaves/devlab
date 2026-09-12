@@ -99,10 +99,13 @@ explicam a decisão por trás de cada uma, e o código completo está ao final d
 | Só a tabela `tasks` | `Task` e `Tag`, com relação muitos-para-muitos |
 | — | `prisma.config.ts` e `db:studio` |
 
-## O modelo
+## Descrição das tarefas
 
-Duas entidades e uma relação. A tabela de junção que o muitos-para-muitos exige não é
-declarada: o Prisma a cria e a mantém sozinho.
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK08.1 · Instalar o Prisma e criar prisma/schema.prisma (O modelo declarativo)
+
+O schema declara as entidades `Task` e `Tag` e sua relação muitos-para-muitos. A tabela intermediária de junção é gerenciada automaticamente pelo Prisma:
 
 <Mermaid title="Modelo de dados da TaskAPI na etapa 8">
 {`
@@ -131,20 +134,9 @@ erDiagram
   showLineNumbers
 />
 
-## O client recebe um driver
+### TK08.2 · Criar prisma.config.ts e .env.example (Separação entre modelo e ambiente)
 
-A mudança mais visível do Prisma 7 é esta: quem fala com o banco é um **driver adapter**,
-e não mais um binário do próprio Prisma.
-
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-prisma/src/database/prisma.ts"
-  title="src/database/prisma.ts"
-  region="adapter"
-/>
-
-E a string de conexão saiu do `schema.prisma`: ela agora vive no `prisma.config.ts`, junto
-com o caminho das migrações e o comando de seed. O schema descreve o **modelo**; a
-configuração descreve o **ambiente**.
+A string de conexão e comandos de infraestrutura vivem no `prisma.config.ts`, separando a definição do modelo do ambiente de execução:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-prisma/prisma.config.ts"
@@ -153,14 +145,32 @@ configuração descreve o **ambiente**.
 />
 
 <Aside type="tip" title="Sem `dotenv`">
-  `process.loadEnvFile()` no `prisma.config.ts` e a flag `--env-file` nos scripts cobrem a
-  leitura do `.env`. O Node faz isso nativamente desde a 20.6.
+  `process.loadEnvFile()` no `prisma.config.ts` e a flag `--env-file` nos scripts resolvem o carregamento do `.env` nativamente pelo Node.js.
 </Aside>
 
-## Relação não vem por acidente
+### TK08.3 · Criar src/database/prisma.ts (Driver adapter)
 
-`task.tags` só existe no resultado se a consulta pedir. Isso é uma decisão de desempenho
-do Prisma: sem `include`, ele não faz o `JOIN`.
+No Prisma 7, a comunicação com o banco ocorre através de um driver adapter (`@prisma/adapter-better-sqlite3`), reduzindo overhead e padronizando o runtime:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-prisma/src/database/prisma.ts"
+  title="src/database/prisma.ts"
+  region="adapter"
+/>
+
+### TK08.4 · Gerar a migração inicial e reescrever src/database/seed.ts (Seed idempotente)
+
+O método `upsert` torna o seed executável múltiplas vezes sem criar duplicatas, enquanto `connect` vincula tarefas a tags previamente existentes:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-prisma/src/database/seed.ts"
+  title="src/database/seed.ts"
+  lines="29-41"
+/>
+
+### TK08.5 · Modificar src/models/task-model.ts (Relações com include e filtros)
+
+A relação com tags só é carregada quando solicitada explicitamente via `include`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-prisma/src/models/task-model.ts"
@@ -168,23 +178,13 @@ do Prisma: sem `include`, ele não faz o `JOIN`.
   region="select"
 />
 
-`Prisma.TaskGetPayload<{ include: typeof withTags }>` é o tipo exato daquele resultado —
-com as tags dentro. Mudar o `include` muda o tipo, e o TypeScript acusa quem lia um campo
-que não vem mais.
-
-## Filtros viram objeto
-
-O `WHERE` montado com string e parâmetros da etapa anterior vira um objeto. Quem escapa
-valores é o Prisma:
+Os filtros viram objetos tipados, e consultas de listagem e contagem executam em paralelo:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-prisma/src/models/task-model.ts"
   title="src/models/task-model.ts"
   region="where"
 />
-
-A listagem e a contagem usam o mesmo `where` e rodam em paralelo, porque uma não depende
-da outra:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-prisma/src/models/task-model.ts"
@@ -193,22 +193,12 @@ da outra:
 />
 
 <Aside type="caution" title="`update` lança quando o id não existe">
-  Diferente do `UPDATE` em SQL, que apenas afeta zero linhas, `prisma.update` lança
-  `P2025`. O model usa `.catch(() => null)` para transformar isso no `undefined` que o
-  controller já sabe traduzir em `404`. `deleteMany` não tem esse problema: devolve a
-  contagem.
+  Diferente do `UPDATE` em SQL puro, o `prisma.update` lança o erro `P2025` se o registro não existir. O model captura com `.catch(() => null)` para devolver `undefined`, que o controller traduz em `404`.
 </Aside>
 
-## O seed é idempotente
+### TK08.6 · Remover src/database/database.ts e migration.ts (Limpeza da camada SQL manual)
 
-`upsert` deixa o seed seguro para rodar mais de uma vez, e `connect` liga a tarefa a tags
-que já existem em vez de criar duplicatas:
-
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-prisma/src/database/seed.ts"
-  title="src/database/seed.ts"
-  lines="29-41"
-/>
+Com o Prisma assumindo as migrações versionadas e o acesso aos dados, os arquivos manuais da camada SQL legada da etapa 7 são removidos do projeto.
 
 ## Código completo
 

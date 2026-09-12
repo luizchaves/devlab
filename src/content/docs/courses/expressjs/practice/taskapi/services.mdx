@@ -232,19 +232,19 @@ O `User` ganha `avatar`, `verifyToken` e `verifiedAt`.
 `}
 </FileTree>
 
-## Upload: o nome do arquivo é decisão do servidor
+## Descrição das tarefas
 
-`originalname` chega do navegador e pode conter `../`, bytes nulos ou um nome que
-sobrescreve outro arquivo. Um UUID elimina os três problemas de uma vez:
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK11.1 · Instalar o Multer e criar src/config/upload.ts (Configuração do storage e limites)
+
+Nomes originais de arquivos enviados por clientes (`originalname`) podem conter tentativas de path traversal (`../`) ou colidir com arquivos existentes. O upload gera um UUID para o arquivo salvo e impõe limites rígidos de tamanho:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/config/upload.ts"
   title="src/config/upload.ts"
   region="storage"
 />
-
-Os limites vêm em seguida, e todos importam — um upload sem teto é esgotamento de disco
-esperando acontecer:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/config/upload.ts"
@@ -253,14 +253,12 @@ esperando acontecer:
 />
 
 <Aside type="danger" title="`mimetype` é declarado pelo cliente">
-  O filtro barra o engano honesto, não o ataque: o `Content-Type` de cada parte é enviado
-  pelo navegador e pode ser forjado. Para valer, é preciso ler os primeiros bytes do
-  arquivo e conferir a assinatura — e nunca servir o diretório de uploads como conteúdo
-  executável.
+  O filtro de extensão e tipo mime barra enganos honestos, mas não substitui a validação profunda de cabeçalhos binários. Nunca execute arquivos dentro da pasta de uploads.
 </Aside>
 
-O arquivo é servido por `express.static`, e não por uma rota que monta o caminho a partir
-do que o cliente pede:
+### TK11.2 · Criar src/controllers/avatar-controller.ts e a rota POST /auth/me/avatar (Upload de avatar e arquivos estáticos)
+
+Os arquivos enviados são servidos como estáticos pelo middleware nativo `express.static`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/app.ts"
@@ -268,7 +266,7 @@ do que o cliente pede:
   region="static"
 />
 
-E o controller descarta o avatar anterior — sem isso, cada troca deixa um arquivo órfão:
+Ao receber uma nova imagem, o controller remove o arquivo de avatar anterior do disco para evitar acúmulo de arquivos órfãos:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/controllers/avatar-controller.ts"
@@ -276,7 +274,9 @@ E o controller descarta o avatar anterior — sem isso, cada troca deixa um arqu
   region="store"
 />
 
-## E-mail: o cadastro não espera o SMTP
+### TK11.3 · Instalar o Nodemailer e criar src/services/mail-service.ts (E-mail: o cadastro não espera o SMTP)
+
+O envio de e-mails de confirmação é assíncrono em background: a resposta de cadastro é enviada imediatamente ao cliente sem bloquear a requisição esperando a resposta do servidor SMTP. Em ambiente de desenvolvimento, utiliza-se `jsonTransport` para registrar a mensagem no log sem disparar tráfego de rede:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/services/mail-service.ts"
@@ -284,20 +284,25 @@ E o controller descarta o avatar anterior — sem isso, cada troca deixa um arqu
   region="send"
 />
 
-Um SMTP lento transformaria um cadastro de 50 ms numa espera de três segundos; um SMTP fora
-do ar faria o cadastro **falhar**, quando o usuário já foi criado. O envio é disparado e
-registrado no log, e a resposta HTTP não depende dele.
-
-Em desenvolvimento não há credencial nenhuma: o `jsonTransport` serializa a mensagem em vez
-de enviá-la, então o fluxo inteiro é exercitável sem mandar e-mail para ninguém.
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/services/mail-service.ts"
   title="src/services/mail-service.ts"
   region="transport"
 />
 
-## Tempo real: uma resposta que não termina
+### TK11.4 · Modificar prisma/schema.prisma, src/models/user-model.ts e src/controllers/auth-controller.ts (Verificação de e-mail)
+
+O modelo `User` recebe os campos `verifyToken` e `verifiedAt`. A rota `GET /auth/verify?token=...` valida o token recebido e confirma a conta:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-services/src/controllers/auth-controller.ts"
+  title="src/controllers/auth-controller.ts"
+  region="verify"
+/>
+
+### TK11.5 · Criar src/services/events-service.ts (Registro de conexões e publicação SSE)
+
+Eventos Server-Sent Events (SSE) mantêm conexões HTTP unidirecionais abertas. Cada cliente recebe apenas eventos associados ao seu `userId`:
 
 <Mermaid title="Ciclo de um evento no SSE">
 {`
@@ -314,18 +319,11 @@ sequenceDiagram
 `}
 </Mermaid>
 
-O formato é texto puro, e a linha em branco no fim é o que encerra a mensagem — sem ela o
-navegador continua esperando e nada é entregue:
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/services/events-service.ts"
   title="src/services/events-service.ts"
   region="publish"
 />
-
-Não existe broadcast para todo mundo: os clientes são agrupados por dono, e cada pessoa
-recebe apenas os eventos das próprias tarefas. Autorização vale para SSE tanto quanto para
-uma rota comum.
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/services/events-service.ts"
@@ -333,9 +331,12 @@ uma rota comum.
   region="clients"
 />
 
+### TK11.6 · Criar src/controllers/events-controller.ts e src/routes/events-router.ts (Rota de eventos em tempo real)
+
+O controller configura os cabeçalhos de streaming (`text/event-stream`) e registra um listener no evento `close` da resposta para limpar conexões encerradas e prevenir vazamentos de memória:
+
 <Aside type="caution" title="Toda conexão aberta precisa de uma saída">
-  Sem o `res.on('close')`, cada desconexão deixa um `Response` pendurado no `Map` para
-  sempre — um vazamento de memória que só aparece depois de semanas no ar.
+  Sem o listener `res.on('close')`, clientes desconectados permaneceriam armazenados indefinidamente na memória do processo.
 </Aside>
 
 <SourceCode
@@ -344,7 +345,9 @@ uma rota comum.
   region="stream"
 />
 
-## Chamada de sistema: `execFile`, nunca `exec`
+### TK11.7 · Criar src/services/ping-service.ts e src/schemas/ping.ts (Chamada de sistema: execFile, nunca exec)
+
+Para executar diagnósticos de rede sem expor o servidor a injeção de comandos de shell, utiliza-se `execFile` com argumentos em array, aliado à validação do formato do host via Zod:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/services/ping-service.ts"
@@ -353,12 +356,8 @@ uma rota comum.
 />
 
 <Aside type="danger" title="A diferença é o shell">
-  `exec('ping ' + host)` passa a string por um shell. Um host chamado
-  `8.8.8.8; rm -rf /` vira **dois comandos**. `execFile` entrega os argumentos como array,
-  e o shell nunca entra na história.
+  `exec('ping ' + host)` invoca uma shell do sistema, permitindo encadear comandos maliciosos (`host="8.8.8.8; rm -rf /"`). Já `execFile` repassa o comando direto ao executável do sistema sem invocar interpretador de shell.
 </Aside>
-
-A validação vem por cima disso, não no lugar disso — defesa em profundidade:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/schemas/ping.ts"
@@ -366,20 +365,22 @@ A validação vem por cima disso, não no lugar disso — defesa em profundidade
   region="schema"
 />
 
-E a rota é cara e abusável, então ganha autenticação e um limite próprio:
-
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-services/src/routes/ping-router.ts"
-  title="src/routes/ping-router.ts"
-  region="routes"
-/>
-
-A parte que realmente vale testar é a extração do texto, que é pura e varia entre sistemas:
+A função de extração da latência trata variações de formato nas saídas dos utilitários de sistema operacional:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-services/src/services/ping-service.ts"
   title="src/services/ping-service.ts"
   region="parse"
+/>
+
+### TK11.8 · Criar src/controllers/ping-controller.ts e src/routes/ping-router.ts (Rota protegida de diagnóstico)
+
+A rota `GET /ping` requer autenticação por token, validação de query params e limitador de taxa específico para proteger o uso de recursos de rede do servidor:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-services/src/routes/ping-router.ts"
+  title="src/routes/ping-router.ts"
+  region="routes"
 />
 
 ## Código completo

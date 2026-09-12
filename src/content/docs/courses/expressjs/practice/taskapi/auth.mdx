@@ -237,11 +237,23 @@ sequenceDiagram
 `}
 </Mermaid>
 
-## A senha nunca é guardada
+## Descrição das tarefas
 
-`hashPassword` deriva um Argon2id novo a cada chamada, com sal próprio, e devolve o
-formato PHC — parâmetros e sal viajam junto do hash, então um registro antigo continua
-verificável depois de endurecermos os custos:
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK09.1 · Modificar prisma/schema.prisma (Entidade User e relação com Task)
+
+O modelo `User` é criado com `id` (UUID), `name`, `email` único, `password` (hash Argon2id) e `role`. A entidade `Task` recebe a coluna `userId` como chave estrangeira e a restrição `@@unique([userId, title])`, garantindo unicidade de título por usuário:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/prisma/schema.prisma"
+  title="prisma/schema.prisma"
+  showLineNumbers
+/>
+
+### TK09.2 · Criar src/utils/password.ts e password.test.ts (A senha nunca é guardada)
+
+`hashPassword` deriva um hash Argon2id novo a cada chamada, com sal criptográfico próprio no formato PHC. A função `verifyPassword` compara a senha em tempo constante com `timingSafeEqual`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/utils/password.ts"
@@ -249,29 +261,9 @@ verificável depois de endurecermos os custos:
   lines="32-46"
 />
 
-E o model é a segunda linha de defesa: o `select` faz com que a coluna `password` **nunca
-saia do banco**. Não é "lembrar de remover o campo antes de responder" — ele não vem na
-consulta.
+### TK09.3 · Criar src/utils/jwt.ts e jwt.test.ts (O token é assinado, não criptografado)
 
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-auth/src/models/user-model.ts"
-  title="src/models/user-model.ts"
-  region="public"
-/>
-
-A única função que lê a coluna é a que confere a senha, e ainda assim a senha não escapa
-dali:
-
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-auth/src/models/user-model.ts"
-  title="src/models/user-model.ts"
-  region="authenticate"
-/>
-
-## O token é assinado, não criptografado
-
-Um JWT são três partes em Base64URL: cabeçalho, payload e assinatura. Qualquer pessoa
-consegue **ler** o payload; o que a assinatura garante é que ele não foi alterado.
+Um JWT é composto por três partes em Base64URL (cabeçalho, payload e assinatura). O utilitário usa `node:crypto` para assinar via HMAC-SHA256 (`HS256`) e verificar expiração e assinatura:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/utils/jwt.ts"
@@ -280,46 +272,48 @@ consegue **ler** o payload; o que a assinatura garante é que ele não foi alter
 />
 
 <Aside type="danger" title="Nunca coloque segredo no payload">
-  `sub`, `name`, `email` e `role` são visíveis para quem tiver o token — basta decodificar
-  o Base64. Senha, CPF e chave de API não entram ali.
+  `sub`, `name`, `email` e `role` são visíveis para qualquer pessoa que inspecionar o token (basta decodificar o Base64). Informações sensíveis como senhas não entram no payload.
 </Aside>
 
-## O cabeçalho também tem schema
+### TK09.4 · Criar src/models/user-model.ts (Consultas protegidas de usuário)
 
-O `validate` da etapa 5 já monta `headers` e `cookies` como fontes. É aqui que a primeira
-delas ganha um schema: `bearerSchema` diz como o `Authorization` precisa chegar, e a
-constante `BEARER_FORMAT` é a mesma frase que a mensagem de erro usa e que o OpenAPI vai
-mostrar em `/docs`. Repare no que o schema **não** faz: ele confere a forma (`Bearer` e três
-blocos separados por ponto), não a assinatura. Quem decide se o token é de confiança
-continua sendo `verifyJwt`, com `node:crypto`.
+O model de usuário utiliza `select` explícito para que o campo `password` nunca seja retornado em consultas públicas:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/models/user-model.ts"
+  title="src/models/user-model.ts"
+  region="public"
+/>
+
+Apenas a função de autenticação lê a coluna de senha para validação:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/models/user-model.ts"
+  title="src/models/user-model.ts"
+  region="authenticate"
+/>
+
+### TK09.5 · Criar src/schemas/auth.ts, src/controllers/auth-controller.ts e src/routes/auth-router.ts (Rotas de autenticação)
+
+Os schemas validam os corpos de cadastro e login com regras estritas:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts"
   title="src/schemas/auth.ts"
-  region="bearer"
+  region="body"
 />
 
-O `cookieSessionSchema` é a mesma regra lida da outra fonte. Nenhuma rota o usa: ele existe
-para que a sessão em cookie `HttpOnly`, a alternativa ao `localStorage` discutida em
-[Autenticação](../../../auth/authentication/), tenha onde entrar sem reescrever o
-`validate`.
+O controller emite o token JWT assinado no login e devolve resposta uniforme para falhas de credenciais:
 
 <SourceCode
-  path="examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts"
-  title="src/schemas/auth.ts"
-  region="cookie"
+  path="examples/courses/expressjs/projects/task-api-auth/src/controllers/auth-controller.ts"
+  title="src/controllers/auth-controller.ts"
+  region="signin"
 />
 
-## Autenticação e autorização são coisas diferentes
+### TK09.6 · Criar src/middlewares/authenticate.ts e authorize.ts (Autenticação e autorização)
 
-`authenticate` responde **quem é**; `requireRole` responde **o que pode**. Confundir os
-dois status é o erro clássico: `401` significa "identifique-se", `403` significa
-"identificado, mas não pode".
-
-O middleware chama o `bearerSchema` por dentro, e não como `validate(bearerSchema)` na
-rota, por duas razões: a falha tem que responder `401`, e não o `422` do `validate`; e
-uma rota não pode ter como esquecer a checagem. O `throw` devolve ao cliente a mensagem do
-próprio schema, e o `slice` só corta o prefixo `Bearer ` depois que a forma passou:
+`authenticate` responde **quem é** (valida o token JWT); `requireRole` responde **o que pode** (autorização por papel). O middleware é aplicado ao router inteiro de `/tasks` para que nenhuma rota fique desprotegida:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/middlewares/authenticate.ts"
@@ -327,29 +321,29 @@ próprio schema, e o `slice` só corta o prefixo `Bearer ` depois que a forma pa
   region="authenticate"
 />
 
-O middleware é aplicado ao router inteiro, e não rota a rota. Assim nenhuma rota nova
-nasce desprotegida por esquecimento:
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/routes/task-router.ts"
   title="src/routes/task-router.ts"
   region="authenticate"
 />
 
-## O dono vem do token
+O controle de acesso por papel valida as permissões do usuário autenticado:
 
-Esta é a regra que sustenta o isolamento: o `userId` nunca vem do corpo nem da query.
-Aceitá-lo do cliente seria o mesmo que não ter autorização — bastaria mandar o id de
-outra pessoa.
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/middlewares/authorize.ts"
+  title="src/middlewares/authorize.ts"
+  region="role"
+/>
+
+### TK09.7 · Modificar src/models/task-model.ts e src/controllers/task-controller.ts (O dono vem do token)
+
+O `userId` nunca é aceito do corpo ou da query: ele é extraído estritamente de `req.auth.sub`. O isolamento é imposto no model em todas as operações:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/controllers/task-controller.ts"
   title="src/controllers/task-controller.ts"
   region="owner"
 />
-
-E o filtro é imposto no model, não no controller. Um `where` montado sem o `userId` não
-existe em lugar nenhum do código:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/models/task-model.ts"
@@ -358,15 +352,31 @@ existe em lugar nenhum do código:
 />
 
 <Aside type="tip" title="`404`, e não `403`, para recurso alheio">
-  Responder `403` a uma tarefa que existe mas é de outra pessoa confirma que o id é
-  válido — e permite enumerar a base inteira. `404` deixa "não é sua" indistinguível de
-  "não existe".
+  Responder `403` para uma tarefa pertencente a outro usuário confirmaria a existência do registro. Responder `404` impede a enumeração de IDs da base de dados.
 </Aside>
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-auth/src/models/task-model.ts"
   title="src/models/task-model.ts"
   region="find-by"
+/>
+
+### TK09.8 · Acrescentar bearerSchema e cookieSessionSchema em src/schemas/auth.ts (O cabeçalho também tem schema)
+
+`bearerSchema` valida o formato do cabeçalho `Authorization: Bearer <jwt>`. O schema valida a forma sintática, enquanto `verifyJwt` valida a confiança criptográfica:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts"
+  title="src/schemas/auth.ts"
+  region="bearer"
+/>
+
+O `cookieSessionSchema` serve como gancho para sessões via cookies `HttpOnly`:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-auth/src/schemas/auth.ts"
+  title="src/schemas/auth.ts"
+  region="cookie"
 />
 
 ## Código completo

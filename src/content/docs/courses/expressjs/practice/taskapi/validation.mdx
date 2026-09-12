@@ -176,16 +176,19 @@ A tarefa também cresce: ganha `description`, `priority`, `dueDate` e `createdAt
 `}
 </FileTree>
 
-## O schema é o contrato
+## Descrição das tarefas
 
-Cada regra do schema vira uma mensagem que o cliente lê. Escrever a validação é, na
-prática, escrever a documentação executável da rota:
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK05.1 · Instalar o Zod e criar src/schemas/task.ts (O schema é o contrato)
+
+Cada regra do schema vira uma mensagem clara para o cliente. Escrever a validação é, na prática, escrever a documentação executável da rota:
 
 <Aside type="tip" title="Referência rápida: Zod">
-  Se `z.string().min(...)`, `z.coerce.number()`, `z.enum(...)` ou `.optional()` ainda não
-  estiverem claros, revise [Validação de Requisições](../../../api/validation/). A seção
-  **Schemas mais usados** resume os schemas principais antes desta implementação.
+  Se `z.string().min(...)`, `z.coerce.number()`, `z.enum(...)` ou `.optional()` ainda não estiverem claros, revise [Validação de Requisições](../../../api/validation/). A seção **Schemas mais usados** resume os schemas principais antes desta implementação.
 </Aside>
+
+O uso de `strictObject` é o que separa validação comum de validação estrita: campos desconhecidos enviados no corpo resultam em erro `422`, impedindo que dados inesperados passem despercebidos:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts"
@@ -193,12 +196,7 @@ prática, escrever a documentação executável da rota:
   region="body"
 />
 
-`strictObject` é o que separa "validação" de "validação estrita": um `PUT` com
-`{ "hacker": 1 }` é recusado com `422` em vez de ser silenciosamente descartado.
-
-A `query` chega sempre como string — `?page=2` é `'2'`, não `2`. `z.coerce` converte antes
-de validar, e o `default` garante que o controller receba números mesmo quando o cliente
-não manda nada:
+A query string chega sempre como string (exemplo: `?page=2` chega como `'2'`). O `z.coerce` converte para número antes de validar, e `default` define os valores padrão da paginação quando os parâmetros são omitidos:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-validation/src/schemas/task.ts"
@@ -206,10 +204,9 @@ não manda nada:
   region="query"
 />
 
-## O middleware de fábrica
+### TK05.2 · Criar src/middlewares/validate.ts e src/types/express.d.ts (O middleware de fábrica)
 
-`validate` recebe o schema e devolve o middleware — o mesmo padrão de `express.json()`.
-Ele valida as cinco fontes de uma vez e guarda o resultado em `req.valid`:
+A função `validate` recebe o schema e devolve o middleware correspondente, seguindo o padrão de fábrica de `express.json()`. Ele valida as cinco fontes de entrada (`body`, `query`, `params`, `headers`, `cookies`) e armazena os dados validados em `req.valid`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-validation/src/middlewares/validate.ts"
@@ -217,25 +214,7 @@ Ele valida as cinco fontes de uma vez e guarda o resultado em `req.valid`:
   region="validate"
 />
 
-Cinco fontes, e não três: cabeçalho e cookie chegam do cliente exatamente como o corpo, e
-podem vir forjados da mesma forma. Nesta etapa nenhum schema declara `headers` ou
-`cookies`; a chave existe para que a [etapa 9](../auth/) valide a forma do
-`Authorization` pelo mesmo caminho, e para que uma sessão em cookie tenha onde entrar. O
-Node entrega `req.headers` com os nomes em minúsculas, então um schema escreve
-`authorization`, nunca `Authorization`. E `req.cookies` não existe sem o `cookie-parser`:
-o cabeçalho `Cookie` é `nome=valor; outro=valor`, e uma função de dez linhas o converte
-em objeto, pelo mesmo critério que dispensa `dotenv` e `bcrypt` na trilha:
-
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-validation/src/utils/cookies.ts"
-  title="src/utils/cookies.ts"
-  region="parse"
-/>
-
-O resultado não volta para `req.params` nem para `req.query` porque os tipos do Express
-declaram os dois como `string`, e gravar um número ali seria uma mentira que o TypeScript
-aceitaria. Em vez disso, `req.valid` é declarado por *declaration merging* e lido por um
-acessor que devolve o tipo do próprio schema:
+O resultado não é sobrescrito em `req.params` ou `req.query` porque os tipos do Express declaram ambos como `string`. A propriedade `req.valid` é declarada via *declaration merging* em `src/types/express.d.ts` e lida pela função acessora `validated`, que preserva o tipo inferido pelo Zod:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-validation/src/middlewares/validate.ts"
@@ -243,21 +222,27 @@ acessor que devolve o tipo do próprio schema:
   region="validated"
 />
 
-## O controller emagrece
+### TK05.3 · Modificar src/errors/HttpError.ts e error-handler.ts (Erro 422 com issues)
 
-Sem nenhum `if` de formato: o que chega já está validado e convertido. Sobra apenas a
-regra que o schema não tem como saber — se a tarefa existe, se o título já foi usado:
+A classe `HttpError` passa a aceitar a lista de `issues` do Zod como terceiro argumento opcional:
 
 <SourceCode
-  path="examples/courses/expressjs/projects/task-api-validation/src/controllers/task-controller.ts"
-  title="src/controllers/task-controller.ts"
-  region="read"
+  path="examples/courses/expressjs/projects/task-api-validation/src/errors/HttpError.ts"
+  title="src/errors/HttpError.ts"
+  region="class"
 />
 
-## Filtro, ordenação e página
+Quando a validação falha, o `errorHandler` formata a resposta com status `422 Unprocessable Content` contendo o mapa de erros detalhado por campo:
 
-O model recebe a query já validada e aplica as três operações em ordem: filtra, ordena e
-só então corta a página. Inverter isso pagina o conjunto errado:
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-validation/src/middlewares/error-handler.ts"
+  title="src/middlewares/error-handler.ts"
+  region="handler"
+/>
+
+### TK05.4 · Modificar src/models/task-model.ts (Filtro, ordenação e página)
+
+O model recebe a query já validada e aplica as três operações em ordem rigorosa: filtra, ordena e só então corta a página. Inverter essa ordem geraria paginação sobre o conjunto incorreto:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-validation/src/models/task-model.ts"
@@ -266,10 +251,36 @@ só então corta a página. Inverter isso pagina o conjunto errado:
 />
 
 <Aside type="tip" title="`total` é da coleção filtrada, não da tabela">
-  `meta.total` conta os itens que passaram no filtro — é ele que o cliente usa para
-  desenhar a paginação. Devolver o total da coleção inteira faria a última página aparecer
-  vazia.
+  `meta.total` conta os itens que passaram no filtro, sendo a métrica utilizada pelo cliente para renderizar a paginação. Devolver o total da coleção inteira faria a última página aparecer vazia.
 </Aside>
+
+### TK05.5 · Modificar src/routes/task-router.ts e task-controller.ts (O controller emagrece)
+
+A validação é montada diretamente nas rotas antes do controller, impedindo que requisições inválidas cheguem à camada de negócio:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-validation/src/routes/task-router.ts"
+  title="src/routes/task-router.ts"
+  region="routes"
+/>
+
+Sem necessidade de verificações manuais de formato com `if`, o controller passa a lidar apenas com a lógica de negócio (como verificar se o registro existe ou se o título é duplicado):
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-validation/src/controllers/task-controller.ts"
+  title="src/controllers/task-controller.ts"
+  region="read"
+/>
+
+### TK05.6 · Criar src/utils/cookies.ts e ampliar o validate (Cabeçalhos e cookies sem dependência)
+
+Cabeçalhos e cookies chegam do cliente e podem ser forjados, devendo ser tratados como entrada não confiável. Nesta etapa, nenhum schema declara `headers` ou `cookies`, mas a estrutura já fica preparada para a [etapa 9](../auth/) validar o `Authorization` e eventuais cookies de sessão. O parser em `src/utils/cookies.ts` converte o cabeçalho `Cookie` sem dependências externas:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-validation/src/utils/cookies.ts"
+  title="src/utils/cookies.ts"
+  region="parse"
+/>
 
 ## Código completo
 

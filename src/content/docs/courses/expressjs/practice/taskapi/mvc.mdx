@@ -155,9 +155,7 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 
 ## Quem conhece quem?
 
-A dependência só aponta para dentro: o router conhece o controller, o controller
-conhece o model, e o model não conhece ninguém. É isso que permite trocar o array por
-um banco na etapa 7 mexendo em um arquivo só.
+A dependência só aponta para dentro: o router conhece o controller, o controller conhece o model, e o model não conhece ninguém. É isso que permite trocar o array por um banco na etapa 7 mexendo em um arquivo só.
 
 <Mermaid title="Camadas da TaskAPI na etapa 3">
 {`
@@ -172,33 +170,13 @@ flowchart TD
 `}
 </Mermaid>
 
-## O router só conhece caminhos
+## Descrição das tarefas
 
-Depois da extração, o router não tem nenhuma lógica: cada linha liga um método e um
-caminho a uma função do controller.
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
 
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-mvc/src/routes/task-router.js"
-  title="src/routes/task-router.js"
-  region="routes"
-/>
+### TK03.1 · Criar src/models/task-model.js (O model sem conhecimento de HTTP)
 
-## O controller traduz HTTP
-
-O controller é a única camada que toca em `req` e `res`. Repare que ele não responde o
-erro: ele **lança** um `HttpError` e deixa o middleware de erro formatar a resposta.
-
-<SourceCode
-  path="examples/courses/expressjs/projects/task-api-mvc/src/controllers/task-controller.js"
-  title="src/controllers/task-controller.js"
-  region="store"
-/>
-
-## O model não sabe que existe HTTP
-
-Nenhuma função do model recebe `req` ou devolve status. Elas trabalham com tarefas, e
-só. `remove()` devolve um booleano dizendo se apagou algo — cabe ao controller decidir
-que "não apagou nada" vira `404`:
+Nenhuma função do model recebe `req` ou devolve status HTTP. Elas trabalham exclusivamente com dados e regras de domínio. A função `remove()` devolve um booleano informando se algum registro foi excluído, cabendo ao controller decidir se o resultado falso vira `404`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-mvc/src/models/task-model.js"
@@ -206,12 +184,19 @@ que "não apagou nada" vira `404`:
   region="write"
 />
 
-## O erro tem um lugar só
+### TK03.2 · Criar src/controllers/task-controller.js (O controller traduz HTTP)
 
-`notFound` cria o erro quando nenhuma rota respondeu; `errorHandler` é reconhecido pelo
-Express por ter **quatro** parâmetros e é o último da cadeia. Erros com status abaixo
-de 500 mostram a mensagem real; de 500 para cima, a mensagem é genérica e o erro vai
-para o log:
+O controller é a única camada que manipula `req` e `res`. Ele não formata respostas de erro manualmente: quando uma regra falha, ele **lança** um `HttpError` e deixa o middleware centralizado tratar a resposta:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-mvc/src/controllers/task-controller.js"
+  title="src/controllers/task-controller.js"
+  region="store"
+/>
+
+### TK03.3 · Criar src/middlewares/error-handler.js (Tratamento centralizado de erros)
+
+O middleware `notFound` cria um erro 404 quando nenhuma rota atende a requisição. O `errorHandler` é reconhecido pelo Express por ter **quatro** parâmetros (`err, req, res, next`) e deve ser registrado por último. Erros com status abaixo de 500 exibem a mensagem original; erros 500 ou superiores retornam mensagem genérica para não vazar detalhes internos:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-mvc/src/middlewares/error-handler.js"
@@ -219,8 +204,29 @@ para o log:
   region="handler"
 />
 
-A ordem de registro no `app.js` é o que faz tudo isso funcionar — `notFound` depois das
-rotas, `errorHandler` por último:
+### TK03.4 · Criar src/middlewares/logger.js (Middleware de aplicação)
+
+O logger registra no console o método HTTP e a URL de cada requisição recebida. Sendo um middleware de passagem, ele obrigatoriamente invoca `next()` para não interromper a cadeia de execução:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-mvc/src/middlewares/logger.js"
+  title="src/middlewares/logger.js"
+  region="logger"
+/>
+
+### TK03.5 · Modificar src/routes/task-router.js (O router só conhece caminhos)
+
+Após a extração para controllers, o router não mantém nenhuma lógica de negócio ou manipulação de dados: cada linha apenas associa o verbo HTTP e o caminho à função correspondente do controller:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-mvc/src/routes/task-router.js"
+  title="src/routes/task-router.js"
+  region="routes"
+/>
+
+### TK03.6 · Modificar src/app.js (A ordem da cadeia de middlewares)
+
+A ordem de registro no `app.js` garante o fluxo correto da requisição: `logger` na entrada, `express.json()` antes das rotas, `taskRouter` para os endpoints, `notFound` logo após as rotas e `errorHandler` como último elemento da cadeia:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-mvc/src/app.js"

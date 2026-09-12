@@ -124,10 +124,10 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 1. **TK12.1 · Instalar o `supertest` e criar `src/routes/auth-router.test.ts`**: cadastro, senha fora da resposta, 409 e o 401 único.
 2. **TK12.2 · Criar `src/routes/task-router.test.ts`**: isolamento por dono, 404 em vez de 403 e campo extra recusado.
 3. **TK12.3 · Criar `src/services/ping-service.test.ts`**: a extração da latência em três formatos de saída.
-4. **TK12.7 · Criar `src/utils/cookies.test.ts` e o caso de cabeçalho malformado**: `parseCookies` como função pura e `Authorization: Token abc` respondendo 401 com a mensagem do schema.
-4. **TK12.4 · Criar `Dockerfile`**: estágio de build com `pnpm` e o estágio final só com o necessário, usuário sem privilégio e `HEALTHCHECK`.
-5. **TK12.5 · Criar `.dockerignore`**: temporários, segredos e dependências locais fora do contexto.
-6. **TK12.6 · Criar `compose.yaml`**: o serviço, o `command` que migra antes de subir, `${JWT_SECRET:?}` e os volumes de banco e uploads.
+4. **TK12.4 · Criar `src/utils/cookies.test.ts` e o caso de cabeçalho malformado**: `parseCookies` como função pura e `Authorization: Token abc` respondendo 401 com a mensagem do schema.
+5. **TK12.5 · Criar `Dockerfile`**: estágio de build com `pnpm` e o estágio final só com o necessário, usuário sem privilégio e `HEALTHCHECK`.
+6. **TK12.6 · Criar `.dockerignore`**: temporários, segredos e dependências locais fora do contexto.
+7. **TK12.7 · Criar `compose.yaml`**: o serviço, o `command` que migra antes de subir, `${JWT_SECRET:?}` e os volumes de banco e uploads.
 
 </Steps>
 
@@ -140,8 +140,7 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 | — | `compose.yaml` com volumes |
 | — | `.dockerignore` |
 
-Nenhuma dependência de runtime nova: o runner é o do próprio Node, e `supertest` é
-`devDependency`.
+Nenhuma dependência de runtime nova: o runner é o do próprio Node, e `supertest` é `devDependency`.
 
 ## Estrutura
 
@@ -164,10 +163,13 @@ Nenhuma dependência de runtime nova: o runner é o do próprio Node, e `superte
 `}
 </FileTree>
 
-## O teste importa `app`, não `server`
+## Descrição das tarefas
 
-É por isso que a etapa 2 separou os dois arquivos. Sem porta aberta, as suítes rodam em
-paralelo sem conflito:
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK12.1 · Instalar o supertest e criar src/routes/auth-router.test.ts (Testes de integração de autenticação)
+
+O supertest executa requisições HTTP contra o objeto `app` sem abrir portas de rede, viabilizando execução paralela rápida das suítes de teste:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/src/routes/auth-router.test.ts"
@@ -175,10 +177,7 @@ paralelo sem conflito:
   region="setup"
 />
 
-## Testar o que a documentação promete
-
-Cada afirmação forte das tópicos anteriores vira um teste. "A senha nunca sai na resposta" é
-verificável:
+Os testes fixam as regras de negócio declaradas no contrato: a senha nunca deve retornar no payload de resposta e tentativas de login com credenciais incorretas retornam mensagem unificada de erro 401:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/src/routes/auth-router.test.ts"
@@ -186,19 +185,15 @@ verificável:
   region="cases"
 />
 
-E "senha errada e e-mail inexistente respondem a mesma coisa" também — este é o tipo de
-regra que se perde numa refatoração se ninguém a fixar:
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/src/routes/auth-router.test.ts"
   title="src/routes/auth-router.test.ts"
   region="signin"
 />
 
-## O teste que mais importa
+### TK12.2 · Criar src/routes/task-router.test.ts (O teste que mais importa: isolamento por dono)
 
-Regra de segurança sem teste é esperança. O isolamento por dono é a garantia mais forte da
-API, e é a que mais tem a perder numa mudança de model:
+O isolamento de dados por usuário é a garantia de segurança mais crítica da aplicação. O teste verifica que acessar tarefas de outro usuário retorna status `404 Not Found` em vez de `403 Forbidden`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/src/routes/task-router.test.ts"
@@ -207,9 +202,7 @@ API, e é a que mais tem a perder numa mudança de model:
 />
 
 <Aside type="tip" title="Testar o status, não só o dado">
-  Assertar `404` em vez de `403` parece detalhe e não é: é a diferença entre uma API que
-  esconde a existência dos recursos alheios e uma que permite enumerá-los. O teste fixa a
-  decisão.
+  Afirmar `404` em vez de `403` é a diferença entre uma API que oculta a existência de recursos alheios e uma que permite a enumeração de IDs existentes.
 </Aside>
 
 <SourceCode
@@ -218,10 +211,9 @@ API, e é a que mais tem a perder numa mudança de model:
   region="guards"
 />
 
-## Unidade para o que é puro
+### TK12.3 · Criar src/services/ping-service.test.ts (Unidade para o que é puro: extração do ping)
 
-Nem tudo precisa de servidor. A extração da latência do `ping` é uma função pura, e testá-la
-custa milissegundos:
+Funções determinísticas e puras, como a extração de latência a partir do texto de saída de comandos de rede, são testadas isoladamente sem requisições de rede ou criação de processos filhos:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/src/services/ping-service.test.ts"
@@ -229,9 +221,9 @@ custa milissegundos:
   region="unit"
 />
 
-O mesmo vale para o `parseCookies` da etapa 5: uma string entra, um objeto sai, e os casos
-de borda (valor com `=`, cabeçalho ausente, percent-encoding inválido) cabem em quatro
-asserções:
+### TK12.4 · Criar src/utils/cookies.test.ts e o caso de cabeçalho malformado (Testes de cookies e autenticação)
+
+O utilitário `parseCookies` é testado para cenários de borda (valores com `=`, cabeçalho ausente e caracteres inválidos):
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/src/utils/cookies.test.ts"
@@ -239,10 +231,9 @@ asserções:
   region="unit"
 />
 
-## A imagem separa build de runtime
+### TK12.5 · Criar Dockerfile (A imagem separa build de runtime)
 
-O estágio de build tem `pnpm`, o compilador e o `node_modules` completo. A imagem final
-recebe só o que é preciso para rodar:
+A imagem multi-estágio compila e instala dependências no estágio de build e entrega uma imagem de produção limpa, executando sob usuário sem privilégios (`USER app`) e com sonda de integridade `HEALTHCHECK`:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/Dockerfile"
@@ -250,33 +241,19 @@ recebe só o que é preciso para rodar:
   region="build"
 />
 
-Copiar os manifestos **antes** do código é o que aproveita o cache: enquanto as dependências
-não mudarem, a camada de instalação não é refeita. O `prisma/` vem junto porque o
-`postinstall` do projeto roda `prisma generate`, que precisa do schema — e o schema muda
-muito menos que `src/`, então o cache continua valendo.
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/Dockerfile"
   title="Dockerfile"
   region="runtime"
 />
 
-<Aside type="danger" title="Não rode como root">
-  O padrão da imagem `node` é o usuário `root`. Se a aplicação for comprometida, o atacante
-  herda esse usuário dentro do contêiner. Um `useradd` e um `USER app` custam duas linhas.
+<Aside type="danger" title="Não execute contêineres como root">
+  O usuário padrão da imagem oficial do Node é `root`. Criar e utilizar um usuário dedicado sem privilégios (`app`) limita o raio de alcance caso o processo seja comprometido.
 </Aside>
 
-<Aside type="caution" title="Usuário sem privilégio não cria diretório sozinho">
-  `uploads/` e `data/` estão no `.dockerignore`, então não vêm no contexto — e o `app` não
-  pode criá-los em `/app`. Sem o `mkdir` com `chown` **antes** do `USER`, o processo morre
-  no arranque com `EACCES`. Vale também para o volume: montado sobre um caminho que pertence
-  ao root, ele continua pertencendo ao root.
-</Aside>
+### TK12.6 · Criar .dockerignore (O que não entra na imagem)
 
-O `HEALTHCHECK` fecha o ciclo aberto na etapa 1: o `/health` que nasceu como a primeira rota
-do guia é o que o contêiner usa para dizer se está saudável.
-
-## O que não entra na imagem?
+O arquivo `.dockerignore` previne que segredos locais (`.env`), bancos SQLite de desenvolvimento e pastas de cache entrem no contexto da imagem:
 
 ```txt title=".dockerignore"
 node_modules
@@ -288,10 +265,9 @@ prisma/dev.db
 .git
 ```
 
-O `.env` na lista não é detalhe: sem ele, o segredo de desenvolvimento viaja dentro da
-imagem e aparece em qualquer `docker history`.
+### TK12.7 · Criar compose.yaml (Volumes e segredo no ambiente)
 
-## Volumes, porque contêiner é descartável
+O Docker Compose gerencia a inicialização, garantindo que o `JWT_SECRET` seja fornecido via ambiente e que o banco de dados e os arquivos enviados fiquem protegidos em volumes persistentes:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-test/compose.yaml"
@@ -299,19 +275,8 @@ imagem e aparece em qualquer `docker history`.
   lang="yaml"
 />
 
-O banco e os uploads moram em volumes: derrubar o contêiner não pode apagar os dados. O
-`command` aplica as migrations antes de subir o servidor, para que um contêiner novo sobre
-um volume vazio se vire sozinho — e chama o binário do `node_modules`, porque `pnpm` não
-existe no estágio de runtime.
-
-O `JWT_SECRET` usa a sintaxe `${VAR:?}`, que recusa subir sem a variável.
-
-<Aside type="danger" title="O compose lê o `.env` do diretório sozinho">
-  E é por isso que o `${VAR:?}` pode não barrar nada: se houver um `.env` ao lado do
-  `compose.yaml` (e há, porque o desenvolvimento precisa dele), o compose o carrega e o
-  **segredo de desenvolvimento entra em produção em silêncio**. Em produção, use
-  `--env-file` apontando para outro arquivo, ou garanta que o `.env` não acompanhe o
-  deploy.
+<Aside type="danger" title="O compose carrega o `.env` do diretório por padrão">
+  Em ambientes de produção, utilize `--env-file` apontando para o arquivo seguro de variáveis e certifique-se de que segredos de desenvolvimento não sejam utilizados na publicação.
 </Aside>
 
 ## Código completo

@@ -126,11 +126,13 @@ de dados não deveria vazar para o contrato da API.
 `}
 </FileTree>
 
-## Um invólucro assíncrono
+## Descrição das tarefas
 
-`DatabaseSync` do `node:sqlite` é **síncrono**, e o resto da aplicação é `async`.
-Uniformizar isso em três métodos — `run` para escrita, `get` para uma linha, `all` para
-várias — mantém o model igual ao que ele seria com qualquer outro banco:
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK07.1 · Criar src/database/database.ts (Um invólucro assíncrono)
+
+`DatabaseSync` do `node:sqlite` é síncrono por padrão. Uniformizar as chamadas em métodos assíncronos (`run` para escrita, `get` para uma linha e `all` para múltiplas linhas) mantém a consistência da camada de modelo com padrões comuns de banco assíncrono:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-sqlite/src/database/database.ts"
@@ -138,11 +140,9 @@ várias — mantém o model igual ao que ele seria com qualquer outro banco:
   region="wrapper"
 />
 
-## As restrições moram no banco
+### TK07.2 · Criar src/database/migration.ts e seed.ts (As restrições moram no banco)
 
-O schema Zod protege o que passa pela API. O `CREATE TABLE` protege o que entra por
-qualquer caminho (seed, script, consulta manual) e é a única camada que resolve duas
-requisições simultâneas tentando gravar o mesmo título:
+O schema Zod protege o tráfego da API, mas o `CREATE TABLE` garante a integridade em nível de banco (inclusive para seeds, scripts e execuções concorrentes):
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-sqlite/src/database/migration.ts"
@@ -150,16 +150,21 @@ requisições simultâneas tentando gravar o mesmo título:
   region="up"
 />
 
-<Aside type="note" title="O SQLite não tem booleano">
-  `done` é gravado como `0` ou `1`, com um `CHECK` garantindo que não vire outra coisa. A
-  conversão para `true`/`false` acontece no model, de modo que nem o controller nem a
-  resposta HTTP vejam o formato do banco.
+<Aside type="note" title="O SQLite não tem tipo booleano nativo">
+  O campo `done` é gravado como `0` ou `1`, com uma restrição `CHECK (done IN (0, 1))`. A conversão para `true`/`false` ocorre no próprio model, mantendo a camada HTTP isolada de peculiaridades do SGBD.
 </Aside>
 
-## Filtrar sem concatenar
+O script `seed.ts` popula o banco de dados inicial utilizando comandos parametrizados:
 
-Cada filtro vira um pedaço de `WHERE` **e** um parâmetro. O valor nunca entra na string
-do SQL, e é isso que fecha a porta para injeção:
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-sqlite/src/database/seed.ts"
+  title="src/database/seed.ts"
+  showLineNumbers
+/>
+
+### TK07.3 · Modificar src/models/task-model.ts (SQL parametrizado e paginação)
+
+Cada filtro recebido compõe uma cláusula `WHERE` e seu respectivo valor nos parâmetros, impedindo qualquer injeção SQL:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-sqlite/src/models/task-model.ts"
@@ -167,8 +172,7 @@ do SQL, e é isso que fecha a porta para injeção:
   region="where"
 />
 
-A ordenação é o caso perigoso, porque o valor vira **nome de coluna** e não pode ser
-parametrizado. A defesa é a lista de permitidos — checar antes de interpolar:
+A ordenação dinâmica envolve nomes de colunas que não aceitam marcadores `?`. A segurança é mantida por meio de uma lista de permitidos (whitelist) estrita antes da interpolação:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-sqlite/src/models/task-model.ts"
@@ -177,20 +181,25 @@ parametrizado. A defesa é a lista de permitidos — checar antes de interpolar:
 />
 
 <Aside type="danger" title="Lista de permitidos, nunca de proibidos">
-  Bloquear alguns nomes e liberar o resto falha na primeira coluna sensível que alguém
-  acrescentar. A lista de permitidos é segura por construção: coluna nova só entra quando
-  alguém decide colocá-la lá.
+  Bloquear alguns nomes e liberar o resto falha na primeira coluna sensível que for acrescentada. A lista de permitidos é segura por construção: colunas novas só entram quando explicitamente declaradas.
 </Aside>
 
-## Contar e paginar
-
-O `COUNT` usa exatamente o mesmo `WHERE` da listagem e **não** usa `LIMIT` — é ele que diz
-quantas páginas existem. A listagem é a mesma consulta com `LIMIT` e `OFFSET`:
+A contagem total utiliza os mesmos filtros da consulta sem aplicar `LIMIT`/`OFFSET`, fornecendo o número exato de páginas para a paginação:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-sqlite/src/models/task-model.ts"
   title="src/models/task-model.ts"
   region="find-all"
+/>
+
+### TK07.4 · Modificar src/controllers/task-controller.ts (Operações assíncronas)
+
+Com o model operando de forma assíncrona sobre o banco de dados, todas as chamadas no controller passam a utilizar `await`, garantindo que os dados ou exceções sejam tratados antes de enviar a resposta HTTP:
+
+<SourceCode
+  path="examples/courses/expressjs/projects/task-api-sqlite/src/controllers/task-controller.ts"
+  title="src/controllers/task-controller.ts"
+  region="read"
 />
 
 ## Código completo

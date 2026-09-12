@@ -165,19 +165,19 @@ seguintes explicam a decisão por trás de cada uma, e o código completo está 
 `}
 </FileTree>
 
-## O ambiente também é entrada não confiável
+## Descrição das tarefas
 
-Um `PORT=abc` vira `NaN`; um `JWT_SECRET` ausente vira string vazia, e a API passa a
-aceitar tokens assinados com nada. Os dois falham em silêncio e só aparecem em produção.
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e trechos de código.
+
+### TK10.1 · Criar src/config.ts e .env.example (O ambiente também é entrada não confiável)
+
+Variáveis de ambiente podem faltar ou conter formatos inválidos (`PORT=abc`, `JWT_SECRET` ausente). O schema Zod valida o ambiente no arranque do processo, interrompendo a execução imediatamente com mensagens claras se alguma configuração estiver incorreta:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/config.ts"
   title="src/config.ts"
   region="schema"
 />
-
-A checagem acontece uma vez, no arranque, e derruba o processo com a lista do que está
-errado. Não existe `errorHandler` aqui — o servidor ainda nem subiu:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/config.ts"
@@ -186,23 +186,18 @@ errado. Não existe `errorHandler` aqui — o servidor ainda nem subiu:
 />
 
 <Aside type="tip" title="A aplicação lê `config`, nunca `process.env`">
-  Um único arquivo passa a responder "o que este serviço precisa do ambiente?", e os
-  valores chegam já convertidos e no tipo certo. `config.PORT` é `number`; `process.env.PORT`
-  é `string | undefined`.
+  Um único arquivo centraliza as necessidades de ambiente da aplicação, entregando valores convertidos e tipados (por exemplo, `config.PORT` é do tipo `number`).
 </Aside>
 
-## Log que uma máquina consegue ler
+### TK10.2 · Criar src/middlewares/request-id.ts e reescrever logger.ts (Log que uma máquina consegue ler)
 
-Texto livre é legível para uma pessoa e inútil para uma ferramenta. Em JSON, "todos os 500
-do usuário X na última hora" vira uma consulta em vez de um `grep` criativo:
+Logs estruturados em formato JSON facilitam consultas automatizadas e monitoramento. O registro ocorre no evento `finish` da resposta, capturando status HTTP e tempo de execução em milissegundos:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/logger.ts"
   title="src/middlewares/logger.ts"
   region="log"
 />
-
-O registro acontece no evento `finish`, quando status e duração já existem:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/logger.ts"
@@ -211,13 +206,10 @@ O registro acontece no evento `finish`, quando status e duração já existem:
 />
 
 <Aside type="danger" title="O que nunca entra no log">
-  `Authorization`, corpo de `/auth/signin`, cookies. Um token vazado em arquivo de log é um
-  token vazado — e arquivos de log costumam ir para serviços de terceiros.
+  Cabeçalhos `Authorization`, senhas no corpo de `/auth/signin` e cookies de sessão nunca devem ser logados, evitando vazamento de credenciais em ferramentas de observabilidade.
 </Aside>
 
-O `requestId` é o que costura tudo. Ele respeita o id que o proxy já tenha colocado, então
-o rastro atravessa serviços, e volta ao cliente no cabeçalho `X-Request-Id` — algo que a
-pessoa pode citar ao relatar um erro:
+O identificador de correlação `X-Request-Id` preserva o ID vindo de proxies reversos ou gera um UUID novo, sendo retornado nos cabeçalhos de resposta:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/request-id.ts"
@@ -225,7 +217,9 @@ pessoa pode citar ao relatar um erro:
   region="request-id"
 />
 
-## `/health` e `/ready` respondem perguntas diferentes
+### TK10.3 · Criar src/routes/health-router.ts e src/telemetry.ts (Sondas de saúde e métricas)
+
+`/health` responde apenas sobre o processo (liveness) sem onerar o banco. `/ready` valida dependências ativas (readiness) para orquestradores de contêineres:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/routes/health-router.ts"
@@ -233,20 +227,13 @@ pessoa pode citar ao relatar um erro:
   region="health"
 />
 
-`/health` **não** consulta o banco, de propósito: chamado a cada segundo pelo orquestrador,
-viraria carga constante — e uma queda do banco derrubaria um processo que ainda estava
-saudável. Quem checa a dependência é o `/ready`:
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/routes/health-router.ts"
   title="src/routes/health-router.ts"
   region="ready"
 />
 
-## Métrica não é log
-
-Log responde "o que aconteceu nesta requisição"; métrica responde "como o serviço está se
-comportando agora". O `/metrics` expõe contadores e percentis no formato do Prometheus:
+O endpoint `/metrics` expõe contadores e percentis de tempo de resposta (p95, p99) no formato do Prometheus:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/telemetry.ts"
@@ -255,24 +242,18 @@ comportando agora". O `/metrics` expõe contadores e percentis no formato do Pro
 />
 
 <Aside type="caution" title="A média esconde o problema">
-  Se 99 requisições levam 10 ms e uma leva 5 s, a média diz 60 ms e ninguém investiga. O
-  p95 e o p99 mostram a cauda — que é onde moram os usuários insatisfeitos.
+  Se 99 requisições levam 10 ms e uma leva 5 s, a média mascara a lentidão. Os percentis p95 e p99 revelam o comportamento real na cauda de latência.
 </Aside>
 
-## CORS é uma decisão do navegador
+### TK10.4 · Criar src/middlewares/cors.ts e security-headers.ts (CORS e cabeçalhos de segurança)
 
-A política de mesma origem é do navegador: quem decide se o JavaScript de outra origem
-pode **ler** a resposta é ele, com base no que o servidor responde. `curl` ignora tudo
-isso.
+O middleware de CORS valida a origem contra uma lista de permitidos e trata requisições de preflight (`OPTIONS` com status `204`):
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/cors.ts"
   title="src/middlewares/cors.ts"
   region="cors"
 />
-
-O `preflight` é o `OPTIONS` que o navegador manda antes de um `PUT` ou de um `POST` com
-JSON. Responder `204` ali encerra o ciclo, e a rota real nem é consultada:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/cors.ts"
@@ -281,16 +262,10 @@ JSON. Responder `204` ali encerra o ciclo, e a rota real nem é consultada:
 />
 
 <Aside type="danger" title="`*` e credenciais são incompatíveis">
-  `Access-Control-Allow-Origin: *` com `Allow-Credentials: true` é recusado pelo navegador
-  — e, se funcionasse, qualquer site poderia ler respostas autenticadas. Por isso a origem
-  é ecoada a partir de uma lista, e o `Vary: Origin` impede um cache de servir a resposta
-  de uma origem para outra.
+  `Access-Control-Allow-Origin: *` combinado com credenciais é rejeitado pelos navegadores. O servidor ecoa a origem permitida e anexa `Vary: Origin`.
 </Aside>
 
-## Cabeçalhos que instruem o navegador
-
-Nenhum deles protege o servidor: todos pedem ao navegador que seja mais restritivo com a
-resposta. É o que o `helmet` faz, escrito à mão:
+Cabeçalhos essenciais de proteção do navegador (`nosniff`, `DENY`, CSP e HSTS) são aplicados sem dependências adicionais:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/security-headers.ts"
@@ -298,10 +273,9 @@ resposta. É o que o `helmet` faz, escrito à mão:
   region="headers"
 />
 
-## Limite por balde, não por aplicação
+### TK10.5 · Criar src/middlewares/rate-limit.ts (Limite por balde, não por aplicação)
 
-Cada limitador tem nome próprio, e portanto contador próprio. Sem isso, o teto global e o
-limite do login somariam no mesmo balde e uma tentativa de login seria cobrada duas vezes:
+Cada limitador opera com contadores independentes, permitindo aplicar um teto geral na API e regras mais estritas para rotas sensíveis a ataques de força bruta, como login:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/middlewares/rate-limit.ts"
@@ -309,21 +283,19 @@ limite do login somariam no mesmo balde e uma tentativa de login seria cobrada d
   region="middleware"
 />
 
-O login é a rota de força bruta por excelência, e ganha um limite bem mais apertado que o
-teto geral:
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/routes/auth-router.ts"
   title="src/routes/auth-router.ts"
   region="strict-limit"
 />
 
-<Aside type="caution" title="Contador em memória não sobrevive a duas instâncias">
-  Com dois processos, cada um conta a sua parte e o limite efetivo vira o dobro. Para valer
-  de verdade em escala, o contador precisa morar fora do processo — num Redis, por exemplo.
+<Aside type="caution" title="Contador em memória não sobrevive a múltiplas instâncias">
+  Em ambientes distribuídos com múltiplos nós, contadores de limite de taxa precisam residir em um armazenamento compartilhado, como o Redis.
 </Aside>
 
-## A ordem da cadeia é a arquitetura
+### TK10.6 · Modificar src/app.ts e src/server.ts (Ordem da cadeia, trust proxy e encerramento gracioso)
+
+A ordem dos middlewares é crucial: `requestId` e `securityHeaders` vêm no topo para cobrir toda resposta; `/health` é montado antes do limitador de taxa; e `trust proxy` garante a leitura correta do IP do cliente através do proxy:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/app.ts"
@@ -331,23 +303,13 @@ teto geral:
   region="chain"
 />
 
-Três decisões estão condensadas aí: `requestId` vem primeiro para que todo log tenha o id;
-`securityHeaders` vem antes de tudo para valer até nas respostas de erro; e `/health` é
-montado **antes** do `rateLimit`, porque limitar o health check é limitar o orquestrador.
-
-E o `trust proxy` não é detalhe: atrás de um balanceador, `req.ip` seria sempre o do proxy,
-e o rate limit contaria o mundo inteiro como um único cliente.
-
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/app.ts"
   title="src/app.ts"
   region="trust-proxy"
 />
 
-## Morrer com educação
-
-Ao receber `SIGTERM`, o servidor para de aceitar conexões novas e espera as que já estão em
-andamento. Sem isso, todo deploy derruba requisições que estavam quase respondendo:
+Ao receber sinais como `SIGTERM`, o servidor suspende novas conexões e conclui as requisições em trânsito antes de encerrar o processo:
 
 <SourceCode
   path="examples/courses/expressjs/projects/task-api-hardening/src/server.ts"
