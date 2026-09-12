@@ -19,6 +19,111 @@ leva tudo isso para fora da sua máquina.
 
 <ProjectLinks path="examples/courses/expressjs/projects/task-api-test" devcontainer="task-api-test" />
 
+## Requisitos, histórias e critérios
+
+**Épico EP05 · Qualidade e Operação** › **Features FT17 · Suíte de testes** e **FT18 · Empacotamento e deploy**
+
+As duas features compartilham a mesma exigência: não alterar a aplicação para caber nelas. É
+por isso que `src/` só ganha arquivos `.test.ts`, e a raiz ganha os três arquivos do Docker.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF08** Testabilidade | unidade e rota com `node --test` e `supertest`, sem abrir porta | atendido |
+| **RNF09** Portabilidade & Conteinerização | imagem multi-estágio, Compose, segredo por ambiente e volumes | atendido |
+
+### US20 — Alterar sem quebrar o existente · RNF08
+
+> **Como** pessoa que mantém a API,
+> **quero** uma suíte que rode em segundos e fixe as decisões de segurança em asserções,
+> **para** descobrir uma regressão antes de publicá-la.
+
+```gherkin
+Cenário: CA20.1 - A suíte inteira, sem porta
+  Quando executo pnpm test
+  Então 21 testes em 9 suítes passam
+  E nenhuma porta é aberta
+  E nenhum e-mail é enviado
+
+Cenário: CA20.2 - O teste importa a aplicação
+  Quando abro qualquer arquivo .test.ts de src/routes/
+  Então ele importa app, e nunca server
+
+Cenário: CA20.3 - O isolamento por dono está fixado
+  Quando leio src/routes/task-router.test.ts
+  Então existe um teste que consulta a tarefa de outro dono
+  E ele afirma o status 404, e não 403
+
+Cenário: CA20.4 - As regras de autenticação estão fixadas
+  Quando leio src/routes/auth-router.test.ts
+  Então existe um teste afirmando que a senha não sai na resposta
+  E outro afirmando que senha errada e e-mail inexistente respondem o mesmo 401
+
+Cenário: CA20.5 - Duas execuções seguidas passam
+  Quando executo pnpm test duas vezes
+  Então as duas passam
+  E os usuários criados no before são apagados no after
+
+Cenário: CA20.6 - Sem framework de teste
+  Quando abro o package.json
+  Então o script test roda node --test
+  E supertest, com os seus tipos, é a única dependência nova, em devDependencies
+```
+
+### US21 — Subir a API em qualquer máquina · RNF09
+
+> **Como** pessoa responsável pelo deploy,
+> **quero** subir a API inteira com um comando,
+> **para** não depender do que está instalado na máquina de destino.
+
+```gherkin
+Cenário: CA21.1 - Um comando
+  Dado uma máquina com Docker e sem Node
+  Quando executo JWT_SECRET=... docker compose up --build
+  Então a API responde em http://localhost:3000
+
+Cenário: CA21.2 - Migrations na subida
+  Dado um volume vazio
+  Quando o contêiner sobe
+  Então as migrations pendentes são aplicadas antes de o servidor atender
+
+Cenário: CA21.3 - Sem root
+  Quando inspeciono o processo dentro do contêiner
+  Então ele roda como o usuário app
+
+Cenário: CA21.4 - O que não entra na imagem
+  Quando inspeciono a imagem
+  Então .env, node_modules, uploads e *.db não estão nela
+
+Cenário: CA21.5 - Contêiner descartável, dados não
+  Dado usuários e avatares criados
+  Quando executo docker compose down e depois up
+  Então o banco e os uploads continuam lá
+
+Cenário: CA21.6 - Sem segredo, não sobe
+  Quando executo docker compose up sem JWT_SECRET no ambiente
+  Então o Compose recusa subir
+
+Cenário: CA21.7 - O ciclo se fecha no /health
+  Quando leio o Dockerfile
+  Então o HEALTHCHECK consulta a rota /health que nasceu na etapa 1
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US20 e US21 e são a ordem sugerida de execução. As seções
+seguintes explicam a decisão por trás de cada uma, e o código completo está ao final da página.
+
+<Steps>
+
+1. **TK12.1 · Instalar o `supertest` e criar `src/routes/auth-router.test.ts`**: cadastro, senha fora da resposta, 409 e o 401 único.
+2. **TK12.2 · Criar `src/routes/task-router.test.ts`**: isolamento por dono, 404 em vez de 403 e campo extra recusado.
+3. **TK12.3 · Criar `src/services/ping-service.test.ts`**: a extração da latência em três formatos de saída.
+4. **TK12.4 · Criar `Dockerfile`**: estágio de build com `pnpm` e o estágio final só com o necessário, usuário sem privilégio e `HEALTHCHECK`.
+5. **TK12.5 · Criar `.dockerignore`**: temporários, segredos e dependências locais fora do contexto.
+6. **TK12.6 · Criar `compose.yaml`**: o serviço, o `command` que migra antes de subir, `${JWT_SECRET:?}` e os volumes de banco e uploads.
+
+</Steps>
+
 ## O que muda nesta etapa?
 
 | Antes (etapa 11) | Agora (etapa 12) |

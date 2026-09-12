@@ -20,6 +20,117 @@ A mesma API, pronta para sair da sua máquina — e ainda sem dependência nova.
 
 <ProjectLinks path="examples/courses/expressjs/projects/task-api-hardening" devcontainer="task-api-hardening" />
 
+## Requisitos, histórias e critérios
+
+**Épico EP05 · Qualidade e Operação** › **Feature FT16 · Endurecimento**
+
+Nenhum requisito funcional entra aqui: o contrato de `/auth` e `/tasks` não muda. O que muda é
+o que acontece em volta de cada requisição, e quem se interessa por isso é quem opera a API.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF06** Operação & Observabilidade | config validada, log JSON, `/ready`, `/metrics` e encerramento gracioso | atendido |
+| **RNF07** Proteção de Borda | CORS por lista, cabeçalhos de segurança e limite por balde | atendido |
+| **RNF10** Dependências Mínimas | tudo escrito à mão, sem `helmet`, `cors` nem `express-rate-limit` | atendido |
+
+### US14 — Saber como o serviço está · RNF06
+
+> **Como** pessoa responsável pela operação,
+> **quero** que a API recuse subir mal configurada, registre cada requisição de forma legível por máquina e responda sondas de saúde,
+> **para** diagnosticar um problema em produção sem adivinhar.
+
+```gherkin
+Cenário: CA14.1 - O ambiente é validado no arranque
+  Quando subo o servidor sem JWT_SECRET, ou com PORT=abc
+  Então o processo recusa arrancar
+  E lista exatamente quais variáveis estão erradas
+
+Cenário: CA14.2 - Uma linha JSON por requisição
+  Quando qualquer requisição termina
+  Então o log traz requestId, method, path, status e durationMs em JSON
+
+Cenário: CA14.3 - O id atravessa serviços
+  Quando envio uma requisição
+  Então a resposta traz o cabeçalho X-Request-Id
+  E se a requisição já veio com um X-Request-Id do proxy
+  Então ele é respeitado em vez de substituído
+
+Cenário: CA14.4 - Vivo não é pronto
+  Quando envio GET /health
+  Então recebo 200 sem que o banco seja consultado
+  Mas quando envio GET /ready com o banco fora do ar
+  Então recebo o status 503
+
+Cenário: CA14.5 - Métrica não é log
+  Quando envio GET /metrics
+  Então recebo contadores e percentis p95 e p99 no formato do Prometheus
+
+Cenário: CA14.6 - Morrer com educação
+  Dado requisições em andamento
+  Quando o processo recebe SIGTERM
+  Então ele para de aceitar conexões novas
+  E termina as que estavam em andamento antes de sair
+
+Cenário: CA14.7 - O que nunca entra no log
+  Quando envio POST /auth/signin
+  Então nem o cabeçalho Authorization nem o corpo aparecem no log
+```
+
+### US15 — Proteger a borda da API · RNF07
+
+> **Como** pessoa responsável pela operação,
+> **quero** controlar quais origens leem as respostas, quais cabeçalhos o navegador respeita e quantas requisições cada cliente pode fazer,
+> **para** que a API aguente ser exposta à internet.
+
+```gherkin
+Cenário: CA15.1 - Origem por lista de permitidos
+  Quando envio uma requisição com uma Origin da lista CORS_ORIGINS
+  Então a resposta ecoa a origem em Access-Control-Allow-Origin
+  E traz Vary: Origin
+  Mas quando a Origin não está na lista
+  Então o cabeçalho não é enviado
+
+Cenário: CA15.2 - O preflight encerra o ciclo
+  Quando envio OPTIONS em qualquer rota
+  Então recebo o status 204
+  E a rota real não é executada
+
+Cenário: CA15.3 - Cabeçalhos em toda resposta
+  Quando recebo qualquer resposta, inclusive de erro
+  Então ela traz X-Content-Type-Options: nosniff, X-Frame-Options: DENY, CSP e HSTS
+
+Cenário: CA15.4 - Força bruta no login
+  Quando envio a sexta tentativa de POST /auth/signin no mesmo minuto
+  Então recebo o status 429
+  E o cabeçalho Retry-After diz quanto esperar
+
+Cenário: CA15.5 - Baldes separados
+  Quando o teto global e o limite do login contam
+  Então cada um usa o próprio contador
+  E GET /health fica fora de qualquer limite
+
+Cenário: CA15.6 - O ip real atrás do proxy
+  Dado a aplicação atrás de um balanceador
+  Quando uma requisição chega com X-Forwarded-For
+  Então req.ip é o do cliente, e não o do proxy
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US14 e US15 e são a ordem sugerida de execução. As seções
+seguintes explicam a decisão por trás de cada uma, e o código completo está ao final da página.
+
+<Steps>
+
+1. **TK10.1 · Criar `src/config.ts` e `.env.example`**: o schema Zod do ambiente e a falha no arranque.
+2. **TK10.2 · Criar `src/middlewares/request-id.ts` e reescrever `logger.ts`**: o id que atravessa serviços e o log JSON no evento `finish`.
+3. **TK10.3 · Criar `src/routes/health-router.ts` e `src/telemetry.ts`**: `/health`, `/ready` e os contadores de `/metrics`.
+4. **TK10.4 · Criar `src/middlewares/cors.ts` e `security-headers.ts`**: a lista de origens, o preflight e os cabeçalhos escritos à mão.
+5. **TK10.5 · Criar `src/middlewares/rate-limit.ts`**: baldes nomeados, o teto global no `app.ts` e o limite apertado em `POST /auth/signin`.
+6. **TK10.6 · Modificar `src/app.ts` e `src/server.ts`**: a ordem da cadeia, o `trust proxy` e o encerramento gracioso.
+
+</Steps>
+
 ## O que muda nesta etapa?
 
 | Antes (etapa 9) | Agora (etapa 10) |

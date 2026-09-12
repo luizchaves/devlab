@@ -21,6 +21,152 @@ A API deixa de ser pública, e cada tarefa passa a ter dono.
 
 <ProjectLinks path="examples/courses/expressjs/projects/task-api-auth" devcontainer="task-api-auth" />
 
+## Requisitos, histórias e critérios
+
+**Épico EP02 · Identidade e Acesso** › **Feature FT06 · Cadastro, login e isolamento por dono**
+
+É a feature com mais histórias da trilha: uma cria a conta, outra abre a sessão e a terceira
+usa a sessão para escopar os dados. As sete tasks da etapa se dividem entre elas.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF04** Cadastro de Usuários | `POST /auth/signup` com nome, e-mail único e senha | atendido |
+| **RF05** Autenticação & Sessão | `POST /auth/signin` com JWT e `GET /auth/me` | atendido |
+| **RF06** Isolamento por Dono e Papéis | toda consulta de tarefa escopada pelo dono do token; `requireRole` | atendido |
+| **RNF02** Criptografia & Segurança | Argon2id e HS256 com `node:crypto` | atendido |
+
+### US11 — Ter uma conta · RF04, RNF02
+
+> **Como** cliente HTTP,
+> **quero** criar uma conta com nome, e-mail e senha,
+> **para** ter tarefas que sejam só minhas.
+
+```gherkin
+Cenário: CA11.1 - Cadastro com sucesso
+  Quando envio POST /auth/signup com nome, e-mail e senha válidos
+  Então recebo o status 201
+  E o corpo traz id, name, email, role e createdAt
+  E não traz "password", nem em hash
+
+Cenário: CA11.2 - E-mail já cadastrado
+  Dado um usuário com o e-mail "ana@example.com"
+  Quando envio POST /auth/signup com o mesmo e-mail
+  Então recebo o status 409
+
+Cenário: CA11.3 - A senha nunca é guardada
+  Quando olho a coluna password no banco
+  Então ela começa com "$argon2id$"
+  E dois usuários com a mesma senha têm hashes diferentes
+
+Cenário: CA11.4 - Sem dependência para o que o Node resolve
+  Quando abro src/utils/password.ts e src/utils/jwt.ts
+  Então os dois importam apenas node:crypto
+  E a senha é comparada com timingSafeEqual
+
+Cenário: CA11.5 - Papel padrão
+  Quando um usuário é criado pelo cadastro
+  Então o papel dele é "user"
+```
+
+### US12 — Entrar e me identificar · RF05
+
+> **Como** cliente HTTP cadastrado,
+> **quero** entrar com o meu e-mail e a minha senha e receber um token,
+> **para** me identificar nas requisições seguintes sem reenviar a senha.
+
+```gherkin
+Cenário: CA12.1 - Login com credenciais válidas
+  Dado o usuário "ana@example.com" com a senha "senha-de-desenvolvimento"
+  Quando envio POST /auth/signin com essas credenciais
+  Então recebo o status 200
+  E o corpo traz "token" e "user"
+
+Cenário: CA12.2 - Credenciais inválidas não distinguem a causa
+  Quando envio POST /auth/signin com a senha errada
+  Então recebo o status 401
+  Mas quando envio POST /auth/signin com um e-mail inexistente
+  Então recebo o mesmo status 401 e a mesma mensagem
+
+Cenário: CA12.3 - Rota privada exige token
+  Quando envio GET /tasks sem o cabeçalho Authorization
+  Então recebo o status 401
+
+Cenário: CA12.4 - Token adulterado ou vencido é recusado
+  Dado um token válido
+  Quando altero um caractere dele e repito a requisição
+  Então recebo o status 401
+  E quando uso um token expirado
+  Então recebo o status 401
+
+Cenário: CA12.5 - Quem sou eu
+  Quando envio GET /auth/me com um token válido
+  Então recebo o usuário dono do token
+
+Cenário: CA12.6 - O payload não é secreto
+  Quando decodifico o payload do token
+  Então vejo sub, name, email e role
+  E nunca a senha
+```
+
+### US13 — Ver apenas as minhas tarefas · RF06
+
+> **Como** cliente HTTP autenticado,
+> **quero** que a API me mostre e deixe alterar apenas as minhas tarefas,
+> **para** que a minha lista não seja exposta a outras contas.
+
+```gherkin
+Cenário: CA13.1 - Cada conta vê o seu
+  Dado que Ana e Bruno estão cadastrados
+  E que cada um criou tarefas
+  Quando Ana envia GET /tasks
+  Então ela vê apenas as tarefas dela
+
+Cenário: CA13.2 - Leitura cruzada não é permitida
+  Quando Ana consulta pelo id uma tarefa do Bruno
+  Então ela recebe o status 404
+  E não 403, para não confirmar que o recurso existe
+
+Cenário: CA13.3 - Escrita cruzada não é permitida
+  Quando Ana tenta apagar uma tarefa do Bruno
+  Então ela recebe o status 404
+  E a tarefa do Bruno continua existindo
+
+Cenário: CA13.4 - O dono vem do token
+  Quando envio POST /tasks com um userId no corpo
+  Então esse userId é ignorado
+  E a tarefa é atribuída ao dono do token
+
+Cenário: CA13.5 - Título único por dono
+  Dado que Ana tem uma tarefa "Estudar rotas do Express"
+  Quando Bruno cria uma tarefa com o mesmo título
+  Então ele recebe o status 201
+  Mas quando Ana cria outra com o mesmo título
+  Então ela recebe o status 409
+
+Cenário: CA13.6 - Autenticado não é autorizado
+  Dado uma rota protegida por requireRole('admin')
+  Quando um usuário com papel "user" a acessa com token válido
+  Então recebe o status 403
+  E o middleware existe nesta etapa mesmo sem nenhuma rota o aplicar ainda
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US11, US12 e US13 e são a ordem sugerida de execução. As seções
+seguintes explicam a decisão por trás de cada uma, e o código completo está ao final da página.
+
+<Steps>
+
+1. **TK09.1 · Modificar `prisma/schema.prisma`**: `User` com `password` e `role`, `Task.userId` e `@@unique([userId, title])`.
+2. **TK09.2 · Criar `src/utils/password.ts` e `password.test.ts`**: Argon2id em formato PHC e a verificação em tempo constante.
+3. **TK09.3 · Criar `src/utils/jwt.ts` e `jwt.test.ts`**: assinatura HS256 com `createHmac`, expiração e verificação.
+4. **TK09.4 · Criar `src/models/user-model.ts`**: `create`, `findByEmail` e `authenticate`, com um `select` que nunca traz `password`.
+5. **TK09.5 · Criar `src/schemas/auth.ts`, `src/controllers/auth-controller.ts` e `src/routes/auth-router.ts`**: `signup`, `signin` e `me`.
+6. **TK09.6 · Criar `src/middlewares/authenticate.ts` e `authorize.ts`**: quem é e o que pode, com `authenticate` aplicado ao router inteiro de `/tasks`.
+7. **TK09.7 · Modificar `src/models/task-model.ts` e `src/controllers/task-controller.ts`**: toda consulta escopada pelo `userId`, lido de `req.auth.sub`.
+
+</Steps>
+
 ## O que muda nesta etapa?
 
 | Antes (etapa 8) | Agora (etapa 9) |

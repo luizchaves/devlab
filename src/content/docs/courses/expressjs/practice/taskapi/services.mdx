@@ -22,6 +22,180 @@ dado do cliente virando caminho de arquivo, comando de sistema ou endereço de d
 
 <ProjectLinks path="examples/courses/expressjs/projects/task-api-services" devcontainer="task-api-services" />
 
+## Requisitos, histórias e critérios
+
+**Épico EP03 · Serviços em volta da conta** › **Features FT07 · Verificação de e-mail**,
+**FT08 · Avatar do usuário**, **FT09 · Eventos em tempo real** e **FT10 · Ping sob demanda**
+
+Quatro features na mesma etapa, uma por serviço. Cada uma tem a sua história, e as oito tasks
+se dividem em pares.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RF07** Verificação de E-mail | e-mail de boas-vindas com link e `GET /auth/verify` | atendido |
+| **RF08** Avatar do Usuário | `POST /auth/me/avatar` com Multer e `express.static` | atendido |
+| **RF09** Eventos em Tempo Real | `GET /events` em SSE, por dono | atendido |
+| **RF10** Ping sob Demanda | `GET /ping?host=` com `execFile` | atendido |
+
+### US16 — Confirmar que o e-mail é meu · RF07
+
+> **Como** cliente recém-cadastrado,
+> **quero** receber um e-mail com um link de confirmação,
+> **para** provar que o endereço que informei é meu.
+
+```gherkin
+Cenário: CA16.1 - O cadastro dispara, e não espera
+  Quando envio POST /auth/signup com dados válidos
+  Então recebo o status 201 sem esperar o SMTP
+  E um e-mail de boas-vindas com o link de verificação é disparado
+
+Cenário: CA16.2 - Em desenvolvimento nada é enviado
+  Dado o ambiente sem SMTP_HOST
+  Quando um cadastro acontece
+  Então a mensagem aparece no log como mail_sent
+  E nenhum destinatário real recebe nada
+
+Cenário: CA16.3 - O link confirma o endereço
+  Quando envio GET /auth/verify?token= com o token do link
+  Então recebo o status 200 com "status" igual a "verified"
+  E verifiedAt do usuário fica preenchido
+
+Cenário: CA16.4 - Token inválido ou já usado
+  Quando envio GET /auth/verify com um token desconhecido ou repetido
+  Então recebo o status 400
+
+Cenário: CA16.5 - O SMTP não derruba o cadastro
+  Dado o SMTP fora do ar
+  Quando envio POST /auth/signup com dados válidos
+  Então recebo o status 201
+  E a falha de envio vai para o log
+```
+
+### US17 — Ter uma foto de perfil · RF08
+
+> **Como** cliente HTTP autenticado,
+> **quero** enviar uma imagem de perfil,
+> **para** que a minha conta seja reconhecível por quem consome a API.
+
+```gherkin
+Cenário: CA17.1 - Upload exige token
+  Quando envio POST /auth/me/avatar sem Authorization
+  Então recebo o status 401
+
+Cenário: CA17.2 - Upload com sucesso
+  Dado um token válido
+  Quando envio um PNG de até 2 MB no campo "avatar"
+  Então recebo o status 201
+  E o corpo traz o caminho da imagem em "avatar"
+
+Cenário: CA17.3 - Tipo fora da lista
+  Quando envio um arquivo que não é PNG, JPEG nem WebP
+  Então recebo o status 415
+  E nada é gravado em disco
+
+Cenário: CA17.4 - Tamanho acima do limite
+  Quando envio um arquivo maior que 2 MB
+  Então o upload é recusado antes de o arquivo ser gravado por inteiro
+
+Cenário: CA17.5 - O nome é decisão do servidor
+  Quando envio um arquivo chamado "../../etc/passwd.png"
+  Então o arquivo no disco tem um nome UUID com a extensão do tipo
+  E o nome original não é usado
+
+Cenário: CA17.6 - Sem arquivo órfão
+  Dado um usuário com avatar
+  Quando ele envia um novo
+  Então o arquivo anterior é apagado
+
+Cenário: CA17.7 - A imagem é servida como estático
+  Quando envio GET /uploads/{arquivo}
+  Então recebo a imagem por express.static
+  E não por uma rota que monta o caminho a partir da requisição
+```
+
+### US18 — Ser avisado no instante da mudança · RF09
+
+> **Como** cliente HTTP autenticado,
+> **quero** manter uma conexão aberta que receba as mudanças das minhas tarefas,
+> **para** atualizar a tela sem consultar `/tasks` a cada segundo.
+
+```gherkin
+Cenário: CA18.1 - A resposta que não termina
+  Quando envio GET /events com um token válido
+  Então recebo o status 200 com Content-Type: text/event-stream
+  E a resposta fica aberta
+
+Cenário: CA18.2 - Cada mudança vira um evento
+  Dado uma conexão aberta em /events
+  Quando envio POST /tasks com o mesmo token
+  Então recebo "event: task.created" com a tarefa em data
+  E quando envio PUT /tasks/{id}
+  Então recebo "event: task.updated"
+
+Cenário: CA18.3 - Só os eventos do dono
+  Dado Ana conectada em /events
+  Quando Bruno cria uma tarefa
+  Então nada chega à conexão da Ana
+
+Cenário: CA18.4 - Conexão fechada sai do registro
+  Quando o cliente fecha a conexão
+  Então ele é removido do Map de clientes
+
+Cenário: CA18.5 - Eventos exigem token
+  Quando envio GET /events sem Authorization
+  Então recebo o status 401
+```
+
+### US19 — Medir a latência até um host · RF10
+
+> **Como** cliente HTTP autenticado,
+> **quero** pedir à API que meça a latência até um host,
+> **para** diagnosticar a rede a partir do servidor, e não da minha máquina.
+
+```gherkin
+Cenário: CA19.1 - Ping com sucesso
+  Quando envio GET /ping?host=8.8.8.8 com um token válido
+  Então recebo o status 200 com a latência medida
+
+Cenário: CA19.2 - Injeção é recusada antes do comando
+  Quando envio GET /ping?host=127.0.0.1;rm -rf /
+  Então recebo o status 422
+  E nenhum comando é executado
+
+Cenário: CA19.3 - Nunca por um shell
+  Quando abro src/services/ping-service.ts
+  Então o comando é executado com execFile e argumentos em array
+  E exec não aparece em lugar nenhum
+
+Cenário: CA19.4 - Rota cara tem limite próprio
+  Quando envio GET /ping sem token
+  Então recebo o status 401
+  E quando ultrapasso o limite da rota
+  Então recebo o status 429
+
+Cenário: CA19.5 - A extração é pura
+  Quando testo a função que extrai a latência da saída do comando
+  Então ela roda sem rede e sem processo filho
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US16 a US19 e são a ordem sugerida de execução. As seções
+seguintes explicam a decisão por trás de cada uma, e o código completo está ao final da página.
+
+<Steps>
+
+1. **TK11.1 · Instalar o Multer e criar `src/config/upload.ts`**: destino, nome por UUID, limites e filtro de tipo.
+2. **TK11.2 · Criar `src/controllers/avatar-controller.ts` e a rota `POST /auth/me/avatar`**: o avatar anterior apagado e o `express.static` de `uploads/` no `app.ts`.
+3. **TK11.3 · Instalar o Nodemailer e criar `src/services/mail-service.ts`**: o transporte por ambiente e o envio que não é aguardado.
+4. **TK11.4 · Modificar `prisma/schema.prisma`, `src/models/user-model.ts` e `src/controllers/auth-controller.ts`**: `verifyToken`, `verifiedAt` e a rota `GET /auth/verify`.
+5. **TK11.5 · Criar `src/services/events-service.ts`**: o registro de clientes por dono e o `publish` no formato SSE.
+6. **TK11.6 · Criar `src/controllers/events-controller.ts` e `src/routes/events-router.ts`**: a resposta que fica aberta, e o `publish` chamado no `task-controller.ts`.
+7. **TK11.7 · Criar `src/services/ping-service.ts` e `src/schemas/ping.ts`**: `execFile`, a extração pura e o schema do `host`.
+8. **TK11.8 · Criar `src/controllers/ping-controller.ts` e `src/routes/ping-router.ts`**: `authenticate`, `rateLimit` próprio e `validate`.
+
+</Steps>
+
 ## O que muda nesta etapa?
 
 | Recurso | Rota | Dependência |

@@ -20,6 +20,110 @@ Nenhum dado inválido chega ao controller. E a listagem deixa de devolver tudo.
 
 <ProjectLinks path="examples/courses/expressjs/projects/task-api-validation" devcontainer="task-api-validation" />
 
+## Requisitos, histórias e critérios
+
+**Épico EP04 · Fundação Técnica** › **Feature FT13 · Validação estrita**
+e **Épico EP01 · Tarefas por HTTP** › **Feature FT03 · Filtros, ordenação e paginação**
+
+A etapa entrega duas features de épicos diferentes, porque as duas nascem do mesmo arquivo: o
+schema que valida a `query` é o que define os filtros que a listagem aceita.
+
+| Requisito | Recorte desta etapa | Estado ao final |
+| --------- | ------------------- | --------------- |
+| **RNF01** Validação Estrita de Dados | schemas Zod para `body`, `params` e `query`, com `422` por campo | atendido |
+| **RF02** Listagem com Filtros e Paginação | `page`, `perPage`, `done`, `priority`, `q` e `sort` sobre o array | atendido em memória |
+
+### US06 — Saber exatamente o que corrigir · RNF01
+
+> **Como** cliente HTTP,
+> **quero** uma resposta que diga qual campo está errado e por quê,
+> **para** corrigir a requisição sem adivinhar.
+
+```gherkin
+Cenário: CA06.1 - Todos os problemas de uma vez
+  Quando envio POST /tasks com "title" de 2 letras e "priority" inválida
+  Então recebo o status 422
+  E o corpo traz uma issue para cada campo
+  E o handler não é executado
+
+Cenário: CA06.2 - Cada issue diz de onde veio
+  Quando qualquer validação falha
+  Então cada issue traz um "path" começando em "body", "params" ou "query"
+
+Cenário: CA06.3 - Campo desconhecido é recusado
+  Quando envio PUT /tasks/{id} com um campo não declarado no schema
+  Então recebo o status 422
+  E o campo não é descartado em silêncio
+
+Cenário: CA06.4 - Id inválido nem chega ao model
+  Quando envio GET /tasks/abc
+  Então recebo o status 422
+  E o model não é consultado
+
+Cenário: CA06.5 - Controller sem if de formato
+  Quando abro src/controllers/task-controller.ts
+  Então nenhuma linha verifica formato de entrada
+  E o que chega em req.valid já está validado e convertido
+
+Cenário: CA06.6 - A regra que o schema não conhece
+  Dado uma tarefa chamada "Estudar rotas do Express"
+  Quando envio POST /tasks com o mesmo título
+  Então recebo o status 409
+```
+
+### US07 — Encontrar tarefas sem baixar tudo · RF02
+
+> **Como** cliente HTTP,
+> **quero** filtrar, ordenar e paginar a listagem,
+> **para** encontrar uma tarefa sem receber a coleção inteira a cada consulta.
+
+```gherkin
+Cenário: CA07.1 - Os padrões valem sem parâmetros
+  Quando envio GET /tasks sem query string
+  Então recebo o envelope "data" e "meta"
+  E "meta" traz page 1 e perPage 10
+  E a lista está ordenada por -createdAt
+
+Cenário: CA07.2 - Os filtros se combinam
+  Quando envio GET /tasks?done=false&priority=high&q=Express
+  Então a lista traz só as tarefas que atendem aos três filtros
+
+Cenário: CA07.3 - Ordenação nos dois sentidos
+  Quando envio GET /tasks?sort=dueDate
+  Então a lista vem em ordem ascendente de prazo
+  Mas quando envio GET /tasks?sort=-dueDate
+  Então a lista vem em ordem descendente
+
+Cenário: CA07.4 - O total é da coleção filtrada
+  Quando envio GET /tasks?done=true&perPage=1
+  Então "meta.total" conta apenas as tarefas concluídas
+  E "meta.totalPages" é coerente com perPage
+
+Cenário: CA07.5 - Teto de página
+  Quando envio GET /tasks?perPage=500
+  Então recebo o status 422
+  E o model não é chamado
+
+Cenário: CA07.6 - A tarefa cresce
+  Quando consulto qualquer tarefa
+  Então ela traz description, priority, dueDate e createdAt
+```
+
+### Tasks da etapa
+
+As tarefas abaixo implementam US06 e US07 e são a ordem sugerida de execução. As seções
+seguintes explicam a decisão por trás de cada uma, e o código completo está ao final da página.
+
+<Steps>
+
+1. **TK05.1 · Instalar o Zod e criar `src/schemas/task.ts`**: `body`, `params` e `query`, com `strictObject`, `coerce` e `default`.
+2. **TK05.2 · Criar `src/middlewares/validate.ts` e `src/types/express.d.ts`**: a fábrica, o `req.valid` e o acessor tipado.
+3. **TK05.3 · Modificar `src/errors/HttpError.ts` e `error-handler.ts`**: o erro carrega `issues` e o 422 as devolve.
+4. **TK05.4 · Modificar `src/models/task-model.ts`**: os campos novos e a listagem que filtra, ordena e só então corta a página.
+5. **TK05.5 · Modificar `src/routes/task-router.ts` e `task-controller.ts`**: `validate(schema)` em cada rota e o controller sem `if`.
+
+</Steps>
+
 ## O que muda nesta etapa?
 
 | Antes (etapa 4) | Agora (etapa 5) |
