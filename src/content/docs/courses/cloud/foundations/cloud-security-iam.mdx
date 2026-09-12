@@ -1,0 +1,233 @@
+---
+title: "Nuvem: Segurança, VPC e IAM"
+description: "Segurança fundamental na nuvem: o modelo de responsabilidade compartilhada, controle de acesso e papéis no IAM, princípio do menor privilégio, redes virtuais privadas (VPC) e sub-redes públicas e privadas."
+course: cloud
+sidebar:
+  label: "Segurança, VPC e IAM"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A segurança na nuvem baseia-se em um princípio fundamental: por mais avançada que seja a infraestrutura do provedor (AWS, Google Cloud ou Microsoft Azure), uma aplicação com portas abertas desnecessariamente para a internet pública, um banco de dados com senha padrão ou um token de acesso com privilégios de Administrador global pode ser invadida em questão de minutos. A nuvem fornece os blocos de construção mais seguros do mundo, mas cabe ao desenvolvedor montá-los sem deixar frestas.
+
+Neste tópico, exploramos os fundamentos de **Segurança em Nuvem**, compreendendo o **Modelo de Responsabilidade Compartilhada**, a gestão de identidades e permissões com **IAM (*Identity and Access Management*)**, o **Princípio do Menor Privilégio** e o isolamento de rede através de **Redes Virtuais Privadas (VPC)**.
+
+## Objetivo
+
+Compreender os alicerces da segurança perimetral e do controle de acessos em nuvem, capacitando o desenvolvedor a isolar recursos sensíveis da internet e conceder permissões estritamente necessárias a serviços e usuários. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar a divisão de tarefas no Modelo de Responsabilidade Compartilhada entre o provedor de nuvem e o cliente.
+- Aplicar o Princípio do Menor Privilégio (*Least Privilege*) em políticas de IAM.
+- Diferenciar Usuários, Grupos, Políticas de Acesso e Papéis (*IAM Roles*) assumidos por serviços e containers.
+- Projetar uma Rede Virtual Privada (VPC) isolando bancos de dados em sub-redes privadas sem acesso direto da internet.
+- Configurar *Security Groups* e regras de firewall para filtrar tráfego de entrada (*Ingress*) e saída (*Egress*).
+- Utilizar NAT Gateways e Bastion Hosts para permitir acesso administrativo seguro a recursos privados.
+
+---
+
+## O Modelo de Responsabilidade Compartilhada
+
+A segurança na nuvem não é responsabilidade exclusiva do provedor nem do desenvolvedor: ela é uma parceria dividida entre **Segurança DA Nuvem** e **Segurança NA Nuvem**.
+
+O diagrama abaixo ilustra essa fronteira de responsabilidades:
+
+<Mermaid title="Divisão do Modelo de Responsabilidade Compartilhada na Nuvem">
+{`
+flowchart TD
+  subgraph Cliente["Responsabilidade do<br/>Cliente (Segurança NA Nuvem)"]
+    direction TB
+    Data["Seus Dados e Políticas de<br/>Acesso (RLS / Criptografia)"]
+    App["Código da sua Aplicação e<br/>Dependências (Express / NPM)"]
+    IAM["Configuração de Usuários,<br/>Chaves e Políticas de IAM"]
+    Net["Firewalls, Security<br/>Groups e Sub-redes da VPC"]
+  end
+
+  subgraph Provedor["Responsabilidade do<br/>Provedor (Segurança DA Nuvem)"]
+    direction TB
+    Hypervisor["Virtualização,<br/>Hypervisors e Roteamento Físico"]
+    Hardware["Servidores Físicos,<br/>Discos e Switches de Rede"]
+    Facilities["Segurança Física dos Data<br/>Centers, Geradores e Acessos"]
+  end
+  Cliente ~~~ Provedor
+`}
+</Mermaid>
+
+Se um criminoso tentar invadir fisicamente o data center da AWS para roubar um disco rígido, a AWS garante a segurança física. No entanto, se um desenvolvedor configurar um bucket S3 como "público para leitura e escrita por qualquer um na internet" ou subir um container com senhas em texto claro, a responsabilidade pelo vazamento é **100% do cliente**.
+
+---
+
+## Fundamentos de IAM: Identidade e Menor Privilégio
+
+O **IAM (*Identity and Access Management*)** é a central de autorização que define quem (usuário humano ou serviço automatizado) pode executar qual ação em qual recurso da nuvem.
+
+### O Princípio do Menor Privilégio (*Least Privilege*)
+
+A regra máxima de segurança em nuvem determina que **nenhum usuário, script ou serviço deve ter mais permissões do que as estritamente necessárias para cumprir sua função imediata**:
+
+A tabela a seguir compara a abordagem incorreta permissiva com a prática recomendada de menor privilégio:
+
+| Elemento | Abordagem Incorreta (Risco Alto) | Abordagem Correta (Menor Privilégio) |
+| :--- | :--- | :--- |
+| **Chave de Deploy no CI/CD** | Permissão `AdministratorAccess` (Controle total de toda a conta). | Permissão restrita apenas para atualizar o serviço ECS específico daquele projeto (`ecs:UpdateService`). |
+| **Worker de E-mails** | Chave com acesso de leitura e escrita em todas as tabelas do banco. | Permissão apenas para ler da fila SQS de e-mails e publicar no serviço SES. |
+| **Desenvolvedor Frontend** | Credencial com permissão de exclusão de instâncias de produção. | Acesso somente leitura (*ReadOnlyAccess*) aos logs e métricas de produção. |
+
+### Papéis (*IAM Roles*) vs Chaves Estáticas
+
+Nunca gere chaves de acesso estáticas (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) para serviços que rodam dentro da própria nuvem. Em vez disso, utilize **IAM Roles (Papéis)**:
+
+<Steps>
+1. **Atribuição ao Recurso**: Um papel de IAM é associado diretamente à instância EC2, container ECS ou função Lambda.
+2. **Emissão de Credenciais Temporárias**: O serviço de metadados da nuvem injeta automaticamente credenciais efêmeras que rotacionam a cada poucas horas.
+3. **Zero Risco de Vazamento no Código**: O código da aplicação consome o SDK oficial sem precisar ler nenhuma variável de senha em arquivos ou ambiente.
+</Steps>
+
+---
+
+## Redes Virtuais Privadas (VPC) e Sub-redes
+
+Uma **VPC (*Virtual Private Cloud*)** é uma rede virtual isolada e privada dentro da nuvem, equivalente à sua própria rede local corporativa (*LAN*).
+
+Para proteger componentes críticos (como o banco de dados PostgreSQL), a rede é dividida em dois tipos de sub-redes:
+
+O diagrama abaixo ilustra a arquitetura clássica de rede com sub-redes públicas e privadas:
+
+<Mermaid title="Arquitetura de VPC com isolamento de banco em Sub-rede Privada">
+{`
+flowchart TD
+  Internet["Internet Pública"] -->|Porta 443 HTTPS| IGW["Internet Gateway"]
+  
+  subgraph VPC["Rede Virtual Privada (VPC 10.0.0.0/16)"]
+    subgraph PublicSubnet["Sub-rede Pública (10.0.1.0/24)"]
+      ALB["Application Load Balancer (IP Público)"]
+    end
+
+    subgraph PrivateSubnetApp["Sub-rede Privada de Aplicação (10.0.2.0/24)"]
+      AppNodes["Servidores Node.js / Containers (IP Privado)"]
+    end
+
+    subgraph PrivateSubnetDB["Sub-rede Privada de Banco (10.0.3.0/24)"]
+      DB[("PostgreSQL Gerenciado (IP Privado)<br/>Inacessível pela Internet")]
+    end
+  end
+
+  IGW --> ALB
+  ALB --> AppNodes
+  AppNodes -->|Porta 5432 apenas para a App| DB
+`}
+</Mermaid>
+
+### 1. Sub-rede Pública (*Public Subnet*)
+
+Contém recursos que precisam se comunicar diretamente com a internet pública através de um **Internet Gateway (IGW)**, como balanceadores de carga (*Application Load Balancers - ALBs*) e proxies reversos.
+
+### 2. Sub-rede Privada (*Private Subnet*)
+
+Contém os servidores de aplicação interna e os bancos de dados. Os nós localizados nesta sub-rede **não possuem endereço IP público**, tornando fisicamente impossível que um atacante na internet tente se conectar diretamente à porta `5432` do PostgreSQL. Apenas a API autorizada dentro da VPC consegue conversar com o banco.
+
+---
+
+## Security Groups: O Firewall com Estado
+
+Um **Security Group** atua como um firewall virtual no nível da placa de rede de cada servidor ou container, controlando o tráfego permitido de entrada (*Inbound*) e saída (*Outbound*):
+
+A tabela a seguir demonstra a configuração padrão e segura de regras para uma arquitetura em camadas:
+
+| Camada | Regra de Entrada (*Inbound Rule*) | Origem Permitida (*Source*) | Motivo de Segurança |
+| :--- | :--- | :--- | :--- |
+| **Balanceador (ALB)** | Porta 443 (HTTPS) | `0.0.0.0/0` (Qualquer IP da internet) | Recebe os acessos dos clientes web em geral. |
+| **Servidor da API** | Porta 3000 (HTTP) | `sg-alb-security-group` (Apenas o Balanceador) | Impede que conexões contornem o balanceador e o WAF. |
+| **Banco PostgreSQL** | Porta 5432 (SQL) | `sg-api-security-group` (Apenas a API) | Bloqueia qualquer acesso que não seja originado da API autorizada. |
+
+Como os Security Groups são baseados em estado (*Stateful*), se uma requisição de entrada for permitida, a resposta de volta correspondente é automaticamente autorizada, simplificando a administração.
+
+---
+
+## Exercício
+
+Responda com base no modelo de responsabilidade compartilhada, IAM e isolamento de redes:
+
+1. No Modelo de Responsabilidade Compartilhada, se um atacante conseguir explorar uma vulnerabilidade de SQL Injection na sua API Express, a responsabilidade pelo incidente é da AWS ou da sua equipe de desenvolvimento?
+2. Por que associar um **IAM Role** a um container ou máquina virtual é mais seguro do que gravar chaves de acesso estáticas em variáveis de ambiente?
+3. Qual é a finalidade de posicionar um banco de dados relacional em uma **Sub-rede Privada** dentro de uma VPC?
+4. Como a regra de Security Group que autoriza a origem por outro *Security Group* (em vez de por faixa de IP fixo) simplifica a segurança em ambientes que escalam automaticamente?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A responsabilidade é 100% da equipe de desenvolvimento (Segurança NA Nuvem). A AWS garante a integridade e segurança dos servidores físicos e hipervisores, mas o código da aplicação, a sanitização de inputs e as consultas SQL são de controle e responsabilidade exclusivos do cliente.
+
+  2. Porque o IAM Role emite credenciais criptográficas temporárias de curta duração geradas e rotacionadas automaticamente pela infraestrutura da nuvem. Chaves estáticas em variáveis de ambiente podem ser acidentalmente vazadas em logs, arquivos de configuração ou impressões de terminal e permanecem válidas por tempo indeterminado até serem revogadas manualmente.
+
+  3. Garante que o banco de dados não possua nenhum endereço IP público na internet, tornando impossível que atacantes externos disparem ataques diretos de força bruta, exploração de vulnerabilidades de rede ou tentativas de conexão contra a porta do banco. Apenas os servidores localizados dentro da sub-rede autorizada da VPC conseguem se comunicar com o banco.
+
+  4. Porque quando a aplicação escala de 2 para 20 containers dinamicamente, cada nova máquina recebe um endereço IP efêmero diferente. Ao referenciar o ID do Security Group da API como origem permitida no Security Group do banco, qualquer nova instância da API ganha acesso imediato ao banco sem a necessidade de atualizar regras de firewall manualmente a cada evento de autoscaling.
+</details>
+
+---
+
+## Desafio
+
+Projete a arquitetura de rede e permissões para o sistema de processamento de pagamentos de uma plataforma financeira em nuvem.
+
+A solução deve garantir que:
+1. Os servidores Node.js rodem em containers sem IPs públicos, mas consigam fazer requisições de saída para a API externa do Banco Central na internet.
+2. O banco de dados PostgreSQL esteja 100% blindado de acessos externos à VPC.
+3. O worker que gera relatórios em PDF leia do banco apenas com permissão de leitura (`SELECT`), sem capacidade de alterar saldos ou mutar dados.
+
+Descreva a topologia de sub-redes, os componentes de saída para a internet e as políticas de IAM adotadas.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **1. Topologia de Rede e Conectividade de Saída**:
+  - Criação de uma VPC dividida em Sub-rede Pública (onde fica o Balanceador de Carga), Sub-rede Privada de Aplicação (onde rodam os containers Node.js) e Sub-rede Privada de Dados (PostgreSQL).
+  - Para permitir que os containers sem IP público acessem a API do Banco Central na internet, instala-se um **NAT Gateway** gerenciado na Sub-rede Pública: o NAT traduz o tráfego de saída dos containers privados para um IP elástico público e devolve as respostas sem expor os containers a conexões de entrada originadas da internet.
+
+  **2. Blindagem do Banco de Dados**:
+  - O PostgreSQL fica alocado na Sub-rede Privada de Dados sem tabela de rotas para a internet e com Security Group configurado para aceitar conexões na porta 5432 exclusivamente a partir do Security Group dos containers de aplicação.
+
+  **3. Princípio do Menor Privilégio no IAM e Banco**:
+  - O container do worker de relatórios assume um IAM Role dedicado com permissão restrita apenas para gravar os PDFs finais em um bucket S3 específico (`s3:PutObject`).
+  - No nível de banco de dados, cria-se um usuário de banco exclusivo `reporter_user` com privilégio concedido apenas para `GRANT SELECT ON ALL TABLES`, impedindo que bugs no gerador de relatórios executem comandos de mutação (`INSERT/UPDATE/DELETE`).
+</details>
+
+---
+
+## Perguntas de revisão
+
+### IAM e Permissões
+
+1. **O que é o Princípio do Menor Privilégio (*Least Privilege*) e como ele reduz o raio de impacto de um incidente de segurança?**
+   <details>
+     <summary>Possível resposta</summary>
+     É a concessão estrita apenas das permissões mínimas essenciais para que um usuário ou serviço execute sua tarefa. Se as credenciais de um serviço forem comprometidas por um invasor, o estrago fica limitado aos poucos recursos que aquele serviço específico podia acessar, impedindo o comprometimento de toda a conta de nuvem.
+   </details>
+
+2. **Qual é a diferença entre uma Política de IAM baseada em identidade e uma Política baseada em recurso (como uma Bucket Policy no S3)?**
+   <details>
+     <summary>Possível resposta</summary>
+     Políticas baseadas em identidade são anexadas a usuários, grupos ou papéis (definindo o que aquela identidade pode fazer). Políticas baseadas em recurso são anexadas diretamente ao objeto/recurso (como um bucket S3), especificando quem tem autorização para interagir com aquele recurso em particular.
+   </details>
+
+3. **Por que você nunca deve utilizar a conta raiz (*Root Account*) do provedor de nuvem para as atividades diárias de desenvolvimento?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a conta raiz possui privilégios administrativos irrestritos e irrevogáveis sobre todos os recursos e dados de faturamento. Qualquer vazamento de suas credenciais entrega controle total da empresa ao invasor. A boa prática é trancar a conta raiz com MFA e criar usuários e papéis de IAM dedicados para as equipes.
+   </details>
+
+---
+
+## Referências
+
+- [AWS Shared Responsibility Model](https://aws.amazon.com/compliance/shared-responsibility-model/)
+- [AWS IAM Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+- [AWS VPC Documentation: Scenarios and Architecture](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Scenarios.html)
+- [OWASP Top 10 Security Risks](https://owasp.org/www-project-top-ten/)
+- [CIS Benchmarks: Cloud Security](https://www.cisecurity.org/cis-benchmarks/)
+
+---
+
+## Próximo tópico
+
+[Infraestrutura como Código (IaC)](../infrastructure-as-code/): Como definir servidores, bancos e redes como arquivos de código declarativo versionados no Git com Terraform e OpenTofu.

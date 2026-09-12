@@ -1,0 +1,214 @@
+---
+title: "Nuvem: Arquitetura Serverless e Computação Efêmera"
+description: "Fundamentos da arquitetura serverless: ciclo de vida de funções sob demanda, cold starts, execução sem estado (stateless), desafios de conexão a bancos relacionais e quando escolher serverless vs containers."
+course: cloud
+sidebar:
+  label: "Arquitetura Serverless"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O termo **Serverless (Sem Servidor)** não significa que servidores deixaram de existir: significa que a gestão, provisionamento, escalabilidade e manutenção do sistema operacional foram inteiramente terceirizados para o provedor de nuvem. Em vez de pagar por uma máquina virtual ligada 24 horas por dia esperando requisições, o modelo serverless executa pequenos blocos de código exclusivamente em resposta a eventos (uma requisição HTTP, o upload de um arquivo ou uma mensagem em fila), cobrando estritamente pelos milissegundos em que o código esteve em execução e escalando até zero quando não há tráfego.
+
+Neste tópico, exploramos os fundamentos da **Arquitetura Serverless**, analisando o ciclo de vida de funções efêmeras, o fenômeno de inicialização a frio (*Cold Starts*), o desafio da ausência de estado (*Statelessness*), o gerenciamento de pools de conexão de banco de dados e os critérios de escolha entre Serverless e servidores contínuos.
+
+## Objetivo
+
+Compreender o modelo de computação serverless e suas implicações de arquitetura, capacitando o desenvolvedor a projetar aplicações desacopladas, econômicas e escaláveis. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar os princípios de computação sob demanda: ativação por eventos, escalabilidade elástica e cobrança por execução.
+- Descrever o ciclo de vida de uma função serverless: inicialização do micro-container (*Cold Start*), reutilização de contexto (*Warm Start*) e destruição.
+- Projetar aplicações seguindo o paradigma estritamente sem estado (*Stateless*).
+- Resolver o problema de esgotamento de conexões em bancos relacionais utilizando *Connection Poolers* (PgBouncer / Supabase Pooler / AWS RDS Proxy).
+- Configurar limites de concorrência e tempos limites de execução (*Timeouts*).
+- Avaliar cenários para decidir entre Funções Serverless, Containers (Docker/PaaS) e Máquinas Virtuais dedicadas.
+
+---
+
+## O Ciclo de Vida: Cold Start vs Warm Start
+
+Diferente de um servidor Express tradicional que permanece sempre em execução na memória, uma função serverless é instanciada sob demanda dentro de uma micro-máquina virtual isolada (como o *Firecracker* da AWS):
+
+O diagrama abaixo ilustra a diferença entre uma inicialização a frio e a reutilização de uma instância ativa:
+
+<Mermaid title="Ciclo de vida de uma Função Serverless: Cold Start vs Warm Start">
+{`
+flowchart TD
+  Req1["1ª Requisição (Sem instâncias ativas)"] --> Cold["Cold Start (Inicialização a Frio)<br/>1. Baixa código da função<br/>2. Inicializa micro-VM / Runtime Node.js<br/>3. Executa código global de imports (200ms - 800ms)"]
+  Cold --> Exec1["Executa Handler da Função (15ms)"]
+  Exec1 --> Resp1["Retorna resposta ao cliente"]
+  
+  Req2["2ª Requisição subsequente"] --> Warm["Warm Start (Instância Aquecida)<br/>Reutiliza container e conexões já inicializados em memória"]
+  Warm --> Exec2["Executa Handler diretamente (3ms)"]
+  Exec2 --> Resp2["Retorna resposta instantânea"]
+`}
+</Mermaid>
+
+### 1. Inicialização a Frio (*Cold Start*)
+
+Ocorre quando a função é invocada pela primeira vez ou quando o tráfego sobe rapidamente e novas instâncias precisam ser criadas. O provedor precisa provisionar o container, carregar o runtime do Node.js/Python e executar o código global do topo do arquivo (importações e inicializações de bibliotecas), adicionando de 100ms a 1 segundo de latência na primeira chamada.
+
+### 2. Execução Aquecida (*Warm Start*)
+
+Após atender uma requisição, o provedor mantém o container vivo na memória por alguns minutos (geralmente de 5 a 15 minutos). Requisições subsequentes reutilizam a instância aquecida, executando a função em poucos milissegundos sem sobrecarga de inicialização.
+
+---
+
+## O Desafio da Ausência de Estado (*Statelessness*)
+
+Em um servidor contínuo, é comum salvar variáveis na memória global (como `let activeUsers = []` ou mapas de sessões). Em serverless, **isso é estritamente proibido e ineficaz**:
+
+1. **Instâncias Efêmeras**: O container pode ser destruído pelo provedor a qualquer momento após o término da requisição.
+2. **Isolamento de Concorrência**: Se 100 usuários acessarem a API ao mesmo tempo, 100 instâncias independentes da função serão executadas em servidores físicos diferentes. Cada instância terá sua própria memória isolada sem compartilhar nada entre si.
+
+<Aside type="caution" title="Regra de Ouro do Serverless">
+  Toda função serverless deve ser **100% Stateless (Sem Estado)**. Qualquer dado que precise sobreviver ao término da requisição deve ser persistido em um serviço externo:
+  - Dados relacionais → **PostgreSQL / MySQL gerenciado**
+  - Sessões e Rate Limit → **Redis em Memória**
+  - Arquivos e imagens → **Bucket de Armazenamento (S3)**
+</Aside>
+
+---
+
+## O Gargalo de Conexões em Bancos Relacionais
+
+Bancos de dados relacionais tradicionais (como PostgreSQL e MySQL) foram desenhados na década de 1980 para atender um número pequeno e estável de servidores contínuos (ex: 5 servidores com 10 conexões fixas cada, totalizando 50 conexões).
+
+No modelo serverless, um pico repentino de tráfego pode subir 1.000 funções simultâneas em 2 segundos. Se cada função tentar abrir sua própria conexão TCP com o banco, o PostgreSQL atinge seu limite máximo de conexões (*Connection Exhaustion*) e começa a rejeitar requisições com erros fatais `too many connections`.
+
+O diagrama abaixo demonstra como um **Connection Pooler** protege o banco relacional:
+
+<Mermaid title="Connection Pooler intermediando conexões massivas de Funções Serverless">
+{`
+flowchart TD
+  subgraph Serverless["Centenas de Funções Serverless Efêmeras"]
+    direction LR
+    F1["Lambda 1"]
+    F2["Lambda 2"]
+    F3["Lambda 1000"]
+  end
+
+  subgraph PoolerLayer["Camada de Pooling de Conexões"]
+    Pooler[("Connection Pooler<br/>Supabase Pooler / PgBouncer / RDS Proxy")]
+  end
+
+  subgraph Database["Banco Relacional"]
+    DB[("PostgreSQL (Pool fixo de 50 conexões seguras)")]
+  end
+
+  F1 -->|Conexão rápida HTTP/TCP efêmera| Pooler
+  F2 -->|Conexão rápida HTTP/TCP efêmera| Pooler
+  F3 -->|Conexão rápida HTTP/TCP efêmera| Pooler
+  Pooler -->|Reutiliza pool fixo| DB
+`}
+</Mermaid>
+
+Plataformas modernas de BaaS como o **Supabase** integram o **Supabase Pooler (PgBouncer)** nativamente através da porta `6543`, permitindo que milhares de Lambdas compartilhem um pool seguro e reutilizável de conexões sem sobrecarregar o banco de dados.
+
+---
+
+## Matriz de Decisão: Serverless vs Containers vs VMs
+
+A tabela a seguir orienta a escolha do modelo de computação ideal para cada necessidade arquitetural:
+
+| Critério de Comparação | Funções Serverless (AWS Lambda / Vercel) | Containers Gerenciados (PaaS / Docker / Cloud Run) | Máquinas Virtuais Dedicadas (EC2 / VPS) |
+| :--- | :--- | :--- | :--- |
+| **Tempo de Inicialização** | Milissegundos a segundos (com cold start) | Segundos a minutos | Minutos |
+| **Tempo Máximo de Execução** | Curto (10s a 15 minutos) | Ilimitado (Processos contínuos) | Ilimitado |
+| **Modelo de Cobrança** | Por milissegundo de execução e requisições (Escala a zero) | Por recurso alocado (vCPU/RAM) por hora/mês | Custo fixo mensal contínuo |
+| **Suporte a WebSockets / Estado** | Complexo (exige serviço externo de pub/sub) | **Nativo**: mantém conexões TCP persistentes | **Nativo** |
+| **Esforço de Manutenção de SO** | **Zero**: a plataforma cuida de tudo | Mínimo: gerencia apenas o `Dockerfile` | Alto: patching de SO, firewall e segurança |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de arquitetura serverless, ciclo de vida e conexões:
+
+1. O que é um **Cold Start** em funções serverless e por que ele ocorre principalmente após longos períodos de inatividade?
+2. Por que armazenar o estado da sessão de usuários em variáveis globais da memória RAM de uma função serverless é um antipadrão grave?
+3. Como o uso de um **Connection Pooler** (como PgBouncer ou Supabase Pooler) evita que centenas de funções serverless simultâneas derrubem um banco de dados PostgreSQL?
+4. Em qual cenário de aplicação um servidor em container contínuo (PaaS/Docker) é técnica e financeiramente superior a funções serverless?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Cold Start é o tempo que o provedor de nuvem leva para provisionar um novo micro-container, inicializar o runtime da linguagem e executar as importações globais do código na primeira requisição. Ocorre após inatividade porque o provedor desliga e remove da memória os containers ociosos para economizar recursos físicos.
+
+  2. Porque as instâncias serverless são efêmeras e descartáveis. Se 10 requisições chegarem ao mesmo tempo, 10 instâncias isoladas serão executadas em máquinas físicas distintas, e nenhuma delas terá acesso aos dados gravados na memória das outras. O estado deve residir sempre em um banco ou cache compartilhado.
+
+  3. O Connection Pooler atua como intermediário, mantendo um número fixo e seguro de conexões abertas com o PostgreSQL (ex: 30 conexões). Quando centenas de funções disparam consultas ao mesmo tempo, o pooler atende as queries reaproveitando as conexões existentes de forma ultrarrápida, impedindo o esgotamento de sockets do banco.
+
+  4. Quando a aplicação exige conexões bidirecionais contínuas de longa duração (como servidores de WebSockets e streaming de áudio/vídeo em tempo real), executa tarefas computacionais contínuas que duram horas ou opera com tráfego previsível massivo 24/7, onde o custo fixo de um servidor provisionado torna-se mais barato do que pagar por bilhões de invocações individuais de funções.
+</details>
+
+---
+
+## Desafio
+
+Uma plataforma de processamento de fotos e imagens para corretores de imóveis foi construída inicialmente em uma única função serverless que faz download da imagem, redimensiona, aplica marca d'água e salva no storage.
+
+Conforme o uso cresceu, a equipe observou dois problemas críticos:
+1. Quando usuários enviam fotos em alta resolução (30 MB), a função estoura o limite de memória de 512 MB e sofre erro `Memory Limit Exceeded`.
+2. Em horários de pico, múltiplos uploads demoram 25 segundos para responder, fazendo o proxy reverso da Vercel retornar erro de timeout (`504 Gateway Timeout`).
+
+Projete a refatoração dessa arquitetura para um modelo serverless assíncrono resiliente:
+
+1. Como você dividiria o fluxo em etapas para eliminar o problema de timeout no navegador do usuário?
+2. Onde a conversão pesada da imagem deve ser processada?
+3. Como o cliente é notificado de que a foto processada está pronta?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **1. Eliminação do Timeout com Upload Direto (Presigned URLs)**:
+  - O front-end solicita uma URL pré-assinada (*Presigned URL*) para a API em uma função serverless leve que responde em 20ms.
+  - O navegador faz o upload do arquivo de 30 MB diretamente para o bucket S3/Storage, sem passar os bytes pesados pelo servidor ou função serverless.
+
+  **2. Processamento Assíncrono Desacoplado**:
+  - A conclusão do upload no bucket dispara automaticamente um evento no serviço de mensageria (AWS SQS ou Cloudflare Queues).
+  - Uma função serverless dedicada e configurada com 2048 MB de memória (ou um worker em container) consome o evento da fila, baixa a imagem, executa o redimensionamento e a marca d'água em segundo plano e grava a versão final otimizada no storage.
+
+  **3. Notificação do Cliente em Tempo Real**:
+  - Ao finalizar o processamento, o worker atualiza o status no banco de dados para `processed` e emite um evento via **Supabase Realtime** ou **WebSockets/SSE**, atualizando a tela do corretor instantaneamente com a miniatura processada sem que ele tenha ficado travado esperando uma requisição HTTP de 25 segundos.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Modelos e Ciclo de Vida
+
+1. **O que é *Scale to Zero* (escalar até zero) e qual sua vantagem financeira?**
+   <details>
+     <summary>Possível resposta</summary>
+     É a capacidade da plataforma serverless de desligar 100% das instâncias da função quando não há tráfego. A vantagem financeira é que o custo de computação torna-se rigorosamente zero quando a aplicação não está sendo utilizada.
+   </details>
+
+2. **Como a modularização e a redução do tamanho do bundle JavaScript diminuem o tempo de Cold Start?**
+   <details>
+     <summary>Possível resposta</summary>
+     Pacotes menores com menos dependências pesadas no topo do arquivo são baixados e interpretados mais rapidamente pelo runtime do Node.js, acelerando a fase de inicialização global antes da execução da função.
+   </details>
+
+3. **Por que tarefas pesadas de processamento em lote que demoram mais de 15 minutos não cabem em funções serverless padrão como AWS Lambda?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a maioria dos provedores serverless impõe um limite máximo estrito de timeout de execução (geralmente 15 minutos na AWS e 60 a 300 segundos na Vercel/Cloudflare). Tarefas mais longas devem ser executadas em workers de containers contínuos (ECS/Cloud Run) ou workflows duráveis.
+   </details>
+
+---
+
+## Referências
+
+- [AWS Lambda Developer Guide](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html)
+- [Vercel Functions Documentation](https://vercel.com/docs/functions)
+- [Supabase: Managing Connection Pooling with PgBouncer](https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler)
+- [Martin Fowler: Serverless Architectures](https://martinfowler.com/articles/serverless.html)
+- [Firecracker: Secure and fast microVMs for serverless](https://firecracker-microvm.github.io/)
+
+---
+
+## Próximo tópico
+
+[Backend as a Service (BaaS)](../baas/): A fronteira entre delegar dados, regras de acesso e autenticação para a plataforma de nuvem versus operar uma API própria.

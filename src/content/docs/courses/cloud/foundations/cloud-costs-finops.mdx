@@ -1,0 +1,201 @@
+---
+title: "Nuvem: Custos, Egress e FinOps"
+description: "Modelos de cobrança em nuvem: as quatro dimensões de custo (computação, armazenamento, operações e egress de rede), prevenção de faturas astronômicas (bill shock), modalidades de desconto e práticas de FinOps."
+course: cloud
+sidebar:
+  label: "Custos de Nuvem e FinOps"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+A promessa original da computação em nuvem era substituir grandes investimentos iniciais de capital (*CapEx*) em hardware físico por despesas operacionais flexíveis e sob demanda (*OpEx*), onde a empresa paga apenas pelo que consome. No entanto, a facilidade de provisionar recursos com poucos cliques ou chamadas de API frequentemente resulta no pesadelo conhecido como **Bill Shock**: faturas mensais astronômicas causadas por recursos ociosos esquecidos ligados, loops infinitos em funções serverless e, principalmente, taxas ocultas de transferência de dados (*Egress*).
+
+Neste tópico, exploramos os modelos de precificação da nuvem, as quatro dimensões fundamentais de cobrança, as estratégias de prevenção de desperdício e a cultura de **FinOps (*Financial Operations*)** para desenvolvedores e arquitetos de software.
+
+## Objetivo
+
+Compreender a economia da nuvem e os fatores que compõem os custos de infraestrutura, capacitando o desenvolvedor a arquitetar soluções financeiramente sustentáveis e evitar cobranças inesperadas. Ao final do tópico, o leitor deve ser capaz de:
+
+- Identificar as quatro dimensões de cobrança em nuvem: Computação, Armazenamento, Operações de API e Egress de Rede.
+- Explicar por que a transferência de saída de dados (*Egress Bandwidth*) é a maior armadilha de custos em arquiteturas de nuvem.
+- Comparar modalidades de contratação: Sob Demanda (*On-Demand*), Instâncias Reservadas (*Savings Plans*) e Instâncias Spot.
+- Configurar alarmes de orçamento (*Budgets*), limites de cota e alertas proativos de faturamento.
+- Aplicar o dimensionamento correto (*Right-Sizing*) para eliminar recursos superdimensionados ou ociosos.
+- Implementar práticas fundamentais de FinOps no ciclo de desenvolvimento contínuo.
+
+---
+
+## As Quatro Dimensões de Custo na Nuvem
+
+Quase todos os serviços de nuvem (AWS, GCP, Azure, Supabase, Vercel) baseiam suas faturas na combinação de quatro vetores de consumo:
+
+O diagrama abaixo sintetiza os quatro pilares de custo em uma aplicação web:
+
+<Mermaid title="As quatro dimensões fundamentais de faturamento na nuvem">
+{`
+flowchart TD
+  Cost["Fatura Mensal de Nuvem"] --> C["1. Computação<br/>vCPU, RAM e tempo de execução"]
+  Cost --> S["2. Armazenamento<br/>GB/mês, IOPS e camadas de retenção"]
+  Cost --> O["3. Operações de API<br/>Requisições HTTP, leituras e escritas"]
+  Cost --> E["4. Egress de Rede<br/>Transferência de dados de saída para a Internet"]
+`}
+</Mermaid>
+
+A tabela a seguir detalha cada vetor de cobrança e suas respectivas armadilhas financeiras:
+
+| Dimensão | Como é Calculado | Exemplo de Métrica | Armadilha Financeira |
+| :--- | :--- | :--- | :--- |
+| **Computação** | Horas de servidor ligado ou milissegundos de função executada | \$0,04 por vCPU/hora ou por GB-segundo em Lambdas | Instâncias de teste esquecidas ligadas no fim de semana ou funções em loop infinito. |
+| **Armazenamento** | Volume ocupado em disco por mês e taxa de operações de I/O | \$0,023 por GB/mês em S3; custo por IOPS provisionado | Snapshots antigos e logs acumulados há anos sem políticas de exclusão (*Lifecycle Rules*). |
+| **Operações de API** | Quantidade de chamadas aos endpoints dos serviços | \$0,005 a cada 1.000 requisições de gravação (Class A) | Scripts de front-end fazendo polling a cada 100ms contra o banco de dados. |
+| **Egress de Rede** | Volume de gigabytes trafegados **para fora** da rede da nuvem | \$0,09 por GB de saída para a internet pública | Servir imagens e vídeos pesados diretamente do bucket sem passar por uma CDN com cache. |
+
+---
+
+## O Perigo do Egress de Rede (*Bandwidth Egress*)
+
+A transferência de dados **para dentro** da nuvem (*Ingress*) é quase sempre gratuita em todos os provedores: a nuvem não cobra nada para você enviar arquivos para ela. No entanto, a transferência de dados **para fora** da nuvem (*Egress*) em direção à internet pública é tarifada pesadamente.
+
+O diagrama abaixo ilustra a assimetria entre Ingress e Egress:
+
+<Mermaid title="Assimetria de custos: Ingress gratuito vs Egress tarifado">
+{`
+flowchart LR
+  Upload["Upload de Arquivos (Ingress)"] -->|"GRATUITO ($0.00)"| Cloud[("Provedor Cloud<br/>AWS / GCP / Azure")]
+  Cloud -->|"TARIFADO ($0.09 / GB)"| Download["Download pelo Usuário (Egress)"]
+`}
+</Mermaid>
+
+### Como Mitigar Custos de Egress
+
+<Steps>
+1. **Adotar uma CDN com Egress Gratuito ou Reduzido**: Utilizar redes como **Cloudflare** ou **Fastly** na frente dos buckets de arquivos. O tráfego servido pelo cache da CDN custa uma fração do valor cobrado pela saída direta do armazenamento.
+2. **Otimização e Compressão de Imagens**: Converter imagens PNG/JPEG pesadas em formatos modernos como **WebP** e **AVIF** reduz o tamanho dos arquivos em até 80%, diminuindo na mesma proporção o consumo de banda.
+3. **Compressão HTTP (Gzip / Brotli)**: Ativar compressão em todas as respostas de APIs JSON e páginas HTML para economizar gigabytes de transferência.
+</Steps>
+
+---
+
+## Modalidades de Contratação de Computação
+
+Para servidores e containers contínuos, os provedores oferecem diferentes modelos de compra com descontos agressivos:
+
+A tabela a seguir compara as três principais modalidades de instâncias:
+
+| Modalidade | Como Opera | Desconto Típico | Indicado Para |
+| :--- | :--- | :--- | :--- |
+| **Sob Demanda (*On-Demand*)** | Paga por segundo sem compromisso prévio; pode iniciar e destruir a qualquer momento. | Preço base (Sem desconto) | Cargas de trabalho imprevisíveis, novos projetos, ambientes de desenvolvimento e testes. |
+| **Compromisso de Uso (*Savings Plans / RIs*)** | Compromisso contratual de 1 ou 3 anos para manter determinado volume de computação constante. | **30% a 72% de desconto** | Cargas de trabalho estáveis em produção conhecidas a longo prazo (ex: bancos de dados principais). |
+| **Instâncias Spot / Preemptible** | Utiliza a capacidade ociosa excedente do data center da nuvem. O provedor pode desligar a máquina com aviso prévio de 2 minutos se precisar dela. | **60% a 90% de desconto** | Processamento em lote (*batch*), renderização assíncrona, filas de workers e pipelines de CI/CD. |
+
+---
+
+## Prevenção de "Bill Shock" e Cultura FinOps
+
+O **FinOps** é a prática cultural que une Engenharia, Finanças e Negócios para capacitar desenvolvedores a tomarem decisões arquiteturais conscientes de custo.
+
+As quatro regras essenciais para evitar faturas inesperadas em qualquer projeto:
+
+<Steps>
+1. **Configurar Alertas de Faturamento (*Billing Alerts*)**: Crie alertas automáticos para ser notificado por e-mail e Slack quando o gasto atingir 50%, 80% e 100% do orçamento mensal estipulado.
+2. **Ativar Limites de Gasto Rígidos (*Hard Limits*)**: Em plataformas serverless (como Supabase, Vercel ou Firebase), configure limites máximos de gastos para congelar ou limitar requisições em vez de permitir faturamento infinito em caso de ataque de tráfego.
+3. **Etiquetas de Alocação de Custos (*Cost Allocation Tags*)**: Identifique todos os recursos com tags padronizadas (`Environment: production`, `Project: task-api`, `Team: backend`) para auditar exatamente qual microsserviço é responsável por cada linha da fatura.
+4. **Dimensionamento Correto (*Right-Sizing*)**: Audite regularmente os gráficos de CPU e memória. Se uma máquina de 8 vCPUs passa o mês inteiro com 5% de uso médio, reduza para 2 vCPUs e economize 75% da despesa no mesmo instante.
+</Steps>
+
+<Aside type="caution" title="Dica de IA: Cuidado com loops infinitos em Serverless">
+  Funções serverless cobram por número de invocações e tempo de execução. Uma função que dispara um evento na fila e é acionada novamente pelo mesmo evento cria um loop infinito recursivo que pode gerar dezenas de milhares de dólares em poucas horas se não houver um teto de concorrência ou timeout configurado.
+
+  **Regra de Ouro:** Configure sempre um timeout curto (ex: 5 a 10 segundos) e um limite de concorrência máxima (*reserved concurrency*) em todas as funções serverless de produção.
+</Aside>
+
+---
+
+## Exercício
+
+Responda com base nos modelos de custo de nuvem, transferência de dados e práticas de FinOps:
+
+1. Por que os provedores de nuvem oferecem transferência de entrada (*Ingress*) gratuita, mas cobram valores elevados pela transferência de saída (*Egress*)?
+2. Em quais circunstâncias faz sentido financeiro contratar um plano de **Savings Plans / Instâncias Reservadas** em vez de usar instâncias sob demanda?
+3. O que são **Instâncias Spot / Preemptible** e por que elas são excelentes para workers de fila, mas inadequadas para bancos de dados de produção?
+4. Como o uso de uma CDN na frente de um bucket de arquivos (como AWS S3 ou Supabase Storage) reduz drasticamente a fatura de nuvem?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. A transferência de entrada gratuita estimula clientes a migrarem grandes volumes de dados para dentro da plataforma com facilidade. A cobrança sobre a saída (Egress) atua como barreira financeira contra a saída de dados (*data egress barrier*), tornando caro para o cliente mover seus dados para outro provedor e incentivando o bloqueio de fornecedor (*vendor lock-in*).
+
+  2. Quando a aplicação possui uma linha de base (*baseline*) de computação previsível e estável que se manterá em operação pelos próximos 1 a 3 anos (como os servidores principais de uma empresa consolidada ou seu banco relacional de produção).
+
+  3. Instâncias Spot oferecem descontos de até 90% porque utilizam capacidade ociosa do data center, mas podem ser revogadas e desligadas pelo provedor a qualquer momento com aviso prévio de 2 minutos. Elas são ótimas para workers de fila (que podem interromper uma tarefa e retomá-la em outra máquina), mas inaceitáveis para bancos de dados de produção, que sofreriam corrupção de transações ou indisponibilidade repentina.
+
+  4. Porque o custo de saída de dados da CDN é substancialmente menor do que o custo de Egress direto do bucket de armazenamento (e muitas vezes gratuito em planos como o da Cloudflare), além de evitar que milhões de requisições individuais de leitura (operações Class B) atinjam o serviço de storage.
+</details>
+
+---
+
+## Desafio
+
+Uma startup de streaming de áudio possui 50.000 ouvintes diários. A equipe percebeu que a fatura de nuvem saltou de \$200 para \$4.500 no último mês após o lançamento de um novo recurso de podcasts.
+
+Ao analisar a fatura, você descobre que:
+- 75% do custo corresponde à transferência de dados de saída (*Egress Bandwidth*) do bucket S3.
+- Os arquivos MP3 originais estão sendo baixados em qualidade master sem compressão nem cache.
+- Três instâncias EC2 de homologação de grande porte (`c5.4xlarge`) ficaram ligadas sem uso desde o mês anterior.
+
+Projete um plano de otimização de custos (FinOps) em três passos para reduzir essa fatura para menos de \$500/mês sem degradar a qualidade do serviço.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **1. Eliminação de Desperdício Imediato (Economia de ~\$1.000/mês)**:
+  - Desligar e terminar imediatamente as 3 instâncias `c5.4xlarge` de homologação ociosas.
+  - Configurar políticas de desligamento automático (*auto-stop*) para desligar servidores de desenvolvimento e homologação fora do horário comercial (noites e finais de semana).
+
+  **2. Otimização de Egress e CDN (Economia de ~\$3.000/mês)**:
+  - Adicionar o Cloudflare ou CloudFront na frente do bucket de áudio S3, configurando regras de cache com cabeçalho `Cache-Control: public, max-age=2592000` (30 dias). A taxa de cache hit superior a 90% absorve a maior parte da transferência na rede de borda com custo drasticamente menor.
+  - Implementar compressão e transcodificação adaptativa de áudio: converter faixas para formato AAC/Opus otimizado para streaming móvel, reduzindo o tamanho de cada arquivo em 60% sem perda auditiva perceptível.
+
+  **3. Governança e Alertas Contínuos de FinOps**:
+  - Configurar um alarme de orçamento no AWS Budgets para disparar notificações no Slack caso os custos diários projetados ultrapassem \$15.
+  - Habilitar regras de ciclo de vida (*Lifecycle Rules*) no bucket S3 para mover podcasts antigos (com mais de 90 dias sem reproduções) para a camada de arquivamento barato (S3 Glacier Instant Retrieval).
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Dimensões de Cobrança
+
+1. **O que é o fenômeno de "Bill Shock" e quais são suas causas mais frequentes em nuvem?**
+   <details>
+     <summary>Possível resposta</summary>
+     É o susto financeiro decorrente de faturas mensais muito superiores ao orçamento previsto. Suas causas mais frequentes são recursos ociosos esquecidos ligados, loops recursivos em funções serverless, tráfego massivo de Egress desprotegido e falta de alertas de orçamento.
+   </details>
+
+2. **Como a política de ciclo de vida de armazenamento (*Lifecycle Rule*) reduz despesas em buckets de objetos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Ela automatiza a transição de arquivos antigos ou pouco acessados para camadas de armazenamento mais econômicas (como Cold Storage ou Glacier) e exclui snapshots e logs temporários após determinado período configurado (ex: 30 dias).
+   </details>
+
+3. **Por que consultar métricas de consumo através de tags de alocação de custo é fundamental para equipes com múltiplos produtos?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque as tags permitem dividir a fatura consolidada da nuvem por centro de custo, equipe ou projeto específico, permitindo identificar com precisão matemática qual produto está gerando maior despesa ou desperdício.
+   </details>
+
+---
+
+## Referências
+
+- [FinOps Foundation: What is FinOps?](https://www.finops.org/introduction/what-is-finops/)
+- [AWS Pricing and Cost Management Documentation](https://aws.amazon.com/pricing/)
+- [Cloudflare: Understanding Data Egress Charges](https://www.cloudflare.com/learning/cloud/what-is-data-egress/)
+- [Google Cloud: Cost Management Best Practices](https://cloud.google.com/cost-management/docs/best-practices)
+
+---
+
+## Próximo tópico
+
+[Segurança em Nuvem, VPC e IAM](../cloud-security-iam/): Redes virtuais privadas, isolamento de bancos em sub-redes, modelo de responsabilidade compartilhada e políticas de menor privilégio.

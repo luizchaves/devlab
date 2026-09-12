@@ -1,0 +1,227 @@
+---
+title: "Nuvem: Infraestrutura como Código (IaC)"
+description: "Automação e gestão de infraestrutura em nuvem como código: os perigos do ClickOps, abordagens declarativas vs programáticas, ciclo de vida do Terraform/OpenTofu, estado remoto e automação no CI/CD."
+course: cloud
+sidebar:
+  label: "Infraestrutura como Código"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Nos primórdios da nuvem, era comum que engenheiros criassem servidores, bancos de dados, regras de firewall e filas clicando manualmente nos botões do painel de controle do provedor (prática conhecida pejorativamente como **ClickOps**). Embora o ClickOps seja rápido para testar um conceito em 5 minutos, ele é desastroso para ambientes de produção: ninguém sabe exatamente quais botões foram clicados, é impossível recriar o ambiente idêntico para homologação e qualquer erro humano em uma tela de configuração pode derrubar sistemas inteiros sem deixar histórico.
+
+Neste tópico, exploramos a **Infraestrutura como Código (*Infrastructure as Code - IaC*)**, a prática de definir, provisionar e versionar toda a topologia de nuvem através de arquivos de código declarativo auditáveis no Git.
+
+## Objetivo
+
+Compreender os princípios, benefícios e fluxos operacionais da Infraestrutura como Código, capacitando o desenvolvedor a automatizar o provisionamento de recursos em nuvem de forma repetível e segura. Ao final do tópico, o leitor deve ser capaz de:
+
+- Contrastar os riscos do provisionamento manual (*ClickOps*) com as garantias de reprodutibilidade do IaC.
+- Diferenciar abordagens declarativas (Terraform / OpenTofu / HCL) de abordagens programáticas (Pulumi / AWS CDK).
+- Explicar o ciclo de vida do Terraform: `init`, `plan`, `apply` e `destroy`.
+- Gerenciar o arquivo de estado (*State File*) de forma remota e segura com mecanismos de trava (*locking*).
+- Identificar e corrigir divergências de configuração (*configuration drift*) na nuvem.
+- Integrar a execução do IaC em pipelines de CI/CD com aprovação de planos em Pull Requests.
+
+---
+
+## O Fim do ClickOps: Por Que IaC?
+
+O provisionamento manual por interfaces gráficas introduz vulnerabilidades críticas de governança:
+
+A tabela abaixo compara a fragilidade do ClickOps com as vantagens da Infraestrutura como Código:
+
+| Dimensão | Provisionamento Manual (*ClickOps*) | Infraestrutura como Código (*IaC*) |
+| :--- | :--- | :--- |
+| **Reprodutibilidade** | Baixa: recriar um ambiente idêntico para testes depende da memória humana. | **Total**: o mesmo código provisiona ambientes de Desenvolvimento, Homologação e Produção idênticos. |
+| **Histórico e Auditoria** | Inexistente: não é possível saber quem alterou uma regra de firewall ou quando. | **Rastreável no Git**: cada alteração de infraestrutura é um commit com autor, motivo e revisão por pares. |
+| **Recuperação de Desastres** | Lenta e propensa a erros: reconstruir a infraestrutura leva dias após um desastre. | **Instantânea**: um comando recria todos os servidores, redes e bancos em minutos em outra região. |
+| **Prevenção de Erros** | Nenhuma: clicar no botão errado em produção aplica a alteração imediatamente. | **Validação prévia**: o comando `plan` mostra exatamente o que será criado, alterado ou destruído antes da execução. |
+
+---
+
+## Abordagens de IaC: Declarativo vs Programático
+
+Existem dois paradigmas principais para escrever infraestrutura como código:
+
+O diagrama abaixo ilustra os dois modelos e suas respectivas ferramentas de mercado:
+
+<Mermaid title="Paradigmas de Infraestrutura como Código: Declarativo vs Programático">
+{`
+flowchart LR
+  IaC["Infraestrutura como Código (IaC)"] --> Dec["Abordagem Declarativa<br/>(Você descreve O QUE deseja)"]
+  IaC --> Prog["Abordagem Programática<br/>(Você escreve código executável)"]
+
+  Dec --> TF["Terraform / OpenTofu (HCL)"]
+  Dec --> CF["AWS CloudFormation (YAML / JSON)"]
+  Dec --> K8s["Kubernetes Manifests (YAML)"]
+
+  Prog --> Pulumi["Pulumi (TypeScript / Python / Go)"]
+  Prog --> CDK["AWS CDK (TypeScript / Python)"]
+`}
+</Mermaid>
+
+### 1. Modelo Declarativo (Terraform / OpenTofu)
+
+No modelo declarativo, você especifica o **estado final desejado** da infraestrutura. O motor de IaC compara o estado atual da nuvem com o seu arquivo e calcula sozinho quais comandos de API precisam ser disparados para atingir aquele objetivo:
+
+```hcl title="main.tf (Exemplo Terraform/OpenTofu)"
+resource "aws_s3_bucket" "uploads" {
+  bucket = "empresa-taskapi-uploads-prod"
+
+  tags = {
+    Environment = "production"
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "block_public" {
+  bucket                  = aws_s3_bucket.uploads.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+```
+
+### 2. Modelo Programático (Pulumi / AWS CDK)
+
+No modelo programático, você utiliza linguagens de programação reais (como TypeScript, Python ou Go) para instanciar classes e construir abstrações complexas com loops, condições e tipagem estática.
+
+---
+
+## O Ciclo de Vida do Terraform / OpenTofu
+
+O fluxo padrão de trabalho com ferramentas baseadas no ecossistema Terraform é composto por quatro etapas:
+
+<Steps>
+1. **`init`**: Inicializa o diretório de trabalho, baixa os plugins dos provedores necessários (AWS, Supabase, Cloudflare) e configura o backend de estado.
+2. **`plan`**: Compara o código local com o estado real da nuvem e gera um relatório detalhado das ações planejadas (recursos a adicionar `+`, alterar `~` ou destruir `-`).
+3. **`apply`**: Executa as chamadas de API contra os provedores de nuvem para transformar o plano aprovado em realidade física.
+4. **`destroy`**: Exclui de forma controlada todos os recursos gerenciados por aquele arquivo (ideal para destruir ambientes de teste efêmeros).
+</Steps>
+
+---
+
+## O Arquivo de Estado (*State File*) e Estado Remoto
+
+O Terraform mantém um arquivo central chamado **`terraform.tfstate`** que mapeia as declarações do seu código com os IDs reais dos recursos criados nos data centers da nuvem.
+
+<Aside type="caution" title="Dica de IA: Nunca commite o arquivo de estado no Git">
+  O arquivo `terraform.tfstate` contém metadados sensíveis da sua infraestrutura, incluindo senhas geradas e configurações confidenciais em texto plano.
+
+  **Prática Obrigatória:** Configure sempre um **Remote Backend** (como um bucket AWS S3 criptografado com DynamoDB para travas de concorrência ou o Terraform Cloud). O backend remoto garante que múltiplos desenvolvedores não sobrescrevam a infraestrutura simultaneamente (*state locking*).
+</Aside>
+
+---
+
+## Divergência de Configuração (*Configuration Drift*)
+
+O **Drift** ocorre quando alguém entra manualmente no console da nuvem e altera uma configuração (por exemplo, abre uma porta de firewall) sem atualizar o código de IaC correspondente.
+
+Na próxima execução do `terraform plan`, o motor detecta a divergência entre a realidade da nuvem e o código do repositório, propondo desfazer a alteração manual e restaurar o estado padronizado e auditado definido no Git.
+
+---
+
+## Comparativo de Ferramentas de IaC
+
+A tabela a seguir consolida as principais plataformas de automação de infraestrutura:
+
+| Ferramenta | Paradigma | Linguagem | Gerenciamento de Estado | Cenário Ideal |
+| :--- | :--- | :--- | :--- | :--- |
+| **Terraform / OpenTofu** | Declarativo | HCL (*HashiCorp Configuration Language*) | Arquivo de estado (`.tfstate`) com suporte a backend remoto | O padrão da indústria para ambientes multi-cloud (AWS, GCP, Cloudflare, Supabase). |
+| **Pulumi** | Programático | TypeScript, Python, Go, C# | Gerenciado na nuvem (Pulumi Service) ou S3 | Equipes de desenvolvimento de software que preferem criar infraestrutura usando TypeScript. |
+| **AWS CDK** | Programático (Compila para CloudFormation) | TypeScript, Python, Java | Gerenciado nativamente pela AWS | Projetos hospedados 100% dentro da AWS com foco em construções de alto nível (*constructs*). |
+| **Docker Compose** | Declarativo de Containers | YAML | Local | Orquestração de containers para ambientes de desenvolvimento local e VPS simples. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de Infraestrutura como Código, ciclo de vida e estado:
+
+1. Quais são os três principais riscos operacionais de gerenciar a infraestrutura de produção via interface gráfica manual (*ClickOps*)?
+2. O que acontece durante a execução do comando `terraform plan` e por que ele é indispensável antes de rodar o `terraform apply`?
+3. O que é o arquivo de estado (`terraform.tfstate`) e por que ele deve ser armazenado em um *Remote Backend* com suporte a travas (*locking*)?
+4. Como a prática de IaC previne o problema de divergência de configuração (*Configuration Drift*) em equipes de engenharia?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Falta de reprodutibilidade (dificuldade de recriar o ambiente para testes), ausência de histórico e auditoria (não se sabe quem alterou o quê no console) e alto risco de falha humana acidental sem validação prévia.
+
+  2. O comando compara o código local com o estado real da nuvem e gera um relatório prévio de todas as modificações que serão realizadas (adições, alterações e deleções). Ele é indispensável para que o engenheiro revise o impacto das mudanças e confirme se nenhum recurso crítico será excluído acidentalmente.
+
+  3. É o arquivo que mapeia os blocos do código com os recursos físicos reais criados na nuvem. Ele deve ficar em um backend remoto seguro porque armazena dados confidenciais (não deve ir para o Git) e precisa de mecanismo de trava (*locking*) para impedir que dois desenvolvedores apliquem alterações simultâneas que corrompam o estado da nuvem.
+
+  4. Se alguém alterar manualmente uma configuração no console da nuvem, a próxima execução do IaC identifica a discrepância e reaplica o estado original auditado no Git, garantindo que a infraestrutura permaneça sempre em conformidade com o código versionado.
+</details>
+
+---
+
+## Desafio
+
+Uma empresa precisa provisionar a infraestrutura de um novo produto digital composto por:
+1. Um bucket S3 privado para upload de documentos com bloqueio total de acesso público.
+2. Uma tabela de banco de dados DynamoDB com chave primária `userId`.
+3. Uma fila SQS para processamento assíncrono de notificações.
+
+Estruture o fluxo completo de entrega contínua dessa infraestrutura utilizando GitHub Actions e Terraform/OpenTofu:
+
+1. Como você configuraria o pipeline de CI/CD ao abrir um Pull Request no GitHub?
+2. Como seria a automação de deploy quando o PR for aprovado e mesclado na branch `main`?
+3. Como garantir que as credenciais da AWS não fiquem expostas no repositório?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **1. Validação em Pull Request (CI)**:
+  - Ao abrir um PR com alterações nos arquivos `.tf`, o GitHub Actions autentica na AWS via OpenID Connect (OIDC) sem chaves estáticas.
+  - O pipeline roda `tofu init` e `tofu plan`, capturando o relatório de mudanças e postando automaticamente um comentário no PR com o resumo das alterações para revisão da equipe de engenharia.
+
+  **2. Aplicação em Produção no Merge (CD)**:
+  - Quando o PR é aprovado e mesclado na branch `main`, o pipeline de CD executa `tofu apply -auto-approve`, aplicando as mutações de infraestrutura aprovadas contra a nuvem da AWS.
+  - O estado remoto é atualizado no bucket S3 criptografado com trava no DynamoDB.
+
+  **3. Segurança de Credenciais**:
+  - Utiliza-se autenticação federada via **GitHub OIDC com IAM Role**, permitindo que o pipeline solicite tokens temporários efêmeros diretamente à AWS sem gravar `AWS_ACCESS_KEY_ID` permanente no repositório.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Fundamentos e Ciclo
+
+1. **Qual é a diferença entre uma abordagem declarativa e uma abordagem imperativa em automação?**
+   <details>
+     <summary>Possível resposta</summary>
+     A abordagem imperativa descreve o passo a passo exato de comandos que devem ser executados (ex: "crie a rede, depois crie o disco, depois anexe o disco"). A abordagem declarativa descreve apenas o estado final desejado ("quero um servidor com este disco"), deixando para a ferramenta a responsabilidade de calcular a ordem de dependências e comandos necessários.
+   </details>
+
+2. **O que são *Módulos* no Terraform e qual sua importância em grandes organizações?**
+   <details>
+     <summary>Possível resposta</summary>
+     Módulos são pacotes reutilizáveis de código de infraestrutura que encapsulam as melhores práticas e padrões de segurança da empresa (por exemplo, um módulo padronizado de "Microsserviço Web" que já cria o balanceador, a VPC e os alarmes de monitoramento pré-configurados).
+   </details>
+
+3. **Por que você nunca deve editar o arquivo `terraform.tfstate` manualmente com um editor de texto?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque o arquivo de estado possui esquemas internos rigorosos e somas de verificação (*checksums*). Qualquer erro de digitação ou inconsistência manual pode corromper o estado, fazendo o Terraform perder o rastreamento dos recursos reais da nuvem.
+   </details>
+
+---
+
+## Referências
+
+- [Terraform Documentation & Tutorials](https://developer.hashicorp.com/terraform/docs)
+- [OpenTofu Documentation: Open Source IaC](https://opentofu.org/docs/)
+- [Pulumi Documentation: Universal IaC](https://www.pulumi.com/docs/)
+- [AWS Cloud Development Kit (AWS CDK)](https://docs.aws.amazon.com/cdk/v2/guide/home.html)
+
+---
+
+## Próximo tópico
+
+[Arquitetura Serverless e Computação Efêmera](../serverless-architecture/): Ciclo de vida de funções sob demanda, cold starts, execução sem estado (stateless) e gerenciamento de conexões de banco de dados.
