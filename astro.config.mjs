@@ -2098,10 +2098,30 @@ export default defineConfig({
                   label: 'Workers e Jobs Agendados',
                   link: '/courses/cloud/resources/workers-jobs/',
                 },
+                {
+                  label: 'Filas e Mensageria',
+                  link: '/courses/cloud/resources/message-queues/',
+                },
+                {
+                  label: 'Cache em Memória e Rate Limiting',
+                  link: '/courses/cloud/resources/in-memory-cache/',
+                },
                 { label: 'Containers e PaaS', link: '/courses/cloud/resources/containers-paas/' },
                 {
                   label: 'Observabilidade e Monitoramento',
                   link: '/courses/cloud/resources/observability-monitoring/',
+                },
+                {
+                  label: 'Ambientes Efêmeros e Feature Flags',
+                  link: '/courses/cloud/resources/preview-environments-flags/',
+                },
+                {
+                  label: 'Gestão de Segredos',
+                  link: '/courses/cloud/resources/secrets-management/',
+                },
+                {
+                  label: 'WAF e Segurança de Borda',
+                  link: '/courses/cloud/resources/waf-edge-security/',
                 },
               ],
             },

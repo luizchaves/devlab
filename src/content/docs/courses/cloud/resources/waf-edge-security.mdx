@@ -1,0 +1,235 @@
+---
+title: "Nuvem: WAF e Segurança de Borda"
+description: "Segurança de borda e proteção em nuvem: Web Application Firewall (WAF), mitigação de ataques DDoS (L3/L4 e L7), regras gerenciadas OWASP, gestão de bots maliciosos e comparação entre Cloudflare WAF e AWS WAF."
+course: cloud
+sidebar:
+  label: "WAF e Segurança de Borda"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Quando uma aplicação web é publicada na internet, seus servidores de origem tornam-se alvos imediatos de tráfego hostil: varreduras automatizadas buscando arquivos `.git` expostos, ataques de injeção de código (SQL Injection e XSS), robôs tentando adivinhar senhas (*Credential Stuffing*) e ataques volumétricos de negação de serviço (DDoS) capazes de derrubar qualquer infraestrutura não protegida. Permitir que todo esse tráfego chegue diretamente ao seu servidor Node.js ou banco de dados consome memória, satura conexões e gera contas exorbitantes de nuvem.
+
+Neste tópico, exploramos a **Segurança de Borda (*Edge Security*)** e o **Web Application Firewall (WAF)** na nuvem, analisando as camadas de defesa na rede, regras gerenciadas contra as ameaças do OWASP Top 10, proteção contra ataques DDoS, mitigação de bots e as principais plataformas de proteção perimetral do mercado.
+
+## Objetivo
+
+Compreender os mecanismos de proteção perimetral na borda da rede, capacitando o desenvolvedor a blindar servidores de origem contra ataques cibernéticos antes que o tráfego hostil atinja a infraestrutura interna da aplicação. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o princípio de Defesa em Profundidade (*Defense in Depth*) aplicado à borda da nuvem.
+- Diferenciar ataques de rede em camadas L3/L4 (volumétricos de infraestrutura) de ataques em camada L7 (aplicação web).
+- Configurar regras de Web Application Firewall (WAF) baseadas no conjunto de regras gerenciadas do OWASP Top 10.
+- Implementar proteção contra ataques de Negação de Serviço Distribuída (DDoS) e limitação de taxa adaptativa na borda.
+- Distinguir tráfego legítimo de bots maliciosos utilizando desafios criptográficos modernos e não intrusivos (Cloudflare Turnstile / CAPTCHAs modernos).
+- Comparar soluções de segurança de borda (Cloudflare WAF, AWS WAF, Fastly e Akamai).
+
+---
+
+## O Princípio da Segurança de Borda
+
+A segurança de borda opera com o princípio de que **o tráfego malicioso deve ser filtrado o mais longe possível do servidor de origem**. 
+
+Em vez de permitir que um ataque chegue ao seu container na AWS ou na Vercel para que um middleware Express analise o payload, o proxy reverso da rede global (como Cloudflare ou Fastly) inspeciona os pacotes em centenas de pontos de presença (PoPs) espalhados pelo mundo, bloqueando as ameaças nos pontos de entrada da internet.
+
+O diagrama abaixo ilustra a triagem de segurança realizada na borda:
+
+<Mermaid title="Filtragem de tráfego hostil na borda antes de atingir o servidor de origem">
+{`
+flowchart TD
+  User["Usuário Legítimo"] -->|Tráfego limpo| Edge["Borda Global da Rede<br/>Cloudflare / AWS CloudFront + WAF"]
+  Attacker["Atacante / Botnet DDoS"] -->|Ataque SQLi / HTTP Flood| Edge
+  
+  Edge -->|1. Bloqueia L3/L4 DDoS e SQLi| Blocked["Bloqueado na Borda<br/>HTTP 403 Forbidden / Drop"]
+  Edge -->|2. Desafio Turnstile para bots suspeitos| Challenge["Desafio de Navegador"]
+  Edge -->|3. Encaminha apenas tráfego 100% verificado| Origin[("Servidor de Origem<br/>Node.js / Express / Banco de Dados")]
+`}
+</Mermaid>
+
+Ao ocultar o endereço IP público real do servidor de origem atrás da rede de borda, atacantes ficam impedidos de disparar ataques diretos contra a máquina física do projeto.
+
+---
+
+## Camadas de Ataque: L3/L4 vs Camada 7 (Aplicação)
+
+As ameaças contra aplicações em nuvem operam em diferentes camadas do modelo OSI:
+
+A tabela a seguir compara os tipos de ataques e como eles são mitigados:
+
+| Camada OSI | Tipo de Ataque | Exemplos | Como a Borda Mitiga |
+| :--- | :--- | :--- | :--- |
+| **Camada 3 e 4** (Rede e Transporte) | Ataques Volumétricos de Infraestrutura | *SYN Floods*, amplificação UDP, saturação de largura de banda de links de rede. | **Absorção Anycast**: Redes globais de centenas de Terabits por segundo absorvem e dispersam o volume massivo de pacotes sem sobrecarregar nenhum ponto único. |
+| **Camada 7** (Aplicação HTTP/HTTPS) | Ataques Lógicos e de Evasão | Injeção SQL (SQLi), Cross-Site Scripting (XSS), *HTTP Flood*, *Credential Stuffing*, Scraping abusivo. | **WAF e Análise Heurística**: Inspeção profunda de cabeçalhos HTTP, parâmetros de URL, cookies e corpos de requisições baseada em assinaturas e modelos de machine learning. |
+
+---
+
+## Regras Gerenciadas de WAF e OWASP Top 10
+
+Um **Web Application Firewall (WAF)** atua inspecionando cada requisição HTTP/HTTPS em tempo real contra uma base de assinaturas conhecidas de vulnerabilidades.
+
+As plataformas de WAF fornecem conjuntos de **Regras Gerenciadas (*Managed Rulesets*)** atualizados continuamente por equipes de segurança contra as ameaças do **OWASP Top 10**:
+
+<Steps>
+1. **Regras Anti-SQL Injection**: Detectam tentativas de inserção de comandos SQL nos parâmetros de formulários e rotas (como `' OR '1'='1` ou comandos `UNION SELECT`).
+2. **Regras Anti-XSS**: Bloqueiam o envio de tags `<script>` e manipuladores de eventos em campos de entrada de texto.
+3. **Bloqueio de Varreduras Conhecidas (*Scanner Blocking*)**: Bloqueiam automaticamente requisições buscando arquivos de ambiente (`/.env`), painéis administrativos legados (`/phpmyadmin`) ou arquivos de configuração (`/.git/config`).
+4. **Proteção contra Vulnerabilidades de Dia Zero (*Zero-Day Exploits*)**: Quando uma vulnerabilidade crítica é descoberta em um framework popular (como Log4j ou falhas no Apache/Nginx), os provedores de WAF ativam regras virtuais de correção na borda (*Virtual Patching*) em minutos, protegendo a aplicação antes mesmo que o desenvolvedor tenha tempo de atualizar os pacotes no código.
+</Steps>
+
+---
+
+## Gestão de Bots e Desafios de Navegador
+
+Nem todo tráfego malicioso busca explorar falhas de código: muitos ataques utilizam robôs automatizados (*bots*) para raspar preços de produtos, comprar ingressos em milissegundos (*scalping*) ou testar listas de senhas vazadas (*Credential Stuffing*).
+
+As soluções modernas de gestão de bots abandonaram os CAPTCHAs visuais tradicionais (que irritam usuários com fotos de semáforos) em favor de **desafios criptográficos e comportamentais invisíveis**:
+
+- **Cloudflare Turnstile e Desafios JS**: Executam pequenas provas matemáticas e verificam a integridade do ambiente do navegador em segundo plano sem que o usuário precise resolver enigmas visuais.
+- **Detecção de Assinatura TLS e Fingerprinting**: Analisam se a conexão HTTPS foi originada por um navegador real (Chrome/Firefox) ou por um script automatizado (cURL, Python Requests ou Puppeteer).
+- **Reputação de IP e Redes Tor/Proxies**: Bloqueiam ou exigem verificação adicional para requisições vindas de data centers de hospedagem ou nós de saída conhecidos por disseminar spam.
+
+<Aside type="caution" title="Dica de IA: Não confie apenas no WAF para validar dados">
+  Embora o WAF seja uma excelente primeira linha de defesa perimetral, ele não substitui a validação estrita de dados no seu código de backend.
+
+  **Regra de Ouro:** Valide sempre os esquemas de entrada com bibliotecas como **Zod** ou **Joi** no Express/Node.js e utilize consultas parametrizadas (ORMs/Prisma) no banco de dados. A segurança deve existir na borda E na aplicação.
+</Aside>
+
+---
+
+## Comparativo de Soluções de WAF e Segurança de Borda
+
+A tabela a seguir apresenta os principais provedores de proteção de borda e WAF no mercado:
+
+| Provedor | Modelo de Operação | Proteção DDoS | Regras Gerenciadas | Facilidade de Configuração | Cenário Ideal |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Cloudflare WAF** | Proxy Reverso Global na Borda | Ilimitada e nativa em todas as camadas | OWASP Core Ruleset, regras de IA e Turnstile | **Máxima**: basta alterar os servidores DNS do domínio. | Aplicações web de qualquer porte, desde startups até grandes portais com foco em performance e segurança unificadas. |
+| **AWS WAF** | Integrado a CloudFront e ALB | Protegido via AWS Shield | AWS Managed Rules e marketplace de parceiros | Média: configuração via console AWS ou Terraform | Infraestruturas empresariais robustas hospedadas exclusivamente dentro do ecossistema da Amazon Web Services. |
+| **Fastly Next-Gen WAF** (Signal Sciences) | Borda programável e agentes | Alta capacidade global | Foco em análise comportamental em tempo real e baixa taxa de falsos positivos | Avançada | Empresas com fluxos complexos de microsserviços e exigência de inspeção avançada na camada de borda. |
+| **Akamai App & API Protector** | Borda Corporativa Tradicional | Escala massiva global | Inteligência contra ameaças corporativas globais | Complexa | Grandes corporações multinacionais, instituições financeiras e portais governamentais de grande escala. |
+
+---
+
+## Quando Configurar WAF e Segurança de Borda?
+
+A ativação de proteções perimetrais deve ser planejada de acordo com o perfil de exposição do sistema:
+
+| Cenário | Proteção Recomendada | Justificativa |
+| :--- | :--- | :--- |
+| Qualquer site ou aplicação pública na internet | **Proxy com Proteção DDoS Básica e DNS Seguro (Cloudflare Free/Pro)** | Impede que o IP real da máquina vaze e absorve ataques volumétricos comuns com custo zero. |
+| E-commerce ou plataforma SaaS com checkout e pagamentos | **WAF com Regras OWASP + Rate Limiting de Borda** | Protege dados de clientes, bloqueia tentativas de SQL Injection e impede testes automatizados de cartões clonados (*Carding*). |
+| Sistema corporativo interno acessado apenas por funcionários | **WAF com Restrição Geográfica (*Geo-Blocking*) ou VPN/Zero Trust** | Bloqueia conexões de países onde a empresa não opera, reduzindo em 90% a superfície de ataque automatizado. |
+| API pública com parceiros de integração cadastrados | **Mutual TLS (mTLS) ou Chaves de API com Rate Limit estrito** | Garante que apenas clientes com certificados criptográficos autorizados consigam estabelecer comunicação. |
+
+---
+
+## Exercício
+
+Responda com base nos princípios de segurança de borda, Web Application Firewall e mitigação de ataques:
+
+1. Qual é a vantagem arquitetural de bloquear um ataque de SQL Injection na borda da rede (WAF) em vez de deixar que ele atinja o servidor Node.js da aplicação?
+2. Em que diferem os ataques DDoS volumétricos em camadas L3/L4 dos ataques em camada 7 (HTTP Flood)?
+3. O que é o conceito de *Virtual Patching* (correção virtual) proporcionado por regras gerenciadas de WAF?
+4. Como ferramentas modernas como o Cloudflare Turnstile protegem formulários contra bots sem prejudicar a experiência do usuário como os CAPTCHAs tradicionais?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Ao bloquear na borda, a requisição maliciosa é descartada nos servidores do provedor de CDN/WAF antes de consumir qualquer recurso de CPU, conexões de rede ou memória do servidor de origem, impedindo que uma onda de ataques degrade a performance da aplicação para usuários legítimos.
+
+  2. Ataques L3/L4 visam saturar a capacidade física dos links de rede e portas de transporte com um volume massivo de pacotes de dados brutos (Gigabits por segundo). Ataques em camada 7 (L7) utilizam requisições HTTP válidas e complexas que buscam esgotar a capacidade de processamento da aplicação e do banco de dados (ex: disparar milhões de buscas pesadas por segundo).
+
+  3. É a capacidade do provedor de WAF de criar e ativar uma regra de bloqueio na borda da rede para interceptar a exploração de uma vulnerabilidade recém-descoberta em software de terceiros, blindando a aplicação imediatamente enquanto a equipe de engenharia planeja e aplica a atualização de código em produção com calma.
+
+  4. O Turnstile avalia sinais comportamentais sutis e executa pequenos desafios criptográficos no navegador em segundo plano de forma invisível para humanos, confirmando que a requisição partiu de um navegador real sem obrigar o usuário a decifrar letras distorcidas ou clicar em imagens repetitivas.
+</details>
+
+---
+
+## Desafio
+
+Uma plataforma de venda de ingressos para grandes shows e festivais enfrenta dois problemas graves durante as aberturas de vendas:
+1. Grupos de cambistas utilizam milhares de bots rodando em servidores em nuvem para esgotar todos os ingressos VIP nos primeiros 3 segundos da abertura.
+2. Hackers disparam ataques de HTTP Flood contra o endpoint `/api/checkout` para sobrecarregar a infraestrutura e derrubar o site no momento de pico.
+
+Projete a arquitetura de segurança de borda para resolver esses problemas:
+
+1. Como você configuraria a proteção perimetral e a gestão de bots no WAF para impedir a ação dos robôs sem bloquear usuários legítimos em smartphones?
+2. Quais regras de Rate Limiting de borda e proteção DDoS você aplicaria para absorver o pico de requisições maliciosas?
+3. Como você ocultaria a infraestrutura de origem (servidores Express na AWS) para que atacantes não consigam ignorar o WAF?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **1. Gestão de Bots e Validação de Usuários Legítimos**:
+  - Ativar o modo de gestão avançada de bots (*Bot Management*) no WAF para identificar assinaturas de automação (Puppeteer, Playwright, cURL e navegadores sem suporte a WebGL/Canvas real).
+  - Integrar o **Cloudflare Turnstile** no botão de finalização de compra. A cada tentativa de reserva de ingresso, o navegador deve fornecer o token criptográfico emitido pelo Turnstile validado na borda.
+  - Bloquear automaticamente faixas de IP pertencentes a provedores de hospedagem em nuvem (AWS, DigitalOcean, Hetzner) para o endpoint de compra de ingressos, forçando o acesso a partir de operadoras residenciais e redes móveis legítimas.
+
+  **2. Rate Limiting de Borda e Proteção DDoS L7**:
+  - Configurar regra de Rate Limiting na borda: máximo de 3 tentativas de checkout por minuto por IP residencial. Requisições excedentes recebem HTTP `429 Too Many Requests` diretamente na borda sem chegar ao servidor de origem.
+  - Ativar a proteção DDoS adaptativa com desafio de navegador automático (*Under Attack Mode*) caso a taxa de requisições por segundo cresça além de 500% da média histórica.
+
+  **3. Ocultação e Blindagem da Origem (*Origin Shielding*)**:
+  - Configurar o Security Group na AWS para aceitar conexões HTTP/HTTPS exclusivamente a partir das faixas de IP oficiais e publicadas do provedor de WAF (Cloudflare IP Ranges), descartando qualquer conexão direta da internet.
+  - Como alternativa ainda mais segura, utilizar túneis criptografados de saída (*Cloudflare Tunnels / Cloudflared*): a aplicação Express estabelece conexões seguras de dentro para fora com a rede da Cloudflare, permitindo fechar completamente todas as portas públicas de entrada do servidor de origem.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Princípios e Ameaças
+
+1. **O que é o ataque de *Credential Stuffing* e como a borda ajuda a mitigá-lo?**
+   <details>
+     <summary>Possível resposta</summary>
+     É o ataque onde criminosos utilizam robôs para testar automaticamente milhões de pares de e-mail e senha vazados de outros sites na página de login da sua aplicação. A borda mitiga aplicando regras de limitação de taxa por IP, bloqueando redes de bots conhecidas e exigindo desafios criptográficos ao detectar picos anômalos de logins falhos.
+   </details>
+
+2. **Por que restringir o acesso à aplicação por geolocalização (*Geo-blocking*) é uma medida eficaz para sistemas regionais?**
+   <details>
+     <summary>Possível resposta</summary>
+     Se um produto atende exclusivamente a clientes de um determinado país (como o Brasil), bloquear ou desafiar requisições vindas de países onde a empresa não opera reduz drasticamente o volume de varreduras automatizadas e tentativas de ataque originadas de botnets globais.
+   </details>
+
+3. **O que é um ataque do tipo *Slowloris* e como proxies reversos protegem a aplicação contra ele?**
+   <details>
+     <summary>Possível resposta</summary>
+     É um ataque que abre milhares de conexões HTTP e envia cabeçalhos de forma extremamente lenta para manter as conexões do servidor de aplicação abertas e esgotar seu pool de threads. Proxies reversos de borda bufferizam a requisição completa antes de repassá-la ao servidor de origem, neutralizando o ataque.
+   </details>
+
+### Ferramentas e Implementação
+
+4. **O que é o *Cloudflare Tunnel* e por que ele é mais seguro do que expor uma porta pública 443 na nuvem?**
+   <details>
+     <summary>Possível resposta</summary>
+     O Cloudflare Tunnel cria um canal seguro criptografado que parte de dentro do servidor da aplicação diretamente para a rede da Cloudflare. Com ele, o servidor não precisa ter um endereço IP público nem portas de entrada abertas na internet, impedindo qualquer ataque direto que tente contornar o WAF.
+   </details>
+
+5. **Qual é a função do cabeçalho `CF-Connecting-IP` ou `X-Forwarded-For` quando a aplicação está atrás de um WAF?**
+   <details>
+     <summary>Possível resposta</summary>
+     Como todas as requisições chegam ao servidor de origem a partir dos IPs do proxy do WAF, esses cabeçalhos transportam o endereço IP público original e real do cliente para que a aplicação consiga registrar logs de auditoria e aplicar regras de negócio baseadas na localização real.
+   </details>
+
+6. **Por que regras customizadas de WAF devem ser testadas em modo de simulação (*Log-only / Monitor*) antes de serem colocadas em modo de bloqueio ativo?**
+   <details>
+     <summary>Possível resposta</summary>
+     Para verificar se a regra não gerará falsos positivos bloqueando requisições legítimas de clientes reais devido a expressões regulares excessivamente restritivas ou padrões de uso legítimos não previstos.
+   </details>
+
+---
+
+## Referências
+
+- [OWASP Top 10 Security Risks](https://owasp.org/www-project-top-ten/)
+- [Cloudflare WAF Documentation](https://developers.cloudflare.com/waf/)
+- [Cloudflare Turnstile Docs: CAPTCHA Alternative](https://developers.cloudflare.com/turnstile/)
+- [AWS WAF Developer Guide](https://docs.aws.amazon.com/waf/latest/developerguide/what-is-aws-waf.html)
+- [Fastly Next-Gen WAF Documentation](https://docs.fastly.com/en/ngwaf/)
+- [Cloudflare Tunnels (Cloudflared)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+
+---
+
+## Próximo tópico
+
+[Visão geral do Supabase](../../supabase/): Com todos os recursos e serviços de nuvem mapeados, conheça a primeira plataforma BaaS em detalhe, a partir do banco PostgreSQL gerenciado que sustenta a aplicação.

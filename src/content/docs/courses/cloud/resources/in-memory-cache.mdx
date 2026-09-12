@@ -1,0 +1,261 @@
+---
+title: "Nuvem: Cache em Memória e Rate Limiting"
+description: "Cache em memória e controle de taxa na nuvem: padrões de cache (Cache-Aside, Write-Through), estratégias de invalidação e TTL, mitigação de Cache Stampede, algoritmos de Rate Limiting e comparação de soluções Redis gerenciadas."
+course: cloud
+sidebar:
+  label: "Cache em Memória e Rate Limiting"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+Bancos de dados relacionais e orientados a documentos gravam suas informações em discos persistentes (SSDs NVMe) para garantir durabilidade e conformidade ACID. No entanto, quando milhares de usuários executam simultaneamente as mesmas consultas complexas de leitura, a CPU do banco de dados atinge 100% de uso e o tempo de resposta da aplicação degrada. Paralelamente, APIs públicas desprotegidas tornam-se alvos fáceis para ataques de negação de serviço e raspagem abusiva de dados (*scraping*).
+
+Neste tópico, exploramos o cache em memória (*In-Memory Caching*) e o controle de taxa de requisições (*Rate Limiting*) na nuvem, analisando padrões de leitura e escrita, políticas de invalidação de dados, algoritmos de limitação de tráfego e as principais soluções gerenciadas baseadas em Redis e Key-Value.
+
+## Objetivo
+
+Compreender a aplicação de bancos de dados em memória para acelerar consultas de leitura e proteger endpoints de API contra abuso e sobrecarga. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar o ganho de desempenho do acesso a dados em memória RAM (latência sub-milissegundo) em relação ao armazenamento em disco.
+- Implementar o padrão *Cache-Aside* (carregamento sob demanda) e diferenciá-lo dos padrões *Write-Through* e *Write-Behind*.
+- Configurar políticas de expiração com TTL (*Time-To-Live*) e estratégias de expulsão de memória (LRU e LFU).
+- Prevenir o colapso de infraestrutura por *Cache Stampede* e efeito manada (*Thundering Herd*).
+- Aplicar algoritmos de *Rate Limiting* distribuído (Janela Fixa, Janela Deslizante e *Token Bucket*) em APIs em nuvem.
+- Comparar soluções de cache em nuvem: Upstash Redis (Serverless HTTP), Redis Cloud, AWS ElastiCache e Dragonfly.
+
+---
+
+## Por Que Cache em Memória?
+
+A memória RAM opera ordens de magnitude mais rápido que qualquer armazenamento em disco: uma leitura direta da memória RAM leva cerca de 100 nanossegundos, enquanto uma leitura em disco SSD NVMe consome dezenas a centenas de microssegundos, somados ao tempo de planejamento e execução de queries SQL pelo motor do banco.
+
+O diagrama abaixo ilustra o papel do cache como camada de amortecimento entre a API e o banco de dados:
+
+<Mermaid title="Camada de Cache em Memória amortecendo requisições ao Banco Relacional">
+{`
+flowchart TD
+  Client["Cliente / Front-end"] -->|1. Requisição GET /products| API["API Web"]
+  API -->|2. Consulta chave no Cache| Cache[("Cache em Memória<br/>Redis / Key-Value (RAM)<br/>Latência: < 2ms")]
+  Cache -->|3a. Cache Hit (85% das chamadas)| API
+  API -->|4a. Resposta imediata (2ms)| Client
+  
+  Cache -.->|3b. Cache Miss (15%)| DB[("Banco de Dados<br/>PostgreSQL / MySQL (Disco)<br/>Latência: 45ms")]
+  DB -.->|4b. Retorna dados e grava no Cache| Cache
+  API -.->|5b. Resposta ao cliente| Client
+`}
+</Mermaid>
+
+Quando o dado solicitado já está presente no cache, ocorre um **Cache Hit**: a resposta é entregue em menos de 2 milissegundos sem tocar no banco de dados. Caso o dado não esteja no cache, ocorre um **Cache Miss**: a API busca o registro no banco relacional, devolve ao cliente e grava uma cópia temporária na memória para as próximas requisições.
+
+---
+
+## Padrões de Acesso ao Cache
+
+A forma como a aplicação lê e atualiza as informações no cache define sua consistência e complexidade:
+
+A tabela a seguir compara os três principais padrões de arquitetura de cache:
+
+| Padrão | Mecanismo de Leitura | Mecanismo de Escrita | Vantagens | Desvantagens |
+| :--- | :--- | :--- | :--- | :--- |
+| **Cache-Aside** (Lazy Loading) | A aplicação busca no cache; se falhar (*miss*), busca no banco e preenche o cache. | A aplicação escreve direto no banco e invalida a chave no cache. | Apenas dados efetivamente consultados ocupam memória; falha no cache não derruba a aplicação. | Maior latência na primeira consulta (*cold start*); risco de dados desatualizados (*stale data*). |
+| **Write-Through** | A aplicação consulta o cache diretamente. | A aplicação grava no cache, e o cache atualiza o banco sincronamente na mesma chamada. | O cache está sempre atualizado com o banco; consistência garantida de leitura imediata. | Maior latência em operações de escrita (grava em dois lugares sequencialmente). |
+| **Write-Behind** (Write-Back) | A aplicação consulta o cache. | A aplicação grava apenas no cache e responde imediatamente; o cache persiste no banco de forma assíncrona. | Velocidade extrema de escrita; absorve picos massivos de mutações de dados. | Risco de perda de dados se o servidor de cache cair antes de persistir as gravações no disco. |
+
+O padrão **Cache-Aside** é a abordagem mais adotada em aplicações web modernas devido à sua simplicidade e resiliência: se o servidor Redis for reiniciado, o sistema continua funcionando normalmente, apenas realizando consultas diretas ao banco de dados.
+
+---
+
+## Invalidação de Dados e Mitigação de Falhas
+
+O maior desafio no uso de cache é garantir que o usuário não veja informações desatualizadas após uma alteração no sistema:
+
+### Estratégias de Invalidação
+
+Existem duas formas complementares de invalidar registros em cache:
+
+1. **Invalidação Baseada em Tempo (TTL - Time-To-Live)**: Cada chave recebe um prazo de validade (por exemplo, `EXPIRE user:123 300` para 5 minutos). Ao expirar, o Redis remove a chave automaticamente da memória.
+2. **Invalidação Ativa por Evento**: Ao executar uma mutação (como `UPDATE products SET price = 100 WHERE id = 42`), a aplicação executa imediatamente o comando `DEL product:42` no Redis, forçando a próxima leitura a buscar o valor atualizado no banco.
+
+### Prevenindo o Efeito Manada (*Cache Stampede*)
+
+O fenômeno de **Cache Stampede** (ou *Thundering Herd*) ocorre quando uma chave extremamente popular (como a página inicial de um grande portal) expira do cache no exato momento em que milhares de requisições simultâneas chegam ao servidor. Como todas as requisições sofrem *Cache Miss* ao mesmo tempo, milhares de threads disparam a mesma query pesada contra o banco de dados, provocando sobrecarga e indisponibilidade.
+
+<Steps>
+1. **Mutex / Lock Distribuído**: Apenas a primeira requisição que identificou o *Cache Miss* adquire uma trava temporária (`SET lock:product:42 1 NX EX 5`) para consultar o banco e recalcular o cache.
+2. **Espera das Demais Requisições**: As demais requisições aguardam alguns milissegundos ou retornam temporariamente o valor antigo (*stale data*) enquanto a chave está sendo atualizada.
+3. **Expiração Antecipada Aleatória (*Probabilistic Early Expiration*)**: A aplicação calcula a probabilidade de recalcular o cache antes do término real do TTL, evitando que a chave atinja zero repentinamente sob tráfego pesado.
+</Steps>
+
+---
+
+## Rate Limiting: Proteção e Controle de Tráfego
+
+O **Rate Limiting** impõe limites sobre a quantidade de requisições que um determinado cliente (identificado por IP, Token JWT ou Chave de API) pode realizar em uma janela de tempo (por exemplo: *"máximo de 100 requisições por minuto por IP"*).
+
+O diagrama abaixo ilustra o bloqueio de requisições abusivas pelo Rate Limiter:
+
+<Mermaid title="Middleware de Rate Limiting com Redis bloqueando excesso de tráfego com HTTP 429">
+{`
+flowchart TD
+  User["Cliente / Bot"] -->|Requisição HTTP| MW["Middleware de Rate Limiting"]
+  MW -->|Incrementa contador atômico| Redis[("Redis em Memória")]
+  Redis -->|Contador <= Limite (ex: 45/100)| Allow["Acesso Permitido: Executa rota da API"]
+  Redis -->|Contador > Limite (ex: 101/100)| Block["Acesso Bloqueado: HTTP 429 Too Many Requests"]
+`}
+</Mermaid>
+
+### Algoritmos de Rate Limiting
+
+A tabela a seguir compara os algoritmos mais utilizados em arquiteturas de nuvem:
+
+| Algoritmo | Como Funciona | Precisão | Custo Computacional |
+| :--- | :--- | :--- | :--- |
+| **Janela Fixa (*Fixed Window*)** | Conta requisições em intervalos fixos (ex: 12:00:00 a 12:00:59). | Baixa (vulnerável a picos no limite da virada do minuto). | Mínimo (comando `INCR` atômico do Redis com `EXPIRE`). |
+| **Janela Deslizante (*Sliding Window Log*)** | Grava o carimbo de cada requisição em um Sorted Set (`ZSET`) do Redis e remove registros antigos. | **Máxima**: calcula a taxa exata nos últimos 60 segundos contínuos. | Alto consumo de memória sob tráfego muito intenso. |
+| **Janela Deslizante por Contador (*Sliding Window Counter*)** | Faz a média ponderada entre o contador da janela anterior e o da janela atual. | Alta (aproximação matemática excelente). | Baixíssimo (armazena apenas dois números por cliente). |
+| **Token Bucket** | Um balde acumula créditos (*tokens*) a uma taxa constante; cada requisição consome 1 token. Permite pequenas rajadas de tráfego (*bursts*). | Alta (padrão de APIs públicas como AWS e Stripe). | Baixo e previsível. |
+
+Quando o limite é atingido, o servidor deve retornar o código HTTP `429 Too Many Requests` acompanhado do cabeçalho padronizado `Retry-After: 30`, informando em quantos segundos o cliente poderá tentar novamente.
+
+---
+
+## Comparativo de Soluções de Cache Gerenciadas
+
+A tabela a seguir apresenta as principais opções de bancos de dados em memória disponíveis no ecossistema de nuvem:
+
+| Solução | Protocolo / Conexão | Modelo de Cobrança | Compatibilidade | Cenário Ideal |
+| :--- | :--- | :--- | :--- | :--- |
+| **Upstash Redis** | HTTP REST e TCP nativo | Serverless (Paga por comando executado) | Redis 100% compatível | Funções Serverless e Edge (Vercel, Cloudflare, Next.js) onde conexões TCP persistentes são caras ou inviáveis. |
+| **Redis Cloud** | Conexão TCP padrão | Gerenciado por memória alocada (GB/mês) | Redis oficial | Aplicações corporativas com tráfego contínuo massivo e necessidade de módulos avançados. |
+| **AWS ElastiCache** (Redis / Valkey) | Conexão TCP em VPC privada | Por hora de instância provisionada | Redis / Valkey | Infraestruturas robustas hospedadas integralmente dentro da nuvem AWS. |
+| **Dragonfly** | Conexão TCP de ultra-alta performance | Multi-thread moderno em memória | Totalmente compatível com a API do Redis | Aplicações com milhões de operações por segundo que demandam saturação total de hardware multi-core. |
+
+---
+
+## Quando Usar Cache em Memória?
+
+O uso de cache em memória é recomendado em pontos estratégicos da arquitetura:
+
+| Cenário | Uso Recomendado | Por quê |
+| :--- | :--- | :--- |
+| Consultas frequentes a tabelas que mudam raramente (categorias, configurações de sistema) | **Cache-Aside com TTL longo** | Elimina 95% das queries ao banco relacional sem complexidade de sincronização. |
+| Autenticação de sessões em servidores com múltiplas instâncias | **Armazenamento de Sessão no Redis** | Permite que qualquer instância do balanceador de carga valide o usuário sem sessão fixa (*sticky session*). |
+| Endpoints públicos de login, cadastro e esqueci minha senha | **Rate Limiting por IP e e-mail** | Bloqueia ataques automatizados de força bruta (*brute force*) e enumeração de usuários. |
+| Cálculos pesados de dashboards e relatórios analíticos | **Cache pré-computado** | O cálculo roda em segundo plano e grava o resultado no Redis; a interface lê o JSON pronto em 2ms. |
+| Dados com necessidade de consistência financeira estrita (saldo em conta corrente) | **Consulta direta no Banco (Sem Cache)** | O risco de exibir saldo desatualizado supera o ganho de milissegundos de performance. |
+
+---
+
+## Exercício
+
+Responda com base nos conceitos de cache em memória, invalidação de dados e algoritmos de rate limiting:
+
+1. Por que o padrão **Cache-Aside** é considerado mais resiliente a falhas na infraestrutura de cache do que o padrão **Write-Through**?
+2. O que caracteriza o problema de **Cache Stampede** e qual técnica impede que milhares de requisições sobrecarreguem o banco de dados após a expiração de uma chave?
+3. Qual é a principal fraqueza do algoritmo de Rate Limiting por **Janela Fixa (*Fixed Window*)** e como o algoritmo de **Janela Deslizante** resolve esse problema?
+4. Por que serviços serverless e funções de borda (Edge Functions) preferem acessar o Redis via protocolo HTTP/REST (como no Upstash) em vez de conexões TCP convencionais?
+
+<details>
+  <summary>Possível resposta</summary>
+
+  1. Porque no Cache-Aside, a aplicação continua funcionando normalmente consultando o banco de dados relacional caso o servidor de cache fique temporariamente fora do ar. No Write-Through, como a gravação no banco é mediada pelo próprio serviço de cache, a indisponibilidade do cache bloqueia as operações de escrita da aplicação.
+
+  2. Cache Stampede é o pico massivo de consultas simultâneas disparadas contra o banco de dados no instante em que uma chave com alto volume de acessos expira do cache. Ele é prevenido através de travas distribuídas (*mutex locks*), onde apenas uma única requisição obtém autorização para consultar o banco e reaquecer o cache, enquanto as demais aguardam ou consomem temporariamente o valor antigo.
+
+  3. A Janela Fixa permite que o dobro do limite configurado seja executado em um intervalo curto se as requisições ocorrerem no final de uma janela e no início da janela seguinte (por exemplo: 100 requisições às 12:00:59 e mais 100 às 12:01:01). A Janela Deslizante calcula a taxa de requisições de forma contínua considerando exatamente os últimos 60 segundos a partir do instante atual.
+
+  4. Porque funções serverless nascem e morrem rapidamente e escalam em milhares de instâncias isoladas. Criar conexões TCP tradicionais a cada invocação esgota rapidamente o limite de sockets do servidor de banco de dados (*connection exhaustion*), enquanto requisições HTTP REST utilizam conexões efêmeras sem sobrecarga de handshake de pool.
+</details>
+
+---
+
+## Desafio
+
+Projete a camada de performance e segurança para a rota pública de login e para o feed principal de um aplicativo móvel com 1 milhão de usuários ativos.
+
+A solução deve contemplar:
+1. Um mecanismo de Rate Limiting na rota `POST /auth/login` que limite cada endereço IP a no máximo 5 tentativas por minuto, retornando o cabeçalho `Retry-After` quando bloqueado.
+2. Uma estratégia de cache no endpoint `GET /feed` que entregue as postagens em menos de 5ms para 90% dos usuários, garantindo que novas postagens publicadas fiquem visíveis em no máximo 60 segundos.
+3. Tratamento de contingência caso o cluster Redis fique fora do ar por alguns minutos.
+
+Descreva os comandos Redis utilizados, o algoritmo de rate limit e o comportamento da API em caso de indisponibilidade do cache.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  **1. Rate Limiting no Login (`POST /auth/login`)**:
+  - Utiliza-se o algoritmo de *Sliding Window Counter* no Redis com chave baseada no IP: `ratelimit:login:<ip>`.
+  - A cada requisição, a API incrementa o contador atômico com expiração de 60 segundos.
+  - Se o contador ultrapassar 5, a requisição é interceptada imediatamente no middleware antes de consultar o banco de dados, retornando HTTP `429 Too Many Requests` com o cabeçalho `Retry-After: 60`.
+
+  **2. Estratégia de Cache no Feed (`GET /feed`)**:
+  - Adota-se o padrão **Cache-Aside** com chave por usuário ou feed global: `cache:feed:global`.
+  - O endpoint consulta o Redis; se houver *Cache Hit*, devolve o JSON em 2ms.
+  - O TTL é configurado para 60 segundos (`EXPIRE cache:feed:global 60`), garantindo que novas publicações apareçam automaticamente no próximo ciclo.
+  - Para eventos de publicação de alta relevância, o endpoint de criação de postagem executa um `DEL cache:feed:global` para invalidação imediata.
+
+  **3. Contingência e Resiliência (*Graceful Degradation*)**:
+  - O cliente Redis na API é encapsulado em um bloco `try/catch` com timeout curto de conexão (ex: 200ms).
+  - Caso o cluster Redis não responda, a aplicação registra o erro no log de telemetria, ignora a falha de cache (*fail-open*) e redireciona a consulta diretamente para a réplica de leitura do PostgreSQL. O sistema permanece no ar, absorvendo a carga temporariamente no banco relacional até a recuperação do Redis.
+</details>
+
+---
+
+## Perguntas de revisão
+
+### Padrões e Algoritmos
+
+1. **O que é a política de expulsão de memória LRU (Least Recently Used) no Redis?**
+   <details>
+     <summary>Possível resposta</summary>
+     É o algoritmo que remove automaticamente da memória as chaves que não são acessadas há mais tempo quando o limite máximo de RAM do servidor (`maxmemory`) é atingido, liberando espaço para novos dados.
+   </details>
+
+2. **Como o algoritmo *Token Bucket* permite rajadas de tráfego (*bursts*) sem comprometer a segurança da API?**
+   <details>
+     <summary>Possível resposta</summary>
+     O balde armazena tokens até uma capacidade máxima pré-definida. Se um usuário passar alguns minutos inativo, ele acumula tokens e pode disparar uma rajada rápida de requisições de uma só vez (consumindo os tokens acumulados), mas volta a ser limitado à taxa de recarga contínua assim que o balde esvazia.
+   </details>
+
+3. **Por que dados com alta frequência de escrita e baixa frequência de leitura não devem ser colocados em cache?**
+   <details>
+     <summary>Possível resposta</summary>
+     Porque a aplicação gastará recursos de rede e memória gravando e invalidando chaves continuamente no cache sem que ninguém as consulte, tornando o cache ineficiente e gerando custo computacional desnecessário.
+   </details>
+
+### Operação e Nuvem
+
+4. **O que são comandos atômicos no Redis (como `INCR` e `SET ... NX`) e por que eles são essenciais para concorrência?**
+   <details>
+     <summary>Possível resposta</summary>
+     São instruções executadas como uma operação única e indivisível no servidor Redis. Eles garantem que, mesmo com milhares de requisições concorrentes disputando o mesmo recurso, não ocorram condições de corrida (*race conditions*) na contagem de limites de taxa ou na aquisição de travas.
+   </details>
+
+5. **Qual é o risco de configurar um TTL excessivamente longo em dados de perfil de usuário?**
+   <details>
+     <summary>Possível resposta</summary>
+     Se o usuário alterar seu endereço ou foto de perfil e a aplicação não possuir uma rotina rigorosa de invalidação ativa de cache, o usuário ou outros clientes continuarão visualizando dados desatualizados até que o TTL expire.
+   </details>
+
+6. **Como o uso de réplicas de leitura no Redis (*Read Replicas*) aumenta a disponibilidade de um sistema em nuvem?**
+   <details>
+     <summary>Possível resposta</summary>
+     As réplicas de leitura sincronizam os dados com o nó primário e distribuem as consultas de leitura entre múltiplos nós geográficos, permitindo que a aplicação atenda a volumes extremos de tráfego e assuma a liderança automaticamente em caso de falha do nó primário (*failover*).
+   </details>
+
+---
+
+## Referências
+
+- [Redis Documentation & Data Structures](https://redis.io/docs/)
+- [Upstash Redis Docs: Serverless Redis](https://upstash.com/docs/redis/overall/getstarted)
+- [Dragonfly: Modern in-memory datastore](https://www.dragonflydb.io/docs)
+- [IETF RFC 6585: Additional HTTP Status Codes (429 Too Many Requests)](https://datatracker.ietf.org/doc/html/rfc6585)
+- [Cloudflare: What is Rate Limiting?](https://www.cloudflare.com/learning/bots/what-is-rate-limiting/)
+- [System Design: Caching Strategies and Best Practices](https://aws.amazon.com/caching/best-practices/)
+
+---
+
+## Próximo tópico
+
+[Containers e PaaS](../containers-paas/): O processo sempre no ar, empacotado em containers Docker ou gerenciado via PaaS, para serviços que demandam estado persistente e concorrência dedicada.
