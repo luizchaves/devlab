@@ -159,7 +159,7 @@ to `specs/executed/`, fill `Result`.
 - [x] Phase 3 — Sprint 4 (`investbaas-edge-quotes`): 48 Vitest (24 unit + 24 integration, the latter `fetch`ing the local edge runtime) and 9 Playwright tests green; providers `fake` / `yahoo` / `brapi`; `pg_cron` scheduling via a `security definer` function whose `EXECUTE` is revoked from `PUBLIC` (found by the test).
 - [x] Phase 4 — Sprint 5 (`investbaas-storage`): 63 Vitest (31 unit + 32 integration against the local Storage) and 11 Playwright tests green; the aggregate stats function needed the role check outside the `count(*)` (found by the test).
 - [x] Phase 5 — Sprint 6 (`investbaas-analytics`): 79 Vitest (39 unit + 40 integration) and 14 Playwright tests green; the integration test caught an arithmetic error in the page's reference spreadsheet (February contribution is 3,400, not 3,200), now fixed on the page and recorded there.
-- [ ] Phase 6 — Sprint 7
+- [x] Phase 6 — Sprint 7 (`investbaas-origins`): 92 Vitest (48 unit + 44 integration) and 16 Playwright tests green; squarified treemap and line chart as pure modules with SVG rendering, no chart library.
 - [ ] Phase 7 — Closing
 
 ## Risks & Mitigations

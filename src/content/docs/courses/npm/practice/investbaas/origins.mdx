@@ -11,6 +11,7 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 import FileTree from '@components/FileTree.astro';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
 
 Etapa **7 de 7** · Nível **Avançado** · Views · SVG · Treemap · Séries temporais
 
@@ -117,31 +118,149 @@ flowchart LR
 
 ## Estrutura da aplicação
 
-A sprint ainda não está implementada. A árvore abaixo é o alvo: nenhuma tabela nova, duas views, dois módulos de desenho e uma página.
+A sprint nasce como cópia da Sprint 6 mais o delta: uma migration com duas views, dois módulos de desenho, um serviço, uma página nova e os gráficos nas duas telas existentes. Nenhuma tabela nova.
 
-<ProjectLinks path="examples/courses/npm/projects/investbaas-static" devcontainer="investbaas-static" />
+<ProjectLinks path="examples/courses/npm/projects/investbaas-origins" devcontainer="investbaas-origins" />
 
 <FileTree>
 {`
   investbaas-origins/
   ├── supabase/migrations/
-  │   └── 0013_origin_and_evolution_views.sql   allocation_by_origin e portfolio_evolution
+  │   └── 20260912000011_origin_and_evolution_views.sql   TK07-1, TK07-4: allocation_by_origin e portfolio_evolution
   ├── src/
   │   ├── lib/
-  │   │   ├── treemap.js                        squarified (função pura) + render SVG
+  │   │   ├── treemap.js                  TK07-2: layout() squarified, renderTreemap() e groupBy()
   │   │   ├── treemap.test.js
-  │   │   ├── line-chart.js                     duas séries em SVG
+  │   │   ├── line-chart.js               TK07-5: scalePoints(), pathOf() e renderLineChart()
   │   │   └── line-chart.test.js
+  │   ├── services/origins.js             as duas views, totalsByMonth() e toSeries()
   │   └── pages/
-  │       ├── origins.js                        seletor de recorte e legenda
-  │       ├── analytics.js                      + gráfico da carteira
-  │       └── asset.js                          + gráfico do ativo
+  │       ├── origins.js                  TK07-3: seletor de recorte e legenda
+  │       ├── analytics.js                + gráfico da carteira
+  │       └── asset.js                    + gráfico do ativo
   ├── tests/
-  │   ├── integration/origins.test.js           as duas views com dados de referência
-  │   └── e2e/origins.spec.js                   o seletor de recorte
-  └── origins.html                              novo
+  │   ├── integration/origins.test.js     as duas views com dados de referência
+  │   └── e2e/origins.spec.js             o seletor e os gráficos pela tela
+  ├── origins.html                        nova
+  ├── analytics.html · asset.html         + seção "Aportes versus valor de mercado"
+  └── vercel.json                         herdado da Sprint 6: deploy do front estático
 `}
 </FileTree>
+
+## O que muda nesta etapa?
+
+| Antes (Sprint 6) | Agora (Sprint 7) |
+| ---------------- | ---------------- |
+| Corretora e emissor só na tabela da carteira | `origins.html`: treemap com a área de cada bloco proporcional ao valor custodiado |
+| Distribuição só por categoria | Seletor que troca o recorte entre corretora, categoria e emissor sem recarregar |
+| Matriz de retorno mês a mês | + a linha do aportado acumulado contra a do valor de mercado, na carteira e no ativo |
+| Nenhum gráfico | Dois módulos de SVG escritos à mão, testados como funções puras |
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto.
+
+### TK07-1 · Criar a view `allocation_by_origin`
+
+A view devolve **uma linha por ativo** com o valor atual (posição × cotação) e as três dimensões de origem: corretora (o `left join` em `brokers`, com "Sem corretora" quando não há), categoria e emissor. Agrupar fica para o front: a mesma linha alimenta o treemap por qualquer um dos três recortes, e trocar o seletor não volta ao banco. `security_invoker` mantém o RLS: Bruno recebe lista vazia.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/supabase/migrations/20260912000011_origin_and_evolution_views.sql"
+  title="supabase/migrations/20260912000011_origin_and_evolution_views.sql"
+  region="allocation_by_origin"
+/>
+
+### TK07-2 · Criar `src/lib/treemap.js`
+
+O treemap *squarified* é uma função pura: recebe `[{ label, value }]` e a área, devolve retângulos. Os itens entram em ordem decrescente e cada linha do layout ocupa o lado menor do espaço restante; a função `worst()` mede a pior proporção da linha, e um item só entra nela se não piorar essa proporção. Sem DOM e sem biblioteca, o módulo cabe em cem linhas e é testável.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/lib/treemap.js"
+  title="src/lib/treemap.js"
+  region="layout"
+/>
+
+Os testes afirmam as três propriedades que definem um treemap correto: a soma das áreas é a área total, a área de cada retângulo é proporcional ao valor, e nenhum retângulo sai dos limites. Valor zero fica de fora.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/lib/treemap.test.js"
+  title="src/lib/treemap.test.js"
+  region="layout"
+/>
+
+A renderização é outra função: recebe os retângulos e devolve um `<svg>`, com rótulo só quando cabe e um `<title>` em cada bloco para o *hover*.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/lib/treemap.js"
+  title="src/lib/treemap.js"
+  region="render"
+/>
+
+### TK07-3 · Criar `origins.html` e o seletor de recorte
+
+A página lê a view uma vez e redesenha a cada troca do `<select>`: `groupBy()` soma por corretora, categoria ou emissor, `layout()` calcula e `renderTreemap()` desenha. A legenda traz valor e fatia de cada bloco, e o E2E prova a troca de recorte sem recarregar (a URL não muda, o `data-dimension` sim).
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/pages/origins.js"
+  title="src/pages/origins.js"
+  region="draw"
+/>
+
+### TK07-4 · Criar a view `portfolio_evolution`
+
+Mês a mês, por ativo: o que foi **aportado** até ali (compras menos vendas, ao preço de cada transação) e o que a posição **valia** na última cotação do mês. A distância entre as duas é o resultado acumulado, inclusive o realizado. Um mês sem cotação não gera linha: é lacuna, não zero, e o teste de integração confere que março não aparece.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/supabase/migrations/20260912000011_origin_and_evolution_views.sql"
+  title="supabase/migrations/20260912000011_origin_and_evolution_views.sql"
+  region="portfolio_evolution"
+/>
+
+A série da carteira é a soma das séries por ativo, mês a mês, feita no serviço; a série do ativo é a mesma consulta filtrada por `asset_id`.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/services/origins.js"
+  title="src/services/origins.js"
+  region="views"
+/>
+
+### TK07-5 · Criar `src/lib/line-chart.js`
+
+Duas séries no mesmo eixo de tempo. `scalePoints()` alinha os meses das duas, converte valores em coordenadas e deixa `y` nulo onde não há ponto; `pathOf()` recomeça o caminho com `M` depois de uma lacuna, para que a linha de valor **pule** o mês sem cotação em vez de descer a zero. Ambas são puras, e é isso que os testes conferem.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/lib/line-chart.js"
+  title="src/lib/line-chart.js"
+  region="scale"
+/>
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/lib/line-chart.test.js"
+  title="src/lib/line-chart.test.js"
+  region="unit"
+/>
+
+Em `analytics.html` o gráfico mostra a carteira; em `asset.html`, o ativo. As duas páginas chamam o mesmo `renderLineChart()`.
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/src/pages/asset.js"
+  title="src/pages/asset.js"
+  region="evolution"
+/>
+
+### TK07-6 · Testes da sprint
+
+| Camada | O que prova | Tasks |
+| ------ | ----------- | ----- |
+| Unidade | as três propriedades do treemap, `groupBy()`, o eixo comum e a lacuna do gráfico | TK07-2, TK07-5 |
+| Integração | `allocation_by_origin` com as três dimensões e valores; `security_invoker`; `portfolio_evolution` = `[jan 3000/3100, fev 6400/6600]` e sem março; o CDB sem cotação fica fora da evolução | TK07-1, TK07-4 |
+| E2E | dois ativos em corretoras e emissores diferentes, cotação pela Edge Function, treemap por corretora → emissor → categoria sem recarregar; as duas linhas na carteira e no ativo | CA07.1, CA07.2, CA07.4, CA07.5 |
+
+<SourceCode
+  path="examples/courses/npm/projects/investbaas-origins/tests/integration/origins.test.js"
+  title="tests/integration/origins.test.js"
+  region="evolution"
+/>
 
 ## Decisões de desenho
 
@@ -158,15 +277,63 @@ A sprint ainda não está implementada. A árvore abaixo é o alvo: nenhuma tabe
   **Prompt:** *"Implemente o algoritmo squarified treemap em JavaScript como função pura `layout(items, width, height)` que devolve retângulos; sem DOM, sem biblioteca. Depois escreva os testes: soma das áreas igual a `width * height`, itens em ordem decrescente, e nenhum retângulo fora dos limites."*
 </Aside>
 
-## Executando
+## Testando
 
-A Sprint 7 parte do projeto da Sprint 6 com a stack local no ar e os dados de referência da matriz de rentabilidade.
+```bash title="Terminal"
+pnpm test
+```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/lib/treemap.test.js (5 tests)
+ ✓ |unit| src/lib/line-chart.test.js (4 tests)
+ ✓ |unit| (as suítes das sprints 2 a 6: 39 tests)
+ ✓ |integration| tests/integration/origins.test.js (4 tests)
+ ✓ |integration| (as suítes das sprints 2 a 6: 40 tests)
+
+ Test Files  19 passed (19)
+      Tests  92 passed (92)
+```
+
+```bash title="Terminal"
+pnpm test:e2e
+```
+
+```txt title="Output" frame="terminal"
+  ✓ o treemap agrupa por corretora, categoria e emissor sem recarregar (CA07.1, CA07.2)
+  ✓ a linha de aportes e a de valor aparecem na carteira e no ativo (CA07.4, CA07.5)
+  ✓ (os catorze testes das sprints 2 a 6)
+
+  16 passed (22.9s)
+```
+
+Uma armadilha de teste que vale registrar: com um único mês de cotação, a "linha" do gráfico é um ponto, e um `<path>` com caixa de zero pixels conta como **invisível** para o Playwright. O E2E confere o atributo `d` do caminho, não a visibilidade.
+
+## Executando
 
 <Steps>
 
-1. **Confirme a base**: `pnpm db:reset` aplica as views novas sobre as tabelas das sprints 3 a 6.
-2. **Alimente dados de referência**: dois ativos em corretoras diferentes, com emissores distintos, e transações em três meses.
-3. **Rode as suítes**: `pnpm test` (unidade e integração) e `pnpm test:e2e`.
+1. Entre no projeto, instale e suba a stack:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investbaas-origins
+   pnpm install
+   pnpm db:start
+   supabase status -o env   # preencha o .env
+   pnpm db:reset
+   ```
+
+2. Suba o Vite, cadastre dois ativos em corretoras diferentes com emissores diferentes, registre aportes, atualize as cotações e abra `origins.html`:
+
+   ```bash title="Terminal"
+   pnpm dev
+   ```
+
+3. Rode as suítes:
+
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
 
 </Steps>
 

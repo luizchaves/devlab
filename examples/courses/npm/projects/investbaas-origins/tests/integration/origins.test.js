@@ -1,0 +1,156 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { adminClient, anonClient, hasStack, uniqueEmail } from './env.js';
+
+const PASSWORD = 'senha-de-teste';
+
+// #region setup
+describe.skipIf(!hasStack)('Sprint 7 contra a stack local', () => {
+  const admin = adminClient();
+  const users = [];
+  let ana;
+  let bruno;
+
+  async function login(name) {
+    const client = anonClient();
+    const { data, error } = await client.auth.signUp({
+      email: uniqueEmail(name.toLowerCase()),
+      password: PASSWORD,
+      options: { data: { full_name: name } },
+    });
+    expect(error).toBeNull();
+    users.push(data.user.id);
+    return { client, id: data.user.id };
+  }
+
+  // Dois ativos em corretoras e emissores diferentes; PETR4 com a planilha da Sprint 6.
+  beforeAll(async () => {
+    ana = await login('Ana');
+    bruno = await login('Bruno');
+
+    const { data: brokers } = await ana.client
+      .from('brokers')
+      .insert([
+        { user_id: ana.id, name: 'XP' },
+        { user_id: ana.id, name: 'Banco do Brasil' },
+      ])
+      .select('id, name');
+    const xp = brokers.find((b) => b.name === 'XP');
+    const bb = brokers.find((b) => b.name === 'Banco do Brasil');
+
+    const { data: assets } = await ana.client
+      .from('assets')
+      .insert([
+        {
+          user_id: ana.id,
+          ticker: 'PETR4',
+          name: 'Petrobras',
+          category: 'acoes',
+          issuer: 'Petrobras',
+          broker_id: xp.id,
+          current_price: 33,
+        },
+        {
+          user_id: ana.id,
+          ticker: 'CDB-BB',
+          name: 'CDB BB',
+          category: 'renda_fixa',
+          issuer: 'Banco do Brasil',
+          broker_id: bb.id,
+          current_price: 1,
+        },
+      ])
+      .select('id, ticker');
+    const petr4 = assets.find((a) => a.ticker === 'PETR4');
+    const cdb = assets.find((a) => a.ticker === 'CDB-BB');
+
+    await ana.client.from('transactions').insert([
+      {
+        user_id: ana.id,
+        asset_id: petr4.id,
+        type: 'buy',
+        quantity: 100,
+        price: 30,
+        transaction_date: '2026-01-10',
+      },
+      {
+        user_id: ana.id,
+        asset_id: petr4.id,
+        type: 'buy',
+        quantity: 100,
+        price: 34,
+        transaction_date: '2026-02-10',
+      },
+      {
+        user_id: ana.id,
+        asset_id: cdb.id,
+        type: 'buy',
+        quantity: 1000,
+        price: 1,
+        transaction_date: '2026-01-15',
+      },
+    ]);
+    await admin.from('quotes_history').insert([
+      { asset_id: petr4.id, price: 31, quote_date: '2026-01-31' },
+      { asset_id: petr4.id, price: 33, quote_date: '2026-02-28' },
+    ]);
+  });
+
+  afterAll(async () => {
+    for (const id of users) await admin.auth.admin.deleteUser(id);
+  });
+  // #endregion
+
+  // #region origin
+  it('CA07.1 / CA07.2: allocation_by_origin traz as tres dimensoes e o valor atual', async () => {
+    const { data } = await ana.client
+      .from('allocation_by_origin')
+      .select('ticker, broker, category, issuer, value')
+      .order('ticker');
+
+    expect(data).toEqual([
+      {
+        ticker: 'CDB-BB',
+        broker: 'Banco do Brasil',
+        category: 'renda_fixa',
+        issuer: 'Banco do Brasil',
+        value: expect.anything(),
+      },
+      {
+        ticker: 'PETR4',
+        broker: 'XP',
+        category: 'acoes',
+        issuer: 'Petrobras',
+        value: expect.anything(),
+      },
+    ]);
+    expect(data.map((r) => Number(r.value))).toEqual([1000, 6600]);
+  });
+
+  it('CA07.3: a view e security_invoker', async () => {
+    const { data } = await bruno.client.from('allocation_by_origin').select('ticker');
+    expect(data).toEqual([]);
+  });
+  // #endregion
+
+  // #region evolution
+  it('CA07.4 / CA07.6: portfolio_evolution reproduz aportado x valor da planilha, sem marco', async () => {
+    const { data } = await ana.client
+      .from('portfolio_evolution')
+      .select('month, invested, value')
+      .order('month');
+
+    expect(data.map((r) => [r.month, Number(r.invested), Number(r.value)])).toEqual([
+      ['2026-01-01', 3000, 3100],
+      ['2026-02-01', 6400, 6600],
+    ]);
+  });
+
+  it('CA07.5: a serie do ativo e a serie da carteira coincidem quando so um ativo tem cotacao', async () => {
+    const { data: all } = await ana.client.from('portfolio_evolution').select('asset_id, month');
+    const assets = new Set(all.map((r) => r.asset_id));
+
+    // O CDB nao tem cotacao: nao entra na evolucao, por construcao.
+    expect(assets.size).toBe(1);
+  });
+  // #endregion
+});

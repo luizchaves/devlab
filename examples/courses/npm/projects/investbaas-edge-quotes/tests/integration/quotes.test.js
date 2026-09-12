@@ -60,9 +60,10 @@ describe.skipIf(!hasStack)('Sprint 4 contra o edge runtime local', () => {
     const summary = await res.json();
 
     expect(res.status).toBe(200);
-    expect(summary.requested).toBe(2); // PETR4 e XPTO3; CDB-BB nao e elegivel
-    expect(summary.updated).toBe(1);
-    expect(summary.failed).toEqual([{ ticker: 'XPTO3', reason: 'not_found' }]);
+    // Tickers de outras contas (ex.: dos E2E) tambem entram: a funcao e global.
+    expect(summary.requested).toBeGreaterThanOrEqual(2); // PETR4 e XPTO3; CDB-BB nao e elegivel
+    expect(summary.updated).toBeGreaterThanOrEqual(1);
+    expect(summary.failed).toContainEqual({ ticker: 'XPTO3', reason: 'not_found' });
 
     const { data: asset } = await ana.client
       .from('assets')
