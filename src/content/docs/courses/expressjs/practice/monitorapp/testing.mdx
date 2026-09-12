@@ -69,6 +69,12 @@ Cenário: CA13.6 - O app é importável
   Dado o arquivo src/index.ts
   Então ele exporta o app
   E só chama listen quando executado diretamente
+
+Cenário: CA13.7 - A forma do cabeçalho e o parser de cookies estão fixados
+  Quando leio src/routes.test.ts
+  Então existe um teste com "Authorization: Token abc" afirmando 401 e a mensagem do schema
+  E quando leio src/utils/cookies.test.ts
+  Então parseCookies é testado sem servidor, com cabeçalho ausente e encoding inválido
 ```
 
 ### Tasks da etapa
@@ -80,6 +86,7 @@ Cenário: CA13.6 - O app é importável
 3. **TK12.3 · Escrever os testes de front**: `format.js` e `api.js` no Vitest.
 4. **TK12.4 · Escrever o fluxo completo em `tests/monitor-app.spec.js`**: Playwright.
 5. **TK12.5 · Criar as configurações**: `vitest.config.js`, `playwright.config.js` e os scripts.
+6. **TK12.6 · Escrever `src/utils/cookies.test.ts` e o caso de cabeçalho malformado**: `parseCookies` como função pura e `Authorization: Token abc` respondendo `401` com a mensagem do schema.
 
 </Steps>
 
@@ -104,7 +111,8 @@ não pertence nem ao back nem ao front.
   │       ├── index.ts                   exporta o app
   │       ├── routes.test.ts             NOVO — contrato HTTP
   │       ├── lib/ping.test.ts           NOVO — chamada de sistema
-  │       └── schemas/host.schema.test.ts NOVO — a regra de endereço
+  │       ├── schemas/host.schema.test.ts NOVO — a regra de endereço
+  │       └── utils/cookies.test.ts      NOVO — o parser de cookies
   └── front/
       ├── vitest.config.js               NOVO — jsdom e limites de cobertura
       └── js/
@@ -175,6 +183,18 @@ que deve ser recusado.
   mark="11-25"
 />
 
+O terceiro candidato é o `parseCookies` da etapa 4: uma string entra, um objeto sai, e os casos de
+borda (valor com `=`, cabeçalho ausente, *percent-encoding* inválido) cabem em quatro asserções.
+É o teste que garante que um cookie malformado nunca derruba a requisição antes de o schema
+opinar.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/monitor-app-test/back/src/utils/cookies.test.ts"
+  title="back/src/utils/cookies.test.ts"
+  showLineNumbers
+  mark="11-16,27-29"
+/>
+
 ### TK12.2 · Escrever `src/routes.test.ts` (O contrato HTTP)
 
 O teste de rotas é o mais valioso da suíte: ele exercita router, middlewares, controller, model e
@@ -207,7 +227,7 @@ Duas, e não uma, porque metade do que interessa testar nesta aplicação é o q
   title="back/src/routes.test.ts"
   showLineNumbers
   mark="10-18,33-49"
-  collapse="51-205"
+  collapse="51-212"
 />
 
 Os blocos seguintes cobrem cada faixa do contrato. Vale destacar quatro deles:
@@ -216,10 +236,10 @@ Os blocos seguintes cobrem cada faixa do contrato. Vale destacar quatro deles:
 | ----- | ------ | ----------- |
 | `POST /api/users` | 51 a 71 | cria com `201`, nunca devolve a senha, recusa confirmação divergente |
 | `POST /api/signin` | 73 a 82 | e-mail inexistente devolve o **mesmo** `401` que senha errada |
-| `GET /api/hosts` | 84 a 125 | exige token, recusa token adulterado, filtra por tag e **não mostra o host da outra conta** |
-| `GET /api/hosts/:id` | 149 a 165 | host de outra conta é `404`; id malformado é `400` |
+| `GET /api/hosts` | 84 a 132 | exige token, recusa cabeçalho fora do formato `Bearer` (com a mensagem do schema), recusa token adulterado, filtra por tag e **não mostra o host da outra conta** |
+| `GET /api/hosts/:id` | 156 a 172 | host de outra conta é `404`; id malformado é `400` |
 
-O teste das linhas 115 a 124 é o que fecha o critério `CA13.5`: a conta B lista os hosts e o id
+O teste das linhas 122 a 131 é o que fecha o critério `CA13.5`: a conta B lista os hosts e o id
 cadastrado pela conta A não está lá. É uma asserção de **ausência**, e é o tipo de garantia que
 uma refatoração distraída no `Host.read` quebraria em silêncio.
 
@@ -227,8 +247,8 @@ uma refatoração distraída no `Host.read` quebraria em silêncio.
   path="examples/courses/expressjs/projects/monitor-app-test/back/src/routes.test.ts"
   title="back/src/routes.test.ts — o isolamento por dono"
   showLineNumbers
-  lines="84-125"
-  mark="115-124"
+  lines="84-132"
+  mark="122-131"
 />
 
 ```bash title="Terminal: dentro de back/"

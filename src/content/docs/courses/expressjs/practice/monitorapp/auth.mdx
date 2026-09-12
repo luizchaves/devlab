@@ -73,6 +73,12 @@ Cenário: CA10.5 - A sessão no navegador
   Quando entro pela tela de login
   Então o token fica guardado no localStorage
   E acompanha as requisições seguintes como Bearer
+
+Cenário: CA10.6 - A forma do cabeçalho vem do schema
+  Quando envio GET /api/hosts com "Authorization: Token abc"
+  Então recebo o status 401, e não 400
+  E a mensagem é "Esperado: Authorization: Bearer <jwt>"
+  E a mesma frase descreve o bearerAuth em /api/openapi.json
 ```
 
 ### US11 — Ver apenas os meus hosts · RF07
@@ -111,6 +117,8 @@ Cenário: CA11.4 - O dono vem do token
 3. **TK10.3 · Criar a rota `POST /api/signin`**: controller, schema e roteador.
 4. **TK10.4 · Escopar as consultas por `userId`**: o model e os controllers de host e de ping.
 5. **TK10.5 · Ligar o front**: `lib/auth.js`, o `Bearer` em `api.js` e a tela de login.
+6. **TK10.6 · Proteger as rotas e dar um dono aos dados iniciais**: `isAuthenticated` nos roteadores privados e o usuário de demonstração no seed.
+7. **TK10.7 · Acrescentar `bearerSchema` e `cookieSessionSchema` em `src/schemas/auth.schema.ts`**: o `isAuthenticated` confere a forma do cabeçalho pelo schema, e o `openapi.ts` descreve o `bearerAuth` com a mesma frase.
 
 </Steps>
 
@@ -232,23 +240,25 @@ com assinatura de tamanho diferente lançaria exceção em vez de responder `401
 
 ### TK10.2 · Criar `src/middlewares/isAuthenticated.ts`
 
-Vinte e três linhas que fazem três coisas. A linha 7 extrai o token do cabeçalho
-`Authorization: Bearer <token>` com uma desestruturação que descarta a primeira parte. A linha 14
-verifica. E a linha 17 grava o `sub` em `req.userId`.
+Vinte e oito linhas que fazem três coisas. A linha 9 confere a **forma** do cabeçalho
+`Authorization: Bearer <token>` com o `bearerSchema` da TK10.7, e a linha 12 encerra com `401`
+devolvendo a mensagem do próprio schema. A linha 19 verifica a **confiança** do token com
+`verifyJwt`. E a linha 22 grava o `sub` em `req.userId`.
 
 Essa última linha é o ponto do arquivo: a partir daqui, **qualquer rota sabe quem está
 chamando** sem reler o cabeçalho nem repetir a verificação. Os controllers das próximas tarefas
 só leem `req.userId`.
 
-Repare que tanto o token ausente quanto o inválido respondem `401`, com mensagens diferentes mas
-o mesmo status. Distinguir os dois casos por status não ajudaria um cliente legítimo e ajudaria
-um atacante a mapear o comportamento.
+Repare que cabeçalho ausente, cabeçalho fora do formato e token inválido respondem `401`, com
+mensagens diferentes mas o mesmo status. É `401`, e não o `400` do `validate`: cabeçalho errado é
+"identifique-se", não "campo inválido". Por isso o schema é chamado aqui dentro, e não como
+`validate(bearerSchema)` na rota, onde alguém poderia esquecê-lo.
 
 <SourceCode
   path="examples/courses/expressjs/projects/monitor-app-auth/back/src/middlewares/isAuthenticated.ts"
   title="back/src/middlewares/isAuthenticated.ts"
   showLineNumbers
-  mark="7,14-19"
+  mark="9,12,15,19-24"
 />
 
 O TypeScript precisa saber que `req.userId` existe. O `types/express.d.ts` amplia a interface do
@@ -399,13 +409,14 @@ faz sentido validar o corpo de uma requisição que nem deveria chegar ao contro
     { path: 'examples/courses/expressjs/projects/monitor-app-auth/back/src/routes/pings.routes.ts', label: 'pings.routes.ts', mark: '4,12,19' },
     { path: 'examples/courses/expressjs/projects/monitor-app-auth/back/src/routes/tags.routes.ts', label: 'tags.routes.ts', mark: '4' },
     { path: 'examples/courses/expressjs/projects/monitor-app-auth/back/src/routes/auth.routes.ts', label: 'auth.routes.ts' },
-    { path: 'examples/courses/expressjs/projects/monitor-app-auth/back/src/schemas/auth.schema.ts', label: 'auth.schema.ts' },
+    { path: 'examples/courses/expressjs/projects/monitor-app-auth/back/src/schemas/auth.schema.ts', label: 'auth.schema.ts', mark: '3-8' },
   ]}
 />
 
 O roteador de autenticação é o único que fica de fora da proteção — é a porta de entrada de quem
-ainda não tem token. E o `auth.schema.ts` valida só e-mail e senha, sem `minlength`: conferir o
-tamanho da senha no login apenas diria ao atacante quando ele acertou o formato.
+ainda não tem token. E o `signinSchema` (linhas 3 a 8 do `auth.schema.ts`) valida só e-mail e
+senha, sem `minlength`: conferir o tamanho da senha no login apenas diria ao atacante quando ele
+acertou o formato. O restante do arquivo é a TK10.7.
 
 O `Host.d.ts` acompanha, com o `userId` obrigatório na linha 9 e o opcional na 19 — o comentário
 ali registra a regra que a TK10.4 impõe: o dono vem do token, nunca do corpo.
@@ -427,6 +438,30 @@ etapa 9 — o seed não grava senha em texto limpo, como nenhuma outra parte do 
   lines="1-30"
   showLineNumbers
   mark="5,8,18-24"
+/>
+
+### TK10.7 · Acrescentar `bearerSchema` e `cookieSessionSchema` (A forma do cabeçalho em um schema)
+
+O `validate` da etapa 4 já monta `headers` e `cookies` como fontes. É aqui que a primeira delas
+ganha um schema. A constante `BEARER_FORMAT` da linha 14 é uma frase só, usada em dois lugares:
+na mensagem de erro do `bearerSchema` (linha 27) e na descrição do `bearerSecurityScheme` (linha
+36), que o `openapi.ts` passa a usar no lugar do objeto escrito à mão. Mudar a frase muda o `401`
+e o `/api/docs` ao mesmo tempo.
+
+Repare no que o schema **não** faz: ele confere a forma (`Bearer` e três blocos separados por
+ponto, o *regex* da linha 27), não a assinatura. Quem decide se o token é de confiança continua
+sendo o `verifyJwt`. E é `z.object`, não `strictObject`, porque `req.headers` traz dezenas de
+chaves que não são erro.
+
+O `cookieSessionSchema` das linhas 43 a 45 é a mesma regra lida da outra fonte. Nenhuma rota o
+usa: ele existe para que a sessão em cookie `HttpOnly`, a alternativa ao `localStorage` discutida
+em [Autenticação](../../../auth/authentication/), tenha onde entrar sem reescrever o `validate`.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/monitor-app-auth/back/src/schemas/auth.schema.ts"
+  title="back/src/schemas/auth.schema.ts"
+  showLineNumbers
+  mark="14,23-29,32-37,43-45"
 />
 
 {/* cobertura: back/src/docs/openapi.ts — acrescenta o caminho /signin e a resposta 401 às rotas
@@ -565,6 +600,8 @@ token adulterado e com o id de um host de outra conta.
 - JWT HS256 assinado e verificado com `node:crypto`
 - Codificação Base64URL não é criptografia
 - Middleware que preenche `req.userId` para as camadas seguintes
+- A forma do `Authorization` em um schema Zod, e a confiança no `verifyJwt`
+- O gancho `cookieSessionSchema` para uma sessão em cookie
 - *Declaration merging* para ampliar o `Request` do Express
 - Resposta única para credenciais inválidas
 - `findFirst` por `id` + `userId` no lugar de `findUnique`

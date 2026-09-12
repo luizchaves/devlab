@@ -88,6 +88,13 @@ describe('MonitorApp', () => {
       assert.equal(response.statusCode, 401);
     });
 
+    it('rejects a header outside the Bearer format, with the schema message', async () => {
+      const response = await request(app).get('/api/hosts').set('Authorization', 'Token abc');
+
+      assert.equal(response.statusCode, 401);
+      assert.equal(response.body.error, 'Esperado: Authorization: Bearer <jwt>');
+    });
+
     it('rejects a tampered token', async () => {
       const response = await request(app)
         .get('/api/hosts')

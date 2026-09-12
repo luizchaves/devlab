@@ -77,6 +77,11 @@ Cenário: CA04.6 - Filtro vazio é erro
 Cenário: CA04.7 - Os controllers deixaram de conferir campos
   Dado o arquivo hosts.controller.ts
   Então não existe nenhum if de campo obrigatório
+
+Cenário: CA04.8 - Cabeçalho e cookie também são entrada
+  Quando abro back/src/middlewares/validate.ts
+  Então o objeto validado traz body, query, params, headers e cookies
+  E cookies vem de um parseCookies escrito no projeto, sem cookie-parser
 ```
 
 ### Tasks da etapa
@@ -86,6 +91,7 @@ Cenário: CA04.7 - Os controllers deixaram de conferir campos
 1. **TK04.1 · Criar `src/middlewares/validate.ts`**: um middleware genérico que recebe qualquer schema.
 2. **TK04.2 · Criar `src/schemas/host.schema.ts`**: um schema por rota, composto de partes reutilizáveis.
 3. **TK04.3 · Acrescentar `issues` ao `HttpError` e ao `errorHandler`**: a lista de problemas chega ao cliente.
+4. **TK04.4 · Criar `src/utils/cookies.ts`**: `parseCookies` sem dependência, para o cabeçalho `Cookie` chegar ao schema como objeto.
 
 </Steps>
 
@@ -110,8 +116,10 @@ ficam intactos.
   │       │   └── validate.ts            NOVO — o middleware genérico
   │       ├── routes/
   │       │   └── hosts.routes.ts        compõe validate(schema)
-  │       └── schemas/
-  │           └── host.schema.ts         NOVO — os cinco schemas
+  │       ├── schemas/
+  │       │   └── host.schema.ts         NOVO — os cinco schemas
+  │       └── utils/
+  │           └── cookies.ts             NOVO — o cabeçalho Cookie como objeto
   └── front/                    inalterado nesta etapa
 `}
 </FileTree>
@@ -132,23 +140,28 @@ ficam intactos.
 
 <PackageManagerTabs package="zod" />
 
-Um middleware só, para todas as rotas. A função das linhas 11 a 23 recebe um schema e devolve o
+Um middleware só, para todas as rotas. A função das linhas 13 a 27 recebe um schema e devolve o
 middleware — é o padrão de fábrica que permite escrever `validate(createHostSchema)` na rota.
 
-A decisão de projeto está nas linhas 12 a 16: o schema não valida apenas o corpo, valida as
-**três fontes de uma vez**, montando um objeto com `body`, `query` e `params`. É isso que faz o
-`path` de cada issue começar pela origem do dado, e é isso que permite a uma rota como o `PUT`
-validar o parâmetro da URL e o corpo no mesmo passo.
+A decisão de projeto está nas linhas 14 a 20: o schema não valida apenas o corpo, valida as
+**cinco fontes de uma vez**, montando um objeto com `body`, `query`, `params`, `headers` e
+`cookies`. É isso que faz o `path` de cada issue começar pela origem do dado, e é isso que
+permite a uma rota como o `PUT` validar o parâmetro da URL e o corpo no mesmo passo. Cabeçalho e
+cookie entram na lista pelo mesmo motivo que o corpo: chegam do cliente e podem vir forjados.
+Nenhum schema desta etapa os usa; a [etapa 10](../auth/) valida a forma do `Authorization` por
+aqui, e uma sessão em cookie teria onde entrar.
 
-A linha 18 usa `safeParse`, e não `parse`: em vez de o Zod lançar a sua própria exceção, o
-resultado é inspecionado e convertido em `HttpError` — o mesmo tipo de erro que o resto da
-aplicação já sabe tratar. A biblioteca não vaza para fora deste arquivo.
+A linha 19 lê `req.headers.cookie`, e não `req.cookies`: esse campo só existe com o
+`cookie-parser`, e a trilha não instala o que o Node resolve. O `parseCookies` da TK04.4 faz a
+conversão. Já a linha 14 usa `safeParse`, e não `parse`: em vez de o Zod lançar a sua própria
+exceção, o resultado é inspecionado e convertido em `HttpError` — o mesmo tipo de erro que o
+resto da aplicação já sabe tratar. A biblioteca não vaza para fora deste arquivo.
 
 <SourceCode
   path="examples/courses/expressjs/projects/monitor-app-validation/back/src/middlewares/validate.ts"
   title="back/src/middlewares/validate.ts"
   showLineNumbers
-  mark="11-20"
+  mark="13-24"
 />
 
 ### TK04.2 · Criar `src/schemas/host.schema.ts` (As regras do recurso)
@@ -219,6 +232,23 @@ resposta de erro comum, mantendo o corpo do `404` tão enxuto quanto era antes.
   title="back/src/middlewares/errorHandlers.ts"
   showLineNumbers
   mark="14-18"
+/>
+
+### TK04.4 · Criar `src/utils/cookies.ts` (O cabeçalho `Cookie` como objeto)
+
+O arquivo inteiro é uma função pura. O `for` da linha 11 percorre os pares separados por `;`, a
+linha 12 corta cada par no primeiro `=` (o `...rest` preserva um `=` que faça parte do valor) e a
+linha 18 decodifica o *percent-encoding*. O `try`/`catch` das linhas 17 a 22 existe porque
+`decodeURIComponent` lança em uma sequência inválida, e um cookie malformado não pode derrubar a
+requisição: o valor fica como veio, e o schema decide o que fazer com ele. O Node também entrega
+`req.headers` com os nomes em minúsculas, então um schema escreve `authorization`, nunca
+`Authorization`.
+
+<SourceCode
+  path="examples/courses/expressjs/projects/monitor-app-validation/back/src/utils/cookies.ts"
+  title="back/src/utils/cookies.ts"
+  showLineNumbers
+  mark="11-12,17-22"
 />
 
 ## Testando

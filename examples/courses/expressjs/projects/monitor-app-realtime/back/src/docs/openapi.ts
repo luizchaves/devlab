@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { signinSchema } from '@/schemas/auth.schema.ts';
+import { bearerSecurityScheme, signinSchema } from '@/schemas/auth.schema.ts';
 import { createHostSchema, readHostByIdSchema, readHostsSchema } from '@/schemas/host.schema.ts';
 import { createTagSchema, readTagsSchema } from '@/schemas/tag.schema.ts';
 import { createUserSchema } from '@/schemas/user.schema.ts';
@@ -99,7 +99,7 @@ export const openapi = {
   servers: [{ url: 'http://localhost:3000/api', description: 'Desenvolvimento' }],
   components: {
     securitySchemes: {
-      bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      bearerAuth: bearerSecurityScheme,
     },
   },
   // Todas as rotas exigem token; `/signin` e `/users` abrem excecao com `security: []`.
