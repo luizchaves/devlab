@@ -86,9 +86,9 @@
   - [x] `[TASK-033.2]` Incluir, antes de cada `<ApiRequest>`, um `<details>` recolhível com o recorte `.http` correspondente
   - [x] `[TASK-033.3]` Escrever a página de Especificação da API (contrato OpenAPI consolidado da TaskAPI)
   - [x] `[TASK-033.4]` Escrever a página de Próximos Passos da TaskAPI (débitos técnicos, features e desafios, no molde da `[TASK-017.1]`)
-  - [ ] `[TASK-033.5]` Validar cookies com Zod na etapa de autenticação
+  - [ ] `[TASK-033.5]` Validar cookies com Zod na etapa de autenticação (spec: `specs/active/spec-012-zod-headers-cookies-validation.md`)
 - [ ] **[TASK-034] Novas validações de segurança:**
-  - [ ] `[TASK-034.1]` Validar o JWT (assinatura, expiração e claims) na etapa de autenticação da TaskAPI
+  - [ ] `[TASK-034.1]` Validar o JWT (assinatura, expiração e claims) na etapa de autenticação da TaskAPI (spec: `specs/active/spec-012-zod-headers-cookies-validation.md`)
   - [ ] `[TASK-034.2]` Adicionar a validação de dados do front-end como uma etapa própria da trilha do InvestApp
 - [ ] **[TASK-035]** Escrever a spec do curso de LP2 para as avaliações 3.x e 4.x
 - [ ] **[TASK-036] Guia de Web APIs — melhorias adicionais:**
