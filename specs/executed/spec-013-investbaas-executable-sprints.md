@@ -1,6 +1,6 @@
 # Spec 013 — InvestBaaS: Executable Sprints with Automated Tests
 
-Status: **Active**
+Status: **Completed**
 Date: 2026-09-12
 Related: `docs/TODO.md` → `[TASK-016]`
 
@@ -160,7 +160,7 @@ to `specs/executed/`, fill `Result`.
 - [x] Phase 4 — Sprint 5 (`investbaas-storage`): 63 Vitest (31 unit + 32 integration against the local Storage) and 11 Playwright tests green; the aggregate stats function needed the role check outside the `count(*)` (found by the test).
 - [x] Phase 5 — Sprint 6 (`investbaas-analytics`): 79 Vitest (39 unit + 40 integration) and 14 Playwright tests green; the integration test caught an arithmetic error in the page's reference spreadsheet (February contribution is 3,400, not 3,200), now fixed on the page and recorded there.
 - [x] Phase 6 — Sprint 7 (`investbaas-origins`): 92 Vitest (48 unit + 44 integration) and 16 Playwright tests green; squarified treemap and line chart as pure modules with SVG rendering, no chart library.
-- [ ] Phase 7 — Closing
+- [x] Phase 7 — Closing
 
 ## Risks & Mitigations
 
@@ -180,4 +180,37 @@ in the trail.
 
 ## Result
 
-_To be filled when the spec is executed._
+Executed on 2026-09-12 in seven commits (`6c33a7f6`, `b6173a68`, `4d5698c8`, `499be008`,
+`ca5d77f5`, `ec1e61e7`, `0150fa15`) plus this closing one. Scope grew during execution at
+the user's request (commit `e1336dfd`): broker and issuer per asset, the per-asset page
+(`asset.html`) and a seventh sprint (origins treemap and invested-vs-value chart).
+
+| Measure | Before | After |
+| ------- | ------ | ----- |
+| Executable sprint projects | 1 (`investbaas-static`) | **7** (`investbaas-static` … `investbaas-origins`), one folder per sprint |
+| Hand-written "target" fences on sprint pages | 26 | **0** — every sprint page cuts real files with `<SourceCode>` |
+| Automated tests (last project, cumulative) | 0 | **92 Vitest** (48 unit + 44 integration against `supabase start`) + **16 Playwright** |
+| Tasks validated by at least one test | 0 / 46 | **48 / 48** implemented tasks (TK02-1 … TK07-6); TK01-* keep their manual checks |
+| Devcontainers | 25 | 31 (one per sprint, docker-in-docker for the local stack) |
+| Market data providers | — | `fake` (tests), `yahoo` (free, no token), `brapi` (free tier, token) |
+
+Bugs the tests found in the code written on the pages before this spec:
+
+1. The local stack grants nothing on new tables; migrations now grant explicitly by role.
+2. A whole-row `update` policy on `profiles` would let any account self-promote to `admin`;
+   fixed with a column-level grant (`update (full_name)`).
+3. PostgreSQL grants `EXECUTE` to `PUBLIC` on new functions; `schedule_update_quotes` had to
+   revoke it or any account could schedule the cron job.
+4. `count(*)` always returns a row, so the admin-only aggregates needed the role check
+   outside the aggregation or investors received `(0, null)`.
+5. The reference spreadsheet on the analytics page had February's contribution as 3,200
+   instead of 3,400; the integration test disagreed with the page, and the page was wrong.
+
+Deviations: sprints are folders (not tags) as the DevLab convention; the Vercel deploy config
+was added to sprint 6 onward (`vercel.json`, `.vercelignore`, README section) but not executed,
+because the Vercel MCP is configured only for another project and the CLI token is expired;
+the Supabase MCP did not connect in the session, so the local stack was used throughout.
+
+Known limits (also in the pages): the local stack does not read `supabase/functions/.env`
+unless the function is served with `--env-file`; E2E suites run with one worker because they
+share the stack; the sprint projects have no CI job (a known limitation of every trail).

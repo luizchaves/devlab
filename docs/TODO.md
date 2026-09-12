@@ -152,6 +152,8 @@
   - [x] `[TASK-016.5]` Incluir .agents/, SKILLs, `AGENT.md`…
   - [x] `[TASK-016.6]` Ajustar projetos com boas práticas
   - [x] `[TASK-016.7]` Simulação de Sprints e alocação de backlog (`docs/SPRINTS.md`) para as 203 tasks atribuídas a `luiz.chaves`
+  - [x] `[TASK-016.8]` InvestBaaS executável: um projeto por sprint (`investbaas-static` a `investbaas-origins`), stack local do Supabase, e cada task validada por testes de unidade (Vitest), integração (SDK real) e E2E (Playwright); páginas com `<SourceCode>` real e saídas reais (spec: `specs/executed/spec-013-investbaas-executable-sprints.md`)
+  - [x] `[TASK-016.9]` Deploy do front do InvestBaaS na Vercel (`vercel.json`, variáveis públicas, dica de IA com o MCP da Vercel)
 - [ ] **[TASK-017] Página Final do Projeto (Desafios & Evolução):**
   - [x] `[TASK-017.1]` Adicionar página na etapa final de InvestApp e MonitorApp apontando novas features, débitos técnicos, melhorias e desafios para o projeto (estímulo ao aprendizado contínuo)
   - [ ] `[TASK-017.2]` Exemplos de melhorias: migração do front vanilla para React/Vue/Svelte, implementação de GraphQL, testes automatizados, integração com serviços externos, performance e escalabilidade, linter e formatter, CI/CD, monitoramento e logging, segurança, autenticação/autorização, otimização de queries e caching
