@@ -144,15 +144,56 @@ A Dead-Letter Queue impede que uma mensagem com erro permanente de dados (uma *p
 
 ---
 
-## Comparativo de Serviços de Fila na Nuvem
+## Filas de Mensagens vs Event Streaming (Apache Kafka)
 
-A tabela a seguir consolida as principais opções de mensageria gerenciada e bibliotecas de fila para aplicações web:
+Uma das maiores dúvidas em arquitetura de eventos é a distinção entre **Filas de Mensagens Tradicionais** (como AWS SQS, RabbitMQ e BullMQ) e plataformas de **Event Streaming** (como Apache Kafka, Redpanda e AWS Kinesis).
+
+Embora ambas lidem com dados assíncronos, seus propósitos fundamentais são distintos:
+
+O diagrama abaixo ilustra a diferença de modelo mental entre as duas abordagens:
+
+<Mermaid title="Comparação de arquitetura entre Fila Tradicional (Destrutiva) e Log de Event Streaming (Imutável)">
+{`
+flowchart TD
+  subgraph Fila["Fila Tradicional (SQS / RabbitMQ)"]
+    direction TB
+    P1["Produtor"] -->|1. Envia tarefa| Q1[("Fila de Tarefas")]
+    Q1 -->|2. Consumidor A processa| W1["Worker A"]
+    W1 -->|3. Envia ACK| D1["Mensagem é APAGADA da fila"]
+  end
+
+  subgraph Stream["Event Streaming (Apache Kafka / Redpanda)"]
+    direction TB
+    P2["Produtor"] -->|1. Grava evento no fim do log| K1[("Log Append-Only Imutável<br/>Offsets: 0, 1, 2, 3, 4...")]
+    K1 -->|Lê no offset 3| G1["Consumer Group 1: Pagamentos"]
+    K1 -->|Lê no offset 1| G2["Consumer Group 2: Notificações"]
+    K1 -->|Lê do início| G3["Consumer Group 3: Analytics (Replay)"]
+  end
+`}
+</Mermaid>
+
+A tabela a seguir contrasta as características operacionais dos dois modelos:
+
+| Característica | Fila de Mensagens (*Message Queue*) | Transmissão de Eventos (*Event Streaming*) |
+| :--- | :--- | :--- |
+| **Tecnologias** | AWS SQS, RabbitMQ, Redis BullMQ, Upstash QStash | Apache Kafka, Redpanda, AWS Kinesis, Upstash Kafka |
+| **Ciclo de Vida do Dado** | A mensagem é **excluída** assim que um worker a processa com sucesso (`ACK`). | O evento é gravado em um **log append-only imutável** e retido por dias, meses ou para sempre. |
+| **Múltiplos Consumidores** | Vários workers competem para processar a mesma fila (cada mensagem vai para *apenas um* worker). | Múltiplos *Consumer Groups* independentes leem o mesmo fluxo de eventos sem interferir uns nos outros. |
+| **Reprocessamento (*Replayability*)** | Impossível (a mensagem foi apagada). | **Nativo**: um novo serviço pode retroceder seu ponteiro de leitura (*offset*) e reprocessar todo o histórico. |
+| **Caso de Uso Ideal** | Filas de tarefas pontuais (envio de e-mails, processamento de imagens, transações de checkout). | Auditoria contínua, pipelines de dados analíticos, telemetria em tempo real e arquiteturas orientadas a *Event Sourcing*. |
+
+---
+
+## Comparativo de Serviços de Mensageria e Streaming na Nuvem
+
+A tabela a seguir consolida as principais opções gerenciadas de mensageria e streaming para aplicações web:
 
 | Serviço | Modelo de Arquitetura | Protocolo / Transporte | Garantias de Entrega | Caso de Uso Ideal |
 | :--- | :--- | :--- | :--- | :--- |
-| **AWS SQS** (Simple Queue Service) | Nuvem Gerenciada Serverless | HTTP REST / AWS SDK | At-Least-Once (Standard) ou Exactly-Once (FIFO) | Aplicações corporativas na AWS com escalabilidade massiva e baixo custo por requisição. |
-| **Upstash QStash** | Serverless HTTP Messaging | Webhooks HTTP/REST | At-Least-Once com retries e DLQ nativa | Funções serverless e de borda (Vercel, Next.js, Cloudflare) que precisam disparar chamadas assíncronas via HTTP. |
-| **Redis BullMQ** | Baseado em Redis em memória | Conexão TCP com Redis | At-Least-Once com controle fino de concorrência | APIs Node.js/Express e workers com tarefas complexas, agendamento de cron e priorização de jobs. |
+| **AWS SQS** (Simple Queue Service) | Fila Serverless Gerenciada | HTTP REST / AWS SDK | At-Least-Once (Standard) ou Exactly-Once (FIFO) | Aplicações corporativas na AWS com escalabilidade massiva e baixo custo por requisição. |
+| **Apache Kafka / Confluent / Redpanda** | Log de Event Streaming Distribuído | Protocolo binário TCP / Kafka Wire Protocol | At-Least-Once com particionamento ordenado por chave | Plataformas com alto volume de eventos que demandam retenção durável, múltiplos consumidores e reprocessamento histórico. |
+| **Upstash QStash** | Fila Serverless HTTP | Webhooks HTTP/REST | At-Least-Once com retries e DLQ nativa | Funções serverless e de borda (Vercel, Next.js, Cloudflare) que precisam disparar chamadas assíncronas via HTTP. |
+| **Redis BullMQ** | Fila em Memória (Redis) | Conexão TCP com Redis | At-Least-Once com controle fino de concorrência | APIs Node.js/Express e workers com tarefas complexas, agendamento de cron e priorização de jobs. |
 | **Cloudflare Queues** | Integrado a Cloudflare Workers | Nativo do runtime V8 | At-Least-Once com custo de invocação zero entre workers | Processamento em lote e agregação de telemetria e logs diretamente na borda da rede. |
 | **RabbitMQ / CloudAMQP** | Message Broker Tradicional | Protocolo AMQP / MQTT | Roteamento avançado com Exchanges, Topics e Fanout | Sistemas com regras complexas de publicação/assinatura (*Pub/Sub*) e múltiplos consumidores especializados. |
 
@@ -274,6 +315,7 @@ Descreva os componentes, o fluxo das mensagens e as configurações de resiliên
 ## Referências
 
 - [AWS SQS Developer Guide](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/welcome.html)
+- [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
 - [Upstash QStash Documentation](https://upstash.com/docs/qstash/overall/getstarted)
 - [BullMQ Documentation](https://docs.bullmq.io/)
 - [Cloudflare Queues Docs](https://developers.cloudflare.com/queues/)
