@@ -1129,6 +1129,14 @@ export default defineConfig({
                       link: '/courses/expressjs/practice/taskapi/',
                     },
                     {
+                      label: 'Backlog do produto',
+                      link: '/courses/expressjs/practice/taskapi/backlog/',
+                    },
+                    {
+                      label: 'Especificação da API',
+                      link: '/courses/expressjs/practice/taskapi/api-spec/',
+                    },
+                    {
                       label: '1. Primeiro servidor',
                       link: '/courses/expressjs/practice/taskapi/hello/',
                     },
@@ -1177,14 +1185,6 @@ export default defineConfig({
                       link: '/courses/expressjs/practice/taskapi/test/',
                     },
                     {
-                      label: 'Backlog do produto',
-                      link: '/courses/expressjs/practice/taskapi/backlog/',
-                    },
-                    {
-                      label: 'Especificação da API',
-                      link: '/courses/expressjs/practice/taskapi/api-spec/',
-                    },
-                    {
                       label: 'Próximos passos',
                       link: '/courses/expressjs/practice/taskapi/next-steps/',
                     },
@@ -1196,6 +1196,14 @@ export default defineConfig({
                     {
                       label: 'Visão geral',
                       link: '/courses/expressjs/practice/investapp/',
+                    },
+                    {
+                      label: 'Backlog do produto',
+                      link: '/courses/expressjs/practice/investapp/backlog/',
+                    },
+                    {
+                      label: 'Especificação da API',
+                      link: '/courses/expressjs/practice/investapp/api-spec/',
                     },
                     {
                       label: '1. Front estático',
@@ -1250,14 +1258,6 @@ export default defineConfig({
                       link: '/courses/expressjs/practice/investapp/docker/',
                     },
                     {
-                      label: 'Backlog do produto',
-                      link: '/courses/expressjs/practice/investapp/backlog/',
-                    },
-                    {
-                      label: 'Especificação da API',
-                      link: '/courses/expressjs/practice/investapp/api-spec/',
-                    },
-                    {
                       label: 'Próximos passos',
                       link: '/courses/expressjs/practice/investapp/next-steps/',
                     },
@@ -1269,6 +1269,14 @@ export default defineConfig({
                     {
                       label: 'Visão geral',
                       link: '/courses/expressjs/practice/monitorapp/',
+                    },
+                    {
+                      label: 'Backlog do produto',
+                      link: '/courses/expressjs/practice/monitorapp/backlog/',
+                    },
+                    {
+                      label: 'Especificação da API',
+                      link: '/courses/expressjs/practice/monitorapp/api-spec/',
                     },
                     {
                       label: '1. Front estático',
@@ -1321,14 +1329,6 @@ export default defineConfig({
                     {
                       label: '13. Docker',
                       link: '/courses/expressjs/practice/monitorapp/docker/',
-                    },
-                    {
-                      label: 'Backlog do produto',
-                      link: '/courses/expressjs/practice/monitorapp/backlog/',
-                    },
-                    {
-                      label: 'Especificação da API',
-                      link: '/courses/expressjs/practice/monitorapp/api-spec/',
                     },
                     {
                       label: 'Próximos passos',

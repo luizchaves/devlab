@@ -5,22 +5,36 @@ markmap:
   initialExpandLevel: 2
 ---
 
-# InvestApp — Visão Geral
+# InvestApp: Visão Geral
 
 ## Visão Geral
 
 - **Aplicação**: InvestApp
 - **Etapa**: Visão Geral
-- **Objetivo**: Aplicação de controle de investimentos em treze etapas evolutivas.
+- **Objetivo**: controle de investimentos em treze etapas cumulativas.
+
+## Antes das etapas
+
+- **Backlog do produto**: épicos, features, histórias, critérios e tasks
+- **Especificação da API**: endpoints, status codes, erros e upload
+- **Front estático**: primeira etapa prática e telas do produto
 
 ## Componentes Técnicos
 
-- Estrutura de rotas e controllers desacoplados
-- Middlewares de validação e segurança
-- Modelagem de dados e contratos de entrada
+- Front na mesma origem servido pelo Express
+- API REST em camadas com TypeScript e Zod
+- SQLite nativo na transição para Prisma ORM
+- Upload, e-mail, testes e Docker no final da trilha
+
+## Domínio
+
+- `User`: investidor autenticado
+- `Investment`: ativo da carteira
+- `Category`: classificação visual
+- `Broker`: corretora ou instituição
 
 ## Boas Práticas
 
-- Respostas HTTP semânticas e padronizadas
-- Tratamento global de erros
-- Testabilidade via requisições declarativas
+- Use a visão geral como mapa, não como especificação completa
+- Leia backlog e API spec antes de codificar
+- Compare etapas para enxergar apenas o delta técnico

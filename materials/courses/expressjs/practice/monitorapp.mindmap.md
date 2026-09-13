@@ -5,22 +5,37 @@ markmap:
   initialExpandLevel: 2
 ---
 
-# MonitorApp — Visão Geral
+# MonitorApp: Visão Geral
 
 ## Visão Geral
 
 - **Aplicação**: MonitorApp
 - **Etapa**: Visão Geral
-- **Objetivo**: Sistema de monitoramento de servidores e alertas em treze etapas.
+- **Objetivo**: monitoramento de hosts em treze etapas cumulativas.
+
+## Antes das etapas
+
+- **Backlog do produto**: épicos, features, histórias, critérios e tasks
+- **Especificação da API**: endpoints, status codes, ping e eventos
+- **Front estático**: primeira etapa prática e telas do painel
 
 ## Componentes Técnicos
 
-- Estrutura de rotas e controllers desacoplados
-- Middlewares de validação e segurança
-- Modelagem de dados e contratos de entrada
+- Front e API em origens separadas
+- Proxy do Vite no desenvolvimento
+- CORS no servidor quando necessário
+- Ping real com `node:child_process`
+- Server-Sent Events para atualização em tempo real
+
+## Domínio
+
+- `User`: conta autenticada
+- `Host`: endereço monitorado
+- `Ping`: medição de disponibilidade e latência
+- `Tag`: classificação muitos-para-muitos
 
 ## Boas Práticas
 
-- Respostas HTTP semânticas e padronizadas
-- Tratamento global de erros
-- Testabilidade via requisições declarativas
+- Use a visão geral como mapa, não como especificação completa
+- Leia backlog e API spec antes de codificar
+- Compare etapas para enxergar apenas o delta técnico
