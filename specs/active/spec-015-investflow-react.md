@@ -313,7 +313,7 @@ dashboard, analytics and the asset page compute received dividends with the same
 e2e flow syncs from the UI instead of inserting rows. Money in dividends is rounded to
 cents to keep `100 × 1,1 = 110`.
 
-Phase 9: 117 Vitest tests (69 unit, 10 browser, 41 integration... see below) and 34
+Phase 9: 120 Vitest tests (69 unit, 10 browser, 41 integration) and 34
 Playwright tests green. `core/exchange.ts` replaces `get_usd_rate()`; the private layout
 loads the rate rows once and `ExchangeProvider` hands `latest`/`rateOf` to every screen,
 so the dashboard, tables, footer and movements convert on the client while analytics,
