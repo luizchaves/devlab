@@ -1,9 +1,9 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { LineChart } from '@/components/charts/line-chart';
 import { timeline, toSeries, totalsByMonth, type EvolutionRow, type TimelineMode, type TimelineRange } from '@/core/evolution';
 import { cn } from '@/lib/cn';
+import { useUrlState } from '@/lib/url-state';
 
 const MODES: { value: TimelineMode; label: string }[] = [
   { value: 'continuous', label: 'Contínuo' },
@@ -16,28 +16,10 @@ const RANGES: { value: TimelineRange; label: string }[] = [
 ];
 
 // #region url-state
-/**
- * Modo e janela vivem na URL (`?mode=events&range=2y`): recarregar mantém a
- * escolha e o valor padrão não aparece (CA07.8). `replace` não empilha histórico.
- */
+/** Modo e janela vivem na URL (`?mode=events&range=2y`), com os padrões omitidos (CA07.8). */
 export function useTimelineParams() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const mode = (params.get('mode') as TimelineMode | null) ?? 'continuous';
-  const range = (params.get('range') as TimelineRange | null) ?? 'all';
-
-  const set = (next: { mode?: TimelineMode; range?: TimelineRange }) => {
-    // Lê a URL atual, não o hook: dois cliques seguidos não podem usar parâmetros defasados.
-    const query = new URLSearchParams(window.location.search);
-    const apply = (key: string, value: string, fallback: string) => (value === fallback ? query.delete(key) : query.set(key, value));
-    apply('mode', next.mode ?? mode, 'continuous');
-    apply('range', next.range ?? range, 'all');
-    const qs = query.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  };
-
-  return { mode, range, set };
+  const [values, set] = useUrlState({ mode: 'continuous', range: 'all' });
+  return { mode: values.mode as TimelineMode, range: values.range as TimelineRange, set };
 }
 // #endregion
 

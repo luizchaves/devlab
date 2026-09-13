@@ -5,7 +5,7 @@ import { seed } from '@/server/seed';
 import { actAs, createAccounts, jsonRequest, params, resetTables } from './helpers';
 import { DELETE as deleteAsset, GET as getAsset, PATCH as patchAsset } from '../../app/api/assets/[id]/route';
 import { GET as listAssets, POST as postAsset } from '../../app/api/assets/route';
-import { PATCH as patchTransaction } from '../../app/api/transactions/[id]/route';
+import { DELETE as deleteTransaction, PATCH as patchTransaction } from '../../app/api/transactions/[id]/route';
 import { POST as postTransaction } from '../../app/api/transactions/route';
 
 beforeEach(resetTables);
@@ -170,5 +170,29 @@ describe('seed público', () => {
     // Rodar de novo não duplica.
     await seed(prisma);
     expect(await prisma.transaction.count({ where: { assetId: asset.id } })).toBe(1);
+  });
+});
+
+describe('edição e exclusão de lançamentos', () => {
+  it('CA08.1, CA08.2 — editar recalcula a posição; excluir remove e recalcula; outra conta não alcança', async () => {
+    const { ana, bia } = await createAccounts();
+    actAs(ana);
+    const { asset } = await createAsset({ ticker: 'XPTO3', name: 'Fora do provedor', category: 'acoes' });
+    const first = (await (await postTransaction(jsonRequest('POST', { assetId: asset.id, type: 'buy', quantity: 100, price: 10, transactionDate: '2026-01-10' }))).json()).transaction;
+    const second = (await (await postTransaction(jsonRequest('POST', { assetId: asset.id, type: 'buy', quantity: 100, price: 20, transactionDate: '2026-02-10' }))).json()).transaction;
+
+    const edited = await patchTransaction(jsonRequest('PATCH', { type: 'buy', quantity: 200, price: 20, transactionDate: '2026-02-10' }), params(second.id));
+    expect(edited.status).toBe(200);
+    let { asset: reloaded } = await (await getAsset(new Request('http://localhost'), params(asset.id))).json();
+    expect(summarize(reloaded)).toMatchObject({ quantity: 300, averagePrice: expect.closeTo(16.67, 2) });
+
+    actAs(bia);
+    expect((await deleteTransaction(new Request('http://localhost'), params(first.id))).status).toBe(404);
+
+    actAs(ana);
+    expect((await deleteTransaction(new Request('http://localhost'), params(second.id))).status).toBe(204);
+    ({ asset: reloaded } = await (await getAsset(new Request('http://localhost'), params(asset.id))).json());
+    expect(reloaded.transactions).toHaveLength(1);
+    expect(summarize(reloaded).quantity).toBe(100);
   });
 });

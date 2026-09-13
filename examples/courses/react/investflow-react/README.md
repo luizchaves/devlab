@@ -46,8 +46,8 @@ duas podem subir ao mesmo tempo.
 | ---- | ---- | ---- |
 | `/` | landing com simulador de juros compostos | 1 |
 | `/signin`, `/signup` | conta e sessão (Server Actions + NextAuth) | 1 |
-| `/dashboard` | carteira: KPIs, tabela (TanStack Table), cadastro, edição e exclusão de ativos | 2 |
-| `/assets/[id]` | tela do ativo por id ou ticker: posição, duração e extrato de lançamentos | 2 |
+| `/dashboard` | carteira: KPIs, tabela (TanStack Table) com filtro, ordenação e rodapé, estado em `?filter=&sort=&dir=`; cadastro, edição e exclusão de ativos | 2, 7 |
+| `/assets/[id]` | tela do ativo por id ou ticker: posição, duração, gráfico, extrato com edição, exclusão e resgate total | 2, 6, 7 |
 | `/analytics` | KPIs, gráfico aportes × valor (modo e janela na URL), matriz ano × mês e distribuição por classe | 5, 6 |
 | `/origins` | treemap da carteira por corretora, categoria ou emissor, com legenda | 6 |
 | `/admin` | painel do administrador: contas, AUM, última rodada e status dos serviços; investidor é redirecionado | 5 |

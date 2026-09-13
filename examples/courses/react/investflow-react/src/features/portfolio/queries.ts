@@ -123,3 +123,22 @@ export function receiptUrl(transactionId: string) {
   return api<{ url: string; expiresIn: number }>(`/api/transactions/${transactionId}/receipt`).then((r) => r.url);
 }
 // #endregion
+
+// #region transaction-mutations
+export function useUpdateTransaction() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: ({ id, ...input }: Omit<TransactionInput, 'assetId'> & { id: string }) =>
+      api<{ transaction: TransactionFact }>(`/api/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(input) }).then((r) => r.transaction),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteTransaction() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/api/transactions/${id}`, { method: 'DELETE' }),
+    onSuccess: invalidate,
+  });
+}
+// #endregion

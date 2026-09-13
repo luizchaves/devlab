@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Money } from '@/components/money';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { CATEGORY_LABELS, investmentDuration, summarize, type AssetWithTransactions } from '@/core/portfolio';
+import { CATEGORY_LABELS, investmentDuration, summarize, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
 import { isQuotable } from '@/core/quotes';
-import { useAsset, useUpdateQuotes } from '@/features/portfolio/queries';
+import { useAsset, useDeleteTransaction, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
-import { formatPercent } from '@/lib/format';
+import { formatDate, formatPercent } from '@/lib/format';
 import { EvolutionChart } from '@/features/analytics/evolution-chart';
 import type { EvolutionRow } from '@/core/evolution';
 import { QuoteDialog } from './quote-dialog';
@@ -24,7 +25,9 @@ export type AssetEvolution = { evolution: EvolutionRow[]; movementMonths: string
 
 export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWithTransactions; evolution: AssetEvolution }) {
   const { data: asset = initialAsset } = useAsset(initialAsset.id, initialAsset);
-  const [open, setOpen] = useState(false);
+  const [txDialog, setTxDialog] = useState<{ open: boolean; transaction: TransactionFact | null }>({ open: false, transaction: null });
+  const [deleting, setDeleting] = useState<TransactionFact | null>(null);
+  const removeTransaction = useDeleteTransaction();
   const [quoteDialog, setQuoteDialog] = useState<{ open: boolean; warning: string | null }>({ open: false, warning: null });
   const updateQuotes = useUpdateQuotes();
   const position = useMemo(() => summarize(asset), [asset]);
@@ -74,14 +77,14 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
           <Button variant="secondary" onClick={refreshQuote} pending={updateQuotes.isPending} data-update-price>
             <RefreshCw className="size-4" aria-hidden /> {isQuotable(asset) ? 'Atualizar cotação' : 'Atualizar saldo'}
           </Button>
-          <Button onClick={() => setOpen(true)} data-new-transaction>
+          <Button onClick={() => setTxDialog({ open: true, transaction: null })} data-new-transaction>
             <Plus className="size-4" aria-hidden /> Novo lançamento
           </Button>
         </div>
       </header>
 
       <dl className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Kpi label="Tempo de investimento" sub={duration.subtitle}>
+        <Kpi label="Tempo de investimento" sub={duration.subtitle} subAttribute="durationSub">
           <span data-kpi="duration">{duration.text}</span>
         </Kpi>
         <Kpi label="Quantidade">
@@ -99,7 +102,7 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
         <Kpi label="Valor atual">
           <Money value={position.value} currency={asset.currency} data-kpi="value" />
         </Kpi>
-        <Kpi label="Rentabilidade" className={positive ? 'text-emerald-600' : 'text-rose-600'} sub={`Realizado: ${position.realized.toLocaleString('pt-BR', { style: 'currency', currency: asset.currency })}`}>
+        <Kpi label="Rentabilidade" className={positive ? 'text-emerald-600' : 'text-rose-600'} sub={`Realizado: ${position.realized.toLocaleString('pt-BR', { style: 'currency', currency: asset.currency })}`} subAttribute="realized">
           <span data-kpi="returnPct">{position.returnPct == null ? '—' : formatPercent(position.returnPct)}</span>
         </Kpi>
       </dl>
@@ -108,22 +111,56 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
 
       <div>
         <h2 className="mb-3 text-lg font-bold">Lançamentos</h2>
-        <TransactionsTable transactions={asset.transactions} currency={asset.currency} />
+        <TransactionsTable
+          transactions={asset.transactions}
+          currency={asset.currency}
+          onEdit={(transaction) => setTxDialog({ open: true, transaction })}
+          onDelete={setDeleting}
+        />
       </div>
 
-      <TransactionFormDialog key={asset.transactions.length} open={open} onOpenChange={setOpen} asset={asset} />
+      {txDialog.open && (
+        <TransactionFormDialog
+          key={txDialog.transaction?.id ?? 'new'}
+          open
+          onOpenChange={(next) => !next && setTxDialog({ open: false, transaction: null })}
+          asset={asset}
+          transaction={txDialog.transaction}
+        />
+      )}
+      <AlertDialog
+        open={deleting != null}
+        onOpenChange={(next) => !next && setDeleting(null)}
+        title="Excluir lançamento?"
+        description={deleting ? `O lançamento de ${formatDate(deleting.transactionDate)} será removido e a posição recalculada.` : ''}
+        pending={removeTransaction.isPending}
+        onConfirm={async () => {
+          if (!deleting) return;
+          try {
+            await removeTransaction.mutateAsync(deleting.id);
+            toast.success('Lançamento excluído.');
+            setDeleting(null);
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Não foi possível excluir.');
+          }
+        }}
+      />
       <QuoteDialog open={quoteDialog.open} onOpenChange={(next) => setQuoteDialog((s) => ({ ...s, open: next }))} asset={asset} warning={quoteDialog.warning} />
     </section>
   );
 }
 // #endregion
 
-function Kpi({ label, sub, className, children }: { label: string; sub?: string; className?: string; children: React.ReactNode }) {
+function Kpi({ label, sub, subAttribute, className, children }: { label: string; sub?: string; subAttribute?: string; className?: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
       <dt className="text-xs font-semibold tracking-wider text-slate-500 uppercase">{label}</dt>
       <dd className={cn('mt-2 text-lg font-bold sm:text-2xl', className)}>{children}</dd>
-      {sub && <dd className="mt-1 text-xs text-slate-500">{sub}</dd>}
+      {sub && (
+        <dd className="mt-1 text-xs text-slate-500" data-kpi={subAttribute}>
+          {sub}
+        </dd>
+      )}
     </div>
   );
 }

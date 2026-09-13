@@ -10,11 +10,12 @@ import {
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Money } from '@/components/money';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CATEGORY_LABELS, summarize, type AssetWithTransactions, type PositionSummary } from '@/core/portfolio';
+import { isAssetActive } from '@/core/organize';
+import { CATEGORY_LABELS, summarize, type AssetWithTransactions, type PortfolioTotals, type PositionSummary } from '@/core/portfolio';
 import { cn } from '@/lib/cn';
 import { formatPercent } from '@/lib/format';
 
@@ -22,6 +23,9 @@ export type AssetRow = { asset: AssetWithTransactions; position: PositionSummary
 
 type AssetsTableProps = {
   assets: AssetWithTransactions[];
+  sorting: SortingState;
+  onSortingChange: (next: SortingState) => void;
+  footer: PortfolioTotals | null;
   onEdit: (asset: AssetWithTransactions) => void;
   onDelete: (asset: AssetWithTransactions) => void;
 };
@@ -40,7 +44,10 @@ const columns = [
     header: 'Ativo',
     cell: ({ row }) => (
       <Link href={`/assets/${row.original.asset.id}`} className="group block max-w-32 sm:max-w-none">
-        <span className="block truncate font-bold text-slate-900 group-hover:text-emerald-700 dark:text-white">{row.original.asset.ticker}</span>
+        <span className="block truncate font-bold text-slate-900 group-hover:text-emerald-700 dark:text-white">
+          {row.original.asset.ticker}
+          {!isAssetActive(row.original.asset) && <Badge className="ml-2 align-middle">Encerrado</Badge>}
+        </span>
         <span className="block truncate text-xs text-slate-500 sm:max-w-48">{row.original.asset.name}</span>
       </Link>
     ),
@@ -68,26 +75,33 @@ const columns = [
     header: 'Qtd.',
     cell: ({ getValue }) => getValue().toLocaleString('pt-BR', { maximumFractionDigits: 8 }),
     meta: { numeric: true, hideBelow: 'md' },
+    sortDescFirst: true,
   }),
   helper.accessor((row) => row.position.averagePrice, {
     id: 'averagePrice',
     header: 'Preço médio',
     cell: ({ row }) => <Money value={row.original.position.averagePrice} currency={row.original.asset.currency} />,
     meta: { numeric: true, hideBelow: 'lg' },
+    sortDescFirst: true,
   }),
-  helper.accessor((row) => row.asset.currentPrice ?? -Infinity, {
+  // Ativo sem cotação devolve `undefined` e vai para o fim em qualquer direção (CA08.14).
+  helper.accessor((row) => row.asset.currentPrice ?? undefined, {
     id: 'currentPrice',
     header: 'Cotação',
     cell: ({ row }) => <Money value={row.original.asset.currentPrice} currency={row.original.asset.currency} />,
     meta: { numeric: true, hideBelow: 'sm' },
+    sortDescFirst: true,
+    sortUndefined: 'last',
   }),
-  helper.accessor((row) => row.position.valueBRL ?? -Infinity, {
+  helper.accessor((row) => row.position.valueBRL ?? undefined, {
     id: 'value',
     header: 'Valor (R$)',
     cell: ({ row }) => <Money value={row.original.position.valueBRL} className="font-semibold" />,
     meta: { numeric: true },
+    sortDescFirst: true,
+    sortUndefined: 'last',
   }),
-  helper.accessor((row) => row.position.returnPct ?? -Infinity, {
+  helper.accessor((row) => row.position.returnPct ?? undefined, {
     id: 'returnPct',
     header: 'Rent.',
     cell: ({ row }) => {
@@ -96,6 +110,8 @@ const columns = [
       return <span className={pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{formatPercent(pct)}</span>;
     },
     meta: { numeric: true },
+    sortDescFirst: true,
+    sortUndefined: 'last',
   }),
 ];
 // #endregion
@@ -114,15 +130,17 @@ const HIDE_BELOW: Record<Breakpoint, string> = {
 const responsiveClass = (hideBelow?: Breakpoint) => (hideBelow ? HIDE_BELOW[hideBelow] : undefined);
 
 // #region table
-export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'ticker', desc: false }]);
+export function AssetsTable({ assets, sorting, onSortingChange, footer, onEdit, onDelete }: AssetsTableProps) {
   const data = useMemo<AssetRow[]>(() => assets.map((asset) => ({ asset, position: summarize(asset) })), [assets]);
 
+  // Ordenação controlada de fora (vive na URL). `enableSortingRemoval: false`
+  // faz o segundo clique inverter em vez de limpar (CA08.14).
   const table = useReactTable({
     data,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: (updater) => onSortingChange(typeof updater === 'function' ? updater(sorting) : updater),
+    enableSortingRemoval: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
@@ -139,6 +157,7 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
                 return (
                   <th
                     key={header.id}
+                    data-sort={header.column.id}
                     aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
                     className={cn('px-2 py-2.5 sm:px-3', meta?.numeric ? 'text-right' : 'text-left', responsiveClass(meta?.hideBelow))}
                   >
@@ -157,7 +176,7 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+        <tbody data-assets className="divide-y divide-slate-100 dark:divide-slate-800">
           {table.getRowModel().rows.map((row) => (
             <tr key={row.id} data-ticker={row.original.asset.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
               {row.getVisibleCells().map((cell) => (
@@ -179,6 +198,22 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
             </tr>
           ))}
         </tbody>
+        {footer && (
+          <tfoot data-assets-footer className="bg-slate-50 text-sm font-semibold dark:bg-slate-800/50">
+            <tr>
+              <td className="px-2 py-2.5 sm:px-3" colSpan={table.getVisibleLeafColumns().findIndex((c) => c.id === 'value')}>
+                Total das posições abertas
+              </td>
+              <td className="px-2 py-2.5 text-right tabular-nums sm:px-3">
+                <Money value={footer.value} />
+              </td>
+              <td className={cn('px-2 py-2.5 text-right tabular-nums sm:px-3', (footer.returnPct ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                {footer.returnPct == null ? '—' : formatPercent(footer.returnPct)}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

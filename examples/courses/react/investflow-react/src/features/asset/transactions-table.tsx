@@ -1,8 +1,9 @@
 'use client';
 
-import { Paperclip } from 'lucide-react';
+import { Paperclip, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Money } from '@/components/money';
+import { Button } from '@/components/ui/button';
 import type { Currency, TransactionFact } from '@/core/portfolio';
 import { receiptUrl } from '@/features/portfolio/queries';
 import { formatDate } from '@/lib/format';
@@ -14,7 +15,14 @@ const TYPE_LABELS: Record<TransactionFact['type'], string> = { buy: 'Compra', se
  * Extrato em ordem cronológica, com a posição acumulada depois de cada
  * lançamento (CA03.9): o leitor vê a quantidade crescer aporte a aporte.
  */
-export function TransactionsTable({ transactions, currency }: { transactions: TransactionFact[]; currency: Currency }) {
+type Props = {
+  transactions: TransactionFact[];
+  currency: Currency;
+  onEdit: (transaction: TransactionFact) => void;
+  onDelete: (transaction: TransactionFact) => void;
+};
+
+export function TransactionsTable({ transactions, currency, onEdit, onDelete }: Props) {
   const rows = [...transactions]
     .sort((a, b) => a.transactionDate.localeCompare(b.transactionDate))
     .reduce<(TransactionFact & { running: number })[]>((acc, t) => {
@@ -45,6 +53,7 @@ export function TransactionsTable({ transactions, currency }: { transactions: Tr
             <th className="px-3 py-2.5 text-right">Total</th>
             <th className="px-3 py-2.5 text-right">Posição</th>
             <th className="px-3 py-2.5 text-center">Anexo</th>
+            <th className="px-1 py-2.5 text-center sm:px-3">Ações</th>
           </tr>
         </thead>
         <tbody data-transactions className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -63,6 +72,14 @@ export function TransactionsTable({ transactions, currency }: { transactions: Tr
               </td>
               <td className="px-3 py-2.5 text-right font-semibold">{t.running.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}</td>
               <td className="px-3 py-2.5 text-center">{t.receiptPath && <ReceiptButton transactionId={t.id} receiptPath={t.receiptPath} />}</td>
+              <td className="px-1 py-2.5 text-center whitespace-nowrap sm:px-3">
+                <Button variant="ghost" size="icon" className="size-9 md:size-10" aria-label={`Editar lançamento de ${formatDate(t.transactionDate)}`} data-edit-transaction onClick={() => onEdit(t)}>
+                  <Pencil className="size-4" aria-hidden />
+                </Button>
+                <Button variant="ghost" size="icon" className="size-9 md:size-10" aria-label={`Excluir lançamento de ${formatDate(t.transactionDate)}`} data-delete-transaction onClick={() => onDelete(t)}>
+                  <Trash2 className="size-4 text-rose-600" aria-hidden />
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>

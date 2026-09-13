@@ -5,7 +5,10 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { filterAssets, footerTotals, type AssetFilter } from '@/core/organize';
 import { totals, type AssetWithTransactions } from '@/core/portfolio';
+import { cn } from '@/lib/cn';
+import { useUrlState } from '@/lib/url-state';
 import { AssetFormDialog } from './asset-form-dialog';
 import { AssetsTable } from './assets-table';
 import { PortfolioKpis } from './portfolio-kpis';
@@ -23,6 +26,11 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
   const [dialog, setDialog] = useState<{ mode: 'create' } | { mode: 'edit'; asset: AssetWithTransactions } | null>(null);
   const [deleting, setDeleting] = useState<AssetWithTransactions | null>(null);
   const summary = useMemo(() => totals(assets), [assets]);
+
+  // Filtro, ordenação e direção ficam na URL; o padrão some dela (CA08.17).
+  const [view, setView] = useUrlState({ filter: 'active', sort: 'ticker', dir: 'asc' });
+  const visible = useMemo(() => filterAssets(assets, view.filter as AssetFilter), [assets, view.filter]);
+  const footer = useMemo(() => footerTotals(visible), [visible]);
 
   const refreshQuotes = async () => {
     try {
@@ -65,12 +73,32 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
 
       <PortfolioKpis totals={summary} />
 
-      {assets.length === 0 ? (
+      <div role="group" aria-label="Filtro" className="inline-flex w-fit rounded-lg border border-slate-200 p-0.5 text-xs dark:border-slate-700">
+        {(
+          [
+            ['active', 'Posições ativas'],
+            ['all', 'Todos os ativos'],
+          ] as const
+        ).map(([value, label]) => (
+          <button key={value} type="button" data-filter={value} aria-pressed={view.filter === value} onClick={() => setView({ filter: value })} className={cn('min-h-9 rounded-md px-3 font-medium', view.filter === value ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800')}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
         <p data-empty className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-700">
-          Nenhum ativo ainda. Cadastre o primeiro em “Novo ativo”.
+          {assets.length === 0 ? 'Nenhum ativo ainda. Cadastre o primeiro em “Novo ativo”.' : 'Nenhuma posição ativa. Veja “Todos os ativos”.'}
         </p>
       ) : (
-        <AssetsTable assets={assets} onEdit={(asset) => setDialog({ mode: 'edit', asset })} onDelete={setDeleting} />
+        <AssetsTable
+          assets={visible}
+          sorting={[{ id: view.sort, desc: view.dir === 'desc' }]}
+          onSortingChange={(next) => setView({ sort: next[0]?.id ?? 'ticker', dir: next[0]?.desc ? 'desc' : 'asc' })}
+          footer={footer}
+          onEdit={(asset) => setDialog({ mode: 'edit', asset })}
+          onDelete={setDeleting}
+        />
       )}
 
       {dialog && (

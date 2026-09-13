@@ -24,7 +24,7 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | RF04 comprovantes | bucket privado `receipts` (5 MB, PDF/PNG/JPG) declarado em `supabase/config.toml`; `core/file-validation.ts`; `server/receipts.ts`; `POST`/`GET /api/transactions/[id]/receipt` com URL assinada de 60 s | 4 ✓ |
 | RF06, RF07 analytics e admin | `core/returns.ts` (série mensal, matriz, distribuição, no lugar das views SQL), `server/analytics.ts`, `server/admin.ts`; `/analytics`, `/admin`, `/api/analytics`, `/api/admin/metrics` | 5 ✓ |
 | RF09, RF10 origem e evolução | `core/origins.ts`, `core/treemap.ts`, `core/evolution.ts`, `core/line-chart.ts`; `/origins`, gráfico em `/analytics` e na tela do ativo, modo e janela em `?mode=&range=` | 6 ✓ |
-| RF03.2–RF03.6 lançamentos e organização | edição, `update`, filtros na URL | 7 |
+| RF03.2–RF03.6 lançamentos e organização | edição e exclusão de lançamento, resgate total, `core/organize.ts` (filtro e rodapé), ordenação do TanStack Table com `sortUndefined: 'last'`, `lib/url-state.ts` | 7 ✓ |
 | RF11–RF14 proventos e movimentações | `Dividend`, `/dividends`, `/movements` | 8 |
 | RF15–RF17 dólar e cripto | `ExchangeRate`, moeda por ativo | 9 |
 | RF19–RF22 perfil e experiência | avatar, tema, ocultar valores, build | 10 |

@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 6 done)
+Status: **In progress** (Phases 0 to 7 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -217,7 +217,7 @@ layers green.
 - `core/origins.ts`, `core/evolution.ts`; treemap and line chart; URL state with
   `useSearchParams`; CA07.1–CA07.8.
 
-### Phase 7 · Ledger, balance and organisation (RF03.2–RF03.6)
+### Phase 7 · Ledger, balance and organisation (RF03.2–RF03.6) — done
 
 - Edit/delete transactions, `update` type for fixed income and funds, auto ticker
   `RF-<NAME>-<suffix>`, filters/sort/tab in the URL; CA08.1–CA08.8, CA08.13–CA08.18.
@@ -297,5 +297,12 @@ shows up as a negative return in a month without quotes.
 Phase 6: 100 Vitest tests (56 unit, 10 browser, 34 integration) and 25 Playwright tests
 green. Treemap (squarified) and line chart are pure SVG drawn from `core/` layouts, with
 `<title>` tooltips; mode and range live in the URL and are read from `window.location`
-at click time so consecutive clicks never use stale params. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+at click time so consecutive clicks never use stale params.
+
+Phase 7: 103 Vitest tests (58 unit, 10 browser, 35 integration) and 27 Playwright tests
+green. `lib/url-state.ts` generalises the URL state used by the timeline and the
+portfolio (`filter`, `sort`, `dir`); TanStack Table sorting is controlled from the URL
+with `enableSortingRemoval: false`, `sortDescFirst` on numeric columns and
+`sortUndefined: 'last'` for assets without a quote. A closed position is now worth zero
+even without a quote, so it sorts first ascending, as in the vanilla. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

@@ -92,9 +92,11 @@ export function summarize(
     }
   }
 
-  // Ativo por saldo (renda fixa, fundos) vale o próprio saldo, sem depender de cotação.
+  // Ativo por saldo (renda fixa, fundos) vale o próprio saldo, sem depender de
+  // cotação; posição zerada vale zero mesmo sem cotação (ordena antes de tudo).
   const byBalance = BALANCE_CATEGORIES.includes(asset.category);
-  const value = byBalance ? cost : asset.currentPrice == null ? null : quantity * asset.currentPrice;
+  const closed = quantity <= 0.000001;
+  const value = byBalance ? cost : closed ? 0 : asset.currentPrice == null ? null : quantity * asset.currentPrice;
   const rate = asset.currency === 'USD' && usdRate > 0 ? usdRate : 1;
 
   return {
