@@ -93,6 +93,12 @@ test.describe('RNF07 · design responsivo (celular)', () => {
     await expect(txDialog).toBeVisible();
     expect((await txDialog.boundingBox())!.width).toBeLessThanOrEqual(viewport.width);
     await expect(txDialog.getByLabel(/Comprovante/)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // Rentabilidade: a matriz rola dentro do card, a página não (CA12.1).
+    await page.goto('/analytics');
+    await expect(page.getByRole('heading', { name: 'Rentabilidade', exact: true })).toBeVisible();
+    await expectNoHorizontalScroll(page);
   });
 });
 // #endregion

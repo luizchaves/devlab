@@ -12,7 +12,10 @@ export function actAs(user: { id: string; role?: 'INVESTOR' | 'ADMIN' } | null) 
 }
 
 export async function resetTables() {
+  // Usuário leva carteira, lançamentos e cotações pelo cascade; rodadas e câmbio não têm dono.
   await prisma.user.deleteMany();
+  await prisma.quoteRun.deleteMany();
+  await prisma.exchangeRate.deleteMany();
   authMock.mockReset();
 }
 

@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { databaseUrlFor, loadEnv } from './tests/database';
+import { databaseUrlFor, loadEnv } from './tests/database.ts';
 
 // `.env` traz a URL e a service role do Supabase local; o resto vem do próprio config.
 loadEnv();

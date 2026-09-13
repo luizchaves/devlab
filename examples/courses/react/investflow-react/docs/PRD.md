@@ -22,7 +22,7 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | RF03, RF08, RF08.1 carteira e detalhe | `Broker`, `Asset`, `Transaction`; `core/portfolio.ts`; `/api/assets`, `/api/transactions`; `/dashboard`, `/assets/[id]`; `server/seed.ts` | 2 ✓ |
 | RF04.1, RF05, RF05.1, RF18 cotações | `Quote`, `QuoteRun`, `ExchangeRate`; `core/quotes.ts`, `core/market-calendar.ts`; `POST /api/quotes/update`, `POST /api/assets/[id]/quote`; busca automática ao salvar ativo cotável | 3 ✓ |
 | RF04 comprovantes | bucket privado `receipts` (5 MB, PDF/PNG/JPG) declarado em `supabase/config.toml`; `core/file-validation.ts`; `server/receipts.ts`; `POST`/`GET /api/transactions/[id]/receipt` com URL assinada de 60 s | 4 ✓ |
-| RF06, RF07 analytics e admin | `core/returns.ts`, `/analytics`, `/admin` | 5 |
+| RF06, RF07 analytics e admin | `core/returns.ts` (série mensal, matriz, distribuição, no lugar das views SQL), `server/analytics.ts`, `server/admin.ts`; `/analytics`, `/admin`, `/api/analytics`, `/api/admin/metrics` | 5 ✓ |
 | RF09, RF10 origem e evolução | treemap e gráfico de linhas | 6 |
 | RF03.2–RF03.6 lançamentos e organização | edição, `update`, filtros na URL | 7 |
 | RF11–RF14 proventos e movimentações | `Dividend`, `/dividends`, `/movements` | 8 |

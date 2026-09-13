@@ -48,6 +48,8 @@ duas podem subir ao mesmo tempo.
 | `/signin`, `/signup` | conta e sessão (Server Actions + NextAuth) | 1 |
 | `/dashboard` | carteira: KPIs, tabela (TanStack Table), cadastro, edição e exclusão de ativos | 2 |
 | `/assets/[id]` | tela do ativo por id ou ticker: posição, duração e extrato de lançamentos | 2 |
+| `/analytics` | KPIs, matriz de rentabilidade ano × mês e distribuição por classe | 5 |
+| `/admin` | painel do administrador: contas, AUM, última rodada e status dos serviços; investidor é redirecionado | 5 |
 | `/api/auth/*` | NextAuth | 1 |
 | `/api/me` | perfil da sessão | 1 |
 | `/api/assets`, `/api/assets/[id]` | carteira do dono da sessão (`GET`, `POST`, `PATCH`, `DELETE`) | 2 |
@@ -55,13 +57,15 @@ duas podem subir ao mesmo tempo.
 | `POST /api/quotes/update` | rodada de cotações (carteira ou `assetId`), com calendário de mercado e resumo em `QuoteRun` | 3 |
 | `POST /api/assets/[id]/quote` | cotação manual (`price`) ou saldo manual (`balance`, vira lançamento `update`) | 3 |
 | `POST`/`GET /api/transactions/[id]/receipt` | anexa o comprovante (multipart) e devolve a URL assinada de 60 s, só para o dono | 4 |
+| `GET /api/analytics` | série mensal, distribuição e totais do dono (`core/returns.ts`) | 5 |
+| `GET /api/admin/metrics` | agregados e checks; `403` para quem não é administrador | 5 |
 
 ## Estrutura
 
 ```txt
 app/                 rotas: (public) landing e conta, (private) telas com barra comum, api/
 prisma/              schema, migrations, seed
-src/core/            regras puras (simulador, posição, validação): sem React, sem banco
+src/core/            regras puras (simulador, posição, retornos, cotações, calendário, validação): sem React, sem banco
 src/server/          Prisma, NextAuth, senha, guards, ativos, lançamentos, seed: só roda no servidor
 src/server/quotes/   provedores (yahoo, fake), a rodada de cotações e a cotação manual
 src/server/storage.ts, receipts.ts   cliente do Supabase Storage (service role) e os comprovantes

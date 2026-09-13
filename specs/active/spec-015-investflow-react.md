@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 4 done)
+Status: **In progress** (Phases 0 to 5 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -207,7 +207,7 @@ layers green.
 - Upload to the `receipts` bucket by the server; validation before upload
   (`core/file-validation.ts`); 60-second signed URLs; CA05.1–CA05.5.
 
-### Phase 5 · Analytics and admin (RF06, RF07)
+### Phase 5 · Analytics and admin (RF06, RF07) — done
 
 - `core/returns.ts`, `core/returns-matrix.ts`, `core/allocation.ts`; `/analytics`,
   `/admin`; CA06.1–CA06.5.
@@ -284,5 +284,13 @@ them in the `mobile` project.
 Phase 4: 78 Vitest tests (39 unit, 10 browser, 29 integration; the receipts ones upload
 to and download from the real local Storage) and 19 Playwright tests green. The bucket is
 declared in `supabase/config.toml` and created by `pnpm db:buckets`; `ensureReceiptsBucket`
-also creates it on first use so tests do not depend on that step. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+also creates it on first use so tests do not depend on that step.
+
+Phase 5: 89 Vitest tests (47 unit, 10 browser, 32 integration) and
+22 Playwright tests green. The SQL views `monthly_returns`, `allocation_by_category` and
+`admin_metrics()` became pure functions in `core/returns.ts` plus `server/admin.ts`; the
+reference spreadsheet of CA06.2 is asserted both in a unit test and through the route.
+One deliberate difference from the vanilla view: a balance asset (fixed income, funds)
+enters the monthly value by its accumulated cost, so a fixed-income purchase no longer
+shows up as a negative return in a month without quotes. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

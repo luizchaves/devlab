@@ -193,3 +193,24 @@ export function investmentDuration(transactions: TransactionFact[], referenceDat
   return { text, subtitle, days, isClosed };
 }
 // #endregion
+
+// #region position-at
+/**
+ * Posição do ativo em uma data: o último `update` até ali, mais as compras e
+ * vendas posteriores a ele. É a `position_at()` do banco vanilla, em memória.
+ */
+export function positionAt(transactions: TransactionFact[], date: string): number {
+  const upTo = transactions.filter((t) => t.transactionDate <= date).sort((a, b) => a.transactionDate.localeCompare(b.transactionDate));
+  let quantity = 0;
+  for (const t of upTo) {
+    if (t.type === 'update') quantity = t.quantity;
+    else quantity += t.type === 'buy' ? t.quantity : -t.quantity;
+  }
+  return quantity;
+}
+
+/** Custo acumulado até a data, pelas mesmas regras de `summarize`. */
+export function costAt(transactions: TransactionFact[], date: string): number {
+  return summarize({ transactions: transactions.filter((t) => t.transactionDate <= date), currentPrice: null, currency: 'BRL', category: 'acoes' }).cost;
+}
+// #endregion

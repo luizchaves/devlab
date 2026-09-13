@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react';
 import { playwright } from '@vitest/browser-playwright';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
-import { databaseUrlFor, loadEnv } from './tests/database';
+import { databaseUrlFor, loadEnv } from './tests/database.ts';
 
 // `.env` traz a URL e a service role do Supabase local; o resto vem do próprio config.
 loadEnv();
