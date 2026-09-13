@@ -281,7 +281,7 @@ Phase 3: 71 Vitest tests (27 unit, 10 browser, 24 integration) and 14 Playwright
 green. Phase 3b (RNF07, requested by the author on 2026-09-13): 17 Playwright tests, 3 of
 them in the `mobile` project.
 
-Phase 4: 76 Vitest tests (29 unit, 10 browser, 29 integration; the receipts ones upload
+Phase 4: 78 Vitest tests (39 unit, 10 browser, 29 integration; the receipts ones upload
 to and download from the real local Storage) and 19 Playwright tests green. The bucket is
 declared in `supabase/config.toml` and created by `pnpm db:buckets`; `ensureReceiptsBucket`
 also creates it on first use so tests do not depend on that step. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
