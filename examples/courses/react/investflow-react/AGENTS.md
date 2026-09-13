@@ -2,27 +2,44 @@
 
 Instruções para agentes de IA que trabalham no projeto **InvestFlow React**.
 
-O projeto adapta o InvestFlow vanilla para React e Next.js. A documentação humana principal é o `README.md`; este arquivo registra as decisões de arquitetura que devem ser preservadas.
+O `README.md` é a documentação humana; este arquivo registra as decisões de arquitetura
+que devem ser preservadas. A spec de execução, com o mapeamento de cada requisito do
+InvestFlow vanilla para este projeto, é `specs/active/spec-015-investflow-react.md` na
+raiz do DevLab.
 
 ## Arquitetura
 
-1. **React funcional por padrão**: use componentes funcionais, hooks e composição. Não crie componentes de classe.
-2. **Next.js App Router**: rotas de página ficam em `app/`; rotas HTTP ficam em `app/api/`.
-3. **Server state pertence ao TanStack React Query**: dados que vêm do banco, de APIs externas ou de rotas HTTP usam `useQuery`/`useMutation`, cache keys estáveis e tratamento explícito de erro.
-4. **Estado global mínimo no Zustand**: use Zustand apenas para preferências locais e estado efêmero de UI, como ocultar valores ou abrir a command palette. Não replique dados remotos no store.
-5. **Persistência com Prisma**: o banco relacional é acessado pelo Prisma em módulos de servidor. O cliente React nunca acessa o banco diretamente.
-6. **Autenticação com NextAuth**: toda rota privada valida sessão no servidor. Autorização administrativa deve verificar papel do usuário antes de expor dados agregados.
-7. **UI acessível**: use Base UI como primitivo de interação, Lucide React para ícones comuns e textos/atributos acessíveis em botões sem rótulo visual.
-8. **Variantes com CVA**: estilos condicionais de componentes reutilizáveis usam `class-variance-authority` e `tailwind-merge`.
-9. **Performance antes de abstração**: evite waterfalls, busque dados independentes em paralelo e mantenha componentes cliente pequenos.
+1. **React funcional por padrão**: componentes funcionais, hooks e composição. Sem classes.
+2. **Next.js App Router**: páginas em `app/(public)` e `app/(private)`; rotas HTTP em
+   `app/api/`. Server Components leem sessão e banco; formulários usam Server Actions.
+3. **`src/core/` é puro**: sem React, sem Prisma, sem `fetch`. É o que os testes `unit`
+   cobrem e o que as páginas do guia recortam.
+4. **`src/server/` só roda no servidor**: Prisma, NextAuth, senha, guards. Nunca importe
+   daqui em um componente `'use client'`.
+5. **Autorização por `userId`**: não há RLS. Toda query em `src/server/` recebe o id da
+   sessão e filtra por ele; linha de outra conta responde `404`, nunca `403`.
+6. **Identidade com NextAuth Credentials**: senha em `scrypt` (`node:crypto`), JWT com
+   `role`. Não instale `bcrypt`, `jsonwebtoken` nem `dotenv`.
+7. **Server state no React Query, preferências no Zustand**: dados remotos nunca entram no
+   store; o store guarda tema, ocultar valores e estado efêmero de UI.
+8. **UI acessível**: Base UI para diálogo, menu, select e afins; Lucide para ícones;
+   `aria-label` em botão sem texto; CVA + `tailwind-merge` para variantes.
+9. **Validação com Zod em `src/core/`**: o mesmo schema vale no cliente e na Server Action.
+10. **Banco e arquivos na stack local do Supabase**: Prisma cuida das migrações
+    (`prisma/migrations`); a pasta `supabase/` só tem o `config.toml`. Storage é acessado
+    com a service role, só no servidor.
 
-## Estratégia de Testes
+## Testes
 
-| Camada | Arquivos | Prova |
-| ------ | -------- | ----- |
-| `unit` | `*.test.ts(x)` | `core`, hooks e utilitários puros |
-| `browser` | `*.browser.test.ts(x)` | primitivas de `ui` em navegador real |
-| `integration` | `*.integration.test.ts(x)` | fluxos de rota, autorização e handlers HTTP |
-| `e2e` | `tests/e2e/*.spec.ts` | jornada completa do usuário |
+| Camada | Arquivos | Ambiente |
+| ------ | -------- | -------- |
+| `unit` | `src/**/*.test.ts(x)` | jsdom |
+| `browser` | `src/components/ui/*.browser.test.tsx` | Chromium via `@vitest/browser-playwright`, com `app/globals.css` carregado |
+| `integration` | `tests/integration/*.integration.test.ts` | Prisma real no schema `integration`; `@/server/auth` simulado por `vi.mock` |
+| `e2e` | `tests/e2e/*.spec.ts` | Playwright contra `next dev --port 3100`, schema `e2e`, modo serial |
 
-Rode `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm test:e2e` antes de finalizar mudanças relevantes.
+Regras: o título do teste leva o critério (`CA03.4 — …`); um critério novo nasce com seu
+teste; `pnpm test` e `pnpm test:e2e` precisam da stack (`supabase start`). O Next não
+aceita dois `next dev` do mesmo projeto: pare o `pnpm dev` antes de `pnpm test:e2e`.
+
+Antes de finalizar: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, `pnpm build`.

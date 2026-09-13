@@ -1,16 +1,26 @@
-export async function getJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+// #region http
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/** `fetch` com JSON e erro tipado: o React Query recebe `ApiError` em `error`. */
+export async function api<T>(input: string, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     ...init,
-    headers: {
-      Accept: 'application/json',
-      ...init?.headers,
-    },
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(response.status, body.error ?? `Erro ${response.status}`);
   }
 
   return response.json() as Promise<T>;
 }
+// #endregion

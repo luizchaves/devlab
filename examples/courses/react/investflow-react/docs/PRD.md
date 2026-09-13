@@ -1,18 +1,39 @@
-# InvestFlow React PRD
+# InvestFlow React — PRD
 
 ## Objetivo
 
-Adaptar o InvestFlow vanilla para uma aplicação React moderna, mantendo o domínio de carteira de investimentos e usando a stack pedida para ensinar escolhas reais de arquitetura.
+Reconstruir o InvestFlow (plataforma de gestão patrimonial para investidores individuais)
+em React, mantendo **todos os requisitos funcionais do produto original** e trocando a
+implementação: Next.js no lugar de HTML + Vite, NextAuth no lugar do Supabase Auth, Prisma
+sobre o mesmo PostgreSQL, checagem de dono no servidor no lugar de RLS, route handlers no
+lugar de Edge Functions.
 
 ## Requisitos
 
-| ID | Requisito | Critério |
-| -- | --------- | -------- |
-| RF01 | Dashboard React | A página inicial mostra KPIs e tabela de ativos. |
-| RF02 | API protegida | `/api/portfolio` exige sessão antes de ler dados. |
-| RF03 | Integração externa | `/api/quotes/[symbol]` chama provedor externo com timeout e erro 502 controlado. |
-| RF04 | Estado global mínimo | Preferência de ocultar valores fica no Zustand. |
-| RF05 | Server state | Carteira usa TanStack React Query, não store global. |
-| RF06 | Rotas | Dashboard, ativos e preferências usam App Router. |
-| RNF01 | UI acessível | Primitivos interativos usam Base UI quando aplicável. |
-| RNF02 | Testes | Unit, browser, integration e E2E têm exemplos separados. |
+Os requisitos são os do backlog do InvestFlow (RF01–RF22, RNF01–RNF06, US01–US32,
+CA01.1–CA11.13), documentados em
+`src/content/docs/courses/npm/practice/investflow/backlog.mdx` no DevLab. Este projeto não
+os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
+
+| Requisitos | Implementação | Fase |
+| ---------- | ------------- | ---- |
+| RF01 landing e simulador | `app/(public)/page.tsx`, `core/simulator.ts` | 1 ✓ |
+| RF02 conta e sessão | NextAuth Credentials, `proxy.ts`, `server/session.ts` | 1 ✓ |
+| RF03, RF08, RF08.1 carteira e detalhe | `Broker`, `Asset`, `Transaction`; `/api/assets`, `/api/transactions` | 2 |
+| RF04.1, RF05, RF05.1, RF18 cotações | `POST /api/quotes/update`, provedores, calendário | 3 |
+| RF04 comprovantes | Supabase Storage, URL assinada de 60 s | 4 |
+| RF06, RF07 analytics e admin | `core/returns.ts`, `/analytics`, `/admin` | 5 |
+| RF09, RF10 origem e evolução | treemap e gráfico de linhas | 6 |
+| RF03.2–RF03.6 lançamentos e organização | edição, `update`, filtros na URL | 7 |
+| RF11–RF14 proventos e movimentações | `Dividend`, `/dividends`, `/movements` | 8 |
+| RF15–RF17 dólar e cripto | `ExchangeRate`, moeda por ativo | 9 |
+| RF19–RF22 perfil e experiência | avatar, tema, ocultar valores, build | 10 |
+
+| RNF | Leitura neste projeto |
+| --- | --------------------- |
+| RNF01 isolamento | toda query filtra por `userId`; teste de integração com duas contas |
+| RNF02 chaves fora do navegador | service role e `AUTH_SECRET` só em `src/server/` |
+| RNF03 precisão decimal | colunas `Decimal`; `core/` arredonda por helpers |
+| RNF04 arquivos privados | bucket privado; download por rota autenticada |
+| RNF05 admin agregado | `/api/admin/*` devolve só totais |
+| RNF06 publicação | `next build`, cabeçalhos de segurança em `next.config.ts` |
