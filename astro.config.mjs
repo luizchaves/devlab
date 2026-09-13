@@ -1919,7 +1919,14 @@ export default defineConfig({
               items: [{ label: 'Roteamento', link: '/courses/react/routing/routing/' }],
             },
             {
-              label: 'Prática',
+              label: 'Autenticação',
+              items: [
+                { label: 'Autenticação com Supabase', link: '/courses/react/auth/supabase/' },
+                { label: 'Autenticação com Firebase', link: '/courses/react/auth/firebase/' },
+              ],
+            },
+            {
+              label: 'Na Prática',
               items: [
                 { label: 'Projeto Final', link: '/courses/react/practice/project/' },
                 {
@@ -1927,6 +1934,10 @@ export default defineConfig({
                   collapsed: true,
                   items: [
                     { label: 'Visão geral', link: '/courses/react/practice/investflow/' },
+                    {
+                      label: 'Backlog do projeto',
+                      link: '/courses/react/practice/investflow/backlog/',
+                    },
                     {
                       label: '1. Fundação e identidade',
                       link: '/courses/react/practice/investflow/foundation/',
@@ -1961,15 +1972,12 @@ export default defineConfig({
                       label: '10. Perfil e experiência',
                       link: '/courses/react/practice/investflow/experience/',
                     },
+                    {
+                      label: 'Próximos passos',
+                      link: '/courses/react/practice/investflow/next-steps/',
+                    },
                   ],
                 },
-              ],
-            },
-            {
-              label: 'Autenticação',
-              items: [
-                { label: 'Autenticação com Supabase', link: '/courses/react/auth/supabase/' },
-                { label: 'Autenticação com Firebase', link: '/courses/react/auth/firebase/' },
               ],
             },
           ],

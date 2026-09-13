@@ -1,0 +1,186 @@
+---
+title: "InvestFlow (React): Próximos passos"
+description: "Limites conhecidos e evolução responsável do InvestFlow em React: o que as dez etapas entregaram, as dívidas de uma aplicação Next.js com servidor próprio (sessão, cache, CI, jobs, autorização em uma camada só) e o backlog de evolução com critérios verificáveis."
+course: react
+project: investflow-react
+sidebar:
+  label: "Próximos passos"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+O InvestFlow (React) termina a trilha com uma aplicação Next.js coerente: identidade própria, banco filtrado por dono, arquivos servidos pelo servidor e uma suíte que nomeia cada critério. Isso não o torna um produto financeiro pronto para usuários reais. Esta página separa o que as dez etapas entregaram, as dívidas que uma aplicação **com servidor próprio** assume (e que a versão vanilla, por não ter servidor, nem podia assumir) e as evoluções que exigem decisão de produto, segurança e operação.
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+## Objetivo
+
+Planejar a evolução do InvestFlow (React) sem diluir os limites da versão educacional. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar uma entrega das dez etapas de uma evolução ainda planejada.
+- Reconhecer as dívidas que nascem quando a segurança sai do banco e vai para o código: autorização em uma camada só, sessão sem revogação, segredos no processo do servidor.
+- Decidir onde um dado deve ser cacheado em uma aplicação Next.js (React Query, `fetch` do servidor, tags de revalidação) e o que isso muda para dados por usuário.
+- Identificar quando uma rodada disparada por botão precisa virar um job agendado, com registro de execução e retentativa.
+- Transformar uma ideia futura em tasks verificáveis no [backlog](../backlog/), com a camada de teste que a prova.
+
+<Aside type="tip" title="Dica de IA: Gerar a página de próximos passos de uma aplicação Next.js">
+  Uma boa página de próximos passos não nasce de uma lista genérica de tecnologias. Ela cruza o estado final do código, o [backlog](../backlog/), as páginas das dez etapas e os riscos próprios de uma carteira financeira em que o servidor da aplicação é quem fala com o banco, o Storage e o provedor de cotações.
+
+  **Prompt:** *"Atue como tech lead sênior de uma aplicação Next.js App Router de carteira de investimentos; usando o código de `examples/courses/react/investflow-react`, as páginas `backlog`, `foundation`, `quotes`, `dividends` e `experience`, gere a página `InvestFlow (React): Próximos passos` com dívidas técnicas reais (sessão JWT, autorização em uma camada, ausência de CI, rodadas manuais, cache), backlog de evolução com critérios verificáveis e a camada de teste de cada um; não proponha recomendação financeira nem cálculo tributário sem validação especializada."*
+</Aside>
+
+## Entregas das dez etapas
+
+Boa parte do que a página de próximos passos do [vanilla](../../../../npm/practice/investflow/next-steps/) lista como dívida já nasceu resolvida aqui, por causa da arquitetura. A tabela registra o que saiu da lista, para que ninguém volte a planejar o que já existe.
+
+| Era dívida no vanilla | Como ficou no React | Onde |
+| --------------------- | ------------------- | ---- |
+| Crawler de proventos no navegador, dependente de CORS | A sincronização roda em `server/dividends.ts`, atrás de `POST /api/assets/[id]/dividends/sync`, e o E2E clica em "Sincronizar" | [Etapa 8](../dividends/) |
+| Chave de serviço em Edge Functions e nos testes | `SUPABASE_SERVICE_ROLE_KEY` e `AUTH_SECRET` só em `src/server/`; `tests/deploy` prova que o bundle não os leva | [Etapa 10](../experience/) |
+| Automatizar RLS, funções e jornadas | 123 testes Vitest em três camadas, 2 de build e 36 Playwright, cada critério com o id no título | [backlog](../backlog/#rastreabilidade) |
+| Telas largas que quebram no celular | RNF07: projeto Playwright `mobile` em um Pixel 7, com CA12.1 a CA12.4 | [Etapa 3](../quotes/) em diante |
+| Fórmulas espalhadas em views SQL | `core/returns.ts`, `core/evolution.ts`, `core/dividends.ts` e `core/exchange.ts` são funções puras testadas contra a mesma planilha de referência | [Etapa 5](../analytics/), [6](../origins/), [8](../dividends/), [9](../international/) |
+
+## Dívidas técnicas conhecidas
+
+As primeiras prioridades não são recursos novos. São as consequências de ter um servidor próprio, que a trilha apresentou como decisão de arquitetura e que precisam de uma segunda camada antes de usuários reais.
+
+| Área | Limite atual | Próxima decisão verificável |
+| ---- | ------------ | --------------------------- |
+| Autorização | O isolamento depende de cada função de `src/server/` lembrar o `where: { userId }`; não há rede de segurança no banco. | Ligar o RLS do Postgres como **segunda camada**, com uma role por requisição (`SET LOCAL role`) e as mesmas policies do vanilla; um teste de integração que remove o filtro de propósito e ainda recebe zero linhas. |
+| Sessão | JWT do NextAuth com `strategy: 'jwt'`: sair no navegador não invalida o token, e trocar a senha não derruba outras sessões. | Sessão em banco (adapter do Prisma com `Session`) ou lista de revogação por `jti`; teste: após o logout, o cookie antigo recebe `401`. |
+| Conta | Não há recuperação de senha, confirmação de e-mail nem limite de tentativas no `authorize`. | Fluxo de reset com token de uso único e expiração; `rate limit` por IP e por e-mail; teste de integração para o token usado duas vezes. |
+| Rodadas | Cotações, câmbio e proventos só rodam quando alguém clica; a rodada percorre os ativos em série. | Cron (Vercel Cron ou `pg_cron` chamando a rota com um segredo), `QuoteRun` como registro de execução consultável, retentativa por ticker; teste: rodada agendada sem sessão é aceita só com o segredo. |
+| Cache | React Query com `staleTime` de 30 s no cliente; as páginas de servidor não usam `revalidateTag` nem `unstable_cache`, então cada navegação consulta o banco. | Marcar as leituras de servidor por usuário com tags (`portfolio:<userId>`) e revalidar nas mutações; teste: criar um lançamento invalida a série de evolução sem recarregar. |
+| Estados de carregamento e erro | Não há `loading.tsx`, `error.tsx` nem `Suspense` nas rotas privadas; uma consulta lenta atrasa a página inteira. | Streaming por segmento com `Suspense` e um `error.tsx` por grupo de rotas; E2E que simula latência e vê o esqueleto. |
+| CI | O projeto tem Husky (`pre-commit`, `pre-push`), mas nenhum workflow: os testes de integração e E2E dependem da stack do Supabase na máquina de quem faz o push. | GitHub Actions com `supabase start` em um runner com Docker, depois `lint`, `typecheck`, `test`, `test:e2e` e `test:build` em todo pull request. |
+| Dados de mercado | O provedor `yahoo` é gratuito, sem contrato, sem token e sem garantia de formato; o calendário reduz chamadas, não elimina o risco. | Definir fonte, atraso permitido, licença e fallback; um segundo `QuoteProvider` atrás da mesma interface, escolhido por variável de ambiente. |
+| Privacidade | O filtro por dono protege acesso, não governa retenção; comprovantes e avatares ficam no bucket até alguém apagar à mão. | Exportação e exclusão de conta que percorrem `Transaction`, `Dividend`, `Quote` e os dois buckets; teste de integração que confirma o bucket vazio depois. |
+
+<Aside type="caution" title="Dica de IA: Não trate autorização como detalhe de implementação">
+  Um assistente que gera uma rota nova em `app/api/` tende a copiar o padrão vizinho, e o padrão vizinho pode estar sem o filtro por dono. Peça que ele escreva **primeiro** o teste de integração com duas contas, e só depois a rota.
+
+  **Prompt:** *"Antes de implementar `GET /api/<recurso>` no InvestFlow (React), escreva o teste de integração em `tests/integration/` que cria duas contas, grava um registro em cada uma e prova que a segunda recebe `404` ao pedir o registro da primeira; use o id do critério no título."*
+</Aside>
+
+## Evoluções de arquitetura
+
+As evoluções abaixo não devem entrar todas de uma vez. Cada uma altera custo, responsabilidade operacional ou superfície de risco, e deve ser priorizada por evidência de uso.
+
+### Rodadas agendadas e processamento assíncrono
+
+Hoje a rodada de cotações é um route handler síncrono: recebe o clique, consulta o provedor, grava e responde. Um agendador chamando a mesma rota resolve o primeiro problema (ninguém precisa clicar). Quando o número de ativos, os limites do provedor ou a necessidade de retentativa crescerem, a rota passa a só **enfileirar**, e um worker processa.
+
+<Mermaid title="Evolução da rodada de cotações">
+{`
+flowchart LR
+  Btn["Botão na carteira"] --> Route["POST /api/quotes/update"]
+  Cron["Cron com segredo"] --> Route
+  Route --> Run[("QuoteRun")]
+  Route --> Provider["QuoteProvider"]
+  Provider --> Db[("PostgreSQL")]
+  Route -. "volume, retries e vários provedores" .-> Queue["fila (pg-boss ou similar)"]
+  Queue --> Worker["worker"]
+  Worker --> Provider
+  Worker --> Run
+`}
+</Mermaid>
+
+### Cache por usuário no App Router
+
+O React Query resolve o cache **no navegador**; no servidor, cada Server Component consulta o Prisma a cada requisição. A evolução natural é marcar as leituras com tags que incluam o `userId` e revalidá-las nas mutações. Duas regras evitam o erro clássico:
+
+1. **Nunca cachear sem o `userId` na chave.** Uma tag `portfolio` compartilhada entre usuários serve a carteira de um para o outro. A tag é `portfolio:<userId>`, e o teste de integração com duas contas continua sendo a prova.
+2. **Revalidar na mutação, não por tempo.** Um lançamento novo chama `revalidateTag('portfolio:<userId>')` no mesmo handler que gravou; o `staleTime` do React Query continua cuidando do cliente.
+
+### Qualidade e entrega contínua
+
+O projeto já testa regras, componentes, rotas e jornadas (os quatro primeiros passos estão feitos e servem de modelo). A próxima camada é fazer essas verificações bloquearem regressões antes do merge.
+
+<Steps>
+
+1. **Testar regras de domínio** (feito): `core/` em jsdom, com a planilha de referência.
+2. **Testar componentes** (feito): primitivas de Base UI em Chromium real, com papéis, foco e teclado.
+3. **Testar rotas e isolamento** (feito): integração no schema `integration`, sempre com duas contas, Storage real.
+4. **Testar jornadas** (feito): Playwright em desktop e em um Pixel 7, contra `next dev` no schema `e2e`.
+5. **Criar CI**: `supabase start` em um runner com Docker, depois `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` e `pnpm test:build` em todo pull request.
+6. **Publicar com verificação**: deploy de preview por pull request, com `AUTH_SECRET` e a service role em segredos do provedor, nunca no repositório.
+
+</Steps>
+
+### Segurança e privacidade
+
+Segurança contínua inclui a autorização por dono já tratada na trilha, mas também sessão, segredos, rastreabilidade e ciclo de vida dos arquivos.
+
+| Prioridade | Ação | Evidência de pronto |
+| ---------- | ---- | ------------------- |
+| Alta | Ligar o RLS como segunda camada, com role por requisição. | Teste que remove o filtro de propósito e ainda recebe zero linhas. |
+| Alta | Revogar sessão no logout e na troca de senha. | Cookie antigo recebe `401` depois do logout. |
+| Alta | Limitar tentativas de login e proteger o cadastro de abuso. | Teste de integração: a sexta tentativa em um minuto responde `429`. |
+| Média | Rotacionar `AUTH_SECRET` e a service role, e registrar onde cada um é usado. | Nenhum segredo em bundle, commit ou log; `tests/deploy` continua verde. |
+| Média | Exclusão e exportação de conta. | Solicitação percorre tabelas e buckets e deixa evento de auditoria. |
+| Média | Auditar ações administrativas. | `GET /api/admin/metrics` registra quem consultou, sem expor carteira. |
+| Contínua | Atualizar dependências e revisar alertas. | Processo recorrente registrado no repositório. |
+
+## Backlog de evolução
+
+O backlog futuro deve usar histórias, critérios e a camada de teste que os prova, não frases vagas como "melhorar performance". A tabela mostra exemplos que podem virar novos épicos (EP13 em diante) sem confundir o escopo das dez etapas entregues.
+
+| Possível épico | Problema que resolve | Critério inicial | Camada |
+| -------------- | -------------------- | ---------------- | ------ |
+| RLS como segunda camada | Um `where` esquecido vaza carteira. | Com o filtro removido de propósito, a consulta devolve zero linhas. | integration |
+| Sessão revogável | Logout e troca de senha não derrubam tokens antigos. | Cookie antigo recebe `401` após o logout. | integration, e2e |
+| Recuperação de senha | Quem esquece a senha perde a conta. | Token de uso único expira e não pode ser reaproveitado. | integration, e2e |
+| Rodadas agendadas | Cotação só atualiza com clique. | Cron chama a rota com segredo; `QuoteRun` registra a execução; sem segredo, `401`. | integration |
+| Cache por usuário | Cada navegação consulta o banco. | Tag `portfolio:<userId>` é invalidada pela mutação e nunca cruza contas. | integration, e2e |
+| Streaming e erros por segmento | Consulta lenta atrasa a página inteira. | Esqueleto aparece antes do dado; erro em um segmento não derruba a barra. | e2e |
+| Importação de notas | Evitar cadastro manual. | Arquivo importado gera prévia revisável, nunca lançamento automático. | unit, e2e |
+| Outras moedas | Ativos em euro ou libra. | `rateFor(from, date)` no lugar do par único USD/BRL, com um teste por par. | unit, integration |
+| Notificações | Avisar rodada atrasada ou falha de provedor. | Preferência e canal do usuário são configuráveis; nada é enviado sem opt-in. | integration |
+| Imposto e relatórios | Consolidar informação fiscal. | Fórmulas e fontes aprovadas por especialista antes de publicar. | unit |
+
+## Operação responsável
+
+Antes de uma publicação para usuários reais, a equipe precisa conferir dados, segurança e comunicação. A sequência abaixo é uma porta de qualidade, não uma lista de recursos opcionais.
+
+<Steps>
+
+1. **Validar dados**: reconciliar uma amostra de carteira, retornos e proventos com fonte independente.
+2. **Validar acesso**: rodar a suíte de integração com duas contas contra o banco de produção vazio, e conferir que a role da aplicação não é `postgres`.
+3. **Validar sessão e segredos**: `AUTH_SECRET` e service role rotacionados; `tests/deploy` verde contra o build publicado.
+4. **Validar integrações**: medir falha, atraso, retentativa e fallback do provedor em uma semana de rodadas agendadas.
+5. **Validar comunicação**: mostrar a data da cotação, os limites e a ausência de recomendação financeira.
+6. **Validar recuperação**: praticar backup, rollback de migration do Prisma e resposta a incidente.
+
+</Steps>
+
+## Exercício
+
+Escolha um item do backlog de evolução e escreva uma história de usuário com três critérios de aceite, cada um com a camada de teste que o prova. Inclua pelo menos um cenário negativo de isolamento entre contas.
+
+## Desafio
+
+Desenhe a rodada agendada de cotações: quem chama `POST /api/quotes/update`, como a rota distingue o cron de um usuário, o que `QuoteRun` passa a registrar, qual alerta dispara quando a execução diária atrasa e qual teste de integração prova cada uma dessas decisões.
+
+## Perguntas de revisão
+
+1. Por que o RLS, que a trilha substituiu por filtros no servidor, volta como primeira dívida?
+2. Qual teste prova que uma sessão foi revogada de verdade?
+3. Por que uma tag de cache no App Router precisa do `userId` no nome?
+4. O que muda em uma rota quando ela deixa de ser chamada por um botão e passa a ser chamada por um cron?
+5. Qual diferença existe entre o cache do React Query e o cache de dados do Next.js, e por que os dois coexistem?
+
+## Referências
+
+- [Next.js: caching e revalidação](https://nextjs.org/docs/app/guides/caching)
+- [Next.js: `loading.tsx` e streaming](https://nextjs.org/docs/app/api-reference/file-conventions/loading)
+- [Auth.js: estratégias de sessão](https://authjs.dev/concepts/session-strategies)
+- [Supabase: Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Vercel: Cron Jobs](https://vercel.com/docs/cron-jobs)
+- [OWASP: Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
+
+## Próximo tópico
+
+Retorne ao [Guia de React](../../../) para conectar o projeto aos tópicos de estado, roteamento e hooks, ou compare com os [próximos passos do InvestFlow vanilla](../../../../npm/practice/investflow/next-steps/) para ver quais dívidas cada arquitetura assume.

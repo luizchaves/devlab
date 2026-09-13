@@ -1,0 +1,1065 @@
+---
+title: "InvestFlow (React): Backlog do projeto"
+description: "Backlog próprio do InvestFlow em React: os 22 requisitos funcionais e os 7 não funcionais reescritos para Next.js, NextAuth e Prisma, 33 histórias de usuário, os critérios de aceitação que valem nesta stack, dez etapas com 57 tasks e a rastreabilidade história → critério → task → teste."
+course: react
+project: investflow-react
+sidebar:
+  label: "Backlog do projeto"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+
+O backlog do **InvestFlow (React)** parte do mesmo produto da [versão vanilla](../../../../npm/practice/investflow/backlog/), mas não é uma cópia dele. Os requisitos funcionais são compartilhados; tudo o que vem depois (regras não funcionais, critérios, tasks e testes) foi reescrito para uma aplicação com servidor próprio: Next.js com App Router, NextAuth, Prisma sobre o PostgreSQL do Supabase, route handlers no lugar de Edge Functions e um requisito novo de design responsivo.
+
+## Como ler este backlog?
+
+Use esta página como mapa de execução do projeto. Cada requisito diz o que o produto precisa fazer; cada épico agrupa uma capacidade; cada história explica a necessidade do usuário; cada critério diz o que um teste precisa provar **nesta stack**; e cada task aponta uma entrega pequena o suficiente para revisão em um pull request.
+
+```txt title="Fluxo de planejamento"
+Requisito (RF/RNF) -> Épico -> Feature -> História de usuário -> Critério de aceite -> Etapa -> Task -> Teste
+```
+
+Os identificadores de requisito (`RF`, `RNF`), história (`US`) e critério (`CA`) mantêm a numeração do vanilla, para que as duas implementações possam ser comparadas linha a linha. A numeração das tasks (`TK`) é própria, porque as dez etapas desta trilha não coincidem com as onze sprints da outra.
+
+## Objetivo
+
+Compreender o escopo funcional e técnico do InvestFlow (React), decompondo a aplicação em etapas e tasks cumulativas que mantêm rastreabilidade entre produto, código e teste.
+
+Ao final do tópico, o leitor deve ser capaz de:
+
+- Relacionar cada requisito do produto a uma etapa desta trilha e ao módulo que o implementa (`core/`, `server/`, `features/` ou `app/api/`).
+- Explicar o que muda em cada requisito não funcional quando o RLS dá lugar à autorização por `userId` no servidor.
+- Identificar quais critérios do vanilla deixam de fazer sentido em uma aplicação Next.js e o que os substitui.
+- Planejar uma etapa com critérios verificáveis e distribuí-los entre as camadas `unit`, `browser`, `integration` e `e2e`.
+- Revisar se uma task está pequena, testável e conectada a uma história de usuário.
+
+## Requisitos
+
+Os requisitos funcionais são os do produto e valem para as duas implementações; a coluna da direita diz **como** cada um é atendido aqui e em qual etapa. Os não funcionais precisaram ser reescritos, porque a regra que os garante mudou de lugar.
+
+### Requisitos funcionais (RF)
+
+Os RF de dois dígitos (RF01 a RF22) são os da visão geral; os de três (RF03.1 a RF08.1) detalham um requisito pai quando uma etapa o estende.
+
+| Código | Requisito | Como é atendido no React | Etapa |
+| ------ | --------- | ------------------------ | ----- |
+| RF01 | Simulação de aportes e juros compostos na landing page. | `core/simulator.ts` renderizado por um Server Component em `app/(public)/page.tsx`. | [1](../foundation/) |
+| RF02 | Conta e sessão: criar conta, entrar, recuperar a sessão e sair. | NextAuth Credentials com `scrypt`, JWT com `id` e `role`, Server Action de cadastro, `proxy.ts`. | [1](../foundation/) |
+| RF03 | Carteira: manter ativos, corretoras, emissores e lançamentos. | Modelos `Broker`, `Asset`, `Transaction`; `/api/assets`, `/api/transactions`; dashboard com TanStack Table. | [2](../portfolio/) |
+| RF03.1 | Criar ativo com ticker, nome, categoria, corretora e emissor. | Schema Zod em `core/assets.ts`; corretora nova criada para o dono. | [2](../portfolio/) |
+| RF03.2 | Editar ativo próprio sem alterar os lançamentos. | `PATCH /api/assets/[id]` filtrado por `userId`. | [2](../portfolio/) |
+| RF03.3 | Excluir ativo próprio e seus registros dependentes. | `DELETE /api/assets/[id]` com `onDelete: Cascade` no Prisma. | [2](../portfolio/) |
+| RF03.4 | Registrar, editar e excluir lançamentos de compra e venda. | `PATCH`/`DELETE /api/transactions/[id]`, resgate total, `AlertDialog`. | [7](../ledger/) |
+| RF03.5 | Acompanhar renda fixa e fundos pelo saldo, com lançamento `update`. | `TransactionType.update`; ticker automático `RF-<NOME>-<sufixo>`. | [7](../ledger/) |
+| RF03.6 | Filtrar, ordenar e compartilhar pela URL o estado da carteira. | `core/organize.ts`; TanStack Table controlado por `lib/url-state.ts`. | [7](../ledger/) |
+| RF04 | Comprovantes: anexar e consultar documentos privados. | Bucket privado `receipts`; upload e URL assinada de 60 s pelo servidor. | [4](../receipts/) |
+| RF04.1 | Buscar a cotação ao criar ou editar um ativo cotável. | O handler de criação dispara a rodada do ativo e avisa sem bloquear. | [3](../quotes/) |
+| RF05 | Cotações: atualizar preço atual e histórico dos ativos elegíveis. | `POST /api/quotes/update`; modelos `Quote` e `QuoteRun`; provedores `fake` e `yahoo`. | [3](../quotes/) |
+| RF05.1 | Atualizar um único ativo e informar a cotação à mão. | `assetId` na rodada; `POST /api/assets/[id]/quote` com diálogo manual. | [3](../quotes/) |
+| RF06 | Analytics: rentabilidade mensal, anual e distribuição por classe. | `core/returns.ts` no lugar das views SQL; `/analytics`. | [5](../analytics/) |
+| RF07 | Operação: indicadores agregados para administradores. | `core/admin.ts`, `requireAdmin`, `GET /api/admin/metrics`. | [5](../analytics/) |
+| RF08 | Detalhe do investimento: aportes e resgates de um ativo. | `/assets/[id]` por id ou ticker, com extrato e posição recalculada. | [2](../portfolio/) |
+| RF08.1 | Seed público mínimo: um administrador e uma posição fictícia. | `server/seed.ts`, executado por `prisma db seed` e testado na integração. | [2](../portfolio/) |
+| RF09 | Origem: corretora de custódia e emissor por ativo. | `core/origins.ts`, `core/treemap.ts`, `/origins`, treemap em SVG. | [6](../origins/) |
+| RF10 | Aportes versus valor, por ativo e carteira. | `core/evolution.ts`, `core/line-chart.ts`, `?mode=&range=` na URL. | [6](../origins/) |
+| RF11 | Proventos por ativo: histórico idempotente. | Modelo `Dividend`; `POST /api/assets/[id]/dividends/sync` no servidor. | [8](../dividends/) |
+| RF12 | Proventos recebidos: total, por mês, por ativo, YoC e retorno total. | `core/dividends.ts`, `/dividends`. | [8](../dividends/) |
+| RF13 | Proventos na rentabilidade, por escolha do usuário. | Toggle "Com proventos" no lucro, na matriz e na terceira série. | [8](../dividends/) |
+| RF14 | Movimentações: extrato com KPIs de fluxo e gráfico mensal. | `core/movements.ts`, `BarChart`, `/movements`. | [8](../dividends/) |
+| RF15 | Ativos em dólar e carteira consolidada em reais. | `Currency` por ativo; `ExchangeRate`; `core/exchange.ts`; `GET /api/exchange`. | [9](../international/) |
+| RF16 | Valorização versus câmbio: custo e fluxo pelo câmbio de cada mês. | Conversão mensal em `core/returns.ts` e `core/evolution.ts`. | [9](../international/) |
+| RF17 | Cripto cotada em dólar e convertida. | `TICKER-USD` e `BRL=X` na mesma rodada. | [9](../international/) |
+| RF18 | Calendário de mercado: consultar o provedor só quando pode haver preço novo. | `core/market-calendar.ts` (B3, NYSE/Nasdaq, cripto). | [3](../quotes/) |
+| RF19 | Perfil: nome, e-mail, papel e avatar editáveis pelo dono. | `/profile`, `PATCH /api/profile`, bucket público `avatars`. | [10](../experience/) |
+| RF20 | Navegação com contexto: barra comum, menu do usuário e landing com sessão. | `AppShell` no layout de `(private)`; landing lê a sessão no servidor. | [1](../foundation/), [10](../experience/) |
+| RF21 | Tema e privacidade: claro, escuro, automático e ocultação de valores. | `store/preferences.ts` (Zustand com `persist`) e o componente `Money`. | [10](../experience/) |
+| RF22 | Publicação: build sem segredos e com cabeçalhos de segurança. | `next.config.ts`; `tests/deploy/build.test.ts` inspeciona o `next build`. | [10](../experience/) |
+
+### Requisitos não funcionais (RNF)
+
+Cada RNF vale em toda tela. A tabela mostra o que o garantia no vanilla, o que o garante aqui e a história em que ele é provado por teste. O RNF07 é novo desta versão.
+
+| Código | Regra | No vanilla | No React | Histórias |
+| ------ | ----- | ---------- | -------- | --------- |
+| RNF01 | Isolamento por investidor. | RLS em toda tabela de domínio. | Toda consulta em `src/server/` recebe o `userId` da sessão e filtra por ele; linha alheia responde `404`, nunca `403`. | US04, US06, US21, US29 |
+| RNF02 | Chaves privadas fora do navegador. | `service_role` só em Edge Functions. | `SUPABASE_SERVICE_ROLE_KEY` e `AUTH_SECRET` só em módulos de `src/server/`; o bundle do cliente leva apenas `NEXT_PUBLIC_*`. | US07, US32 |
+| RNF03 | Dados monetários com precisão decimal. | Colunas `numeric`. | Colunas `Decimal` no Prisma, convertidas na borda por `server/serialize.ts`; `core/` arredonda por helpers. | US05, US25 |
+| RNF04 | Arquivos privados em bucket privado. | Policy de `storage.objects` e URL assinada. | O navegador nunca fala com o Storage: upload e URL assinada de 60 s saem de route handlers autenticados. | US08, US29 |
+| RNF05 | Administração agregada e autorizada. | `admin_metrics()` com checagem de `role`. | `requireAdmin` responde `403`; o payload de `/api/admin/metrics` não tem ticker nem posição. | US10 |
+| RNF06 | Publicação sem segredos. | Bundle Vite só com `VITE_*`. | `next build` inspecionado: chunks do cliente sem `SUPABASE_SERVICE_ROLE_KEY` nem `AUTH_SECRET`; cabeçalhos em toda resposta. | US32 |
+| **RNF07** | **Design responsivo, mobile-first.** | Não previsto. | Nenhuma página rola na horizontal a 360 px; menu acessível na barra estreita; tabelas com colunas essenciais; diálogos na largura da tela; alvos de toque de 44 px. | US33 |
+
+<Aside type="note" title="O que muda quando a segurança sai do banco">
+  No vanilla, um filtro esquecido no front não vaza dados porque a policy RLS barra a consulta. Aqui não existe essa rede: se `server/assets.ts` esquecer o `where: { userId }`, a rota devolve a carteira de outra pessoa. Por isso o backlog trata o isolamento como critério explícito de cada história que lê ou escreve dados (CA03.4, CA03.5, CA03.10, CA05.4, CA06.3, CA07.3, CA09.1, CA10.3) e os testes de integração sempre criam **duas contas**.
+</Aside>
+
+## Mapa dos épicos
+
+Os épicos são os mesmos do produto, mas a ordem de entrega mudou em dois pontos: a governança de dados (EP08) nasce junto da carteira, porque o seed é código TypeScript testado, e o design responsivo ganhou um épico próprio (EP12), que atravessa todas as etapas a partir da terceira.
+
+<Mermaid title="Sequência dos épicos nas dez etapas">
+{`
+flowchart LR
+  EP01["EP01<br/>Landing e simulação"] --> EP02["EP02<br/>Identidade e sessão"]
+  EP02 --> EP03["EP03<br/>Carteira e seed"]
+  EP03 --> EP04["EP04<br/>Cotações e calendário"]
+  EP04 --> EP12["EP12<br/>Design responsivo"]
+  EP12 --> EP05["EP05<br/>Comprovantes"]
+  EP05 --> EP06["EP06<br/>Analytics e admin"]
+  EP06 --> EP07["EP07<br/>Origem e evolução"]
+  EP07 --> EP09["EP09<br/>Proventos e movimentações"]
+  EP09 --> EP10["EP10<br/>Dólar e cripto"]
+  EP10 --> EP11["EP11<br/>Perfil e experiência"]
+`}
+</Mermaid>
+
+A tabela resume o papel de cada épico e a etapa que o entrega:
+
+| Épico | Nome | Resultado esperado | Etapa |
+| ----- | ---- | ------------------ | ----- |
+| **EP01** | Landing Page & Simulação | Landing como Server Component com o simulador puro. | [1. Fundação e identidade](../foundation/) |
+| **EP02** | Identidade & Sessão | NextAuth Credentials, `scrypt`, `proxy.ts`, Server Action de cadastro. | [1. Fundação e identidade](../foundation/) |
+| **EP03** | Carteira & Gestão de Ativos | Modelos Prisma, rotas filtradas por dono, dashboard e tela do ativo. | [2. Carteira](../portfolio/) |
+| **EP08** | Governança de Dados de Desenvolvimento | `server/seed.ts` demonstrativo, sem dado real, testado. | [2. Carteira](../portfolio/) |
+| **EP04** | Cotações & Calendário | Route handler no lugar da Edge Function, provedores, cotação manual, calendário. | [3. Cotações](../quotes/) |
+| **EP12** | Design Responsivo | Barra móvel, colunas por breakpoint, alvos de 44 px, projeto Playwright `mobile`. | [3. Cotações](../quotes/) em diante |
+| **EP05** | Comprovantes & Storage | Bucket privado lido pelo servidor com URL assinada. | [4. Comprovantes](../receipts/) |
+| **EP06** | Analytics & Painel Admin | Funções puras no lugar das views SQL; painel só com agregados. | [5. Rentabilidade e admin](../analytics/) |
+| **EP07** | Origem & Evolução | Treemap e gráfico de linhas em SVG, estado na URL. | [6. Origem e evolução](../origins/) |
+| **EP03** (extensão) | Lançamentos & Organização | Edição, exclusão, resgate total, `update`, filtro e ordenação na URL. | [7. Lançamentos e organização](../ledger/) |
+| **EP09** | Proventos & Movimentações | Sincronização idempotente no servidor, data ex, retorno total, extrato. | [8. Proventos e movimentações](../dividends/) |
+| **EP10** | Internacional & Cripto | Moeda por ativo, câmbio por mês, cripto convertida. | [9. Dólar e cripto](../international/) |
+| **EP11** | Perfil & Experiência | Perfil com avatar, tema, ocultar valores e build inspecionado. | [10. Perfil e experiência](../experience/) |
+
+## Features
+
+As features agrupam histórias que pertencem ao mesmo resultado observável. A coluna "Módulos" aponta onde a feature mora no código, o que ajuda a decidir em qual camada testá-la.
+
+| Feature | Épico | Resultado visível | Módulos | Histórias |
+| ------- | ----- | ----------------- | ------- | --------- |
+| **FE01 · Aquisição e simulação** | EP01 | Landing navegável com simulador. | `core/simulator`, `features/landing` | US01, US02 |
+| **FE02 · Identidade e sessão** | EP02 | Cadastro, login, sessão JWT e páginas privadas. | `server/auth*`, `server/password`, `proxy.ts`, `features/auth` | US03, US04 |
+| **FE03 · Carteira operacional** | EP03 | Ativos, corretoras, lançamentos, tela do ativo. | `core/portfolio`, `core/assets`, `server/assets`, `features/portfolio`, `features/asset` | US05, US06, US11, US14 |
+| **FE04 · Cotações de mercado** | EP04 | Rodada manual e automática por route handler. | `core/quotes`, `server/quotes/*`, `api/quotes/update` | US07, US15 |
+| **FE05 · Comprovantes privados** | EP05 | Upload validado e leitura temporária. | `core/file-validation`, `server/receipts`, `api/transactions/[id]/receipt` | US08 |
+| **FE06 · Analytics e administração** | EP06 | Matriz, distribuição e painel agregado. | `core/returns`, `core/admin`, `server/analytics`, `server/admin` | US09, US10 |
+| **FE07 · Origem e evolução** | EP07 | Treemap e aportes × valor. | `core/origins`, `core/treemap`, `core/evolution`, `core/line-chart`, `components/charts` | US12, US13 |
+| **FE08 · Seed e governança** | EP08 | Dados de desenvolvimento seguros. | `server/seed` | US16 |
+| **FE09 · Lançamentos, saldo e cotação manual** | EP03, EP04 | Lançamentos corrigíveis, renda fixa pelo saldo, cotação manual, carteira organizável. | `core/organize`, `server/quotes/manual`, `lib/url-state` | US17, US18, US19, US20 |
+| **FE10 · Proventos** | EP09 | Histórico, data ex, YoC, retorno total, toggle. | `core/dividends`, `server/dividends`, `features/dividends` | US21, US22, US23 |
+| **FE11 · Movimentações** | EP09 | Extrato com KPIs de fluxo e gráfico mensal. | `core/movements`, `features/movements` | US24 |
+| **FE12 · Carteira em dólar** | EP10 | Moeda por ativo, câmbio por mês. | `core/exchange`, `server/exchange`, `components/exchange-provider` | US25, US26 |
+| **FE13 · Cripto e calendário** | EP04, EP10 | Cripto convertida; consultas só com mercado aberto. | `core/market-calendar`, `server/quotes/providers` | US27, US28 |
+| **FE14 · Perfil e navegação** | EP11 | Perfil com avatar, barra comum, menu do usuário. | `server/profile`, `features/profile`, `components/layout` | US29, US30 |
+| **FE15 · Tema, privacidade e publicação** | EP11 | Tema em ciclo, ocultar valores, build inspecionado. | `store/preferences`, `components/money`, `next.config.ts`, `tests/deploy` | US31, US32 |
+| **FE16 · Uso no celular** | EP12 | Todas as telas funcionam a 360 px. | `components/layout`, metadados de coluna das tabelas, `tests/e2e/*.mobile.spec.ts` | US33 |
+
+## Rastreabilidade
+
+A tabela liga cada **história (US)** aos **critérios (CA)** que valem nesta stack, às **tasks (TK)** da etapa e à **camada de teste** que prova cada critério. O critério é numerado pela sprint do vanilla (`CA03.4` é o quarto critério da Sprint 3 de lá), e a task pela etapa daqui (`TK02-4` é a quarta task da etapa 2). Cada critério tem pelo menos um teste com o id no título (`it('CA03.4 — cada conta lê apenas os próprios ativos')`), e é essa ligação que diz se a entrega está pronta.
+
+| História (US) | Critérios (CA) | Tasks (TK) | Camadas |
+| ------------- | -------------- | ---------- | ------- |
+| `US01` Simular crescimento patrimonial | `CA01.1` Landing sem serviço externo<br/>`CA01.2` Campos do simulador | `TK01-6` | unit, e2e |
+| `US02` Navegar pela aplicação | `CA01.5` Vocabulário do domínio | `TK01-1` `TK01-7` | browser |
+| `US03` Criar conta e entrar | `CA02.1` Cadastro válido<br/>`CA02.2` Login válido e inválido<br/>`CA02.3` Recuperação de sessão | `TK01-2` `TK01-3` `TK01-4` | integration, e2e |
+| `US04` Proteger telas privadas | `CA02.4` Guarda de página e `401`<br/>`CA02.5` Logout | `TK01-5` | integration, e2e |
+| `US05` Gerenciar posições e transações | `CA03.1` Ativo válido<br/>`CA03.2` Transação vinculada<br/>`CA03.3` Métricas reproduzíveis<br/>`CA03.7` Corretora e emissor | `TK02-1` a `TK02-5` | unit, integration, e2e |
+| `US06` Isolar dados por investidor | `CA03.4` Leitura isolada<br/>`CA03.5` Escrita isolada<br/>`CA03.6` Rodada isolada | `TK02-4` | integration |
+| `US11` Acompanhar os aportes de um investimento | `CA03.8` Tela do ativo<br/>`CA03.9` Aportes em ordem<br/>`CA03.10` Ativo alheio é `404` | `TK02-6` | integration, e2e |
+| `US14` Manter ativos da carteira | `CA03.11` Editar sem perder lançamentos<br/>`CA03.12` Excluir com cascade e confirmação | `TK02-7` | browser, integration, e2e |
+| `US16` Versionar apenas seed demonstrativo | `CA03.13` Seed aplica<br/>`CA03.15` Seed quebrado falha | `TK02-8` | integration |
+| `US07` Atualizar cotações | `CA04.1` Uma linha por dia<br/>`CA04.2` Falha parcial | `TK03-1` a `TK03-3` | unit, integration, e2e |
+| `US15` Ver cotação após cadastrar | `CA04.4` Cotação automática<br/>`CA04.5` Falha não bloqueia | `TK03-4` | e2e |
+| `US19` Informar a cotação à mão | `CA08.9` Rodada de um ativo<br/>`CA08.10` Fallback manual<br/>`CA08.11` Histórico na data<br/>`CA08.12` Saldo vira `update` | `TK03-5` | integration, e2e |
+| `US28` Respeitar o calendário do mercado | `CA10.14` Horários e feriados<br/>`CA10.15` Fechamento salvo não consulta<br/>`CA10.16` Sem cotação sempre consulta | `TK03-6` | unit, e2e |
+| `US33` Usar no celular | `CA12.1` Sem rolagem horizontal<br/>`CA12.2` Menu acessível<br/>`CA12.3` Colunas essenciais<br/>`CA12.4` Diálogo na largura e 44 px | `TK03-7` `TK03-8` | e2e (`mobile`) |
+| `US08` Anexar comprovantes | `CA05.1` Upload válido<br/>`CA05.2` Tipo ou tamanho inválido<br/>`CA05.3` URL assinada de 60 s<br/>`CA05.4` Lançamento alheio é `404`<br/>`CA05.5` Path, não URL | `TK04-1` a `TK04-4` | unit, integration, e2e |
+| `US09` Consultar rentabilidade histórica | `CA06.1` Lacunas explícitas<br/>`CA06.2` Planilha de referência<br/>`CA06.3` Dados próprios | `TK05-1` `TK05-2` | unit, integration, e2e |
+| `US10` Acompanhar operação global | `CA06.4` `403` e redirect<br/>`CA06.5` Só agregados | `TK05-3` | integration, e2e |
+| `US12` Ver a carteira pela origem | `CA07.1` Treemap por corretora<br/>`CA07.2` Troca de recorte<br/>`CA07.3` Só a própria carteira | `TK06-1` `TK06-4` | unit, integration, e2e |
+| `US13` Comparar aportes com o valor atual | `CA07.4` Série da carteira<br/>`CA07.5` Série do ativo<br/>`CA07.6` Lacuna, não zero<br/>`CA07.7` Contínuo ou eventos<br/>`CA07.8` Janela na URL | `TK06-2` `TK06-3` | unit, integration, e2e |
+| `US17` Corrigir e desfazer lançamentos | `CA08.1` Editar<br/>`CA08.2` Excluir<br/>`CA08.3` Resgate total<br/>`CA08.4` Venda pelo preço médio | `TK07-1` | unit, integration, e2e |
+| `US18` Acompanhar renda fixa pelo saldo | `CA08.6` Ticker automático<br/>`CA08.7` Lançamento `update`<br/>`CA08.8` Ativo vale o saldo | `TK07-2` | unit, e2e |
+| `US20` Organizar a carteira | `CA08.13` Ativas × todas<br/>`CA08.14` Ordenação<br/>`CA08.15` Rodapé ponderado<br/>`CA08.16` Duração<br/>`CA08.17` Estado na URL<br/>`CA08.18` Abrir por ticker | `TK07-3` a `TK07-5` | unit, e2e |
+| `US21` Registrar os proventos de cada ativo | `CA09.1` Único por dono e data ex<br/>`CA09.2` Só categorias elegíveis<br/>`CA09.3` Idempotente<br/>`CA09.4` Falha não apaga | `TK08-1` `TK08-2` | unit, integration, e2e |
+| `US22` Ver o que recebi de proventos | `CA09.5` Direito pela data ex<br/>`CA09.6` KPIs<br/>`CA09.7` Matriz e maiores pagadores<br/>`CA09.8` Aba e retorno total | `TK08-3` `TK08-4` | unit, e2e |
+| `US23` Incluir os proventos na rentabilidade | `CA09.9` Toggle<br/>`CA09.10` Provento na matriz<br/>`CA09.11` Terceira série | `TK08-5` | unit, e2e |
+| `US24` Acompanhar aportes e resgates | `CA09.12` KPIs de fluxo<br/>`CA09.13` Barras por mês<br/>`CA09.14` Extrato<br/>`CA09.15` Registrar pela página | `TK08-6` | unit, e2e |
+| `US25` Ter ativos em dólar | `CA10.1` Moeda por ativo<br/>`CA10.2` Sugestão pelo ticker<br/>`CA10.3` Tabela de câmbio<br/>`CA10.4` Conversão na carteira<br/>`CA10.5` Fallback sem taxa | `TK09-1` `TK09-2` | unit, integration, e2e |
+| `US26` Separar valorização do câmbio | `CA10.6` Custo pelo câmbio da compra<br/>`CA10.7` Fluxo convertido<br/>`CA10.8` Séries convertidas<br/>`CA10.9` Gráfico US$/R$<br/>`CA10.10` Câmbio não é aporte | `TK09-3` `TK09-5` | unit, integration, e2e |
+| `US27` Cotar cripto | `CA10.11` `TICKER-USD` e `BRL=X`<br/>`CA10.12` Sem câmbio, sem cotação<br/>`CA10.13` Taxa gravada na rodada | `TK09-4` | unit, integration |
+| `US29` Manter meu perfil | `CA11.1` Dados e nome<br/>`CA11.2` Avatar na própria pasta<br/>`CA11.3` Remover avatar<br/>`CA11.4` `role` imutável | `TK10-1` `TK10-2` | unit, integration, e2e |
+| `US30` Navegar com contexto | `CA11.5` Barra comum<br/>`CA11.6` Menu do usuário<br/>`CA11.7` Landing com sessão<br/>`CA11.8` Diálogo fecha com Esc | `TK01-7` `TK10-3` | browser, e2e |
+| `US31` Escolher o tema e ocultar valores | `CA11.9` Tema em ciclo<br/>`CA11.10` Ocultar valores<br/>`CA11.11` Mostrar senha | `TK10-4` `TK10-5` | unit, e2e |
+| `US32` Publicar a aplicação | `CA11.12` Bundle sem segredos<br/>`CA11.13` Cabeçalhos de segurança | `TK10-6` | build |
+
+## Critérios do vanilla que não se aplicam
+
+Cinco critérios do backlog original descrevem a mecânica da outra implementação, e não o produto. Eles não têm teste aqui, e a tabela registra o que os substitui, para que ninguém os procure.
+
+| Critério | O que dizia no vanilla | Por que não se aplica | Substituto |
+| -------- | ---------------------- | --------------------- | ---------- |
+| CA01.3 | Os links de `index.html` levam às outras páginas HTML. | Não há protótipo estático: a navegação nasce com rotas reais e sessão. | CA01.1 (landing) e CA02.4 (guarda) |
+| CA01.4 | As telas mostram dados escritos no HTML. | A primeira etapa já lê do banco. | CA03.13 (seed demonstrativo) |
+| CA01.6 | `admin.html` mostra só totais. | O painel admin nasce na etapa 5, com autorização. | CA06.4 e CA06.5 |
+| CA04.3 | A `service_role` fica só na Edge Function. | Não há Edge Function; a chave fica em `src/server/`. | CA11.12 (o bundle é inspecionado) e RNF02 |
+| CA08.5 | Sete categorias na interface. | As sete existem desde a etapa 2 no `enum AssetCategory`, sem uma sprint que as introduza. | CA01.5 (badge por categoria) e CA03.1 (categoria fora do conjunto é recusada) |
+
+## Histórias de usuário
+
+As histórias abaixo dão contexto às tasks. Os critérios estão escritos como o teste os prova nesta stack; quando a redação do vanilla servia, ela foi mantida. As histórias estão agrupadas pela etapa que as entrega.
+
+### US01 · Simular crescimento patrimonial · RF01
+
+Entregue pela [Etapa 1 (Fundação e identidade)](../foundation/).
+
+> **Como** investidor iniciante,
+> **quero** simular aportes e prazo de investimento,
+> **para** entender o efeito dos juros compostos antes de criar uma conta.
+
+##### Critérios de Aceitação
+
+- **CA01.1** — `pnpm dev` abre a landing com o simulador e os links para entrar e criar conta, sem chamar nenhuma rota de API.
+- **CA01.2** — O simulador traz valor inicial, aporte mensal, taxa e prazo, com `id` estáveis; sem taxa, o total é só o que foi aportado.
+
+##### Tasks
+
+- **TK01-6** — Escrever `core/simulator.ts` como função pura e renderizar a landing como Server Component em `app/(public)/page.tsx`.
+
+### US02 · Navegar pela aplicação · RF02, RF03, RF06, RF07
+
+Entregue pela [Etapa 1 (Fundação e identidade)](../foundation/).
+
+> **Como** avaliador do produto,
+> **quero** reconhecer o vocabulário do domínio em qualquer tela,
+> **para** entender a carteira sem consultar um glossário.
+
+##### Critérios de Aceitação
+
+- **CA01.5** — Cada uma das sete categorias de ativo tem um `Badge` com cor própria, provado no navegador real.
+
+##### Tasks
+
+- **TK01-1** — Criar o projeto Next.js 16 com TypeScript strict, Tailwind CSS v4, ESLint, Husky, `README.md`, `AGENTS.md` e `docs/PRD.md`.
+- **TK01-7** — Compor as primitivas `Button`, `Input`, `Field`, `Badge`, `Dialog` e `AlertDialog` com Base UI e CVA, e o `Providers` com React Query, Sonner e a paleta de comandos.
+
+### US03 · Criar conta e entrar · RF02
+
+Entregue pela [Etapa 1 (Fundação e identidade)](../foundation/).
+
+> **Como** investidor,
+> **quero** criar uma conta e entrar com e-mail e senha,
+> **para** ter uma identidade estável antes de registrar minha carteira.
+
+##### Critérios de Aceitação
+
+- **CA02.1** — Um cadastro válido cria o `User` com papel `investor` e a senha em hash `scrypt`; o hash nunca sai do servidor.
+- **CA02.2** — Senha errada e e-mail inexistente devolvem o mesmo `null` no `authorize` e a mesma mensagem na tela.
+- **CA02.3** — Com sessão, `GET /api/me` devolve o perfil sem o hash; recarregar uma página privada mantém a sessão.
+
+##### Tasks
+
+- **TK01-2** — Configurar o Prisma 7 com `@prisma/adapter-pg` no PostgreSQL da stack local do Supabase (portas `5434x`), o modelo `User` e a migration inicial.
+- **TK01-3** — Configurar o NextAuth v5 com o provedor Credentials, `server/password.ts` em `scrypt` e o JWT com `id` e `role`.
+- **TK01-4** — Escrever a Server Action de cadastro consumida por `useActionState`, as páginas `/signin` e `/signup` e o sign-out.
+
+### US04 · Proteger telas privadas · RF02, RNF01
+
+Entregue pela [Etapa 1 (Fundação e identidade)](../foundation/).
+
+> **Como** investidor,
+> **quero** ser direcionado ao login ao abrir uma tela privada sem sessão,
+> **para** não confundir uma interface disponível com acesso autorizado.
+
+##### Critérios de Aceitação
+
+- **CA02.4** — Sem sessão, `proxy.ts` redireciona as páginas de `(private)` para `/signin`, e as rotas de `/api/*` respondem `401`.
+- **CA02.5** — Sair encerra a sessão, e uma nova abertura de página privada exige login.
+
+##### Tasks
+
+- **TK01-5** — Escrever `proxy.ts`, `requireSession` e `requireAdmin` em `server/http.ts`, e `GET /api/me`.
+
+### US05 · Gerenciar posições e transações · RF03, RF03.1
+
+Entregue pela [Etapa 2 (Carteira)](../portfolio/).
+
+> **Como** investidor autenticado,
+> **quero** registrar ativos e suas compras ou vendas,
+> **para** acompanhar posição, custo e valor de mercado.
+
+##### Critérios de Aceitação
+
+- **CA03.1** — Um ativo com ticker, nome e categoria do `enum AssetCategory` é criado com o `userId` da sessão; categoria fora do conjunto é recusada pelo schema Zod.
+- **CA03.2** — Uma compra com quantidade e preço `Decimal` válidos referencia o ativo e pertence ao mesmo investidor; quantidade zero é recusada.
+- **CA03.3** — Quantidade, custo, valor atual, realizado e duração são reproduzidos por `core/portfolio.ts` a partir dos lançamentos e da cotação.
+- **CA03.7** — Uma corretora nova citada no cadastro passa a existir para o dono; o ativo guarda corretora e emissor.
+
+##### Tasks
+
+- **TK02-1** — Criar os modelos `Broker`, `Asset` e `Transaction`, os enums `AssetCategory` e `TransactionType` e a migration `portfolio`.
+- **TK02-2** — Portar `core/portfolio.ts` do vanilla: `positionAt`, preço médio, realizado, investido, valor atual e duração.
+- **TK02-3** — Escrever os schemas Zod de ativo e lançamento em `core/assets.ts`.
+- **TK02-4** — Escrever `server/assets.ts` e `server/brokers.ts` filtrados por `userId`, e as rotas `/api/assets`, `/api/assets/[id]` e `/api/transactions`.
+- **TK02-5** — Montar o dashboard com TanStack Table e React Query e os formulários de ativo e lançamento em `Dialog`.
+
+### US06 · Isolar dados por investidor · RNF01
+
+Entregue pela [Etapa 2 (Carteira)](../portfolio/).
+
+> **Como** investidor,
+> **quero** que outra conta jamais veja ou altere meus registros,
+> **para** confiar minha carteira à aplicação.
+
+##### Critérios de Aceitação
+
+- **CA03.4** — Cada conta lê apenas os próprios ativos, provado com duas contas na integração.
+- **CA03.5** — Lançar ou editar em ativo de outra conta responde `404` e nada é gravado.
+- **CA03.6** — A rodada de cotações de uma conta não toca os ativos da outra.
+
+##### Tasks
+
+- **TK02-4** — (compartilhada com US05) toda função de `server/assets.ts` recebe `userId` e filtra por ele.
+
+### US11 · Acompanhar os aportes de um investimento · RF08
+
+Entregue pela [Etapa 2 (Carteira)](../portfolio/).
+
+> **Como** investidor,
+> **quero** abrir um ativo e ver todos os aportes e resgates registrados nele,
+> **para** conferir cada lançamento e entender a posição atual.
+
+##### Critérios de Aceitação
+
+- **CA03.8** — Clicar em um ativo abre `/assets/[id]` com nome, ticker, categoria, corretora, emissor, posição, preço médio e resultado.
+- **CA03.9** — A tela lista os lançamentos em ordem cronológica e permite registrar um novo, recalculando a posição.
+- **CA03.10** — Ativo de outra conta ou inexistente responde `404` por id e por ticker; edição e exclusão cruzadas também.
+
+##### Tasks
+
+- **TK02-6** — Criar `app/(private)/assets/[id]/page.tsx` e `features/asset/` com o extrato e o formulário de lançamento.
+
+### US14 · Manter ativos da carteira · RF03.2, RF03.3
+
+Entregue pela [Etapa 2 (Carteira)](../portfolio/).
+
+> **Como** investidor,
+> **quero** corrigir ou excluir um ativo meu,
+> **para** manter a carteira fiel ao que tenho.
+
+##### Critérios de Aceitação
+
+- **CA03.11** — Editar o ativo não perde os lançamentos.
+- **CA03.12** — Excluir pede confirmação em um `AlertDialog`, só chama `onConfirm` no botão destrutivo e leva os lançamentos junto pelo cascade.
+
+##### Tasks
+
+- **TK02-7** — Implementar `PATCH` e `DELETE /api/assets/[id]`, o `AlertDialog` de confirmação e o `onDelete: Cascade` no schema.
+
+### US16 · Versionar apenas seed demonstrativo · RF08.1
+
+Entregue pela [Etapa 2 (Carteira)](../portfolio/).
+
+> **Como** mantenedor,
+> **quero** um seed versionado sem dado real,
+> **para** que qualquer pessoa suba o projeto com um usuário e uma posição de exemplo.
+
+##### Critérios de Aceitação
+
+- **CA03.13** — `prisma db seed` cria `admin@example.com` e a posição `Tesouro Reserva 2036` valendo R$ 1, e rodar de novo não duplica.
+- **CA03.15** — O seed é código TypeScript testado na integração; se quebrar, a suíte falha.
+
+##### Tasks
+
+- **TK02-8** — Escrever `server/seed.ts` e `prisma/seed.ts`, e o teste de integração que o executa.
+
+### US07 · Atualizar cotações · RF05
+
+Entregue pela [Etapa 3 (Cotações)](../quotes/).
+
+> **Como** investidor,
+> **quero** atualizar o preço dos meus ativos negociados em bolsa,
+> **para** ver o valor de mercado da carteira.
+
+##### Critérios de Aceitação
+
+- **CA04.1** — Rodar `POST /api/quotes/update` duas vezes no mesmo dia deixa uma linha por ativo em `Quote`.
+- **CA04.2** — Ticker desconhecido entra na lista de falhas do `QuoteRun`; os demais são cotados e renda fixa é ignorada.
+
+##### Tasks
+
+- **TK03-1** — Criar os modelos `Quote`, `QuoteRun` e `ExchangeRate` e a migration `quotes`.
+- **TK03-2** — Escrever os provedores `fake` e `yahoo` em `server/quotes/providers.ts`, selecionados por `QUOTES_PROVIDER`.
+- **TK03-3** — Escrever `core/quotes.ts` (elegibilidade e resumo da rodada) e `server/quotes/update.ts` atrás de `POST /api/quotes/update`.
+
+### US15 · Ver cotação após cadastrar ativo negociado · RF04.1
+
+Entregue pela [Etapa 3 (Cotações)](../quotes/).
+
+> **Como** investidor,
+> **quero** ver o preço assim que cadastrar um ativo cotável,
+> **para** não precisar de um segundo clique.
+
+##### Critérios de Aceitação
+
+- **CA04.4** — Cadastrar um ativo cotado já traz a cotação, sem clique manual.
+- **CA04.5** — Provedor sem o ticker avisa, mantém o ativo e abre a cotação manual.
+
+##### Tasks
+
+- **TK03-4** — Disparar a rodada do ativo ao criar ou editar um cotável e devolver o aviso sem bloquear a resposta.
+
+### US19 · Informar a cotação à mão · RF05.1
+
+Entregue pela [Etapa 3 (Cotações)](../quotes/).
+
+> **Como** investidor,
+> **quero** atualizar um único ativo e informar o preço quando o provedor não responde,
+> **para** não ficar com a carteira desatualizada.
+
+##### Critérios de Aceitação
+
+- **CA08.9** — Com `assetId`, só aquele ativo é consultado e atualizado.
+- **CA08.10** — Quando o provedor falha, o diálogo de cotação manual é oferecido.
+- **CA08.11** — A cotação manual grava `currentPrice` e o histórico na data informada; outra conta não grava no ativo alheio.
+- **CA08.12** — O saldo manual de renda fixa vira um lançamento `update` na data informada.
+
+##### Tasks
+
+- **TK03-5** — Escrever `server/quotes/manual.ts` atrás de `POST /api/assets/[id]/quote` e o diálogo de cotação e saldo manuais.
+
+### US28 · Respeitar o calendário do mercado · RF18
+
+Entregue pela [Etapa 3 (Cotações)](../quotes/).
+
+> **Como** mantenedor,
+> **quero** consultar o provedor só quando pode haver preço novo,
+> **para** poupar o limite de chamadas.
+
+##### Critérios de Aceitação
+
+- **CA10.14** — B3 aberta em dia útil das 10h às 18h, NYSE/Nasdaq com os feriados observados, cripto sempre aberta.
+- **CA10.15** — No fim de semana, com o fechamento de sexta já salvo, a rodada não consulta.
+- **CA10.16** — Sem cotação prévia, ou anterior à última sessão, sempre consulta.
+
+##### Tasks
+
+- **TK03-6** — Escrever `core/market-calendar.ts` com os calendários da B3, de NYSE/Nasdaq e de cripto.
+
+### US33 · Usar no celular · RNF07
+
+Entregue pela [Etapa 3 (Cotações)](../quotes/) e mantida por todas as seguintes.
+
+> **Como** investidor,
+> **quero** consultar e lançar pelo celular,
+> **para** não depender de um computador.
+
+##### Critérios de Aceitação
+
+- **CA12.1** — Nenhuma página rola na horizontal a 360 px; landing, login e cadastro cabem na largura do celular.
+- **CA12.2** — A barra estreita expõe os links por um botão de menu com `aria-expanded`.
+- **CA12.3** — As tabelas mostram as colunas essenciais em qualquer largura e as demais por breakpoint.
+- **CA12.4** — Diálogos e formulários ocupam a largura da tela e os alvos de toque têm 44 px.
+
+##### Tasks
+
+- **TK03-7** — Escrever a barra móvel, os metadados de coluna por breakpoint, os alvos de 44 px e os diálogos dimensionados por `max-w`.
+- **TK03-8** — Criar o projeto Playwright `mobile` (Pixel 7) com `tests/e2e/responsive.mobile.spec.ts`; cada etapa seguinte acrescenta as próprias telas.
+
+### US08 · Anexar comprovantes · RF04, RNF04
+
+Entregue pela [Etapa 4 (Comprovantes)](../receipts/).
+
+> **Como** investidor,
+> **quero** anexar a nota de um lançamento e abri-la depois,
+> **para** guardar a prova junto do registro.
+
+##### Critérios de Aceitação
+
+- **CA05.1** — PDF, PNG ou JPG dentro de 5 MB vai para `receipts/<userId>/…` pelo servidor e o lançamento guarda só o path.
+- **CA05.2** — Tipo fora da lista ou arquivo acima do limite é recusado por `core/file-validation.ts` antes de tocar o bucket.
+- **CA05.3** — O dono recebe uma URL assinada de 60 s, que entrega o arquivo.
+- **CA05.4** — Outra conta não envia nem assina o comprovante; a resposta é `404`.
+- **CA05.5** — O path é `<userId>/<transactionId>/<uuid>.<ext>`, sem o nome original e nunca uma URL.
+
+##### Tasks
+
+- **TK04-1** — Declarar o bucket privado `receipts` em `supabase/config.toml` e o script `pnpm db:buckets`.
+- **TK04-2** — Escrever `core/file-validation.ts` com tipos, limite e o montador de path.
+- **TK04-3** — Escrever `server/receipts.ts` com a service role e as rotas `POST`/`GET /api/transactions/[id]/receipt`.
+- **TK04-4** — Anexar e abrir o comprovante na tabela de lançamentos do ativo.
+
+### US09 · Consultar rentabilidade histórica · RF06
+
+Entregue pela [Etapa 5 (Rentabilidade e admin)](../analytics/).
+
+> **Como** investidor,
+> **quero** ver a rentabilidade mês a mês e a distribuição por classe,
+> **para** avaliar a carteira ao longo do tempo.
+
+##### Critérios de Aceitação
+
+- **CA06.1** — Mês sem cotação fica `null` na série e vira traço na matriz, nunca `0%`; o global acumula ano a ano.
+- **CA06.2** — A série mensal reproduz a planilha de referência (100 a 30 em janeiro, 100 a 34 em fevereiro, março de fora).
+- **CA06.3** — Cada conta vê só a própria série e distribuição.
+
+##### Tasks
+
+- **TK05-1** — Escrever `core/returns.ts` (série mensal, matriz ano × mês, distribuição) no lugar das views SQL.
+- **TK05-2** — Escrever `server/analytics.ts`, `GET /api/analytics` e a página `/analytics`.
+
+### US10 · Acompanhar operação global · RF07, RNF05
+
+Entregue pela [Etapa 5 (Rentabilidade e admin)](../analytics/).
+
+> **Como** administrador,
+> **quero** ver totais e status dos serviços,
+> **para** operar a plataforma sem acessar carteiras.
+
+##### Critérios de Aceitação
+
+- **CA06.4** — Investidor é mandado de volta ao abrir `/admin`, e `GET /api/admin/metrics` responde `403`.
+- **CA06.5** — Administrador recebe totais e status, sem ticker nem posição no payload.
+
+##### Tasks
+
+- **TK05-3** — Escrever `core/admin.ts`, `server/admin.ts`, a rota protegida por `requireAdmin` e a página `/admin`.
+
+### US12 · Ver a carteira pela origem · RF09
+
+Entregue pela [Etapa 6 (Origem e evolução)](../origins/).
+
+> **Como** investidor,
+> **quero** ver quanto tenho em cada corretora, categoria e emissor,
+> **para** avaliar concentração.
+
+##### Critérios de Aceitação
+
+- **CA07.1** — O treemap ocupa toda a área e cada bloco fica dentro dos limites, com área proporcional ao valor.
+- **CA07.2** — O seletor troca entre corretora, categoria e emissor sem recarregar.
+- **CA07.3** — As linhas de origem trazem as três dimensões e só do dono.
+
+##### Tasks
+
+- **TK06-1** — Escrever `core/origins.ts`, `core/treemap.ts`, `GET /api/origins` e a página `/origins`.
+- **TK06-4** — Escrever os componentes `Treemap` e `LineChart` em SVG puro em `components/charts/`.
+
+### US13 · Comparar aportes com o valor atual · RF10
+
+Entregue pela [Etapa 6 (Origem e evolução)](../origins/).
+
+> **Como** investidor,
+> **quero** ver a linha do que aportei contra a do valor atual,
+> **para** enxergar o rendimento como a diferença entre elas.
+
+##### Critérios de Aceitação
+
+- **CA07.4** — A série da carteira reproduz aportado × valor da planilha, sem março.
+- **CA07.5** — A série do ativo coincide com a da carteira quando só ele tem cotação; o CDB entra pelo saldo.
+- **CA07.6** — Um mês sem valor vira lacuna no caminho SVG, não zero.
+- **CA07.7** — Modo contínuo preenche os meses intermediários; modo eventos deixa só os meses com movimentação.
+- **CA07.8** — A janela recorta as séries a partir de hoje; modo e janela ficam em `?mode=&range=`.
+
+##### Tasks
+
+- **TK06-2** — Escrever `core/evolution.ts`, `core/line-chart.ts` e `GET /api/assets/[id]/evolution`, e ligar o gráfico em `/analytics` e na tela do ativo.
+- **TK06-3** — Escrever `lib/url-state.ts` para ler e gravar o estado na URL com `router.replace`.
+
+### US17 · Corrigir e desfazer lançamentos · RF03.4
+
+Entregue pela [Etapa 7 (Lançamentos e organização)](../ledger/).
+
+> **Como** investidor,
+> **quero** editar ou excluir um lançamento e resgatar tudo de uma vez,
+> **para** corrigir erros sem recriar o ativo.
+
+##### Critérios de Aceitação
+
+- **CA08.1** — Editar recalcula a posição; outra conta não alcança o lançamento.
+- **CA08.2** — Excluir pede confirmação, remove e recalcula.
+- **CA08.3** — "Resgate total" preenche a quantidade disponível.
+- **CA08.4** — A venda baixa o custo pelo preço médio e a diferença vira realizado.
+
+##### Tasks
+
+- **TK07-1** — Implementar `PATCH` e `DELETE /api/transactions/[id]`, o diálogo de edição, o resgate total e a confirmação.
+
+### US18 · Acompanhar renda fixa e fundos pelo saldo · RF03.5
+
+Entregue pela [Etapa 7 (Lançamentos e organização)](../ledger/).
+
+> **Como** investidor,
+> **quero** registrar o saldo de um CDB ou fundo,
+> **para** acompanhá-lo sem preço por cota.
+
+##### Critérios de Aceitação
+
+- **CA08.6** — Renda fixa sem ticker recebe `RF-<NOME>-<sufixo>`.
+- **CA08.7** — Um lançamento `update` redefine posição e custo e zera o realizado.
+- **CA08.8** — Ativo por saldo vale o próprio saldo, sem cotação.
+
+##### Tasks
+
+- **TK07-2** — Tratar o tipo `update` em `core/portfolio.ts`, gerar o ticker automático e ajustar o formulário para as categorias por saldo.
+
+### US20 · Organizar a carteira · RF03.6
+
+Entregue pela [Etapa 7 (Lançamentos e organização)](../ledger/).
+
+> **Como** investidor,
+> **quero** filtrar, ordenar e compartilhar a visão da carteira,
+> **para** encontrar rápido o que importa.
+
+##### Critérios de Aceitação
+
+- **CA08.13** — "Ativas" esconde os zerados; "Todos" os mostra; ativo sem lançamento conta como ativo.
+- **CA08.14** — Ordenação por cabeçalho; numérica começa do maior; sem cotação vai para o fim (`sortUndefined: 'last'`).
+- **CA08.15** — O rodapé soma só as posições abertas e pondera a rentabilidade pelo custo.
+- **CA08.16** — Posição aberta conta até hoje; encerrada, até a última venda.
+- **CA08.17** — Filtro e ordenação ficam na URL, o padrão é omitido e a recarga mantém.
+- **CA08.18** — `/assets/<ticker>` abre o ativo sem diferenciar maiúsculas.
+
+##### Tasks
+
+- **TK07-3** — Escrever `core/organize.ts` com o filtro e o rodapé ponderado.
+- **TK07-4** — Controlar a ordenação do TanStack Table pela URL.
+- **TK07-5** — Resolver `/assets/[id]` por ticker, sem diferenciar maiúsculas.
+
+### US21 · Registrar os proventos de cada ativo · RF11
+
+Entregue pela [Etapa 8 (Proventos e movimentações)](../dividends/).
+
+> **Como** investidor,
+> **quero** sincronizar o histórico de proventos de um ativo,
+> **para** saber o que ele pagou.
+
+##### Critérios de Aceitação
+
+- **CA09.1** — O histórico é único por (dono, ativo, data ex); só o dono lê e escreve.
+- **CA09.2** — Só ações, FII, ETF e FI-Infra têm proventos por cota; as demais recebem aviso e nada é gravado.
+- **CA09.3** — Sincronizar duas vezes não duplica.
+- **CA09.4** — Provedor fora do ar responde erro sem apagar o histórico já gravado.
+
+##### Tasks
+
+- **TK08-1** — Criar o modelo `Dividend`, a migration `dividends`, o provedor de proventos e `server/dividends.ts` idempotente.
+- **TK08-2** — Expor `POST /api/assets/[id]/dividends/sync` e a aba Proventos na tela do ativo.
+
+### US22 · Ver o que recebi de proventos · RF12
+
+Entregue pela [Etapa 8 (Proventos e movimentações)](../dividends/).
+
+> **Como** investidor,
+> **quero** ver o total recebido, por mês e por ativo,
+> **para** medir a renda passiva.
+
+##### Critérios de Aceitação
+
+- **CA09.5** — A posição comprada antes da data ex recebe; compra na data ex não; venda na data ex ainda recebe.
+- **CA09.6** — KPIs de total, últimos doze meses e yield on cost.
+- **CA09.7** — A matriz e os maiores pagadores somam o mesmo total do extrato.
+- **CA09.8** — A aba aparece só em ativo elegível, e o retorno total soma valorização, realizado e proventos.
+
+##### Tasks
+
+- **TK08-3** — Escrever `core/dividends.ts` com direito pela data ex, YoC e retorno total.
+- **TK08-4** — Expor `GET /api/dividends` e a página `/dividends` com KPIs, matriz, maiores pagadores e filtro por ativo.
+
+### US23 · Incluir os proventos na rentabilidade · RF13
+
+Entregue pela [Etapa 8 (Proventos e movimentações)](../dividends/).
+
+> **Como** investidor,
+> **quero** escolher se a rentabilidade considera os proventos,
+> **para** comparar retorno de preço e retorno total.
+
+##### Critérios de Aceitação
+
+- **CA09.9** — O toggle "Com proventos" entra no lucro da carteira.
+- **CA09.10** — Proventos do mês entram no valor e no retorno da matriz.
+- **CA09.11** — A terceira série "Valor + Proventos" acumula até cada mês.
+
+##### Tasks
+
+- **TK08-5** — Ligar o toggle ao lucro, à matriz de `core/returns.ts` e à terceira série de `core/evolution.ts`.
+
+### US24 · Acompanhar aportes e resgates · RF14
+
+Entregue pela [Etapa 8 (Proventos e movimentações)](../dividends/).
+
+> **Como** investidor,
+> **quero** um extrato do que entrou e saiu,
+> **para** ver o fluxo separado do rendimento.
+
+##### Critérios de Aceitação
+
+- **CA09.12** — KPIs de aportes, resgates e saldo líquido; `update` não é movimentação.
+- **CA09.13** — O gráfico de barras agrupa por mês na janela escolhida.
+- **CA09.14** — O extrato lista cada movimentação com o ativo e o comprovante.
+- **CA09.15** — É possível registrar um lançamento pela própria página.
+
+##### Tasks
+
+- **TK08-6** — Escrever `core/movements.ts`, o `BarChart` e a página `/movements`.
+
+### US25 · Ter ativos em dólar na carteira · RF15
+
+Entregue pela [Etapa 9 (Dólar e cripto)](../international/).
+
+> **Como** investidor,
+> **quero** cadastrar um ETF americano,
+> **para** ver a carteira inteira em reais.
+
+##### Critérios de Aceitação
+
+- **CA10.1** — A moeda do ativo é `BRL` ou `USD`; renda fixa fica em reais e outra moeda é recusada.
+- **CA10.2** — Ticker só de letras sugere `USD`; com dígitos, `BRL`; a sugestão pode ser trocada.
+- **CA10.3** — `ExchangeRate` devolve a taxa do dia ou a última anterior; é lida por qualquer sessão e escrita só pela rodada.
+- **CA10.4** — A carteira converte o ativo em dólar pela taxa mais recente.
+- **CA10.5** — Sem nenhuma taxa gravada, a referência fixa é usada sem quebrar.
+
+##### Tasks
+
+- **TK09-1** — Acrescentar o `enum Currency` ao ativo, a sugestão pelo ticker e a trava de renda fixa em reais.
+- **TK09-2** — Escrever `core/exchange.ts`, `server/exchange.ts` e `GET /api/exchange`; a rodada grava a taxa USD/BRL do dia.
+
+### US26 · Separar a valorização do ativo do efeito do dólar · RF16
+
+Entregue pela [Etapa 9 (Dólar e cripto)](../international/).
+
+> **Como** investidor,
+> **quero** ver o custo pelo câmbio de cada compra,
+> **para** saber o que foi o ativo e o que foi o dólar.
+
+##### Critérios de Aceitação
+
+- **CA10.6** — O custo em reais usa o câmbio do mês de cada compra, não o de hoje.
+- **CA10.7** — O fluxo do mês é convertido pelo câmbio do mês.
+- **CA10.8** — Origem e evolução convertem pela taxa do mês.
+- **CA10.9** — O gráfico do ativo alterna entre US$ e R$ por `?currency=`.
+- **CA10.10** — A variação do câmbio não vira aporte.
+
+##### Tasks
+
+- **TK09-3** — Converter carteira, matriz, origem e evolução: taxa recente para o valor, taxa do mês para custo e fluxo.
+- **TK09-5** — Escrever o `ExchangeProvider` e o seletor de moeda do gráfico do ativo.
+
+### US27 · Cotar cripto · RF17
+
+Entregue pela [Etapa 9 (Dólar e cripto)](../international/).
+
+> **Como** investidor,
+> **quero** cotar bitcoin em reais,
+> **para** vê-lo na carteira como qualquer ativo.
+
+##### Critérios de Aceitação
+
+- **CA10.11** — Cripto é consultada como `TICKER-USD` e convertida pelo par `BRL=X` da mesma rodada.
+- **CA10.12** — Sem o câmbio na rodada, a cripto em real fica sem cotação.
+- **CA10.13** — Cada rodada com câmbio grava a taxa do dia, sem duplicar.
+
+##### Tasks
+
+- **TK09-4** — Tratar o símbolo de cripto e a conversão em `server/quotes/providers.ts` e `server/quotes/update.ts`.
+
+### US29 · Manter meu perfil · RF19
+
+Entregue pela [Etapa 10 (Perfil e experiência)](../experience/).
+
+> **Como** investidor,
+> **quero** editar meu nome e minha foto,
+> **para** reconhecer minha conta.
+
+##### Critérios de Aceitação
+
+- **CA11.1** — O perfil mostra nome, e-mail, papel e data de cadastro; nome em branco é recusado.
+- **CA11.2** — O avatar aceita PNG, JPG, WEBP e GIF até 2 MB e vai para a pasta do dono no bucket público `avatars`.
+- **CA11.3** — Remover o avatar zera o path e volta à inicial.
+- **CA11.4** — `role` não muda pelo cliente.
+
+##### Tasks
+
+- **TK10-1** — Escrever `server/profile.ts`, `GET`/`PATCH /api/profile` e a página `/profile`.
+- **TK10-2** — Declarar o bucket público `avatars` e as rotas `POST`/`DELETE /api/profile/avatar` com validação de tipo e tamanho.
+
+### US30 · Navegar com contexto · RF20
+
+Entregue pela [Etapa 1 (Fundação e identidade)](../foundation/) e consolidada na [Etapa 10](../experience/).
+
+> **Como** investidor,
+> **quero** a mesma barra em toda tela privada e a landing sabendo que estou logado,
+> **para** não me perder na navegação.
+
+##### Critérios de Aceitação
+
+- **CA11.5** — Toda página de `(private)` compartilha o `AppShell` com os mesmos links.
+- **CA11.6** — O menu do usuário mostra o nome e leva ao perfil e ao sair.
+- **CA11.7** — A landing com sessão oferece "Acessar Carteira" no lugar de "Entrar" e "Criar conta".
+- **CA11.8** — Esc fecha o diálogo sem salvar.
+
+##### Tasks
+
+- **TK01-7** — (compartilhada com US02) `Dialog` e `AlertDialog` sobre Base UI, com foco e teclado provados no navegador.
+- **TK10-3** — Consolidar o `AppShell`, o menu do usuário e a landing com sessão.
+
+### US31 · Escolher o tema e ocultar valores · RF21
+
+Entregue pela [Etapa 10 (Perfil e experiência)](../experience/).
+
+> **Como** investidor,
+> **quero** escolher o tema e esconder os valores,
+> **para** usar a aplicação em público.
+
+##### Critérios de Aceitação
+
+- **CA11.9** — O tema gira claro → escuro → automático e persiste entre páginas.
+- **CA11.10** — Ocultar valores alterna em tudo, inclusive no que renderiza depois, e persiste só o necessário.
+- **CA11.11** — O campo de senha alterna entre mostrar e ocultar.
+
+##### Tasks
+
+- **TK10-4** — Escrever `store/preferences.ts` com Zustand `persist` e o componente `Money`.
+- **TK10-5** — Acrescentar o botão de mostrar senha aos formulários de sessão.
+
+### US32 · Publicar a aplicação · RF22, RNF02, RNF06
+
+Entregue pela [Etapa 10 (Perfil e experiência)](../experience/).
+
+> **Como** mantenedor,
+> **quero** provar que o build não leva segredo e responde com cabeçalhos de segurança,
+> **para** publicar com confiança.
+
+##### Critérios de Aceitação
+
+- **CA11.12** — Os chunks do cliente em `.next/static` não contêm `SUPABASE_SERVICE_ROLE_KEY` nem `AUTH_SECRET`.
+- **CA11.13** — Toda resposta traz os cabeçalhos de `next.config.ts`.
+
+##### Tasks
+
+- **TK10-6** — Declarar os cabeçalhos em `next.config.ts` e escrever `tests/deploy/build.test.ts` sobre o `next build` real.
+
+## Planejamento por etapa
+
+As dez etapas evoluem um único projeto, `investflow-react`; não há uma cópia por etapa, porque a arquitetura não muda entre elas. A validação de cada task é o mínimo antes de mover a entrega para pronta: `pnpm lint`, `pnpm typecheck` e a camada de teste indicada.
+
+### Etapa 1 · Fundação e identidade
+
+Cria o esqueleto que as outras nove reutilizam: banco, identidade, guardas, primitivas e as três camadas de teste.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK01-1** | US02 | Projeto Next.js 16, TypeScript strict, Tailwind v4, ESLint, Husky e documentação. | `pnpm install`, `pnpm dev`, `pnpm lint`. |
+| **TK01-2** | US03 | Prisma 7 com `adapter-pg` no Postgres do Supabase local, modelo `User`, migration `init`. | `pnpm db:migrate` contra `supabase start`. |
+| **TK01-3** | US03 | NextAuth Credentials, `scrypt`, JWT com `id` e `role`. | Integração: `authorize` com senha certa, errada e e-mail inexistente. |
+| **TK01-4** | US03 | Server Action de cadastro, `/signin`, `/signup`, sign-out. | E2E de cadastro, login e logout. |
+| **TK01-5** | US04 | `proxy.ts`, `requireSession`, `requireAdmin`, `GET /api/me`. | Integração `401`; e2e de redirect. |
+| **TK01-6** | US01 | `core/simulator.ts` e a landing como Server Component. | Unit do simulador; e2e da landing. |
+| **TK01-7** | US02, US30 | Primitivas com Base UI e CVA; `Providers`. | Browser Mode: papéis, foco, teclado. |
+| **TK01-8** | todas | Projetos Vitest `unit`, `browser` e `integration`; Playwright com `webServer`. | `pnpm test` e `pnpm test:e2e` verdes. |
+
+### Etapa 2 · Carteira
+
+Traz o domínio da carteira e a regra que substitui o RLS: toda função de servidor recebe o `userId`.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK02-1** | US05 | Modelos `Broker`, `Asset`, `Transaction`; migration `portfolio`. | `pnpm db:migrate`. |
+| **TK02-2** | US05 | `core/portfolio.ts` portado do vanilla. | Unit com a planilha de referência. |
+| **TK02-3** | US05 | Schemas Zod em `core/assets.ts`. | Unit: categoria inválida, quantidade zero. |
+| **TK02-4** | US05, US06 | `server/assets.ts`, `server/brokers.ts` e as rotas de ativos e lançamentos. | Integração com duas contas. |
+| **TK02-5** | US05 | Dashboard com TanStack Table e formulários em `Dialog`. | E2E de cadastro de ativo e lançamento. |
+| **TK02-6** | US11 | Tela `/assets/[id]` com extrato. | E2E; integração `404` para ativo alheio. |
+| **TK02-7** | US14 | Editar e excluir ativo com `AlertDialog` e cascade. | Browser Mode do diálogo; integração; e2e. |
+| **TK02-8** | US16 | `server/seed.ts` demonstrativo. | Integração executa o seed. |
+
+### Etapa 3 · Cotações e responsividade
+
+A Edge Function vira route handler, e o projeto passa a ser provado no celular.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK03-1** | US07 | Modelos `Quote`, `QuoteRun`, `ExchangeRate`; migration `quotes`. | `pnpm db:migrate`. |
+| **TK03-2** | US07 | Provedores `fake` e `yahoo`. | Unit do `fake`; e2e usa `QUOTES_PROVIDER=fake`. |
+| **TK03-3** | US07 | `core/quotes.ts` e `POST /api/quotes/update`. | Integração: uma linha por dia, falha parcial. |
+| **TK03-4** | US15 | Busca automática ao salvar ativo cotável. | E2E. |
+| **TK03-5** | US19 | Cotação e saldo manuais. | Integração e e2e. |
+| **TK03-6** | US28 | `core/market-calendar.ts`. | Unit dos calendários. |
+| **TK03-7** | US33 | Barra móvel, colunas por breakpoint, 44 px, diálogos por `max-w`. | Inspeção a 360 px. |
+| **TK03-8** | US33 | Projeto Playwright `mobile` (Pixel 7). | `pnpm test:e2e --project mobile`. |
+
+### Etapa 4 · Comprovantes
+
+O navegador nunca fala com o Storage; o servidor valida, envia e assina.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK04-1** | US08 | Bucket privado `receipts` e `pnpm db:buckets`. | `supabase status` lista o bucket. |
+| **TK04-2** | US08 | `core/file-validation.ts`. | Unit: tipo, tamanho e path. |
+| **TK04-3** | US08 | `server/receipts.ts` e as rotas de comprovante. | Integração faz upload e download reais. |
+| **TK04-4** | US08 | Anexar e abrir na tela do ativo. | E2E. |
+
+### Etapa 5 · Rentabilidade e admin
+
+As views SQL viram funções puras, e o painel admin ganha autorização por papel.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK05-1** | US09 | `core/returns.ts`. | Unit com a planilha de referência. |
+| **TK05-2** | US09 | `server/analytics.ts`, `GET /api/analytics`, `/analytics`. | Integração com duas contas; e2e. |
+| **TK05-3** | US10 | `core/admin.ts`, `server/admin.ts`, rota e página admin. | Integração `403` e payload; e2e do redirect. |
+
+### Etapa 6 · Origem e evolução
+
+Os dois gráficos são SVG desenhado por funções puras, com o estado na URL.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK06-1** | US12 | `core/origins.ts`, `core/treemap.ts`, `GET /api/origins`, `/origins`. | Unit do layout; integração; e2e. |
+| **TK06-2** | US13 | `core/evolution.ts`, `core/line-chart.ts`, `GET /api/assets/[id]/evolution`. | Unit; integração; e2e. |
+| **TK06-3** | US13 | `lib/url-state.ts`. | Unit; e2e de `?mode=&range=`. |
+| **TK06-4** | US12, US13 | `Treemap` e `LineChart` em `components/charts/`. | E2E. |
+
+### Etapa 7 · Lançamentos e organização
+
+Estende a carteira sem trocar a arquitetura: mais rotas, mais regras puras, mais estado na URL.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK07-1** | US17 | `PATCH`/`DELETE /api/transactions/[id]`, edição, resgate total, confirmação. | Integração; e2e. |
+| **TK07-2** | US18 | Tipo `update`, ticker automático, categorias por saldo. | Unit; e2e. |
+| **TK07-3** | US20 | `core/organize.ts`. | Unit. |
+| **TK07-4** | US20 | Ordenação do TanStack Table pela URL. | E2E. |
+| **TK07-5** | US20 | `/assets/<ticker>` sem diferenciar maiúsculas. | E2E. |
+
+### Etapa 8 · Proventos e movimentações
+
+A sincronização de proventos roda no servidor desde o início, o que o vanilla deixou para os próximos passos.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK08-1** | US21 | Modelo `Dividend`, migration, provedor e `server/dividends.ts`. | Integração: idempotência e provedor fora do ar. |
+| **TK08-2** | US21 | `POST /api/assets/[id]/dividends/sync` e a aba Proventos. | E2E. |
+| **TK08-3** | US22 | `core/dividends.ts`. | Unit da data ex, YoC e retorno total. |
+| **TK08-4** | US22 | `GET /api/dividends` e `/dividends`. | E2E. |
+| **TK08-5** | US23 | Toggle "Com proventos". | Unit; e2e. |
+| **TK08-6** | US24 | `core/movements.ts`, `BarChart`, `/movements`. | Unit; e2e. |
+
+### Etapa 9 · Dólar e cripto
+
+Acrescenta a moeda ao ativo e a taxa ao mês, sem tocar nas fórmulas já testadas.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK09-1** | US25 | `enum Currency`, sugestão pelo ticker, trava de renda fixa. | Unit; integração; e2e. |
+| **TK09-2** | US25 | `core/exchange.ts`, `server/exchange.ts`, `GET /api/exchange`. | Unit; integração. |
+| **TK09-3** | US26 | Conversão em carteira, matriz, origem e evolução. | Unit; integração. |
+| **TK09-4** | US27 | Símbolo e conversão de cripto. | Unit; integração. |
+| **TK09-5** | US26 | `ExchangeProvider` e seletor de moeda do gráfico. | E2E. |
+
+### Etapa 10 · Perfil e experiência
+
+Fecha o produto com o que o usuário vê todo dia e com a prova de que o build é publicável.
+
+| Task | História | Entrega | Validação |
+| ---- | -------- | ------- | --------- |
+| **TK10-1** | US29 | `server/profile.ts`, rotas e página `/profile`. | Integração; e2e. |
+| **TK10-2** | US29 | Bucket `avatars` e rotas de avatar. | Unit da validação; integração. |
+| **TK10-3** | US30 | `AppShell`, menu do usuário, landing com sessão. | E2E. |
+| **TK10-4** | US31 | `store/preferences.ts` e `Money`. | Unit do store; e2e. |
+| **TK10-5** | US31 | Mostrar senha. | E2E. |
+| **TK10-6** | US32 | Cabeçalhos em `next.config.ts` e `tests/deploy/build.test.ts`. | `pnpm test:build`. |
+
+## Cobertura por etapa
+
+A matriz confere se as páginas da trilha ensinam tudo que o backlog promete, e registra o tamanho da suíte ao fim de cada etapa. Quando uma task nova entrar, atualize também a página correspondente.
+
+| Página | Histórias cobertas | Tasks | Vitest / Playwright ao fim |
+| ------ | ------------------ | ----- | -------------------------- |
+| [1. Fundação e identidade](../foundation/) | US01, US02, US03, US04, US30 | TK01-1 a TK01-8 | 21 / 5 |
+| [2. Carteira](../portfolio/) | US05, US06, US11, US14, US16 | TK02-1 a TK02-8 | 48 / 10 |
+| [3. Cotações](../quotes/) | US07, US15, US19, US28, US33 | TK03-1 a TK03-8 | 71 / 14 |
+| [4. Comprovantes](../receipts/) | US08 | TK04-1 a TK04-4 | 78 / 17 |
+| [5. Rentabilidade e admin](../analytics/) | US09, US10 | TK05-1 a TK05-3 | 89 / 21 |
+| [6. Origem e evolução](../origins/) | US12, US13 | TK06-1 a TK06-4 | 100 / 25 |
+| [7. Lançamentos e organização](../ledger/) | US17, US18, US20 | TK07-1 a TK07-5 | 103 / 27 |
+| [8. Proventos e movimentações](../dividends/) | US21, US22, US23, US24 | TK08-1 a TK08-6 | 113 / 32 |
+| [9. Dólar e cripto](../international/) | US25, US26, US27 | TK09-1 a TK09-5 | 120 / 34 |
+| [10. Perfil e experiência](../experience/) | US29, US30, US31, US32 | TK10-1 a TK10-6 | 123 (+ 2 build) / 36 |
+| [Próximos passos](../next-steps/) | evolução pós-MVP | CI, cache, cron, revogação de sessão, RLS como segunda camada | — |
+
+## Executando
+
+O comando abaixo lista, no projeto real, todos os critérios que têm um teste com o id no título. Compare a saída com a tabela de rastreabilidade: um critério que aparece aqui e não aparece lá é uma promessa sem prova.
+
+```bash title="Terminal"
+grep -rhoE "CA[0-9]{2}\.[0-9]{1,2}" examples/courses/react/investflow-react/src examples/courses/react/investflow-react/tests | sort -uV
+```
+
+## Exercício
+
+Escolha uma task das etapas 2 a 10 e escreva uma spec técnica curta para ela: história relacionada, arquivos de `core/`, `server/` e `app/` afetados, a camada de teste que a prova e o risco de isolamento entre contas, se houver.
+
+## Desafio
+
+O critério CA08.5 do vanilla (sete categorias na interface) não tem teste aqui. Escreva-o como um teste `browser` sobre o formulário de ativo, com o id no título, e decida se ele pertence à história US05 ou à US18. Justifique pela tabela de rastreabilidade.
+
+## Perguntas de revisão
+
+### Backlog e execução
+
+1. **Por que os identificadores de `US` e `CA` foram mantidos, mas os de `TK` são próprios?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     História e critério descrevem o produto, que é o mesmo nas duas implementações; manter os ids permite comparar linha a linha. Task descreve a entrega técnica, que muda de stack e de ritmo (dez etapas contra onze sprints), então uma numeração própria evita a falsa impressão de correspondência.
+   </details>
+
+2. **O que a coluna "Camadas" da rastreabilidade acrescenta em relação ao vanilla?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Ela obriga a decidir, no planejamento, se um critério é regra pura (`unit`), comportamento de componente (`browser`), contrato de rota e isolamento (`integration`) ou jornada (`e2e`). Um critério sem camada é um critério sem plano de prova.
+   </details>
+
+3. **Por que o épico de design responsivo (EP12) começa na etapa 3 e não na 1?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque só a partir da etapa 3 existem tabelas largas e diálogos suficientes para o requisito fazer diferença. Ele entrou como regra para todas as etapas seguintes: cada tela nova acrescenta pelo menos o CA12.1 ao projeto `mobile`.
+   </details>
+
+### Segurança e isolamento
+
+4. **O que substitui o RLS nesta versão, e por que isso muda o backlog?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O filtro por `userId` em cada função de `src/server/`. Como não há rede de segurança no banco, o isolamento deixa de ser uma task única (criar policies) e vira um critério repetido em toda história que lê ou escreve dados, sempre provado com duas contas.
+   </details>
+
+5. **Por que um ativo alheio responde `404` e não `403`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque `403` confirma que o registro existe e pertence a alguém. `404` não diferencia "não existe" de "não é seu", o que é a mesma resposta que o RLS dava no vanilla ao devolver zero linhas.
+   </details>
+
+## Referências
+
+- [Backlog do InvestFlow (vanilla)](../../../../npm/practice/investflow/backlog/): a origem dos requisitos e a numeração de `US` e `CA`.
+- [Agile Alliance: User Stories](https://www.agilealliance.org/glossary/user-stories/)
+- [Next.js: Route Handlers](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
+- [Auth.js: Credentials provider](https://authjs.dev/getting-started/authentication/credentials)
+- [Prisma: relations e `onDelete`](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/referential-actions)
+- [Vitest: projects](https://vitest.dev/guide/projects)
+
+## Próximo tópico
+
+Avance para a [Etapa 1: Fundação e identidade](../foundation/) para ver como as oito primeiras tasks viram banco, identidade, guardas e as três camadas de teste.
