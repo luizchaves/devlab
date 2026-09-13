@@ -142,3 +142,13 @@ export function useDeleteTransaction() {
   });
 }
 // #endregion
+
+// #region dividends
+export function useSyncDividends(assetId: string) {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: () => api<{ count: number; message?: string }>(`/api/assets/${assetId}/dividends/sync`, { method: 'POST' }),
+    onSuccess: invalidate,
+  });
+}
+// #endregion

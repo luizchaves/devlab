@@ -18,6 +18,7 @@ const asset = (overrides: Partial<AssetWithTransactions> = {}): AssetWithTransac
   broker: null,
   currentPrice: 40,
   transactions: [],
+  dividends: [],
   ...overrides,
 });
 

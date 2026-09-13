@@ -7,8 +7,11 @@ import { formatPercent } from '@/lib/format';
 
 // #region kpis
 /** Os quatro números da carteira: valor, custo, resultado e posições ativas. */
-export function PortfolioKpis({ totals }: { totals: PortfolioTotals }) {
-  const positive = totals.unrealized >= 0;
+export function PortfolioKpis({ totals, dividends = 0 }: { totals: PortfolioTotals; dividends?: number }) {
+  // Com o toggle "Com proventos", o lucro soma o que foi recebido (CA09.9).
+  const unrealized = totals.unrealized + dividends;
+  const returnPct = totals.cost === 0 ? null : unrealized / totals.cost;
+  const positive = unrealized >= 0;
 
   return (
     <dl className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -19,9 +22,10 @@ export function PortfolioKpis({ totals }: { totals: PortfolioTotals }) {
         <Money value={totals.cost} data-kpi="cost" />
       </Kpi>
       <Kpi label={positive ? 'Lucro' : 'Prejuízo'} className={positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-        <Money value={totals.unrealized} data-kpi="unrealized" />
+        <Money value={unrealized} data-kpi="unrealized" />
         <span className="mt-1 block text-xs font-medium" data-kpi="returnPct">
-          {totals.returnPct == null ? '—' : formatPercent(totals.returnPct)}
+          {returnPct == null ? '—' : formatPercent(returnPct)}
+          {dividends > 0 && ' com proventos'}
         </span>
       </Kpi>
       <Kpi label="Ativos" className="text-indigo-600 dark:text-indigo-400">

@@ -1,8 +1,9 @@
 'use client';
 
 import { LineChart } from '@/components/charts/line-chart';
+import { Segmented } from '@/components/ui/toggle';
+import { cumulativeDividends, type ReceivedDividend } from '@/core/dividends';
 import { timeline, toSeries, totalsByMonth, type EvolutionRow, type TimelineMode, type TimelineRange } from '@/core/evolution';
-import { cn } from '@/lib/cn';
 import { useUrlState } from '@/lib/url-state';
 
 const MODES: { value: TimelineMode; label: string }[] = [
@@ -24,9 +25,11 @@ export function useTimelineParams() {
 // #endregion
 
 // #region chart
-export function EvolutionChart({ evolution, movementMonths }: { evolution: EvolutionRow[]; movementMonths: string[] }) {
+export function EvolutionChart({ evolution, movementMonths, dividends = [], includeDividends = false }: { evolution: EvolutionRow[]; movementMonths: string[]; dividends?: ReceivedDividend[]; includeDividends?: boolean }) {
   const { mode, range, set } = useTimelineParams();
-  const points = timeline(totalsByMonth(evolution), { mode, range, movementMonths });
+  // A terceira série acumula os proventos pagos até cada mês (CA09.11).
+  const withAcc = totalsByMonth(evolution).map((p) => ({ ...p, dividendsAcc: cumulativeDividends(dividends, p.month.slice(0, 7)) }));
+  const points = timeline(withAcc, { mode, range, movementMonths });
 
   return (
     <div data-evolution className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
@@ -37,27 +40,8 @@ export function EvolutionChart({ evolution, movementMonths }: { evolution: Evolu
           <Segmented options={RANGES} value={range} onChange={(value) => set({ range: value })} attribute="data-timeline-range" label="Janela" />
         </div>
       </div>
-      <LineChart series={toSeries(points)} />
+      <LineChart series={toSeries(points, { includeDividends })} />
     </div>
   );
 }
 // #endregion
-
-function Segmented<T extends string>({ options, value, onChange, attribute, label }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; attribute: string; label: string }) {
-  return (
-    <div role="group" aria-label={label} className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs dark:border-slate-700">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          {...{ [attribute]: o.value }}
-          aria-pressed={o.value === value}
-          onClick={() => onChange(o.value)}
-          className={cn('min-h-9 rounded-md px-3 font-medium', o.value === value ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800')}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}

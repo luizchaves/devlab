@@ -10,6 +10,7 @@ const tx = (type: TransactionFact['type'], quantity: number, price: number, tran
 
 const petr: AssetWithQuotes = {
   id: 'a1', ticker: 'PETR4', name: 'Petrobras', category: 'acoes', currency: 'BRL', issuer: 'Petrobras', broker: { id: 'b1', name: 'XP' }, currentPrice: 33,
+  dividends: [],
   transactions: [tx('buy', 100, 30, '2026-01-10'), tx('buy', 100, 34, '2026-02-10')],
   quotes: [{ price: 31, quoteDate: '2026-01-31' }, { price: 33, quoteDate: '2026-02-28' }],
 };

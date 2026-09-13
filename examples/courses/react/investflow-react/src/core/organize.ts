@@ -1,3 +1,4 @@
+import { summarizeWithDividends } from './dividends';
 import { summarize, totals, type AssetWithTransactions, type PortfolioTotals } from './portfolio';
 
 // #region filter
@@ -14,9 +15,20 @@ export function filterAssets(assets: AssetWithTransactions[], filter: AssetFilte
 // #endregion
 
 // #region footer
-/** O rodapé soma as posições abertas exibidas e mostra a rentabilidade ponderada pelo custo (CA08.15). */
-export function footerTotals(assets: AssetWithTransactions[], { usdRate = 1 } = {}): PortfolioTotals | null {
+export type FooterTotals = PortfolioTotals & { dividends: number; includeDividends: boolean };
+
+/**
+ * O rodapé soma as posições abertas exibidas e mostra a rentabilidade
+ * ponderada pelo custo (CA08.15). Com `includeDividends`, os proventos
+ * recebidos entram no lucro e na rentabilidade (CA09.9).
+ */
+export function footerTotals(assets: AssetWithTransactions[], { usdRate = 1, includeDividends = false } = {}): FooterTotals | null {
   const open = assets.filter(isAssetActive).filter((a) => a.transactions.length > 0);
-  return open.length === 0 ? null : totals(open, { usdRate });
+  if (open.length === 0) return null;
+  const base = totals(open, { usdRate });
+  const dividends = open.reduce((sum, a) => sum + summarizeWithDividends(a, { usdRate }).dividendsBRL, 0);
+  if (!includeDividends) return { ...base, dividends, includeDividends };
+  const unrealized = base.unrealized + dividends;
+  return { ...base, dividends, includeDividends, unrealized, returnPct: base.cost === 0 ? null : unrealized / base.cost };
 }
 // #endregion

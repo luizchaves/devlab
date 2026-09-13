@@ -13,7 +13,11 @@ import { isQuotable } from '@/core/quotes';
 import { useAsset, useDeleteTransaction, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
 import { formatDate, formatPercent } from '@/lib/format';
+import { isDividendEligible, receivedDividends, summarizeWithDividends } from '@/core/dividends';
 import { EvolutionChart } from '@/features/analytics/evolution-chart';
+import { Segmented } from '@/components/ui/toggle';
+import { useUrlState } from '@/lib/url-state';
+import { DividendsTab } from './dividends-tab';
 import type { EvolutionRow } from '@/core/evolution';
 import { QuoteDialog } from './quote-dialog';
 import { TransactionFormDialog } from './transaction-form-dialog';
@@ -31,6 +35,10 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
   const [quoteDialog, setQuoteDialog] = useState<{ open: boolean; warning: string | null }>({ open: false, warning: null });
   const updateQuotes = useUpdateQuotes();
   const position = useMemo(() => summarize(asset), [asset]);
+  const eligible = isDividendEligible(asset.category);
+  const withDividends = useMemo(() => summarizeWithDividends(asset), [asset]);
+  const dividendItems = useMemo(() => receivedDividends(asset), [asset]);
+  const [{ tab }, setTab] = useUrlState({ tab: 'ledger' });
   const duration = useMemo(() => investmentDuration(asset.transactions), [asset.transactions]);
   const positive = (position.unrealized ?? 0) >= 0;
 
@@ -105,18 +113,47 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
         <Kpi label="Rentabilidade" className={positive ? 'text-emerald-600' : 'text-rose-600'} sub={`Realizado: ${position.realized.toLocaleString('pt-BR', { style: 'currency', currency: asset.currency })}`} subAttribute="realized">
           <span data-kpi="returnPct">{position.returnPct == null ? '—' : formatPercent(position.returnPct)}</span>
         </Kpi>
+        {eligible && (
+          <div data-kpi-card="totalReturn" className="min-w-0 rounded-2xl border border-purple-200 bg-white p-4 sm:p-5 dark:border-purple-900 dark:bg-slate-900">
+            <dt className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Retorno total</dt>
+            <dd className="mt-2 text-lg font-bold text-purple-700 sm:text-2xl dark:text-purple-400" data-kpi="totalReturnPct">
+              {withDividends.returnPct == null ? '—' : formatPercent(withDividends.returnPct)}
+            </dd>
+            <dd className="mt-1 text-xs text-purple-600 dark:text-purple-400" data-kpi="totalReturnSub">
+              Valorização + realizado + <Money value={withDividends.dividendsBRL} /> em proventos
+            </dd>
+          </div>
+        )}
       </dl>
 
       <EvolutionChart evolution={evolution.evolution} movementMonths={evolution.movementMonths} />
 
       <div>
-        <h2 className="mb-3 text-lg font-bold">Lançamentos</h2>
-        <TransactionsTable
-          transactions={asset.transactions}
-          currency={asset.currency}
-          onEdit={(transaction) => setTxDialog({ open: true, transaction })}
-          onDelete={setDeleting}
-        />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-bold">{tab === 'dividends' ? 'Proventos' : 'Lançamentos'}</h2>
+          {eligible && (
+            <Segmented
+              label="Aba"
+              attribute="data-tab-btn"
+              value={tab}
+              onChange={(value) => setTab({ tab: value })}
+              options={[
+                { value: 'ledger', label: 'Lançamentos' },
+                { value: 'dividends', label: `Proventos (${dividendItems.length})` },
+              ]}
+            />
+          )}
+        </div>
+        {tab === 'dividends' && eligible ? (
+          <DividendsTab asset={asset} />
+        ) : (
+          <TransactionsTable
+            transactions={asset.transactions}
+            currency={asset.currency}
+            onEdit={(transaction) => setTxDialog({ open: true, transaction })}
+            onDelete={setDeleting}
+          />
+        )}
       </div>
 
       {txDialog.open && (

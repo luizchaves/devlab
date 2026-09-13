@@ -24,6 +24,8 @@ export type AssetWithTransactions = {
   broker: { id: string; name: string } | null;
   currentPrice: number | null;
   transactions: TransactionFact[];
+  /** Histórico de proventos (fase 8); vazio para categorias sem proventos por cota. */
+  dividends: { id: string; rate: number; exDate: string; paymentDate: string }[];
 };
 
 export const CATEGORIES: AssetCategory[] = ['renda_fixa', 'acoes', 'fiis', 'etfs', 'fi_infra', 'fundos', 'cripto'];

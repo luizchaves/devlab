@@ -49,6 +49,8 @@ duas podem subir ao mesmo tempo.
 | `/dashboard` | carteira: KPIs, tabela (TanStack Table) com filtro, ordenação e rodapé, estado em `?filter=&sort=&dir=`; cadastro, edição e exclusão de ativos | 2, 7 |
 | `/assets/[id]` | tela do ativo por id ou ticker: posição, duração, gráfico, extrato com edição, exclusão e resgate total | 2, 6, 7 |
 | `/analytics` | KPIs, gráfico aportes × valor (modo e janela na URL), matriz ano × mês e distribuição por classe | 5, 6 |
+| `/dividends` | proventos recebidos: KPIs, extrato ou matriz (`?view=`), maiores pagadores, filtro `?asset=` | 8 |
+| `/movements` | aportes e resgates: KPIs de fluxo, barras por mês (`?range=`), extrato com anexos e registro pela página | 8 |
 | `/origins` | treemap da carteira por corretora, categoria ou emissor, com legenda | 6 |
 | `/admin` | painel do administrador: contas, AUM, última rodada e status dos serviços; investidor é redirecionado | 5 |
 | `/api/auth/*` | NextAuth | 1 |
@@ -61,6 +63,7 @@ duas podem subir ao mesmo tempo.
 | `GET /api/analytics` | série mensal, distribuição e totais do dono (`core/returns.ts`) | 5 |
 | `GET /api/admin/metrics` | agregados e checks; `403` para quem não é administrador | 5 |
 | `GET /api/origins`, `GET /api/assets/[id]/evolution` | linhas de origem e a evolução mensal de um ativo | 6 |
+| `POST /api/assets/[id]/dividends/sync`, `GET /api/dividends` | sincroniza o histórico de proventos (idempotente) e lista o que foi recebido | 8 |
 
 ## Estrutura
 

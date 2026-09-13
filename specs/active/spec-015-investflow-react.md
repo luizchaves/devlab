@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 7 done)
+Status: **In progress** (Phases 0 to 8 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -222,7 +222,7 @@ layers green.
 - Edit/delete transactions, `update` type for fixed income and funds, auto ticker
   `RF-<NAME>-<suffix>`, filters/sort/tab in the URL; CA08.1–CA08.8, CA08.13–CA08.18.
 
-### Phase 8 · Dividends and movements (RF11–RF14)
+### Phase 8 · Dividends and movements (RF11–RF14) — done
 
 - `Dividend` model, `core/dividends.ts`, `/dividends`, `/movements`; CA09.1–CA09.15.
 
@@ -304,5 +304,12 @@ green. `lib/url-state.ts` generalises the URL state used by the timeline and the
 portfolio (`filter`, `sort`, `dir`); TanStack Table sorting is controlled from the URL
 with `enableSortingRemoval: false`, `sortDescFirst` on numeric columns and
 `sortUndefined: 'last'` for assets without a quote. A closed position is now worth zero
-even without a quote, so it sorts first ascending, as in the vanilla. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+even without a quote, so it sorts first ascending, as in the vanilla.
+
+Phase 8: 113 Vitest tests (65 unit, 10 browser, 38 integration) and 31 Playwright tests
+green. The dividend history rides on the asset payload (`dividends` array), so the
+dashboard, analytics and the asset page compute received dividends with the same
+`core/dividends.ts` function; the `fake` provider ships three events for `HGLG11` so the
+e2e flow syncs from the UI instead of inserting rows. Money in dividends is rounded to
+cents to keep `100 × 1,1 = 110`. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

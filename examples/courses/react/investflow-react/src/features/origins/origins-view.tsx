@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Treemap } from '@/components/charts/treemap';
 import { Money } from '@/components/money';
+import { Segmented } from '@/components/ui/toggle';
 import { DIMENSION_LABELS, groupBy, type OriginDimension, type OriginRow } from '@/core/origins';
 import { api } from '@/lib/http';
-import { cn } from '@/lib/cn';
 import { formatPercent } from '@/lib/format';
 
 const DIMENSIONS = Object.keys(DIMENSION_LABELS) as OriginDimension[];
@@ -26,13 +26,7 @@ export function OriginsView({ initialRows }: { initialRows: OriginRow[] }) {
           <h1 className="text-2xl font-bold">Origem</h1>
           <p className="text-sm text-slate-500">A carteira agrupada por corretora, categoria ou emissor.</p>
         </div>
-        <div role="group" aria-label="Recorte" className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs dark:border-slate-700">
-          {DIMENSIONS.map((d) => (
-            <button key={d} type="button" data-dimension={d} aria-pressed={d === dimension} onClick={() => setDimension(d)} className={cn('min-h-9 rounded-md px-3 font-medium', d === dimension ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800')}>
-              {DIMENSION_LABELS[d]}
-            </button>
-          ))}
-        </div>
+        <Segmented label="Recorte" attribute="data-dimension" value={dimension} onChange={setDimension} options={DIMENSIONS.map((d) => ({ value: d, label: DIMENSION_LABELS[d] }))} />
       </header>
 
       <div data-treemap data-dimension={dimension} className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">

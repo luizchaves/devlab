@@ -1,3 +1,4 @@
+import { receivedDividends } from '@/core/dividends';
 import { portfolioEvolution } from '@/core/evolution';
 import { totals } from '@/core/portfolio';
 import { allocationByCategory, monthlyReturns, type AnalyticsSummary, type AssetWithQuotes } from '@/core/returns';
@@ -36,6 +37,7 @@ export async function getAnalytics(userId: string): Promise<AnalyticsSummary> {
     allocation: allocationByCategory(assets),
     evolution: portfolioEvolution(assets),
     movementMonths: movementMonthsOf(assets),
+    dividends: assets.flatMap((asset) => receivedDividends(asset)),
   };
 }
 

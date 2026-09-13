@@ -1,3 +1,4 @@
+import type { ReceivedDividend } from './dividends';
 import type { EvolutionRow } from './evolution';
 import { BALANCE_CATEGORIES, costAt, positionAt, summarize, type AssetWithTransactions, type PortfolioTotals } from './portfolio';
 
@@ -24,6 +25,8 @@ export type AnalyticsSummary = {
   evolution: EvolutionRow[];
   /** Meses (`AAAA-MM`) com compra ou venda, para o modo eventos. */
   movementMonths: string[];
+  /** Proventos recebidos da carteira (fase 8), para o toggle "Com proventos". */
+  dividends: ReceivedDividend[];
 };
 
 /** Taxa USD/BRL do mês; sem tabela de câmbio, tudo vale 1 (fase 9 troca isto). */

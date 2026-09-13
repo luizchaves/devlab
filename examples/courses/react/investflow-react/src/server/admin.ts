@@ -16,6 +16,7 @@ export async function adminMetrics(): Promise<AdminMetrics> {
       include: {
         broker: { select: { id: true, name: true } },
         transactions: { select: { id: true, type: true, quantity: true, price: true, transactionDate: true, receiptPath: true } },
+        dividends: { select: { id: true, rate: true, exDate: true, paymentDate: true } },
       },
     }),
     prisma.quoteRun.findFirst({ orderBy: { ranAt: 'desc' }, select: { ranAt: true } }),

@@ -14,8 +14,8 @@ import { useMemo } from 'react';
 import { Money } from '@/components/money';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { isAssetActive } from '@/core/organize';
-import { CATEGORY_LABELS, summarize, type AssetWithTransactions, type PortfolioTotals, type PositionSummary } from '@/core/portfolio';
+import { isAssetActive, type FooterTotals } from '@/core/organize';
+import { CATEGORY_LABELS, summarize, type AssetWithTransactions, type PositionSummary } from '@/core/portfolio';
 import { cn } from '@/lib/cn';
 import { formatPercent } from '@/lib/format';
 
@@ -25,7 +25,7 @@ type AssetsTableProps = {
   assets: AssetWithTransactions[];
   sorting: SortingState;
   onSortingChange: (next: SortingState) => void;
-  footer: PortfolioTotals | null;
+  footer: FooterTotals | null;
   onEdit: (asset: AssetWithTransactions) => void;
   onDelete: (asset: AssetWithTransactions) => void;
 };
@@ -206,6 +206,11 @@ export function AssetsTable({ assets, sorting, onSortingChange, footer, onEdit, 
               </td>
               <td className="px-2 py-2.5 text-right tabular-nums sm:px-3">
                 <Money value={footer.value} />
+                {footer.includeDividends && footer.dividends > 0 && (
+                  <span className="block text-[10px] font-semibold text-purple-600 dark:text-purple-400">
+                    + <Money value={footer.dividends} /> em proventos
+                  </span>
+                )}
               </td>
               <td className={cn('px-2 py-2.5 text-right tabular-nums sm:px-3', (footer.returnPct ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
                 {footer.returnPct == null ? '—' : formatPercent(footer.returnPct)}

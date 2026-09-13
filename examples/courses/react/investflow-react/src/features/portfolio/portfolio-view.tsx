@@ -5,9 +5,9 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Segmented } from '@/components/ui/toggle';
 import { filterAssets, footerTotals, type AssetFilter } from '@/core/organize';
 import { totals, type AssetWithTransactions } from '@/core/portfolio';
-import { cn } from '@/lib/cn';
 import { useUrlState } from '@/lib/url-state';
 import { AssetFormDialog } from './asset-form-dialog';
 import { AssetsTable } from './assets-table';
@@ -28,9 +28,10 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
   const summary = useMemo(() => totals(assets), [assets]);
 
   // Filtro, ordenação e direção ficam na URL; o padrão some dela (CA08.17).
-  const [view, setView] = useUrlState({ filter: 'active', sort: 'ticker', dir: 'asc' });
+  const [view, setView] = useUrlState({ filter: 'active', sort: 'ticker', dir: 'asc', dividends: 'false' });
+  const includeDividends = view.dividends === 'true';
   const visible = useMemo(() => filterAssets(assets, view.filter as AssetFilter), [assets, view.filter]);
-  const footer = useMemo(() => footerTotals(visible), [visible]);
+  const footer = useMemo(() => footerTotals(visible, { includeDividends }), [visible, includeDividends]);
 
   const refreshQuotes = async () => {
     try {
@@ -71,19 +72,29 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
         </div>
       </header>
 
-      <PortfolioKpis totals={summary} />
+      <PortfolioKpis totals={summary} dividends={includeDividends ? footer?.dividends ?? 0 : 0} />
 
-      <div role="group" aria-label="Filtro" className="inline-flex w-fit rounded-lg border border-slate-200 p-0.5 text-xs dark:border-slate-700">
-        {(
-          [
-            ['active', 'Posições ativas'],
-            ['all', 'Todos os ativos'],
-          ] as const
-        ).map(([value, label]) => (
-          <button key={value} type="button" data-filter={value} aria-pressed={view.filter === value} onClick={() => setView({ filter: value })} className={cn('min-h-9 rounded-md px-3 font-medium', view.filter === value ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800')}>
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-2">
+        <Segmented
+          label="Filtro"
+          attribute="data-filter"
+          value={view.filter as AssetFilter}
+          onChange={(value) => setView({ filter: value })}
+          options={[
+            { value: 'active', label: 'Posições ativas' },
+            { value: 'all', label: 'Todos os ativos' },
+          ]}
+        />
+        <Segmented
+          label="Proventos"
+          attribute="data-dividends-include"
+          value={view.dividends}
+          onChange={(value) => setView({ dividends: value })}
+          options={[
+            { value: 'false', label: 'Sem proventos' },
+            { value: 'true', label: 'Com proventos' },
+          ]}
+        />
       </div>
 
       {visible.length === 0 ? (

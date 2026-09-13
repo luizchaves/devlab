@@ -100,10 +100,16 @@ test.describe('RNF07 · design responsivo (celular)', () => {
     await expect(page.getByRole('heading', { name: 'Rentabilidade', exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
 
-    // Origem: treemap e legenda cabem na tela.
-    await page.goto('/origins');
-    await expect(page.locator('[data-treemap]')).toBeVisible();
-    await expectNoHorizontalScroll(page);
+    // Origem, proventos e aportes cabem na tela.
+    for (const [path, selector] of [
+      ['/origins', '[data-treemap]'],
+      ['/dividends', '[data-top-dividends]'],
+      ['/movements', '[data-movements-chart]'],
+    ]) {
+      await page.goto(path);
+      await expect(page.locator(selector)).toBeVisible();
+      await expectNoHorizontalScroll(page);
+    }
   });
 });
 // #endregion

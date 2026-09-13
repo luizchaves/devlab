@@ -15,6 +15,7 @@ const assetInclude = {
     orderBy: [{ transactionDate: 'asc' }, { createdAt: 'asc' }],
     select: { id: true, type: true, quantity: true, price: true, transactionDate: true, receiptPath: true },
   },
+  dividends: { orderBy: { exDate: 'desc' }, select: { id: true, rate: true, exDate: true, paymentDate: true } },
 } satisfies Prisma.AssetInclude;
 
 type AssetRow = Prisma.AssetGetPayload<{ include: typeof assetInclude }>;
@@ -41,6 +42,7 @@ export function toAssetDto(row: AssetRow): AssetWithTransactions {
       transactionDate: isoDate(t.transactionDate),
       receiptPath: t.receiptPath,
     })),
+    dividends: row.dividends.map((d) => ({ id: d.id, rate: Number(d.rate), exDate: isoDate(d.exDate), paymentDate: isoDate(d.paymentDate) })),
   };
 }
 
