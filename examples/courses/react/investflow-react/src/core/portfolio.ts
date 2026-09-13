@@ -218,3 +218,33 @@ export function costAt(transactions: TransactionFact[], date: string): number {
   return summarize({ transactions: transactions.filter((t) => t.transactionDate <= date), currentPrice: null, currency: 'BRL', category: 'acoes' }).cost;
 }
 // #endregion
+
+// #region historical-brl
+/**
+ * Resultado de um ativo em USD medido em reais com o câmbio de cada compra,
+ * e não com o de hoje: é o que separa a valorização do ativo do efeito do
+ * dólar (CA10.6). `rateOf` devolve a taxa do mês; o valor atual usa `latestRate`.
+ */
+export function summarizeInBRL(asset: Pick<AssetWithTransactions, 'transactions' | 'currentPrice' | 'currency' | 'category'>, { rateOf, latestRate }: { rateOf: (month: string) => number; latestRate: number }) {
+  const isUsd = asset.currency === 'USD';
+  let quantity = 0;
+  let cost = 0;
+  for (const t of [...asset.transactions].sort((a, b) => a.transactionDate.localeCompare(b.transactionDate))) {
+    const price = t.price * (isUsd ? rateOf(t.transactionDate.slice(0, 7)) : 1);
+    if (t.type === 'update') {
+      quantity = t.quantity;
+      cost = t.quantity * price;
+    } else if (t.type === 'buy') {
+      quantity += t.quantity;
+      cost += t.quantity * price;
+    } else {
+      const averagePrice = quantity ? cost / quantity : 0;
+      cost -= t.quantity * averagePrice;
+      quantity -= t.quantity;
+    }
+  }
+  const byBalance = BALANCE_CATEGORIES.includes(asset.category);
+  const value = byBalance ? cost : asset.currentPrice == null ? null : quantity * asset.currentPrice * (isUsd ? latestRate : 1);
+  return { cost, value, unrealized: value == null ? null : value - cost, returnPct: value == null || cost === 0 ? null : (value - cost) / cost };
+}
+// #endregion

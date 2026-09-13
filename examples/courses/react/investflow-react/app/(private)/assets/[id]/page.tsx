@@ -37,7 +37,7 @@ export default async function AssetPage({ params }: Props) {
     );
   }
 
-  const evolution = (await getAssetEvolution(session.user.id, asset.id)) ?? { evolution: [], movementMonths: [] };
+  const evolution = (await getAssetEvolution(session.user.id, asset.id)) ?? { evolution: [], evolutionNative: [], movementMonths: [] };
   return <AssetDetail initialAsset={asset} evolution={evolution} />;
 }
 // #endregion

@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 8 done)
+Status: **In progress** (Phases 0 to 9 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -226,7 +226,7 @@ layers green.
 
 - `Dividend` model, `core/dividends.ts`, `/dividends`, `/movements`; CA09.1–CA09.15.
 
-### Phase 9 · Dollar and crypto (RF15–RF17)
+### Phase 9 · Dollar and crypto (RF15–RF17) — done
 
 - `ExchangeRate` model, `core/exchange.ts`, currency per asset, crypto quoting;
   CA10.1–CA10.13.
@@ -311,5 +311,11 @@ green. The dividend history rides on the asset payload (`dividends` array), so t
 dashboard, analytics and the asset page compute received dividends with the same
 `core/dividends.ts` function; the `fake` provider ships three events for `HGLG11` so the
 e2e flow syncs from the UI instead of inserting rows. Money in dividends is rounded to
-cents to keep `100 × 1,1 = 110`. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+cents to keep `100 × 1,1 = 110`.
+
+Phase 9: 117 Vitest tests (69 unit, 10 browser, 41 integration... see below) and 34
+Playwright tests green. `core/exchange.ts` replaces `get_usd_rate()`; the private layout
+loads the rate rows once and `ExchangeProvider` hands `latest`/`rateOf` to every screen,
+so the dashboard, tables, footer and movements convert on the client while analytics,
+origins and dividends convert on the server with the same table. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

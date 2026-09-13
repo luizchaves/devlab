@@ -63,6 +63,7 @@ duas podem subir ao mesmo tempo.
 | `GET /api/analytics` | série mensal, distribuição e totais do dono (`core/returns.ts`) | 5 |
 | `GET /api/admin/metrics` | agregados e checks; `403` para quem não é administrador | 5 |
 | `GET /api/origins`, `GET /api/assets/[id]/evolution` | linhas de origem e a evolução mensal de um ativo | 6 |
+| `GET /api/exchange` | taxas USD/BRL gravadas pela rodada de cotações; `core/exchange.ts` resolve a taxa do dia e do mês | 9 |
 | `POST /api/assets/[id]/dividends/sync`, `GET /api/dividends` | sincroniza o histórico de proventos (idempotente) e lista o que foi recebido | 8 |
 
 ## Estrutura
@@ -76,7 +77,7 @@ src/server/quotes/   provedores (yahoo, fake), a rodada de cotações e a cotaç
 src/server/storage.ts, receipts.ts   cliente do Supabase Storage (service role) e os comprovantes
 src/features/        componentes, hooks (React Query) e ações de cada tela
 src/components/ui/   primitivas (Button, Input, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
-src/components/      Providers, AppShell, Money, CommandPalette; charts/ (Treemap e LineChart em SVG puro)
+src/components/      Providers, AppShell, Money, CommandPalette, ExchangeProvider; charts/ (Treemap, LineChart, BarChart em SVG puro)
 src/store/           Zustand: preferências
 tests/integration/   rotas e serviços contra o schema `integration` do Postgres
 tests/e2e/           Playwright contra `next dev` na porta 3100, schema `e2e`

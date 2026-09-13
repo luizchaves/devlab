@@ -35,6 +35,7 @@ export const FAKE_PRICES: Record<string, number> = {
   PETR4: 38.42,
   VALE3: 61.1,
   AAPL: 230.5,
+  VT: 120,
   'BTC-USD': 65_000,
   'BRL=X': 5.2,
 };

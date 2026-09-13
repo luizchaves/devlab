@@ -4,6 +4,7 @@ import { totals } from '@/core/portfolio';
 import { allocationByCategory, monthlyReturns, type AnalyticsSummary, type AssetWithQuotes } from '@/core/returns';
 import { allocationByOrigin } from '@/core/origins';
 import { listAssets } from './assets';
+import { getExchangeTable } from './exchange';
 import { prisma } from './prisma';
 import { isoDate } from './serialize';
 
@@ -30,14 +31,15 @@ export async function listAssetsWithQuotes(userId: string): Promise<AssetWithQuo
 // #region summary
 /** Tudo que `/analytics` mostra, calculado no servidor a partir dos fatos do dono (CA06.3). */
 export async function getAnalytics(userId: string): Promise<AnalyticsSummary> {
-  const assets = await listAssetsWithQuotes(userId);
+  const [assets, fx] = await Promise.all([listAssetsWithQuotes(userId), getExchangeTable()]);
+  // Ativo em dólar entra pela taxa do mês nas séries e pela mais recente nos totais (CA10.4, CA10.8).
   return {
-    totals: totals(assets),
-    monthlyReturns: monthlyReturns(assets),
-    allocation: allocationByCategory(assets),
-    evolution: portfolioEvolution(assets),
+    totals: totals(assets, { usdRate: fx.latest }),
+    monthlyReturns: monthlyReturns(assets, { rateOf: fx.rateOf }),
+    allocation: allocationByCategory(assets, { usdRate: fx.latest }),
+    evolution: portfolioEvolution(assets, { rateOf: fx.rateOf }),
     movementMonths: movementMonthsOf(assets),
-    dividends: assets.flatMap((asset) => receivedDividends(asset)),
+    dividends: assets.flatMap((asset) => receivedDividends(asset, { rateOf: fx.rateOf })),
   };
 }
 
@@ -52,13 +54,16 @@ export function movementMonthsOf(assets: AssetWithQuotes[]): string[] {
 export async function getAssetEvolution(userId: string, assetId: string) {
   const asset = (await listAssetsWithQuotes(userId)).find((a) => a.id === assetId);
   if (!asset) return null;
-  return { evolution: portfolioEvolution([asset]), movementMonths: movementMonthsOf([asset]) };
+  const fx = await getExchangeTable();
+  // `evolutionNative` fica na moeda do ativo: é a série que o botão US$ mostra (CA10.9).
+  return { evolution: portfolioEvolution([asset], { rateOf: fx.rateOf }), evolutionNative: portfolioEvolution([asset]), movementMonths: movementMonthsOf([asset]) };
 }
 // #endregion
 
 // #region origins
 export async function getOrigins(userId: string) {
-  return allocationByOrigin(await listAssets(userId));
+  const [assets, fx] = await Promise.all([listAssets(userId), getExchangeTable()]);
+  return allocationByOrigin(assets, { usdRate: fx.latest });
 }
 // #endregion
 // #endregion

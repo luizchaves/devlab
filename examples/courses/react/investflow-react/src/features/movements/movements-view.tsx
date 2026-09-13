@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select';
 import { Segmented } from '@/components/ui/toggle';
 import { monthlyMovements, movementKpis, movements } from '@/core/movements';
 import type { AssetWithTransactions } from '@/core/portfolio';
+import { useExchange } from '@/components/exchange-provider';
 import { useAssets } from '@/features/portfolio/queries';
 import { formatDate } from '@/lib/format';
 import { useUrlState } from '@/lib/url-state';
@@ -22,7 +23,8 @@ export function MovementsView({ initialAssets }: { initialAssets: AssetWithTrans
   const [{ asset, range }, setParams] = useUrlState({ asset: '', range: 'all' });
   const [open, setOpen] = useState(false);
 
-  const list = useMemo(() => movements(asset ? assets.filter((a) => a.id === asset) : assets), [assets, asset]);
+  const { rateOf } = useExchange();
+  const list = useMemo(() => movements(asset ? assets.filter((a) => a.id === asset) : assets, { rateOf }), [assets, asset, rateOf]);
   const kpis = useMemo(() => movementKpis(list), [list]);
   const bars = useMemo(() => monthlyMovements(list, range as 'all' | '2y' | '1y'), [list, range]);
 

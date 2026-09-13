@@ -8,7 +8,8 @@ import { Money } from '@/components/money';
 import { AlertDialog } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { CATEGORY_LABELS, investmentDuration, summarize, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
+import { useExchange } from '@/components/exchange-provider';
+import { CATEGORY_LABELS, investmentDuration, summarize, summarizeInBRL, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
 import { isQuotable } from '@/core/quotes';
 import { useAsset, useDeleteTransaction, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
@@ -25,7 +26,7 @@ import { TransactionsTable } from './transactions-table';
 
 // #region detail
 /** Tela do ativo (CA03.8): cabeçalho, KPIs da posição e o extrato de lançamentos. */
-export type AssetEvolution = { evolution: EvolutionRow[]; movementMonths: string[] };
+export type AssetEvolution = { evolution: EvolutionRow[]; evolutionNative: EvolutionRow[]; movementMonths: string[] };
 
 export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWithTransactions; evolution: AssetEvolution }) {
   const { data: asset = initialAsset } = useAsset(initialAsset.id, initialAsset);
@@ -34,7 +35,12 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
   const removeTransaction = useDeleteTransaction();
   const [quoteDialog, setQuoteDialog] = useState<{ open: boolean; warning: string | null }>({ open: false, warning: null });
   const updateQuotes = useUpdateQuotes();
-  const position = useMemo(() => summarize(asset), [asset]);
+  const exchange = useExchange();
+  const isUsd = asset.currency === 'USD';
+  const position = useMemo(() => summarize(asset, { usdRate: exchange.latest }), [asset, exchange.latest]);
+  // Custo em reais pelo câmbio de cada compra (CA10.6), só para ativo em dólar.
+  const inBRL = useMemo(() => (isUsd ? summarizeInBRL(asset, { rateOf: exchange.rateOf, latestRate: exchange.latest }) : null), [asset, isUsd, exchange]);
+  const [{ currency: chartCurrency }, setChartCurrency] = useUrlState({ currency: 'BRL' });
   const eligible = isDividendEligible(asset.category);
   const withDividends = useMemo(() => summarizeWithDividends(asset), [asset]);
   const dividendItems = useMemo(() => receivedDividends(asset), [asset]);
@@ -98,16 +104,16 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
         <Kpi label="Quantidade">
           <span data-kpi="quantity">{position.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}</span>
         </Kpi>
-        <Kpi label="Preço médio">
+        <Kpi label="Preço médio" sub={isUsd ? `≈ ${(position.averagePrice * exchange.latest).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : undefined}>
           <Money value={position.averagePrice} currency={asset.currency} data-kpi="averagePrice" />
         </Kpi>
         <Kpi label="Cotação atual">
           <Money value={asset.currentPrice} currency={asset.currency} data-kpi="currentPrice" />
         </Kpi>
-        <Kpi label="Total investido">
+        <Kpi label="Total investido" sub={inBRL ? `≈ ${inBRL.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} pelo câmbio de cada compra` : undefined}>
           <Money value={position.cost} currency={asset.currency} data-kpi="cost" />
         </Kpi>
-        <Kpi label="Valor atual">
+        <Kpi label="Valor atual" sub={position.valueBRL != null && isUsd ? `≈ ${position.valueBRL.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : undefined}>
           <Money value={position.value} currency={asset.currency} data-kpi="value" />
         </Kpi>
         <Kpi label="Rentabilidade" className={positive ? 'text-emerald-600' : 'text-rose-600'} sub={`Realizado: ${position.realized.toLocaleString('pt-BR', { style: 'currency', currency: asset.currency })}`} subAttribute="realized">
@@ -126,7 +132,14 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
         )}
       </dl>
 
-      <EvolutionChart evolution={evolution.evolution} movementMonths={evolution.movementMonths} />
+      <div className="grid gap-2">
+        {isUsd && (
+          <div data-currency-toggle-container className="flex justify-end">
+            <Segmented label="Moeda do gráfico" attribute="data-chart-currency" value={chartCurrency} onChange={(value) => setChartCurrency({ currency: value })} options={[{ value: 'BRL', label: 'R$' }, { value: 'USD', label: 'US$' }]} />
+          </div>
+        )}
+        <EvolutionChart evolution={chartCurrency === 'USD' ? evolution.evolutionNative : evolution.evolution} movementMonths={evolution.movementMonths} />
+      </div>
 
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

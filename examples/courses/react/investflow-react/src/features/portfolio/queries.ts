@@ -81,11 +81,12 @@ export function useCreateTransaction() {
 // #region quotes
 /** Rodada de cotações: a carteira inteira ou um ativo só (`assetId`). */
 export function useUpdateQuotes() {
-  const invalidate = useInvalidateAssets();
+  const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { assetId?: string } = {}) =>
       api<RunSummary>('/api/quotes/update', { method: 'POST', body: JSON.stringify(input) }),
-    onSuccess: invalidate,
+    // A rodada também grava o câmbio do dia: as duas consultas são refeitas.
+    onSuccess: () => Promise.all([client.invalidateQueries({ queryKey: assetKeys.all }), client.invalidateQueries({ queryKey: ['exchange'] })]),
   });
 }
 

@@ -23,6 +23,8 @@ export type AssetRow = { asset: AssetWithTransactions; position: PositionSummary
 
 type AssetsTableProps = {
   assets: AssetWithTransactions[];
+  /** Taxa USD/BRL mais recente: ativos em dólar entram em reais nos totais (CA10.4). */
+  usdRate?: number;
   sorting: SortingState;
   onSortingChange: (next: SortingState) => void;
   footer: FooterTotals | null;
@@ -46,6 +48,7 @@ const columns = [
       <Link href={`/assets/${row.original.asset.id}`} className="group block max-w-32 sm:max-w-none">
         <span className="block truncate font-bold text-slate-900 group-hover:text-emerald-700 dark:text-white">
           {row.original.asset.ticker}
+          {row.original.asset.currency === 'USD' && <Badge className="ml-2 align-middle">USD</Badge>}
           {!isAssetActive(row.original.asset) && <Badge className="ml-2 align-middle">Encerrado</Badge>}
         </span>
         <span className="block truncate text-xs text-slate-500 sm:max-w-48">{row.original.asset.name}</span>
@@ -130,8 +133,8 @@ const HIDE_BELOW: Record<Breakpoint, string> = {
 const responsiveClass = (hideBelow?: Breakpoint) => (hideBelow ? HIDE_BELOW[hideBelow] : undefined);
 
 // #region table
-export function AssetsTable({ assets, sorting, onSortingChange, footer, onEdit, onDelete }: AssetsTableProps) {
-  const data = useMemo<AssetRow[]>(() => assets.map((asset) => ({ asset, position: summarize(asset) })), [assets]);
+export function AssetsTable({ assets, usdRate = 1, sorting, onSortingChange, footer, onEdit, onDelete }: AssetsTableProps) {
+  const data = useMemo<AssetRow[]>(() => assets.map((asset) => ({ asset, position: summarize(asset, { usdRate }) })), [assets, usdRate]);
 
   // Ordenação controlada de fora (vive na URL). `enableSortingRemoval: false`
   // faz o segundo clique inverter em vez de limpar (CA08.14).

@@ -12,6 +12,7 @@ import { useUrlState } from '@/lib/url-state';
 import { AssetFormDialog } from './asset-form-dialog';
 import { AssetsTable } from './assets-table';
 import { PortfolioKpis } from './portfolio-kpis';
+import { useExchange } from '@/components/exchange-provider';
 import { useAssets, useDeleteAsset, useUpdateQuotes } from './queries';
 
 // #region view
@@ -25,13 +26,14 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
   const updateQuotes = useUpdateQuotes();
   const [dialog, setDialog] = useState<{ mode: 'create' } | { mode: 'edit'; asset: AssetWithTransactions } | null>(null);
   const [deleting, setDeleting] = useState<AssetWithTransactions | null>(null);
-  const summary = useMemo(() => totals(assets), [assets]);
+  const { latest: usdRate } = useExchange();
+  const summary = useMemo(() => totals(assets, { usdRate }), [assets, usdRate]);
 
   // Filtro, ordenação e direção ficam na URL; o padrão some dela (CA08.17).
   const [view, setView] = useUrlState({ filter: 'active', sort: 'ticker', dir: 'asc', dividends: 'false' });
   const includeDividends = view.dividends === 'true';
   const visible = useMemo(() => filterAssets(assets, view.filter as AssetFilter), [assets, view.filter]);
-  const footer = useMemo(() => footerTotals(visible, { includeDividends }), [visible, includeDividends]);
+  const footer = useMemo(() => footerTotals(visible, { includeDividends, usdRate }), [visible, includeDividends, usdRate]);
 
   const refreshQuotes = async () => {
     try {
@@ -104,6 +106,7 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
       ) : (
         <AssetsTable
           assets={visible}
+          usdRate={usdRate}
           sorting={[{ id: view.sort, desc: view.dir === 'desc' }]}
           onSortingChange={(next) => setView({ sort: next[0]?.id ?? 'ticker', dir: next[0]?.desc ? 'desc' : 'asc' })}
           footer={footer}

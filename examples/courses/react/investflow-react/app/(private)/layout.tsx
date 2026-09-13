@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { ExchangeProvider } from '@/components/exchange-provider';
 import { AppShell } from '@/components/layout/app-shell';
+import { listExchangeRates } from '@/server/exchange';
 import { requirePageSession } from '@/server/session';
 import { findUserById } from '@/server/users';
 
@@ -10,13 +12,15 @@ import { findUserById } from '@/server/users';
  */
 export default async function PrivateLayout({ children }: { children: ReactNode }) {
   const session = await requirePageSession('/dashboard');
-  const user = await findUserById(session.user.id);
+  const [user, rates] = await Promise.all([findUserById(session.user.id), listExchangeRates()]);
   if (!user) return null;
 
   return (
-    <AppShell user={{ name: user.name, role: user.role, avatarUrl: user.avatarPath ? `/api/avatars/${user.id}` : null }}>
-      {children}
-    </AppShell>
+    <ExchangeProvider initialRates={rates}>
+      <AppShell user={{ name: user.name, role: user.role, avatarUrl: user.avatarPath ? `/api/avatars/${user.id}` : null }}>
+        {children}
+      </AppShell>
+    </ExchangeProvider>
   );
 }
 // #endregion
