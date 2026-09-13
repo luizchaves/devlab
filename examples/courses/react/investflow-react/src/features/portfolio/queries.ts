@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssetInput, TransactionInput } from '@/core/assets';
 import type { AssetWithTransactions, TransactionFact } from '@/core/portfolio';
 import type { ManualQuoteInput, RunSummary } from '@/core/quotes';
-import { api } from '@/lib/http';
+import { api, ApiError } from '@/lib/http';
 
 // #region keys
 /** Chaves estáveis: invalidar `assets` derruba a carteira e todo detalhe de ativo. */
@@ -96,5 +96,30 @@ export function useManualQuote(assetId: string) {
       api<{ kind: 'price' | 'balance' }>(`/api/assets/${assetId}/quote`, { method: 'POST', body: JSON.stringify(input) }),
     onSuccess: invalidate,
   });
+}
+// #endregion
+
+// #region receipts
+/** Sobe o comprovante como multipart; o servidor devolve só o path (CA05.5). */
+export function useUploadReceipt() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: async ({ transactionId, file }: { transactionId: string; file: File }) => {
+      const form = new FormData();
+      form.append('file', file);
+      const response = await fetch(`/api/transactions/${transactionId}/receipt`, { method: 'POST', body: form });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new ApiError(response.status, body.error ?? `Erro ${response.status}`);
+      }
+      return (await response.json()) as { receiptPath: string };
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/** Pede a URL assinada na hora do clique: ela expira em 60 s e nunca é guardada. */
+export function receiptUrl(transactionId: string) {
+  return api<{ url: string; expiresIn: number }>(`/api/transactions/${transactionId}/receipt`).then((r) => r.url);
 }
 // #endregion

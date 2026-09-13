@@ -1,7 +1,10 @@
 'use client';
 
+import { Paperclip } from 'lucide-react';
+import { toast } from 'sonner';
 import { Money } from '@/components/money';
 import type { Currency, TransactionFact } from '@/core/portfolio';
+import { receiptUrl } from '@/features/portfolio/queries';
 import { formatDate } from '@/lib/format';
 
 const TYPE_LABELS: Record<TransactionFact['type'], string> = { buy: 'Compra', sell: 'Venda', update: 'Saldo' };
@@ -41,6 +44,7 @@ export function TransactionsTable({ transactions, currency }: { transactions: Tr
             <th className="hidden px-3 py-2.5 text-right md:table-cell">Preço</th>
             <th className="px-3 py-2.5 text-right">Total</th>
             <th className="px-3 py-2.5 text-right">Posição</th>
+            <th className="px-3 py-2.5 text-center">Anexo</th>
           </tr>
         </thead>
         <tbody data-transactions className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -58,11 +62,43 @@ export function TransactionsTable({ transactions, currency }: { transactions: Tr
                 <Money value={t.quantity * t.price} currency={currency} />
               </td>
               <td className="px-3 py-2.5 text-right font-semibold">{t.running.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}</td>
+              <td className="px-3 py-2.5 text-center">{t.receiptPath && <ReceiptButton transactionId={t.id} receiptPath={t.receiptPath} />}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+// #endregion
+
+// #region receipt
+/**
+ * A URL assinada nasce no clique e abre em outra aba; o botão só conhece o
+ * path (CA05.3). A aba abre antes do `await` para não cair no bloqueio de pop-up.
+ */
+function ReceiptButton({ transactionId, receiptPath }: { transactionId: string; receiptPath: string }) {
+  const open = async () => {
+    const tab = window.open('', '_blank');
+    try {
+      const url = await receiptUrl(transactionId);
+      if (tab) tab.location.href = url;
+      else window.open(url, '_blank');
+    } catch {
+      tab?.close();
+      toast.error('Não foi possível abrir o comprovante.');
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={open}
+      data-receipt={receiptPath}
+      className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-xs font-medium text-emerald-700 hover:underline md:min-h-9 dark:text-emerald-400"
+    >
+      <Paperclip className="size-3.5" aria-hidden /> Ver anexo
+    </button>
   );
 }
 // #endregion

@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 3 done)
+Status: **In progress** (Phases 0 to 4 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -202,7 +202,7 @@ layers green.
   auto-fetch on create/edit of quotable assets; manual quote dialog; market calendar.
 - CA04.1–CA04.5, CA08.9–CA08.12, CA10.14–CA10.16.
 
-### Phase 4 · Receipts (RF04)
+### Phase 4 · Receipts (RF04) — done
 
 - Upload to the `receipts` bucket by the server; validation before upload
   (`core/file-validation.ts`); 60-second signed URLs; CA05.1–CA05.5.
@@ -279,5 +279,10 @@ green. CA03.14 (no real data in the seed) stays a review rule, as in the vanilla
 
 Phase 3: 71 Vitest tests (27 unit, 10 browser, 24 integration) and 14 Playwright tests
 green. Phase 3b (RNF07, requested by the author on 2026-09-13): 17 Playwright tests, 3 of
-them in the `mobile` project. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+them in the `mobile` project.
+
+Phase 4: 76 Vitest tests (29 unit, 10 browser, 29 integration; the receipts ones upload
+to and download from the real local Storage) and 19 Playwright tests green. The bucket is
+declared in `supabase/config.toml` and created by `pnpm db:buckets`; `ensureReceiptsBucket`
+also creates it on first use so tests do not depend on that step. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

@@ -31,6 +31,7 @@ Requer Node 22+, pnpm 10+, Docker e a CLI do Supabase.
 pnpm install
 cp .env.example .env          # cole a service_role de `supabase status`
 supabase start                # Postgres em 54342, API/Storage em 54341, Studio em 54343
+pnpm db:buckets               # cria o bucket privado `receipts` declarado em supabase/config.toml
 pnpm db:migrate               # aplica prisma/migrations
 pnpm db:seed                  # admin@example.com / admin12345
 pnpm dev                      # http://localhost:3000
@@ -53,6 +54,7 @@ duas podem subir ao mesmo tempo.
 | `/api/transactions`, `/api/transactions/[id]` | lançamentos de compra, venda e saldo | 2 |
 | `POST /api/quotes/update` | rodada de cotações (carteira ou `assetId`), com calendário de mercado e resumo em `QuoteRun` | 3 |
 | `POST /api/assets/[id]/quote` | cotação manual (`price`) ou saldo manual (`balance`, vira lançamento `update`) | 3 |
+| `POST`/`GET /api/transactions/[id]/receipt` | anexa o comprovante (multipart) e devolve a URL assinada de 60 s, só para o dono | 4 |
 
 ## Estrutura
 
@@ -62,6 +64,7 @@ prisma/              schema, migrations, seed
 src/core/            regras puras (simulador, posição, validação): sem React, sem banco
 src/server/          Prisma, NextAuth, senha, guards, ativos, lançamentos, seed: só roda no servidor
 src/server/quotes/   provedores (yahoo, fake), a rodada de cotações e a cotação manual
+src/server/storage.ts, receipts.ts   cliente do Supabase Storage (service role) e os comprovantes
 src/features/        componentes, hooks (React Query) e ações de cada tela
 src/components/ui/   primitivas (Button, Input, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
 src/components/      Providers, AppShell, Money, CommandPalette
@@ -90,7 +93,9 @@ do backlog do InvestFlow.
 
 ## Variáveis de ambiente
 
-Veja `.env.example`. `QUOTES_PROVIDER` escolhe o provedor de cotações: `fake` (tabela fixa,
+Veja `.env.example`. `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` alimentam o cliente do
+Storage, que só existe em `src/server/`: o navegador nunca vê a chave, e cada URL de
+comprovante é assinada por 60 segundos depois de o servidor conferir o dono. `QUOTES_PROVIDER` escolhe o provedor de cotações: `fake` (tabela fixa,
 usada nos testes) ou `yahoo` (endpoint público do Yahoo Finance, sem token; tickers da B3
 recebem `.SA`). A rodada só consulta o provedor quando o calendário de mercado diz que pode
 haver preço novo (`src/core/market-calendar.ts`). `DATABASE_URL` aceita `?schema=`: os testes usam `integration` e `e2e`

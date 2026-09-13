@@ -1,4 +1,10 @@
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+
+/** Carrega o `.env` sem sobrescrever o que já veio do ambiente (CI). */
+export function loadEnv() {
+  if (existsSync('.env')) process.loadEnvFile('.env');
+}
 
 // #region reset
 /**

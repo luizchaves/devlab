@@ -86,6 +86,13 @@ test.describe('RNF07 · design responsivo (celular)', () => {
     await row.getByRole('link', { name: /PETR4/ }).click();
     await expect(page.locator('[data-field=broker]')).toHaveText('XP');
     await expectNoHorizontalScroll(page);
+
+    // O diálogo de lançamento, com o campo de comprovante, também cabe na tela.
+    await page.locator('[data-new-transaction]').click();
+    const txDialog = page.getByRole('dialog', { name: 'Novo lançamento' });
+    await expect(txDialog).toBeVisible();
+    expect((await txDialog.boundingBox())!.width).toBeLessThanOrEqual(viewport.width);
+    await expect(txDialog.getByLabel(/Comprovante/)).toBeVisible();
   });
 });
 // #endregion
