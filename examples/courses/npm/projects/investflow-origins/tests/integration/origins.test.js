@@ -159,6 +159,9 @@ describe.skipIf(!hasStack)('Sprint 7 contra a stack local', () => {
     expect(assets.size).toBe(1);
   });
 
+  // #endregion
+
+  // #region timeline
   it('CA07.7: modo continuo preenche os meses intermediarios com a ultima posicao', () => {
     const sparse = [
       { month: '2026-01-01', invested: 1000, value: 1100 },
@@ -195,6 +198,9 @@ describe.skipIf(!hasStack)('Sprint 7 contra a stack local', () => {
     expect(filteredByDelta.map((r) => r.month)).toEqual(['2026-01-01', '2026-03-01', '2026-05-01']);
   });
 
+  // #endregion
+
+  // #region series
   it('CA09.11: a serie Valor + Proventos acumula os proventos pagos ate cada mes', () => {
     const rows = [
       { month: '2026-01-01', invested: 1000, value: 1050 },

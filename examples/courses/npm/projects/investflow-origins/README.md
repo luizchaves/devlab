@@ -1,10 +1,19 @@
-# InvestFlow — Sprint 7: Origem e evolução
+# InvestFlow — Sprints 7 a 11: da origem à experiência
 
-Sétima sprint do InvestFlow: a carteira vista pela **origem** (treemap por corretora, categoria ou
-emissor, em `origins.html`) e a linha de **aportes acumulados versus valor de mercado** (na
-carteira, em `analytics.html`, e por ativo, em `asset.html`). Duas views `security_invoker`
-(`allocation_by_origin`, `portfolio_evolution`) e dois módulos de desenho em SVG escrito à mão,
-sem biblioteca de gráficos. Sprints 2 a 6 incluídas; é a versão final da trilha.
+Projeto final do InvestFlow. Ele nasce na Sprint 7 (a carteira vista pela **origem**, em
+`origins.html`, e a linha de **aportes acumulados versus valor de mercado**) e recebe as quatro
+sprints seguintes sem trocar de pasta:
+
+| Sprint | O que acrescenta |
+| ------ | ---------------- |
+| 7 · Origem e evolução | `allocation_by_origin`, `portfolio_evolution`, treemap e linhas em SVG, modo contínuo/eventos e janela de tempo |
+| 8 · Lançamentos e cotação manual | editar e excluir lançamentos, resgate total, renda fixa pelo saldo (`update`), cotação por ativo com fallback manual, filtro/ordenação/rodapé com estado na URL |
+| 9 · Proventos e movimentações | `dividends_history` com RLS pelo dono do ativo, crawler, direito pela data ex, YoC, retorno total, `dividends.html`, toggles "Com proventos", `movements.html` |
+| 10 · Dólar e cripto | `assets.currency`, `exchange_rates` gravada pela Edge Function, custo pelo câmbio de cada compra, cripto via `BTC-USD` × `BRL=X`, calendário de mercado |
+| 11 · Perfil e experiência | `profile.html` e bucket público `avatars`, barra comum, landing com sessão, tema, ocultar valores, mostrar senha, build multipágina para a Vercel |
+
+Cada critério de aceitação (`CA07.1` … `CA11.13`) aparece no nome de pelo menos um teste; a
+rastreabilidade completa está no backlog da trilha no DevLab.
 
 ## Pré-requisitos
 
@@ -63,10 +72,11 @@ pronta para o login.
 
 | Comando | Camada | O que prova |
 | ------- | ------ | ----------- |
-| `pnpm test:unit` | Vitest + jsdom | `layout()` do treemap (soma das áreas, proporção, limites, ordem), `groupBy()`, `scalePoints()`/`pathOf()` do gráfico (eixo comum, lacuna sem zero) (TK07-2, TK07-5) e as sprints anteriores |
-| `pnpm test:integration` | Vitest + node, SDK real | `allocation_by_origin` com as três dimensões e o valor atual; `security_invoker`; `portfolio_evolution` reproduz aportado × valor da planilha e omite o mês sem cotação (TK07-1, TK07-4, CA07.3, CA07.6) |
-| `pnpm test` | as duas anteriores | 95 testes |
-| `pnpm test:e2e` | Playwright | treemap por corretora → emissor → categoria sem recarregar; as duas linhas na carteira e no ativo (CA07.1, CA07.2, CA07.4, CA07.5) |
+| `pnpm test:unit` | Vitest + jsdom | funções puras e serviços com o SDK simulado: treemap e linhas (Sprint 7), `summarize()` com `update`, duração e query params (8), data ex, YoC, retorno total, crawler com `fetch` simulado e barras (9), câmbio, cripto e calendário de mercado (10), perfil, navbar, tema, privacidade e senha (11) |
+| `pnpm test:integration` | Vitest + node, SDK real | views, policies e a Edge Function contra a stack local: origem e evolução (7), categorias, `update` e a policy da cotação manual (8), `dividends_history` (9), `exchange_rates`, `get_usd_rate`, views convertidas e a taxa gravada pela rodada (10), bucket `avatars` e o `update` restrito de `profiles` (11) |
+| `pnpm test:build` | Vitest + node | `vite build` gera as onze páginas sem a chave de serviço; `vercel.json` e `.vercelignore` (CA11.12, CA11.13) |
+| `pnpm test` | as três anteriores | 216 testes |
+| `pnpm test:e2e` | Playwright | uma suíte por sprint (`auth`, `portfolio`, `quotes`, `receipts`, `analytics`, `origins`, `ledger`, `dividends`, `international`, `experience`): 33 testes |
 
 ## Dependências
 
@@ -79,18 +89,20 @@ pronta para o login.
 
 ## Telas
 
-| Página | Sprint 7 |
-| ------ | -------- |
-| `origins.html` | **nova**: treemap com seletor de recorte (corretora, categoria, emissor) e legenda |
-| `analytics.html` | + gráfico de aportes versus valor da carteira |
-| `asset.html?id=…` | + o mesmo gráfico para o ativo |
-| `dividends.html` | **nova**: proventos recebidos (KPIs, evolução mensal, matriz ano × mês, maiores pagadores e extrato) |
-| `movements.html` | aportes e resgates (KPIs de fluxo, aportes por mês e extrato com comprovantes); os proventos saíram para `dividends.html` |
-| `signup.html`, `signin.html`, `admin.html`, `index.html` | como na Sprint 2 |
+| Página | Sprint | O que tem |
+| ------ | ------ | --------- |
+| `origins.html` | 7 | treemap com seletor de recorte (corretora, categoria, emissor) e legenda |
+| `analytics.html` | 7, 9 | matriz de rentabilidade, gráfico de aportes versus valor (modo, janela, "Com proventos") |
+| `asset.html?ticker=…` | 7, 8, 9, 10 | lançamentos editáveis, cotação/saldo manual, aba Proventos, retorno total, gráfico em US$/R$ |
+| `dashboard.html` | 8, 9, 10 | filtro ativas × todas, ordenação, rodapé ponderado, toggle "Com proventos", moeda no cadastro |
+| `dividends.html` | 9 | proventos recebidos: KPIs, barras por mês, matriz ano × mês, maiores pagadores e extrato |
+| `movements.html` | 9 | aportes e resgates: KPIs de fluxo, barras por mês, extrato com comprovantes e registro |
+| `profile.html` | 11 | nome, e-mail, papel, data de cadastro e avatar |
+| `index.html`, `signin.html`, `signup.html`, `admin.html` | 11 | landing com sessão, mostrar senha, barra comum com contexto admin |
 
 ## Modelo
 
-`profiles` → `brokers` (corretora, por dono) → `assets` (`broker_id`, `issuer`, `category`, `current_price`) → `transactions` (fato imutável: `buy`/`sell`/`update`, quantidade, preço, data) e `quotes_history` (uma cotação por ativo e dia, escrita só pela Edge Function da Sprint 4). Toda tabela tem RLS ligado e policies por `auth.uid()`; os grants são explícitos por papel.
+`profiles` (`full_name`, `avatar_url`, `role`) → `brokers` (corretora, por dono) → `assets` (`broker_id`, `issuer`, `category`, `currency`, `current_price`) → `transactions` (fato: `buy`/`sell`/`update`, quantidade, preço, data), `quotes_history` (uma cotação por ativo e dia, escrita pela Edge Function e, desde a Sprint 8, pelo dono na cotação manual) e `dividends_history` (um evento por ativo e data ex). `exchange_rates` (USD → BRL por dia) é lida por todos e escrita só pela Edge Function. Toda tabela tem RLS ligado e policies por `auth.uid()` ou pelo dono do ativo; os grants são explícitos por papel e, em `profiles`, por coluna.
 
 ## Promover um administrador
 
@@ -103,7 +115,7 @@ update public.profiles set role = 'admin' where id = '<id da conta>';
 
 ## Deploy na Vercel
 
-O front é estático: o `vite build` gera `dist/` com as sete páginas, e a Vercel só precisa das
+O front é estático: o `vite build` gera `dist/` com as onze páginas, e a Vercel só precisa das
 duas variáveis públicas. O `vercel.json` já define framework, build, saída, `cleanUrls` e os
 cabeçalhos de segurança; o `.vercelignore` deixa `supabase/`, testes e docs fora do upload.
 
