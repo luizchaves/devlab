@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phase 0 done)
+Status: **In progress** (Phases 0 and 1 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -30,9 +30,11 @@ has with InvestFlow.
 The vanilla InvestFlow is implemented on Supabase (Auth, PostgreSQL + RLS, Storage, Edge
 Functions). The React version must rebuild the **same functional requirements** on a
 different stack, chosen for the React guide: Next.js App Router, NextAuth, Prisma, TanStack
-and a three-layer test strategy. Because the stack changes, every RNF must be **re-stated**
-for it (RLS → ownership checks in server code; Storage bucket → private files served by an
-authenticated route; Edge Function → route handler; `VITE_*` → `NEXT_PUBLIC_*`).
+and a three-layer test strategy. Postgres and Storage stay on the local Supabase stack
+(decided with the author on 2026-09-13); identity moves to NextAuth, so RLS no longer
+applies. Every RNF must be **re-stated** for it (RLS → ownership checks in server code;
+Storage bucket read by policy → bucket read by the server with the service role; Edge
+Function → route handler; `VITE_*` → `NEXT_PUBLIC_*`).
 
 Phase 0 (untangling the placement) was executed before this spec was written and is
 recorded here for traceability.
@@ -47,8 +49,12 @@ recorded here for traceability.
    - **Next.js 16** App Router, **React 19**, **TypeScript** strict, **Tailwind CSS v4**.
    - **NextAuth v5** (Credentials provider, e-mail + password hashed with `node:crypto`
      `scrypt`, JWT session) with the Prisma adapter for `User`.
-   - **Prisma 7** with `@prisma/adapter-better-sqlite3` (same convention as TaskAPI);
-     SQLite file for dev and tests.
+   - **Prisma 7** with `@prisma/adapter-pg` on the **PostgreSQL of the local Supabase
+     stack** (`supabase start`, ports `5434x` so it can run next to the vanilla stack on
+     `5432x`). Prisma owns the migrations; `supabase/` holds only `config.toml`. Tests use
+     separate schemas (`?schema=integration`, `?schema=e2e`) in the same database.
+   - **Supabase Storage** for receipts and avatars, accessed with the service role only
+     in server modules; downloads go through authenticated route handlers.
    - **TanStack React Query** for server state, **TanStack Table** for the portfolio
      tables, **Zustand** only for client preferences (theme, hide values, palette open).
    - **CVA + tailwind-merge** for component variants, **Base UI** for accessible
@@ -70,8 +76,9 @@ recorded here for traceability.
 
 - **Not** modifying the vanilla trail, its projects or its backlog page. The React
   version references the backlog; it does not fork it.
-- **Not** Supabase in the React project: no `@supabase/supabase-js`, no RLS, no Edge
-  Functions. The equivalents are Prisma queries scoped by `userId`, and route handlers.
+- **Not** Supabase Auth, RLS or Edge Functions in the React project. Supabase provides
+  Postgres and Storage only; `@supabase/supabase-js` is used server-side for Storage.
+  The equivalents are Prisma queries scoped by `userId`, and route handlers.
 - **Not** a cloud database or a paid market-data provider. Quotes use the same adapter
   idea as the vanilla `update-quotes` (`fake` for tests, `yahoo` public endpoint as the
   free real provider); the adapter is selected by env.
@@ -93,7 +100,7 @@ functional behaviour and acceptance criteria are kept verbatim.
 | RF01 | Landing with compound-interest simulator (static HTML + JS) | `app/page.tsx` server component + `Simulator` client component; `core/simulator.ts` pure |
 | RF02 | Supabase Auth, `profiles` trigger, page guards | NextAuth Credentials, `User.passwordHash`, `User.role`; `proxy.ts` (Next 16 middleware) redirects private routes to `/signin` |
 | RF03 | `brokers`, `assets`, `transactions` tables + RLS | Prisma models `Broker`, `Asset`, `Transaction`; every query in `src/server/` filters by `session.user.id` |
-| RF04 | Storage bucket `receipts`, signed URL 60 s | Files under `storage/receipts/<userId>/<transactionId>/<uuid>.<ext>`; `GET /api/receipts/[id]?token=` with an HMAC token that expires in 60 s |
+| RF04 | Storage bucket `receipts`, signed URL 60 s | Same bucket and path (`<userId>/<transactionId>/<uuid>.<ext>`); upload and `createSignedUrl(60)` done by the server with the service role after checking ownership |
 | RF05 | Edge Function `update-quotes` + `quote_runs` | `POST /api/quotes/update` (all assets or `assetId`); `QuoteRun` model; provider adapters in `src/server/quotes/providers/` |
 | RF06 | SQL views `monthly_returns`, `allocation_by_category` | `core/returns.ts`, `core/allocation.ts` computed in the server from transactions + quotes; same numbers as the vanilla spreadsheet test |
 | RF07 | `admin_metrics()` security definer | `GET /api/admin/metrics` guarded by `requireAdmin` |
@@ -104,7 +111,7 @@ functional behaviour and acceptance criteria are kept verbatim.
 | RF11–RF14 | `dividends_history`, movements page | `Dividend` model, `core/dividends.ts`, `/dividends`, `/movements` |
 | RF15–RF17 | `exchange_rates`, `get_usd_rate`, crypto | `ExchangeRate` model, `core/exchange.ts`, crypto via `TICKER-USD` + `BRL=X` in the same run |
 | RF18 | Market calendar in the Edge Function | `core/market-calendar.ts` (same rules, same holidays) |
-| RF19 | `profile.html`, `avatars` bucket | `/profile`, avatar under `storage/avatars/<userId>/`, served by `GET /api/avatars/[userId]` |
+| RF19 | `profile.html`, `avatars` bucket | `/profile`, avatar in the public `avatars` bucket under `<userId>/`, uploaded by the server |
 | RF20 | Shared navbar module | `AppShell` layout in `app/(private)/layout.tsx`, `UserMenu` with Base UI Menu |
 | RF21 | `theme.js`, `privacy.js` | Zustand `preferences` store persisted in `localStorage`; `data-theme` and `data-hide-values` on `<html>` |
 | RF22 | `vite build` + `vercel.json` | `next build`; security headers in `next.config.ts`; only `NEXT_PUBLIC_*` reach the client |
@@ -114,7 +121,7 @@ functional behaviour and acceptance criteria are kept verbatim.
 | RNF01 | Every Prisma query in `src/server/` receives `userId` from the session; integration tests prove that a second user gets `404`, never `403`, for foreign rows |
 | RNF02 | Provider tokens and `AUTH_SECRET` are read only in server modules; `next build` output is grepped for them in a build test |
 | RNF03 | Money in `Decimal` columns; `core/` works with `number` rounded by `money()` helpers, with the same tolerance the vanilla tests use |
-| RNF04 | `storage/` is outside `public/`; every file is served by an authenticated route that checks ownership |
+| RNF04 | Private `receipts` bucket; the server checks ownership before creating a 60-second signed URL; `avatars` is public by choice |
 | RNF05 | `/api/admin/*` returns aggregates only; the integration test asserts no ticker or user id in the payload |
 | RNF06 | `next build` succeeds with `.env.example` values; headers `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` set in `next.config.ts` |
 
@@ -127,17 +134,17 @@ examples/courses/react/investflow-react/
 │   ├── (private)/            # dashboard, assets/[id], analytics, origins, dividends, movements, profile, admin
 │   └── api/                  # auth, portfolio, assets, transactions, quotes, receipts, admin
 ├── prisma/                   # schema.prisma, migrations/, seed.ts
+├── supabase/                 # config.toml of the local stack (ports 5434x); no migrations here
 ├── src/
 │   ├── core/                 # pure domain rules (positions, returns, dividends, exchange, calendar)
-│   ├── server/               # Prisma access scoped by user, quote providers, storage, auth helpers
+│   ├── server/               # Prisma access scoped by user, quote providers, Storage client, auth helpers
 │   ├── features/<name>/      # client components + hooks (React Query) of one screen
 │   ├── components/ui/        # CVA + Base UI primitives, each with a *.browser.test.tsx
 │   ├── store/                # Zustand preferences
 │   └── lib/                  # cn, format, http, query client
-├── tests/
-│   ├── integration/          # *.integration.test.ts against a temporary SQLite file
-│   └── e2e/                  # Playwright specs
-└── storage/                  # gitignored: receipts/ and avatars/
+└── tests/
+    ├── integration/          # *.integration.test.ts against the `integration` Postgres schema
+    └── e2e/                  # Playwright specs against `next dev --port 3100`, schema `e2e`
 ```
 
 ### Test naming
@@ -159,17 +166,17 @@ layers green.
   `next-steps.mdx`, sidebar, `src/lib/projects.ts`); delete `react.mdx`.
 - Point `.devcontainer/investflow-react/` at the new folder.
 
-### Phase 1 · Foundation and identity (RF01, RF02)
+### Phase 1 · Foundation and identity (RF01, RF02) — done
 
-- Prisma 7 with `better-sqlite3` adapter; models `User` (with `passwordHash`, `role`) and
-  NextAuth tables; first migration; `prisma/seed.ts`.
+- Prisma 7 with the `pg` adapter on the local Supabase Postgres; model `User` (with
+  `passwordHash`, `role`); first migration; `prisma/seed.ts` with the demo admin.
 - NextAuth Credentials with `scrypt`; `signup` server action; `/signin`, `/signup`,
   sign-out; `proxy.ts` guard; `requireSession` / `requireAdmin` for route handlers.
 - Landing with the simulator (`core/simulator.ts`); `AppShell` for private pages.
 - UI primitives `Button`, `Input`, `Field`, `Dialog` (Base UI) with CVA; `Providers`
   (React Query, Sonner, command palette).
 - Vitest projects: `unit`, `browser` (Browser Mode + Playwright provider), `integration`
-  (temp SQLite, `prisma migrate deploy`); Playwright e2e with `webServer`.
+  (schema `integration`, `prisma migrate deploy`); Playwright e2e with `webServer`.
 - CA01.1–CA01.2, CA02.1–CA02.5 covered.
 
 ### Phase 2 · Portfolio (RF03, RF08, RF08.1)
@@ -188,8 +195,8 @@ layers green.
 
 ### Phase 4 · Receipts (RF04)
 
-- Upload to `storage/receipts/`; validation before upload (`core/file-validation.ts`);
-  60-second HMAC URLs; CA05.1–CA05.5.
+- Upload to the `receipts` bucket by the server; validation before upload
+  (`core/file-validation.ts`); 60-second signed URLs; CA05.1–CA05.5.
 
 ### Phase 5 · Analytics and admin (RF06, RF07)
 
@@ -252,4 +259,8 @@ _To be filled when the spec is executed._
 Phase 0: scaffold moved to `examples/courses/react/investflow-react/` (48 files), vanilla
 trail restored to its state before the sprint-12 edits (5 files reverted, 1 deleted).
 
-Phase 1: see the commit log for `examples/courses/react/investflow-react/`.
+Phase 1: 21 Vitest tests (9 unit, 7 browser, 5 integration) and 5 Playwright tests
+green; `pnpm lint`, `pnpm typecheck` and `pnpm build` pass. Dependencies added beyond the
+requested list: `@prisma/adapter-pg` + `pg` (Prisma 7 requires a driver adapter), `zod`
+(the DevLab standard for validation), `@vitest/browser-playwright` + `vitest-browser-react`
+(Vitest Browser Mode), `jsdom` (unit tests of hooks and stores).
