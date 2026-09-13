@@ -1,6 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,7 +57,9 @@ for (const dir of packageDirs) {
     });
 
     if (result.status !== 0) {
-      console.error(`[husky:${hook}] Failed in ${relative(projectRoot, packageDir) || '.'}: ${script}`);
+      console.error(
+        `[husky:${hook}] Failed in ${relative(projectRoot, packageDir) || '.'}: ${script}`
+      );
       process.exit(result.status ?? 1);
     }
 

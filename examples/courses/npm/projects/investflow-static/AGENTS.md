@@ -20,19 +20,20 @@ Plataforma moderna de gestão e inteligência de investimentos construída com *
 
 | Comando | O que faz |
 | :--- | :--- |
-| `pnpm dev` | Inicia o servidor local de desenvolvimento (Vite) |
-| `pnpm build` | Compila a aplicação para produção em `dist/` |
-| `pnpm preview` | Visualiza o build de produção localmente |
-| `pnpm lint` | Executa análise estática de código com Biome |
-| `pnpm format` | Aplica formatação automática com Biome |
-| `pnpm lint:fix` | Aplica correções automáticas de lint e formatação |
+| `npm run dev` | Compila o CSS do Tailwind e inicia o servidor local de desenvolvimento (Vite) |
+| `npm run build:css` | Compila `css/source.css` para `css/tailwind.css` |
+| `npm run build` | Compila CSS e aplicação para produção em `dist/` |
+| `npm run preview` | Visualiza o build de produção localmente |
+| `npm run lint` | Executa análise estática de código com Biome |
+| `npm run format` | Aplica formatação automática com Biome |
+| `npm run lint:fix` | Aplica correções automáticas de lint e formatação |
 
 ## Fluxo Spec-Driven Development
 
 1. Consulte a tarefa no `docs/PRD.md`.
 2. Crie a branch Git isolada (`feat/tkXX-Y-...`).
 3. Gere a especificação técnica em `specs/active/` via skill `task-spec-generator`.
-4. Implemente e valide com `pnpm lint` e testes.
+4. Implemente e valide com `npm run lint` e testes.
 5. Finalize via skill `task-pr-finalizer`, arquivando a spec em `specs/archived/`.
 ## Skills Operacionais De Desenvolvimento
 

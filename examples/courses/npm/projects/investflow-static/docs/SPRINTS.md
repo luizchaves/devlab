@@ -33,8 +33,8 @@ backlog da trilha no DevLab.
 | TK01-1 | US02 | Criar projeto Vite, package.json, Biome, README e AGENTS.md. | 2 | `pnpm install`, `pnpm dev`, `pnpm lint`. |
 | TK01-2 | US01 | Construir index.html com landing page e simulador visual. | 3 | Abrir landing e conferir inputs, CTAs e responsividade. |
 | TK01-3 | US03 | Criar signin.html e signup.html com formulários de sessão. | 2 | Navegar entre cadastro, login e landing por links relativos. |
-| TK01-4 | US05 | Criar dashboard.html com KPIs, tabela de ativos e ações principais. | 3 | Conferir categorias, valores, botões e leitura em mobile. |
-| TK01-5 | US09 | Criar analytics.html com matriz de rentabilidade e distribuição. | 2 | Conferir anos, meses, valores positivos, negativos e células vazias. |
+| TK01-4 | US05 | Criar dashboard.html com KPIs, tabela de ativos, atalhos para telas da carteira e sete categorias finais. | 3 | Conferir categorias, valores, botões, atalhos e leitura em mobile. |
+| TK01-5 | US09 | Criar analytics.html e protótipos finais de origem, proventos, movimentações, detalhe do ativo e perfil. | 2 | Conferir anos, meses, valores positivos, negativos, células vazias e navegação para as superfícies finais. |
 | TK01-6 | US10 | Criar admin.html com métricas agregadas e status operacional. | 1 | Verificar que não há posições individuais na tela admin. |
 | TK01-7 | US02 | Criar specs arquivadas, skills locais, template de PR e documentação de sprint. | 1 | Conferir docs, specs arquivadas e template de PR. |
 
