@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { AssetDetail } from '@/features/asset/asset-detail';
+import { getAssetEvolution } from '@/server/analytics';
 import { getAsset } from '@/server/assets';
 import { auth } from '@/server/auth';
 import { requirePageSession } from '@/server/session';
@@ -36,6 +37,7 @@ export default async function AssetPage({ params }: Props) {
     );
   }
 
-  return <AssetDetail initialAsset={asset} />;
+  const evolution = (await getAssetEvolution(session.user.id, asset.id)) ?? { evolution: [], movementMonths: [] };
+  return <AssetDetail initialAsset={asset} evolution={evolution} />;
 }
 // #endregion

@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/server/prisma';
-import { actAs, createAccounts, jsonRequest, resetTables } from './helpers';
+import { actAs, createAccounts, jsonRequest, params, resetTables } from './helpers';
 import { GET as adminMetrics } from '../../app/api/admin/metrics/route';
 import { GET as analytics } from '../../app/api/analytics/route';
+import { GET as assetEvolution } from '../../app/api/assets/[id]/evolution/route';
+import { GET as origins } from '../../app/api/origins/route';
 import { POST as postAsset } from '../../app/api/assets/route';
 import { POST as postTransaction } from '../../app/api/transactions/route';
 
@@ -73,5 +75,40 @@ describe('GET /api/admin/metrics', () => {
     // RNF05: o payload não carrega ticker, quantidade ou posição de ninguém.
     const text = JSON.stringify(body);
     expect(text).not.toMatch(/PETR4|ticker|quantity/i);
+  });
+});
+
+describe('origem e evolução', () => {
+  it('CA07.1, CA07.2, CA07.3 — as linhas de origem trazem as três dimensões e só do dono', async () => {
+    const { ana, bia } = await createAccounts();
+    actAs(ana);
+    await seedSpreadsheet();
+    const { asset: cdb } = await (await postAsset(jsonRequest('POST', { ticker: 'CDB-BB', name: 'CDB BB', category: 'renda_fixa', brokerName: 'Banco do Brasil', issuer: 'Banco do Brasil' }))).json();
+    await postTransaction(jsonRequest('POST', { assetId: cdb.id, type: 'buy', quantity: 1, price: 1000, transactionDate: '2026-01-05' }));
+
+    const { rows } = await (await origins()).json();
+    expect(rows.map((r: { ticker: string; broker: string; category: string; issuer: string; value: number }) => [r.ticker, r.broker, r.category, r.issuer, r.value])).toEqual([
+      ['CDB-BB', 'Banco do Brasil', 'Renda Fixa', 'Banco do Brasil', 1000],
+      ['PETR4', 'Sem corretora', 'Ações', 'Sem emissor', 6600],
+    ]);
+
+    actAs(bia);
+    expect((await (await origins()).json()).rows).toEqual([]);
+  });
+
+  it('CA07.4, CA07.5, CA07.6 — a evolução reproduz aportado × valor da planilha, sem março, na carteira e no ativo', async () => {
+    const { ana } = await createAccounts();
+    actAs(ana);
+    const asset = await seedSpreadsheet();
+
+    const body = await (await analytics()).json();
+    expect(body.evolution.map((r: { month: string; invested: number; value: number }) => [r.month, r.invested, r.value])).toEqual([
+      ['2026-01-01', 3000, 3100],
+      ['2026-02-01', 6400, 6600],
+    ]);
+    expect(body.movementMonths).toEqual(['2026-01', '2026-02']);
+
+    const single = await (await assetEvolution(new Request('http://localhost'), params(asset.id))).json();
+    expect(single.evolution).toEqual(body.evolution);
   });
 });

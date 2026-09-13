@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 5 done)
+Status: **In progress** (Phases 0 to 6 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -212,7 +212,7 @@ layers green.
 - `core/returns.ts`, `core/returns-matrix.ts`, `core/allocation.ts`; `/analytics`,
   `/admin`; CA06.1–CA06.5.
 
-### Phase 6 · Origins and evolution (RF09, RF10)
+### Phase 6 · Origins and evolution (RF09, RF10) — done
 
 - `core/origins.ts`, `core/evolution.ts`; treemap and line chart; URL state with
   `useSearchParams`; CA07.1–CA07.8.
@@ -292,5 +292,10 @@ Phase 5: 89 Vitest tests (47 unit, 10 browser, 32 integration) and
 reference spreadsheet of CA06.2 is asserted both in a unit test and through the route.
 One deliberate difference from the vanilla view: a balance asset (fixed income, funds)
 enters the monthly value by its accumulated cost, so a fixed-income purchase no longer
-shows up as a negative return in a month without quotes. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+shows up as a negative return in a month without quotes.
+
+Phase 6: 100 Vitest tests (56 unit, 10 browser, 34 integration) and 25 Playwright tests
+green. Treemap (squarified) and line chart are pure SVG drawn from `core/` layouts, with
+`<title>` tooltips; mode and range live in the URL and are read from `window.location`
+at click time so consecutive clicks never use stale params. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

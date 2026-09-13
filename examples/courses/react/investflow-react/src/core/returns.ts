@@ -1,3 +1,4 @@
+import type { EvolutionRow } from './evolution';
 import { BALANCE_CATEGORIES, costAt, positionAt, summarize, type AssetWithTransactions, type PortfolioTotals } from './portfolio';
 
 // #region types
@@ -19,6 +20,10 @@ export type AnalyticsSummary = {
   totals: PortfolioTotals;
   monthlyReturns: MonthlyReturn[];
   allocation: AllocationSlice[];
+  /** Evolução por ativo e mês (fase 6); a carteira soma por mês no cliente. */
+  evolution: EvolutionRow[];
+  /** Meses (`AAAA-MM`) com compra ou venda, para o modo eventos. */
+  movementMonths: string[];
 };
 
 /** Taxa USD/BRL do mês; sem tabela de câmbio, tudo vale 1 (fase 9 troca isto). */

@@ -7,6 +7,7 @@ import { api } from '@/lib/http';
 import { cn } from '@/lib/cn';
 import { formatPercent } from '@/lib/format';
 import { AllocationList } from './allocation-list';
+import { EvolutionChart } from './evolution-chart';
 import { ReturnsMatrix } from './returns-matrix';
 
 export function useAnalytics(initialData: AnalyticsSummary) {
@@ -42,6 +43,8 @@ export function AnalyticsView({ initial }: { initial: AnalyticsSummary }) {
           <Money value={data.totals.realized} data-kpi="realized" />
         </Kpi>
       </dl>
+
+      <EvolutionChart evolution={data.evolution} movementMonths={data.movementMonths} />
 
       <div>
         <h2 className="mb-3 text-lg font-bold">Matriz de rentabilidade</h2>

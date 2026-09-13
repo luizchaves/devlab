@@ -1,5 +1,7 @@
+import { portfolioEvolution } from '@/core/evolution';
 import { totals } from '@/core/portfolio';
 import { allocationByCategory, monthlyReturns, type AnalyticsSummary, type AssetWithQuotes } from '@/core/returns';
+import { allocationByOrigin } from '@/core/origins';
 import { listAssets } from './assets';
 import { prisma } from './prisma';
 import { isoDate } from './serialize';
@@ -32,6 +34,29 @@ export async function getAnalytics(userId: string): Promise<AnalyticsSummary> {
     totals: totals(assets),
     monthlyReturns: monthlyReturns(assets),
     allocation: allocationByCategory(assets),
+    evolution: portfolioEvolution(assets),
+    movementMonths: movementMonthsOf(assets),
   };
 }
+
+export function movementMonthsOf(assets: AssetWithQuotes[]): string[] {
+  const months = new Set<string>();
+  for (const asset of assets) for (const t of asset.transactions) if (t.type !== 'update') months.add(t.transactionDate.slice(0, 7));
+  return [...months].sort();
+}
+
+// #region asset-evolution
+/** Evolução de um único ativo, para a tela dele (CA07.5). Ativo alheio: `null`. */
+export async function getAssetEvolution(userId: string, assetId: string) {
+  const asset = (await listAssetsWithQuotes(userId)).find((a) => a.id === assetId);
+  if (!asset) return null;
+  return { evolution: portfolioEvolution([asset]), movementMonths: movementMonthsOf([asset]) };
+}
+// #endregion
+
+// #region origins
+export async function getOrigins(userId: string) {
+  return allocationByOrigin(await listAssets(userId));
+}
+// #endregion
 // #endregion

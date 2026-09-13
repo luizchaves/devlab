@@ -99,6 +99,11 @@ test.describe('RNF07 · design responsivo (celular)', () => {
     await page.goto('/analytics');
     await expect(page.getByRole('heading', { name: 'Rentabilidade', exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
+
+    // Origem: treemap e legenda cabem na tela.
+    await page.goto('/origins');
+    await expect(page.locator('[data-treemap]')).toBeVisible();
+    await expectNoHorizontalScroll(page);
   });
 });
 // #endregion

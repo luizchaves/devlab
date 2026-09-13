@@ -12,13 +12,17 @@ import { isQuotable } from '@/core/quotes';
 import { useAsset, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
 import { formatPercent } from '@/lib/format';
+import { EvolutionChart } from '@/features/analytics/evolution-chart';
+import type { EvolutionRow } from '@/core/evolution';
 import { QuoteDialog } from './quote-dialog';
 import { TransactionFormDialog } from './transaction-form-dialog';
 import { TransactionsTable } from './transactions-table';
 
 // #region detail
 /** Tela do ativo (CA03.8): cabeçalho, KPIs da posição e o extrato de lançamentos. */
-export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransactions }) {
+export type AssetEvolution = { evolution: EvolutionRow[]; movementMonths: string[] };
+
+export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWithTransactions; evolution: AssetEvolution }) {
   const { data: asset = initialAsset } = useAsset(initialAsset.id, initialAsset);
   const [open, setOpen] = useState(false);
   const [quoteDialog, setQuoteDialog] = useState<{ open: boolean; warning: string | null }>({ open: false, warning: null });
@@ -99,6 +103,8 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
           <span data-kpi="returnPct">{position.returnPct == null ? '—' : formatPercent(position.returnPct)}</span>
         </Kpi>
       </dl>
+
+      <EvolutionChart evolution={evolution.evolution} movementMonths={evolution.movementMonths} />
 
       <div>
         <h2 className="mb-3 text-lg font-bold">Lançamentos</h2>

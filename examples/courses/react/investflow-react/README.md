@@ -48,7 +48,8 @@ duas podem subir ao mesmo tempo.
 | `/signin`, `/signup` | conta e sessão (Server Actions + NextAuth) | 1 |
 | `/dashboard` | carteira: KPIs, tabela (TanStack Table), cadastro, edição e exclusão de ativos | 2 |
 | `/assets/[id]` | tela do ativo por id ou ticker: posição, duração e extrato de lançamentos | 2 |
-| `/analytics` | KPIs, matriz de rentabilidade ano × mês e distribuição por classe | 5 |
+| `/analytics` | KPIs, gráfico aportes × valor (modo e janela na URL), matriz ano × mês e distribuição por classe | 5, 6 |
+| `/origins` | treemap da carteira por corretora, categoria ou emissor, com legenda | 6 |
 | `/admin` | painel do administrador: contas, AUM, última rodada e status dos serviços; investidor é redirecionado | 5 |
 | `/api/auth/*` | NextAuth | 1 |
 | `/api/me` | perfil da sessão | 1 |
@@ -59,6 +60,7 @@ duas podem subir ao mesmo tempo.
 | `POST`/`GET /api/transactions/[id]/receipt` | anexa o comprovante (multipart) e devolve a URL assinada de 60 s, só para o dono | 4 |
 | `GET /api/analytics` | série mensal, distribuição e totais do dono (`core/returns.ts`) | 5 |
 | `GET /api/admin/metrics` | agregados e checks; `403` para quem não é administrador | 5 |
+| `GET /api/origins`, `GET /api/assets/[id]/evolution` | linhas de origem e a evolução mensal de um ativo | 6 |
 
 ## Estrutura
 
@@ -71,7 +73,7 @@ src/server/quotes/   provedores (yahoo, fake), a rodada de cotações e a cotaç
 src/server/storage.ts, receipts.ts   cliente do Supabase Storage (service role) e os comprovantes
 src/features/        componentes, hooks (React Query) e ações de cada tela
 src/components/ui/   primitivas (Button, Input, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
-src/components/      Providers, AppShell, Money, CommandPalette
+src/components/      Providers, AppShell, Money, CommandPalette; charts/ (Treemap e LineChart em SVG puro)
 src/store/           Zustand: preferências
 tests/integration/   rotas e serviços contra o schema `integration` do Postgres
 tests/e2e/           Playwright contra `next dev` na porta 3100, schema `e2e`
