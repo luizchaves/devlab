@@ -10,6 +10,9 @@ export type ProjectLevel = 'Iniciante' | 'Intermediário' | 'Avançado';
 
 export type ProjectCategory = 'express' | 'invest-app' | 'monitor-app' | 'web-api' | 'npm';
 
+/** Trilhas da homepage; um projeto pode aparecer em mais de uma. */
+export type ProjectTrack = 'front-end' | 'back-end' | 'database';
+
 export interface Project {
   /** Identificador estável, igual ao diretório em `examples/`. */
   id: string;
@@ -17,6 +20,8 @@ export interface Project {
   description: string;
   level: ProjectLevel;
   category: ProjectCategory;
+  /** Trilhas em que o projeto aparece na homepage (mesmas abas de "Guias e Trilhas"). */
+  tracks: ProjectTrack[];
   /** Se verdadeiro, o projeto ganha destaque na aba principal da homepage. */
   featured?: boolean;
   /** Tecnologias usadas, exibidas como lista separada por ponto. */
@@ -38,6 +43,7 @@ export const projects: Project[] = [
       'Plataforma de gestão de carteira de investimentos e cálculo de matriz de rentabilidade mensal/anual construída com Vanilla JS, Tailwind CSS e Backend as a Service (BaaS) com Supabase (PostgreSQL, RLS, Auth, Storage e Edge Functions).',
     level: 'Intermediário',
     category: 'npm',
+    tracks: ['front-end', 'back-end', 'database'],
     featured: true,
     tech: ['Supabase', 'PostgreSQL', 'RLS', 'Edge Functions', 'Tailwind CSS', 'Vanilla JS'],
     concepts: [
@@ -57,6 +63,7 @@ export const projects: Project[] = [
       'Aplicação web completa de gestão de finanças e investimentos construída em 13 etapas: da interface em Tailwind, API REST com Express.js, TypeScript e Zod à persistência relacional com Prisma, autenticação JWT, upload de avatares e testes.',
     level: 'Avançado',
     category: 'invest-app',
+    tracks: ['front-end', 'back-end', 'database'],
     featured: true,
     tech: ['Express.js', 'TypeScript', 'Prisma', 'JWT', 'Zod', 'Tailwind CSS'],
     concepts: ['Trilha de 13 Etapas', 'Arquitetura REST', 'ORM Prisma', 'Autenticação', 'Upload'],
@@ -70,6 +77,7 @@ export const projects: Project[] = [
       'Aplicação web completa de monitoramento de infraestrutura e hosts construída em 13 etapas: dashboard responsivo em Tailwind, API RESTful em TypeScript, pings TCP assíncronos, Prisma ORM, controle de acesso e tempo real com SSE.',
     level: 'Avançado',
     category: 'monitor-app',
+    tracks: ['front-end', 'back-end', 'database'],
     featured: true,
     tech: ['Express.js', 'TypeScript', 'Prisma', 'SSE', 'JWT', 'Tailwind CSS'],
     concepts: ['Trilha de 13 Etapas', 'Ping Assíncrono', 'Sockets TCP', 'Tempo Real (SSE)', 'RBAC'],
@@ -85,6 +93,7 @@ export const projects: Project[] = [
       'A API de tarefas que serve de referência executável para as aulas do Guia de Express.js: uma única aplicação em doze etapas cumulativas, do primeiro servidor com /health até testes e deploy.',
     level: 'Avançado',
     category: 'express',
+    tracks: ['back-end', 'database'],
     featured: true,
     tech: ['Express.js', 'TypeScript', 'Zod', 'Prisma', 'node:crypto'],
     concepts: ['Trilha de 12 Etapas', 'MVC', 'Validação', 'Autenticação', 'Observabilidade'],
@@ -99,6 +108,7 @@ export const projects: Project[] = [
       'Landing page moderna e altamente responsiva para um serviço SaaS de monitoramento.',
     level: 'Iniciante',
     category: 'web-api',
+    tracks: ['front-end'],
     tech: ['HTML5', 'CSS3', 'Tailwind CSS'],
     concepts: ['Landing page', 'Seção hero', 'Breakpoints responsivos'],
     docs: '/courses/css/frameworks/tailwind/',
@@ -111,6 +121,7 @@ export const projects: Project[] = [
       'Versão cliente do InvestApp manipulando o DOM e salvando preferências no navegador.',
     level: 'Intermediário',
     category: 'web-api',
+    tracks: ['front-end'],
     tech: ['JavaScript', 'DOM API', 'LocalStorage'],
     concepts: ['Manipulação de elementos', 'Persistência no navegador', 'Eventos'],
     docs: '/courses/web-api/',
@@ -123,6 +134,7 @@ export const projects: Project[] = [
       'Servidor REST mockado rapidamente para apoiar o desenvolvimento e testes de aplicações front-end.',
     level: 'Iniciante',
     category: 'web-api',
+    tracks: ['front-end', 'back-end'],
     tech: ['JSON Server', 'Node.js'],
     concepts: ['Mock de API REST', 'Simulação de backend', 'Faker data'],
     docs: '/courses/packages/',
@@ -146,17 +158,32 @@ export function getProjectsByCategory(category: ProjectCategory): Project[] {
   return projects.filter((project) => project.category === category);
 }
 
-export function getFeaturedProjects(): Project[] {
-  const featured = projects.filter((project) => project.featured);
-  const categoryOrder: Record<ProjectCategory, number> = {
-    'invest-app': 1,
-    'monitor-app': 2,
-    npm: 3,
-    express: 4,
-    'web-api': 5,
-  };
+const categoryOrder: Record<ProjectCategory, number> = {
+  npm: 1,
+  'invest-app': 2,
+  'monitor-app': 3,
+  express: 4,
+  'web-api': 5,
+};
 
-  return featured.sort(
-    (a, b) => (categoryOrder[a.category] ?? 99) - (categoryOrder[b.category] ?? 99)
+/** Ordena pela trilha da categoria e, dentro dela, destaques primeiro. */
+function sortByCategory(list: Project[]): Project[] {
+  return list.sort(
+    (a, b) =>
+      (categoryOrder[a.category] ?? 99) - (categoryOrder[b.category] ?? 99) ||
+      Number(Boolean(b.featured)) - Number(Boolean(a.featured))
   );
+}
+
+export function getProjectsByTrack(track: ProjectTrack): Project[] {
+  return sortByCategory(projects.filter((project) => project.tracks.includes(track)));
+}
+
+/** Todos os projetos, na ordem das trilhas (destaques primeiro dentro de cada categoria). */
+export function getAllProjects(): Project[] {
+  return sortByCategory([...projects]);
+}
+
+export function getFeaturedProjects(): Project[] {
+  return sortByCategory(projects.filter((project) => project.featured));
 }
