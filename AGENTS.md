@@ -331,7 +331,7 @@ use as skills locais do próprio projeto: `task-spec-generator`, `task-pr-finali
 spec, PR, review, correção de bugs, Kanban, releases próprias, verificação de CI e hooks
 (`.github/workflows/`, `.husky/`, `pre-commit` e `pre-push`) dentro do projeto em foco.
 Cada projeto prático mantém o próprio mapa dos fluxos em `docs/agent-skill-workflows.md`.
-Os projetos `invest-app-*`, `monitor-app-*`, `task-api-*` e `investbaas-*` possuem
+Os projetos `invest-app-*`, `monitor-app-*`, `task-api-*` e `investflow-*` possuem
 Husky configurado com `.husky/pre-commit` e `.husky/pre-push`; o runner
 `scripts/run-git-hook.mjs` executa apenas os scripts existentes em cada pacote.
 

@@ -95,8 +95,8 @@ Três decisões sustentam a estrutura:
 │   ├── task-api-mvc/           etapa 3
 │   ├── task-api-prisma/        etapa 8
 │   ├── task-api-test/          etapa 12
-│   ├── investbaas-static/      trilha InvestBaaS (Supabase), sprint 1
-│   └── investbaas-origins/     sprint 7, com stack local e testes de unidade, integração e E2E
+│   ├── investflow-static/      trilha InvestFlow (Supabase), sprint 1
+│   └── investflow-origins/     sprint 7, com stack local e testes de unidade, integração e E2E
 │
 └── src/
     ├── content.config.ts       coleção `docs` do Starlight

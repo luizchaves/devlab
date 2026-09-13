@@ -2034,47 +2034,47 @@ export default defineConfig({
               label: 'Na Prática',
               items: [
                 {
-                  label: 'InvestBaaS',
+                  label: 'InvestFlow',
                   items: [
                     {
                       label: 'Visão geral',
-                      link: '/courses/npm/practice/investbaas/',
+                      link: '/courses/npm/practice/investflow/',
                     },
                     {
                       label: 'Backlog do projeto',
-                      link: '/courses/npm/practice/investbaas/backlog/',
+                      link: '/courses/npm/practice/investflow/backlog/',
                     },
                     {
                       label: '1. Frontend estático',
-                      link: '/courses/npm/practice/investbaas/front-static/',
+                      link: '/courses/npm/practice/investflow/front-static/',
                     },
                     {
                       label: '2. Autenticação BaaS',
-                      link: '/courses/npm/practice/investbaas/auth/',
+                      link: '/courses/npm/practice/investflow/auth/',
                     },
                     {
                       label: '3. Banco de Dados e RLS',
-                      link: '/courses/npm/practice/investbaas/database/',
+                      link: '/courses/npm/practice/investflow/database/',
                     },
                     {
                       label: '4. Cotações com Edge Functions',
-                      link: '/courses/npm/practice/investbaas/edge-quotes/',
+                      link: '/courses/npm/practice/investflow/edge-quotes/',
                     },
                     {
                       label: '5. Armazenamento de Comprovantes',
-                      link: '/courses/npm/practice/investbaas/storage/',
+                      link: '/courses/npm/practice/investflow/storage/',
                     },
                     {
                       label: '6. Analytics e Painel Admin',
-                      link: '/courses/npm/practice/investbaas/analytics/',
+                      link: '/courses/npm/practice/investflow/analytics/',
                     },
                     {
                       label: '7. Origem e Evolução',
-                      link: '/courses/npm/practice/investbaas/origins/',
+                      link: '/courses/npm/practice/investflow/origins/',
                     },
                     {
                       label: 'Próximos passos',
-                      link: '/courses/npm/practice/investbaas/next-steps/',
+                      link: '/courses/npm/practice/investflow/next-steps/',
                     },
                   ],
                 },

@@ -32,8 +32,8 @@ export interface Project {
 export const projects: Project[] = [
   // --- APLICAÇÕES COMPLETAS (TRILHAS INTEGRADAS) ---
   {
-    id: 'investbaas-static',
-    name: 'InvestBaaS — Gestão & BaaS Supabase',
+    id: 'investflow-static',
+    name: 'InvestFlow — Gestão & BaaS Supabase',
     description:
       'Plataforma de gestão de carteira de investimentos e cálculo de matriz de rentabilidade mensal/anual construída com Vanilla JS, Tailwind CSS e Backend as a Service (BaaS) com Supabase (PostgreSQL, RLS, Auth, Storage e Edge Functions).',
     level: 'Intermediário',
@@ -47,8 +47,8 @@ export const projects: Project[] = [
       'Edge Serverless',
       'Storage',
     ],
-    docs: '/courses/npm/practice/investbaas/',
-    source: 'examples/courses/npm/projects/investbaas-static',
+    docs: '/courses/npm/practice/investflow/',
+    source: 'examples/courses/npm/projects/investflow-static',
   },
   {
     id: 'invest-app',
