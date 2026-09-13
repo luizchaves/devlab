@@ -1,6 +1,6 @@
 # Spec 014 — InvestFlow: Backlog Traceability for Sprints 8–11
 
-Status: **Active**
+Status: **Completed**
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.10]`
 
@@ -173,4 +173,33 @@ Mapping of the new stories:
 
 ## Result
 
-_To be filled at the end._
+Delivered on 2026-09-13, in eight commits on `main` (`e0e0d82e` … `8b43e2cf`).
+
+| Dimension | Before | After |
+| --------- | ------ | ----- |
+| Sprints in the trail | 7 | 11 (Sprints 8–11 on the same `investflow-origins`) |
+| Pages under `practice/investflow/` | 10 | 14 (`ledger`, `dividends`, `international`, `experience`) |
+| Epics / features | 8 / 8 | 11 / 15 |
+| User stories | 16 | 32 |
+| Acceptance criteria | 47 (`CA08.*` misnumbered) | 111, all numbered by sprint (`CA03.13–15` for the seed) |
+| Tasks | 57 | 94 |
+| RF / RNF listed | RF01–RF10, RNF01–RNF05 (index only) | RF01–RF22 with RF03.1–RF08.1, RNF01–RNF06, in the backlog before the stories |
+| `pnpm test` in `investflow-origins` | 190 (unit + integration) | 216 (unit + integration + build) |
+| `pnpm test:e2e` | 17 | 33 (four new suites, one per sprint) |
+| CA ids present in test names (`CA07.7`–`CA11.13`) | 0 of 64 | 64 of 64 |
+
+Defects found by the new criteria and fixed:
+
+1. `recordQuote()` wrote to `quotes_history` without an insert policy (manual quote silently lost): migration `20260912000015_manual_quotes.sql`, error surfaced in `asset.js` (CA08.11).
+2. `exchange_rates` was never written (client sync unreachable and unauthorized): the Edge Function persists the USD/BRL rate of every run that fetched it; dead client code removed (CA10.13).
+3. The landing never recognized a session (`data` read instead of `data.session` in `pages/index.js`) (CA11.7).
+4. The password "eye" button was inert: `initPasswordToggle()` existed and was unit-tested but never called by `signin.js`/`signup.js` (CA11.11).
+
+Deviations from the plan: `tests/build/` became `tests/deploy/`, because the DevLab source glob
+excludes any `build/` folder (`src/lib/source-files.ts`); the vitest project keeps the name
+`build` and the script `pnpm test:build`.
+
+Validation: `pnpm validate` green (lint, `astro check`, build, `check:links` with 1043 pages
+and 64 819 links, `check:doc-lines`, `check:step-coverage`); in `investflow-origins` with
+`supabase start`: 216 Vitest and 33 Playwright green; the three new Mermaid diagrams measure
+587, 729 and 560 px.
