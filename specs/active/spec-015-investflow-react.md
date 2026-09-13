@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 and 1 done)
+Status: **In progress** (Phases 0, 1 and 2 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -179,7 +179,7 @@ layers green.
   (schema `integration`, `prisma migrate deploy`); Playwright e2e with `webServer`.
 - CA01.1–CA01.2, CA02.1–CA02.5 covered.
 
-### Phase 2 · Portfolio (RF03, RF08, RF08.1)
+### Phase 2 · Portfolio (RF03, RF08, RF08.1) — done
 
 - Models `Broker`, `Asset`, `Transaction`; `core/portfolio.ts` (`positionAt`, average
   price, realised result, invested, current value) ported from `investflow-origins`.
@@ -264,3 +264,6 @@ green; `pnpm lint`, `pnpm typecheck` and `pnpm build` pass. Dependencies added b
 requested list: `@prisma/adapter-pg` + `pg` (Prisma 7 requires a driver adapter), `zod`
 (the DevLab standard for validation), `@vitest/browser-playwright` + `vitest-browser-react`
 (Vitest Browser Mode), `jsdom` (unit tests of hooks and stores).
+
+Phase 2: 48 Vitest tests (13 unit, 10 browser, 15 integration) and 10 Playwright tests
+green. CA03.14 (no real data in the seed) stays a review rule, as in the vanilla project.
