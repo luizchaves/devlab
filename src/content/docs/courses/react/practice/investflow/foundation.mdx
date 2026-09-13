@@ -1,0 +1,382 @@
+---
+title: "InvestFlow (React): Fundação e identidade"
+description: "Primeira etapa do InvestFlow em React: Prisma 7 no PostgreSQL do Supabase, NextAuth com senha em scrypt, proxy.ts guardando rotas privadas, landing com o simulador, primitivas de UI com CVA e Base UI e as três camadas de teste."
+course: react
+project: investflow-react
+sidebar:
+  label: "1. Fundação e identidade"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **1 de 10** · Nível **Avançado** · Next.js · NextAuth · Prisma · Vitest · Playwright
+
+Esta etapa ergue a base de tudo que vem depois: o banco, a identidade, a moldura das telas privadas, as primitivas de interface e a estratégia de testes. Ao fim dela o produto ainda não tem carteira, mas já tem uma landing com o simulador (RF01), cadastro, login e logout (RF02), e cada uma dessas peças tem um teste com o número do critério que prova.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  A landing é um Server Component que lê a sessão no servidor; os formulários usam Server Actions e `useActionState`. Se esses termos ainda não estão claros, revise [Introdução](../../../basics/introduction/) e [Ciclo de vida e APIs](../../../state/effects-api/). Para a diferença entre autenticar e autorizar, [autenticação](../../../../expressjs/auth/authentication/) e [autorização](../../../../expressjs/auth/authorization/) continuam sendo a referência.
+</Aside>
+
+## Objetivo
+
+Preparar um projeto Next.js que já nasce com banco, sessão, primitivas acessíveis e três camadas de teste, para que as etapas seguintes só acrescentem domínio. Ao final da etapa, o leitor deve ser capaz de:
+
+- Configurar o Prisma 7 com um *driver adapter* sobre o PostgreSQL da stack local do Supabase.
+- Implementar cadastro e login com NextAuth e o provedor `Credentials`, guardando a senha com `scrypt` do `node:crypto`.
+- Proteger rotas privadas com `proxy.ts` e route handlers com `requireSession`.
+- Compor primitivas de UI com CVA, `tailwind-merge` e Base UI.
+- Organizar o Vitest em projetos `unit`, `browser` e `integration`, e o Playwright em `chromium` e `mobile`.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF01 e RF02 do [backlog](../../../../npm/practice/investflow/backlog/). A tabela lista os critérios e onde cada um é provado.
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA01.1 | A landing abre com o simulador e os links de navegação | `tests/e2e/auth.spec.ts` |
+| CA01.2 | O simulador tem valor inicial, aporte, taxa e prazo, com `id` estáveis e valores de exemplo | `src/core/simulator.test.ts`, e2e |
+| CA02.1 | Um cadastro válido cria o usuário | `tests/integration/auth.integration.test.ts`, e2e |
+| CA02.2 | Credenciais inválidas falham sem revelar qual campo existe | integração e e2e |
+| CA02.3 | Recarregar uma página privada mantém a sessão | `GET /api/me` na integração, e2e |
+| CA02.4 | Sem sessão, páginas privadas redirecionam para o login | e2e (`proxy.ts`) |
+| CA02.5 | Sair encerra a sessão | e2e |
+| CA12.1–CA12.4 | Design responsivo (RNF07) | `tests/e2e/responsive.mobile.spec.ts` |
+
+## Estrutura da aplicação
+
+O projeto separa o que roda só no servidor (`src/server/`) do que é regra pura (`src/core/`) e do que é tela (`src/features/`, `app/`). A árvore mostra o estado da etapa.
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── .env.example                DATABASE_URL, SUPABASE_*, AUTH_SECRET, QUOTES_PROVIDER
+  ├── prisma.config.ts            URL do banco e o comando de seed (Prisma 7)
+  ├── prisma/
+  │   ├── schema.prisma           User com passwordHash e role
+  │   ├── migrations/             geradas por pnpm db:migrate
+  │   └── seed.ts                 chama src/server/seed.ts com o Node puro
+  ├── proxy.ts                    guarda das rotas privadas (o middleware do Next 16)
+  ├── app/
+  │   ├── layout.tsx              html, body e Providers
+  │   ├── (public)/               landing, signin, signup
+  │   ├── (private)/              layout com a barra comum + dashboard
+  │   └── api/auth/[...nextauth]  handlers do NextAuth
+  ├── src/
+  │   ├── core/                   simulator.ts, auth.ts (schemas Zod)
+  │   ├── server/                 prisma.ts, password.ts, auth.ts, session.ts, users.ts
+  │   ├── features/auth/          actions.ts (Server Actions), formulários
+  │   ├── features/landing/       simulator.tsx
+  │   ├── components/ui/          button, input, field, dialog
+  │   ├── components/layout/      app-shell, user-menu, brand
+  │   └── store/preferences.ts    Zustand: tema, ocultar valores, paleta
+  ├── supabase/config.toml        stack local nas portas 5434x
+  ├── tests/
+  │   ├── integration/            helpers.ts, setup.ts (auth simulado), *.integration.test.ts
+  │   └── e2e/                    auth.spec.ts, responsive.mobile.spec.ts
+  ├── vitest.config.ts            projetos unit, browser, integration (e build)
+  └── playwright.config.ts        projetos chromium e mobile
+`}
+</FileTree>
+
+## Banco: Prisma 7 no Postgres do Supabase
+
+A partir do Prisma 7 o client recebe um *driver adapter*: quem fala com o banco é o driver `pg`, e a string de conexão vem do `.env`. O `?schema=` da URL separa desenvolvimento e testes no mesmo banco, o que dispensa um Postgres por camada.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/prisma.ts" region="adapter" />
+
+O modelo de usuário guarda o hash da senha e o papel, porque o NextAuth com JWT não precisa de tabelas de sessão. A `Role` é o `profiles.role` do vanilla, agora no próprio usuário.
+
+<SourceCode path="examples/courses/react/investflow-react/prisma/schema.prisma" lines="1-36" />
+
+<Aside type="tip" title="Um schema por camada de teste">
+  `tests/database.ts` monta a URL com `?schema=integration` ou `?schema=e2e`, apaga o schema e roda `prisma migrate deploy` antes de cada execução. O `dev.db` da versão vanilla virou um schema do mesmo Postgres: os testes nunca tocam os dados de desenvolvimento e não precisam de um segundo banco.
+</Aside>
+
+## Identidade: NextAuth com senha em `scrypt`
+
+A senha nunca é guardada em texto: `hashPassword` gera um sal e deriva a chave com `scrypt`; `verifyPassword` compara em tempo constante. Não há `bcrypt` no projeto.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/password.ts" region="hash" />
+
+O NextAuth fica em dois arquivos. `auth.config.ts` tem só o que não toca o banco (páginas, estratégia JWT, callbacks que copiam o `role` para o token); `auth.ts` acrescenta o provedor `Credentials`, que valida o formulário com o schema de `core/auth` e delega a `verifyCredentials`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/auth.config.ts" region="config" />
+
+O `auth.ts` completa a configuração com o provedor; `authorize` devolve `null` para qualquer falha, e o NextAuth responde `CredentialsSignin` sem dizer qual campo errou:
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/auth.ts" region="nextauth" />
+
+`verifyCredentials` devolve o mesmo `null` para e-mail inexistente e para senha errada: a mensagem única do login (CA02.2) nasce aqui, não na tela.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/users.ts" region="verify" />
+
+## Guardas: `proxy.ts` e `requireSession`
+
+O `proxy.ts` é o middleware do Next 16. Ele importa só o `auth.config.ts` (sem Prisma), lê o JWT e redireciona quem não tem sessão para `/signin`, guardando o destino em `callbackUrl` (CA02.4).
+
+<SourceCode path="examples/courses/react/investflow-react/proxy.ts" region="proxy" />
+
+Route handlers não passam pelo proxy: eles chamam `requireSession`, que lança `401`, ou `requireAdmin`, que lança `403`. Páginas usam `requirePageSession`, que redireciona.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/session.ts" region="guards" />
+
+## Formulários: Server Actions e `useActionState`
+
+O login é uma Server Action: valida com Zod, chama `signIn` do NextAuth e traduz a falha em uma mensagem. No sucesso o NextAuth redireciona por conta própria, e o `redirect` do Next é lançado como exceção, por isso o `throw error` no fim.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/auth/actions.ts" region="signin" />
+
+No cliente, `useActionState` liga o formulário à ação: o estado devolvido traz os erros e `pending` desabilita o botão enquanto a ação roda.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/auth/signin-form.tsx" region="form" />
+
+O fluxo completo, do formulário ao JWT, fica assim:
+
+<Mermaid title="Do formulário ao JWT">
+{`
+sequenceDiagram
+  participant B as Navegador
+  participant A as Server Action
+  participant N as NextAuth
+  participant P as Prisma
+  B->>A: signInAction(FormData)
+  A->>A: signInSchema.safeParse
+  A->>N: signIn('credentials', { email, password })
+  N->>P: verifyCredentials(email, password)
+  P-->>N: usuário ou null
+  N-->>B: cookie com o JWT (role dentro) + redirect
+  B->>B: proxy.ts lê o JWT nas rotas privadas
+`}
+</Mermaid>
+
+## Landing: Server Component e simulador
+
+A landing lê a sessão no servidor e troca os botões de entrar por "Acessar Carteira" quando há usuário (CA11.7). O simulador é um Client Component, mas o cálculo mora em `core/simulator.ts`: a mesma regra do vanilla, sem DOM.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/simulator.ts" region="simulate" />
+
+O componente só coleta entrada e apresenta saída; `useMemo` recalcula quando um campo muda e o Motion anima as barras.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/landing/simulator.tsx" region="simulator" />
+
+## Primitivas de UI: CVA e Base UI
+
+Cada primitiva de `components/ui/` declara suas variantes com CVA; `cn` (clsx + `tailwind-merge`) resolve conflitos com classes passadas de fora. O `Button` também aceita `pending`, que desabilita e marca `aria-busy`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/ui/button.tsx" region="variants" />
+
+O `Dialog` é uma camada fina sobre o Base UI: foco preso, Esc e clique fora fecham (CA11.8), título e descrição anunciados. Todo diálogo do projeto passa por ele.
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/ui/dialog.tsx" region="dialog" />
+
+<Aside type="caution" title="Dica de IA: Peça a primitiva com o contrato de acessibilidade, não com o visual">
+  Assistentes tendem a gerar um diálogo como `div` posicionada com `onClick` no fundo, sem `role="dialog"`, sem foco preso e sem Esc. O Base UI entrega tudo isso; o que o componente do projeto acrescenta é só a moldura.
+
+  **Prompt:** *"Reescreva este diálogo sobre `@base-ui/react/dialog` mantendo minhas classes Tailwind; liste quais atributos ARIA e quais comportamentos de teclado o Base UI passa a garantir e escreva um teste em Vitest Browser Mode que prove que Esc fecha sem chamar `onSubmit`."*
+</Aside>
+
+## Preferências: Zustand só para interface
+
+O store guarda tema, ocultar valores e a paleta aberta; nada de dados remotos. O `persist` grava só os dois primeiros no `localStorage`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/store/preferences.ts" region="store" />
+
+O `Providers` do layout raiz espelha o store em atributos do `<html>`: o CSS lê `data-theme` para o modo escuro e `data-hide-values` para trocar valores por `••••••`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/providers.tsx" region="effects" />
+
+## Barra comum e design responsivo
+
+O `AppShell` envolve toda página privada: os mesmos links, "Painel Admin" só para administradores, tema, privacidade e o menu do usuário. Em telas estreitas os links ficam atrás de um botão com `aria-expanded` e `aria-controls` (CA12.2).
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/layout/app-shell.tsx" region="nav" />
+
+## Testes em três camadas
+
+O Vitest é dividido em projetos, cada um com ambiente e inclusão próprios. O `browser` roda em um Chromium real com o Tailwind carregado, porque um diálogo `fixed` sem CSS cairia no fluxo da página.
+
+<SourceCode path="examples/courses/react/investflow-react/vitest.config.ts" region="projects" />
+
+Na integração, o `auth()` do NextAuth é simulado por módulo: `actAs(user)` decide quem está autenticado, e o resto (Prisma, rotas, Storage) é real.
+
+<SourceCode path="examples/courses/react/investflow-react/tests/integration/helpers.ts" region="helpers" />
+
+O Playwright sobe `next dev` na porta 3100 com o schema `e2e` e o provedor de cotações `fake`, e divide os specs em `chromium` e `mobile`.
+
+<SourceCode path="examples/courses/react/investflow-react/playwright.config.ts" region="config" />
+
+## Testando
+
+A integração prova o cadastro, a mensagem única e a rota privada mais simples do projeto.
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/auth.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ contas > CA02.1 — um cadastro válido cria o usuário com papel de investidor e senha em hash
+ ✓ contas > recusa e-mail repetido
+ ✓ contas > CA02.2 — credenciais válidas devolvem o usuário; senha errada e e-mail inexistente devolvem o mesmo null
+ ✓ GET /api/me > CA02.4 — sem sessão responde 401
+ ✓ GET /api/me > CA02.3 — com sessão devolve o perfil sem o hash da senha
+
+ Tests  5 passed (5)
+```
+
+As primitivas rodam em Chromium real; o teste do diálogo abre, confere título e descrição acessíveis e fecha pelo botão e por Esc.
+
+```bash title="Terminal"
+pnpm test:browser
+```
+
+```txt title="Output"
+ ✓ Dialog > abre com título e descrição acessíveis e fecha pelo botão
+ ✓ Dialog > CA11.8 — Esc fecha o diálogo sem salvar
+ ✓ Button > renderiza um botão acessível e reage ao clique
+ ✓ Button > aplica a variante e mescla classes externas sem duplicar utilitários
+ ✓ Button > em estado pendente fica desabilitado e ocupado
+ ✓ Field > liga rótulo e dica ao controle
+ ✓ Field > anuncia o erro e marca o controle como inválido
+```
+
+O E2E percorre a landing, o redirecionamento sem sessão, o cadastro, a mensagem única e o ciclo login, recarga e logout.
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/auth.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA01.1, CA01.2 — a landing abre com o simulador e os links de navegação
+  ✓ CA02.4 — página privada sem sessão redireciona para o login
+  ✓ CA02.1 — cadastro cria a conta e abre a carteira
+  ✓ CA02.2 — senha errada e e-mail inexistente mostram a mesma mensagem
+  ✓ CA02.3, CA02.5, CA11.7 — login, sessão mantida na recarga e logout
+  5 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Suba a stack local e prepare o banco. O `db:buckets` cria os buckets do Storage que as etapas 4 e 10 usam.
+
+   ```bash
+   cd examples/courses/react/investflow-react
+   pnpm install && cp .env.example .env
+   supabase start && pnpm db:buckets && pnpm db:migrate && pnpm db:seed
+   ```
+
+2. Rode o servidor e abra `http://localhost:3000`. Entre com `admin@example.com` e `admin12345`, ou crie uma conta.
+
+   ```bash
+   pnpm dev
+   ```
+
+3. Rode as três camadas. O E2E exige que o `pnpm dev` esteja parado: o Next não aceita dois servidores de desenvolvimento do mesmo projeto.
+
+   ```bash
+   pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e
+   ```
+
+</Steps>
+
+## Conceitos abordados
+
+- Server Components e Server Actions com `useActionState`.
+- Prisma 7 com *driver adapter* e um schema Postgres por camada de teste.
+- NextAuth v5: provedor `Credentials`, JWT com `role`, configuração dividida para o proxy.
+- `scrypt` e comparação em tempo constante.
+- CVA, `tailwind-merge` e Base UI como base de uma biblioteca de primitivas.
+- Vitest em projetos e Browser Mode; Playwright com projeto `mobile`.
+
+## Exercício
+
+Acrescente ao cadastro um campo de confirmação de senha. A regra vai no `signUpSchema` de `core/auth.ts` (com `superRefine`), a mensagem aparece no `Field` do formulário e um teste unitário prova que senhas diferentes são recusadas.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No schema, adicione `confirm: z.string()` e um `superRefine` que emite `ctx.addIssue({ path: ['confirm'], message: 'As senhas não conferem.' })` quando `confirm !== password`. No `SignUpForm`, um segundo `PasswordInput` com `name="confirm"` e `error={state.fieldErrors?.confirm}`. O teste chama `signUpSchema.safeParse` com senhas diferentes e espera `success === false` com a issue em `confirm`.
+</details>
+
+## Desafio
+
+Implemente "lembrar de mim": um checkbox no login que estende a validade do JWT de 30 dias para 90. A duração fica em `session.maxAge` do NextAuth e precisa ser decidida no `authorize` ou no callback `jwt`, a partir de um campo extra do formulário.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Passe `remember` junto das credenciais em `signIn('credentials', { ..., remember: 'true' })`. No callback `jwt`, quando `user` existe, grave `token.exp` calculado pela escolha. Como `session.maxAge` é global, a alternativa mais simples é manter 90 dias como máximo e, no callback, encurtar o `exp` para 30 dias quando `remember` não veio. Prove com um teste de integração que decodifica o token com `decode` de `next-auth/jwt`.
+</details>
+
+## Perguntas de revisão
+
+### Identidade e sessão
+
+1. **Por que `verifyCredentials` devolve o mesmo `null` para e-mail inexistente e para senha errada?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para não revelar quais e-mails estão cadastrados (CA02.2). Uma mensagem diferente por caso permitiria enumerar contas.
+   </details>
+
+2. **O que muda entre `requireSession`, `requireAdmin` e `requirePageSession`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Os dois primeiros servem a route handlers e lançam `HttpError` (401 e 403), convertido em JSON por `toResponse`. O terceiro serve a páginas e redireciona para `/signin` com `callbackUrl`.
+   </details>
+
+3. **Por que o `proxy.ts` importa `auth.config.ts` e não `auth.ts`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O proxy roda em toda requisição e só precisa ler o JWT. `auth.ts` carrega o Prisma, que não deve ser importado ali.
+   </details>
+
+### Arquitetura e testes
+
+4. **O que pode e o que não pode entrar em `src/core/`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Regras puras, schemas Zod e tipos. Nada de React, Prisma ou `fetch`. É a camada que os testes `unit` cobrem em jsdom e que as páginas do guia recortam.
+   </details>
+
+5. **Por que os testes de integração simulam só o `auth()` e mantêm o Prisma real?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O NextAuth lê cookies da requisição, que não existem no teste; simular só ele deixa o resto verdadeiro, inclusive o isolamento entre contas no banco.
+   </details>
+
+6. **Por que os testes `browser` carregam o `globals.css`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Sem o Tailwind, um diálogo `fixed` fica no fluxo normal da página e a camada inerte do Base UI intercepta os cliques; o teste falharia por CSS ausente, não por bug.
+   </details>
+
+## Referências
+
+- [Auth.js: Credentials provider](https://authjs.dev/getting-started/authentication/credentials)
+- [Next.js: proxy (middleware)](https://nextjs.org/docs/app/api-reference/file-conventions/proxy)
+- [React: useActionState](https://react.dev/reference/react/useActionState)
+- [Prisma: prisma.config.ts](https://www.prisma.io/docs/orm/reference/prisma-config-reference)
+- [Node.js: crypto.scrypt](https://nodejs.org/api/crypto.html#cryptoscryptpassword-salt-keylen-options-callback)
+- [Vitest: projects](https://vitest.dev/guide/projects) e [Browser Mode](https://vitest.dev/guide/browser/)
+
+## Próxima etapa
+
+[Carteira](../portfolio/): corretoras, ativos e lançamentos, o `core/portfolio.ts` portado do vanilla, a tabela com TanStack Table e a tela do ativo.

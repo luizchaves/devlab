@@ -1,0 +1,242 @@
+---
+title: "InvestFlow (React): Perfil e experiência"
+description: "Décima etapa do InvestFlow em React: a página de perfil com nome editável e avatar no bucket público do Storage, o menu do usuário e a barra comum, tema em ciclo e ocultação de valores persistidos no Zustand, mostrar senha, e o next build inspecionado por teste para provar que nenhum segredo chega ao navegador."
+course: react
+project: investflow-react
+sidebar:
+  label: "10. Perfil e experiência"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **10 de 10** · Nível **Avançado** · Storage público · Preferências persistidas · Build
+
+A última etapa fecha a experiência: o investidor edita o nome e a foto, escolhe o tema, esconde os valores quando está em público e vê a senha que digita. E fecha a publicação: um teste roda sobre o `next build` de verdade e afirma que a service role e o `AUTH_SECRET` não estão no bundle do navegador, e que toda resposta leva os cabeçalhos de segurança.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  As preferências vivem no Zustand com `persist` desde a etapa 1; o que esta etapa acrescenta são os pontos de uso. Para o padrão de "refazer o layout do servidor depois de uma mutação", veja `router.refresh()` em [Roteamento](../../../routing/routing/).
+</Aside>
+
+## Objetivo
+
+Entregar perfil, preferências e publicação com as mesmas garantias das etapas anteriores: só o dono muda o que é seu, o servidor guarda os segredos, e um teste prova cada uma. Ao final da etapa, o leitor deve ser capaz de:
+
+- Servir arquivos de um bucket público por escolha, com escrita só pelo servidor.
+- Refazer a parte do layout renderizada no servidor depois de uma mutação no cliente.
+- Persistir preferências de interface e aplicá-las ao `<html>` sem piscar.
+- Inspecionar o resultado de um `next build` em um teste.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF19 a RF22 e RNF06. Critérios CA11.1 a CA11.13 (CA11.7 e CA11.8 já foram provados nas etapas 1 e 2):
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA11.1 | Perfil mostra nome, e-mail, papel e cadastro; nome em branco é recusado | integração, e2e |
+| CA11.2, CA11.3 | Avatar até 2 MB na pasta do dono do bucket público; remover devolve a inicial | unit, integração, e2e |
+| CA11.4 | `role` não é alterável pelo cliente | integração |
+| CA11.5, CA11.6 | Barra comum e menu do usuário | e2e |
+| CA11.9 | Tema claro → escuro → automático, persistido | unit (store), e2e |
+| CA11.10 | Ocultar valores em tudo, inclusive no que renderiza depois | unit, e2e |
+| CA11.11 | Mostrar/ocultar senha | e2e |
+| CA11.12, CA11.13 | Build sem segredos; cabeçalhos de segurança | `tests/deploy` |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── supabase/config.toml              + [storage.buckets.avatars]: público, 2 MiB, imagens
+  ├── app/
+  │   ├── (private)/profile/page.tsx
+  │   ├── api/profile/route.ts          GET e PATCH { name }
+  │   └── api/profile/avatar/route.ts   POST (multipart) e DELETE
+  ├── src/
+  │   ├── core/file-validation.ts       + validateAvatar
+  │   ├── server/profile.ts             getProfile, updateProfile, uploadAvatar, removeAvatar
+  │   ├── server/storage.ts             + avatarPublicUrl
+  │   ├── features/profile/profile-view.tsx
+  │   └── components/layout/app-shell.tsx   tema com rótulo do modo atual
+  ├── tests/deploy/build.test.ts         roda sobre o next build
+  └── tests/e2e/experience.spec.ts
+`}
+</FileTree>
+
+## Perfil: só o nome muda
+
+`profileSchema` aceita só `name`; e-mail e papel não mudam por aqui, e um `PATCH` com `role: 'ADMIN'` no corpo é ignorado (CA11.1, CA11.4).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/profile.ts" region="update" />
+
+## Avatar no bucket público
+
+O bucket `avatars` é público por escolha (RNF04): a URL é estável e não expira. A escrita continua só pelo servidor, na pasta do dono; remover zera o path e a inicial do nome volta ao lugar da foto (CA11.2, CA11.3).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/profile.ts" region="avatar" />
+
+A barra lê nome e avatar do banco a cada renderização do servidor; depois de salvar, o cliente chama `router.refresh()` e a barra mostra o nome e a foto novos sem recarregar a página.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/profile/profile-view.tsx" region="view" />
+
+<Aside type="tip" title="Dica de IA: Distinga o que o servidor renderiza do que o cliente mantém">
+  Depois de uma mutação, assistentes atualizam o estado local e esquecem a parte da página que veio do servidor (a barra com o nome). `router.refresh()` refaz os Server Components mantendo o estado do cliente.
+
+  **Prompt:** *"Depois de `PATCH /api/profile` neste componente, o nome na barra (renderizada pelo layout do servidor) continua antigo; mostre onde chamar `router.refresh()` e escreva um teste E2E que salva o nome e espera o botão do menu do usuário mudar sem `page.reload()`."*
+</Aside>
+
+## Tema e privacidade
+
+O botão de tema gira claro → escuro → automático e anuncia o modo atual no `aria-label`; em automático, o tema segue o sistema (CA11.9). "Ocultar valores" troca todo `<Money>` por `••••••`, persiste entre páginas e alcança o que for renderizado depois, porque cada `Money` lê o store (CA11.10).
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/money.tsx" region="money" />
+
+O campo de senha com o botão de mostrar/ocultar (CA11.11) é o mesmo desde a etapa 1:
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/auth/password-input.tsx" region="password" />
+
+## Publicação: o build inspecionado
+
+O projeto `build` do Vitest fica fora do `pnpm test`: `pnpm test:build` roda o `next build` se necessário, percorre os *chunks* do navegador e afirma que a service role e o `AUTH_SECRET` não estão lá (CA11.12, RNF02, RNF06), e que `next.config.ts` envia os três cabeçalhos em toda resposta (CA11.13).
+
+<SourceCode path="examples/courses/react/investflow-react/tests/deploy/build.test.ts" region="build" />
+
+Os cabeçalhos ficam em `next.config.ts`, o equivalente do `vercel.json` da versão vanilla:
+
+<SourceCode path="examples/courses/react/investflow-react/next.config.ts" region="headers" />
+
+## Testando
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/profile.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ perfil > CA11.1, CA11.4 — mostra nome, e-mail, papel e cadastro; nome em branco é recusado; papel não muda pelo cliente
+ ✓ perfil > CA11.2, CA11.3 — o avatar vai para a pasta do dono no bucket público e remover zera o path
+
+ Tests  2 passed (2)
+```
+
+```bash title="Terminal"
+pnpm test:build
+```
+
+```txt title="Output"
+ ✓ publicação > CA11.12 — o bundle do navegador só leva variáveis públicas
+ ✓ publicação > CA11.13 — cabeçalhos de segurança em toda resposta
+
+ Tests  2 passed (2)
+```
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/experience.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA11.11, CA11.5, CA11.6 — mostrar senha, cadastro e a barra comum com o menu do usuário
+  ✓ CA11.1, CA11.2, CA11.3 — perfil: nome, avatar e remoção
+  ✓ CA11.9, CA11.10 — tema em ciclo e valores ocultos persistem entre páginas
+  3 passed
+```
+
+Com esta etapa, o projeto completo soma 123 testes Vitest, 2 de build e 36 de Playwright (3 deles no projeto `mobile`).
+
+## Executando
+
+<Steps>
+
+1. Abra `/profile`, troque o nome e envie uma imagem: a barra atualiza sem recarregar. Remova a foto: a inicial volta.
+
+2. Clique no tema até "Escuro" e navegue: o modo persiste. Ative "Ocultar valores" e abra a carteira e a rentabilidade: tudo vira `••••••`.
+
+3. Rode `pnpm test:build`. Para publicar, `next build` e `next start` com as variáveis do `.env.example` apontando para o Supabase e o `AUTH_SECRET` da hospedagem.
+
+</Steps>
+
+## Conceitos abordados
+
+- Bucket público × privado: uma decisão por tipo de arquivo.
+- `router.refresh()` para refazer Server Components após uma mutação.
+- Preferências no Zustand aplicadas ao `<html>` e lidas por cada componente.
+- Teste sobre o artefato de build.
+
+## Exercício
+
+Permita ao usuário trocar a senha em `/profile`: senha atual, nova e confirmação. A rota `PATCH /api/profile/password` verifica a atual com `verifyPassword` antes de gravar o novo hash.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Schema com `current`, `password` (mesma regra de `passwordSchema`) e `confirm`; `changePassword(userId, input)` em `server/profile.ts` lê o hash atual, chama `verifyPassword` (400 se não confere) e grava `hashPassword(input.password)`. O teste de integração muda a senha e confere que `verifyCredentials` só aceita a nova.
+</details>
+
+## Desafio
+
+Adicione o seletor de tema também na landing (pública) e faça o primeiro paint já no tema salvo, sem piscar: um `<script>` inline no `<head>` lê o `localStorage` e grava `data-theme` antes de o React hidratar.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  No `app/layout.tsx`, um `<script dangerouslySetInnerHTML>` com poucas linhas: lê `investflow:preferences`, resolve `system` por `matchMedia` e define `document.documentElement.dataset.theme`. O `PreferenceEffects` continua sincronizando depois. O E2E escolhe "Escuro", navega para `/` e confere `data-theme="dark"` antes de qualquer clique.
+</details>
+
+## Perguntas de revisão
+
+### Perfil e arquivos
+
+1. **Por que o bucket de avatares é público e o de comprovantes não?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Avatar aparece na barra a cada renderização e não é dado sensível; comprovante é documento privado. A escolha é por tipo de arquivo (RNF04).
+   </details>
+
+2. **Como um `PATCH /api/profile` com `role: 'ADMIN'` é tratado?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O schema só conhece `name`; o resto é descartado antes de chegar ao banco (CA11.4).
+   </details>
+
+### Preferências e build
+
+3. **Por que cada `<Money>` lê o store em vez de receber `hideValues` por prop?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para alcançar o que for renderizado depois, em qualquer profundidade, sem repassar a prop por toda a árvore (CA11.10).
+   </details>
+
+4. **O que o teste de build procura, e por que só faz sentido depois do `next build`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Os valores da service role e do `AUTH_SECRET` nos *chunks* de `.next/static`. Só o build produz esses arquivos; é o artefato publicado que precisa ser limpo (CA11.12).
+   </details>
+
+5. **Por que `pnpm test` não inclui o projeto `build`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O build leva minutos e não é unitário. Fica em `pnpm test:build`, no `pre-push`, e não no ciclo curto de desenvolvimento.
+   </details>
+
+## Referências
+
+- [Next.js: router.refresh](https://nextjs.org/docs/app/api-reference/functions/use-router#userouter) e [headers](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers)
+- [Supabase Storage: getPublicUrl](https://supabase.com/docs/reference/javascript/storage-from-getpublicurl)
+- [Zustand: persist](https://zustand.docs.pmnd.rs/integrations/persisting-store-data)
+- [OWASP: Secure Headers](https://owasp.org/www-project-secure-headers/)
+
+## Próximo tópico
+
+De volta à [visão geral](../): o mapa completo das dez etapas, a estratégia de testes e como o projeto se compara ao [InvestFlow vanilla](../../../../npm/practice/investflow/). Para continuar, o [Projeto Final](../../project/) propõe uma aplicação autoral com os mesmos critérios de qualidade.

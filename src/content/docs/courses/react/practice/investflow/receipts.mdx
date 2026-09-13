@@ -1,0 +1,266 @@
+---
+title: "InvestFlow (React): Comprovantes"
+description: "Quarta etapa do InvestFlow em React: comprovantes no bucket privado do Supabase Storage, validação de tipo e tamanho antes do upload, path decidido pelo código, URL assinada de 60 segundos criada pelo servidor depois de conferir o dono."
+course: react
+project: investflow-react
+sidebar:
+  label: "4. Comprovantes"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **4 de 10** · Nível **Avançado** · Supabase Storage · Multipart · URL assinada
+
+Um lançamento pode ter um comprovante: a nota de corretagem em PDF, a foto do recibo. No vanilla, o navegador subia o arquivo direto para o bucket e a policy conferia a pasta. Aqui o navegador manda o arquivo para uma rota da aplicação, e o servidor, com a service role, confere o dono, valida de novo e sobe. Quem lê pede uma URL assinada que expira em 60 segundos. O bucket continua privado (RNF04).
+
+<Aside type="note" title="Tópicos conceituais associados">
+  O upload é `multipart/form-data` lido com `request.formData()` no route handler. A cliente do Storage é o `@supabase/supabase-js`, que só existe em `src/server/`: o mesmo cuidado com segredos da etapa 1 vale para a service role.
+</Aside>
+
+## Objetivo
+
+Anexar e consultar arquivos privados sem que o navegador conheça o Storage nem a chave. Ao final da etapa, o leitor deve ser capaz de:
+
+- Declarar buckets no `config.toml` da stack local com limite e tipos permitidos.
+- Validar arquivos no cliente para a pessoa, e no servidor para a segurança.
+- Decidir o path do objeto no código, nunca pelo nome do arquivo.
+- Criar URLs assinadas de curta duração depois de conferir o dono.
+- Enviar `FormData` de uma mutação do React Query e encadear com a criação do lançamento.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF04 e RNF04. Critérios CA05.1 a CA05.5:
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA05.1 | PDF, PNG ou JPG dentro do limite vai para `receipts/<meu-id>/…` e o lançamento guarda só o path | integração, e2e |
+| CA05.2 | Tipo ou tamanho fora do limite é recusado antes do upload | `core/file-validation.test.ts`, integração, e2e |
+| CA05.3 | Ver o próprio comprovante devolve uma URL assinada de 60 s | integração (faz o download), e2e |
+| CA05.4 | Pedir a URL de um lançamento alheio responde 404 | integração |
+| CA05.5 | O path é `<user>/<transação>/<uuid>.<ext>`, nunca uma URL | unit, integração, e2e |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── supabase/config.toml                    + [storage.buckets.receipts]: privado, 5 MiB, 3 tipos
+  ├── app/api/transactions/[id]/receipt/      POST (multipart) e GET (URL assinada)
+  ├── src/
+  │   ├── core/file-validation.ts             validateReceipt, receiptPath
+  │   ├── server/storage.ts                   supabaseAdmin() e ensureReceiptsBucket()
+  │   ├── server/receipts.ts                  uploadReceipt, receiptSignedUrl
+  │   ├── features/asset/transaction-form-dialog.tsx   + campo de arquivo
+  │   └── features/movements/receipt-link.tsx "Ver anexo": pede a URL no clique
+  └── tests/integration/receipts.integration.test.ts
+`}
+</FileTree>
+
+## O bucket, declarado
+
+O bucket nasce com a stack: privado, 5 MiB e três tipos MIME. O limite vale mesmo para quem contornar a validação do cliente (CA05.2). `pnpm db:buckets` aplica a declaração; `ensureReceiptsBucket` também cria o bucket no primeiro uso, para os testes não dependerem desse passo.
+
+```toml title="supabase/config.toml (trecho)"
+[storage.buckets.receipts]
+public = false
+file_size_limit = "5MiB"
+allowed_mime_types = ["application/pdf", "image/png", "image/jpeg"]
+```
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/storage.ts" region="client" />
+
+## Validação e path em `core/`
+
+A validação do cliente existe para a pessoa: responde antes de subir 5 MB pela rede. O `type` é o MIME que o navegador declara a partir da extensão; quem fecha o caminho é o bucket e a mesma checagem repetida no servidor.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/file-validation.ts" region="validate" />
+
+O path é decisão do código: o primeiro segmento diz o dono, o segundo agrupa por lançamento, o terceiro evita colisão e esconde o nome original (CA05.5).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/file-validation.ts" region="path" />
+
+## Servidor: upload e URL assinada
+
+`uploadReceipt` repete a validação, confere que o lançamento é do dono, sobe o arquivo, apaga o anterior (um comprovante por lançamento) e grava só o path (CA05.1).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/receipts.ts" region="upload" />
+
+`receiptSignedUrl` só assina depois de conferir o dono; lançamento alheio responde `404` sem confirmar que o objeto existe (CA05.4). A URL nasce a cada leitura e nunca é gravada (CA05.3).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/receipts.ts" region="signed-url" />
+
+O caminho do arquivo, do formulário à aba que o abre:
+
+<Mermaid title="Do upload à URL assinada">
+{`
+sequenceDiagram
+  participant B as Navegador
+  participant R as /api/transactions/[id]/receipt
+  participant S as Supabase Storage
+  participant P as Prisma
+  B->>R: POST multipart (file)
+  R->>R: validateReceipt + dono do lançamento
+  R->>S: upload(<user>/<tx>/<uuid>.pdf)
+  R->>P: Transaction.receiptPath = path
+  R-->>B: 201 { receiptPath }
+  B->>R: GET (clique em "Ver anexo")
+  R->>R: dono do lançamento
+  R->>S: createSignedUrl(path, 60)
+  R-->>B: { url, expiresIn: 60 }
+  B->>S: abre a URL em outra aba
+`}
+</Mermaid>
+
+<Aside type="caution" title="Dica de IA: A validação do cliente não é a segurança">
+  Assistentes tendem a validar o arquivo só no `onChange` e a confiar no `file.type`. Sem a checagem repetida no servidor e sem o `allowed_mime_types` do bucket, um `curl` sobe qualquer coisa.
+
+  **Prompt:** *"Escreva um teste de integração que envia um `.exe` e um PDF de 5 MB + 1 byte direto para `POST /api/transactions/[id]/receipt`, sem passar pelo formulário, e espera 400 nos dois casos com o `receiptPath` do lançamento ainda nulo."*
+</Aside>
+
+## A rota multipart
+
+O handler lê `request.formData()`, exige um `File` no campo `file` e delega. O `GET` da mesma rota devolve a URL assinada.
+
+<SourceCode path="examples/courses/react/investflow-react/app/api/transactions/[id]/receipt/route.ts" region="routes" />
+
+## No cliente
+
+A mutação de upload monta um `FormData` e não passa pelo helper `api()` (que fixa `Content-Type: application/json`). O diálogo de lançamento valida o arquivo antes de enviar e encadeia: cria o lançamento, depois sobe o comprovante.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/portfolio/queries.ts" region="receipts" />
+
+O botão "Ver anexo" só conhece o path. A aba abre antes do `await` para não cair no bloqueio de pop-up, e recebe a URL assinada quando ela chega.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/movements/receipt-link.tsx" lines="8-26" />
+
+## Testando
+
+A integração usa o Storage local de verdade: sobe o PDF, pede a URL assinada e faz o download por ela.
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/receipts.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ comprovantes > CA05.1, CA05.5 — o dono envia para a própria pasta e o lançamento guarda só o path
+ ✓ comprovantes > CA05.2 — tipo fora da lista e arquivo acima do limite são recusados sem tocar o bucket
+ ✓ comprovantes > CA05.3 — o dono recebe uma URL assinada de 60 s, que entrega o arquivo
+ ✓ comprovantes > CA05.4 — outra conta não envia nem assina o comprovante, sem confirmar que existe
+ ✓ comprovantes > lançamento sem comprovante responde 404 ao pedir a URL
+
+ Tests  5 passed (5)
+```
+
+No E2E, o navegador trata o PDF como download, então o teste captura a requisição da URL assinada em vez de esperar a navegação da aba.
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/receipts.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA05.1, CA05.3, CA05.5 — anexa um comprovante ao aporte e abre a URL assinada
+  ✓ CA05.2 — um tipo fora da lista é recusado antes do upload
+  2 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Garanta o bucket: `pnpm db:buckets` (ou confira em `http://127.0.0.1:54343`, o Studio da stack).
+
+2. Na tela de um ativo, registre um lançamento com um PDF no campo "Comprovante". O extrato ganha o botão "Ver anexo".
+
+3. Clique nele: uma aba abre com a URL assinada. Espere um minuto e recarregue a aba: a URL expirou, e é preciso clicar de novo.
+
+</Steps>
+
+## Conceitos abordados
+
+- Buckets declarativos no `config.toml` e cliente do Storage com service role.
+- `multipart/form-data`, `request.formData()` e `File` no route handler.
+- Path decidido pelo código; um comprovante por lançamento.
+- URL assinada de curta duração e verificação de dono antes de assinar.
+- `FormData` em mutações do React Query e encadeamento de mutações.
+
+## Exercício
+
+Permita remover o comprovante de um lançamento. A rota `DELETE /api/transactions/[id]/receipt` apaga o objeto do bucket e zera `receiptPath`; o extrato ganha o botão ao lado de "Ver anexo".
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `removeReceipt(userId, transactionId)` em `server/receipts.ts`: confere o dono, `storage.remove([path])`, `update({ receiptPath: null })`. O handler `DELETE` responde 204. No cliente, `useRemoveReceipt` invalida `['assets']`. O teste de integração sobe, remove e confere que `GET` responde 404 depois.
+</details>
+
+## Desafio
+
+Mostre uma pré-visualização do comprovante dentro de um `Dialog` (imagem em `<img>`, PDF em `<iframe>`), em vez de abrir outra aba. A URL assinada continua expirando em 60 segundos: o diálogo precisa pedir uma nova ao abrir e fechar antes de vencer, ou renová-la.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um `ReceiptPreviewDialog` chama `receiptUrl` no `onOpenChange(true)` e guarda `url` e `expiresAt`. Um `setTimeout` de `expiresIn − 5` segundos fecha o diálogo ou refaz a chamada. Para PDF, `<iframe src={url} sandbox="">`; para imagem, `<img>`. O teste `browser` renderiza o diálogo com um `fetch` simulado e confere que a URL é pedida só ao abrir.
+</details>
+
+## Perguntas de revisão
+
+### Segurança do arquivo
+
+1. **Por que o lançamento guarda o path e não a URL?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A URL assinada expira; guardá-la seria guardar algo inválido em um minuto. O path é estável, e a URL nasce a cada leitura, depois da verificação de dono (CA05.3, CA05.5).
+   </details>
+
+2. **Se a validação do cliente já recusa o `.exe`, para que repetir no servidor?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A do cliente existe para a pessoa; a do servidor, para a segurança. Um `curl` não passa pelo formulário (CA05.2).
+   </details>
+
+3. **Por que a service role fica só em `src/server/storage.ts`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Com ela, qualquer um leria qualquer bucket. No servidor, quem confere o dono é o código que a usa; no navegador não haveria quem conferir (RNF02, RNF04).
+   </details>
+
+### Cliente
+
+4. **Por que a mutação de upload não usa o helper `api()`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O helper fixa `Content-Type: application/json`. Um `FormData` precisa que o navegador defina o `multipart/form-data` com o *boundary*.
+   </details>
+
+5. **Por que `window.open('')` acontece antes do `await` em "Ver anexo"?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Navegadores bloqueiam pop-ups abertos fora de um gesto do usuário. Abrir a aba no clique e só depois trocar a `location` mantém o gesto.
+   </details>
+
+## Referências
+
+- [Supabase Storage: buckets declarativos](https://supabase.com/docs/guides/local-development/declarative-database-schemas)
+- [Supabase Storage: createSignedUrl](https://supabase.com/docs/reference/javascript/storage-from-createsignedurl)
+- [MDN: FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) e [File](https://developer.mozilla.org/en-US/docs/Web/API/File)
+- [Next.js: Route Handlers e FormData](https://nextjs.org/docs/app/building-your-application/routing/route-handlers#formdata)
+
+## Próxima etapa
+
+[Rentabilidade e admin](../analytics/): as views SQL do vanilla viram funções puras em `core/returns.ts`, a matriz ano × mês e o painel só com agregados.

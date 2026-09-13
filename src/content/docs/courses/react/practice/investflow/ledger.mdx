@@ -1,0 +1,227 @@
+---
+title: "InvestFlow (React): Lançamentos e organização"
+description: "Sétima etapa do InvestFlow em React: editar e excluir lançamentos com recálculo da posição, resgate total, venda baixando o custo pelo preço médio, filtro de posições ativas, ordenação controlada pela URL no TanStack Table, rodapé ponderado e a tela do ativo pelo ticker."
+course: react
+project: investflow-react
+sidebar:
+  label: "7. Lançamentos e organização"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **7 de 10** · Nível **Avançado** · TanStack Table controlado · Estado na URL · Recálculo
+
+Com a carteira crescendo, o investidor precisa corrigir um lançamento errado, desfazer uma venda, zerar uma posição e organizar a tabela: só as ativas ou todas, por valor ou por nome, com o total do que está aberto. Nada disso é novo em regra de negócio, porque `summarize` já sabe recalcular; o trabalho da etapa é ligar essas operações à interface e guardar as escolhas na URL.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  A ordenação do TanStack Table passa a ser **controlada**: o estado vem da URL e volta para ela. É o mesmo padrão de componente controlado de [Props e Estado](../../../basics/props-state/), aplicado a uma tabela inteira.
+</Aside>
+
+## Objetivo
+
+Fechar o ciclo dos lançamentos (criar, editar, excluir) e dar à carteira filtro, ordenação e rodapé, com estado compartilhável pela URL. Ao final da etapa, o leitor deve ser capaz de:
+
+- Reaproveitar um diálogo de criação para edição, com valores iniciais e `key` para reiniciar o estado.
+- Controlar a ordenação do TanStack Table de fora, com colunas numéricas começando decrescentes e nulos no fim.
+- Filtrar e somar posições com funções puras e prová-las por teste.
+- Manter filtro, ordenação e direção na URL com os padrões omitidos.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF03.2 a RF03.6 e RF05.1. Critérios CA08.1 a CA08.4 e CA08.13 a CA08.18 (CA08.5 a CA08.12 já foram provados nas etapas 2 e 3):
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA08.1, CA08.2 | Editar recalcula; excluir pede confirmação; outra conta não alcança | integração, e2e |
+| CA08.3 | "Resgate total" preenche a quantidade disponível | e2e |
+| CA08.4 | Venda baixa o custo pelo preço médio; a diferença é realizado | `core/portfolio.test.ts`, e2e |
+| CA08.13 | "Posições ativas" esconde zerados; ativo sem lançamento conta como ativo | `core/organize.test.ts`, e2e |
+| CA08.14 | Ordenação por cabeçalho; numérica começa do maior; sem cotação vai para o fim | e2e |
+| CA08.15 | O rodapé soma as posições abertas com rentabilidade ponderada | unit, e2e |
+| CA08.16 | Duração da posição aberta e da encerrada | unit (etapa 2) |
+| CA08.17 | Filtro e ordenação na URL, padrão omitido, recarga mantém | e2e |
+| CA08.18 | `/assets/<ticker>` sem diferenciar maiúsculas | e2e |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── src/
+  │   ├── core/organize.ts                     isAssetActive, filterAssets, footerTotals
+  │   ├── features/asset/
+  │   │   ├── transaction-form-dialog.tsx      cria ou edita; resgate total
+  │   │   ├── transactions-table.tsx           + editar e excluir por linha
+  │   │   └── asset-detail.tsx                 + AlertDialog de exclusão
+  │   ├── features/portfolio/
+  │   │   ├── assets-table.tsx                 ordenação controlada, sortUndefined, tfoot
+  │   │   └── portfolio-view.tsx               filtro e ordenação em useUrlState
+  │   └── components/ui/toggle.tsx             Segmented (grupo de botões exclusivos)
+  └── tests/e2e/ledger.spec.ts
+`}
+</FileTree>
+
+## Editar e excluir lançamentos
+
+As rotas `PATCH` e `DELETE /api/transactions/[id]` existem desde a etapa 2; o que muda é a interface. O diálogo de lançamento agora recebe `transaction` opcional: com ele, edita; sem, cria. A `key` no componente pai reinicia o estado do formulário a cada abertura.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/asset/transaction-form-dialog.tsx" region="dialog" />
+
+O "resgate total" preenche a quantidade com a posição disponível, calculada sem o próprio lançamento quando ele está sendo editado (CA08.3). A venda baixa o custo pelo preço médio, e a diferença vira realizado (CA08.4): a regra é a de `summarize`, provada na etapa 2.
+
+A exclusão pede confirmação no `AlertDialog` da etapa 2 e recalcula a posição pelo mesmo caminho: a mutação invalida `['assets']` e a tela do ativo refaz `summarize`.
+
+## Filtro e rodapé em `core/organize.ts`
+
+Um ativo sem lançamento conta como ativo; posição zerada é encerrada (CA08.13). O rodapé soma só as posições abertas exibidas e mostra a rentabilidade ponderada pelo custo (CA08.15).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/organize.ts" region="filter" />
+
+O rodapé usa `totals` da etapa 2 sobre as posições abertas; com o toggle da etapa 8, os proventos entram no lucro:
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/organize.ts" region="footer" />
+
+## Ordenação controlada pela URL
+
+A `AssetsTable` deixa de ter estado próprio: recebe `sorting` e devolve a mudança em `onSortingChange`. `enableSortingRemoval: false` faz o segundo clique inverter em vez de limpar; `sortDescFirst` nas colunas numéricas começa do maior para o menor; `sortUndefined: 'last'` manda o ativo sem cotação para o fim em qualquer direção (CA08.14).
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/portfolio/assets-table.tsx" region="table" />
+
+Na carteira, filtro, ordenação e direção vivem em `useUrlState`; o padrão (`active`, `ticker`, `asc`) some da URL (CA08.17):
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/portfolio/portfolio-view.tsx" region="view" />
+
+<Aside type="caution" title="Dica de IA: A tabela não pode ter dois donos do estado">
+  Assistentes costumam deixar o `useState` da ordenação dentro da tabela e, ao mesmo tempo, ler a URL na página: dois estados que discordam ao recarregar. Uma fonte só, a URL, e a tabela controlada.
+
+  **Prompt:** *"Converta esta tabela do TanStack Table para ordenação controlada: o estado vem de `useUrlState({ sort, dir })` na página e volta por `onSortingChange`; garanta `enableSortingRemoval: false`, `sortDescFirst` nas colunas numéricas e `sortUndefined: 'last'`, e escreva um teste E2E que recarrega com `?sort=value&dir=desc` e confere o `aria-sort` do cabeçalho."*
+</Aside>
+
+## A tela do ativo pelo ticker
+
+`getAsset` já aceitava id ou ticker (etapa 2), sem diferenciar maiúsculas: `/assets/cdb-inter` abre o CDB, e um ticker inexistente mostra "não encontrado" (CA08.18). Nada muda no código; o critério ganha o teste.
+
+## Testando
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/organize.test.ts
+```
+
+```txt title="Output"
+ ✓ organização da carteira > CA08.13 — "ativas" esconde os zerados; "todos" os mostra; sem lançamento conta como ativo
+ ✓ organização da carteira > CA08.15 — o rodapé soma só as posições abertas e pondera a rentabilidade pelo custo
+
+ Tests  2 passed (2)
+```
+
+O E2E edita a segunda compra (posição 300, preço médio 16,67), resgata tudo a 20 (realizado 1.000), desfaz a venda, e depois organiza a carteira.
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/ledger.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA08.1, CA08.3, CA08.4, CA08.2 — edita, resgata tudo e desfaz um lançamento
+  ✓ CA08.13, CA08.14, CA08.15, CA08.17 — filtro, ordenação, rodapé e estado na URL
+  ✓ CA08.18 — abre o ativo pelo ticker, sem diferenciar maiúsculas
+  3 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Na tela de um ativo com dois aportes, edite o segundo (lápis na linha) e mude a quantidade: os KPIs recalculam. Registre uma venda com "Resgate total": a quantidade vem preenchida e, depois, a posição fica em 0 e a duração vira "Encerrado em …".
+
+2. Exclua a venda pela lixeira: o `AlertDialog` pede confirmação e a posição volta.
+
+3. Na carteira, troque para "Todos os ativos": o encerrado aparece com o selo. Clique em "Valor (R$)" duas vezes e observe a URL: `?filter=all&sort=value&dir=desc`, depois `?filter=all&sort=value`. Recarregue.
+
+</Steps>
+
+## Conceitos abordados
+
+- Diálogo reaproveitado para criar e editar; `key` para reiniciar estado.
+- Tabela com ordenação controlada; `sortDescFirst` e `sortUndefined`.
+- Funções puras para filtro e rodapé.
+- URL como fonte única do estado de tela.
+
+## Exercício
+
+Acrescente um campo de busca por ticker ou nome à carteira (`?q=petr`), aplicado antes do filtro de ativas, com a lógica em `core/organize.ts` e um teste unitário.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `searchAssets(assets, q)` normaliza com `toLowerCase()` e `localeCompare`-friendly `normalize('NFD')`, e filtra por `ticker` ou `name`. Em `PortfolioView`, `q` entra em `useUrlState` e um `Input` com `debounce` de 200 ms escreve nele. O teste confere que `petr` acha `PETR4` e que acento não atrapalha (`acoes` acha "Ações").
+</details>
+
+## Desafio
+
+Implemente "desfazer" para a exclusão de um lançamento: o toast de sucesso ganha um botão que recria o lançamento com os mesmos dados em até 10 segundos.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Guarde o lançamento excluído no estado do `AssetDetail` e use `toast.success('Lançamento excluído.', { action: { label: 'Desfazer', onClick } })` do Sonner; `onClick` chama `createTransaction` com os mesmos campos (o comprovante não volta, e o toast avisa). O E2E exclui, clica em "Desfazer" e confere que o extrato tem a linha de novo.
+</details>
+
+## Perguntas de revisão
+
+### Lançamentos
+
+1. **Por que o resgate total calcula a posição "sem o próprio lançamento" na edição?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Se a venda em edição já está no extrato, ela mesma reduziria a posição disponível; o cálculo precisa do estado antes dela.
+   </details>
+
+2. **Editar um lançamento mexe em algum outro registro?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Não. A posição é derivada em `summarize` a cada leitura; só o lançamento muda (CA08.1).
+   </details>
+
+### Organização
+
+3. **Por que a ordenação por valor manda o ativo sem cotação para o fim nas duas direções?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Sem cotação não há valor para comparar; `sortUndefined: 'last'` trata o `undefined` como "depois de tudo", independentemente da direção (CA08.14).
+   </details>
+
+4. **O que um ativo zerado vale na ordenação por valor?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Zero, mesmo sem cotação: `summarize` devolve `value: 0` para posição zerada. Por isso ele sobe na ordenação crescente.
+   </details>
+
+5. **Por que `?filter=active` nunca aparece na URL?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     É o valor padrão; `useUrlState` remove parâmetros iguais ao padrão para a URL ficar limpa (CA08.17).
+   </details>
+
+## Referências
+
+- [TanStack Table: sorting guide](https://tanstack.com/table/latest/docs/guide/sorting) (`enableSortingRemoval`, `sortDescFirst`, `sortUndefined`)
+- [React: resetting state with a key](https://react.dev/learn/preserving-and-resetting-state#resetting-a-form-with-a-key)
+- [Sonner](https://sonner.emilkowal.ski/)
+
+## Próxima etapa
+
+[Proventos e movimentações](../dividends/): o direito pela data ex, o retorno total, a matriz de pagamentos e o extrato de aportes e resgates.

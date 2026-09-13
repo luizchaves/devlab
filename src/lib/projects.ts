@@ -8,7 +8,13 @@
 
 export type ProjectLevel = 'Iniciante' | 'Intermediário' | 'Avançado';
 
-export type ProjectCategory = 'express' | 'invest-app' | 'monitor-app' | 'web-api' | 'npm';
+export type ProjectCategory =
+  | 'express'
+  | 'invest-app'
+  | 'monitor-app'
+  | 'web-api'
+  | 'npm'
+  | 'react';
 
 /** Trilhas da homepage; um projeto pode aparecer em mais de uma. */
 export type ProjectTrack = 'front-end' | 'back-end' | 'database';
@@ -55,6 +61,27 @@ export const projects: Project[] = [
     ],
     docs: '/courses/npm/practice/investflow/',
     source: 'examples/courses/npm/projects/investflow-static',
+  },
+  {
+    id: 'investflow-react',
+    name: 'InvestFlow (React) — Next.js & TanStack',
+    description:
+      'O InvestFlow reconstruído em React: os mesmos requisitos do produto vanilla com Next.js App Router, NextAuth, Prisma sobre o PostgreSQL do Supabase, TanStack Query e Table, Zustand, Base UI, CVA, Tailwind CSS v4 e testes em três camadas mais E2E.',
+    level: 'Avançado',
+    category: 'react',
+    tracks: ['front-end', 'back-end', 'database'],
+    featured: true,
+    tech: ['Next.js', 'React', 'NextAuth', 'Prisma', 'PostgreSQL', 'TanStack', 'Tailwind CSS'],
+    concepts: [
+      'Server Components',
+      'Server Actions',
+      'Autorização por dono',
+      'Server State',
+      'Testes em camadas',
+      'Mobile-first',
+    ],
+    docs: '/courses/react/practice/investflow/',
+    source: 'examples/courses/react/investflow-react',
   },
   {
     id: 'invest-app',
@@ -160,10 +187,11 @@ export function getProjectsByCategory(category: ProjectCategory): Project[] {
 
 const categoryOrder: Record<ProjectCategory, number> = {
   npm: 1,
-  'invest-app': 2,
-  'monitor-app': 3,
-  express: 4,
-  'web-api': 5,
+  react: 2,
+  'invest-app': 3,
+  'monitor-app': 4,
+  express: 5,
+  'web-api': 6,
 };
 
 /** Ordena pela trilha da categoria e, dentro dela, destaques primeiro. */

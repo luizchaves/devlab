@@ -1,0 +1,288 @@
+---
+title: "InvestFlow (React): Cotações"
+description: "Terceira etapa do InvestFlow em React: a Edge Function update-quotes vira um route handler com provedores fake e yahoo, histórico idempotente por ativo e dia, calendário de mercado da B3 e da NYSE, busca automática ao cadastrar e cotação ou saldo manual."
+course: react
+project: investflow-react
+sidebar:
+  label: "3. Cotações"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **3 de 10** · Nível **Avançado** · Route handlers · Provedores · Calendário de mercado
+
+No vanilla, a cotação vinha de uma Edge Function com a chave de serviço. Aqui a mesma lógica vira um route handler: quem chama é o dono da sessão, quem consulta o provedor é o servidor, e o token do provedor nunca chega ao navegador (RNF02). O calendário de mercado, a coleta com falha parcial e a conversão de cripto foram portados para `core/`, onde os testes os cobrem sem rede.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  A rodada é uma requisição `POST` disparada por uma mutação do React Query; o provedor é um *adapter* com um contrato de uma função. Para a distinção entre estado do servidor e estado local, veja [Ciclo de vida e APIs](../../../state/effects-api/).
+</Aside>
+
+## Objetivo
+
+Atualizar cotações sem expor segredos, consultando o provedor só quando pode haver preço novo e deixando o usuário informar o valor quando o provedor não responde. Ao final da etapa, o leitor deve ser capaz de:
+
+- Definir um contrato de provedor e implementar um adaptador real (Yahoo) e um simulado (`fake`).
+- Tratar falha parcial como dado, não como exceção.
+- Decidir com um calendário de mercado se vale consultar a fonte externa.
+- Gravar preço atual e histórico de forma idempotente por (ativo, dia).
+- Encadear uma mutação após outra no cliente (cadastrar e já cotar).
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF04.1, RF05, RF05.1 e RF18. Os critérios e onde são provados:
+
+| Critério | Prova |
+| -------- | ----- |
+| CA04.1 (atualiza e não duplica no mesmo dia) | integração |
+| CA04.2 (ticker desconhecido entra nas falhas) | `core/quotes.test.ts`, integração |
+| CA04.3 (chave só no servidor) | `tests/deploy` na etapa 10 |
+| CA04.4, CA04.5 (busca ao cadastrar; falha não perde o ativo) | e2e |
+| CA08.9 (`assetId` restringe a rodada) | integração |
+| CA08.10, CA08.11, CA08.12 (cotação e saldo manuais) | integração e e2e |
+| CA10.14, CA10.15, CA10.16 (calendário) | `core/market-calendar.test.ts` |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── prisma/schema.prisma           + Quote, QuoteRun, ExchangeRate
+  ├── app/api/
+  │   ├── quotes/update/route.ts     POST: a rodada (carteira ou assetId)
+  │   └── assets/[id]/quote/route.ts POST: cotação ou saldo manual
+  ├── src/
+  │   ├── core/quotes.ts             contrato, fake, collectQuotes, símbolos, conversão
+  │   ├── core/market-calendar.ts    Páscoa, feriados, status, shouldFetchFromProvider
+  │   ├── server/quotes/
+  │   │   ├── providers.ts           yahoo e selectProvider (QUOTES_PROVIDER)
+  │   │   ├── update.ts              updateQuotes(userId, { assetId })
+  │   │   └── manual.ts              setManualQuote
+  │   └── features/asset/quote-dialog.tsx
+  └── tests/integration/quotes.integration.test.ts
+`}
+</FileTree>
+
+## O contrato e o provedor simulado
+
+Um provedor é uma função: recebe tickers e devolve cotações. O `fake` tem uma tabela fixa e ignora tickers desconhecidos, sem inventar preço: a falha é registrada, não mascarada.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/quotes.ts" region="fake-provider" />
+
+`collectQuotes` transforma falha parcial em dado: um ticker que o provedor não conhece vira `not_found`, e um erro do provedor inteiro marca todos como `provider_error`, mas a rodada ainda responde 200 com o resumo (CA04.2).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/quotes.ts" region="collect" />
+
+## O provedor real
+
+O endpoint de gráfico do Yahoo Finance é público e não pede token. Tickers da B3 levam o sufixo `.SA`; um que o Yahoo não conhece responde 404 e vira `not_found`. A escolha entre `yahoo` e `fake` vem de `QUOTES_PROVIDER`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/quotes/providers.ts" region="yahoo" />
+
+## Calendário de mercado
+
+A B3 opera em dias úteis das 10h às 18h de São Paulo; NYSE e Nasdaq das 9h30 às 16h de Nova York; cripto, 24/7. Os feriados de cada praça são calculados (Páscoa por Meeus/Jones/Butcher), e `getMarketStatus` devolve se o mercado está aberto e qual foi a última sessão encerrada (CA10.14).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/market-calendar.ts" region="status" />
+
+`shouldFetchFromProvider` é a decisão: sem cotação prévia ou com cotação anterior à última sessão, consulta sempre (CA10.16); no fim de semana, com o fechamento de sexta já salvo, não consulta (CA10.15).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/market-calendar.ts" region="should-fetch" />
+
+## A rodada: `updateQuotes`
+
+A função escolhe os ativos cotáveis do dono (ou só o `assetId`), filtra pelo calendário, consulta o provedor uma vez por símbolo, grava preço atual e histórico idempotente por (ativo, dia) e registra o resumo em `QuoteRun`. Cripto em real pede também o par `BRL=X` da mesma rodada.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/quotes/update.ts" region="update" />
+
+O fluxo, de quem clica até o histórico:
+
+<Mermaid title="A rodada de cotações">
+{`
+flowchart TD
+  A[POST /api/quotes/update] --> B[ativos cotáveis do dono]
+  B --> C{shouldFetchFromProvider?}
+  C -- não --> G[resumo: 0 atualizados]
+  C -- sim --> D[collectQuotes no provedor]
+  D --> E[Asset.currentPrice + Quote por dia]
+  D --> F[ExchangeRate do dia, se veio BRL=X]
+  E --> G[QuoteRun + resumo]
+`}
+</Mermaid>
+
+<Aside type="caution" title="Dica de IA: Peça a idempotência antes do provedor">
+  Assistentes escrevem a rodada com `create` no histórico e, na segunda execução do dia, duplicam a linha ou quebram na chave única. A chave `(assetId, quoteDate)` com `upsert` é o que faz repetir ser seguro (CA04.1).
+
+  **Prompt:** *"Reescreva a gravação do histórico de cotações com `upsert` pela chave `(assetId, quoteDate)` e escreva um teste de integração que roda a rodada duas vezes no mesmo dia e espera uma linha por ativo."*
+</Aside>
+
+## Cotação e saldo manuais
+
+Quando o provedor não responde, o dono informa o valor (CA08.10). Ativo cotado grava `currentPrice` e uma linha no histórico na data informada (CA08.11); ativo por saldo (renda fixa, fundos) vira um lançamento `update`, reaproveitando `createTransaction` (CA08.12).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/quotes/manual.ts" region="manual" />
+
+## No cliente: cadastrar e já cotar
+
+Ao salvar um ativo cotável, o diálogo dispara a rodada só para ele (CA04.4). Se o provedor não conhece o ticker, o ativo continua salvo e um aviso orienta a informar o valor na tela do ativo (CA04.5).
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/portfolio/queries.ts" region="quotes" />
+
+Na tela do ativo, "Atualizar cotação" tenta o provedor e, sem resposta, abre o diálogo manual já com o aviso; ativo por saldo abre direto em "Atualizar saldo".
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/asset/quote-dialog.tsx" region="dialog" />
+
+## Testando
+
+O calendário roda sem rede, com datas fixas.
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/market-calendar.test.ts
+```
+
+```txt title="Output"
+ ✓ calendário > calcula a Páscoa
+ ✓ calendário > CA10.14 — reconhece os feriados da B3
+ ✓ calendário > CA10.14 — reconhece os feriados de NYSE/Nasdaq, inclusive os observados
+ ✓ getMarketStatus > classifica o mercado pelo ativo
+ ✓ getMarketStatus > CA10.14 — B3 aberta em dia útil das 10h às 18h; cripto sempre aberta
+ ✓ getMarketStatus > no domingo, a última sessão encerrada é a sexta anterior
+ ✓ shouldFetchFromProvider > CA10.16 — sem cotação prévia, ou anterior à última sessão, sempre consulta
+ ✓ shouldFetchFromProvider > CA10.15 — no fim de semana, com o fechamento de sexta já salvo, não consulta
+ ✓ shouldFetchFromProvider > cotação intraday de sexta ainda pede consulta; cripto e mercado aberto sempre consultam
+
+ Tests  9 passed (9)
+```
+
+A integração roda a rodada com o provedor `fake` (`QUOTES_PROVIDER=fake` no `vitest.config.ts`) e uma quarta-feira às 14h30 como "agora".
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/quotes.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ rodada de cotações (provedor fake) > CA04.1, CA04.2 — atualiza os elegíveis, registra a falha por ticker e ignora renda fixa
+ ✓ rodada de cotações (provedor fake) > CA04.1 — rodar duas vezes no mesmo dia deixa uma linha por ativo no histórico
+ ✓ rodada de cotações (provedor fake) > CA08.9 — com assetId, só aquele ativo é consultado e atualizado
+ ✓ rodada de cotações (provedor fake) > CA03.6, RNF01 — a rodada de uma conta não toca os ativos da outra
+ ✓ rodada de cotações (provedor fake) > CA10.13 — cada rodada com câmbio grava a taxa USD/BRL do dia, sem duplicar
+ ✓ rodada de cotações (provedor fake) > CA10.11 — cripto em real é convertida pelo par BRL=X da mesma rodada
+ ✓ cotação manual > CA08.11 — grava currentPrice e o histórico na data informada; outra conta não grava no ativo alheio
+ ✓ cotação manual > CA08.12 — o saldo manual de renda fixa vira um lançamento update na data informada
+ ✓ cotação manual > valor negativo responde 400 com erro de campo
+
+ Tests  9 passed (9)
+```
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/quotes.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA04.4 — cadastrar um ativo cotado já traz a cotação, sem clique manual
+  ✓ CA04.5, CA08.10, CA08.11 — provedor sem o ticker avisa, mantém o ativo e abre a cotação manual
+  ✓ CA08.12, CA08.8 — o saldo manual de renda fixa vira lançamento e o ativo vale o saldo
+  ✓ CA10.15 — "Atualizar cotações" na carteira responde com o resumo da rodada
+  4 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Com `QUOTES_PROVIDER=fake` no `.env`, cadastre `PETR4` (Ações): a cotação R$ 38,42 aparece sem clique. Cadastre `XPTO3`: o aviso diz que a cotação não foi atualizada.
+
+2. Na tela do XPTO3, clique em "Atualizar cotação": o diálogo manual abre com o aviso; informe 25 e veja a cotação e o valor.
+
+3. Troque para `QUOTES_PROVIDER=yahoo`, reinicie o `pnpm dev` e rode "Atualizar cotações" na carteira: os tickers reais chegam do Yahoo, com o sufixo `.SA` resolvido pelo provedor.
+
+</Steps>
+
+## Conceitos abordados
+
+- Contrato de provedor e adaptadores real e simulado.
+- Falha parcial como dado (`not_found`, `provider_error`).
+- Calendário de mercado como regra pura, com fusos por praça.
+- `upsert` por chave composta e `$transaction` no Prisma.
+- Mutação encadeada no cliente e diálogo de fallback.
+
+## Exercício
+
+Acrescente o provedor `brapi` (lote em uma chamada, com token em `MARKET_API_TOKEN`), como no vanilla. O token só pode ser lido em `server/quotes/providers.ts`, e `selectProvider` passa a aceitar `brapi`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Implemente `brapiProvider.fetchQuotes` com `fetch(\`https://brapi.dev/api/quote/${tickers.join(',')}?token=...\`)`, mapeando `results[].symbol` e `regularMarketPrice`. Lance erro sem token para a rodada responder `provider_error`. O teste unitário simula `fetch` com `vi.spyOn(globalThis, 'fetch')` e confere o mapeamento; o teste de build da etapa 10 continua provando que o token não vai ao bundle.
+</details>
+
+## Desafio
+
+Agende a rodada. No vanilla, o `pg_cron` chamava a Edge Function. Aqui, crie `POST /api/quotes/cron` protegido por um segredo em `CRON_SECRET` (cabeçalho `Authorization: Bearer`), que roda `updateQuotes` para todas as contas, e documente como um agendador externo o chama.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A rota compara o cabeçalho com `process.env.CRON_SECRET` em tempo constante, itera `prisma.user.findMany` e chama `updateQuotes(user.id)` para cada um, acumulando os resumos. Um teste de integração chama a rota sem o segredo (401) e com ele (200 com a soma dos resumos). O agendamento fica fora do projeto (cron do sistema, GitHub Actions ou o agendador da hospedagem).
+</details>
+
+## Perguntas de revisão
+
+### Provedores e falhas
+
+1. **Por que `collectQuotes` nunca lança exceção?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque uma falha de um ticker, ou do provedor inteiro, é informação para o resumo, não motivo para derrubar a rodada dos outros ativos (CA04.2).
+   </details>
+
+2. **Onde o `QUOTES_PROVIDER` é lido, e por que isso importa?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Em `selectProvider`, no servidor, na hora da chamada. Testes e e2e fixam `fake`; o navegador nunca sabe qual provedor existe nem tem o token.
+   </details>
+
+### Calendário e histórico
+
+3. **Por que a rodada de domingo responde "0 atualizadas" para um ativo com cotação de sexta?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `shouldFetchFromProvider` vê que a última sessão encerrada é sexta e que a cotação salva é do fechamento de sexta: não há preço novo possível (CA10.15).
+   </details>
+
+4. **O que garante uma linha por ativo e dia no histórico?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A chave única `(assetId, quoteDate)` no schema e o `upsert` pela mesma chave em `updateQuotes` e em `setManualQuote`.
+   </details>
+
+5. **Por que a cripto em real precisa do par `BRL=X` na mesma rodada?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O Yahoo só indexa cripto em dólar. Sem o câmbio da rodada, o valor ficaria em dólar gravado como se fosse real; por isso, sem câmbio, a cripto fica sem cotação (CA10.12).
+   </details>
+
+## Referências
+
+- [Next.js: Route Handlers](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
+- [Prisma: upsert](https://www.prisma.io/docs/orm/reference/prisma-client-reference#upsert) e [transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions)
+- [Intl.DateTimeFormat: timeZone](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat)
+- [Calendário da B3](https://www.b3.com.br/pt_br/solucoes/plataformas/puma-trading-system/para-participantes-e-traders/calendario-de-negociacao/)
+
+## Próxima etapa
+
+[Comprovantes](../receipts/): bucket privado no Supabase Storage, validação antes do upload e URL assinada de 60 segundos criada pelo servidor.

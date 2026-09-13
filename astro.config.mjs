@@ -1920,7 +1920,50 @@ export default defineConfig({
             },
             {
               label: 'Prática',
-              items: [{ label: 'Projeto Final', link: '/courses/react/practice/project/' }],
+              items: [
+                { label: 'Projeto Final', link: '/courses/react/practice/project/' },
+                {
+                  label: 'InvestFlow (React)',
+                  collapsed: true,
+                  items: [
+                    { label: 'Visão geral', link: '/courses/react/practice/investflow/' },
+                    {
+                      label: '1. Fundação e identidade',
+                      link: '/courses/react/practice/investflow/foundation/',
+                    },
+                    { label: '2. Carteira', link: '/courses/react/practice/investflow/portfolio/' },
+                    { label: '3. Cotações', link: '/courses/react/practice/investflow/quotes/' },
+                    {
+                      label: '4. Comprovantes',
+                      link: '/courses/react/practice/investflow/receipts/',
+                    },
+                    {
+                      label: '5. Rentabilidade e admin',
+                      link: '/courses/react/practice/investflow/analytics/',
+                    },
+                    {
+                      label: '6. Origem e evolução',
+                      link: '/courses/react/practice/investflow/origins/',
+                    },
+                    {
+                      label: '7. Lançamentos e organização',
+                      link: '/courses/react/practice/investflow/ledger/',
+                    },
+                    {
+                      label: '8. Proventos e movimentações',
+                      link: '/courses/react/practice/investflow/dividends/',
+                    },
+                    {
+                      label: '9. Dólar e cripto',
+                      link: '/courses/react/practice/investflow/international/',
+                    },
+                    {
+                      label: '10. Perfil e experiência',
+                      link: '/courses/react/practice/investflow/experience/',
+                    },
+                  ],
+                },
+              ],
             },
             {
               label: 'Autenticação',

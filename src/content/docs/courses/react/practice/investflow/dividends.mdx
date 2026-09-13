@@ -1,0 +1,282 @@
+---
+title: "InvestFlow (React): Proventos e movimentações"
+description: "Oitava etapa do InvestFlow em React: histórico de proventos sincronizado de forma idempotente, direito pela data ex, retorno total com proventos, o toggle que os inclui no lucro, na matriz e na terceira série, a página de proventos com matriz de pagamentos e maiores pagadores, e a página de aportes e resgates."
+course: react
+project: investflow-react
+sidebar:
+  label: "8. Proventos e movimentações"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **8 de 10** · Nível **Avançado** · Data ex · Idempotência · Segunda fonte de retorno
+
+Até aqui o retorno era só valorização e realizado. Proventos são a segunda fonte: o FII paga por cota a quem estava posicionado antes da data ex. A etapa sincroniza o histórico de eventos, calcula o que foi recebido a partir dos lançamentos, soma isso ao retorno quando o investidor quiser (toggle na URL) e dá duas páginas novas: proventos e movimentações.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  O histórico de proventos viaja junto do ativo no mesmo payload de `/api/assets`; carteira, rentabilidade e tela do ativo calculam o recebido com a **mesma** função de `core/dividends.ts`. É a aplicação do princípio de estado derivado de [Estado Global](../../../state/state-management/): guardar fatos, derivar o resto.
+</Aside>
+
+## Objetivo
+
+Tratar proventos como fatos sincronizados e recebidos como derivação, e expor aportes e resgates como extrato. Ao final da etapa, o leitor deve ser capaz de:
+
+- Sincronizar um histórico externo de forma idempotente por chave composta.
+- Calcular o direito ao provento pela posição antes da data ex.
+- Compor o retorno total (valorização + realizado + proventos) e o yield on cost.
+- Ligar um toggle da URL a três lugares diferentes (rodapé, matriz, série).
+- Derivar KPIs de fluxo e um gráfico de barras a partir dos lançamentos.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF11 a RF14. Critérios CA09.1 a CA09.15:
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA09.1, CA09.3 | Histórico único por (ativo, data ex); só o dono lê e escreve; repetir não duplica | integração |
+| CA09.2 | Categoria sem proventos por cota recebe aviso | unit, integração, e2e |
+| CA09.4 | Provedor fora do ar não apaga o histórico | integração (`fetch` simulado falhando) |
+| CA09.5 | Direito pela data ex | unit, e2e |
+| CA09.6, CA09.7 | Página de proventos: KPIs, matriz e maiores pagadores somam o mesmo total | unit, e2e |
+| CA09.8 | Aba só em ativo elegível; retorno total | unit, e2e |
+| CA09.9, CA09.10, CA09.11 | Toggle no lucro, na matriz e na terceira série | unit, e2e |
+| CA09.12 a CA09.15 | Página de movimentações | unit, e2e |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── prisma/schema.prisma                  + Dividend (unique assetId, exDate)
+  ├── app/
+  │   ├── (private)/dividends/page.tsx
+  │   ├── (private)/movements/page.tsx
+  │   ├── api/dividends/route.ts
+  │   └── api/assets/[id]/dividends/sync/route.ts
+  ├── src/
+  │   ├── core/dividends.ts                 receivedDividends, totalReturn, dividendsByMonth, matriz, topPayers
+  │   ├── core/movements.ts                 movements, movementKpis, monthlyMovements
+  │   ├── server/dividends.ts               provedores fake e yahoo, syncDividends
+  │   ├── server/dividends-page.ts
+  │   ├── features/asset/dividends-tab.tsx
+  │   ├── features/dividends/dividends-view.tsx
+  │   ├── features/movements/               movements-view, movement-dialog, receipt-link
+  │   └── components/charts/bar-chart.tsx
+  └── tests/integration/dividends.integration.test.ts
+`}
+</FileTree>
+
+## Sincronizar o histórico
+
+O provedor devolve eventos (valor por cota, data ex, pagamento). O `fake` tem três para o `HGLG11`; o `yahoo` lê `events=div` do endpoint de gráfico. `syncDividends` é idempotente pela chave `(assetId, exDate)`, avisa em categoria sem proventos por cota e, se o provedor falha, responde erro sem apagar nada (CA09.2, CA09.3, CA09.4).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/dividends.ts" region="sync" />
+
+## O direito pela data ex
+
+Tem direito ao provento a posição comprada **antes** da data ex: compra na data ex não recebe, e venda na data ex ainda recebe (CA09.5). Dinheiro é arredondado a centavos, para `100 × 1,1` ser 110 e não `110,00000000000001`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/dividends.ts" region="received" />
+
+O retorno total soma valorização, realizado e proventos sobre o custo (CA09.8), e `summarizeWithDividends` é o `summarize` da etapa 2 com essa soma:
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/dividends.ts" region="totals" />
+
+<Aside type="caution" title="Dica de IA: A data ex é estrita">
+  Um assistente pedido para "calcular os dividendos" costuma comparar `transactionDate <= exDate`. O erro passa em quase todo caso e falha justamente em quem comprou no dia: essa compra não tem direito.
+
+  **Prompt:** *"Escreva três casos de teste para `receivedDividends`: compra um dia antes da data ex (recebe), compra na data ex (não recebe) e venda na data ex (ainda recebe); rode e mostre qual comparação de datas faz os três passarem."*
+</Aside>
+
+## O toggle "Com proventos"
+
+`?dividends=true` é lido por `useUrlState` na carteira e na rentabilidade. No rodapé, o lucro soma os proventos das posições abertas (CA09.9); na matriz, `withDividends` põe o provento do mês no valor e no retorno (CA09.10); no gráfico, a terceira série acumula os proventos pagos até cada mês (CA09.11).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/organize.ts" region="footer" />
+
+Na matriz, `withDividends` (no fim do trecho) soma o provento do mês ao valor e ao retorno e marca a linha com `dividendBrl`, que a célula pinta de roxo:
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/returns.ts" region="matrix" />
+
+Os três lugares alimentados pelo mesmo dado:
+
+<Mermaid title="Um dado, três derivações">
+{`
+flowchart LR
+  A[/api/assets: ativos com dividends/] --> R[receivedDividends]
+  R --> F[footerTotals: lucro + proventos]
+  R --> M[withDividends: matriz]
+  R --> S[cumulativeDividends: série Valor + Proventos]
+  U[?dividends=true] --> F
+  U --> M
+  U --> S
+`}
+</Mermaid>
+
+## Na tela do ativo
+
+A aba "Proventos" (`?tab=dividends`) só existe em ativo elegível, com o extrato, o total e o botão de sincronizar; o card de retorno total aparece pelo mesmo critério (CA09.8).
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/asset/dividends-tab.tsx" region="tab" />
+
+## A página de proventos
+
+KPIs (total, últimos 12 meses, média mensal, yield on cost médio), extrato ou matriz ano × mês (`?view=matrix`) e os maiores pagadores; o filtro por ativo (`?asset=`) vale para KPIs e extrato ao mesmo tempo (CA09.6, CA09.7).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/dividends.ts" region="page" />
+
+## A página de movimentações
+
+`movements` lista compras e vendas com o ativo ao lado (o `update` não é movimentação); `movementKpis` dá o aportado líquido, compras, vendas e a contagem; `monthlyMovements` agrupa por mês na janela escolhida (CA09.12 a CA09.14). O "Novo lançamento" da página escolhe o ativo (CA09.15).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/movements.ts" region="list" />
+
+O gráfico de barras é o terceiro componente SVG do projeto: compras para cima em verde, vendas em rosa, um `<title>` por barra:
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/charts/bar-chart.tsx" region="chart" />
+
+## Testando
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/dividends.test.ts
+```
+
+```txt title="Output"
+ ✓ proventos > CA09.2 — só ações, FII, ETF e FI-Infra têm proventos por cota
+ ✓ proventos > CA09.5 — a posição comprada antes da data ex recebe; compra na data ex não; venda na data ex ainda recebe
+ ✓ proventos > CA09.8 — o retorno total soma valorização, realizado e proventos
+ ✓ proventos > CA09.6, CA09.7 — KPIs, matriz e maiores pagadores somam o mesmo total do extrato
+ ✓ proventos > CA09.10, CA09.11 — proventos por mês e acumulados até cada mês
+ ✓ movimentações > CA09.12, CA09.14 — extrato com ativo e KPIs de fluxo; update não é movimentação
+ ✓ movimentações > CA09.13 — o gráfico agrupa por mês na janela escolhida
+
+ Tests  7 passed (7)
+```
+
+Na integração, o caso de provedor fora do ar troca o provedor para `yahoo` e faz o `fetch` rejeitar; o histórico gravado antes continua.
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/dividends.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ proventos > CA09.1, CA09.3, CA09.5 — sincroniza o histórico do dono sem duplicar e credita pela data ex
+ ✓ proventos > CA09.2 — categoria sem proventos por cota recebe aviso e nada é gravado
+ ✓ proventos > CA09.4 — provedor fora do ar responde erro sem apagar o histórico já gravado
+
+ Tests  3 passed (3)
+```
+
+O E2E sincroniza pelo botão (provedor `fake`): três eventos, dois com direito, R$ 220,00.
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/dividends.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA09.8, CA09.5, CA09.2 — a aba Proventos aparece só em ativo elegível e credita pela data ex
+  ✓ CA09.6, CA09.7 — página de proventos: KPIs, matriz, maiores pagadores e filtro por ativo
+  ✓ CA09.9, CA09.10, CA09.11 — o toggle "Com proventos" entra no lucro, na matriz e na terceira série
+  ✓ CA09.12, CA09.13, CA09.14, CA09.15 — aportes: KPIs de fluxo, janela na URL, extrato e registro pela página
+  4 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Cadastre `HGLG11` (FII) com 100 cotas a 150 em 10/01/2026. Na aba "Proventos", clique em "Sincronizar proventos" (provedor `fake`): dois eventos com direito, total R$ 220,00, e o card "Retorno total".
+
+2. Na carteira, ative "Com proventos": o rodapé mostra "+ R$ 220,00 em proventos" e a URL ganha `?dividends=true`. Em `/analytics?dividends=true`, a série roxa aparece.
+
+3. Abra `/dividends` (matriz e maiores pagadores) e `/movements` (KPIs, barras e registro pela página).
+
+</Steps>
+
+## Conceitos abordados
+
+- Sincronização idempotente e falha sem perda.
+- Derivação de recebidos a partir de fatos; arredondamento monetário.
+- Um toggle na URL alimentando três derivações.
+- Extrato, KPIs e barras derivados dos mesmos lançamentos.
+
+## Exercício
+
+Mostre, na aba de proventos do ativo, o yield on cost de cada evento (valor por cota sobre o preço médio na data ex), com a regra em `core/dividends.ts` e um teste.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Em `receivedDividends`, calcule `averagePriceAtEx` com `summarize` sobre os lançamentos anteriores à data ex e acrescente `yieldOnCost: rate / averagePriceAtEx`. A tabela ganha a coluna. O teste usa duas compras a preços diferentes e confere que o yield usa o médio, não a última compra.
+</details>
+
+## Desafio
+
+Projete os proventos dos próximos 12 meses por ativo, a partir da média mensal dos últimos 12, e mostre a projeção como quarta série no gráfico de evolução, tracejada.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `projectedDividends(items, months)` devolve pontos mensais futuros com a média; `toSeries` recebe `projection` e cria `{ name: 'Projeção', color, dashed: true }`. O `LineChart` passa `strokeDasharray` quando `dashed`. O teste confere que doze meses de 110 projetam 110 por mês, e que sem histórico a projeção é vazia.
+</details>
+
+## Perguntas de revisão
+
+### Proventos
+
+1. **Por que o histórico é único por (ativo, data ex) e não por (ativo, pagamento)?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A data ex identifica o evento: é ela que decide quem tem direito. Duas cargas do provedor precisam cair na mesma linha (CA09.3).
+   </details>
+
+2. **Se o provedor cair no meio da sincronização, o que sobra?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Tudo que já estava gravado. A rota responde 502 e nenhum `delete` acontece (CA09.4).
+   </details>
+
+3. **Onde o "retorno total" é diferente da "rentabilidade"?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A rentabilidade é valorização sobre custo. O retorno total soma realizado e proventos ao numerador (CA09.8).
+   </details>
+
+### Toggle e movimentações
+
+4. **Por que o toggle vive na URL e não no Zustand?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque é estado da tela, compartilhável pelo link e específico da página, não uma preferência global do usuário (CA09.9).
+   </details>
+
+5. **Por que o `update` não aparece no extrato de movimentações?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Ele redefine um saldo; não é aporte nem resgate. Contá-lo inflaria compras e vendas (CA09.12).
+   </details>
+
+## Referências
+
+- [Vanilla: Sprint 9, proventos e movimentações](../../../../npm/practice/investflow/dividends/)
+- [B3: data ex e data com](https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/empresas-listadas.htm)
+- [Number.prototype.toFixed e arredondamento | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/toFixed)
+
+## Próxima etapa
+
+[Dólar e cripto](../international/): a tabela de câmbio, o custo pelo câmbio de cada compra, a carteira consolidada em reais e o gráfico do ativo em R$ ou US$.

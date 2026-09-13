@@ -1,0 +1,251 @@
+---
+title: "Projeto: InvestFlow (React)"
+description: "O InvestFlow reconstruído em React e Next.js: os mesmos 22 requisitos do produto vanilla em dez etapas, com NextAuth, Prisma sobre o PostgreSQL do Supabase, TanStack Query e Table, Zustand, Base UI, CVA, Tailwind CSS v4 e testes em três camadas mais E2E."
+course: react
+project: investflow-react
+sidebar:
+  label: "Visão geral"
+---
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+Nível **Avançado** · Next.js · React 19 · NextAuth · Prisma · PostgreSQL · TanStack · Tailwind CSS
+
+Este projeto reconstrói o [InvestFlow](../../../npm/practice/investflow/) em React. O produto é o mesmo: uma plataforma de gestão patrimonial para investidores individuais, com carteira, cotações, comprovantes, rentabilidade, proventos, dólar e perfil. O que muda é a implementação: o HTML com JavaScript modular vira Next.js com App Router, o Supabase Auth vira NextAuth, as policies RLS viram consultas filtradas pelo dono no servidor, e as Edge Functions viram route handlers. O banco e o Storage continuam no Supabase.
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<Aside type="note" title="Por que reconstruir em vez de migrar?">
+  A versão vanilla existe para ensinar BaaS: o navegador fala direto com o banco e a segurança mora nas policies. A versão React existe para ensinar uma aplicação com servidor próprio: o navegador só fala com rotas da aplicação, e a segurança mora no código que recebe o `userId` da sessão. Os dois caminhos são legítimos, e comparar os dois é parte do aprendizado. Por isso os requisitos são compartilhados e a implementação é separada.
+</Aside>
+
+## Objetivo
+
+Construir uma aplicação React completa, com servidor, banco, arquivos e testes, aplicando os conceitos do Guia de React em um produto que já tem requisitos, critérios de aceitação e testes numerados. Ao final do projeto, o leitor deve ser capaz de:
+
+- Separar regras de negócio puras (`core/`), acesso a dados no servidor (`server/`) e componentes de tela (`features/`) em um projeto Next.js com App Router.
+- Implementar identidade com NextAuth e autorização por `userId` em cada consulta, sem RLS.
+- Usar TanStack React Query para dados do servidor, TanStack Table para tabelas e Zustand só para preferências de interface.
+- Compor uma biblioteca de primitivas acessíveis com Base UI, CVA e Tailwind CSS v4.
+- Escrever testes em três camadas (unit, browser, integration) e E2E com Playwright, cada um nomeado pelo critério que prova.
+- Entregar telas que funcionam em celular desde o primeiro commit (RNF07).
+
+## Requisitos compartilhados com a versão vanilla
+
+Os requisitos funcionais (RF01–RF22), os não funcionais (RNF01–RNF06), as histórias (US01–US32) e os critérios de aceitação (CA01.1–CA11.13) ficam no [backlog do InvestFlow](../../../npm/practice/investflow/backlog/). Esta trilha não os reescreve; ela diz **como** cada bloco é atendido com a nova stack, e acrescenta um requisito próprio.
+
+A tabela relaciona cada grupo de requisitos à etapa que o implementa e ao que mudou de implementação.
+
+| Requisitos | Vanilla | React | Etapa |
+| ---------- | ------- | ----- | ----- |
+| RF01, RF02 landing e conta | HTML estático, Supabase Auth, guardas de página | Server Component, NextAuth Credentials, `proxy.ts` | [1](foundation/) |
+| RF03, RF08, RF08.1 carteira | tabelas com RLS, `seed.sql` | Prisma filtrado por `userId`, `prisma/seed.ts` | [2](portfolio/) |
+| RF05, RF05.1, RF04.1, RF18 cotações | Edge Function `update-quotes` | `POST /api/quotes/update`, calendário em `core/` | [3](quotes/) |
+| RF04 comprovantes | bucket privado lido por policy | bucket privado lido pelo servidor com URL assinada | [4](receipts/) |
+| RF06, RF07 analytics e admin | views SQL e `admin_metrics()` | funções puras em `core/returns.ts` | [5](analytics/) |
+| RF09, RF10 origem e evolução | views SQL, treemap e gráfico em JS | `core/origins.ts`, `core/evolution.ts`, SVG em React | [6](origins/) |
+| RF03.2–RF03.6 lançamentos e organização | edição, filtros na URL | TanStack Table controlado pela URL | [7](ledger/) |
+| RF11–RF14 proventos e movimentações | `dividends_history` | `Dividend`, `core/dividends.ts` | [8](dividends/) |
+| RF15–RF17 dólar e cripto | `get_usd_rate()` | `core/exchange.ts` e `ExchangeProvider` | [9](international/) |
+| RF19–RF22 perfil e experiência | `profile.html`, `vercel.json` | `/profile`, `next.config.ts`, testes de build | [10](experience/) |
+| **RNF07 design responsivo** (novo) | não previsto | menu móvel, colunas por breakpoint, alvos de 44 px; projeto Playwright `mobile` | todas |
+
+<Aside type="caution" title="RNF07: o requisito que a versão vanilla não tinha">
+  O InvestFlow original foi desenhado para o desktop e suas tabelas largas quebram no celular. A versão React nasce *mobile-first* e prova isso com critérios próprios (CA12.1 a CA12.4): nenhuma página rola na horizontal a 360 px, a barra expõe os links por um botão de menu acessível, as tabelas mostram as colunas essenciais em qualquer largura e os alvos de toque têm 44 px. Um projeto Playwright roda esses testes em um Pixel 7.
+</Aside>
+
+## Arquitetura da aplicação
+
+O diagrama mostra por onde cada tipo de dado passa: o navegador só conhece as rotas da aplicação, e o servidor conhece o banco, o Storage e o provedor de cotações.
+
+<Mermaid title="Por onde cada dado passa">
+{`
+flowchart LR
+  subgraph Navegador
+    RSC[Server Components] --> UI[Client Components]
+    UI --> RQ[TanStack React Query]
+    UI --> Z[Zustand: tema, ocultar valores]
+  end
+  subgraph Next.js
+    RQ --> API[Route handlers /api/*]
+    RSC --> SRV[src/server: sessão + Prisma]
+    API --> SRV
+    SRV --> CORE[src/core: regras puras]
+    ACT[Server Actions: conta] --> SRV
+  end
+  SRV --> PG[(PostgreSQL do Supabase)]
+  SRV --> ST[(Supabase Storage)]
+  SRV --> Y[Yahoo Finance]
+`}
+</Mermaid>
+
+Três decisões sustentam essa arquitetura, e cada etapa as repete:
+
+1. **`src/core/` é puro.** Simulador, posição, retornos, proventos, câmbio, calendário e validação não importam React nem Prisma. É o que os testes `unit` cobrem e o que as páginas desta trilha recortam.
+2. **`src/server/` só roda no servidor.** Toda consulta recebe o `userId` da sessão e filtra por ele; uma linha de outra conta responde `404`, nunca `403`, para não confirmar que ela existe. É o substituto do RLS.
+3. **Dados remotos ficam no React Query; preferências, no Zustand.** O store guarda tema, ocultar valores e a paleta aberta. Carteira, cotações e proventos nunca entram nele.
+
+## Estrutura do projeto
+
+O projeto é um só e cresce por etapa; as páginas recortam o estado final com `<SourceCode>`. A árvore resume o papel de cada pasta.
+
+```txt title="Mapa do repositório"
+examples/courses/react/investflow-react/
+├── app/                   rotas: (public) landing e conta, (private) telas com a barra comum, api/
+├── prisma/                schema, migrations e seed
+├── src/core/              regras puras, testadas em jsdom
+├── src/server/            Prisma, NextAuth, senha, guards, Storage, provedores
+├── src/features/          componentes, hooks e ações de cada tela
+├── src/components/ui/     Button, Input, Select, Field, Badge, Dialog, AlertDialog, Segmented
+├── src/components/charts/ Treemap, LineChart e BarChart em SVG puro
+├── src/store/             Zustand: preferências
+├── supabase/              config.toml da stack local (portas 5434x) e os buckets
+└── tests/                 integration (schema `integration`), e2e (schema `e2e`), build
+```
+
+## Navegação pelas etapas
+
+As etapas espelham as sprints do vanilla, para que o backlog continue sendo a fonte única do **que** construir. Cada página abre com os critérios da etapa, mostra o código real e termina com a saída dos testes.
+
+<Steps>
+
+1. **Fundação e identidade**: Prisma no Postgres do Supabase, NextAuth com `scrypt`, `proxy.ts`, landing com o simulador, primitivas de UI e as três camadas de teste.
+2. **Carteira**: corretoras, ativos e lançamentos; `core/portfolio.ts` portado do vanilla; dashboard com TanStack Table e a tela do ativo.
+3. **Cotações**: a Edge Function vira route handler; provedores `fake` e `yahoo`; calendário de mercado; cotação e saldo manuais.
+4. **Comprovantes**: bucket privado, validação antes do upload, URL assinada de 60 segundos criada pelo servidor.
+5. **Rentabilidade e admin**: as views SQL viram funções puras; matriz ano × mês; painel só com agregados.
+6. **Origem e evolução**: treemap por corretora, categoria e emissor; aportes × valor com modo e janela na URL.
+7. **Lançamentos e organização**: editar e excluir, resgate total, filtro, ordenação e rodapé na URL.
+8. **Proventos e movimentações**: direito pela data ex, retorno total, matriz de pagamentos, extrato de aportes.
+9. **Dólar e cripto**: tabela de câmbio, custo pelo câmbio de cada compra, gráfico em R$ ou US$.
+10. **Perfil e experiência**: avatar no bucket público, tema em ciclo, ocultar valores, build inspecionado.
+
+</Steps>
+
+<CardGrid>
+  <Card title="1. Fundação e identidade" icon="rocket">
+    NextAuth, Prisma, `proxy.ts`, simulador e as três camadas de teste.
+
+    <div class="page-badges">
+      <a class="page-badge" href="foundation/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="2. Carteira" icon="list-format">
+    Ativos, corretoras, lançamentos, TanStack Table e a tela do ativo.
+
+    <div class="page-badges">
+      <a class="page-badge" href="portfolio/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="3. Cotações" icon="random">
+    Route handler no lugar da Edge Function, provedores e calendário.
+
+    <div class="page-badges">
+      <a class="page-badge" href="quotes/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="4. Comprovantes" icon="document">
+    Storage privado, validação e URL assinada de 60 s.
+
+    <div class="page-badges">
+      <a class="page-badge" href="receipts/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="5. Rentabilidade e admin" icon="seti:graphql">
+    Matriz de retornos, distribuição por classe e painel agregado.
+
+    <div class="page-badges">
+      <a class="page-badge" href="analytics/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="6. Origem e evolução" icon="puzzle">
+    Treemap e gráfico aportes × valor com estado na URL.
+
+    <div class="page-badges">
+      <a class="page-badge" href="origins/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="7. Lançamentos e organização" icon="pencil">
+    Edição, resgate total, filtro, ordenação e rodapé.
+
+    <div class="page-badges">
+      <a class="page-badge" href="ledger/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="8. Proventos e movimentações" icon="star">
+    Data ex, retorno total, matriz de pagamentos e extrato.
+
+    <div class="page-badges">
+      <a class="page-badge" href="dividends/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="9. Dólar e cripto" icon="translate">
+    Câmbio por mês, ativos em dólar e cripto convertida.
+
+    <div class="page-badges">
+      <a class="page-badge" href="international/">Ver etapa</a>
+    </div>
+  </Card>
+
+  <Card title="10. Perfil e experiência" icon="setting">
+    Avatar, tema, privacidade e a inspeção do build.
+
+    <div class="page-badges">
+      <a class="page-badge" href="experience/">Ver etapa</a>
+    </div>
+  </Card>
+</CardGrid>
+
+## Estratégia de testes
+
+Cada camada tem uma pergunta própria, e o título de cada teste leva o critério que ele prova, com a numeração do backlog (`CA03.4 — cada conta lê apenas os próprios ativos`). A tabela resume as camadas e o que cada uma exige.
+
+| Camada | Arquivos | Ambiente | O que prova |
+| ------ | -------- | -------- | ----------- |
+| `unit` | `src/**/*.test.ts` | jsdom | `core`, hooks e stores |
+| `browser` | `src/components/ui/*.browser.test.tsx` | Chromium real (Vitest Browser Mode) | papéis, rótulos, foco e teclado das primitivas |
+| `integration` | `tests/integration/*.integration.test.ts` | Prisma no schema `integration`, sessão simulada | rotas, isolamento entre contas, Storage real |
+| `e2e` | `tests/e2e/*.spec.ts` | Playwright contra `next dev`, schema `e2e` | jornadas completas; `*.mobile.spec.ts` em um Pixel 7 |
+| `build` | `tests/deploy/*.test.ts` | `next build` real | nenhum segredo no bundle, cabeçalhos de segurança |
+
+Ao fim da décima etapa o projeto soma 123 testes Vitest, 2 de build e 36 de Playwright, todos verdes.
+
+## Execução local
+
+A stack local do Supabase fornece o PostgreSQL e o Storage; o Next roda por cima. As portas ficam em `5434x` para não colidir com a stack do InvestFlow vanilla (`5432x`), então as duas podem subir ao mesmo tempo.
+
+```bash
+cd examples/courses/react/investflow-react
+pnpm install
+cp .env.example .env
+supabase start
+pnpm db:buckets
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
+```
+
+O seed cria `admin@example.com` com a senha `admin12345` e a posição demonstrativa `Tesouro Reserva 2036` valendo R$ 1. A aplicação abre em `http://localhost:3000`.
+
+## Primeira etapa
+
+[Fundação e identidade](foundation/): Prisma no Postgres do Supabase, NextAuth com senha em `scrypt`, `proxy.ts`, a landing com o simulador e as três camadas de teste.
+
+## Referências
+
+- [Backlog do InvestFlow](../../../npm/practice/investflow/backlog/): requisitos, histórias e critérios compartilhados.
+- [Next.js: App Router](https://nextjs.org/docs/app)
+- [Auth.js (NextAuth v5)](https://authjs.dev/)
+- [Prisma: driver adapters](https://www.prisma.io/docs/orm/overview/databases/database-drivers)
+- [TanStack Query](https://tanstack.com/query/latest) e [TanStack Table](https://tanstack.com/table/latest)
+- [Base UI](https://base-ui.com/) e [class-variance-authority](https://cva.style/)
+- [Vitest Browser Mode](https://vitest.dev/guide/browser/) e [Playwright](https://playwright.dev/)

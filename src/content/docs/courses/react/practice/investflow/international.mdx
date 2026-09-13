@@ -1,0 +1,237 @@
+---
+title: "InvestFlow (React): Dólar e cripto"
+description: "Nona etapa do InvestFlow em React: a tabela de câmbio USD/BRL gravada pela rodada de cotações, a taxa do dia ou do mês com referência fixa como fallback, ativos em dólar consolidados em reais, custo pelo câmbio de cada compra, cripto cotada em dólar e o gráfico do ativo em R$ ou US$."
+course: react
+project: investflow-react
+sidebar:
+  label: "9. Dólar e cripto"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **9 de 10** · Nível **Avançado** · Câmbio por mês · Context API · Duas moedas
+
+Um ETF em dólar precisa aparecer em reais na carteira e em dólares na própria tela. A rodada de cotações já grava a taxa USD/BRL do dia desde a etapa 3; esta etapa a **lê**: `core/exchange.ts` responde à pergunta "qual era o câmbio nesse dia (ou mês)?", e um contexto entrega essa tabela a toda tela privada. A cripto, cotada em dólar pelo provedor, chega convertida.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  A tabela de câmbio é o primeiro uso da Context API no projeto: o layout privado carrega as linhas uma vez e `useExchange()` dá `latest` e `rateOf` a qualquer componente. Revise [Estado Global](../../../state/state-management/) para lembrar quando contexto é a ferramenta certa (dado lido por muitos, alterado por poucos).
+</Aside>
+
+## Objetivo
+
+Trazer ativos em outra moeda para a carteira sem misturar a valorização do ativo com o efeito do dólar. Ao final da etapa, o leitor deve ser capaz de:
+
+- Consultar uma tabela de taxas por data com fallback para a anterior, a primeira ou uma referência.
+- Converter totais pela taxa mais recente e séries pela taxa de cada mês.
+- Medir o custo em reais pelo câmbio de cada compra.
+- Distribuir uma tabela de referência por Context API a partir de um Server Component.
+- Alternar a moeda de um gráfico pela URL.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF15 a RF17. Critérios CA10.1 a CA10.10 (CA10.11 a CA10.16 já foram provados na etapa 3):
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA10.1 | Ativo em BRL ou USD; renda fixa em BRL; outra moeda recusada | integração |
+| CA10.2 | Ticker só de letras sugere USD; com dígitos, BRL; a sugestão pode ser trocada | `core/assets.test.ts`, e2e |
+| CA10.3 | Taxa do dia ou a última anterior; lida por qualquer sessão, escrita só pela rodada | `core/exchange.test.ts`, integração |
+| CA10.4 | Carteira converte pela taxa mais recente | integração, e2e |
+| CA10.5 | Sem taxa gravada, a referência fixa | unit |
+| CA10.6, CA10.7, CA10.10 | Custo e fluxo pelo câmbio do mês; câmbio não é aporte | unit |
+| CA10.8 | Origem e evolução convertem pela taxa do mês | integração |
+| CA10.9 | Gráfico do ativo em US$ ou R$ (`?currency=USD`) | e2e |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── app/
+  │   ├── (private)/layout.tsx           carrega as taxas e monta o ExchangeProvider
+  │   └── api/exchange/route.ts          GET: as taxas (escrita só pela rodada)
+  ├── src/
+  │   ├── core/exchange.ts               exchangeTable: latest, rateAt, rateOf, referência 5,4
+  │   ├── core/portfolio.ts              + summarizeInBRL
+  │   ├── server/exchange.ts             listExchangeRates, getExchangeTable
+  │   ├── components/exchange-provider.tsx   contexto + React Query
+  │   └── features/asset/asset-detail.tsx    equivalentes em R$ e o toggle do gráfico
+  └── tests/integration/exchange.integration.test.ts
+`}
+</FileTree>
+
+## A tabela de câmbio
+
+`exchangeTable` monta as funções de consulta a partir das linhas ordenadas por data: `rateAt` devolve a taxa do dia ou a última anterior; sem anterior, a primeira; sem nada, a referência fixa (CA10.3, CA10.5). `rateOf` é a taxa vigente no último dia do mês.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/exchange.ts" region="table" />
+
+O servidor lê as linhas gravadas pela rodada; nenhuma rota escreve nelas (CA10.3):
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/exchange.ts" region="read" />
+
+## O contexto
+
+O layout privado carrega as taxas uma vez, e o `ExchangeProvider` as mantém com o React Query; `useExchange()` dá a tabela a quem precisa converter (CA10.4). A rodada de cotações invalida `['exchange']` junto com `['assets']`, porque grava as duas coisas.
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/exchange-provider.tsx" region="provider" />
+
+## Taxa mais recente × taxa do mês
+
+Os totais usam a taxa mais recente: é o que a carteira vale hoje. As séries usam a taxa de cada mês: é o que ela valia naquele mês. `summarizeInBRL` mede o custo em reais pelo câmbio de cada compra, e não pelo de hoje; é o que separa a valorização do ativo do efeito do dólar (CA10.6).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/portfolio.ts" region="historical-brl" />
+
+Na série mensal (etapa 5), o fluxo do mês já era convertido por `rateOf(month)`; com a tabela real, o câmbio não vira aporte (CA10.7, CA10.10). No servidor, analytics, origem e proventos recebem a mesma tabela:
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/analytics.ts" region="summary" />
+
+<Aside type="caution" title="Dica de IA: 'Converter para reais' são três perguntas, não uma">
+  Assistentes convertem tudo pela taxa de hoje. Isso está certo para o valor atual, errado para o custo (cada compra tem seu câmbio) e errado para as séries (cada mês tem o seu). O sinal do erro: um ativo que não se moveu em dólar aparece com lucro quando o dólar sobe.
+
+  **Prompt:** *"Para este ativo em USD com duas compras em meses de câmbio diferente, calcule separadamente o custo em reais pelo câmbio de cada compra e o valor atual pela taxa mais recente; escreva um teste que prova que, com o preço em dólar parado e o câmbio subindo, a rentabilidade em dólar é zero e a diferença em reais é só cambial."*
+</Aside>
+
+## Na tela do ativo
+
+Ativo em dólar mostra preço médio, custo e valor em US$, com o equivalente em reais logo abaixo; o gráfico alterna entre R$ e US$ por `?currency=USD` (CA10.9), porque o servidor devolve as duas séries (`evolution` convertida e `evolutionNative`).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/analytics.ts" region="asset-evolution" />
+
+## Testando
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/exchange.test.ts
+```
+
+```txt title="Output"
+ ✓ tabela de câmbio > CA10.3 — a taxa do dia ou a última anterior; sem anterior, a primeira
+ ✓ tabela de câmbio > CA10.5 — sem nenhuma taxa gravada, devolve a referência fixa sem quebrar
+ ✓ ativo em dólar > CA10.6 — o custo em reais usa o câmbio do mês de cada compra, não o de hoje
+ ✓ ativo em dólar > CA10.7, CA10.10 — o fluxo do mês é convertido pelo câmbio do mês, e o câmbio não vira aporte
+
+ Tests  4 passed (4)
+```
+
+A integração grava duas taxas (5 em janeiro, 5,5 em fevereiro) e confere que os totais usam 5,5 e a série de janeiro usa 5.
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/exchange.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ dólar e cripto > CA10.1 — a moeda do ativo é BRL ou USD; renda fixa fica em reais e outra moeda é recusada
+ ✓ dólar e cripto > CA10.3, CA10.13 — a tabela de câmbio é lida por qualquer sessão e escrita só pela rodada
+ ✓ dólar e cripto > CA10.4, CA10.8 — a carteira converte o ativo em USD pela taxa mais recente e as séries pela taxa do mês
+
+ Tests  3 passed (3)
+```
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/international.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA10.2 — o ticker sugere a moeda, e a sugestão pode ser trocada; renda fixa trava em reais
+  ✓ CA10.1, CA10.4, CA10.9 — um ETF em dólar aparece em reais na carteira e em dólares no ativo
+  2 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Cadastre `VT` (ETF): a moeda vem sugerida como USD. O provedor `fake` cota US$ 120 e grava o câmbio 5,20. Registre 10 cotas a US$ 100.
+
+2. Na carteira, o VT vale R$ 6.240,00 (10 × 120 × 5,2). Na tela do ativo, os KPIs em dólar mostram o equivalente em reais abaixo.
+
+3. Troque o gráfico para "US$": a URL ganha `?currency=USD` e a série muda de escala.
+
+</Steps>
+
+## Conceitos abordados
+
+- Tabela de referência com consulta por data e fallbacks encadeados.
+- Context API alimentada por Server Component e mantida por React Query.
+- Três conversões distintas: valor atual, custo e séries.
+- Duas séries no servidor para um toggle no cliente.
+
+## Exercício
+
+Mostre na tela do ativo em dólar o "efeito cambial": a diferença entre o custo em reais pelo câmbio de hoje e pelo câmbio de cada compra, com a regra em `core/portfolio.ts` e um teste.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `fxEffect(asset, table)` devolve `summarize(asset, { usdRate: table.latest }).costBRL − summarizeInBRL(asset, table).cost`. Um KPI "Efeito cambial" com sinal. O teste usa a mesma tabela do `exchange.test.ts` e espera `(5.2 − 5) × 1000` na primeira compra e zero na segunda.
+</details>
+
+## Desafio
+
+Acrescente o euro: `Currency` ganha `EUR`, a rodada pede `EURBRL=X`, e a tabela de câmbio passa a ser por par. `useExchange()` devolve `rateOf(month, currency)`.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Migração do enum; `ExchangeRate` já tem `fromCurrency`. Em `updateQuotes`, `wantsFx` vira um conjunto de moedas presentes; em `core/exchange.ts`, `exchangeTable(rows)` agrupa por par e expõe `rateOf(month, from = 'USD')`. Os testes existentes continuam válidos com o padrão `USD`; um novo cobre `EUR`.
+</details>
+
+## Perguntas de revisão
+
+### Câmbio
+
+1. **O que `rateAt('2026-02-15')` devolve se só há taxas em 10/02 e 20/02?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     A de 10/02, a última anterior à data (CA10.3).
+   </details>
+
+2. **Por que a referência fixa (5,4) existe?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para a tela não quebrar antes da primeira rodada de cotações (CA10.5). É um fallback visível, não um valor de negócio.
+   </details>
+
+3. **Quem escreve em `ExchangeRate`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Só `updateQuotes`, no servidor, quando a rodada traz `BRL=X`. Não há rota de escrita (CA10.3, CA10.13).
+   </details>
+
+### Conversões
+
+4. **Por que o custo usa o câmbio de cada compra e o valor atual usa o de hoje?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O custo é o que se pagou em reais naquele dia; o valor é o que se teria hoje. Misturar os dois transforma variação cambial em lucro do ativo (CA10.6).
+   </details>
+
+5. **Por que o servidor devolve duas séries de evolução para o ativo?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Para o toggle R$/US$ trocar sem nova requisição: `evolution` já convertida pelo mês e `evolutionNative` na moeda do ativo (CA10.9).
+   </details>
+
+## Referências
+
+- [React: createContext e useContext](https://react.dev/reference/react/useContext)
+- [Vanilla: Sprint 10, dólar e cripto](../../../../npm/practice/investflow/international/)
+- [Yahoo Finance: par `BRL=X`](https://finance.yahoo.com/quote/BRL=X/)
+
+## Próxima etapa
+
+[Perfil e experiência](../experience/): avatar no bucket público, tema em ciclo, ocultar valores, mostrar senha e a inspeção do `next build`.

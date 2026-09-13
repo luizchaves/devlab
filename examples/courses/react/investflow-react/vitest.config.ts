@@ -52,7 +52,7 @@ export default defineConfig({
         test: {
           name: 'build',
           environment: 'node',
-          include: ['tests/build/**/*.test.ts'],
+          include: ['tests/deploy/**/*.test.ts'],
           testTimeout: 300_000,
         },
       },

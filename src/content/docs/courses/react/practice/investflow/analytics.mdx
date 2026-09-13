@@ -1,0 +1,273 @@
+---
+title: "InvestFlow (React): Rentabilidade e admin"
+description: "Quinta etapa do InvestFlow em React: as views SQL monthly_returns, allocation_by_category e admin_metrics viram funções puras em core/returns.ts, a matriz de rentabilidade ano × mês com lacunas em vez de zeros, a distribuição por classe e o painel administrativo só com agregados."
+course: react
+project: investflow-react
+sidebar:
+  label: "5. Rentabilidade e admin"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **5 de 10** · Nível **Avançado** · Funções puras · Matriz de retornos · Autorização por papel
+
+No vanilla, a rentabilidade mensal era uma view SQL com `position_at()` e `lag()`; a distribuição por classe, outra view; as métricas do admin, uma função `security definer`. Aqui tudo isso vira TypeScript puro em `core/returns.ts`, alimentado pelos fatos que o servidor já carrega: lançamentos e histórico de cotações. A mesma planilha de referência que validava a view valida a função.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  A matriz é um componente que só recebe dados e desenha; a decisão de mostrar traço em vez de `0%` mora na função pura. Para o papel do administrador, o guard `requireAdmin` da etapa 1 é a única barreira: o painel responde `403` na API e redireciona na página.
+</Aside>
+
+## Objetivo
+
+Calcular a rentabilidade mês a mês a partir dos fatos, apresentá-la sem inventar zeros e expor ao administrador só o que é agregado. Ao final da etapa, o leitor deve ser capaz de:
+
+- Derivar uma série mensal de valor, fluxo e retorno a partir de lançamentos e cotações.
+- Compor percentuais (em vez de somá-los) para o acumulado do ano e o global.
+- Representar "sem dado" como `null`, e não como zero, do cálculo à célula.
+- Proteger uma rota e uma página por papel, com `403` e redirecionamento.
+- Montar um painel operacional com `Promise.allSettled`, para que um serviço fora do ar não derrube os outros.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF06, RF07 e RNF05. Critérios CA06.1 a CA06.5:
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA06.1 | Mês sem cotação fica sem dado, não recebe zero | `core/returns.test.ts`, integração, e2e |
+| CA06.2 | A rentabilidade mensal confere com a planilha de referência | unit e integração |
+| CA06.3 | Cada conta vê só a própria série e distribuição | integração |
+| CA06.4 | Investidor comum é recusado no admin | integração (`403`), e2e (redirect) |
+| CA06.5 | Administrador recebe totais, sem ticker ou posição | integração (o payload é inspecionado), e2e |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── app/
+  │   ├── (private)/analytics/page.tsx    KPIs, matriz e distribuição
+  │   ├── (private)/admin/page.tsx        redireciona quem não é ADMIN
+  │   ├── api/analytics/route.ts
+  │   └── api/admin/metrics/route.ts      requireAdmin
+  ├── src/
+  │   ├── core/returns.ts                 monthlyReturns, allocationByCategory, monthlyPct, compoundPct, matrixByYear
+  │   ├── core/admin.ts                   tipos do painel (só agregados)
+  │   ├── server/analytics.ts             listAssetsWithQuotes, getAnalytics
+  │   ├── server/admin.ts                 adminMetrics, serviceChecks
+  │   ├── features/analytics/             analytics-view, returns-matrix, allocation-list
+  │   └── features/admin/admin-view.tsx
+  └── tests/integration/analytics.integration.test.ts
+`}
+</FileTree>
+
+## A série mensal em `core/returns.ts`
+
+Para cada mês com cotação, o valor é a posição no fim do mês vezes a última cotação do mês; ativo por saldo entra pelo custo acumulado. O fluxo é o líquido de compras e vendas (`update` não é aporte). O retorno do mês é o valor menos o valor anterior menos o fluxo. Mês sem cotação simplesmente não existe na série (CA06.1).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/returns.ts" region="monthly" />
+
+`positionAt` e `costAt` são a `position_at()` do banco vanilla, em memória:
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/portfolio.ts" region="position-at" />
+
+<Aside type="tip" title="Uma diferença deliberada em relação à view">
+  Na view do vanilla, uma compra de renda fixa em um mês sem cotação de ações aparecia como fluxo sem valor, ou seja, um retorno negativo falso. Aqui o ativo por saldo entra no valor do mês pelo custo acumulado, e a compra deixa de parecer prejuízo. A spec do projeto registra a mudança; o teste "ativo por saldo entra pelo custo" a prova.
+</Aside>
+
+## Percentuais e matriz
+
+O percentual do mês é o ganho sobre a base (patrimônio anterior mais aportes). O acumulado é a **composição** dos percentuais, não a soma: +10% seguido de −10% deixa a carteira em 99%.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/returns.ts" region="pct" />
+
+`matrixByYear` agrupa por ano, do mais recente ao mais antigo, com 12 posições por linha (`null` é mês sem dado), o acumulado do ano e o global até aquele ano.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/returns.ts" region="matrix" />
+
+Na célula, o `null` vira traço sem cor, nunca `0%`:
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/analytics/returns-matrix.tsx" region="cell" />
+
+<Aside type="caution" title="Dica de IA: Some percentuais e o assistente não vai reclamar">
+  Um assistente pedido para "calcular o retorno do ano" costuma somar os meses. O resultado parece razoável e está errado; a composição só aparece quando há um mês negativo no meio.
+
+  **Prompt:** *"Escreva um teste para `compoundPct` com a sequência +10%, −10%, +10% e o resultado esperado de 8,9%; depois mostre que a soma simples daria 10% e explique em uma frase a diferença."*
+</Aside>
+
+## Distribuição por classe
+
+`allocationByCategory` soma o valor atual (ou o custo, sem cotação) por categoria e devolve a fatia de cada uma, do maior para o menor.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/returns.ts" region="allocation" />
+
+## Servidor: os fatos com o histórico
+
+`listAssetsWithQuotes` carrega a carteira do dono e o histórico de cotações em uma consulta a mais; `getAnalytics` monta tudo que a página mostra. A série e a distribuição são de quem está na sessão (CA06.3), porque a carteira já veio filtrada.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/analytics.ts" region="assets-with-quotes" />
+
+## Painel do administrador
+
+Só totais (RNF05): contas, patrimônio sob gestão e a última rodada. Nenhum ticker, quantidade ou posição individual sai daqui, e o teste de integração inspeciona o JSON para provar.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/admin.ts" region="metrics" />
+
+Cada indicador de serviço é uma chamada barata e independente; `allSettled` faz um não derrubar os outros.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/admin.ts" region="checks" />
+
+A rota exige o papel; a página redireciona o investidor para a carteira (CA06.4).
+
+<SourceCode path="examples/courses/react/investflow-react/app/api/admin/metrics/route.ts" region="route" />
+
+A página faz a mesma verificação antes de renderizar, com `redirect` em vez de `403`:
+
+<SourceCode path="examples/courses/react/investflow-react/app/(private)/admin/page.tsx" region="page" />
+
+## Testando
+
+A planilha de referência (100 a 30 em janeiro, 100 a 34 em fevereiro, cotações 31 e 33) é conferida no núcleo e pela rota.
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/returns.test.ts
+```
+
+```txt title="Output"
+ ✓ monthlyReturns > CA06.2 — reproduz a planilha de referência: 100 a 30 em janeiro, 100 a 34 em fevereiro
+ ✓ monthlyReturns > CA06.1 — março, sem cotação, não aparece na série
+ ✓ monthlyReturns > ativo por saldo entra pelo custo e um update não conta como aporte
+ ✓ monthlyReturns > CA10.8 — ativo em dólar usa a taxa do mês
+ ✓ allocationByCategory > soma posição × cotação por categoria, do maior para o menor, com a fatia
+ ✓ matriz > o percentual do mês é o ganho sobre a base, e o acumulado compõe em vez de somar
+ ✓ matriz > CA06.1 — agrupa por ano com traço (null) nos meses sem dado, e o global acumula ano a ano
+ ✓ matriz > CA09.10 — proventos do mês entram no valor e no retorno
+
+ Tests  8 passed (8)
+```
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/analytics.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ GET /api/analytics > CA06.2, CA06.1 — a série mensal reproduz a planilha e março fica de fora
+ ✓ GET /api/analytics > CA06.3 — cada conta vê só a própria série e distribuição
+ ✓ GET /api/admin/metrics > CA06.4, CA06.5 — investidor recebe 403; administrador recebe totais sem ticker nem posição
+ ✓ origem e evolução > CA07.1, CA07.2, CA07.3 — as linhas de origem trazem as três dimensões e só do dono
+ ✓ origem e evolução > CA07.4, CA07.5, CA07.6 — a evolução reproduz aportado × valor da planilha, sem março
+
+ Tests  5 passed (5)
+```
+
+No E2E, a promoção a administrador é feita direto no schema `e2e` pelo Prisma, nunca por uma tela: não existe caminho na aplicação para alguém se promover (CA11.4).
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/analytics.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA06.1, CA06.2 — a matriz nasce dos aportes e das cotações, com lacuna nos meses sem dado
+  ✓ CA06.4 — investidor é mandado de volta ao abrir o admin, e a API responde 403
+  ✓ CA06.5 — admin vê totais e status, nunca posições
+  3 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Com PETR4 e os dois aportes da etapa 2, abra `/analytics`: a linha de 2026 mostra o mês atual com a cotação do provedor e traços nos demais.
+
+2. Entre como `admin@example.com` e abra `/admin`: contas, AUM, última rodada e os quatro indicadores. Com um investidor, `/admin` volta para a carteira.
+
+3. Pare a stack (`supabase stop`) e recarregue `/admin` com o admin: banco e Storage aparecem fora do ar, e a página continua de pé.
+
+</Steps>
+
+## Conceitos abordados
+
+- Derivação de séries a partir de fatos, com `null` como ausência.
+- Composição de percentuais e acumulado global.
+- Autorização por papel em rota (`403`) e em página (redirect).
+- `Promise.allSettled` para indicadores independentes.
+- Testes que inspecionam o payload para provar o que **não** sai.
+
+## Exercício
+
+Acrescente à página de rentabilidade um "melhor mês" e um "pior mês" (percentual e valor), calculados em `core/returns.ts` a partir da série, com teste unitário.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `extremes(rows)` percorre `rows.map(monthlyPct)`, ignora `null` e devolve `{ best, worst }` com `month`, `pct` e `returnBrl`. Dois KPIs novos no `AnalyticsView`. O teste usa três linhas (uma positiva, uma negativa, uma sem dado) e confere que a sem dado não é escolhida.
+</details>
+
+## Desafio
+
+Compare a carteira com um índice (CDI ou IPCA) na mesma matriz: uma segunda linha por ano com o índice mês a mês, e a diferença acumulada. Os dados do índice entram por um arquivo JSON versionado em `src/core/benchmarks/`, sem chamada externa.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Um `benchmarkRows(index, months)` devolve linhas na mesma forma de `MonthlyReturn` (valor 100 crescendo pelo índice, fluxo zero). A `ReturnsMatrix` recebe `benchmark?: MonthlyReturn[]` e desenha a segunda linha com `matrixByYear`. O teste compõe doze meses de 1% e espera 12,68% no ano.
+</details>
+
+## Perguntas de revisão
+
+### Cálculo
+
+1. **Por que um mês sem cotação não entra na série em vez de entrar com zero?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Zero seria um retorno de 0%, uma informação falsa. A ausência é o dado verdadeiro, e a matriz a mostra como traço (CA06.1).
+   </details>
+
+2. **De onde vem o "valor anterior" do primeiro mês da série?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     De zero (`coalesce(lag(...), 0)` na view; `previousValue = 0` na função). O retorno do primeiro mês é valor menos fluxo.
+   </details>
+
+3. **Por que o `update` não conta como fluxo?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Ele redefine um saldo, não movimenta dinheiro. Se contasse, atualizar o saldo de um CDB pareceria um aporte.
+   </details>
+
+### Admin
+
+4. **Como o teste prova que o painel não vaza posições?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Serializa a resposta e afirma que ela não contém `PETR4`, `ticker` nem `quantity` (RNF05).
+   </details>
+
+5. **Por que a promoção a admin no E2E é feita pelo Prisma e não por uma tela?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque não existe tela para isso, de propósito: `role` nunca é alterável pelo cliente (CA11.4). Promover é operação de banco.
+   </details>
+
+## Referências
+
+- [Vanilla: Sprint 6, analytics e admin](../../../../npm/practice/investflow/analytics/): as views que estas funções substituem.
+- [Promise.allSettled | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled)
+- [Next.js: redirect](https://nextjs.org/docs/app/api-reference/functions/redirect)
+
+## Próxima etapa
+
+[Origem e evolução](../origins/): o treemap por corretora, categoria e emissor, e o gráfico de aportes × valor com modo e janela na URL.

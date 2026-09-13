@@ -96,7 +96,8 @@ Três decisões sustentam a estrutura:
 │   ├── task-api-prisma/        etapa 8
 │   ├── task-api-test/          etapa 12
 │   ├── investflow-static/      trilha InvestFlow (Supabase), sprint 1
-│   └── investflow-origins/     sprints 7 a 11, com stack local e testes de unidade, integração, build e E2E
+│   ├── investflow-origins/     sprints 7 a 11, com stack local e testes de unidade, integração, build e E2E
+│   └── react/investflow-react/ o InvestFlow em Next.js (NextAuth, Prisma, TanStack), dez etapas
 │
 └── src/
     ├── content.config.ts       coleção `docs` do Starlight

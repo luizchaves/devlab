@@ -1,0 +1,355 @@
+---
+title: "InvestFlow (React): Carteira"
+description: "Segunda etapa do InvestFlow em React: corretoras, ativos e lançamentos no Prisma, o core/portfolio.ts portado do vanilla, route handlers filtrados pelo dono, dashboard com TanStack Table e a tela do ativo com o extrato."
+course: react
+project: investflow-react
+sidebar:
+  label: "2. Carteira"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **2 de 10** · Nível **Avançado** · Prisma · TanStack Query · TanStack Table · Zod
+
+Esta etapa dá ao produto a carteira: o investidor cadastra ativos com corretora e emissor, registra compras e vendas, e vê posição, preço médio e resultado. No vanilla, a regra de quem lê o quê morava nas policies RLS; aqui ela mora em `src/server/`, onde toda consulta recebe o `userId` da sessão. A matemática da posição é a mesma, portada função a função para `core/portfolio.ts`.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  A tela usa `useQuery` e `useMutation` do TanStack Query com dados iniciais vindos de um Server Component, e a tabela é o TanStack Table. Se a ideia de *server state* separado do estado local ainda não está firme, revise [Estado Global](../../../state/state-management/) antes de seguir.
+</Aside>
+
+## Objetivo
+
+Implementar a carteira de ponta a ponta, do schema à tabela, com a mesma regra de posição do vanilla e isolamento entre contas provado por teste. Ao final da etapa, o leitor deve ser capaz de:
+
+- Modelar corretoras, ativos e lançamentos no Prisma com enums, `unique` composto e cascade.
+- Portar regras de negócio para funções puras e prová-las com uma planilha de referência.
+- Escrever route handlers que validam com Zod e filtram pelo dono da sessão.
+- Ligar formulários e tabelas ao TanStack Query com `initialData` e invalidação por chave.
+- Configurar o TanStack Table com colunas, ordenação e células personalizadas.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF03, RF08 e RF08.1. Os critérios CA03.1 a CA03.15 do [backlog](../../../../npm/practice/investflow/backlog/) são provados assim:
+
+| Critério | Prova |
+| -------- | ----- |
+| CA03.1, CA03.7 (criar ativo, corretora nova) | `core/assets.test.ts`, integração, e2e |
+| CA03.2, CA03.3 (lançamento pertence ao investidor; posição reproduzível) | `core/portfolio.test.ts`, integração, e2e |
+| CA03.4, CA03.5, CA03.10 (isolamento entre contas) | integração: a outra conta recebe `404` |
+| CA03.8, CA03.9 (tela do ativo, extrato) | e2e |
+| CA03.11, CA03.12 (editar sem perder lançamentos; excluir com cascade) | integração e e2e |
+| CA03.13, CA03.15 (seed demonstrativo valendo R$ 1) | integração sobre `server/seed.ts` |
+
+## Estrutura da aplicação
+
+Os arquivos novos da etapa, sobre a base da anterior:
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── prisma/schema.prisma          + Broker, Asset, Transaction e os enums
+  ├── app/
+  │   ├── (private)/dashboard/      Server Component que carrega a carteira
+  │   ├── (private)/assets/[id]/    tela do ativo por id ou ticker
+  │   └── api/
+  │       ├── assets/               GET, POST · [id]: GET, PATCH, DELETE
+  │       └── transactions/         POST · [id]: PATCH, DELETE
+  ├── src/
+  │   ├── core/portfolio.ts         summarize, totals, investmentDuration
+  │   ├── core/assets.ts            assetSchema, transactionSchema, normalizeTicker
+  │   ├── server/
+  │   │   ├── assets.ts             listAssets, getAsset, createAsset, updateAsset, deleteAsset
+  │   │   ├── brokers.ts            findOrCreateBroker
+  │   │   ├── transactions.ts       createTransaction, updateTransaction, deleteTransaction
+  │   │   ├── http.ts               handle() e validationResponse()
+  │   │   └── seed.ts               admin, corretora Inter e Tesouro Reserva 2036
+  │   ├── features/portfolio/       queries.ts, portfolio-view, assets-table, asset-form-dialog, portfolio-kpis
+  │   ├── features/asset/           asset-detail, transactions-table, transaction-form-dialog
+  │   └── components/ui/            + badge, select, alert-dialog
+  └── tests/integration/portfolio.integration.test.ts
+`}
+</FileTree>
+
+## Schema: enums, `unique` composto e cascade
+
+Categorias, moedas e tipos de lançamento têm os mesmos valores do `check (category in (...))` do vanilla, agora como enums do Prisma. O ticker é único por dono, a corretora é única por dono e nome, e excluir um ativo leva os lançamentos junto (CA03.12).
+
+<SourceCode path="examples/courses/react/investflow-react/prisma/schema.prisma" lines="38-108" />
+
+## A regra da posição: `core/portfolio.ts`
+
+`summarize` recebe o ativo com os lançamentos e devolve números. A venda baixa o custo pelo preço médio, não pelo preço de venda: o que sai da carteira é o custo daquela quantidade, e a diferença vira resultado realizado. Um `update` redefine posição e custo pelo saldo. É a mesma função do vanilla, com tipos.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/portfolio.ts" region="summarize" />
+
+`totals` soma as posições em reais e conta as ativas; um ativo sem cotação entra pelo custo para não sumir do total.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/portfolio.ts" region="totals" />
+
+<Aside type="tip" title="A planilha de referência é o teste">
+  O teste `CA03.3` usa os mesmos números do vanilla: 100 PETR4 a 30 em janeiro e 100 a 34 em fevereiro dão 200 cotas, custo 6.400 e preço médio 32. Quando a regra é portada, o teste é a prova de que nada se perdeu no caminho.
+</Aside>
+
+## Validação: schemas em `core/assets.ts`
+
+O mesmo schema Zod valida no cliente (mensagem imediata) e na rota (proteção final). Renda fixa pode vir sem ticker e fica sempre em reais; as demais categorias exigem ticker.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/assets.ts" region="schemas" />
+
+Renda fixa não tem código de bolsa: sem ticker, o sistema inventa um `RF-<NOME>-<sufixo>`, único por dono (CA08.6).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/assets.ts" region="ticker" />
+
+## Servidor: o `userId` no lugar do RLS
+
+Toda função de `server/assets.ts` recebe o id da sessão e o aplica no `where`. `getAsset` aceita id ou ticker, e um ativo de outra conta devolve `null`: quem chama responde `404` sem confirmar que ele existe (CA03.10).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/assets.ts" region="list" />
+
+A criação resolve a corretora (nasce quando citada pela primeira vez, CA03.7), normaliza o ticker e recusa o repetido com `409`.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/assets.ts" region="create" />
+
+O lançamento pertence ao dono do ativo: um `assetId` alheio responde `404` e o `userId` gravado é sempre o da sessão (CA03.2, CA03.5).
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/transactions.ts" region="create" />
+
+<Aside type="caution" title="Dica de IA: Exija o `userId` em toda consulta, não só na leitura">
+  Assistentes costumam filtrar a listagem por dono e esquecer o `where` no `update`, no `delete` e nas relações (`assetId` de outra conta). Sem RLS, cada uma dessas consultas é uma porta.
+
+  **Prompt:** *"Liste todas as chamadas do Prisma em `src/server/` que não recebem `userId` no `where` ou não verificam o dono da relação antes de escrever; para cada uma, escreva um teste de integração em que uma segunda conta tenta a operação e espera `404`."*
+</Aside>
+
+## Rotas: `handle()` e `validationResponse()`
+
+Os route handlers são finos: sessão, validação, chamada ao servidor. `handle` envolve tudo para que um `HttpError` ou uma falha inesperada vire JSON com o status certo, e `validationResponse` transforma um erro do Zod em `400` com os campos.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/http.ts" region="helpers" />
+
+A rota da carteira usa os dois helpers; note que `GET` só precisa da sessão, e `POST` valida o corpo antes de chamar `createAsset`:
+
+<SourceCode path="examples/courses/react/investflow-react/app/api/assets/route.ts" region="routes" />
+
+## Cliente: React Query com dados iniciais
+
+A página da carteira é um Server Component: lê a carteira no servidor e entrega ao componente cliente como `initialData`. A partir daí o React Query mantém tudo atualizado; não há `useEffect` para a primeira carga.
+
+<SourceCode path="examples/courses/react/investflow-react/app/(private)/dashboard/page.tsx" region="page" />
+
+As chaves são estáveis e as mutações invalidam `['assets']` no sucesso: quem estiver na tela refaz a consulta, sem `setState` espalhado pelos componentes.
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/portfolio/queries.ts" region="mutations" />
+
+O fluxo de uma mutação, do diálogo à tabela:
+
+<Mermaid title="Uma mutação, da caixa de diálogo à tabela">
+{`
+sequenceDiagram
+  participant D as AssetFormDialog
+  participant M as useCreateAsset
+  participant R as POST /api/assets
+  participant Q as QueryClient
+  participant T as AssetsTable
+  D->>D: assetSchema.safeParse (erro de campo local)
+  D->>M: mutateAsync(data)
+  M->>R: fetch JSON
+  R-->>M: 201 { asset } ou 409 { error }
+  M->>Q: invalidateQueries(['assets'])
+  Q-->>T: nova lista, nova posição
+`}
+</Mermaid>
+
+## Tabela: TanStack Table
+
+As colunas descrevem o que mostrar e como ordenar; o TanStack Table cuida do modelo de linhas e do estado de ordenação. `meta.numeric` alinha à direita e `meta.hideBelow` esconde a coluna abaixo de um breakpoint (RNF07).
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/portfolio/assets-table.tsx" region="columns" />
+
+## Tela do ativo
+
+`/assets/[id]` aceita o id ou o ticker; um ativo alheio cai no mesmo "não encontrado" de um id inexistente (CA03.10). O extrato mostra a posição acumulada depois de cada lançamento (CA03.9).
+
+<SourceCode path="examples/courses/react/investflow-react/app/(private)/assets/[id]/page.tsx" region="page" />
+
+O extrato acumula a posição com um `reduce` sobre os lançamentos em ordem cronológica, e a última linha mostra a posição atual:
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/asset/transactions-table.tsx" region="table" />
+
+## Seed demonstrativo
+
+O seed cria o administrador, a corretora Inter e a posição `Tesouro Reserva 2036` valendo R$ 1 (CA03.13, CA03.15). Nada aqui é dado real de carteira (CA03.14), e rodar de novo não duplica.
+
+<SourceCode path="examples/courses/react/investflow-react/src/server/seed.ts" region="seed" />
+
+## Testando
+
+A unidade prova a matemática da posição com a planilha de referência.
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/portfolio.test.ts
+```
+
+```txt title="Output"
+ ✓ summarize > CA03.3 — quantidade, custo e valor atual saem das transações e da cotação
+ ✓ summarize > CA08.4 — a venda baixa o custo pelo preço médio e a diferença vira realizado
+ ✓ summarize > CA08.7 — um lançamento update redefine posição e custo e zera o realizado
+ ✓ summarize > CA08.8 — ativo por saldo vale o próprio saldo, sem cotação
+ ✓ summarize > sem cotação, valor e retorno ficam nulos em vez de zero
+ ✓ summarize > CA10.4 — ativo em dólar é convertido pela taxa informada
+ ✓ totals > soma custo, valor e realizado da carteira e conta posições ativas
+ ✓ investmentDuration > CA08.16 — posição aberta conta até hoje; encerrada, até a última venda
+ ✓ investmentDuration > sem lançamentos devolve traço
+
+ Tests  9 passed (9)
+```
+
+A integração prova o isolamento com duas contas e o seed.
+
+```bash title="Terminal"
+pnpm vitest run --project integration tests/integration/portfolio.integration.test.ts
+```
+
+```txt title="Output"
+ ✓ ativos > CA03.1, CA03.7 — cria o ativo para o dono da sessão, com corretora nova; categoria fora do conjunto é recusada
+ ✓ ativos > ticker repetido responde 409 com mensagem
+ ✓ ativos > CA03.4 — cada conta lê apenas os próprios ativos
+ ✓ ativos > CA03.10 — ativo de outra conta responde 404 por id e por ticker; edição e exclusão cruzadas também
+ ✓ ativos > CA03.11 — editar o ativo não perde os lançamentos
+ ✓ ativos > CA03.12 — excluir o ativo leva os lançamentos junto pelo cascade
+ ✓ lançamentos > CA03.2, CA03.3 — a compra referencia o ativo, pertence ao investidor e a posição é reproduzível
+ ✓ lançamentos > CA03.5 — lançar em ativo de outra conta responde 404 e nada é gravado; editar lançamento alheio também
+ ✓ lançamentos > recusa quantidade zero com erro de campo
+ ✓ seed público > CA03.13, CA03.15 — cria o admin demonstrativo e a posição Tesouro Reserva 2036 valendo R$ 1
+ ✓ edição e exclusão de lançamentos > CA08.1, CA08.2 — editar recalcula a posição; excluir remove e recalcula; outra conta não alcança
+
+ Tests  11 passed (11)
+```
+
+O E2E cadastra o ativo, registra dois aportes, confere os KPIs, edita, exclui e abre um ativo inexistente.
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/portfolio.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA03.1, CA03.7 — carteira vazia, cadastro de ativo com corretora e emissor
+  ✓ ticker repetido é recusado com mensagem no campo
+  ✓ CA03.8, CA03.9, CA03.3 — a tela do ativo lista os aportes e recalcula a posição
+  ✓ CA03.11, CA03.12 — edita e exclui ativo próprio pela carteira
+  ✓ CA03.10 — ativo de outra conta ou inexistente mostra não encontrado
+  5 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Com a stack no ar, aplique a migração da etapa e o seed.
+
+   ```bash
+   pnpm db:migrate && pnpm db:seed
+   ```
+
+2. Entre com o admin e veja `Tesouro Reserva 2036` valendo R$ 1 na carteira. Cadastre `PETR4` (Ações, corretora XP) e registre `100 × 30` em 10/01/2026 e `100 × 34` em 10/02/2026.
+
+3. Confira na tela do ativo: quantidade 200, preço médio R$ 32,00, custo R$ 6.400,00. Abra `http://localhost:3000/assets/petr4`: o ticker também resolve.
+
+</Steps>
+
+## Conceitos abordados
+
+- Enums, `@@unique` composto, `onDelete: Cascade` e `Decimal` no Prisma.
+- Portar regras para funções puras e testá-las com números de referência.
+- Zod compartilhado entre cliente e rota; `400` com erros de campo e `409` de conflito.
+- `initialData`, chaves estáveis e `invalidateQueries` no TanStack Query.
+- `createColumnHelper`, `getSortedRowModel` e `meta` de coluna no TanStack Table.
+
+## Exercício
+
+Acrescente ao formulário de ativo um campo "observações" (texto livre, opcional, até 500 caracteres). Ele precisa existir no schema do Prisma (migração), no `assetSchema`, no DTO de `server/assets.ts`, no diálogo e na tela do ativo.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  `notes String?` no modelo `Asset` e `pnpm db:migrate --name asset-notes`; `notes: z.string().trim().max(500).optional().default('')` no schema; `notes: row.notes` no `toAssetDto` e no `create`/`update`; um `<Field label="Observações">` com `<textarea>` no diálogo; um parágrafo abaixo do cabeçalho em `asset-detail.tsx`. O teste de integração cria o ativo com `notes` e confere o campo na resposta de `GET /api/assets/[id]`.
+</details>
+
+## Desafio
+
+Permita reordenar as colunas da tabela por arrastar e soltar, guardando a ordem no `localStorage` por meio do Zustand. O TanStack Table expõe `columnOrder` no estado; o desafio é manter a ordem entre recargas sem misturar essa preferência com os dados da carteira.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Acrescente `columnOrder: string[]` ao store de preferências (persistido) e passe `state: { sorting, columnOrder }` com `onColumnOrderChange` ao `useReactTable`. O arrastar pode usar os eventos nativos de `dragstart`/`drop` nos `th`. O teste `unit` cobre o store; um teste `browser` renderiza a tabela e confere a ordem depois do drop.
+</details>
+
+## Perguntas de revisão
+
+### Servidor e isolamento
+
+1. **Por que uma linha de outra conta responde `404` e não `403`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `403` confirmaria que o recurso existe. `404` não dá informação nenhuma a quem tenta adivinhar ids (CA03.10).
+   </details>
+
+2. **Onde a corretora é criada, e por que o `upsert` é por `(userId, name)`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Em `findOrCreateBroker`, quando um ativo a cita pela primeira vez. A chave composta garante que "XP" e "XP " da mesma conta não viram duas linhas, e que a XP de uma conta não é a XP de outra.
+   </details>
+
+3. **O que o `handle()` de `server/http.ts` faz, e o que aconteceria sem ele?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Converte `HttpError` em JSON com o status certo e qualquer outra exceção em `500`. Sem ele, cada rota repetiria o `try/catch`, e um erro esquecido derrubaria a resposta sem corpo.
+   </details>
+
+### Cliente
+
+4. **Por que a página da carteira passa `initialData` em vez de deixar o React Query buscar?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     O Server Component já tem os dados: a primeira renderização chega completa, sem estado de carregamento nem efeito. O React Query assume a partir daí.
+   </details>
+
+5. **O que `invalidateQueries({ queryKey: ['assets'] })` alcança?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Toda consulta cuja chave começa por `assets`, inclusive `['assets', id]` do detalhe. Uma mutação na carteira atualiza a tela do ativo aberta em outra aba.
+   </details>
+
+6. **Por que a venda usa o preço médio para baixar o custo?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Porque o que sai da carteira é o custo daquela quantidade. A diferença entre o preço de venda e o preço médio é o resultado realizado, que não pode contaminar o custo do que ficou.
+   </details>
+
+## Referências
+
+- [Prisma: relations e referential actions](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/referential-actions)
+- [Zod](https://zod.dev/)
+- [TanStack Query: initialData](https://tanstack.com/query/latest/docs/framework/react/guides/initial-query-data) e [invalidation](https://tanstack.com/query/latest/docs/framework/react/guides/query-invalidation)
+- [TanStack Table: column defs](https://tanstack.com/table/latest/docs/guide/column-defs) e [sorting](https://tanstack.com/table/latest/docs/guide/sorting)
+
+## Próxima etapa
+
+[Cotações](../quotes/): a Edge Function `update-quotes` vira um route handler, com provedores `fake` e `yahoo`, calendário de mercado e cotação manual.

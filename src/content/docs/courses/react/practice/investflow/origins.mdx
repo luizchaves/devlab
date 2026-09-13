@@ -1,0 +1,245 @@
+---
+title: "InvestFlow (React): Origem e evolução"
+description: "Sexta etapa do InvestFlow em React: a carteira agrupada por corretora, categoria ou emissor em um treemap squarified desenhado em SVG, e o gráfico de aportes × valor de mercado com modo contínuo ou por eventos e janela de tempo guardados na URL."
+course: react
+project: investflow-react
+sidebar:
+  label: "6. Origem e evolução"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **6 de 10** · Nível **Avançado** · SVG em React · Layout como função pura · Estado na URL
+
+Duas perguntas novas: **onde** o patrimônio está (por corretora, categoria ou emissor) e **como** ele evoluiu em relação ao que foi aportado. Sem biblioteca de gráficos: o layout do treemap e a escala do gráfico de linhas são funções puras em `core/`, e os componentes só desenham SVG. O modo e a janela da linha do tempo ficam na URL, então recarregar e compartilhar o link reproduzem a tela.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  O gráfico lê `useSearchParams` e escreve com `router.replace`; a lógica está encapsulada em `useUrlState`, o hook que as etapas 7 a 9 reaproveitam. Se hooks personalizados ainda parecem mágica, revise [Hooks](../../../state/hooks/).
+</Aside>
+
+## Objetivo
+
+Desenhar dois gráficos a partir dos fatos, sem biblioteca, e guardar as escolhas de visualização na URL. Ao final da etapa, o leitor deve ser capaz de:
+
+- Implementar o treemap *squarified* como função que devolve retângulos e prová-la por área e limites.
+- Derivar a evolução mensal (aportado acumulado × valor) por ativo e somá-la por mês.
+- Preencher meses intermediários (modo contínuo) ou filtrar por movimentação (modo eventos).
+- Escalar séries para SVG deixando lacunas onde não há dado.
+- Guardar estado de tela na URL com um hook, omitindo os valores padrão.
+
+## Requisitos e critérios da etapa
+
+A etapa atende RF09 e RF10. Critérios CA07.1 a CA07.8:
+
+| Critério | O que diz | Prova |
+| -------- | --------- | ----- |
+| CA07.1 | Treemap com área proporcional ao valor por corretora | `core/evolution.test.ts` (layout), e2e |
+| CA07.2 | Seletor troca o recorte sem recarregar | e2e |
+| CA07.3 | Só os ativos do dono | integração |
+| CA07.4, CA07.5 | Aportado × valor na carteira e no ativo | unit, integração, e2e |
+| CA07.6 | Mês sem cotação fica sem ponto na linha | unit (`pathOf`) |
+| CA07.7 | Modo contínuo e modo eventos | unit, e2e |
+| CA07.8 | Janela de tempo na URL (`?range=2y`) | unit, e2e |
+
+## Estrutura da aplicação
+
+<ProjectLinks path="examples/courses/react/investflow-react" devcontainer="investflow-react" />
+
+<FileTree>
+{`
+  investflow-react/
+  ├── app/
+  │   ├── (private)/origins/page.tsx
+  │   ├── api/origins/route.ts
+  │   └── api/assets/[id]/evolution/route.ts
+  ├── src/
+  │   ├── core/origins.ts            allocationByOrigin, groupBy
+  │   ├── core/treemap.ts            layout (squarified), fitText
+  │   ├── core/evolution.ts          portfolioEvolution, totalsByMonth, fillContinuousMonths, filterMovementMonths, applyRange
+  │   ├── core/line-chart.ts         scalePoints, pathOf
+  │   ├── lib/url-state.ts           useUrlState
+  │   ├── components/charts/         treemap.tsx, line-chart.tsx
+  │   ├── features/origins/origins-view.tsx
+  │   └── features/analytics/evolution-chart.tsx
+  └── src/core/evolution.test.ts
+`}
+</FileTree>
+
+## Origem: linhas e agrupamento
+
+`allocationByOrigin` devolve uma linha por ativo com as três dimensões e o valor atual, como a view `allocation_by_origin`; `groupBy` soma por uma delas. O recorte troca no cliente, sem nova requisição (CA07.2).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/origins.ts" region="group" />
+
+## O treemap como função
+
+O algoritmo *squarified* (Bruls, Huizing, van Wijk) recebe `[{ label, value }]` e a área, e devolve retângulos. Sem DOM, sem biblioteca. A soma das áreas é `width × height` e cada retângulo fica dentro dos limites: é o que o teste afirma (CA07.1).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/treemap.ts" region="layout" />
+
+O componente só desenha: cada bloco leva um `<title>` (tooltip nativo e acessível) e anima a entrada com o Motion.
+
+<SourceCode path="examples/courses/react/investflow-react/src/components/charts/treemap.tsx" region="treemap" />
+
+<Aside type="tip" title="Dica de IA: Peça o layout como função, e o desenho como outra">
+  Um assistente pedido para "fazer um treemap em React" costuma acoplar cálculo e SVG no mesmo componente, e o resultado não tem como ser testado sem renderizar. Separar `layout()` de `<Treemap>` é o que permite afirmar área e limites em um teste de 10 linhas.
+
+  **Prompt:** *"Extraia deste componente uma função pura `layout(items, width, height)` que devolve retângulos e escreva um teste que confere que a soma das áreas é `width × height` e que nenhum retângulo sai dos limites; depois reescreva o componente para só desenhar o que a função devolve."*
+</Aside>
+
+## Evolução: aportado × valor
+
+Para cada ativo e mês com cotação, `portfolioEvolution` devolve o aportado acumulado (compras menos vendas) e a posição × última cotação do mês; ativo por saldo entra pelo custo; posição zerada devolve aportado 0, como a view (CA07.4, CA07.6). `totalsByMonth` soma por mês e transforma a série por ativo na série da carteira (CA07.5).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/evolution.ts" region="totals" />
+
+Os dois modos e a janela (CA07.7, CA07.8): o contínuo repete a última posição nos meses sem dado; o de eventos deixa só os meses com aporte ou resgate; a janela recorta a partir de hoje.
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/evolution.ts" region="timeline" />
+
+## A escala e as lacunas
+
+`scalePoints` coloca as séries no mesmo eixo de tempo e converte valores em coordenadas. Um ponto sem valor vira `y: null`, e `pathOf` recomeça o caminho depois de cada lacuna: a linha se interrompe, em vez de cair a zero (CA07.6).
+
+<SourceCode path="examples/courses/react/investflow-react/src/core/line-chart.ts" region="scale" />
+
+## Estado na URL
+
+`useUrlState` lê a URL, escreve com `router.replace` e omite os valores padrão (CA07.8). Como o `replace` é assíncrono, o hook guarda a última query escrita até a URL alcançá-la: dois cliques seguidos não usam parâmetros defasados.
+
+<SourceCode path="examples/courses/react/investflow-react/src/lib/url-state.ts" region="hook" />
+
+O gráfico de evolução usa o hook para `mode` e `range` e desenha a carteira ou um ativo, conforme as linhas que recebe:
+
+<SourceCode path="examples/courses/react/investflow-react/src/features/analytics/evolution-chart.tsx" region="chart" />
+
+## Testando
+
+```bash title="Terminal"
+pnpm vitest run --project unit src/core/evolution.test.ts
+```
+
+```txt title="Output"
+ ✓ origens > CA07.1, CA07.2 — uma linha por ativo com corretora, categoria, emissor e valor atual
+ ✓ origens > CA07.1 — o treemap ocupa toda a área e cada bloco fica dentro dos limites
+ ✓ evolução > CA07.4, CA07.6 — reproduz aportado × valor da planilha, sem março
+ ✓ evolução > CA07.5 — a série do ativo e a da carteira coincidem quando só ele tem cotação; o CDB entra pelo saldo
+ ✓ evolução > posição zerada devolve aportado 0, como a view
+ ✓ evolução > CA07.7 — modo contínuo preenche os meses intermediários com a última posição
+ ✓ evolução > CA07.7 — modo eventos deixa só os meses com movimentação
+ ✓ evolução > CA07.8 — a janela recorta as séries a partir de hoje
+ ✓ gráfico de linhas > CA07.6 — um mês sem valor vira lacuna no caminho, não zero
+
+ Tests  9 passed (9)
+```
+
+O E2E troca o recorte do treemap, confere as duas linhas no gráfico da carteira e do ativo, e verifica que modo e janela ficam na URL e sobrevivem à recarga.
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/origins.spec.ts
+```
+
+```txt title="Output"
+  ✓ CA07.1, CA07.2 — o treemap agrupa por corretora, categoria e emissor sem recarregar
+  ✓ CA07.4, CA07.5 — a linha de aportes e a de valor aparecem na carteira e no ativo
+  ✓ CA07.7, CA07.8 — modo e janela trocam sem recarregar e ficam na URL
+  3 passed
+```
+
+## Executando
+
+<Steps>
+
+1. Com PETR4 (corretora XP) e um CDB (Banco do Brasil) na carteira, abra `/origins`: dois blocos. Troque para "Emissor" e "Categoria".
+
+2. Em `/analytics`, clique em "Eventos" e "2 anos": a URL vira `?mode=events&range=2y`. Recarregue: a escolha permanece. Volte a "Contínuo" e "Tudo": a URL fica limpa.
+
+3. Abra a tela do PETR4: o mesmo gráfico, só com a série daquele ativo.
+
+</Steps>
+
+## Conceitos abordados
+
+- Treemap *squarified* como função pura, testada por invariantes.
+- SVG em React: `viewBox`, `<path>`, `<title>` e Motion.
+- Séries mensais derivadas, preenchimento e filtragem.
+- `useSearchParams` e `router.replace` encapsulados em um hook.
+
+## Exercício
+
+Acrescente ao treemap uma legenda de cores fixa por categoria (as mesmas do `Badge`), em vez da paleta por posição, para que "Ações" seja sempre da mesma cor em qualquer recorte por categoria.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Passe ao `Treemap` uma função `colorOf(label)`; em `OriginsView`, quando `dimension === 'category'`, ela mapeia o rótulo para a cor da categoria (um `Record<string, string>` derivado de `CATEGORY_LABELS`). Nos outros recortes, mantém a paleta por índice. O teste `browser` renderiza o treemap com duas categorias e confere o `fill`.
+</details>
+
+## Desafio
+
+Permita comparar dois ativos no mesmo gráfico de evolução: `?compare=<id>` acrescenta a série "Valor" do segundo ativo. As linhas precisam do mesmo eixo de tempo (união dos meses) e da mesma escala.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A tela do ativo lê `compare` com `useUrlState`, busca `/api/assets/[compare]/evolution` com `useQuery` e monta um terceiro `Series` com `name: 'Valor · <ticker>'`. `scalePoints` já une os meses; a lacuna aparece onde um ativo não tem cotação. O E2E abre dois ativos e confere três `<path data-series>`.
+</details>
+
+## Perguntas de revisão
+
+### Treemap
+
+1. **O que o teste do `layout` afirma, e por que isso basta?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Que a soma das áreas é `width × height` e que nenhum retângulo sai dos limites. Com isso, qualquer bug de proporção ou de posicionamento aparece sem precisar renderizar.
+   </details>
+
+2. **Por que a fileira ocupa o lado menor do espaço restante?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     É o que torna o algoritmo *squarified*: preencher o lado menor mantém os retângulos próximos de quadrados, mais legíveis do que tiras finas.
+   </details>
+
+### Evolução e URL
+
+3. **Por que um mês sem cotação vira lacuna e não zero na linha de valor?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Zero desenharia uma queda falsa. `pathOf` recomeça o caminho depois do `null`, e o leitor vê a interrupção (CA07.6).
+   </details>
+
+4. **O que o modo eventos filtra quando não recebe a lista de meses?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     Os meses em que o aportado acumulado mudou em relação ao anterior, além do primeiro. A lista explícita, quando vem, é mais precisa (inclui vendas que não mudam o acumulado).
+   </details>
+
+5. **Por que `useUrlState` guarda a última query escrita em um `ref`?**
+
+   <details>
+     <summary>Possível resposta</summary>
+
+     `router.replace` é assíncrono: um segundo clique antes da URL mudar leria parâmetros velhos e desfaria o primeiro. O `ref` é a fonte até a URL alcançá-lo.
+   </details>
+
+## Referências
+
+- [Bruls, Huizing, van Wijk: Squarified Treemaps](https://www.win.tue.nl/~vanwijk/stm.pdf)
+- [MDN: SVG `<path>`](https://developer.mozilla.org/en-US/docs/Web/SVG/Element/path)
+- [Next.js: useSearchParams](https://nextjs.org/docs/app/api-reference/functions/use-search-params) e [useRouter](https://nextjs.org/docs/app/api-reference/functions/use-router)
+- [Motion for React](https://motion.dev/docs/react)
+
+## Próxima etapa
+
+[Lançamentos e organização](../ledger/): editar e excluir lançamentos, resgate total, filtro, ordenação e rodapé da carteira, tudo com estado na URL.
