@@ -25,6 +25,15 @@ export default defineConfig({
           fileParallelism: false,
         },
       },
+      {
+        // O build de producao e o vercel.json: roda em node, sem stack, e leva
+        // alguns segundos por causa do vite build.
+        test: {
+          name: 'build',
+          environment: 'node',
+          include: ['tests/build/**/*.test.js'],
+        },
+      },
     ],
   },
 });

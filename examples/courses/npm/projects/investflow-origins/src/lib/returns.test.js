@@ -76,7 +76,7 @@ describe('matrixByYear (TK06-3)', () => {
 
 // #region evolution
 describe('monthlyReturnsFromEvolution', () => {
-  it('desconta o fluxo do mes da variacao do valor', () => {
+  it('CA10.10: desconta o fluxo do mes da variacao do valor', () => {
     const rows = monthlyReturnsFromEvolution([
       { month: '2026-02-01', invested: '11000', value: '11500' },
       { month: '2026-01-01', invested: '10000', value: '10000' },
@@ -87,7 +87,7 @@ describe('monthlyReturnsFromEvolution', () => {
     expect(rows[1]).toMatchObject({ net_flow: 1000, return_brl: 500 });
   });
 
-  it('usa o fluxo informado em vez da diferenca do acumulado', () => {
+  it('CA10.10: usa o fluxo informado em vez da diferenca do acumulado', () => {
     // Ativo em USD: o acumulado muda com o cambio, mas nao houve aporte em fevereiro
     const rows = monthlyReturnsFromEvolution(
       [
@@ -102,7 +102,7 @@ describe('monthlyReturnsFromEvolution', () => {
 });
 
 describe('withDividends', () => {
-  it('soma o provento do mes ao valor e ao retorno', () => {
+  it('CA09.10: soma o provento do mes ao valor e ao retorno', () => {
     const [row] = withDividends(
       [{ month: '2026-01-01', value: 1000, net_flow: 0, return_brl: 50 }],
       new Map([['2026-01', 20]])

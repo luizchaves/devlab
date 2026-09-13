@@ -159,7 +159,7 @@ describe.skipIf(!hasStack)('Sprint 7 contra a stack local', () => {
     expect(assets.size).toBe(1);
   });
 
-  it('fillContinuousMonths: preenche meses intermediarios sem pular intervalos', () => {
+  it('CA07.7: modo continuo preenche os meses intermediarios com a ultima posicao', () => {
     const sparse = [
       { month: '2026-01-01', invested: 1000, value: 1100 },
       { month: '2026-04-01', invested: 2000, value: 2300 },
@@ -176,7 +176,7 @@ describe.skipIf(!hasStack)('Sprint 7 contra a stack local', () => {
     expect(continuous[3]).toEqual({ month: '2026-04-01', invested: 2000, value: 2300 });
   });
 
-  it('filterMovementMonths: filtra apenas os meses com movimentacao/transacao', () => {
+  it('CA07.7: modo eventos deixa so os meses com movimentacao', () => {
     const rows = [
       { month: '2026-01-01', invested: 1000, value: 1050 },
       { month: '2026-02-01', invested: 1000, value: 1080 },
@@ -195,7 +195,7 @@ describe.skipIf(!hasStack)('Sprint 7 contra a stack local', () => {
     expect(filteredByDelta.map((r) => r.month)).toEqual(['2026-01-01', '2026-03-01', '2026-05-01']);
   });
 
-  it('attachCumulativeDividends e toSeries com includeDividends: anexa e gera terceira serie acumulada', () => {
+  it('CA09.11: a serie Valor + Proventos acumula os proventos pagos ate cada mes', () => {
     const rows = [
       { month: '2026-01-01', invested: 1000, value: 1050 },
       { month: '2026-02-01', invested: 1000, value: 1080 },

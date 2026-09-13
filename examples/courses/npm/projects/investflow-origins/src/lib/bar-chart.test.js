@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderBarChart, scaleBars } from './bar-chart.js';
 
 describe('scaleBars', () => {
-  it('escala os valores proporcionalmente ao maximo', () => {
+  it('CA09.13: escala os valores proporcionalmente ao maximo', () => {
     const data = [
       { label: 'Jan', value: 100 },
       { label: 'Fev', value: 200 },

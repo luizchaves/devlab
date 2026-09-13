@@ -20,7 +20,7 @@ describe('privacy mask', () => {
     `;
   });
 
-  it('mascara e restaura valores financeiros marcados ou detectados', () => {
+  it('CA11.10: mascara e restaura valores financeiros marcados ou detectados', () => {
     setValuesHidden(true);
 
     const kpi = document.querySelector('[data-kpi="value"]');
@@ -55,7 +55,7 @@ describe('privacy mask', () => {
     );
   });
 
-  it('atualiza o valor original quando a pagina rerenderiza com a mascara ativa', () => {
+  it('CA11.10: atualiza o valor original quando a pagina rerenderiza com a mascara ativa', () => {
     setValuesHidden(true);
 
     const kpi = document.querySelector('[data-kpi="value"]');

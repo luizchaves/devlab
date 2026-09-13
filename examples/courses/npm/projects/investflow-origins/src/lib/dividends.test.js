@@ -17,7 +17,7 @@ describe('calculateDividends', () => {
     });
   });
 
-  it('calcula proventos recebidos com base na posicao na data de corte (Data Ex)', () => {
+  it('CA09.5: calcula proventos recebidos com base na posicao na data de corte (Data Ex)', () => {
     const transactions = [
       { type: 'buy', quantity: '100', transaction_date: '2025-01-10' },
       { type: 'buy', quantity: '50', transaction_date: '2025-03-01' },
@@ -49,7 +49,7 @@ describe('calculateDividends', () => {
     });
   });
 
-  it('garante que compras na Data Ex nao dao direito e vendas na Data Ex mantem direito', () => {
+  it('CA09.5: compras na Data Ex nao dao direito e vendas na Data Ex mantem direito', () => {
     // Ex-Date: 2025-04-01
     // Caso 1: Compra antes de Ex (Data Com 2025-03-31) e Venda na Data Ex (2025-04-01) -> Tem direito
     const txHolding = [
@@ -83,7 +83,7 @@ describe('calculateDividends', () => {
     expect(res.items).toEqual([]);
   });
 
-  it('converte proventos de ativo em USD para BRL usando a cotacao cambial', () => {
+  it('CA10.4: converte proventos de ativo em USD para BRL usando a cotacao cambial', () => {
     const transactions = [{ type: 'buy', quantity: '100', transaction_date: '2025-01-10' }];
     const dividends = [
       { id: '1', ex_date: '2025-03-01', payment_date: '2025-03-15', rate: '0.50' }, // 100 * 0.50 = 50 USD
@@ -103,7 +103,7 @@ describe('calculateDividends', () => {
 });
 
 describe('isDividendEligibleCategory', () => {
-  it('considera elegiveis apenas categorias que podem pagar proventos por cota', () => {
+  it('CA09.2: considera elegiveis apenas categorias que podem pagar proventos por cota', () => {
     expect(isDividendEligibleCategory('acoes')).toBe(true);
     expect(isDividendEligibleCategory('fiis')).toBe(true);
     expect(isDividendEligibleCategory('etfs')).toBe(true);
@@ -116,7 +116,7 @@ describe('isDividendEligibleCategory', () => {
 });
 
 describe('dividendYieldOnCost', () => {
-  it('calcula yield on cost corretamente', () => {
+  it('CA09.6: calcula yield on cost corretamente', () => {
     expect(dividendYieldOnCost(100, 1000)).toBe(0.1);
     expect(dividendYieldOnCost(0, 1000)).toBeNull();
     expect(dividendYieldOnCost(100, 0)).toBeNull();
@@ -124,7 +124,7 @@ describe('dividendYieldOnCost', () => {
 });
 
 describe('totalReturn', () => {
-  it('calcula retorno total positivo somando valorizacao e proventos', () => {
+  it('CA09.8: calcula retorno total positivo somando valorizacao e proventos', () => {
     const res = totalReturn({ cost: 1000, value: 1100, realized: 0, totalDividends: 50 });
     expect(res.netGain).toBe(150);
     expect(res.returnPct).toBe(0.15);
@@ -151,7 +151,7 @@ describe('buildDividendsMatrix', () => {
     expect(res.months.length).toBe(12);
   });
 
-  it('agrupa proventos em anos e meses corretamente permitindo comparacao vertical e horizontal', () => {
+  it('CA09.7: agrupa proventos em anos e meses e soma o mesmo total', () => {
     const items = [
       { paymentDate: '2025-01-15', total: 100 },
       { paymentDate: '2025-02-15', total: 150 },

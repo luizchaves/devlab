@@ -108,6 +108,70 @@ describe.skipIf(!hasStack)('Sprint 4 contra o edge runtime local', () => {
   });
   // #endregion
 
+  // #region single-asset
+  it('CA08.9: com asset_id no corpo, so aquele ativo e consultado', async () => {
+    const res = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ana.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asset_id: xpto3.id }),
+    });
+    const summary = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(summary.requested).toBe(1);
+    expect(summary.updated).toBe(0);
+    expect(summary.failed).toEqual([{ ticker: 'XPTO3', reason: 'not_found' }]);
+  });
+  // #endregion
+
+  // #region fx
+  it('CA10.11 / CA10.13: cripto em real e convertida por BRL=X, e a taxa do dia fica em exchange_rates', async () => {
+    const { data: btc } = await ana.client
+      .from('assets')
+      .insert({ user_id: ana.id, ticker: 'BTC', name: 'Bitcoin', category: 'cripto' })
+      .select('id')
+      .single();
+
+    const res = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ana.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asset_id: btc.id }),
+    });
+    const summary = await res.json();
+    expect(summary.updated).toBe(1);
+
+    const { data: asset } = await ana.client
+      .from('assets')
+      .select('current_price')
+      .eq('id', btc.id)
+      .single();
+    // Um bitcoin em reais vale mais que em dolares: a conversao aconteceu.
+    expect(Number(asset.current_price)).toBeGreaterThan(100_000);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: rates } = await ana.client
+      .from('exchange_rates')
+      .select('rate')
+      .eq('from_currency', 'USD')
+      .eq('to_currency', 'BRL')
+      .eq('rate_date', today);
+    expect(rates).toHaveLength(1);
+    expect(Number(rates[0].rate)).toBeGreaterThan(1);
+
+    // Rodar de novo nao duplica a taxa (idempotente por par e data).
+    await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ana.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asset_id: btc.id }),
+    });
+    const { count } = await ana.client
+      .from('exchange_rates')
+      .select('id', { count: 'exact', head: true })
+      .eq('rate_date', today);
+    expect(count).toBe(1);
+  });
+  // #endregion
+
   // #region schedule
   it('TK04-8: o agendamento registra o job no pg_cron', async () => {
     const { data: jobId, error } = await admin.rpc('schedule_update_quotes', {

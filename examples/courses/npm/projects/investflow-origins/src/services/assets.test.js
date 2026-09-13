@@ -70,7 +70,7 @@ describe('createAsset (TK03-7, TK03-10)', () => {
     });
   });
 
-  it('permite cadastrar ativo em USD', async () => {
+  it('CA10.1: permite cadastrar ativo em USD', async () => {
     findOrCreateBroker.mockResolvedValue({ data: null, error: null });
 
     await createAsset({
@@ -104,7 +104,7 @@ describe('createAsset (TK03-7, TK03-10)', () => {
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ issuer: null, broker_id: null }));
   });
 
-  it('gera ticker automatico para renda fixa quando nao fornecido', async () => {
+  it('CA08.6: gera ticker automatico para renda fixa quando nao fornecido', async () => {
     findOrCreateBroker.mockResolvedValue({ data: null, error: null });
 
     await createAsset({
@@ -206,7 +206,7 @@ describe('getAsset and getAssetByTicker', () => {
     expect(selectResult.eq).toHaveBeenCalledWith('id', uuid);
   });
 
-  it('busca por ticker case-insensitive quando nao for UUID', async () => {
+  it('CA08.18: busca por ticker case-insensitive quando nao for UUID', async () => {
     await getAsset('petr4');
 
     const selectResult = from.mock.results[0].value.select.mock.results[0].value;

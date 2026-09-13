@@ -7,7 +7,7 @@ describe('renderNavbar', () => {
     document.body.innerHTML = '<header></header>';
   });
 
-  it('renderiza o navbar padrão para usuário investidor com email e links', () => {
+  it('CA11.5: renderiza o navbar padrão para usuário investidor com email e links', () => {
     renderNavbar({
       userEmail: 'ana@example.com',
       role: 'investor',
@@ -27,7 +27,7 @@ describe('renderNavbar', () => {
     expect(adminLink).toBeNull();
   });
 
-  it('exibe link de admin quando o perfil for admin', () => {
+  it('CA11.5: exibe link de admin quando o perfil for admin', () => {
     renderNavbar({
       userEmail: 'admin@example.com',
       role: 'admin',
@@ -49,7 +49,7 @@ describe('renderNavbar', () => {
     expect(document.body.textContent).toContain('Perfil Administrador');
   });
 
-  it('exibe o primeiro nome do usuario no avatar no lugar do email completo', () => {
+  it('CA11.6: exibe o primeiro nome do usuario no avatar no lugar do email completo', () => {
     renderNavbar({
       userEmail: 'ana.silva@example.com',
       userName: 'Ana Paula Silva',
@@ -64,7 +64,7 @@ describe('renderNavbar', () => {
     expect(emailEl?.textContent).toBe('ana.silva@example.com');
   });
 
-  it('aponta o link da marca InvestFlow para /dashboard quando autenticado e para / quando deslogado', () => {
+  it('CA11.7: aponta o link da marca para /dashboard quando autenticado e para / quando deslogado', () => {
     renderNavbar({ userEmail: 'ana@example.com' });
     const authBrandLink = document.querySelector('a[data-brand-link]');
     expect(authBrandLink?.getAttribute('href')).toBe('/dashboard');
@@ -92,7 +92,7 @@ describe('renderNavbar', () => {
     expect(profileLink?.textContent).toContain('Meu Perfil');
   });
 
-  it('renderiza a tag img quando avatarUrl for fornecido e fallback inicial quando ausente', () => {
+  it('CA11.3 / CA11.6: renderiza a tag img quando avatarUrl for fornecido e a inicial quando ausente', () => {
     renderNavbar({
       userEmail: 'ana@example.com',
       avatarUrl: 'https://example.com/avatar.png',

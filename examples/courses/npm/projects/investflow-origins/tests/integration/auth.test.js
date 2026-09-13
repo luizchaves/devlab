@@ -88,7 +88,7 @@ describe.skipIf(!hasStack)('Sprint 2 contra a stack local', () => {
     expect(other).toEqual([]);
   });
 
-  it('TK02-6: ninguem promove a si mesmo a admin pelo SDK', async () => {
+  it('TK02-6 / CA11.4: ninguem promove a si mesmo a admin pelo SDK', async () => {
     const ana = await createUser('Ana');
 
     const { error } = await ana.client

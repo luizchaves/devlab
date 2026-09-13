@@ -33,7 +33,7 @@ describe('query-params', () => {
     });
   });
 
-  it('atualiza a URL sem recarregar e omite valores padrao ou nulos', () => {
+  it('CA08.17: atualiza a URL sem recarregar e omite valores padrao ou nulos', () => {
     setQueryParams(
       { filter: 'all', sort: 'name', dir: 'desc' },
       { filter: 'active', sort: 'name', dir: 'asc' }

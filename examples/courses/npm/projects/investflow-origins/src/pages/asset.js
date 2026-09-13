@@ -1063,7 +1063,13 @@ priceForm.addEventListener('submit', async (event) => {
   }
 
   // Grava a cotação no histórico para alimentar o gráfico de evolução mês a mês
-  await recordQuote(currentAsset.id, newPrice, quoteDate);
+  const { error: quoteError } = await recordQuote(currentAsset.id, newPrice, quoteDate);
+  if (quoteError) {
+    const err = priceForm.querySelector('[data-price-error]');
+    err.hidden = false;
+    err.textContent = `Preço salvo, mas o histórico falhou: ${quoteError.message}`;
+    return;
+  }
 
   priceDialog.close();
   await render();

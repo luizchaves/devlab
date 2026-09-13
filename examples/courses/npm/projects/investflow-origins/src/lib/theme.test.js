@@ -22,7 +22,7 @@ describe('theme manager', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
-  it('alterna o tema em ciclo light -> dark -> auto -> light e persiste no localStorage', () => {
+  it('CA11.9: alterna o tema em ciclo light -> dark -> auto -> light e persiste no localStorage', () => {
     setTheme('light');
     expect(getCurrentTheme()).toBe('light');
     expect(document.documentElement.classList.contains('dark')).toBe(false);

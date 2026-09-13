@@ -65,7 +65,7 @@ describe('collectQuotes', () => {
 
 // #region symbol
 describe('quoteSymbol', () => {
-  it('consulta cripto sempre em dolar, como o Yahoo indexa', () => {
+  it('CA10.11: consulta cripto sempre em dolar, como o Yahoo indexa', () => {
     expect(quoteSymbol({ ticker: 'BTC', category: 'cripto', currency: 'BRL' })).toBe('BTC-USD');
     expect(quoteSymbol({ ticker: 'ETH', category: 'cripto', currency: 'USD' })).toBe('ETH-USD');
   });
@@ -79,13 +79,13 @@ describe('quoteSymbol', () => {
 describe('priceInAssetCurrency', () => {
   const btcBrl = { ticker: 'BTC', category: 'cripto', currency: 'BRL' };
 
-  it('converte cripto em real pelo cambio e deixa o resto como veio', () => {
+  it('CA10.11: converte cripto em real pelo cambio e deixa o resto como veio', () => {
     expect(priceInAssetCurrency(btcBrl, 100, 5)).toBe(500);
     expect(priceInAssetCurrency({ ...btcBrl, currency: 'USD' }, 100, 5)).toBe(100);
     expect(priceInAssetCurrency({ ticker: 'PETR4', category: 'acoes' }, 38.42, 5)).toBe(38.42);
   });
 
-  it('nao grava dolar como real quando o cambio falta', () => {
+  it('CA10.12: nao grava dolar como real quando o cambio falta', () => {
     expect(priceInAssetCurrency(btcBrl, 100, undefined)).toBeNull();
   });
 });
@@ -103,7 +103,7 @@ describe('market-calendar and holidays', () => {
     expect(easter2025.toISOString().slice(0, 10)).toBe('2025-04-20');
   });
 
-  it('identifica feriados da B3', () => {
+  it('CA10.14: identifica feriados da B3', () => {
     const b3Holidays2026 = getB3Holidays(2026);
     expect(b3Holidays2026.has('2026-01-01')).toBe(true); // Ano Novo
     expect(b3Holidays2026.has('2026-02-16')).toBe(true); // Segunda Carnaval
@@ -120,7 +120,7 @@ describe('market-calendar and holidays', () => {
     expect(b3Holidays2026.has('2026-12-25')).toBe(true); // Natal
   });
 
-  it('identifica feriados do mercado americano (US)', () => {
+  it('CA10.14: identifica feriados do mercado americano (US)', () => {
     const usHolidays2026 = getUSHolidays(2026);
     expect(usHolidays2026.has('2026-01-01')).toBe(true); // New Year
     expect(usHolidays2026.has('2026-01-19')).toBe(true); // MLK Day (3rd Mon Jan)
@@ -149,7 +149,7 @@ describe('market-calendar and holidays', () => {
     expect(status.isWeekend).toBe(false);
   });
 
-  it('avalia status de mercado B3 durante horario de pregao', () => {
+  it('CA10.14: avalia status de mercado B3 durante horario de pregao', () => {
     // Quarta-feira 10/09/2026 as 14:30 BRT (17:30 UTC)
     const midTrading = new Date('2026-09-09T17:30:00Z');
     const status = getMarketStatus(
@@ -190,7 +190,7 @@ describe('shouldFetchFromProvider', () => {
   const b3Asset = { ticker: 'PETR4', category: 'acoes', currency: 'BRL' };
   const cryptoAsset = { ticker: 'BTC', category: 'cripto', currency: 'USD' };
 
-  it('sempre busca quando nao ha cotacao previa', () => {
+  it('CA10.16: sempre busca quando nao ha cotacao previa', () => {
     expect(shouldFetchFromProvider(b3Asset, null)).toBe(true);
     expect(shouldFetchFromProvider(b3Asset, { price: null })).toBe(true);
   });
@@ -206,7 +206,7 @@ describe('shouldFetchFromProvider', () => {
     expect(shouldFetchFromProvider(b3Asset, quote, midTrading)).toBe(true);
   });
 
-  it('nao busca no fim de semana se a cotacao de fechamento da sexta-feira ja estiver salva', () => {
+  it('CA10.15: nao busca no fim de semana se a cotacao de fechamento da sexta-feira ja estiver salva', () => {
     const sunday = new Date('2026-09-13T15:00:00Z'); // Domingo
     // Cotacao salva na sexta-feira 11/09 apos o fechamento (19h BRT = 22h UTC)
     const quote = {
@@ -228,7 +228,7 @@ describe('shouldFetchFromProvider', () => {
     expect(shouldFetchFromProvider(b3Asset, quote, sunday)).toBe(true);
   });
 
-  it('busca se a cotacao salva for anterior a ultima sessao fechada', () => {
+  it('CA10.16: busca se a cotacao salva for anterior a ultima sessao fechada', () => {
     const sunday = new Date('2026-09-13T15:00:00Z'); // Domingo 13/09 (ultima sessao fechada = 11/09)
     const quote = {
       price: 37.5,

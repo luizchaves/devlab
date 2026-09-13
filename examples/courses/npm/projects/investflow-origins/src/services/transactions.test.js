@@ -57,7 +57,7 @@ describe('createTransaction', () => {
 });
 
 describe('updateTransaction', () => {
-  it('atualiza os dados da transacao pelo id', async () => {
+  it('CA08.1: atualiza os dados da transacao pelo id', async () => {
     const res = await updateTransaction('tx-1', {
       type: 'sell',
       quantity: 50,
@@ -77,7 +77,7 @@ describe('updateTransaction', () => {
 });
 
 describe('deleteTransaction', () => {
-  it('remove a transacao pelo id', async () => {
+  it('CA08.2: remove a transacao pelo id', async () => {
     await deleteTransaction('tx-1');
 
     expect(from).toHaveBeenCalledWith('transactions');

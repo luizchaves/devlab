@@ -24,7 +24,7 @@ describe('form helpers', () => {
   });
 
   describe('initPasswordToggle', () => {
-    it('alterna o tipo de input entre password e text ao clicar no botão', () => {
+    it('CA11.11: alterna o tipo de input entre password e text ao clicar no botão', () => {
       const form = document.createElement('form');
       form.innerHTML = `
         <div class="relative">

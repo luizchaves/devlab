@@ -62,14 +62,14 @@ describe('profile service', () => {
     });
   });
 
-  it('updateProfile valida nome obrigatório quando passado em branco', async () => {
+  it('CA11.1: updateProfile valida nome obrigatório quando passado em branco', async () => {
     const { data, error } = await updateProfile({ fullName: '   ' });
 
     expect(data).toBeNull();
     expect(error?.message).toContain('obrigatório');
   });
 
-  it('updateProfile atualiza public.profiles e auth.users com nome e avatar', async () => {
+  it('CA11.4: updateProfile atualiza public.profiles e auth.users com nome e avatar', async () => {
     const single = vi.fn().mockResolvedValue({
       data: {
         id: 'user-123',
@@ -99,7 +99,7 @@ describe('profile service', () => {
     expect(data).toMatchObject({ full_name: 'Ana Silva Santos' });
   });
 
-  it('validateAvatar valida formato e limite de tamanho da imagem', () => {
+  it('CA11.2: validateAvatar valida formato e limite de tamanho da imagem', () => {
     expect(validateAvatar(null)).toContain('Selecione uma imagem');
     expect(validateAvatar({ type: 'application/pdf', size: 100 })).toContain('PNG, JPG, WEBP');
     expect(validateAvatar({ type: 'image/png', size: 3 * 1024 * 1024 })).toContain('máximo 2 MB');
@@ -141,7 +141,7 @@ describe('profile service', () => {
     expect(data?.publicUrl).toContain('avatars/user-123/');
   });
 
-  it('removeAvatar remove a foto definindo avatar_url como null', async () => {
+  it('CA11.3: removeAvatar remove a foto definindo avatar_url como null', async () => {
     const single = vi.fn().mockResolvedValue({
       data: { id: 'user-123', avatar_url: null },
       error: null,

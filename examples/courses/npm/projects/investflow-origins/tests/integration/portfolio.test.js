@@ -73,7 +73,7 @@ describe.skipIf(!hasStack)('Sprint 3 contra a stack local', () => {
     expect(data).toHaveLength(1);
   });
 
-  it('TK03-1: categoria fora do conjunto e recusada pelo CHECK', async () => {
+  it('TK03-1 / CA08.5: categoria fora do conjunto e recusada pelo CHECK', async () => {
     const { error } = await ana.client
       .from('assets')
       .insert({ user_id: ana.id, ticker: 'XPTO', name: 'Invalido', category: 'imoveis' });
@@ -139,7 +139,7 @@ describe.skipIf(!hasStack)('Sprint 3 contra a stack local', () => {
     expect(error.code).toBe('23514');
   });
 
-  it('RF03.4 / ajuste: edita e exclui transacao recalculando a posicao', async () => {
+  it('CA08.1 / CA08.2: edita e exclui um lancamento proprio', async () => {
     const { data: tx, error: insertErr } = await ana.client
       .from('transactions')
       .insert({
@@ -248,12 +248,18 @@ describe.skipIf(!hasStack)('Sprint 3 contra a stack local', () => {
     expect(other).toEqual([]);
   });
 
-  it('TK03-5: o cliente nao escreve em quotes_history (so a Edge Function)', async () => {
-    const { error } = await ana.client
+  it('TK03-5 / CA08.11: o cliente so grava em quotes_history de ativo proprio', async () => {
+    // Ate a Sprint 7 so a Edge Function escrevia aqui; a Sprint 8 abriu a escrita
+    // ao dono (cotacao manual), e a policy continua passando pelo ativo.
+    const { error: cross } = await bruno.client
       .from('quotes_history')
       .insert({ asset_id: petr4.id, price: 1, quote_date: '2026-03-31' });
+    expect(cross.code).toBe('42501');
 
-    expect(error.code).toBe('42501');
+    const { error: own } = await ana.client
+      .from('quotes_history')
+      .insert({ asset_id: petr4.id, price: 1, quote_date: '2026-03-31' });
+    expect(own).toBeNull();
   });
 
   it('CA03.4: update e delete cruzados nao alcancam nenhuma linha', async () => {

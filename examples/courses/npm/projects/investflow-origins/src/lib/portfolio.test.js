@@ -29,7 +29,7 @@ describe('summarize', () => {
     expect(s.returnPct).toBeCloseTo(200 / 6400);
   });
 
-  it('baixa o custo pelo preco medio na venda e separa o resultado realizado', () => {
+  it('CA08.4: baixa o custo pelo preco medio na venda e separa o resultado realizado', () => {
     const sell = { type: 'sell', quantity: '50', price: '40', transaction_date: '2026-03-10' };
     const s = summarize({ current_price: '33', transactions: [...buys, sell] });
 
@@ -53,6 +53,25 @@ describe('summarize', () => {
     expect(s.returnPct).toBeNull();
   });
 
+  it('CA08.7: o lancamento update redefine posicao e custo pelo saldo e zera o realizado', () => {
+    const cdb = {
+      current_price: null,
+      transactions: [
+        { type: 'buy', quantity: '1000', price: '1', transaction_date: '2026-01-15' },
+        { type: 'sell', quantity: '200', price: '1.1', transaction_date: '2026-03-01' },
+        { type: 'update', quantity: '1080', price: '1', transaction_date: '2026-06-30' },
+      ],
+    };
+    const s = summarize(cdb);
+
+    expect(s.quantity).toBe(1080);
+    expect(s.cost).toBe(1080);
+    expect(s.averagePrice).toBe(1);
+    // O saldo informado ja embute o rendimento: o realizado anterior nao se soma a ele.
+    expect(s.realized).toBe(0);
+    expect(s.value).toBeNull();
+  });
+
   it('converte as strings do PostgREST em vez de concatenar', () => {
     const s = summarize({
       current_price: '1',
@@ -62,7 +81,7 @@ describe('summarize', () => {
     expect(s.cost).toBe(6);
   });
 
-  it('converte valores para BRL quando o ativo e em USD', () => {
+  it('CA10.4: converte valores para BRL quando o ativo e em USD', () => {
     const s = summarize(
       {
         currency: 'USD',
@@ -87,7 +106,7 @@ describe('summarize', () => {
 
 // #region totals
 describe('totals', () => {
-  it('soma as posicoes e usa o saldo do ativo sem cotacao como valor final', () => {
+  it('CA08.8: soma as posicoes e usa o saldo do ativo sem cotacao como valor final', () => {
     const t = totals([
       { current_price: '33', transactions: buys },
       {
@@ -102,7 +121,7 @@ describe('totals', () => {
     expect(t.value).toBe(7600);
   });
 
-  it('converte ativos USD na soma total da carteira', () => {
+  it('CA10.4: converte ativos USD na soma total da carteira', () => {
     const t = totals(
       [
         {
@@ -138,7 +157,7 @@ describe('investmentDuration', () => {
     expect(d.subtitle).toBe('Sem lançamentos');
   });
 
-  it('calcula duracao de posicao aberta em relacao a data de referencia', () => {
+  it('CA08.16: calcula duracao de posicao aberta em relacao a data de referencia', () => {
     const ref = new Date('2026-04-10T12:00:00');
     const d = investmentDuration(buys, ref);
     expect(d.isClosed).toBe(false);
@@ -146,7 +165,7 @@ describe('investmentDuration', () => {
     expect(d.text).toBe('3 meses');
   });
 
-  it('indica posicao encerrada quando a quantidade e zerada', () => {
+  it('CA08.16: indica posicao encerrada quando a quantidade e zerada', () => {
     const liquidations = [
       { type: 'buy', quantity: '100', price: '30', transaction_date: '2025-01-10' },
       { type: 'sell', quantity: '100', price: '35', transaction_date: '2025-11-10' },
@@ -193,7 +212,7 @@ describe('truncateText', () => {
 });
 
 describe('CATEGORY_LABELS e CATEGORY_BADGES', () => {
-  it('mapeia corretamente todas as categorias incluindo etfs e fi_infra', async () => {
+  it('CA08.5: mapeia corretamente todas as categorias incluindo etfs e fi_infra', async () => {
     const { CATEGORY_LABELS, CATEGORY_BADGES } = await import('./portfolio.js');
     expect(CATEGORY_LABELS.fiis).toBe('FII');
     expect(CATEGORY_LABELS.etfs).toBe('ETF');
@@ -218,7 +237,7 @@ describe('formatUSD e formatCurrency', () => {
 
 // #region historical-brl
 describe('summarizeInBRL', () => {
-  it('mede o custo em reais pelo cambio do mes de cada compra', () => {
+  it('CA10.6: mede o custo em reais pelo cambio do mes de cada compra', () => {
     const asset = {
       currency: 'USD',
       current_price: '10',
@@ -247,7 +266,7 @@ describe('summarizeInBRL', () => {
 
 // #region flows
 describe('monthlyFlows', () => {
-  it('agrupa compras menos vendas por mes, em reais pelo cambio do mes', () => {
+  it('CA10.7: agrupa compras menos vendas por mes, em reais pelo cambio do mes', () => {
     const asset = {
       currency: 'USD',
       transactions: [

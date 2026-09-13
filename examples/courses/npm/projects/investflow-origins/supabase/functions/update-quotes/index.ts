@@ -90,18 +90,33 @@ Deno.serve(async (req) => {
     return shouldFetchFromProvider(asset, lastQuote, now);
   });
 
-  // 4. Buscar no provedor apenas os simbolos necessarios. Cripto em real pede
-  //    tambem o cambio USD/BRL, que nao entra no resumo.
+  // 4. Buscar no provedor apenas os simbolos necessarios. Cripto em real e
+  //    qualquer ativo em dolar pedem tambem o cambio USD/BRL, que nao entra no
+  //    resumo: e a taxa que a carteira usa para somar tudo em reais.
   const tickers = [...new Set(assets.map(quoteSymbol))];
   const tickersToFetch = [...new Set(assetsToFetch.map(quoteSymbol))];
-  const wantsFx = assetsToFetch.some(needsUsdConversion);
+  const wantsFx = assets.some((a) => a.currency === 'USD' || needsUsdConversion(a));
   const { quotes: allQuotes, failed: allFailed } = await collectQuotes(
     selectProvider(),
     wantsFx ? [...tickersToFetch, USD_BRL_SYMBOL] : tickersToFetch
   );
-  const usdBrlRate = allQuotes.find((q) => q.ticker === USD_BRL_SYMBOL)?.price;
+  const fx = allQuotes.find((q) => q.ticker === USD_BRL_SYMBOL);
+  const usdBrlRate = fx?.price;
   const quotes = allQuotes.filter((q) => q.ticker !== USD_BRL_SYMBOL);
   const failed = allFailed.filter((f) => f.ticker !== USD_BRL_SYMBOL);
+
+  // #region fx
+  // A taxa do dia fica em exchange_rates, escrita so daqui (chave de servico):
+  // o navegador le, nunca grava. Idempotente por (par, data).
+  if (fx) {
+    await admin
+      .from('exchange_rates')
+      .upsert(
+        { from_currency: 'USD', to_currency: 'BRL', rate: fx.price, rate_date: fx.quoteDate },
+        { onConflict: 'from_currency,to_currency,rate_date' }
+      );
+  }
+  // #endregion
 
   // 5. Gravar preco atual e historico, idempotente pela chave (asset_id, quote_date).
   const updatedSymbols = new Set<string>();
