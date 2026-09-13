@@ -6,7 +6,10 @@ initTheme();
 
 // 1. Verificação de sessão para links da landing page
 async function checkAuth() {
-  const { data: session } = await getSession();
+  // O SDK devolve { data: { session } }: a sessao esta um nivel abaixo de data.
+  const {
+    data: { session },
+  } = await getSession();
   if (session?.user) {
     const brandLinks = document.querySelectorAll('[data-brand-link]');
     for (const link of brandLinks) {

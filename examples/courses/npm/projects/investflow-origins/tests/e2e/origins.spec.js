@@ -103,5 +103,25 @@ test.describe
       await page.click('tr[data-ticker="PETR4"] a');
       await expect(page.locator('[data-evolution] svg circle')).toHaveCount(2);
     });
+
+    test('modo e janela da linha do tempo trocam sem recarregar e ficam na URL (CA07.7, CA07.8)', async ({
+      page,
+    }) => {
+      await signIn(page);
+      await page.goto('/analytics');
+      await expect(page.locator('[data-evolution] svg')).toBeVisible();
+
+      await page.click('[data-timeline-mode="events"]');
+      await expect(page).toHaveURL(/mode=events/);
+      await expect(page.locator('[data-evolution] svg')).toBeVisible();
+
+      await page.click('[data-timeline-range="2y"]');
+      await expect(page).toHaveURL(/mode=events&range=2y/);
+
+      // Os padroes (continua, tudo) somem da URL.
+      await page.click('[data-timeline-mode="continuous"]');
+      await page.click('[data-timeline-range="all"]');
+      await expect(page).toHaveURL(/\/analytics$/);
+    });
   });
 // #endregion

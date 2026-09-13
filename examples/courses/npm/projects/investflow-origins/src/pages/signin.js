@@ -1,8 +1,10 @@
-import { showError } from '../lib/form.js';
+import { initPasswordToggle, showError } from '../lib/form.js';
 import { initTheme } from '../lib/theme.js';
 import { signIn } from '../services/auth.js';
 
 initTheme();
+// O olho do campo de senha: o botao ja esta no HTML, a funcao liga o clique.
+initPasswordToggle();
 
 const form = document.querySelector('form');
 
