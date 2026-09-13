@@ -2045,6 +2045,10 @@ export default defineConfig({
                       link: '/courses/npm/practice/investflow/backlog/',
                     },
                     {
+                      label: 'Modelo de domínio',
+                      link: '/courses/npm/practice/investflow/domain-model/',
+                    },
+                    {
                       label: '1. Frontend estático',
                       link: '/courses/npm/practice/investflow/front-static/',
                     },

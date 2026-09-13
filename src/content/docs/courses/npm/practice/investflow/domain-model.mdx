@@ -1,0 +1,207 @@
+---
+title: "InvestFlow: Modelo de domínio"
+description: "Modelo de domínio do InvestFlow: perfis, ativos, corretoras, transações, cotações, comprovantes, execuções de cotação e as regras que mantêm a carteira auditável e isolada por investidor."
+course: npm
+project: investflow-static
+sidebar:
+  label: "Modelo de domínio"
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+
+O modelo de domínio do **InvestFlow** descreve os conceitos que atravessam todas as sprints: a conta do investidor, os ativos da carteira, os fatos de compra e venda, os comprovantes privados, as cotações históricas e os dados agregados que a administração pode consultar.
+
+<ProjectLinks path="examples/courses/npm/projects/investflow-database" devcontainer="investflow-database" />
+
+## Objetivo
+
+Compreender o desenho de dados que sustenta o InvestFlow antes de entrar nos detalhes de cada sprint. Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar entidades de cadastro, fatos financeiros, arquivos privados e leituras agregadas.
+- Explicar por que posição e rentabilidade são derivadas de transações e cotações, e não gravadas como verdade única.
+- Relacionar cada tabela de domínio à sprint que a introduz ou amplia.
+- Identificar onde `auth.uid()`, RLS, chaves estrangeiras e constraints impedem vazamento ou inconsistência.
+- Usar o dicionário de dados como referência ao ler migrations e testes de integração.
+
+## Visão do domínio
+
+As entidades são introduzidas em camadas. O protótipo já mostra a linguagem do domínio, o banco entra na Sprint 3, e as leituras agregadas aparecem somente quando já há dados confiáveis.
+
+<Mermaid title="Entidades centrais do InvestFlow">
+{`
+erDiagram
+  PROFILE ||--o{ ASSET : possui
+  PROFILE ||--o{ BROKER : cadastra
+  PROFILE ||--o{ AVATAR : publica
+  BROKER ||--o{ ASSET : custodia
+  ASSET ||--o{ TRANSACTION : recebe
+  ASSET ||--o{ QUOTE_HISTORY : registra
+  ASSET ||--o{ DIVIDEND_HISTORY : recebe
+  TRANSACTION }o--|| RECEIPT : referencia
+  ASSET }o--o{ EXCHANGE_RATE : consolida
+  PROFILE { uuid id PK string full_name string role string avatar_url }
+  BROKER { uuid id PK uuid user_id FK string name }
+  ASSET { uuid id PK uuid user_id FK uuid broker_id FK string ticker string category string currency numeric current_price }
+  TRANSACTION { uuid id PK uuid asset_id FK uuid user_id FK string type numeric quantity numeric price string receipt_path }
+  QUOTE_HISTORY { uuid id PK uuid asset_id FK numeric price date quote_date }
+  DIVIDEND_HISTORY { uuid id PK uuid asset_id FK numeric rate date ex_date date payment_date }
+  EXCHANGE_RATE { uuid id PK string from_currency string to_currency numeric rate date rate_date }
+  QUOTE_RUN { uuid id PK datetime ran_at int requested int updated json failed }
+  RECEIPT { string path PK }
+  AVATAR { string path PK }
+`}
+</Mermaid>
+
+`receipt_path` é uma referência para um objeto do Storage, não uma URL pública. A URL é criada sob demanda, expira em pouco tempo e não deve ser persistida na tabela. Já `avatar_url` aponta para o bucket público de avatares, que é separado dos comprovantes privados.
+
+<Aside type="caution" title="A posição é consequência, não cadastro">
+  Um ativo responde o que existe na carteira. Uma transação responde o que aconteceu em uma data. Misturar as duas coisas, por exemplo gravando "quantidade comprada" diretamente no ativo, dificulta auditoria, resgate parcial, preço médio e reprocessamento de rentabilidade.
+</Aside>
+
+## Fronteiras e ownership
+
+O dado financeiro pertence ao investidor. O front-end pode melhorar a experiência filtrando por sessão, mas a fronteira real fica no PostgreSQL: cada tabela de domínio que possui `user_id` ou chega ao dono por relacionamento precisa ter RLS ligada.
+
+A tabela abaixo resume as responsabilidades que aparecem nas migrations, nos serviços e nos testes de integração. A coluna "dono" indica qual identidade limita leitura e escrita; a coluna "onde nasce" mostra a primeira sprint em que a entidade deixa de ser apenas vocabulário de tela.
+
+| Entidade | Papel no domínio | Dono ou limite | Onde nasce |
+| -------- | ---------------- | -------------- | ---------- |
+| `profiles` | Espelho de domínio da conta autenticada. | `auth.users.id`. | Sprint 2 |
+| `brokers` | Instituição de custódia cadastrada pelo investidor. | `brokers.user_id = auth.uid()`. | Sprint 3 |
+| `assets` | Instrumento financeiro acompanhado na carteira. | `assets.user_id = auth.uid()`. | Sprint 3 |
+| `transactions` | Fato financeiro de compra, venda ou atualização operacional. | `transactions.user_id = auth.uid()`. | Sprint 3 |
+| `quotes_history` | Preço observado de um ativo em uma data. | Dono do `asset_id`; escrita privilegiada ou controlada por policy. | Sprint 3 |
+| `quote_runs` | Log operacional da função de cotações. | Leitura agregada para `admin`. | Sprint 4 |
+| `exchange_rates` | Taxa de câmbio pública para consolidar ativos em dólar e cripto em reais. | Leitura pública; escrita pela chave de serviço. | Sprint 10 |
+| `dividends_history` | Histórico de proventos por ativo e data ex. | Dono do `asset_id`. | Sprint 9 |
+| `storage.objects` | Arquivos privados de comprovantes e avatar público. | Pasta ou bucket, conforme a sprint. | Sprint 5 e Sprint 11 |
+
+Esse desenho deixa a administração em uma fronteira diferente da carteira. O painel administrativo consulta métricas agregadas, como AUM e falhas de cotação, mas não recebe tickers, posições ou documentos privados de um investidor específico.
+
+## Dicionário de dados do domínio
+
+O dicionário formaliza a estrutura, os tipos e as regras das tabelas centrais. Todo valor monetário usa `numeric`, e toda tabela de domínio fica protegida por RLS ou por uma função com privilégio explícito.
+
+### Tabela `profiles` (Investidor)
+
+Espelha `auth.users` com os dados de domínio da conta. É criada por trigger no cadastro, na Sprint 2, e carrega o papel que o painel administrativo confere na Sprint 6.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e regra de negócio |
+| ----- | ------------ | ----------------- | ---------------------------- |
+| `id` | `uuid` | **PK**, **FK** (`auth.users.id`) | O mesmo identificador da conta no Supabase Auth. |
+| `full_name` | `text` | Obrigatório | Nome de exibição, copiado dos metadados do cadastro. |
+| `role` | `text` | `check` em `investor`, `admin`; padrão `investor` | Papel da conta. Promovido só pelo SQL Editor, nunca pelo SDK público. |
+| `created_at` | `timestamptz` | Padrão `now()` | Instante do cadastro. |
+
+### Tabela `brokers` (Corretora)
+
+Representa a instituição de custódia de um investidor. Ela nasce sozinha quando um ativo cita um nome novo, mantendo a lista privada por conta.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e regra de negócio |
+| ----- | ------------ | ----------------- | ---------------------------- |
+| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
+| `user_id` | `uuid` | **FK** (`profiles.id`), `not null` | Dono da lista; a policy compara essa coluna com `auth.uid()`. |
+| `name` | `text` | Obrigatório, único por dono | Nome da corretora ou banco, como `XP`, `Banco Inter` ou `Avenue`. |
+
+### Tabela `assets` (Ativo)
+
+O ativo é o instrumento financeiro que aparece na carteira: o que é, de que categoria, onde está custodiado e qual foi o último preço conhecido.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e regra de negócio |
+| ----- | ------------ | ----------------- | ---------------------------- |
+| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
+| `user_id` | `uuid` | **FK** (`profiles.id`), `not null` | Dono do ativo; a coluna que toda policy compara com `auth.uid()`. |
+| `ticker` | `text` | Obrigatório, único por dono | Código do ativo (`PETR4`, `HGLG11`) ou nome curto para renda fixa. |
+| `name` | `text` | Obrigatório | Nome de exibição. |
+| `category` | `text` | `check` em `renda_fixa`, `acoes`, `fiis`, `fundos`, `cripto` | As categorias que o protótipo desenha como badges. |
+| `broker_id` | `uuid` | **FK** (`brokers.id`), opcional | Corretora ou banco onde o ativo está custodiado. |
+| `issuer` | `text` | Opcional | Quem emite ou administra o ativo: o banco de um CDB, a gestora de um fundo ou a empresa de uma ação. |
+| `current_price` | `numeric(14, 4)` | Opcional | Última cotação; preenchida pela Edge Function para renda variável e manual nas demais situações. |
+
+### Tabela `transactions` (Transação)
+
+Uma transação é um fato imutável ou rastreável: uma compra, venda ou atualização operacional, de tanta quantidade, a tanto, em tal dia. A posição da carteira é sempre derivada daqui.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e regra de negócio |
+| ----- | ------------ | ----------------- | ---------------------------- |
+| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
+| `user_id` | `uuid` | **FK** (`profiles.id`), `not null` | Dono, repetido para que a policy não precise de `join`. |
+| `asset_id` | `uuid` | **FK** (`assets.id`), `not null` | O ativo negociado. |
+| `type` | `text` | `check` em valores permitidos pela sprint | Compra, venda ou atualização operacional, conforme a etapa da trilha. |
+| `quantity` | `numeric(18, 8)` | `> 0` | Quantidade, com casas para frações de cripto e fundos. |
+| `price` | `numeric(14, 4)` | `>= 0` | Preço unitário ou valor informado para o lançamento. |
+| `transaction_date` | `date` | Padrão `current_date` | Data do fato financeiro. |
+| `receipt_path` | `text` | Opcional | Path do comprovante no bucket `receipts`, nunca uma URL. |
+
+### Tabela `quotes_history` (Cotação diária)
+
+Uma cotação é uma observação de preço por ativo e por dia. A chave única torna a atualização idempotente, portanto repetir a função não cria histórico duplicado.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e regra de negócio |
+| ----- | ------------ | ----------------- | ---------------------------- |
+| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
+| `asset_id` | `uuid` | **FK** (`assets.id`), `not null` | O ativo cotado. |
+| `price` | `numeric(14, 4)` | `>= 0` | Preço observado. |
+| `quote_date` | `date` | Único junto com `asset_id` | Data da cotação; a unicidade torna a escrita idempotente. |
+
+### Tabela `quote_runs` (Execução de cotações)
+
+O log de execução registra a operação da função `update-quotes`. Ele serve para painel administrativo e depuração, sem expor posições individuais.
+
+| Campo | Tipo de dado | Chave / Restrição | Descrição e regra de negócio |
+| ----- | ------------ | ----------------- | ---------------------------- |
+| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
+| `ran_at` | `timestamptz` | Padrão `now()` | Instante da execução. |
+| `requested` / `updated` | `integer` | Obrigatórios | Quantidade de tickers pedidos e atualizados. |
+| `failed` | `jsonb` | Padrão `[]` | Lista de `{ ticker, reason }` das falhas. |
+
+## Evolução por sprint
+
+O modelo não aparece inteiro de uma vez. Cada sprint amplia a linguagem anterior e mantém compatibilidade com o que já foi testado.
+
+| Sprint | Ampliação do modelo | Consequência didática |
+| ------ | ------------------- | --------------------- |
+| 2. Auth | `profiles`, papel e sessão. | Dá identidade estável para as próximas policies. |
+| 3. Banco e RLS | `brokers`, `assets`, `transactions`, `quotes_history`. | Separa cadastro, fatos e histórico. |
+| 4. Edge Quotes | `quote_runs` e escrita privilegiada de cotações. | Mostra a diferença entre operação de serviço e ação do investidor. |
+| 5. Storage | `receipt_path` e bucket privado. | Trata arquivo como referência protegida, não como URL pública. |
+| 6. Analytics | Views e funções agregadas. | Ensina leitura calculada sem duplicar dados de origem. |
+| 7 a 11. Evolução final | Origem, proventos, câmbio, cripto, perfil e experiência. | Estende o mesmo domínio sem trocar a base de ownership. |
+
+Ao ler uma migration ou um teste, procure primeiro qual entidade está sendo protegida e qual fato financeiro ela representa. Essa pergunta simples costuma revelar se o dado deve ser uma coluna, uma linha de histórico, uma view calculada ou um arquivo referenciado.
+
+## Exercício
+
+Escolha um lançamento de compra de `PETR4` com quantidade, preço, data, corretora e comprovante. Descreva quais dados pertencem a `assets`, quais pertencem a `brokers`, quais pertencem a `transactions` e qual informação fica no Storage.
+
+## Desafio
+
+Modele uma venda parcial seguida de novo aporte no mesmo ativo. Explique quais linhas seriam criadas ou atualizadas e por que a posição final deve ser calculada a partir dos fatos, não sobrescrita manualmente como saldo isolado.
+
+## Perguntas de revisão
+
+### Entidades
+
+1. **Por que `profiles.id` reutiliza o mesmo identificador de `auth.users.id`?**
+2. **Qual é a diferença entre `assets.current_price` e uma linha em `quotes_history`?**
+3. **Por que `receipt_path` não deve guardar uma URL assinada?**
+4. **Qual problema o `broker_id` resolve melhor do que texto livre repetido em cada ativo?**
+
+### Segurança e consistência
+
+5. **Por que `transactions` repete `user_id` mesmo tendo relação com `assets`?**
+6. **O que a chave única de `quotes_history` impede?**
+7. **Por que métricas administrativas devem ser agregadas antes de chegar ao navegador?**
+8. **Em que situação uma Edge Function pode escrever com mais privilégio do que o usuário comum?**
+
+## Referências
+
+- [Supabase: Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [PostgreSQL: tipos numeric](https://www.postgresql.org/docs/current/datatype-numeric.html)
+- [Supabase Storage: acesso com policies](https://supabase.com/docs/guides/storage/security/access-control)
+
+## Próximo tópico
+
+O [frontend estático](../front-static/) apresenta as telas que usam esse vocabulário antes de conectar autenticação, banco, cotações e arquivos.

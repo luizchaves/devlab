@@ -7,9 +7,7 @@ sidebar:
   label: "Visão geral"
 ---
 
-import { Aside, Card, CardGrid, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
-import FileTree from '@components/FileTree.astro';
-import HtmlPreview from '@components/HtmlPreview.astro';
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
 import Mermaid from '@components/Mermaid.astro';
 import ProjectLinks from '@components/ProjectLinks.astro';
 
@@ -19,9 +17,11 @@ O **InvestFlow** é uma plataforma de gestão patrimonial para investidores indi
 
 <ProjectLinks path="examples/courses/npm/projects/investflow-static" devcontainer="investflow-static" />
 
-## Análise de requisitos
+## Objetivo do sistema
 
-### Público-alvo
+O **InvestFlow** oferece uma plataforma web de gestão patrimonial em que o navegador fala diretamente com o Supabase: a conta vive no Supabase Auth, a carteira em PostgreSQL com Row Level Security, os comprovantes em um bucket privado e as cotações são atualizadas por uma Edge Function. O objetivo didático é mostrar que "sem back-end próprio" não significa "sem regras no servidor": cada regra que o InvestApp escreveu em um middleware Express aparece aqui como policy, constraint, trigger ou função no banco.
+
+## Leitores e limites
 
 O **InvestFlow** foi projetado para atender a três perfis, e a distinção entre os dois últimos é o que molda a segurança do sistema:
 
@@ -36,60 +36,49 @@ A tabela resume o que cada perfil de uso pode ver, e é ela que origina os requi
 | Investidor | Registrar ativos, transações, comprovantes e rentabilidade. | Somente os próprios dados e arquivos. |
 | Administrador | Acompanhar contas, AUM e execução de serviços. | Métricas agregadas, sem posições individuais. |
 
-## Objetivo do sistema
+Os requisitos completos ficam no [backlog do produto](backlog/), com 11 épicos, 32 histórias de usuário, 111 critérios de aceitação e 94 tasks. Esta visão geral mantém apenas o resumo do domínio, da arquitetura e da trilha de leitura.
 
-O **InvestFlow** oferece uma plataforma web de gestão patrimonial em que o navegador fala diretamente com o Supabase: a conta vive no Supabase Auth, a carteira em PostgreSQL com Row Level Security, os comprovantes em um bucket privado e as cotações são atualizadas por uma Edge Function. O objetivo didático é mostrar que "sem back-end próprio" não significa "sem regras no servidor": cada regra que o InvestApp escreveu em um middleware Express aparece aqui como policy, constraint, trigger ou função no banco.
+## Arquitetura do sistema
 
-### Requisitos Funcionais (RF)
+O InvestFlow é uma aplicação estática que usa o Supabase como back-end gerenciado. Isso muda o desenho em relação ao InvestApp: não existe uma API Express própria entre o navegador e o banco. O front-end publica HTML, CSS e JavaScript, carrega a chave anônima do projeto e chama diretamente os serviços públicos do Supabase.
 
-Os códigos da tabela são retomados no [backlog](backlog/) e nas onze sprints da trilha. Os requisitos detalhados (RF03.1 a RF08.1) estão na seção de requisitos do backlog.
+A chave anônima identifica o projeto, mas não autoriza acesso irrestrito. Depois do login, o Supabase Auth entrega uma sessão com JWT; esse token acompanha as chamadas ao PostgreSQL e ao Storage. No banco, as policies de Row Level Security leem `auth.uid()` e decidem se aquela linha pertence ao usuário atual. No Storage, as policies seguem a mesma ideia, mas aplicadas aos caminhos dos arquivos privados.
 
-| Código | Requisito funcional | Resultado esperado |
-| ------ | ------------------- | ------------------ |
-| RF01 | Simulação | Calcular projeção de aportes e juros compostos na landing page. |
-| RF02 | Conta e sessão | Criar conta, entrar, recuperar a sessão e sair. |
-| RF03 | Carteira | Manter ativos e transações de compra e venda. |
-| RF04 | Comprovantes | Anexar e consultar documentos privados de transações. |
-| RF05 | Cotações | Atualizar preço atual e histórico de ativos elegíveis. |
-| RF06 | Analytics | Mostrar rentabilidade mensal, anual e distribuição por classe. |
-| RF07 | Operação | Exibir indicadores agregados e status dos serviços para administradores. |
-| RF08 | Detalhe do investimento | Abrir um ativo e acompanhar todos os aportes e resgates registrados nele, com posição e resultado. |
-| RF09 | Origem do investimento | Registrar em qual corretora o ativo está custodiado e quem o emite ou administra (o BB de um CDB do BB), e ver a carteira sob essa ótica. |
-| RF10 | Aportes versus valor | Comparar, ao longo do tempo, a linha do que foi aportado com a linha do valor atual, por ativo e para a carteira inteira. |
-| RF11 | Proventos por ativo | Buscar e guardar o histórico de eventos de proventos de cada ativo, de forma idempotente. |
-| RF12 | Proventos recebidos | Total, por mês e por ativo, yield on cost e retorno total, creditados pela data ex. |
-| RF13 | Proventos na rentabilidade | Escolher se lucro, matriz e evolução consideram os proventos. |
-| RF14 | Movimentações | Extrato de aportes e resgates com KPIs de fluxo e gráfico mensal. |
-| RF15 | Ativos em dólar | Moeda por ativo, tabela de câmbio e carteira consolidada em reais. |
-| RF16 | Valorização versus câmbio | Custo e fluxo pelo câmbio de cada mês, separando o ativo da moeda. |
-| RF17 | Cripto | Cotação em dólar convertida para a moeda do ativo. |
-| RF18 | Calendário de mercado | Consultar o provedor só quando pode haver preço novo. |
-| RF19 | Perfil | Nome, e-mail, papel e avatar editáveis pelo dono. |
-| RF20 | Navegação com contexto | Barra comum, menu do usuário e landing que reconhece a sessão. |
-| RF21 | Tema e privacidade | Claro, escuro, automático e ocultação de valores. |
-| RF22 | Publicação | Build estático com URLs limpas e cabeçalhos de segurança. |
+O diagrama abaixo separa três caminhos. O primeiro é o caminho cotidiano do investidor, do navegador para Auth, banco e Storage. O segundo é o caminho operacional das cotações, que passa por uma Edge Function porque precisa de segredos e escrita privilegiada. O terceiro é a leitura administrativa, limitada a views e funções agregadas para não expor posições individuais.
 
-### Requisitos Não-Funcionais (RNF)
+<Mermaid title="Caminho dos dados no InvestFlow">
+{`
+flowchart TB
+  Browser["Navegador\nHTML + Tailwind + JavaScript"]
+  Auth["Supabase Auth\nconta e JWT"]
+  Db[("PostgreSQL\nprofiles · brokers · assets · transactions\nquotes · dividends · exchange + RLS")]
+  Storage["Storage\nreceipts privados · avatars públicos"]
+  Edge["Edge Function\nupdate-quotes\ncotações · câmbio · logs"]
+  Market["Provedores de mercado\npreços · USDBRL · calendário"]
+  Admin["Views e funções admin\nAUM · quote_runs · receipts"]
+  Browser --> Auth
+  Browser -->|"JWT + anon key"| Db
+  Browser -->|"JWT + anon key"| Storage
+  Browser -->|"invocação autenticada"| Edge
+  Edge -->|"service role no ambiente"| Db
+  Edge --> Market
+  Admin --> Db
+`}
+</Mermaid>
 
-Os requisitos não funcionais protegem o domínio financeiro. Eles definem onde a aplicação pode confiar na regra de acesso e onde segredos podem existir.
+Na leitura de carteira, o navegador consulta tabelas como `assets`, `transactions` e `quotes_history` com a chave anônima e o JWT do usuário. A segurança não depende de o JavaScript lembrar de filtrar por `user_id`: mesmo que uma tela errasse a consulta, a policy RLS continuaria bloqueando linhas de outro investidor.
 
-| Código | Regra arquitetural | Consequência prática |
-| ------ | ------------------ | -------------------- |
-| RNF01 | RLS em toda tabela de domínio. | Um filtro esquecido no front não vaza carteira. |
-| RNF02 | Chaves privadas fora do navegador. | A `service_role` fica apenas em Edge Functions. |
-| RNF03 | Dados monetários com precisão decimal. | Valores não usam ponto flutuante binário para saldo. |
-| RNF04 | Arquivos em bucket privado. | A leitura acontece por policy e URL assinada curta. |
-| RNF05 | Administração agregada e autorizada. | O painel não consulta posições de investidores. |
-| RNF06 | Front publicável só com variáveis públicas. | O bundle leva `VITE_*` e cabeçalhos de segurança; nada de chave de serviço. |
+No upload de comprovantes, o navegador também fala com uma API pública, mas os arquivos ficam em um bucket privado. A tabela guarda apenas `receipt_path`; quando o usuário precisa ver o documento, a aplicação pede uma URL assinada de curta duração. Esse detalhe evita transformar um comprovante em link permanente, copiável e difícil de revogar.
 
-<Aside type="tip" title="Detalhamento nos documentos de especificação">
-  A decomposição completa dos requisitos em **11 épicos**, **32 histórias de usuário**, os
-  **111 critérios de aceitação** numerados por sprint e as **94 tasks** das onze sprints está no
-  [Backlog do Produto](backlog/). Os limites conhecidos da versão e o que vem depois estão em
-  [Próximos passos](next-steps/).
+Já as cotações ficam fora do navegador por dois motivos. Primeiro, o token do provedor e a chave `service_role` não podem entrar no bundle público. Segundo, atualizar preços exige uma operação idempotente e auditável: a Edge Function chama o provedor, grava o preço no PostgreSQL e registra falhas operacionais sem depender de uma aba aberta pelo usuário.
+
+O painel administrativo fecha a arquitetura com uma fronteira diferente. Ele pode ler métricas como AUM, quantidade de contas e status de execução, mas não deve consultar a carteira completa de ninguém. Por isso o diagrama aponta para uma view administrativa agregada, não para acesso livre às tabelas de domínio.
+
+<Aside type="caution" title="Dica de IA: A chave anônima não substitui RLS">
+  A chave pública do projeto pode aparecer no navegador. A segurança vem de policies que usam a identidade presente no JWT, não de esconder essa chave. A `service_role`, por outro lado, ignora RLS e nunca pode entrar em HTML, JavaScript publicado ou variáveis expostas pelo build.
+
+  **Prompt:** *"Revise estas policies RLS para assets e transactions; mostre um cenário em que um usuário A tenta ler ou inserir um registro do usuário B e explique qual cláusula bloqueia cada tentativa."*
 </Aside>
-
-Com o **que fazer** definido, o resto desta página trata do **com o quê**: a stack escolhida, a arquitetura, o desenho das telas, o modelo de dados e a ordem das onze sprints.
 
 ## Stack tecnológica da aplicação
 
@@ -113,165 +102,36 @@ O projeto evolui acrescentando um serviço do Supabase por sprint, e nunca um se
   - **Upload e serviços externos**: veja [Upload de arquivo](../../../expressjs/advanced/upload-file/) e [Chamada de sistema](../../../expressjs/advanced/system-call/)
 </Aside>
 
-## Arquitetura do sistema
-
-O navegador fala diretamente com as APIs públicas do Supabase usando a chave anônima. A chave identifica o projeto, mas não concede acesso irrestrito: o JWT do usuário e as policies RLS delimitam cada consulta. A função de cotação é a única camada com privilégio de serviço.
-
-<Mermaid title="Caminho dos dados no InvestFlow">
-{`
-flowchart TB
-  Browser["Navegador\nHTML + Tailwind + JavaScript"]
-  Auth["Supabase Auth\nconta e JWT"]
-  Db[("PostgreSQL\nprofiles · assets · transactions\nquotes_history + RLS")]
-  Storage["Storage privado\nreceipts/<user_id>/..."]
-  Edge["Edge Function\nupdate-quotes"]
-  Market["Provedor de cotações"]
-  Admin["View administrativa\nmétricas agregadas"]
-  Browser --> Auth
-  Browser -->|"JWT + anon key"| Db
-  Browser -->|"JWT + anon key"| Storage
-  Browser -->|"invocação autenticada"| Edge
-  Edge -->|"service role no ambiente"| Db
-  Edge --> Market
-  Admin --> Db
-`}
-</Mermaid>
-
-<Aside type="caution" title="A chave anônima não substitui RLS">
-  A chave pública do projeto pode aparecer no navegador. A segurança vem de policies que usam a identidade presente no JWT, não de esconder essa chave. A `service_role`, por outro lado, ignora RLS e nunca pode entrar em HTML, JavaScript publicado ou variáveis expostas pelo build.
-
-  **Prompt:** *"Revise estas policies RLS para assets e transactions; mostre um cenário em que um usuário A tenta ler ou inserir um registro do usuário B e explique qual cláusula bloqueia cada tentativa."*
-</Aside>
-
 ## Modelo de domínio
 
 As entidades são introduzidas em camadas. O protótipo já mostra a linguagem do domínio; o banco entra na Sprint 3, e as leituras agregadas aparecem somente quando já há dados confiáveis.
 
-<Mermaid title="Entidades da versão BaaS planejada">
+<Mermaid title="Entidades da versão final do InvestFlow">
 {`
 erDiagram
   PROFILE ||--o{ ASSET : possui
+  PROFILE ||--o{ BROKER : cadastra
+  PROFILE ||--o{ AVATAR : publica
+  BROKER ||--o{ ASSET : custodia
   ASSET ||--o{ TRANSACTION : recebe
   ASSET ||--o{ QUOTE_HISTORY : registra
+  ASSET ||--o{ DIVIDEND_HISTORY : recebe
   TRANSACTION }o--|| RECEIPT : referencia
-  PROFILE { uuid id PK string full_name string role }
-  ASSET { uuid id PK uuid user_id FK string ticker string category numeric current_price }
+  ASSET }o--o{ EXCHANGE_RATE : consolida
+  PROFILE { uuid id PK string full_name string role string avatar_url }
+  BROKER { uuid id PK uuid user_id FK string name }
+  ASSET { uuid id PK uuid user_id FK uuid broker_id FK string ticker string category string currency numeric current_price }
   TRANSACTION { uuid id PK uuid asset_id FK uuid user_id FK string type numeric quantity numeric price string receipt_path }
   QUOTE_HISTORY { uuid id PK uuid asset_id FK numeric price date quote_date }
+  DIVIDEND_HISTORY { uuid id PK uuid asset_id FK numeric rate date ex_date date payment_date }
+  EXCHANGE_RATE { uuid id PK string from_currency string to_currency numeric rate date rate_date }
+  QUOTE_RUN { uuid id PK datetime ran_at int requested int updated json failed }
   RECEIPT { string path PK }
+  AVATAR { string path PK }
 `}
 </Mermaid>
 
-`receipt_path` é uma referência para um objeto do Storage, não uma URL pública. A URL é criada sob demanda, expira em pouco tempo e não deve ser persistida na tabela.
-
-### Dicionário de dados do domínio
-
-O dicionário formaliza a estrutura, os tipos e as regras de cada tabela que as sprints 2, 3 e 4 criam. Todo valor monetário é `numeric`, e toda tabela tem RLS ligado.
-
-#### 1. Tabela `profiles` (Investidor)
-
-Espelha `auth.users` com os dados de domínio da conta. É criada por trigger no cadastro (Sprint 2) e carrega o papel que o painel administrativo confere (Sprint 6).
-
-| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
-| ----- | ------------ | ----------------- | ----------------------------- |
-| `id` | `uuid` | **PK**, **FK** (`auth.users.id`) | O mesmo identificador da conta no Supabase Auth. |
-| `full_name` | `text` | Obrigatório | Nome de exibição, copiado dos metadados do cadastro. |
-| `role` | `text` | `check` em `investor`, `admin`; padrão `investor` | Papel da conta. Promovido só pelo SQL Editor, nunca pelo SDK. |
-| `created_at` | `timestamptz` | Padrão `now()` | Instante do cadastro. |
-
-#### 2. Tabela `assets` (Ativo)
-
-O instrumento que está na carteira: o que é, de que categoria e a que preço está.
-
-| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
-| ----- | ------------ | ----------------- | ----------------------------- |
-| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
-| `user_id` | `uuid` | **FK** (`profiles.id`), `not null` | Dono do ativo; a coluna que toda policy compara com `auth.uid()`. |
-| `ticker` | `text` | Obrigatório, único por dono | Código do ativo (`PETR4`, `HGLG11`) ou nome curto para renda fixa. |
-| `name` | `text` | Obrigatório | Nome de exibição. |
-| `category` | `text` | `check` em `renda_fixa`, `acoes`, `fiis`, `fundos`, `cripto` | As cinco categorias que o protótipo desenha como *badges*. |
-| `broker_id` | `uuid` | **FK** (`brokers.id`), opcional | Corretora ou banco onde o ativo está custodiado. |
-| `issuer` | `text` | Opcional | Quem emite ou administra o ativo: o banco de um CDB, a gestora de um fundo, a empresa de uma ação. |
-| `current_price` | `numeric(14, 4)` | Opcional | Última cotação; preenchida pela Edge Function para `acoes` e `fiis`, manual nas demais. |
-
-#### 2b. Tabela `brokers` (Corretora)
-
-Instituição de custódia, por investidor. Nasce sozinha quando um ativo cita um nome novo, como no InvestApp.
-
-| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
-| ----- | ------------ | ----------------- | ----------------------------- |
-| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
-| `user_id` | `uuid` | **FK** (`profiles.id`), `not null` | Dono; a lista de corretoras é privada. |
-| `name` | `text` | Obrigatório, único por dono | Nome da corretora ou banco (`XP`, `Banco Inter`, `Avenue`). |
-
-#### 3. Tabela `transactions` (Transação)
-
-Um fato imutável: uma compra ou venda, de tanta quantidade, a tanto, em tal dia. A posição é sempre derivada daqui.
-
-| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
-| ----- | ------------ | ----------------- | ----------------------------- |
-| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
-| `user_id` | `uuid` | **FK** (`profiles.id`), `not null` | Dono, repetido para que a policy não precise de `join`. |
-| `asset_id` | `uuid` | **FK** (`assets.id`), `not null` | O ativo negociado. |
-| `type` | `text` | `check` em `buy`, `sell` | Compra ou venda. |
-| `quantity` | `numeric(18, 8)` | `> 0` | Quantidade, com casas para frações de cripto e fundos. |
-| `price` | `numeric(14, 4)` | `>= 0` | Preço unitário na data. |
-| `transaction_date` | `date` | Padrão `current_date` | Data do negócio. |
-| `receipt_path` | `text` | Opcional | *Path* do comprovante no bucket `receipts` (Sprint 5), nunca uma URL. |
-
-#### 4. Tabela `quotes_history` (Cotação diária)
-
-Uma observação de preço por ativo e por dia. Escrita apenas pela Edge Function, com a chave de serviço.
-
-| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
-| ----- | ------------ | ----------------- | ----------------------------- |
-| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
-| `asset_id` | `uuid` | **FK** (`assets.id`), `not null` | O ativo cotado. |
-| `price` | `numeric(14, 4)` | `>= 0` | Preço observado. |
-| `quote_date` | `date` | Único junto com `asset_id` | A data; a chave única é o que torna a atualização idempotente. |
-
-#### 5. Tabela `quote_runs` (Execução de cotações)
-
-Resumo operacional de cada execução da função `update-quotes`, lido apenas por `admin`.
-
-| Campo | Tipo de dado | Chave / Restrição | Descrição e Regras de Negócio |
-| ----- | ------------ | ----------------- | ----------------------------- |
-| `id` | `uuid` | **PK** | Identificador gerado pelo banco. |
-| `ran_at` | `timestamptz` | Padrão `now()` | Instante da execução. |
-| `requested` / `updated` | `integer` | Obrigatórios | Tickers pedidos e atualizados. |
-| `failed` | `jsonb` | Padrão `[]` | Lista de `{ ticker, reason }` das falhas. |
-
-## Protótipo disponível
-
-A Sprint 1 já existe como projeto Vite e permite validar a experiência de uso antes da conexão com o Supabase. Os dados mostrados são exemplos estáticos, portanto nenhum botão de sessão, cotação ou administração executa uma operação remota ainda.
-
-<Tabs>
-  <TabItem label="Landing">
-    A página pública apresenta o produto e um simulador visual de aportes:
-
-    <HtmlPreview path="examples/courses/npm/projects/investflow-static/index.html" height="28rem" serveFromPublic allowScripts />
-  </TabItem>
-  <TabItem label="Carteira">
-    A carteira antecipa as métricas e a tabela que serão preenchidas na Sprint 3:
-
-    <HtmlPreview path="examples/courses/npm/projects/investflow-static/dashboard.html" height="28rem" serveFromPublic allowScripts />
-  </TabItem>
-  <TabItem label="Analytics">
-    A matriz visual é a superfície que a Sprint 6 ligará às consultas agregadas:
-
-    <HtmlPreview path="examples/courses/npm/projects/investflow-static/analytics.html" height="28rem" serveFromPublic allowScripts />
-  </TabItem>
-  <TabItem label="Admin">
-    O painel administrativo tem só totais, e é assim que a Sprint 6 o mantém:
-
-    <HtmlPreview path="examples/courses/npm/projects/investflow-static/admin.html" height="20rem" serveFromPublic allowScripts />
-  </TabItem>
-  <TabItem label="Entrar">
-    A tela de sessão, cujo `action` a Sprint 2 substitui pelo SDK:
-
-    <HtmlPreview path="examples/courses/npm/projects/investflow-static/signin.html" height="24rem" serveFromPublic allowScripts />
-  </TabItem>
-</Tabs>
+O desenho acima já mostra os acréscimos da versão final: corretoras e emissor na origem do ativo, proventos por data ex, câmbio para ativos em dólar e cripto, comprovantes privados e avatar público. O detalhe das entidades, ownership, constraints e dicionário de dados fica em [Modelo de domínio](domain-model/).
 
 ## Trilha incremental de desenvolvimento
 
@@ -295,23 +155,21 @@ As sprints seguem uma dependência deliberada: não há policy RLS útil sem ide
 
 As Sprints 1 a 7 têm um projeto executável cada; as Sprints 8 a 11 evoluem o mesmo `investflow-origins`, que é o projeto final. A separação entre elas é feita pelos critérios de aceitação numerados por sprint e pelos testes que os citam.
 
-## Matriz comparativa das onze sprints
+## Resumo comparativo das sprints
 
-Como no InvestApp e no MonitorApp, cada uma das sete primeiras sprints é uma pasta em `examples/courses/npm/projects/`, cópia da anterior mais o delta. As quatro últimas acrescentam camadas ao mesmo `investflow-origins`. Todas estão versionadas e testadas; a coluna de estado registra a contagem de cada suíte (Vitest soma unidade, integração e, no projeto final, o build).
+Como no InvestApp e no MonitorApp, cada uma das sete primeiras sprints é uma pasta em `examples/courses/npm/projects/`, cópia da anterior mais o delta. As quatro últimas acrescentam camadas ao mesmo `investflow-origins`. A lista abaixo resume o projeto, o serviço principal e a novidade de cada etapa sem forçar uma tabela larga.
 
-| Sprint | Pasta local | Serviço do Supabase | Onde a regra vive | Novidade principal | Estado |
-| ------ | ----------- | ------------------- | ----------------- | ------------------ | ------ |
-| 1 | `investflow-static` | nenhum | no HTML | as seis telas em Tailwind, sem JavaScript | **versionada** |
-| 2 | `investflow-auth` | Auth | `profiles`, grants e trigger | conta, sessão, guarda de página e as três camadas de teste | **versionada e testada** (15 Vitest, 4 Playwright) |
-| 3 | `investflow-database` | PostgreSQL | migrations + RLS | `assets`, `brokers`, `transactions`, `quotes_history`, as policies por `auth.uid()` e a tela do investimento | **versionada e testada** (36 Vitest, 8 Playwright) |
-| 4 | `investflow-edge-quotes` | Edge Functions | `update-quotes` + `pg_cron` | cotações idempotentes (Yahoo Finance sem token, brapi ou simulado) com a chave de serviço fora do navegador | **versionada e testada** (48 Vitest, 9 Playwright) |
-| 5 | `investflow-storage` | Storage | policies em `storage.objects` | bucket privado, *path* por dono e URL assinada | **versionada e testada** (63 Vitest, 11 Playwright) |
-| 6 | `investflow-analytics` | PostgreSQL (views e funções) | `security_invoker` + `security definer` | matriz de rentabilidade e painel admin agregado | **versionada e testada** (79 Vitest, 14 Playwright) |
-| 7 | `investflow-origins` | PostgreSQL (views) | `security_invoker` | treemap de origem e a linha de aportes vs. valor, com SVG escrito à mão | **versionada e testada** |
-| 8 | `investflow-origins` | PostgreSQL (policy) | policy de escrita do dono em `quotes_history` | lançamentos editáveis, `update` para renda fixa, cotação manual, filtro e ordenação na URL | **versionada e testada** |
-| 9 | `investflow-origins` | PostgreSQL | RLS pelo dono do ativo em `dividends_history` | proventos pela data ex, retorno total, extrato de movimentações | **versionada e testada** |
-| 10 | `investflow-origins` | Edge Functions + PostgreSQL | `exchange_rates` só pela chave de serviço | moeda por ativo, câmbio de cada compra, cripto via `BRL=X`, calendário de mercado | **versionada e testada** |
-| 11 | `investflow-origins` | Storage (bucket público) | `grant update` por coluna | perfil com avatar, barra comum, tema, ocultar valores, deploy na Vercel | **versionada e testada** (216 Vitest, 33 Playwright acumulados) |
+1. **Frontend estático** (`investflow-static`): telas em HTML e Tailwind CSS, ainda sem Supabase. Estado: versionada.
+2. **Autenticação BaaS** (`investflow-auth`): Supabase Auth, `profiles`, grants, trigger, sessão e guardas de página. Estado: versionada e testada, com 15 Vitest e 4 Playwright.
+3. **Banco de dados e RLS** (`investflow-database`): PostgreSQL, migrations, RLS, `assets`, `brokers`, `transactions`, `quotes_history` e tela do investimento. Estado: versionada e testada, com 36 Vitest e 8 Playwright.
+4. **Cotações com Edge Functions** (`investflow-edge-quotes`): `update-quotes`, `pg_cron`, idempotência e chave de serviço fora do navegador. Estado: versionada e testada, com 48 Vitest e 9 Playwright.
+5. **Armazenamento de comprovantes** (`investflow-storage`): bucket privado, policies em `storage.objects`, path por dono e URL assinada. Estado: versionada e testada, com 63 Vitest e 11 Playwright.
+6. **Analytics e painel admin** (`investflow-analytics`): views, funções, `security_invoker`, `security definer`, matriz de rentabilidade e métricas agregadas. Estado: versionada e testada, com 79 Vitest e 14 Playwright.
+7. **Origem e evolução** (`investflow-origins`): treemap por corretora, categoria e emissor, além da linha de aportes versus valor. Estado: versionada e testada.
+8. **Lançamentos e cotação manual** (`investflow-origins`): escrita do dono em `quotes_history`, lançamentos editáveis, renda fixa por saldo e filtros na URL. Estado: versionada e testada.
+9. **Proventos e movimentações** (`investflow-origins`): `dividends_history`, RLS pelo dono do ativo, retorno total e extrato de aportes e resgates. Estado: versionada e testada.
+10. **Dólar e cripto** (`investflow-origins`): `exchange_rates`, câmbio por data, carteira consolidada em reais, cripto via `BRL=X` e calendário de mercado. Estado: versionada e testada.
+11. **Perfil e experiência** (`investflow-origins`): avatar público, atualização controlada de perfil, barra comum, tema, ocultação de valores e deploy. Estado: versionada e testada, com 216 Vitest e 33 Playwright acumulados.
 
 ## Navegação pelas sprints do InvestFlow
 
@@ -405,49 +263,7 @@ Como no InvestApp e no MonitorApp, cada uma das sete primeiras sprints é uma pa
   </Card>
 </CardGrid>
 
-## Setup inicial e governança com IA
-
-O projeto nasce, na Sprint 1, com os quatro artefatos que tornam as sprints seguintes executáveis por pessoas ou agentes diferentes sem divergir de arquitetura:
-
-1. **Documento de Requisitos do Produto (`docs/PRD.md`)**: visão, personas, épicos e arquitetura BaaS.
-2. **Diretrizes para Agentes de IA (`AGENTS.md`)**: as cinco regras invioláveis (sem Express, RLS em toda tabela, admin agregado, cotações só por Edge Function, identificadores em inglês) e o fluxo por spec.
-3. **Planejamento de sprints (`docs/SPRINTS.md`)**: as 94 tasks com história, estimativa e validação, e o critério de pronto.
-4. **Ferramentas de qualidade**: Biome, os seis scripts do `package.json`, `specs/active` e `specs/archived` por task, e o template de PR em `.github/`.
-
-<Aside type="tip" title="Dica de IA: Conduza a criação e a leitura dos recursos pelo MCP do Supabase">
-  Com o [servidor MCP do Supabase](https://supabase.com/docs/guides/getting-started/mcp) ligado ao
-  seu assistente (Claude Code, Cursor, VS Code), a IA passa a **executar** contra o projeto em vez
-  de só sugerir SQL: aplica migrations, lista tabelas e policies, consulta linhas, lê logs das Edge
-  Functions e gera os tipos TypeScript. Aponte-o para a stack local durante as sprints e para o
-  projeto na nuvem só no deploy, e use o modo somente-leitura sempre que a task for de auditoria.
-
-  **Prompt:** *"Usando o MCP do Supabase do projeto InvestFlow, aplique a migration de `assets`,
-  `brokers` e `transactions` da Sprint 3, liste as policies criadas em cada tabela e execute, como
-  dois usuários diferentes, um `select` em `assets` para provar que cada um enxerga apenas as
-  próprias linhas. Não use a chave de serviço em nenhuma consulta de verificação."*
-</Aside>
-
-<Aside type="tip" title="Dica de IA: Publique na Vercel pelo MCP">
-  O front é estático (`vite build` gera `dist/`), e a partir da Sprint 6 o projeto traz um
-  `vercel.json` com framework, build, saída, `cleanUrls` e cabeçalhos de segurança. Com o
-  [MCP da Vercel](https://vercel.com/docs/mcp) ligado ao assistente, criar o projeto, definir as
-  variáveis e publicar viram um pedido. O que a IA **não** pode fazer é colocar a chave de
-  serviço na Vercel: o front recebe só `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-
-  **Prompt:** *"Usando o MCP da Vercel, crie o projeto InvestFlow a partir deste repositório com
-  root directory `examples/courses/npm/projects/investflow-analytics`, defina
-  `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Production e Preview com os valores do meu
-  projeto Supabase, faça o deploy de produção e me devolva a URL e o log do build. Depois me
-  lembre de registrar essa URL em Authentication › URL Configuration do Supabase."*
-</Aside>
-
-<Aside type="tip" title="Desenvolvimento guiado por specs">
-  Antes de codificar cada task (`TKXX-Y`), produza a spec técnica em `specs/active/spec-tkXX-Y.md`,
-  com escopo, arquivos impactados, cenários em Gherkin e verificação. Ao concluir, mova-a para
-  `specs/archived/`. As sete specs da Sprint 1 já estão lá e servem de modelo.
-</Aside>
-
-## Documentos de especificação
+## Documentos de apoio
 
 <CardGrid>
   <Card title="Backlog do produto" icon="list-format">
@@ -455,6 +271,14 @@ O projeto nasce, na Sprint 1, com os quatro artefatos que tornam as sprints segu
 
     <div class="page-badges">
       <a class="page-badge" href="backlog/">Abrir documento</a>
+    </div>
+  </Card>
+
+  <Card title="Modelo de domínio" icon="seti:db">
+    Entidades, ownership, dicionário de dados e evolução do modelo por sprint.
+
+    <div class="page-badges">
+      <a class="page-badge" href="domain-model/">Abrir documento</a>
     </div>
   </Card>
 
@@ -467,33 +291,6 @@ O projeto nasce, na Sprint 1, com os quatro artefatos que tornam as sprints segu
   </Card>
 </CardGrid>
 
-## Estrutura dos projetos
-
-Cada sprint tem a própria pasta. A árvore abaixo mostra o que a Sprint 2 acrescenta sobre a Sprint 1; os documentos de governança (`AGENTS.md`, `docs/`, `specs/`) são copiados adiante e atualizados a cada sprint.
-
-<FileTree>
-{`
-  examples/courses/npm/projects/
-  ├── investflow-static/            Sprint 1: seis páginas HTML, CSS, docs e specs
-  └── investflow-auth/              Sprint 2 = Sprint 1 +
-      ├── .env.example              variáveis públicas e a chave só dos testes
-      ├── vite.config.js            seis páginas como entradas do build
-      ├── vitest.config.js          projetos unit (jsdom) e integration (node)
-      ├── playwright.config.js      E2E sobre o Vite
-      ├── supabase/
-      │   ├── config.toml           stack local
-      │   └── migrations/           profiles: grants, RLS e trigger
-      ├── src/
-      │   ├── lib/                  supabase-client.js e form.js
-      │   ├── services/             auth.js
-      │   ├── guards/               require-session.js
-      │   └── pages/                signup.js, signin.js e private.js
-      └── tests/
-          ├── integration/          SDK real contra a stack local
-          └── e2e/                  Playwright
-`}
-</FileTree>
-
 ## Evolução incremental do projeto
 
 <Aside type="tip" title="O trilho é cumulativo por construção">
@@ -504,17 +301,9 @@ Cada sprint tem a própria pasta. A árvore abaixo mostra o que a Sprint 2 acres
   formulários dá lugar ao SDK na Sprint 2, e o Tailwind pelo Play CDN dá lugar ao compilado.
 </Aside>
 
-Comparar duas pastas com `git diff --no-index` mostra, de forma isolada, exatamente o que aquela sprint alterou:
+Cada página de sprint mostra a árvore de arquivos, os trechos reais via `<SourceCode>`, os testes e o comando de execução daquela etapa. O índice fica apenas com a regra geral: as pastas são cumulativas até a Sprint 7, e as Sprints 8 a 11 evoluem o mesmo projeto final.
 
-```bash title="Terminal"
-git diff --no-index -- \
-  examples/courses/npm/projects/investflow-static \
-  examples/courses/npm/projects/investflow-auth || true
-```
-
-Toda task da Sprint 2 em diante chega com pelo menos um teste na camada que a prova: **unidade** (Vitest e jsdom, com o SDK mockado) para serviços e funções puras, **integração** (Vitest e o SDK real contra a stack local do Supabase) para migrations, policies e funções, e **E2E** (Playwright) para o fluxo de tela. É a mesma exigência da etapa 12 das outras trilhas, aplicada desde a segunda sprint.
-
-### Execução do projeto local
+## Execução local
 
 Cada página de sprint aponta para uma pasta em `examples/courses/npm/projects/`. A Sprint 1 só precisa do Vite; da Sprint 2 em diante, a stack local do Supabase (Docker e a CLI) substitui um projeto na nuvem:
 
@@ -557,17 +346,17 @@ Monte uma matriz de rastreabilidade ligando RF01 a RF22 às onze sprints e indiq
 
 ### Arquitetura
 
-1. Por que RLS é necessário mesmo quando o front-end filtra por `user_id`?
-2. Qual é a diferença de privilégio entre a chave anônima e a `service_role`?
-3. Por que um comprovante deve ser armazenado como path, e não como URL assinada?
-4. Em qual camada deve ficar o segredo de um provedor de cotações?
+1. **Por que RLS é necessário mesmo quando o front-end filtra por `user_id`?**
+2. **Qual é a diferença de privilégio entre a chave anônima e a `service_role`?**
+3. **Por que um comprovante deve ser armazenado como path, e não como URL assinada?**
+4. **Em qual camada deve ficar o segredo de um provedor de cotações?**
 
 ### Progressão
 
-5. Por que a autenticação precede as migrations de dados por usuário?
-6. Quais páginas do protótipo atual usam dados de exemplo?
-7. Por que as Sprints 8 a 11 evoluem o mesmo projeto em vez de ganhar uma pasta cada?
-8. Que informação o painel administrativo não pode expor?
+5. **Por que a autenticação precede as migrations de dados por usuário?**
+6. **Quais páginas do protótipo atual usam dados de exemplo?**
+7. **Por que as Sprints 8 a 11 evoluem o mesmo projeto em vez de ganhar uma pasta cada?**
+8. **Que informação o painel administrativo não pode expor?**
 
 ## Referências
 

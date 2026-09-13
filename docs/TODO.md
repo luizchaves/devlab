@@ -173,6 +173,61 @@
 
 ---
 
+## Próximos Prompts
+
+```
+Vejo que http://localhost:4321/devlab/examples/courses/npm/projects/investflow-static/dashboard.html ainda não está semelhante ao resultado final de origins, refaça os html de static para refletir o estágio final do invest-flow
+```
+
+```
+Em http://localhost:4321/devlab/courses/npm/practice/investflow/backlog/ requisitos deveria ficar antes dos epicos?
+```
+
+```
+Em http://localhost:4321/devlab/courses/npm/practice/investflow/next-steps/ criar uma Dica de IA: Gerar a página de próximos passos e evolução técnica (se inspire em http://localhost:4321/devlab/courses/expressjs/practice/monitorapp/next-steps/) e se necessário pode adicionar conteúdo a investflow/next-steps/
+```
+
+```
+Nas páginas de etapas de investflow tem que acrescentar Asides de Tópicos conceituais associados. Analise cada página para verificar quais tópicos conceituais podem ser adicionados como Asides. Por exemplo, se uma página aborda a integração com APIs externas, um Aside poderia explicar conceitos de autenticação e autorização. Se uma página trata de otimização de performance, um Aside poderia detalhar técnicas de caching e lazy loading. Pode apontar para os guias de devlab, entretanto se necessário, pode criar novos conteúdos para complementar os tópicos conceituais. A ideia é que se na página de etapas de investflow houver um conteúdo que se relacione com um conceito técnico específico, e o aluno está com dificuldade de entender, o Aside deve fornecer uma explicação clara e concisa desse conceito, ajudando o aluno a compreender melhor o conteúdo principal da página.
+```
+
+```
+Os projetos investapp, taskapi e monitorapp poderiam simplificar a página de visão geral, repassando informações para outras pages, e antecipar backlog ou spec da api para antes das páginas de etapas. A ideia é que a visão geral seja mais enxuta, com links para as páginas de detalhes, e que o backlog ou especificações da API sejam apresentados antes das etapas, para que o aluno tenha uma visão completa do projeto antes de começar a trabalhar nas etapas. Use a inspiração do investflow
+```
+
+```
+Reconstrua o Guia React para que a parte do guia explica didaticamente, e por etapas, os conceitos de React, incluindo componentes, estado, props, ciclo de vida, hooks e roteamento. Cada seção deve ter exemplos práticos e exercícios para reforçar o aprendizado. Além disso, adicione Asides que expliquem conceitos relacionados, como JSX, virtual DOM e gerenciamento de estado com Redux ou Context API. Certifique-se de que o guia seja acessível e fácil de seguir, com uma progressão lógica que leve o aluno do básico ao avançado em React. também não esqueça de adicionar Asides para Dica de IA. Para ajudar na ideia de conteúdos use como inspiração https://roadmap.sh/react. Quando possível faça uma reflexão de soluções, por exemplo, ao criar o projeto React comente sobre a possiblidade de usar Redux ou Context API para gerenciamento de estado, explicando as vantagens e desvantagens de cada abordagem. Além disso, inclua exemplos de integração com APIs externas, mostrando como lidar com requisições assíncronas e tratamento de erros. Ao final do guia, proponha um projeto prático que permita ao aluno aplicar os conceitos aprendidos, incentivando a criatividade e a resolução de problemas. E até a estrutura do projeto pode apresentar opção como Next.js ou Vite, explicando as diferenças e vantagens de cada abordagem.
+```
+
+```
+Depois de criar o guia pegue o projeto investflow vanilla para criar o investflow react, adaptando os conceitos aprendidos no guia de React para a implementação do projeto. Certifique-se de que o projeto investflow react utilize componentes funcionais, hooks e siga as melhores práticas de desenvolvimento em React. Inclua exemplos de integração com APIs externas, gerenciamento de estado e roteamento, garantindo que o aluno possa aplicar os conceitos aprendidos no guia de forma prática e eficiente. (não se esqueça de criar Asides para explicar conceitos relacionados, como autenticação, autorização e otimização de performance, conforme necessário. Também Asides para Dica de IA)
+
+## Stack
+
+- `TanStack React Query`
+- `TanStack Table`
+- `CVA` com `tailwind-merge` para component variants
+- `Prisma`
+- `NextAuth`
+- `Base UI (@base-ui/react)` como primitivos de UI acessíveis
+- `Lucide React` para ícones
+- `Motion` para animações
+- `Sonner` para toast notifications
+- `cmdk` para command palette
+- `Zustand` para estado global do cliente em casos mínimos, preferindo `TanStack React Query` para server state
+- `Vitest` com estratégia de testes em 3 camadas
+- `ESLint`
+- `Tailwind CSS v4`
+- e2e playwright
+
+## Testes
+
+- Estratégia de 3 camadas:
+- `unit`: testes unitários para `core`, hooks e utilitários em `*.test.ts(x)`
+- `browser`: testes de componente para primitives de `ui` em `*.browser.test.ts(x)` com Playwright
+- `integration`: testes de integração para fluxos de rota em `*.integration.test.ts(x)`
+```
+
 ## 📄 Especificação: Pull Request Skill
 
 ````markdown
