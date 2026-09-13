@@ -35,7 +35,9 @@ export function AppShell({ user, children }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const hideValues = usePreferences((state) => state.hideValues);
   const toggleHideValues = usePreferences((state) => state.toggleHideValues);
+  const theme = usePreferences((state) => state.theme);
   const cycleTheme = usePreferences((state) => state.cycleTheme);
+  const themeLabel = { light: 'Claro', dark: 'Escuro', system: 'Automático' }[theme];
   const setPaletteOpen = usePreferences((state) => state.setPaletteOpen);
 
   const links = user.role === 'ADMIN' ? [...NAV, { href: '/admin', label: 'Painel Admin' }] : NAV;
@@ -74,10 +76,10 @@ export function AppShell({ user, children }: AppShellProps) {
             <Button variant="ghost" size="icon" className="hidden sm:inline-flex" aria-label="Buscar (Ctrl+K)" onClick={() => setPaletteOpen(true)}>
               <Search className="size-4" aria-hidden />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Alternar tema" onClick={cycleTheme}>
+            <Button variant="ghost" size="icon" aria-label={`Tema: ${themeLabel}. Alternar`} data-theme-toggle onClick={cycleTheme}>
               <SunMoon className="size-4" aria-hidden />
             </Button>
-            <Button variant="ghost" size="icon" aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={hideValues} onClick={toggleHideValues}>
+            <Button variant="ghost" size="icon" aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={hideValues} data-privacy-toggle onClick={toggleHideValues}>
               {hideValues ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
             </Button>
             <UserMenu name={user.name} avatarUrl={user.avatarUrl} />

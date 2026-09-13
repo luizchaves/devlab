@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 9 done)
+Status: **In progress** (Phases 0 to 10 done; Phase 11 pending)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -231,7 +231,7 @@ layers green.
 - `ExchangeRate` model, `core/exchange.ts`, currency per asset, crypto quoting;
   CA10.1–CA10.13.
 
-### Phase 10 · Profile and experience (RF19–RF22)
+### Phase 10 · Profile and experience (RF19–RF22) — done
 
 - `/profile` with avatar, user menu, theme, hide values, password visibility, build with
   security headers; CA11.1–CA11.13.
@@ -317,5 +317,11 @@ Phase 9: 120 Vitest tests (69 unit, 10 browser, 41 integration) and 34
 Playwright tests green. `core/exchange.ts` replaces `get_usd_rate()`; the private layout
 loads the rate rows once and `ExchangeProvider` hands `latest`/`rateOf` to every screen,
 so the dashboard, tables, footer and movements convert on the client while analytics,
-origins and dividends convert on the server with the same table. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+origins and dividends convert on the server with the same table.
+
+Phase 10: 123 Vitest tests (70 unit, 10 browser, 43 integration) plus a separate `build`
+project (2 tests over the real `next build`) and 36 Playwright tests green. The `avatars`
+bucket is public by choice; the navbar reads name and avatar from the database on every
+server render, so a rename shows up right after `router.refresh()`. CA11.7 and CA11.8
+were already covered in phases 1 and 2. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

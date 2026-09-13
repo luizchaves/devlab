@@ -17,3 +17,12 @@ describe('receiptPath', () => {
     expect(receiptPath({ userId: 'u1', transactionId: 't1', fileName: 'a.', uuid: 'x' })).toBe('u1/t1/x.bin');
   });
 });
+
+describe('validateAvatar', () => {
+  it('CA11.2 — aceita PNG, JPG, WEBP e GIF até 2 MB', async () => {
+    const { validateAvatar, MAX_AVATAR_SIZE } = await import('./file-validation');
+    expect(validateAvatar({ type: 'image/webp', size: 1000 })).toBeNull();
+    expect(validateAvatar({ type: 'application/pdf', size: 1000 })).toBe('Envie uma imagem PNG, JPG, WEBP ou GIF.');
+    expect(validateAvatar({ type: 'image/png', size: MAX_AVATAR_SIZE + 1 })).toBe('A imagem pode ter no máximo 2 MB.');
+  });
+});

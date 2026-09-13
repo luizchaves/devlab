@@ -27,7 +27,7 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | RF03.2–RF03.6 lançamentos e organização | edição e exclusão de lançamento, resgate total, `core/organize.ts` (filtro e rodapé), ordenação do TanStack Table com `sortUndefined: 'last'`, `lib/url-state.ts` | 7 ✓ |
 | RF11–RF14 proventos e movimentações | `Dividend`, `/dividends`, `/movements` | 8 |
 | RF15–RF17 dólar e cripto | `ExchangeRate`, moeda por ativo | 9 |
-| RF19–RF22 perfil e experiência | avatar, tema, ocultar valores, build | 10 |
+| RF19–RF22 perfil e experiência | `/profile` (nome, avatar no bucket público `avatars`), barra comum e menu do usuário (fase 1), tema em ciclo e ocultar valores persistidos (Zustand), mostrar senha, `next build` inspecionado por `tests/build` | 10 ✓ |
 
 | RNF | Leitura neste projeto |
 | --- | --------------------- |

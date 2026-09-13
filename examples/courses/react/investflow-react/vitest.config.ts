@@ -47,6 +47,16 @@ export default defineConfig({
         },
       },
       {
+        // Fora do `pnpm test`: `pnpm test:build` roda o `next build` e inspeciona o resultado (RF22).
+        resolve: { alias },
+        test: {
+          name: 'build',
+          environment: 'node',
+          include: ['tests/build/**/*.test.ts'],
+          testTimeout: 300_000,
+        },
+      },
+      {
         resolve: { alias },
         test: {
           name: 'integration',

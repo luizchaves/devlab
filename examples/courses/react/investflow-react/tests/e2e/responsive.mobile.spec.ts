@@ -105,6 +105,7 @@ test.describe('RNF07 · design responsivo (celular)', () => {
       ['/origins', '[data-treemap]'],
       ['/dividends', '[data-top-dividends]'],
       ['/movements', '[data-movements-chart]'],
+      ['/profile', '[data-save-profile]'],
     ]) {
       await page.goto(path);
       await expect(page.locator(selector)).toBeVisible();

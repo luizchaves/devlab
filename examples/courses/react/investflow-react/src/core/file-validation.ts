@@ -29,3 +29,15 @@ export function receiptPath({ userId, transactionId, fileName, uuid = crypto.ran
   return `${userId}/${transactionId}/${uuid}.${ext}`;
 }
 // #endregion
+
+// #region avatar
+export const ALLOWED_AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+export const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
+
+/** Avatar: PNG, JPG, WEBP ou GIF até 2 MB (CA11.2). */
+export function validateAvatar(file: Pick<FileLike, 'type' | 'size'>): string | null {
+  if (!ALLOWED_AVATAR_TYPES.includes(file.type)) return 'Envie uma imagem PNG, JPG, WEBP ou GIF.';
+  if (file.size > MAX_AVATAR_SIZE) return 'A imagem pode ter no máximo 2 MB.';
+  return null;
+}
+// #endregion

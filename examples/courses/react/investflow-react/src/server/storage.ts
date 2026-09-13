@@ -33,3 +33,20 @@ export async function ensureReceiptsBucket() {
   });
 }
 // #endregion
+
+// #region avatars
+export const AVATARS_BUCKET = 'avatars';
+
+export async function ensureAvatarsBucket() {
+  const storage = supabaseAdmin().storage;
+  const { data } = await storage.getBucket(AVATARS_BUCKET);
+  if (data) return;
+  await storage.createBucket(AVATARS_BUCKET, { public: true, fileSizeLimit: 2 * 1024 * 1024, allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] });
+}
+
+/** O bucket é público por escolha (RNF04): a URL é estável e não expira. */
+export function avatarPublicUrl(path: string | null): string | null {
+  if (!path) return null;
+  return supabaseAdmin().storage.from(AVATARS_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+// #endregion

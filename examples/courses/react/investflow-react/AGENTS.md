@@ -46,7 +46,7 @@ Regras: o título do teste leva o critério (`CA03.4 — …`); um critério nov
 teste; `pnpm test` e `pnpm test:e2e` precisam da stack (`supabase start`). O Next não
 aceita dois `next dev` do mesmo projeto: pare o `pnpm dev` antes de `pnpm test:e2e`.
 
-Antes de finalizar: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, `pnpm build`.
+Antes de finalizar: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, `pnpm test:build` (faz o `next build`).
 
 <!-- BEGIN:nextjs-agent-rules -->
 

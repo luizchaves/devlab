@@ -52,10 +52,10 @@ export function UserMenu({ name, avatarUrl }: UserMenuProps) {
 function Avatar({ name, avatarUrl }: UserMenuProps) {
   if (avatarUrl) {
     // eslint-disable-next-line @next/next/no-img-element -- avatar servido por rota própria, sem otimização
-    return <img src={avatarUrl} alt="" className="size-8 rounded-full object-cover" />;
+    return <img src={avatarUrl} alt="" data-navbar-avatar-img className="size-8 rounded-full object-cover" />;
   }
   return (
-    <span className="grid size-8 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100">
+    <span data-navbar-avatar-initial className="grid size-8 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100">
       {name.charAt(0).toUpperCase()}
     </span>
   );

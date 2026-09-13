@@ -31,7 +31,7 @@ Requer Node 22+, pnpm 10+, Docker e a CLI do Supabase.
 pnpm install
 cp .env.example .env          # cole a service_role de `supabase status`
 supabase start                # Postgres em 54342, API/Storage em 54341, Studio em 54343
-pnpm db:buckets               # cria o bucket privado `receipts` declarado em supabase/config.toml
+pnpm db:buckets               # cria os buckets `receipts` (privado) e `avatars` (público) de supabase/config.toml
 pnpm db:migrate               # aplica prisma/migrations
 pnpm db:seed                  # admin@example.com / admin12345
 pnpm dev                      # http://localhost:3000
@@ -51,6 +51,7 @@ duas podem subir ao mesmo tempo.
 | `/analytics` | KPIs, gráfico aportes × valor (modo e janela na URL), matriz ano × mês e distribuição por classe | 5, 6 |
 | `/dividends` | proventos recebidos: KPIs, extrato ou matriz (`?view=`), maiores pagadores, filtro `?asset=` | 8 |
 | `/movements` | aportes e resgates: KPIs de fluxo, barras por mês (`?range=`), extrato com anexos e registro pela página | 8 |
+| `/profile` | nome editável, e-mail, papel e data só leitura, avatar no bucket público `avatars` | 10 |
 | `/origins` | treemap da carteira por corretora, categoria ou emissor, com legenda | 6 |
 | `/admin` | painel do administrador: contas, AUM, última rodada e status dos serviços; investidor é redirecionado | 5 |
 | `/api/auth/*` | NextAuth | 1 |
@@ -63,6 +64,7 @@ duas podem subir ao mesmo tempo.
 | `GET /api/analytics` | série mensal, distribuição e totais do dono (`core/returns.ts`) | 5 |
 | `GET /api/admin/metrics` | agregados e checks; `403` para quem não é administrador | 5 |
 | `GET /api/origins`, `GET /api/assets/[id]/evolution` | linhas de origem e a evolução mensal de um ativo | 6 |
+| `GET`/`PATCH /api/profile`, `POST`/`DELETE /api/profile/avatar` | perfil do dono (só o nome muda; `role` nunca pelo cliente) e avatar | 10 |
 | `GET /api/exchange` | taxas USD/BRL gravadas pela rodada de cotações; `core/exchange.ts` resolve a taxa do dia e do mês | 9 |
 | `POST /api/assets/[id]/dividends/sync`, `GET /api/dividends` | sincroniza o histórico de proventos (idempotente) e lista o que foi recebido | 8 |
 
@@ -88,6 +90,7 @@ tests/e2e/           Playwright contra `next dev` na porta 3100, schema `e2e`
 | Camada | Arquivos | O que prova |
 | ------ | -------- | ----------- |
 | `unit` | `src/**/*.test.ts(x)` (jsdom) | `core`, hooks, stores e utilitários |
+| `build` | `tests/build/*.test.ts` | o `next build` não leva segredo ao navegador e envia os cabeçalhos de segurança |
 | `browser` | `src/components/ui/*.browser.test.tsx` (Vitest Browser Mode, Chromium real) | primitivas de UI: papéis, rótulos, foco, teclado |
 | `integration` | `tests/integration/*.integration.test.ts` | rotas e serviços com Prisma real, sessão simulada |
 | `e2e` | `tests/e2e/*.spec.ts` | jornadas completas no navegador; `*.mobile.spec.ts` roda em um Pixel 7 e prova o design responsivo (RNF07) |
@@ -95,6 +98,7 @@ tests/e2e/           Playwright contra `next dev` na porta 3100, schema `e2e`
 ```bash
 pnpm test              # unit + browser + integration
 pnpm test:e2e          # Playwright (precisa da stack do Supabase no ar)
+pnpm test:build        # next build + inspeção do bundle (RF22: só variáveis públicas, cabeçalhos)
 pnpm lint && pnpm typecheck && pnpm build
 ```
 

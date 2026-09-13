@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ExchangeProvider } from '@/components/exchange-provider';
 import { AppShell } from '@/components/layout/app-shell';
 import { listExchangeRates } from '@/server/exchange';
+import { avatarPublicUrl } from '@/server/storage';
 import { requirePageSession } from '@/server/session';
 import { findUserById } from '@/server/users';
 
@@ -17,7 +18,7 @@ export default async function PrivateLayout({ children }: { children: ReactNode 
 
   return (
     <ExchangeProvider initialRates={rates}>
-      <AppShell user={{ name: user.name, role: user.role, avatarUrl: user.avatarPath ? `/api/avatars/${user.id}` : null }}>
+      <AppShell user={{ name: user.name, role: user.role, avatarUrl: avatarPublicUrl(user.avatarPath) }}>
         {children}
       </AppShell>
     </ExchangeProvider>
