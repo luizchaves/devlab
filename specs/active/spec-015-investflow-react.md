@@ -124,6 +124,7 @@ functional behaviour and acceptance criteria are kept verbatim.
 | RNF04 | Private `receipts` bucket; the server checks ownership before creating a 60-second signed URL; `avatars` is public by choice |
 | RNF05 | `/api/admin/*` returns aggregates only; the integration test asserts no ticker or user id in the payload |
 | RNF06 | `next build` succeeds with `.env.example` values; headers `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` set in `next.config.ts` |
+| **RNF07** (new) | **Responsive design.** The vanilla product was built desktop-first and its wide tables and fixed navbar break on phones. The React version is mobile-first, with criteria of its own (numbered `CA12.x` so they do not collide with the backlog): **CA12.1** no page scrolls horizontally at 360–412 px; **CA12.2** the private navbar exposes the same links behind an accessible menu button (`aria-expanded`, `aria-controls`) and the user menu stays reachable; **CA12.3** tables show the essential columns (asset, value, return, actions) at any width and the others from a Tailwind breakpoint (`hideBelow` column meta), the asset page keeps the full content; **CA12.4** dialogs and forms take the available width, fields stack, and touch targets are at least 44 px. Verified by the Playwright `mobile` project (Pixel 7) in `tests/e2e/*.mobile.spec.ts`. |
 
 ### Folder layout
 
@@ -188,6 +189,14 @@ layers green.
 - CA03.1–CA03.15 covered; RNF01 ownership tests.
 
 ### Phase 3 · Quotes (RF04.1, RF05, RF05.1, RF18) — done
+
+### Phase 3b · Responsive design (RNF07) — done, and a rule for every later phase
+
+- Mobile navbar (menu button + disclosure list), responsive column meta in the assets
+  table, price column hidden below `md` in the ledger, 44 px touch targets, dialogs
+  sized by `max-w`, KPI grids with two columns from the narrowest phones.
+- Every later phase adds its screens to `tests/e2e/responsive.mobile.spec.ts` (at least
+  CA12.1 for each new page).
 
 - `Quote` and `QuoteRun` models; `POST /api/quotes/update`; providers `fake`, `yahoo`;
   auto-fetch on create/edit of quotable assets; manual quote dialog; market calendar.
@@ -269,5 +278,6 @@ Phase 2: 48 Vitest tests (13 unit, 10 browser, 15 integration) and 10 Playwright
 green. CA03.14 (no real data in the seed) stays a review rule, as in the vanilla project.
 
 Phase 3: 71 Vitest tests (27 unit, 10 browser, 24 integration) and 14 Playwright tests
-green. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+green. Phase 3b (RNF07, requested by the author on 2026-09-13): 17 Playwright tests, 3 of
+them in the `mobile` project. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
 rate of the day (CA10.13); the portfolio only reads it in Phase 9.

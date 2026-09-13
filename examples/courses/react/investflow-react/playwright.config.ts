@@ -27,6 +27,10 @@ export default defineConfig({
     baseURL: 'http://localhost:3100',
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // `mobile` roda só os specs `*.mobile.spec.ts` em um Pixel 7 (RNF07); `chromium` roda o resto.
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /\.mobile\.spec\.ts$/ },
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, testMatch: /\.mobile\.spec\.ts$/ },
+  ],
 });
 // #endregion

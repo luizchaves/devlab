@@ -27,7 +27,7 @@ export function Dialog({ open, onOpenChange, title, description, children, class
         <BaseDialog.Viewport className="fixed inset-0 grid place-items-center overflow-y-auto p-4">
         <BaseDialog.Popup
           className={cn(
-            'w-[28rem] max-w-full rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl transition-[scale,opacity] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 dark:border-slate-800 dark:bg-slate-900 dark:text-white',
+            'w-full max-w-[28rem] rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl transition-[scale,opacity] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 dark:border-slate-800 dark:bg-slate-900 dark:text-white',
             className
           )}
         >

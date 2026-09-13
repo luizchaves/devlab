@@ -11,7 +11,7 @@ export function PortfolioKpis({ totals }: { totals: PortfolioTotals }) {
   const positive = totals.unrealized >= 0;
 
   return (
-    <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <dl className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       <Kpi label="Valor atual">
         <Money value={totals.value} data-kpi="value" />
       </Kpi>
@@ -35,9 +35,9 @@ export function PortfolioKpis({ totals }: { totals: PortfolioTotals }) {
 
 function Kpi({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
       <dt className="text-xs font-semibold tracking-wider text-slate-500 uppercase">{label}</dt>
-      <dd className={cn('mt-2 text-2xl font-bold', className)}>{children}</dd>
+      <dd className={cn('mt-2 text-lg font-bold sm:text-2xl', className)}>{children}</dd>
     </div>
   );
 }

@@ -25,7 +25,11 @@ raiz do DevLab.
 8. **UI acessível**: Base UI para diálogo, menu, select e afins; Lucide para ícones;
    `aria-label` em botão sem texto; CVA + `tailwind-merge` para variantes.
 9. **Validação com Zod em `src/core/`**: o mesmo schema vale no cliente e na Server Action.
-10. **Banco e arquivos na stack local do Supabase**: Prisma cuida das migrações
+10. **Mobile-first (RNF07)**: toda tela nova precisa caber em 360 px sem rolagem
+    horizontal; tabela nova usa `hideBelow` nas colunas não essenciais; botão de ação tem
+    pelo menos 44 px em telas de toque; cada página nova entra em
+    `tests/e2e/responsive.mobile.spec.ts`.
+11. **Banco e arquivos na stack local do Supabase**: Prisma cuida das migrações
     (`prisma/migrations`); a pasta `supabase/` só tem o `config.toml`. Storage é acessado
     com a service role, só no servidor.
 
@@ -36,7 +40,7 @@ raiz do DevLab.
 | `unit` | `src/**/*.test.ts(x)` | jsdom |
 | `browser` | `src/components/ui/*.browser.test.tsx` | Chromium via `@vitest/browser-playwright`, com `app/globals.css` carregado |
 | `integration` | `tests/integration/*.integration.test.ts` | Prisma real no schema `integration`; `@/server/auth` simulado por `vi.mock` |
-| `e2e` | `tests/e2e/*.spec.ts` | Playwright contra `next dev --port 3100`, schema `e2e`, modo serial |
+| `e2e` | `tests/e2e/*.spec.ts` | Playwright contra `next dev --port 3100`, schema `e2e`, modo serial; `*.mobile.spec.ts` roda no projeto `mobile` (Pixel 7) |
 
 Regras: o título do teste leva o critério (`CA03.4 — …`); um critério novo nasce com seu
 teste; `pnpm test` e `pnpm test:e2e` precisam da stack (`supabase start`). O Next não

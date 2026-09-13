@@ -53,8 +53,8 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="flex flex-wrap items-center gap-3 text-2xl font-bold">
-            <span data-field="name">{asset.name}</span>
+          <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xl font-bold">
+            <span data-field="name" className="break-words">{asset.name}</span>
             <span data-field="ticker" className="text-xl font-normal text-slate-400">
               {asset.ticker}
             </span>
@@ -66,7 +66,7 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
             <strong data-field="issuer">{asset.issuer ?? '—'}</strong>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Button variant="secondary" onClick={refreshQuote} pending={updateQuotes.isPending} data-update-price>
             <RefreshCw className="size-4" aria-hidden /> {isQuotable(asset) ? 'Atualizar cotação' : 'Atualizar saldo'}
           </Button>
@@ -76,7 +76,7 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
         </div>
       </header>
 
-      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Kpi label="Tempo de investimento" sub={duration.subtitle}>
           <span data-kpi="duration">{duration.text}</span>
         </Kpi>
@@ -114,9 +114,9 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
 
 function Kpi({ label, sub, className, children }: { label: string; sub?: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
       <dt className="text-xs font-semibold tracking-wider text-slate-500 uppercase">{label}</dt>
-      <dd className={cn('mt-2 text-2xl font-bold', className)}>{children}</dd>
+      <dd className={cn('mt-2 text-lg font-bold sm:text-2xl', className)}>{children}</dd>
       {sub && <dd className="mt-1 text-xs text-slate-500">{sub}</dd>}
     </div>
   );

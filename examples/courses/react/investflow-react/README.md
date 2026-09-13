@@ -77,7 +77,7 @@ tests/e2e/           Playwright contra `next dev` na porta 3100, schema `e2e`
 | `unit` | `src/**/*.test.ts(x)` (jsdom) | `core`, hooks, stores e utilitários |
 | `browser` | `src/components/ui/*.browser.test.tsx` (Vitest Browser Mode, Chromium real) | primitivas de UI: papéis, rótulos, foco, teclado |
 | `integration` | `tests/integration/*.integration.test.ts` | rotas e serviços com Prisma real, sessão simulada |
-| `e2e` | `tests/e2e/*.spec.ts` | jornadas completas no navegador |
+| `e2e` | `tests/e2e/*.spec.ts` | jornadas completas no navegador; `*.mobile.spec.ts` roda em um Pixel 7 e prova o design responsivo (RNF07) |
 
 ```bash
 pnpm test              # unit + browser + integration

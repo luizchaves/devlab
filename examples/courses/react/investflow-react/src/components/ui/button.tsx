@@ -19,10 +19,11 @@ export const buttonVariants = cva(
         danger: 'bg-rose-600 text-white hover:bg-rose-500',
       },
       size: {
-        sm: 'h-8 px-3 text-xs',
-        md: 'h-10 px-4',
+        sm: 'h-9 px-3 text-xs',
+        // Alvos de toque de pelo menos 44 px em telas de toque (CA12.4).
+        md: 'h-11 px-4 md:h-10',
         lg: 'h-12 px-6 text-base',
-        icon: 'size-10',
+        icon: 'size-11 md:size-10',
       },
     },
     defaultVariants: { variant: 'primary', size: 'md' },

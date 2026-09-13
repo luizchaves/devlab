@@ -53,7 +53,7 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
           <h1 className="text-2xl font-bold">Carteira</h1>
           <p className="text-sm text-slate-500">Seus ativos, posições e resultado.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Button variant="secondary" onClick={refreshQuotes} pending={updateQuotes.isPending} data-update-quotes>
             <RefreshCw className="size-4" aria-hidden /> Atualizar cotações
           </Button>

@@ -33,11 +33,12 @@ export function TransactionsTable({ transactions, currency }: { transactions: Tr
     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <table className="w-full text-sm">
         <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500 uppercase dark:bg-slate-800/50">
+          {/* Preço some abaixo de `md`; total e posição ficam, que é o que se lê no celular (CA12.3). */}
           <tr>
             <th className="px-3 py-2.5">Data</th>
             <th className="px-3 py-2.5">Tipo</th>
             <th className="px-3 py-2.5 text-right">Quantidade</th>
-            <th className="px-3 py-2.5 text-right">Preço</th>
+            <th className="hidden px-3 py-2.5 text-right md:table-cell">Preço</th>
             <th className="px-3 py-2.5 text-right">Total</th>
             <th className="px-3 py-2.5 text-right">Posição</th>
           </tr>
@@ -50,7 +51,7 @@ export function TransactionsTable({ transactions, currency }: { transactions: Tr
                 <span className={t.type === 'sell' ? 'text-rose-600' : t.type === 'buy' ? 'text-emerald-600' : 'text-sky-600'}>{TYPE_LABELS[t.type]}</span>
               </td>
               <td className="px-3 py-2.5 text-right">{t.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}</td>
-              <td className="px-3 py-2.5 text-right">
+              <td className="hidden px-3 py-2.5 text-right md:table-cell">
                 <Money value={t.price} currency={currency} />
               </td>
               <td className="px-3 py-2.5 text-right">

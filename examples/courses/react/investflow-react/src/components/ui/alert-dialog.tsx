@@ -24,13 +24,15 @@ export function AlertDialog({ open, onOpenChange, title, description, confirmLab
       <BaseAlertDialog.Portal>
         <BaseAlertDialog.Backdrop className="fixed inset-0 bg-slate-950/50" />
         <BaseAlertDialog.Viewport className="fixed inset-0 grid place-items-center p-4">
-          <BaseAlertDialog.Popup className="w-[26rem] max-w-full rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-white">
+          <BaseAlertDialog.Popup className="w-full max-w-[26rem] rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-white">
             <BaseAlertDialog.Title className="text-lg font-bold">{title}</BaseAlertDialog.Title>
             <BaseAlertDialog.Description className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {description}
             </BaseAlertDialog.Description>
             <div className="mt-6 flex justify-end gap-3">
-              <BaseAlertDialog.Close render={<Button variant="secondary" />}>Cancelar</BaseAlertDialog.Close>
+              <BaseAlertDialog.Close render={<Button variant="secondary" />} nativeButton>
+                Cancelar
+              </BaseAlertDialog.Close>
               <Button variant="danger" pending={pending} onClick={onConfirm}>
                 {confirmLabel}
               </Button>

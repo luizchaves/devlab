@@ -17,9 +17,9 @@ export function UserMenu({ name, avatarUrl }: UserMenuProps) {
 
   return (
     <Menu.Root>
-      <Menu.Trigger className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">
+      <Menu.Trigger aria-label={`Menu de ${firstName}`} className="flex items-center gap-2 rounded-full py-1 pr-2 pl-1 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">
         <Avatar name={name} avatarUrl={avatarUrl} />
-        <span>{firstName}</span>
+        <span className="hidden sm:inline">{firstName}</span>
         <ChevronDown className="size-4" aria-hidden />
       </Menu.Trigger>
       <Menu.Portal>
@@ -35,6 +35,7 @@ export function UserMenu({ name, avatarUrl }: UserMenuProps) {
             <form action={signOutAction}>
               <Menu.Item
                 render={<button type="submit" />}
+                nativeButton
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-rose-600 data-highlighted:bg-rose-50 dark:data-highlighted:bg-rose-950"
               >
                 <LogOut className="size-4" aria-hidden /> Sair

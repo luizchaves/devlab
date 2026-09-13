@@ -39,9 +39,9 @@ const columns = [
     id: 'ticker',
     header: 'Ativo',
     cell: ({ row }) => (
-      <Link href={`/assets/${row.original.asset.id}`} className="group block">
-        <span className="font-bold text-slate-900 group-hover:text-emerald-700 dark:text-white">{row.original.asset.ticker}</span>
-        <span className="block max-w-48 truncate text-xs text-slate-500">{row.original.asset.name}</span>
+      <Link href={`/assets/${row.original.asset.id}`} className="group block max-w-32 sm:max-w-none">
+        <span className="block truncate font-bold text-slate-900 group-hover:text-emerald-700 dark:text-white">{row.original.asset.ticker}</span>
+        <span className="block truncate text-xs text-slate-500 sm:max-w-48">{row.original.asset.name}</span>
       </Link>
     ),
   }),
@@ -49,34 +49,37 @@ const columns = [
     id: 'category',
     header: 'Categoria',
     cell: ({ getValue }) => <Badge tone={getValue()}>{CATEGORY_LABELS[getValue()]}</Badge>,
+    meta: { hideBelow: 'md' },
   }),
   helper.accessor((row) => row.asset.broker?.name ?? '', {
     id: 'broker',
     header: 'Corretora',
     cell: ({ getValue }) => <span className="text-slate-600 dark:text-slate-300">{getValue() || '—'}</span>,
+    meta: { hideBelow: 'lg' },
   }),
   helper.accessor((row) => row.asset.issuer ?? '', {
     id: 'issuer',
     header: 'Emissor',
     cell: ({ getValue }) => <span className="text-slate-600 dark:text-slate-300">{getValue() || '—'}</span>,
+    meta: { hideBelow: 'xl' },
   }),
   helper.accessor((row) => row.position.quantity, {
     id: 'quantity',
     header: 'Qtd.',
     cell: ({ getValue }) => getValue().toLocaleString('pt-BR', { maximumFractionDigits: 8 }),
-    meta: { numeric: true },
+    meta: { numeric: true, hideBelow: 'md' },
   }),
   helper.accessor((row) => row.position.averagePrice, {
     id: 'averagePrice',
     header: 'Preço médio',
     cell: ({ row }) => <Money value={row.original.position.averagePrice} currency={row.original.asset.currency} />,
-    meta: { numeric: true },
+    meta: { numeric: true, hideBelow: 'lg' },
   }),
   helper.accessor((row) => row.asset.currentPrice ?? -Infinity, {
     id: 'currentPrice',
     header: 'Cotação',
     cell: ({ row }) => <Money value={row.original.asset.currentPrice} currency={row.original.asset.currency} />,
-    meta: { numeric: true },
+    meta: { numeric: true, hideBelow: 'sm' },
   }),
   helper.accessor((row) => row.position.valueBRL ?? -Infinity, {
     id: 'value',
@@ -96,6 +99,19 @@ const columns = [
   }),
 ];
 // #endregion
+
+/**
+ * Colunas essenciais (ativo, valor, rentabilidade, ações) aparecem em qualquer
+ * largura; as demais entram a partir do breakpoint de `hideBelow` (CA12.3).
+ */
+const HIDE_BELOW: Record<Breakpoint, string> = {
+  sm: 'hidden sm:table-cell',
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+  xl: 'hidden xl:table-cell',
+};
+
+const responsiveClass = (hideBelow?: Breakpoint) => (hideBelow ? HIDE_BELOW[hideBelow] : undefined);
 
 // #region table
 export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
@@ -118,13 +134,13 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id}>
               {group.headers.map((header) => {
-                const numeric = Boolean(header.column.columnDef.meta?.numeric);
+                const meta = header.column.columnDef.meta;
                 const sorted = header.column.getIsSorted();
                 return (
                   <th
                     key={header.id}
                     aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
-                    className={cn('px-3 py-2.5', numeric ? 'text-right' : 'text-left')}
+                    className={cn('px-2 py-2.5 sm:px-3', meta?.numeric ? 'text-right' : 'text-left', responsiveClass(meta?.hideBelow))}
                   >
                     <button
                       type="button"
@@ -137,7 +153,7 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
                   </th>
                 );
               })}
-              <th className="px-3 py-2.5 text-center">Ações</th>
+              <th className="px-1 py-2.5 text-center sm:px-3">Ações</th>
             </tr>
           ))}
         </thead>
@@ -145,15 +161,18 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
           {table.getRowModel().rows.map((row) => (
             <tr key={row.id} data-ticker={row.original.asset.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className={cn('px-3 py-2.5', cell.column.columnDef.meta?.numeric && 'text-right tabular-nums')}>
+                <td
+                  key={cell.id}
+                  className={cn('px-2 py-2.5 sm:px-3', cell.column.columnDef.meta?.numeric && 'text-right tabular-nums', responsiveClass(cell.column.columnDef.meta?.hideBelow))}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
-              <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                <Button variant="ghost" size="icon" aria-label={`Editar ${row.original.asset.ticker}`} onClick={() => onEdit(row.original.asset)}>
+              <td className="px-1 py-2.5 text-center whitespace-nowrap sm:px-3">
+                <Button variant="ghost" size="icon" className="size-9 md:size-10" aria-label={`Editar ${row.original.asset.ticker}`} onClick={() => onEdit(row.original.asset)}>
                   <Pencil className="size-4" aria-hidden />
                 </Button>
-                <Button variant="ghost" size="icon" aria-label={`Excluir ${row.original.asset.ticker}`} onClick={() => onDelete(row.original.asset)}>
+                <Button variant="ghost" size="icon" className="size-9 md:size-10" aria-label={`Excluir ${row.original.asset.ticker}`} onClick={() => onDelete(row.original.asset)}>
                   <Trash2 className="size-4 text-rose-600" aria-hidden />
                 </Button>
               </td>
@@ -166,9 +185,13 @@ export function AssetsTable({ assets, onEdit, onDelete }: AssetsTableProps) {
 }
 // #endregion
 
+type Breakpoint = 'sm' | 'md' | 'lg' | 'xl';
+
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- assinatura exigida pela biblioteca
   interface ColumnMeta<TData, TValue> {
     numeric?: boolean;
+    /** Esconde a coluna abaixo deste breakpoint do Tailwind. */
+    hideBelow?: Breakpoint;
   }
 }
