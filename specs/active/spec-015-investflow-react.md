@@ -306,7 +306,7 @@ with `enableSortingRemoval: false`, `sortDescFirst` on numeric columns and
 `sortUndefined: 'last'` for assets without a quote. A closed position is now worth zero
 even without a quote, so it sorts first ascending, as in the vanilla.
 
-Phase 8: 113 Vitest tests (65 unit, 10 browser, 38 integration) and 31 Playwright tests
+Phase 8: 113 Vitest tests (65 unit, 10 browser, 38 integration) and 32 Playwright tests
 green. The dividend history rides on the asset payload (`dividends` array), so the
 dashboard, analytics and the asset page compute received dividends with the same
 `core/dividends.ts` function; the `fake` provider ships three events for `HGLG11` so the
