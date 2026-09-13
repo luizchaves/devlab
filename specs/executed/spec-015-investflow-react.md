@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0 to 10 done; Phase 11 pending)
+Status: **Completed**
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -236,7 +236,7 @@ layers green.
 - `/profile` with avatar, user menu, theme, hide values, password visibility, build with
   security headers; CA11.1–CA11.13.
 
-### Phase 11 · Guide section
+### Phase 11 · Guide section — done
 
 - `src/content/docs/courses/react/practice/investflow/` with an index and one page per
   phase, `<ProjectLinks>` and `<SourceCode>` cuts; sidebar in `astro.config.mjs`; entry
@@ -263,7 +263,30 @@ and `grep -r "CA0N\." src tests` listing every criterion of the phase in a test 
 
 ## Result
 
-_To be filled when the spec is executed._
+Delivered on 2026-09-13, in 16 commits from `ed1bcfc7` to `d24aa0e6`.
+
+**Project** (`examples/courses/react/investflow-react/`): 22 functional and 6
+non-functional requirements of the vanilla backlog implemented on Next.js 16, React 19,
+NextAuth v5, Prisma 7 on the local Supabase Postgres, Supabase Storage, TanStack Query and
+Table, Zustand, Base UI, CVA, Tailwind CSS v4, Motion, Sonner and cmdk; plus RNF07
+(responsive design) with criteria CA12.1–CA12.4. Every criterion of the backlog that
+applies to the React stack is named in a test title: `grep -rn "CA0" src tests` lists 111
+criteria across the layers. Final counts: **123 Vitest tests** (70 unit, 10 browser, 43
+integration), **2 build tests** over the real `next build`, **36 Playwright tests** (33 on
+desktop Chromium, 3 on a Pixel 7); `pnpm lint`, `pnpm typecheck`, `pnpm test`,
+`pnpm test:e2e` and `pnpm test:build` green.
+
+**Guide** (`src/content/docs/courses/react/practice/investflow/`): 11 pages (overview and
+one per phase), registered in the sidebar, in the React guide index and in
+`src/lib/projects.ts` (new `react` category); `pnpm validate` green (lint, check, build,
+check:links, check:doc-lines). No slides or mind maps, matching the vanilla InvestFlow
+pages, which have none either.
+
+Deviations from the plan: Phase 3b (RNF07) was added at the author's request; the
+`ExchangeRate` model arrived in Phase 3 instead of Phase 9 because the quote run writes it;
+the build test folder is `tests/deploy/` (the DevLab glob ignores `build/`); dependencies
+beyond the requested list are `@prisma/adapter-pg` + `pg`, `@supabase/supabase-js`
+(server only), `zod`, `@vitest/browser-playwright` + `vitest-browser-react` and `jsdom`.
 
 Phase 0: scaffold moved to `examples/courses/react/investflow-react/` (48 files), vanilla
 trail restored to its state before the sprint-12 edits (5 files reverted, 1 deleted).

@@ -4,7 +4,7 @@ Instruções para agentes de IA que trabalham no projeto **InvestFlow React**.
 
 O `README.md` é a documentação humana; este arquivo registra as decisões de arquitetura
 que devem ser preservadas. A spec de execução, com o mapeamento de cada requisito do
-InvestFlow vanilla para este projeto, é `specs/active/spec-015-investflow-react.md` na
+InvestFlow vanilla para este projeto, é `specs/executed/spec-015-investflow-react.md` na
 raiz do DevLab.
 
 ## Arquitetura

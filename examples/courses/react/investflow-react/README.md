@@ -6,7 +6,7 @@ Prisma sobre o PostgreSQL da stack local do Supabase, Supabase Storage para arqu
 TanStack para dados e tabelas, e testes em três camadas mais E2E.
 
 A spec com o mapeamento requisito → fase está em
-[`specs/active/spec-015-investflow-react.md`](../../../../specs/active/spec-015-investflow-react.md)
+[`specs/executed/spec-015-investflow-react.md`](../../../../specs/executed/spec-015-investflow-react.md)
 (na raiz do DevLab).
 
 ## Stack
