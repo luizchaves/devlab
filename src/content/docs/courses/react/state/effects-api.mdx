@@ -1,0 +1,222 @@
+---
+title: "React: Ciclo de Vida e APIs"
+description: "Ciclo de vida em React moderno, useEffect, requisições assíncronas, estados de carregamento e erro, cancelamento com AbortController e integração com APIs externas."
+course: react
+sidebar:
+  label: "Ciclo de Vida e APIs"
+---
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Este tópico aprofunda o uso de efeitos em React para sincronizar componentes com sistemas
+externos: APIs HTTP, timers, eventos do navegador e armazenamento. O objetivo é evitar efeitos
+desnecessários e escrever integrações que falham de forma clara.
+
+## Objetivo
+
+Compreender ciclo de vida em React moderno como uma sequência de renderizações e sincronizações,
+aplicando `useEffect` para integrar APIs externas com estados explícitos de carregamento, erro e
+sucesso. Ao final do tópico, o leitor deve ser capaz de:
+
+- Explicar quando um efeito deve existir.
+- Modelar estados de carregamento, erro e dados.
+- Fazer requisições assíncronas com `fetch`.
+- Cancelar requisições obsoletas com `AbortController`.
+- Evitar atualização de estado depois que o componente mudou de contexto.
+- Decidir quando usar uma biblioteca como TanStack Query ou SWR.
+
+## Ciclo de Vida Moderno
+
+Em componentes de função, o ciclo de vida é descrito em torno da renderização. O componente roda,
+React atualiza a tela e, depois, os efeitos sincronizam o componente com sistemas externos.
+
+```txt title="Fluxo de renderização"
+estado ou props mudam
+-> componente renderiza JSX
+-> React atualiza o DOM
+-> efeitos sincronizam com sistemas externos
+-> limpeza roda antes do próximo efeito ou ao desmontar
+```
+
+O ponto principal é não usar `useEffect` para copiar dados que poderiam ser calculados durante a
+renderização.
+
+<Aside type="note" title="Efeito é uma ponte, não uma gaveta de lógica">
+  Use efeito quando o componente conversa com algo fora do React: rede, timer, evento global,
+  armazenamento, WebSocket, biblioteca de mapa ou API do navegador. Para filtros, totais e
+  formatações, calcule durante a renderização ou use `useMemo` se houver custo real.
+</Aside>
+
+## Buscando Dados de uma API
+
+Uma tela que busca dados precisa representar pelo menos três estados: carregando, erro e dados
+carregados. Esconder erro no console torna a interface inacessível para o usuário.
+
+```jsx title="Requisição com loading e erro"
+import { useEffect, useState } from 'react';
+
+function PostsPage() {
+  const [posts, setPosts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function loadPosts() {
+      try {
+        const response = await fetch('https://jsonplaceholder.typicode.com/posts');
+
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar os posts.');
+        }
+
+        const data = await response.json();
+        setPosts(data.slice(0, 5));
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadPosts();
+  }, []);
+
+  if (isLoading) return <p>Carregando...</p>;
+  if (error) return <p role="alert">{error}</p>;
+
+  return posts.map((post) => <article key={post.id}>{post.title}</article>);
+}
+```
+
+O atributo `role="alert"` ajuda tecnologias assistivas a perceberem que a mensagem de erro é
+importante e mudou o estado da tela.
+
+## Cancelamento
+
+Se uma prop muda rapidamente, uma requisição antiga pode responder depois da nova. O
+`AbortController` cancela a requisição obsoleta e evita atualizar a tela com dados atrasados.
+
+```jsx title="Cancelamento com AbortController"
+useEffect(() => {
+  const controller = new AbortController();
+
+  async function loadUser() {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        signal: controller.signal,
+      });
+      const data = await response.json();
+      setUser(data);
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setError('Falha ao carregar usuário.');
+      }
+    }
+  }
+
+  loadUser();
+
+  return () => controller.abort();
+}, [userId]);
+```
+
+<Aside type="caution" title="Dica de IA: Peça o caso de corrida">
+  Um exemplo de `fetch` sem cancelamento funciona no caminho feliz, mas pode mostrar dados antigos
+  quando o usuário troca de rota ou filtro rapidamente.
+
+  **Prompt:** *"Reescreva este `useEffect` com `fetch` para tratar `loading`, `error`, `response.ok` e cancelamento com `AbortController`; explique como testar duas mudanças rápidas de `userId`."*
+</Aside>
+
+## Quando Usar Bibliotecas de Dados
+
+Para uma ou duas telas, `useEffect` com `fetch` ensina bem o fluxo. Em aplicações maiores, uma
+biblioteca de dados de servidor evita repetir cache, revalidação, deduplicação e retry.
+
+| Abordagem | Use quando | Cuidado |
+| --------- | ---------- | ------- |
+| `useEffect` + `fetch` | Estudo, telas simples, controle explícito | Você implementa cache e revalidação |
+| TanStack Query | Muitos dados remotos e cache por chave | Exige entender chaves e invalidação |
+| SWR | Dados remotos com revalidação simples | Convenções próprias para cache |
+| Redux Toolkit Query | App já usa Redux Toolkit | Acopla dados remotos ao ecossistema Redux |
+
+## Executando
+
+Teste a integração em uma aplicação local pequena. O fluxo abaixo funciona bem em Vite ou em um
+componente client-side de Next.js.
+
+<Steps>
+
+1. Crie um componente `PostsPage` com os estados `posts`, `isLoading` e `error`.
+2. Use `fetch('https://jsonplaceholder.typicode.com/posts')` dentro de um `useEffect`.
+3. Renderize uma mensagem de carregamento antes dos dados.
+4. Renderize erro com `role="alert"` quando a resposta não for `ok`.
+5. Altere a URL para uma rota inválida e confirme que a mensagem de erro aparece.
+
+</Steps>
+
+## Exercício
+
+Crie uma busca de usuários que recebe `query` por estado. A tela deve exibir carregamento, erro e
+uma lista vazia quando nenhum resultado for encontrado.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Use `query` como dependência do efeito, limpe o erro antes de cada busca, cancele a requisição
+  anterior no retorno do efeito e renderize `Nenhum resultado encontrado` quando a lista final
+  estiver vazia.
+</details>
+
+## Desafio
+
+Substitua a busca manual por uma biblioteca de dados, como TanStack Query ou SWR. Escreva quais
+linhas de código desapareceram e quais novas decisões apareceram.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  A biblioteca remove estados manuais de carregamento e cache simples, mas exige escolher chave da
+  query, política de retry, tempo de cache e momento de invalidação.
+</details>
+
+## Perguntas de revisão
+
+### Efeitos
+
+1. **Quando `useEffect` é a ferramenta certa?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando o componente precisa sincronizar com algo externo ao React, como rede, timer,
+  armazenamento ou eventos do navegador.
+</details>
+
+2. **Por que tratar `response.ok` em uma requisição com `fetch`?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque `fetch` só rejeita a promessa em falhas de rede. Respostas HTTP como `404` e `500`
+  precisam ser tratadas manualmente.
+</details>
+
+### Erros
+
+3. **Por que usar `role="alert"` em mensagens de erro importantes?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Para ajudar tecnologias assistivas a anunciarem que a tela mudou para um estado de erro.
+</details>
+
+## Referências
+
+- [Synchronizing with Effects | React](https://react.dev/learn/synchronizing-with-effects)
+- [You Might Not Need an Effect | React](https://react.dev/learn/you-might-not-need-an-effect)
+- [Using the Fetch API | MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
+
+## Próximo tópico
+
+[Estado Global](../state-management/): compare Context API, Redux Toolkit e alternativas para dados
+compartilhados.

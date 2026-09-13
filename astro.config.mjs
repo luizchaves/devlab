@@ -1901,12 +1901,26 @@ export default defineConfig({
               label: 'Fundamentos',
               items: [
                 { label: 'Introdução', link: '/courses/react/basics/introduction/' },
+                { label: 'JSX e Componentes', link: '/courses/react/basics/components-jsx/' },
+                { label: 'Props e Estado', link: '/courses/react/basics/props-state/' },
                 { label: 'Estilos', link: '/courses/react/basics/style/' },
               ],
             },
             {
               label: 'Estado e Efeitos',
-              items: [{ label: 'Hooks', link: '/courses/react/state/hooks/' }],
+              items: [
+                { label: 'Hooks', link: '/courses/react/state/hooks/' },
+                { label: 'Ciclo de Vida e APIs', link: '/courses/react/state/effects-api/' },
+                { label: 'Estado Global', link: '/courses/react/state/state-management/' },
+              ],
+            },
+            {
+              label: 'Navegação',
+              items: [{ label: 'Roteamento', link: '/courses/react/routing/routing/' }],
+            },
+            {
+              label: 'Prática',
+              items: [{ label: 'Projeto Final', link: '/courses/react/practice/project/' }],
             },
             {
               label: 'Autenticação',

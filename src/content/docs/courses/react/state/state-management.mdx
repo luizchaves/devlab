@@ -1,0 +1,200 @@
+---
+title: "React: Gerenciamento de Estado"
+description: "Gerenciamento de estado em React: estado local, elevação de estado, Context API, useReducer, Redux Toolkit, dados de servidor e critérios de escolha."
+course: react
+sidebar:
+  label: "Estado Global"
+---
+import { Aside } from '@astrojs/starlight/components';
+
+Este tópico organiza as opções de gerenciamento de estado em React. A pergunta não é “qual
+biblioteca usar?”, mas “qual é o menor mecanismo que deixa o fluxo de dados claro?”.
+
+## Objetivo
+
+Escolher estratégias de estado compatíveis com a complexidade do projeto, começando pelo estado
+local e avançando para Context API, reducers, Redux Toolkit e bibliotecas de dados de servidor.
+Ao final do tópico, o leitor deve ser capaz de:
+
+- Diferenciar estado local, estado compartilhado e estado remoto.
+- Resolver prop drilling com composição, elevação de estado ou Context API.
+- Combinar `useReducer` e Context API para estado global simples.
+- Explicar vantagens e desvantagens de Redux Toolkit.
+- Evitar usar estado global para dados que pertencem a uma única tela.
+
+## Escada de Estado
+
+Comece pequeno. A tabela abaixo mostra uma progressão segura antes de instalar bibliotecas ou
+criar uma store global.
+
+| Nível | Técnica | Use quando |
+| ----- | ------- | ---------- |
+| Local | `useState` | um componente controla o dado |
+| Compartilhado próximo | Elevação de estado | irmãos precisam do mesmo dado |
+| Compartilhado distante | Context API | muitos níveis leem o mesmo dado |
+| Transições complexas | `useReducer` | várias ações mudam o mesmo objeto |
+| Global estruturado | Redux Toolkit | muitos fluxos, debug e middleware importam |
+| Servidor | TanStack Query, SWR, RTK Query | dado remoto precisa de cache e revalidação |
+
+## Context API
+
+Context API distribui um valor para componentes distantes sem passar props manualmente por todos
+os níveis intermediários. Ela funciona bem para tema, usuário autenticado, idioma e preferências.
+
+```jsx title="Contexto de usuário"
+import { createContext, useContext, useState } from 'react';
+
+const UserContext = createContext(null);
+
+export function UserProvider({ children }) {
+  const [user, setUser] = useState(null);
+
+  return (
+    <UserContext.Provider value={{ user, setUser }}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+
+export function useUser() {
+  const context = useContext(UserContext);
+  if (!context) throw new Error('useUser deve ser usado dentro de UserProvider');
+  return context;
+}
+```
+
+O hook `useUser()` cria uma borda clara: componentes não precisam saber onde o contexto foi
+definido, mas recebem erro cedo se forem usados fora do provider.
+
+## Context API com `useReducer`
+
+Quando o estado compartilhado tem regras de transição, `useReducer` deixa as mudanças mais
+auditáveis.
+
+```jsx title="Reducer com contexto"
+function cartReducer(state, action) {
+  if (action.type === 'add-item') {
+    return { ...state, items: [...state.items, action.item] };
+  }
+
+  if (action.type === 'clear') {
+    return { ...state, items: [] };
+  }
+
+  return state;
+}
+```
+
+Essa combinação cobre muitos projetos pequenos e médios sem Redux. O custo é que você precisa
+organizar providers e evitar que um contexto enorme faça a aplicação renderizar mais do que o
+necessário.
+
+## Redux Toolkit
+
+Redux Toolkit é indicado quando a aplicação tem muitos fluxos de atualização, equipes maiores,
+necessidade de debug com histórico de ações ou middleware para efeitos. Ele traz convenções, mas
+também adiciona uma camada a mais para aprender e manter.
+
+| Critério | Context API | Redux Toolkit |
+| -------- | ----------- | ------------- |
+| Curva inicial | menor | maior |
+| Debug de ações | manual | excelente com DevTools |
+| Estado por domínio | possível, mas artesanal | padrão natural com slices |
+| Middleware | não é foco | parte do ecossistema |
+| Melhor uso | tema, auth, preferências, estado simples | carrinho, editor, fluxo complexo, app grande |
+
+<Aside type="tip" title="Dica de IA: Peça a justificativa da escolha">
+  Quando você pede “use Redux”, a IA tende a criar store, slice e provider mesmo para um caso
+  simples. Peça que ela prove que o problema precisa disso.
+
+  **Prompt:** *"Analise este fluxo de estado React e compare `useState`, Context API com `useReducer` e Redux Toolkit; recomende a menor solução suficiente e liste dois sinais de que eu deveria migrar depois."*
+</Aside>
+
+## Estado Remoto não é Estado Global
+
+Dados que vêm do servidor têm problemas próprios: cache, revalidação, retry, paginação,
+invalidação e concorrência. Guardar tudo em Context ou Redux pode duplicar trabalho que uma
+biblioteca de dados já resolve.
+
+```jsx title="Separando estado de UI e dados remotos"
+function InvestmentsPage() {
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const { data, isLoading, error } = useInvestmentsQuery();
+
+  const visibleInvestments = filterByCategory(data ?? [], selectedCategory);
+
+  return <InvestmentList investments={visibleInvestments} />;
+}
+```
+
+No exemplo, `selectedCategory` é estado de UI. Os investimentos são dados remotos, e podem ser
+gerenciados por uma biblioteca especializada.
+
+## Exercício
+
+Descreva a estratégia de estado para uma aplicação de estudos com usuário logado, tema escuro,
+lista de tarefas e busca em API externa. Classifique cada dado como local, contexto, reducer,
+Redux ou dado remoto.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Tema e usuário podem ficar em Context API. Campo de busca fica em estado local. Tarefas com
+  várias ações podem usar `useReducer`. Resultado da API é dado remoto e combina melhor com uma
+  biblioteca de dados quando houver cache.
+</details>
+
+## Desafio
+
+Implemente um `ThemeProvider` com Context API e um hook `useTheme()`. Depois escreva dois testes
+manuais: trocar tema e tentar usar o hook fora do provider.
+
+<details>
+  <summary>Possível resposta</summary>
+
+  O provider guarda `theme` com `useState`, expõe `toggleTheme` e o hook lança erro quando
+  `useContext(ThemeContext)` retorna `null`.
+</details>
+
+## Perguntas de revisão
+
+### Decisão
+
+1. **Por que Context API não substitui Redux em todos os cenários?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Porque Context distribui valores, mas não oferece por padrão histórico de ações, middleware,
+  DevTools e organização por slices.
+</details>
+
+2. **Qual é o risco de colocar todo dado remoto em estado global manual?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Você passa a implementar cache, erro, carregamento, revalidação e invalidação por conta própria.
+</details>
+
+### Arquitetura
+
+3. **Quando elevar estado é suficiente?**
+
+<details>
+  <summary>Possível resposta</summary>
+
+  Quando poucos componentes próximos precisam compartilhar o mesmo dado e o ancestral comum ainda
+  consegue coordenar o fluxo com clareza.
+</details>
+
+## Referências
+
+- [Passing Data Deeply with Context | React](https://react.dev/learn/passing-data-deeply-with-context)
+- [Scaling Up with Reducer and Context | React](https://react.dev/learn/scaling-up-with-reducer-and-context)
+- [Redux Toolkit Documentation](https://redux-toolkit.js.org/)
+
+## Próximo tópico
+
+[Roteamento](../../routing/routing/): transforme componentes em páginas navegáveis, com parâmetros e
+layouts.
