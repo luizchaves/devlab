@@ -1,15 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/server/prisma';
 import { createUser, EmailInUseError, verifyCredentials } from '@/server/users';
 
-// O NextAuth lê cookies da requisição; aqui a sessão é simulada por módulo.
-const authMock = vi.hoisted(() => vi.fn());
-vi.mock('@/server/auth', () => ({ auth: authMock }));
+import { actAs, resetTables } from './helpers';
 
-beforeEach(async () => {
-  await prisma.user.deleteMany();
-  authMock.mockReset();
-});
+beforeEach(resetTables);
 
 describe('contas', () => {
   it('CA02.1 — um cadastro válido cria o usuário com papel de investidor e senha em hash', async () => {
@@ -42,7 +37,7 @@ describe('contas', () => {
 
 describe('GET /api/me', () => {
   it('CA02.4 — sem sessão responde 401', async () => {
-    authMock.mockResolvedValue(null);
+    actAs(null);
     const { GET } = await import('../../app/api/me/route');
 
     const response = await GET();
@@ -51,7 +46,7 @@ describe('GET /api/me', () => {
 
   it('CA02.3 — com sessão devolve o perfil sem o hash da senha', async () => {
     const user = await createUser({ name: 'Ana', email: 'ana@example.com', password: 'segredo123' });
-    authMock.mockResolvedValue({ user: { id: user.id, role: 'INVESTOR' } });
+    actAs(user);
     const { GET } = await import('../../app/api/me/route');
 
     const response = await GET();

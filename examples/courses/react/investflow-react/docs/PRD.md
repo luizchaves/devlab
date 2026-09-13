@@ -19,7 +19,7 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | ---------- | ------------- | ---- |
 | RF01 landing e simulador | `app/(public)/page.tsx`, `core/simulator.ts` | 1 ✓ |
 | RF02 conta e sessão | NextAuth Credentials, `proxy.ts`, `server/session.ts` | 1 ✓ |
-| RF03, RF08, RF08.1 carteira e detalhe | `Broker`, `Asset`, `Transaction`; `/api/assets`, `/api/transactions` | 2 |
+| RF03, RF08, RF08.1 carteira e detalhe | `Broker`, `Asset`, `Transaction`; `core/portfolio.ts`; `/api/assets`, `/api/transactions`; `/dashboard`, `/assets/[id]`; `server/seed.ts` | 2 ✓ |
 | RF04.1, RF05, RF05.1, RF18 cotações | `POST /api/quotes/update`, provedores, calendário | 3 |
 | RF04 comprovantes | Supabase Storage, URL assinada de 60 s | 4 |
 | RF06, RF07 analytics e admin | `core/returns.ts`, `/analytics`, `/admin` | 5 |

@@ -2,7 +2,8 @@
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
-    message: string
+    message: string,
+    public readonly fieldErrors: Record<string, string> = {}
   ) {
     super(message);
     this.name = 'ApiError';
@@ -17,10 +18,12 @@ export async function api<T>(input: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(response.status, body.error ?? `Erro ${response.status}`);
+    const body = (await response.json().catch(() => ({}))) as { error?: string; fieldErrors?: Record<string, string> };
+    throw new ApiError(response.status, body.error ?? `Erro ${response.status}`, body.fieldErrors);
   }
 
+  // 204 não tem corpo.
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 // #endregion

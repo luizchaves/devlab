@@ -1,24 +1,9 @@
-import { hashPassword } from '../src/server/password.ts';
 import { createPrismaClient } from '../src/server/prisma.ts';
+import { seed } from '../src/server/seed.ts';
 
-// #region seed
-/**
- * Seed público mínimo (RF08.1): um administrador demonstrativo. Nada aqui é
- * dado real; a posição fictícia entra na fase da carteira.
- */
+// `pnpm db:seed` roda este arquivo com o Node puro; a regra mora em `src/server/seed.ts`.
 const prisma = createPrismaClient();
+const { admin, asset } = await seed(prisma);
 
-const admin = await prisma.user.upsert({
-  where: { email: 'admin@example.com' },
-  update: {},
-  create: {
-    email: 'admin@example.com',
-    name: 'Administrador Demo',
-    passwordHash: hashPassword('admin12345'),
-    role: 'ADMIN',
-  },
-});
-
-console.log(`Seed aplicado: ${admin.email} (${admin.role})`);
+console.log(`Seed aplicado: ${admin.email} (${admin.role}), ativo ${asset.ticker}`);
 await prisma.$disconnect();
-// #endregion

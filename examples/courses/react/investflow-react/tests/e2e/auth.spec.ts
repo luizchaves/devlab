@@ -47,7 +47,7 @@ test.describe('landing e conta', () => {
     await page.getByRole('button', { name: 'Criar conta' }).click();
 
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByTestId('user-name')).toHaveText(account.name);
+    await expect(page.getByRole('button', { name: /Ana/ })).toBeVisible();
   });
 
   test('CA02.2 — senha errada e e-mail inexistente mostram a mesma mensagem', async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe('landing e conta', () => {
 
     // CA02.3: recarregar mantém a sessão, sem voltar ao login.
     await page.reload();
-    await expect(page.getByTestId('user-name')).toHaveText(account.name);
+    await expect(page.getByRole('button', { name: /Ana/ })).toBeVisible();
 
     // CA11.7: com sessão, a landing oferece "Acessar Carteira".
     await page.goto('/');

@@ -33,6 +33,8 @@ export default defineConfig({
           name: 'browser',
           include: ['src/**/*.browser.test.tsx'],
           setupFiles: ['tests/browser-setup.ts'],
+          // Um arquivo por vez: diálogos em iframes paralelos disputam o foco e o teste fica instável.
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,
@@ -48,6 +50,7 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/integration/**/*.integration.test.ts'],
           globalSetup: ['tests/integration/global-setup.ts'],
+          setupFiles: ['tests/integration/setup.ts'],
           env: { DATABASE_URL: databaseUrlFor('integration'), AUTH_SECRET: 'test-secret' },
           fileParallelism: false,
         },

@@ -45,19 +45,22 @@ duas podem subir ao mesmo tempo.
 | ---- | ---- | ---- |
 | `/` | landing com simulador de juros compostos | 1 |
 | `/signin`, `/signup` | conta e sessão (Server Actions + NextAuth) | 1 |
-| `/dashboard` | carteira (protegida pelo `proxy.ts`) | 1 (esqueleto), 2 |
+| `/dashboard` | carteira: KPIs, tabela (TanStack Table), cadastro, edição e exclusão de ativos | 2 |
+| `/assets/[id]` | tela do ativo por id ou ticker: posição, duração e extrato de lançamentos | 2 |
 | `/api/auth/*` | NextAuth | 1 |
 | `/api/me` | perfil da sessão | 1 |
+| `/api/assets`, `/api/assets/[id]` | carteira do dono da sessão (`GET`, `POST`, `PATCH`, `DELETE`) | 2 |
+| `/api/transactions`, `/api/transactions/[id]` | lançamentos de compra, venda e saldo | 2 |
 
 ## Estrutura
 
 ```txt
 app/                 rotas: (public) landing e conta, (private) telas com barra comum, api/
 prisma/              schema, migrations, seed
-src/core/            regras puras (simulador, validação) — sem React, sem banco
-src/server/          Prisma, NextAuth, senha, guards de sessão — só roda no servidor
-src/features/        componentes e ações de cada tela
-src/components/ui/   primitivas (Button, Input, Field, Dialog) com CVA e Base UI
+src/core/            regras puras (simulador, posição, validação): sem React, sem banco
+src/server/          Prisma, NextAuth, senha, guards, ativos, lançamentos, seed: só roda no servidor
+src/features/        componentes, hooks (React Query) e ações de cada tela
+src/components/ui/   primitivas (Button, Input, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
 src/components/      Providers, AppShell, Money, CommandPalette
 src/store/           Zustand: preferências
 tests/integration/   rotas e serviços contra o schema `integration` do Postgres
