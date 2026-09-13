@@ -1,0 +1,440 @@
+---
+title: "InvestFlow: Dólar e cripto"
+description: "Décima sprint do InvestFlow: moeda por ativo, tabela de câmbio gravada pela Edge Function, carteira consolidada em reais, custo pelo câmbio de cada compra, cripto cotada em dólar e convertida, e o calendário de mercado que evita consultar o provedor com a bolsa fechada."
+course: npm
+project: investflow-static
+sidebar:
+  label: "10. Dólar e cripto"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **10 de 11** · Nível **Avançado** · Câmbio · Cripto · Calendário de mercado
+
+Uma carteira brasileira raramente é só em real: tem um ETF americano, uma ação de tecnologia, um pouco de bitcoin. Colocar tudo na mesma tabela exige responder duas perguntas que a Sprint 3 não fez: **em que moeda** cada ativo é cotado, e **qual câmbio** usar ao somar. A resposta ingênua (converter tudo pelo dólar de hoje) atribui ao ativo um ganho que veio da moeda. Esta sprint grava a moeda por ativo, mantém uma tabela de câmbio escrita pela mesma Edge Function das cotações, converte cada compra pelo câmbio do seu mês, e ensina a função a cotar cripto (que o provedor só indexa em dólar) e a não gastar chamadas com o mercado fechado.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  Consulte [Fetch](../../../../web-api/http/fetch/) para o provedor consultado pela função e [Administração do PostgreSQL](../../../../database/postgresql/administration/) para a tabela que só o papel de serviço escreve.
+</Aside>
+
+## Objetivo
+
+Tirar a carteira do real sem duplicar cálculo. Ao final da etapa, o leitor deve ser capaz de:
+
+- Modelar moeda por ativo e uma tabela de câmbio com leitura pública e escrita privilegiada.
+- Separar, no resultado de um ativo em dólar, a valorização do ativo do efeito do câmbio.
+- Converter um ativo cotado em outra moeda dentro de uma função privilegiada, sem gravar dólar como real.
+- Decidir, por calendário, quando uma consulta ao provedor pode trazer preço novo.
+
+## Requisitos, histórias e critérios
+
+**Épico EP10 · Internacional & Cripto** › **Features FE12 · Carteira em dólar e FE13 · Cripto e calendário de mercado**
+
+| Requisito | Recorte da etapa | Estado ao final |
+| --------- | ---------------- | --------------- |
+| RF15 | Moeda por ativo, `exchange_rates`, carteira em reais. | atendido |
+| RF16 | Custo e fluxo pelo câmbio de cada mês; views convertidas; gráfico US$/R$. | atendido |
+| RF17 | Cripto via `TICKER-USD` e `BRL=X`; taxa gravada na rodada. | atendido |
+| RF18 | Calendário B3, EUA e cripto; consulta só quando pode haver preço novo. | atendido |
+| RNF02 | `exchange_rates` só é escrita pela chave de serviço. | atendido |
+| RNF03 | Taxas e preços em `numeric`. | atendido |
+
+### US25 · Ter ativos em dólar na carteira · RF15
+
+> **Como** investidor,
+> **quero** cadastrar ETFs e ações americanas em dólar,
+> **para** ver a carteira inteira em reais sem converter na calculadora.
+
+```gherkin
+Cenário: CA10.1 - Moeda por ativo
+  Quando cadastro um ativo com currency = 'EUR'
+  Então o banco recusa; só BRL e USD são aceitos
+  E renda fixa fica em BRL pelo formulário
+
+Cenário: CA10.2 - Sugestão pelo ticker
+  Quando digito VT no cadastro de um ETF
+  Então a moeda sugerida é USD; com PETR4, BRL; e posso trocar a sugestão
+
+Cenário: CA10.3 - exchange_rates e get_usd_rate
+  Então qualquer sessão lê a tabela e o authenticated não escreve nela
+  E get_usd_rate(data) devolve a taxa do dia ou a última anterior
+
+Cenário: CA10.4 - Conversão na carteira
+  Dado um ETF em USD com 10 cotas a US$ 100
+  Então os totais e o valor aparecem em R$, e preço unitário e médio em US$
+
+Cenário: CA10.5 - Fallback sem taxa
+  Dado exchange_rates vazia
+  Então o serviço devolve a taxa de referência fixa e o erro, sem quebrar a tela
+```
+
+### US26 · Separar a valorização do ativo do efeito do dólar · RF16
+
+> **Como** investidor,
+> **quero** saber quanto um ETF em dólar rendeu por si e quanto foi o câmbio,
+> **para** não atribuir ao ativo um ganho que veio da moeda.
+
+```gherkin
+Cenário: CA10.6 - Custo pelo câmbio da compra
+  Dada uma compra em janeiro a US$ 100 com câmbio 5,00
+  Então o custo em reais é R$ 500 por cota, mesmo com o dólar a 6,00 hoje
+
+Cenário: CA10.7 - Fluxo convertido
+  Então o fluxo mensal de aportes de um ativo em USD usa o câmbio do mês
+
+Cenário: CA10.8 - Views convertidas
+  Então allocation_by_origin e portfolio_evolution convertem o ativo em USD por get_usd_rate do mês
+
+Cenário: CA10.9 - Gráfico US$/R$
+  Quando clico em USD no gráfico do ativo
+  Então a série passa a ser em dólar e a URL guarda ?currency=USD
+
+Cenário: CA10.10 - Matriz do ativo
+  Então a matriz de rentabilidade do ativo desconta o fluxo em reais do mês, e o câmbio não vira aporte
+```
+
+### US27 · Cotar cripto · RF17
+
+> **Como** investidor,
+> **quero** que bitcoin e ether tenham cotação como as ações,
+> **para** ver cripto na carteira em reais sem uma planilha à parte.
+
+```gherkin
+Cenário: CA10.11 - TICKER-USD e BRL=X
+  Dado um ativo BTC em real
+  Quando a função roda
+  Então consulta BTC-USD e converte pelo par BRL=X da mesma rodada
+
+Cenário: CA10.12 - Sem câmbio, sem cotação
+  Dado o par BRL=X indisponível
+  Então a cripto fica sem cotação em vez de gravar dólar como real
+
+Cenário: CA10.13 - Taxa gravada na rodada
+  Quando uma rodada busca o câmbio
+  Então exchange_rates ganha a taxa do dia, e rodar de novo não duplica
+```
+
+### US28 · Respeitar o calendário do mercado · RF18
+
+> **Como** operador da plataforma,
+> **quero** que a função só consulte o provedor quando pode haver preço novo,
+> **para** não gastar chamadas em fins de semana, feriados e fora do pregão.
+
+```gherkin
+Cenário: CA10.14 - Horários e feriados
+  Então B3 é dia útil das 10h às 18h (São Paulo), NYSE/Nasdaq das 9h30 às 16h (Nova York), cripto 24/7
+  E Carnaval, Sexta-feira Santa, Thanksgiving e os demais feriados de cada praça são reconhecidos
+
+Cenário: CA10.15 - Fechamento salvo não consulta
+  Dado sábado com a cotação de fechamento de sexta já gravada
+  Então o provedor não é consultado
+
+Cenário: CA10.16 - Sem cotação sempre consulta
+  Dado um ativo sem cotação prévia, ou com cotação anterior à última sessão
+  Então o provedor é consultado
+```
+
+### Tasks da etapa
+
+As nove tasks partem do dado (moeda e câmbio), passam pelo cálculo e pelas views, e terminam na função.
+
+<Steps>
+
+1. **TK10-1 · `assets.currency`** (BRL/USD) e a autodetecção pelo ticker no formulário.
+2. **TK10-2 · Migration `exchange_rates`** e a função `get_usd_rate()`.
+3. **TK10-3 · Cálculo em BRL**: `summarize()` com `usdRate`, `totals()` e `services/exchange.js`.
+4. **TK10-4 · Views convertidas**: `allocation_by_origin` e `portfolio_evolution`.
+5. **TK10-5 · Valorização versus câmbio**: `summarizeInBRL()`, `monthlyFlows()`, o botão US$/R$ e a matriz do ativo.
+6. **TK10-6 · Cripto na função**: `quoteSymbol()` e `priceInAssetCurrency()`.
+7. **TK10-7 · Persistir a taxa** USD/BRL da rodada em `exchange_rates`.
+8. **TK10-8 · Calendário de mercado** e `shouldFetchFromProvider()`.
+9. **TK10-9 · Testes da sprint**.
+
+</Steps>
+
+## Dois câmbios, duas perguntas
+
+O câmbio de **hoje** responde "quanto vale a carteira agora". O câmbio de **cada compra** responde "quanto eu paguei, em reais". A diferença entre os dois é o efeito da moeda, e o InvestFlow mantém as duas contas separadas.
+
+<Mermaid title="De onde vem cada taxa e onde ela entra">
+{`
+flowchart LR
+  F["update-quotes<br/>(chave de serviço)"] -->|"BRL=X da rodada"| X[("exchange_rates<br/>USD → BRL por dia")]
+  X -->|"taxa mais recente"| S["summarize()<br/>valor hoje em R$"]
+  X -->|"taxa do mês de cada compra"| H["summarizeInBRL() · monthlyFlows()<br/>custo e fluxo em R$"]
+  X -->|"get_usd_rate(mês)"| V["allocation_by_origin<br/>portfolio_evolution"]
+  F -->|"BTC-USD × BRL=X"| A[("assets.current_price<br/>na moeda do ativo")]
+`}
+</Mermaid>
+
+## Estrutura da aplicação
+
+O delta é uma coluna, uma migration, um serviço e trechos novos em cinco arquivos que já existiam. Nenhuma página nova.
+
+<ProjectLinks path="examples/courses/npm/projects/investflow-origins" devcontainer="investflow-origins" />
+
+<FileTree>
+{`
+  investflow-origins/
+  ├── supabase/
+  │   ├── migrations/
+  │   │   ├── 20260912000002_assets.sql          TK10-1: currency in ('BRL', 'USD')
+  │   │   ├── 20260912000009_exchange_rates.sql  TK10-2: tabela, policy de leitura e get_usd_rate()
+  │   │   └── 20260912000012_origin_and_evolution_views.sql  TK10-4: views com get_usd_rate()
+  │   └── functions/update-quotes/
+  │       ├── logic.ts                          TK10-6: quoteSymbol(), priceInAssetCurrency(); TK10-8: calendário
+  │       └── index.ts                          TK10-7: grava a taxa da rodada
+  ├── src/
+  │   ├── lib/portfolio.js                      TK10-3: usdRate; TK10-5: summarizeInBRL(), monthlyFlows()
+  │   ├── lib/returns.js                        TK10-5: monthlyReturnsFromEvolution() com flowsByMonth
+  │   ├── services/exchange.js                  TK10-3: getLatestUsdRate(), listMonthlyUsdRates()
+  │   └── pages/
+  │       ├── dashboard.js                      TK10-1: autoDetectCurrency()
+  │       └── asset.js                          TK10-5: botão US$/R$ e matriz do ativo
+  └── tests/
+      ├── integration/exchange.test.js          moeda, taxa, get_usd_rate e views
+      ├── integration/quotes.test.js            cripto convertida e taxa gravada
+      └── e2e/international.spec.js             cadastro em USD e o botão US$/R$
+`}
+</FileTree>
+
+## O que muda nesta etapa?
+
+| Antes (Sprint 9) | Agora (Sprint 10) |
+| ---------------- | ----------------- |
+| Tudo em real | `assets.currency`; VT sugere USD, PETR4 sugere BRL |
+| Sem câmbio | `exchange_rates` gravada pela Edge Function; `get_usd_rate(data)` |
+| Custo e valor na moeda do ativo | Totais em R$; custo em reais pelo câmbio de cada compra |
+| Cripto sem cotação | `BTC-USD` × `BRL=X`; sem câmbio, sem cotação |
+| Provedor consultado a cada clique | Calendário B3/EUA/cripto; fim de semana com fechamento salvo não consulta |
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto.
+
+### TK10-1 · `assets.currency` e a sugestão pelo ticker
+
+A coluna nasce com `default 'BRL'` e um `check` fechado: os ativos das sprints anteriores continuam válidos. No formulário, um ticker só de letras sugere USD, com dígito sugere BRL, e o botão continua mandando.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/dashboard.js"
+  title="src/pages/dashboard.js"
+  region="currency"
+/>
+
+### TK10-2 · Migration `exchange_rates` e `get_usd_rate()`
+
+A tabela é pública para leitura (até o `anon`, porque a landing poderia mostrar o dólar) e só o papel de serviço escreve: o teste `CA10.3` prova o `42501` do `authenticated`. A chave é (par, data), e é isso que torna a gravação diária idempotente.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/migrations/20260912000009_exchange_rates.sql"
+  title="supabase/migrations/20260912000009_exchange_rates.sql"
+  region="exchange_rates"
+/>
+
+`get_usd_rate(data)` devolve a taxa do dia ou a última anterior; antes da primeira taxa conhecida, devolve a primeira (melhor que inventar 1:1). As views usam essa função com o primeiro dia do mês.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/migrations/20260912000009_exchange_rates.sql"
+  title="supabase/migrations/20260912000009_exchange_rates.sql"
+  region="get_usd_rate"
+/>
+
+### TK10-3 · Cálculo em BRL
+
+`summarize()` continua calculando na moeda do ativo e acrescenta os campos `…BRL` pela taxa recebida. `totals()` soma sempre em reais. O serviço de câmbio lê a taxa mais recente e, sem nenhuma, devolve a de referência junto do erro: a tela mostra a carteira, e o teste `CA10.5` confere o fallback.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/exchange.js"
+  title="src/services/exchange.js"
+  region="get"
+/>
+
+### TK10-4 · Views convertidas
+
+As duas views da Sprint 7 ganham um fator: `get_usd_rate(current_date)` na posição atual e `get_usd_rate(m.month)` em cada mês da evolução. O teste `CA10.8` monta um ETF comprado em janeiro (câmbio 5,00) e confere o aportado e o valor de cada mês.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/migrations/20260912000012_origin_and_evolution_views.sql"
+  title="supabase/migrations/20260912000012_origin_and_evolution_views.sql"
+  region="allocation_by_origin"
+/>
+
+### TK10-5 · Valorização versus câmbio
+
+`summarizeInBRL()` converte cada compra pelo câmbio do **seu** mês e o valor atual pelo câmbio mais recente: a diferença é o resultado em reais de verdade, com o efeito da moeda dentro. Comparar com `summarize().returnPct` (na moeda do ativo) mostra quanto foi o ativo e quanto foi o dólar.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/portfolio.js"
+  title="src/lib/portfolio.js"
+  region="historical-brl"
+/>
+
+`monthlyFlows()` é o que impede o câmbio de virar aporte na matriz do ativo: a view reconverte o acumulado a cada mês, e a diferença entre dois meses incluiria a variação do dólar. Com o fluxo do mês em reais, `monthlyReturnsFromEvolution()` desconta só o que entrou de fato.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/portfolio.js"
+  title="src/lib/portfolio.js"
+  region="flows"
+/>
+
+### TK10-6 · Cripto na função
+
+O Yahoo indexa cripto em dólar (`BTC-USD`; `BTC-BRL` responde 404). `quoteSymbol()` monta o símbolo, e `priceInAssetCurrency()` converte pelo `BRL=X` da mesma rodada quando o ativo é em real; sem o câmbio, devolve nulo, porque gravar dólar como real seria pior que ficar sem cotação.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/functions/update-quotes/logic.ts"
+  title="supabase/functions/update-quotes/logic.ts"
+  region="eligible"
+/>
+
+### TK10-7 · Persistir a taxa da rodada
+
+Até aqui a taxa buscada pela função morria no fim da rodada, e o navegador não tinha como escrever em `exchange_rates`. Agora qualquer rodada que precisou do câmbio (ativo em dólar ou cripto em real) grava a taxa do dia com a chave de serviço, idempotente por (par, data).
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/functions/update-quotes/index.ts"
+  title="supabase/functions/update-quotes/index.ts"
+  region="fx"
+/>
+
+### TK10-8 · Calendário de mercado
+
+Cada ativo pertence a uma praça: B3 (ticker com dígito), EUA (só letras) ou cripto. `getMarketStatus()` sabe o horário e os feriados de cada uma (a Páscoa vem do algoritmo de Meeus, e dela saem Carnaval, Sexta-feira Santa e Corpus Christi). `shouldFetchFromProvider()` decide: sem cotação prévia, sempre; cripto, sempre; mercado aberto, sempre; fechado com o fechamento da última sessão já salvo, não.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/functions/update-quotes/logic.ts"
+  title="supabase/functions/update-quotes/logic.ts"
+  region="should-fetch"
+/>
+
+### TK10-9 · Testes da sprint
+
+| Camada | O que prova | Critérios |
+| ------ | ----------- | --------- |
+| Unidade | `summarize()` e `totals()` em USD; `summarizeInBRL()` pelo câmbio da compra; `monthlyFlows()`; `monthlyReturnsFromEvolution()` com fluxo; fallback do serviço; `quoteSymbol()`, `priceInAssetCurrency()`; Páscoa, feriados, horários e `shouldFetchFromProvider()` | CA10.4, CA10.5, CA10.6, CA10.7, CA10.10, CA10.11, CA10.12, CA10.14, CA10.15, CA10.16 |
+| Integração | `EUR` recusado; leitura pública e escrita negada em `exchange_rates`; `get_usd_rate` do dia, anterior e antes da primeira; as duas views com câmbio 5,00 e 6,00; BTC em real convertido e a taxa de hoje gravada sem duplicar | CA10.1, CA10.3, CA10.8, CA10.11, CA10.13 |
+| E2E | VT sugere USD, PETR4 sugere BRL, renda fixa esconde a moeda; ETF em USD com valor em R$ e preço em US$; botão US$/R$ na URL | CA10.1, CA10.2, CA10.4, CA10.9 |
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/tests/integration/exchange.test.js"
+  title="tests/integration/exchange.test.js"
+  region="views"
+/>
+
+## Decisões de desenho
+
+| Decisão | Regra | Razão |
+| ------- | ----- | ----- |
+| Câmbio gravado pela função | `exchange_rates` só aceita a chave de serviço. | É a mesma rodada que já fala com o provedor; o navegador não precisa de um segundo caminho nem de permissão de escrita. |
+| Duas contas, não uma | `summarize()` na moeda do ativo; `summarizeInBRL()` pelo câmbio de cada compra. | Uma só esconderia o efeito da moeda dentro do resultado do ativo. |
+| Nulo em vez de dólar | `priceInAssetCurrency()` devolve `null` sem câmbio. | Um preço em dólar gravado como real infla a carteira em cinco vezes; a lacuna é visível, o erro não seria. |
+| Calendário na função | `shouldFetchFromProvider()` roda antes do `fetch`. | O provedor gratuito limita chamadas; sábado à tarde não tem preço novo. |
+
+<Aside type="caution" title="Dica de IA: Diga qual câmbio em cada lugar">
+  Pedir "converta a carteira para reais" produz uma única taxa aplicada a tudo. Descreva os dois usos: valor de hoje pela taxa mais recente, custo pela taxa do mês de cada compra. O assistente devolve duas funções, e o teste fica óbvio.
+
+  **Prompt:** *"Um ativo em USD tem transações com data. Escreva `summarizeInBRL(asset, { rateMap, latestRate })`: o custo em reais usa `rateMap[mês da transação]`, o valor atual usa `latestRate`. Escreva o teste com duas compras em meses de câmbio diferentes e confira o custo."*
+</Aside>
+
+## Testando
+
+```bash title="Terminal"
+pnpm test
+```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/lib/portfolio.test.js (23 tests)
+ ✓ |unit| src/services/exchange.test.js (3 tests)
+ ✓ |unit| supabase/functions/update-quotes/logic.test.js (22 tests)
+ ✓ |integration| tests/integration/exchange.test.js (4 tests)
+   ✓ CA10.1: a moeda do ativo e BRL ou USD, e outra e recusada
+   ✓ CA10.3: exchange_rates e lida por qualquer sessao e escrita so pelo servico
+   ✓ CA10.3: get_usd_rate devolve a taxa do dia ou a ultima anterior
+   ✓ CA10.8: allocation_by_origin e portfolio_evolution convertem o ativo em USD pela taxa do mes
+ ✓ |integration| tests/integration/quotes.test.js (8 tests)
+   ✓ CA10.11 / CA10.13: cripto em real e convertida por BRL=X, e a taxa do dia fica em exchange_rates
+ ✓ (as demais suítes das Sprints 2 a 11)
+
+ Test Files  35 passed (35)
+      Tests  216 passed (216)
+```
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/international.spec.js
+```
+
+```txt title="Output" frame="terminal"
+  ✓ o ticker sugere a moeda, e a sugestao pode ser trocada (CA10.2)
+  ✓ um ETF em dolar aparece em reais na carteira e em dolares no ativo (CA10.1, CA10.4, CA10.9)
+
+  2 passed (7.1s)
+```
+
+O teste da view de evolução ensina uma sutileza: `get_usd_rate(m.month)` usa o **primeiro dia** do mês. Com taxas em 15/jan e 15/fev, tanto janeiro quanto fevereiro usam a de 15/jan, porque em 1/fev a taxa de fevereiro ainda não existia. O teste documenta isso em vez de esconder.
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto, instale e suba a stack:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investflow-origins
+   pnpm install
+   pnpm db:start
+   supabase status -o env   # preencha o .env
+   pnpm db:reset
+   ```
+
+2. Suba o Vite, cadastre um ETF americano (`VT`, categoria ETF) e um `BTC` (categoria cripto) e observe: a moeda sugerida, a cotação, a linha nova em `exchange_rates` no Studio (`http://127.0.0.1:54323`) e o botão US$/R$ no gráfico do ativo:
+
+   ```bash title="Terminal"
+   pnpm dev
+   ```
+
+3. Rode as suítes:
+
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
+
+</Steps>
+
+## Conceitos abordados
+
+- Moeda por registro e tabela de câmbio por data
+- Efeito cambial: câmbio de hoje versus câmbio da compra
+- Escrita privilegiada dentro de uma Edge Function existente
+- Símbolo de cotação e conversão de par
+- Calendário de mercado e cache por sessão de pregão
+
+## Exercício
+
+Escreva o teste de unidade de `summarizeInBRL()` para uma venda parcial: a baixa do custo deve usar o preço médio **em reais**, não em dólar. Explique por que os dois preços médios são diferentes.
+
+## Desafio
+
+Acrescente o euro: uma coluna `currency` com três valores, o par `EURBRL=X` na função e `get_rate(from, date)` no lugar de `get_usd_rate`. Liste todos os pontos do código em que `'USD'` está escrito à mão.
+
+## Perguntas de revisão
+
+1. Por que o navegador não grava em `exchange_rates`, se ele mesmo poderia consultar o câmbio?
+2. Qual é a diferença entre `summarize().returnPct` e `summarizeInBRL().returnPct` para um ETF em dólar?
+3. Por que `priceInAssetCurrency()` devolve nulo em vez de gravar o preço em dólar?
+4. Em que situação `shouldFetchFromProvider()` devolve falso, e o que teria que estar gravado para isso?
+
+## Referências
+
+- [Yahoo Finance: símbolos de câmbio (`BRL=X`) e cripto (`BTC-USD`)](https://finance.yahoo.com/quote/BRL=X/)
+- [B3: calendário de negociação](https://www.b3.com.br/pt_br/solucoes/plataformas/puma-trading-system/para-participantes-e-traders/calendario-de-negociacao/)
+- [Algoritmo de Meeus/Jones/Butcher para a Páscoa](https://en.wikipedia.org/wiki/Date_of_Easter#Anonymous_Gregorian_algorithm)
+
+## Próxima etapa
+
+Em [Perfil e experiência](../experience/), a última sprint cuida do que uma aplicação de verdade precisa além das regras de negócio: perfil com foto, navegação comum, tema, privacidade em público e o build publicado.

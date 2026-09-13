@@ -1,0 +1,489 @@
+---
+title: "InvestFlow: Lançamentos e cotação manual"
+description: "Oitava sprint do InvestFlow: lançamentos editáveis e excluíveis, resgate total, renda fixa acompanhada pelo saldo com o lançamento update, cotação por ativo com fallback manual, e a carteira com filtro, ordenação, rodapé ponderado e estado na URL."
+course: npm
+project: investflow-static
+sidebar:
+  label: "8. Lançamentos e cotação manual"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **8 de 11** · Nível **Avançado** · Fatos imutáveis · Policies · Estado na URL
+
+Até a Sprint 7 a carteira só cresce: um lançamento errado fica errado, um CDB precisa fingir que tem cotação por cota, e um ticker que o provedor não conhece fica sem valor para sempre. Esta sprint devolve o controle ao investidor sem abrir mão da regra que sustenta tudo desde a Sprint 3: a **transação é o fato**, e a posição é sempre derivada dela. Corrigir é editar o fato; registrar o saldo de um CDB é um fato novo (`update`); informar a cotação à mão é gravar no mesmo histórico que a Edge Function usa.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  Consulte [Administração do PostgreSQL](../../../../database/postgresql/administration/) para a policy que a Sprint 8 acrescenta em `quotes_history`, [History API](../../../../web-api/browser/history/) para o `replaceState` que guarda filtro e ordenação na URL e [Dialog](../../../../web-api/ui/dialog/) para os diálogos de lançamento e de cotação.
+</Aside>
+
+## Objetivo
+
+Fechar as lacunas operacionais da carteira sem criar nenhuma tabela nova. Ao final da etapa, o leitor deve ser capaz de:
+
+- Corrigir e desfazer lançamentos mantendo a posição derivada dos fatos.
+- Modelar um ativo acompanhado pelo saldo (renda fixa, fundos) com um tipo de lançamento próprio.
+- Abrir a escrita de uma tabela ao dono do dado por policy, sem passar pela chave de serviço.
+- Guardar o estado de uma tela na URL para que recarregar e compartilhar preservem a visão.
+
+## Requisitos, histórias e critérios
+
+**Épicos EP03 · Carteira e EP04 · Cotações** › **Feature FE09 · Lançamentos, saldo e cotação manual**
+
+| Requisito | Recorte da etapa | Estado ao final |
+| --------- | ---------------- | --------------- |
+| RF03.4 | Editar e excluir lançamentos; resgate total. | atendido |
+| RF03.5 | Renda fixa e fundos pelo saldo, com o lançamento `update`. | atendido |
+| RF03.6 | Filtro, ordenação, rodapé e estado na URL. | atendido |
+| RF05.1 | Atualizar um único ativo e informar a cotação à mão. | atendido |
+| RNF01 | A policy nova de `quotes_history` continua passando pelo dono do ativo. | atendido |
+
+### US17 · Corrigir e desfazer lançamentos · RF03.4
+
+> **Como** investidor,
+> **quero** editar e excluir um lançamento que registrei errado,
+> **para** corrigir a posição sem apagar o ativo nem recriar todo o histórico.
+
+```gherkin
+Cenário: CA08.1 - Editar lançamento
+  Dado um ativo com duas compras
+  Quando altero a quantidade da segunda compra
+  Então posição, custo e preço médio mudam na tela do ativo
+
+Cenário: CA08.2 - Excluir lançamento
+  Quando excluo um lançamento e confirmo
+  Então ele some do extrato e a posição volta ao que era
+  E um lançamento de outra conta não é alcançado pelo mesmo comando
+
+Cenário: CA08.3 - Resgate total
+  Quando marco "resgate total" no formulário de venda
+  Então a quantidade é preenchida com a posição disponível
+  E a venda zera a posição
+
+Cenário: CA08.4 - Venda pelo preço médio
+  Dada uma posição com preço médio de R$ 16,67
+  Quando vendo a R$ 20,00
+  Então o custo baixa pelo preço médio, e a diferença vira resultado realizado
+```
+
+### US18 · Acompanhar renda fixa e fundos pelo saldo · RF03.5
+
+> **Como** investidor,
+> **quero** registrar o saldo atual de um CDB ou de um fundo em vez de quantidade e preço,
+> **para** acompanhar ativos que não têm cotação por cota sem inventar um preço unitário.
+
+```gherkin
+Cenário: CA08.5 - Sete categorias
+  Quando cadastro um ativo em cada categoria (renda fixa, ações, FII, ETF, FI-Infra, fundos, cripto)
+  Então todos são aceitos
+  E uma categoria fora dessas sete é recusada pelo banco
+
+Cenário: CA08.6 - Ticker automático
+  Quando cadastro renda fixa sem ticker
+  Então o sistema gera um ticker RF-<NOME>-<sufixo>, único por dono
+
+Cenário: CA08.7 - Lançamento update
+  Dado um CDB com compra de R$ 1.000
+  Quando registro um update com saldo de R$ 1.080
+  Então posição e custo passam a ser R$ 1.080 e o realizado é zero
+  E os lançamentos anteriores continuam no extrato
+
+Cenário: CA08.8 - Ativo vale o saldo
+  Quando o CDB não tem cotação
+  Então a carteira, o treemap e os totais usam o saldo como valor
+```
+
+### US19 · Informar a cotação à mão quando o provedor não responde · RF05.1
+
+> **Como** investidor,
+> **quero** atualizar a cotação de um único ativo e, se o provedor não o conhecer, digitar o valor,
+> **para** não deixar um ativo sem valor de mercado por causa de um ticker fora do provedor.
+
+```gherkin
+Cenário: CA08.9 - Atualizar um ativo
+  Quando clico em atualizar na tela do ativo
+  Então a função update-quotes recebe asset_id e consulta só aquele ativo
+
+Cenário: CA08.10 - Fallback manual
+  Dado um ticker que o provedor não conhece
+  Quando clico em atualizar
+  Então o diálogo de cotação manual abre com o aviso, e o ativo continua salvo
+
+Cenário: CA08.11 - Cotação manual no histórico
+  Quando informo R$ 25,00 na data de hoje
+  Então current_price muda e quotes_history ganha uma linha na data
+  E outra conta não consegue gravar nesse ativo
+
+Cenário: CA08.12 - Saldo manual vira update
+  Dado um ativo de renda fixa
+  Quando informo o saldo e a data no diálogo
+  Então um lançamento update é criado, e o valor atual passa a ser o saldo
+```
+
+### US20 · Organizar a carteira · RF03.6
+
+> **Como** investidor,
+> **quero** filtrar, ordenar e compartilhar o estado da carteira pela URL,
+> **para** encontrar uma posição em uma carteira grande e voltar à mesma visão depois.
+
+```gherkin
+Cenário: CA08.13 - Ativas × todas
+  Dado um ativo zerado
+  Quando abro a carteira
+  Então ele não aparece em "Posições ativas" e aparece como "Zerado" em "Todos os ativos"
+
+Cenário: CA08.14 - Ordenação
+  Quando clico no cabeçalho "Valor"
+  Então a coluna ordena do maior para o menor, e o segundo clique inverte
+
+Cenário: CA08.15 - Rodapé ponderado
+  Então o rodapé soma o valor das posições abertas e mostra a rentabilidade ponderada pelo custo
+
+Cenário: CA08.16 - Duração
+  Então uma posição aberta conta do primeiro aporte até hoje, e uma encerrada até a última venda
+
+Cenário: CA08.17 - Estado na URL
+  Quando escolho "Todos os ativos" e ordeno por valor
+  Então a URL passa a ter ?filter=all&sort=value, sem os valores padrão
+  E recarregar mantém a escolha
+
+Cenário: CA08.18 - Abrir por ticker
+  Quando abro asset.html?ticker=cdb-inter
+  Então a tela do ativo abre, sem diferenciar maiúsculas
+  E um ticker inexistente mostra "não encontrado"
+```
+
+### Tasks da etapa
+
+As nove tasks seguem a ordem das histórias: primeiro os fatos (lançamentos), depois o saldo, depois a cotação manual, e por fim a organização da carteira e os testes.
+
+<Steps>
+
+1. **TK08-1 · Editar e excluir lançamentos**: `updateTransaction()`, `deleteTransaction()` e o resgate total no diálogo de `asset.js`.
+2. **TK08-2 · Categorias e ticker automático**: ETF e FI-Infra no `check` de `assets` e o `RF-…` em `normalizeTicker()`.
+3. **TK08-3 · Lançamento `update`**: o terceiro tipo em `summarize()` e os campos de saldo no formulário.
+4. **TK08-4 · Atualização por ativo**: `asset_id` no corpo da `update-quotes` e o botão em `asset.html`.
+5. **TK08-5 · Cotação e saldo manual**: o diálogo com fallback, `recordQuote()` e a policy de escrita do dono em `quotes_history`.
+6. **TK08-6 · Filtros, ordenação e rodapé** em `dashboard.js`.
+7. **TK08-7 · Duração da posição**: `investmentDuration()`.
+8. **TK08-8 · Estado na URL e abertura por ticker**: `lib/query-params.js` e `getAssetByTicker()`.
+9. **TK08-9 · Testes da sprint**: unidade, integração e E2E.
+
+</Steps>
+
+## Três tipos de fato, uma posição
+
+Os três tipos de lançamento passam pela mesma função pura. `buy` e `sell` acumulam; `update` substitui. É essa distinção que permite acompanhar um CDB pelo saldo sem quebrar o cálculo de ações e FIIs.
+
+<Mermaid title="Como cada tipo de lançamento altera a posição">
+{`
+flowchart LR
+  B["buy<br/>qtd, preço"] -->|"soma quantidade<br/>soma custo"| P["posição<br/>custo · preço médio · realizado"]
+  S["sell<br/>qtd, preço"] -->|"baixa custo pelo preço médio<br/>realizado += qtd × (preço − médio)"| P
+  U["update<br/>saldo"] -->|"quantidade = saldo<br/>custo = saldo · realizado = 0"| P
+  P --> V["valor atual<br/>cotação × qtd, ou o saldo"]
+`}
+</Mermaid>
+
+## Estrutura da aplicação
+
+A partir desta sprint o projeto executável é o mesmo, `investflow-origins`: as Sprints 8 a 11 acrescentam tabelas, regras e telas a ele em vez de copiá-lo. O delta desta etapa é uma migration, três serviços e as duas páginas que já existiam.
+
+<ProjectLinks path="examples/courses/npm/projects/investflow-origins" devcontainer="investflow-origins" />
+
+<FileTree>
+{`
+  investflow-origins/
+  ├── supabase/migrations/
+  │   ├── 20260912000002_assets.sql            TK08-2: sete categorias e a moeda
+  │   └── 20260912000015_manual_quotes.sql     TK08-5: o dono grava em quotes_history
+  ├── src/
+  │   ├── lib/
+  │   │   ├── portfolio.js                     TK08-3: update em summarize(); TK08-7: investmentDuration()
+  │   │   └── query-params.js                  TK08-8: getQueryParam() e setQueryParams()
+  │   ├── services/
+  │   │   ├── assets.js                        TK08-2: normalizeTicker(); TK08-8: getAssetByTicker()
+  │   │   ├── transactions.js                  TK08-1: updateTransaction() e deleteTransaction()
+  │   │   └── quotes.js                        TK08-4: updateQuotes({ assetId }); TK08-5: recordQuote()
+  │   └── pages/
+  │       ├── asset.js                         TK08-1, TK08-3, TK08-5: diálogos de lançamento e de cotação
+  │       └── dashboard.js                     TK08-6: filtros, ordenação e rodapé
+  ├── supabase/functions/update-quotes/index.ts  TK08-4: asset_id restringe a rodada
+  └── tests/
+      ├── integration/ledger.test.js           categorias, update, policy da cotação manual
+      └── e2e/ledger.spec.js                   o fluxo inteiro pela tela
+`}
+</FileTree>
+
+## O que muda nesta etapa?
+
+| Antes (Sprint 7) | Agora (Sprint 8) |
+| ---------------- | ---------------- |
+| Lançamento errado fica no extrato | Editar e excluir, com confirmação; resgate total preenche a quantidade |
+| Renda fixa com "quantidade" e "preço" fictícios | Lançamento `update` com o saldo; o ativo vale o saldo |
+| Só `quotes_history` da Edge Function | O dono grava a cotação manual, por policy |
+| Botão que atualiza a carteira inteira | `asset_id` atualiza um ativo; sem cotação, o diálogo manual abre |
+| Tabela na ordem do banco | Filtro ativas × todas, ordenação por coluna, rodapé ponderado e URL com o estado |
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto.
+
+### TK08-1 · Editar e excluir lançamentos
+
+O serviço não faz nada além de `update` e `delete` pelo `id`: o isolamento é da policy `with check` da Sprint 3. O teste de integração `CA08.2` prova que o mesmo comando, vindo de outra conta, não alcança nenhuma linha.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/transactions.js"
+  title="src/services/transactions.js"
+  region="mutate"
+/>
+
+No diálogo, o mesmo formulário serve para criar e editar (`form.dataset.mode`). O resgate total lê a posição atual com `summarize()` e preenche a quantidade; o formulário só troca campos, e a conta continua na função pura.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/asset.js"
+  title="src/pages/asset.js"
+  region="transaction-dialog"
+/>
+
+### TK08-2 · Categorias e ticker automático
+
+O `check` de categoria é a única lista de categorias do sistema: o front lê o mesmo conjunto em `CATEGORY_LABELS`. O teste `CA08.5` insere uma linha por categoria e uma fora do conjunto.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/migrations/20260912000002_assets.sql"
+  title="supabase/migrations/20260912000002_assets.sql"
+  region="assets"
+/>
+
+Renda fixa não tem código de bolsa, mas a `unique (user_id, ticker)` continua valendo. Sem ticker, o serviço gera um a partir do nome mais um sufixo aleatório.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/assets.js"
+  title="src/services/assets.js"
+  region="ticker"
+/>
+
+### TK08-3 · Lançamento `update`
+
+Os três tipos passam pela mesma função. `update` substitui quantidade e custo pelo saldo (preço 1) e zera o realizado, porque o saldo informado já embute o rendimento. Um `sell` baixa o custo pelo preço médio, e é isso que separa o resultado realizado do custo que permanece.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/portfolio.js"
+  title="src/lib/portfolio.js"
+  region="summarize"
+/>
+
+### TK08-4 · Atualização por ativo
+
+O corpo da requisição é opcional: sem ele, a rodada é a carteira inteira (botão do dashboard, agendamento); com `asset_id`, um ativo só. O escopo por `user_id` continua valendo para quem chama com sessão.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/functions/update-quotes/index.ts"
+  title="supabase/functions/update-quotes/index.ts"
+  region="scope"
+/>
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/quotes.js"
+  title="src/services/quotes.js"
+  region="invoke"
+/>
+
+### TK08-5 · Cotação e saldo manual
+
+Até a Sprint 7, `quotes_history` só recebia escrita da Edge Function, e a página descartava o resultado de `recordQuote()`: a cotação manual sumia em silêncio. A migration abre a escrita ao dono do ativo, e a policy continua passando pelo ativo, como a de leitura.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/migrations/20260912000015_manual_quotes.sql"
+  title="supabase/migrations/20260912000015_manual_quotes.sql"
+  region="policy"
+/>
+
+Na tela, `refreshQuote()` decide: ativo cotável tenta o provedor e, se ele não devolver o ticker, abre o diálogo manual com o aviso; renda fixa e fundos vão direto ao diálogo de saldo, que cria um lançamento `update`.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/asset.js"
+  title="src/pages/asset.js"
+  region="price-update"
+/>
+
+### TK08-6 · Filtros, ordenação e rodapé
+
+Ativo sem lançamento conta como ativo (acabou de ser cadastrado); zerado é o que já teve posição. A ordenação usa `summarizeWithDividends()` para as colunas numéricas, e ativo sem cotação recebe `-Infinity` para ir ao fim.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/dashboard.js"
+  title="src/pages/dashboard.js"
+  region="organize"
+/>
+
+O rodapé soma só as posições abertas e pondera a rentabilidade pelo custo, que é a única média que faz sentido para uma carteira.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/dashboard.js"
+  title="src/pages/dashboard.js"
+  region="footer"
+/>
+
+### TK08-7 · Duração da posição
+
+A duração é outra derivação dos fatos: do primeiro lançamento até hoje se a posição está aberta, até o último lançamento se está zerada. O teste de unidade usa uma data de referência fixa para não depender do dia em que roda.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/portfolio.js"
+  title="src/lib/portfolio.js"
+  region="duration"
+/>
+
+### TK08-8 · Estado na URL e abertura por ticker
+
+`setQueryParams()` usa `history.replaceState`: a URL muda sem recarregar e sem poluir o histórico do navegador. Valor igual ao padrão sai da URL, o que mantém `/dashboard` limpo até a primeira escolha.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/query-params.js"
+  title="src/lib/query-params.js"
+  region="queryParams"
+/>
+
+`getAsset()` aceita `id` ou ticker: se o parâmetro não é um UUID, a busca é por ticker, sem diferenciar maiúsculas. É o que torna `asset.html?ticker=petr4` um link compartilhável.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/assets.js"
+  title="src/services/assets.js"
+  region="list"
+/>
+
+### TK08-9 · Testes da sprint
+
+| Camada | O que prova | Critérios |
+| ------ | ----------- | --------- |
+| Unidade | `summarize()` com `update` e com venda pelo preço médio; `investmentDuration()`; `normalizeTicker()`; `setQueryParams()` omite o padrão; `getAssetByTicker()` | CA08.4, CA08.6, CA08.7, CA08.16, CA08.17, CA08.18 |
+| Integração | as sete categorias e a oitava recusada; `update` visto pela view de origem; a policy da cotação manual (dono grava, outra conta recebe `42501`); `asset_id` na função | CA08.1, CA08.2, CA08.5, CA08.7, CA08.8, CA08.9, CA08.11 |
+| E2E | saldo de CDB, edição e exclusão, resgate total, fallback manual, filtro, ordenação, rodapé, URL e abertura por ticker | CA08.1 a CA08.4, CA08.8, CA08.10 a CA08.18 |
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/tests/integration/ledger.test.js"
+  title="tests/integration/ledger.test.js"
+  region="manual-quote"
+/>
+
+## Decisões de desenho
+
+| Decisão | Regra | Razão |
+| ------- | ----- | ----- |
+| Editar o fato, não a posição | Não existe coluna `quantity` em `assets`. | Se a posição fosse gravada, editar um lançamento exigiria recalcular e regravar; derivada, ela está sempre certa. |
+| `update` zera o realizado | O saldo informado já embute rendimento e resgates. | Somar o realizado anterior ao saldo contaria o mesmo ganho duas vezes. |
+| Policy, não chave de serviço | O dono grava em `quotes_history` pela policy. | Uma Edge Function só para gravar um número seria mais código e a mesma garantia. |
+| Padrão fora da URL | `setQueryParams()` remove o valor igual ao padrão. | `/dashboard` continua sendo a URL canônica da carteira. |
+
+<Aside type="caution" title="Dica de IA: Peça a regra antes do formulário">
+  Ao pedir "um formulário para editar transações", o assistente tende a gravar a nova quantidade direto no ativo. Descreva primeiro a regra: a posição é derivada das transações, e editar significa alterar a transação e recalcular. O formulário sai certo na primeira tentativa.
+
+  **Prompt:** *"A posição de um ativo é sempre calculada a partir das transações (buy, sell, update) por uma função pura `summarize()`. Implemente editar e excluir transação alterando só a tabela `transactions` e chamando `summarize()` de novo; não grave posição em `assets`."*
+</Aside>
+
+## Testando
+
+```bash title="Terminal"
+pnpm test
+```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/lib/portfolio.test.js (23 tests)
+ ✓ |unit| src/services/assets.test.js (11 tests)
+ ✓ |unit| src/lib/query-params.test.js (3 tests)
+ ✓ |integration| tests/integration/ledger.test.js (3 tests)
+   ✓ CA08.5: as sete categorias sao aceitas, e so elas
+   ✓ CA08.7 / CA08.8: o lancamento update redefine a posicao pelo saldo
+   ✓ CA08.11: a cotacao manual entra em quotes_history so pelo dono do ativo
+ ✓ |integration| tests/integration/quotes.test.js (8 tests)
+   ✓ CA08.9: com asset_id no corpo, so aquele ativo e consultado
+ ✓ (as demais suítes das Sprints 2 a 11)
+
+ Test Files  35 passed (35)
+      Tests  216 passed (216)
+```
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/ledger.spec.js
+```
+
+```txt title="Output" frame="terminal"
+  ✓ cadastro e renda fixa acompanhada pelo saldo (CA08.12, CA08.8, CA08.16)
+  ✓ edita, resgata tudo e desfaz um lancamento (CA08.1, CA08.3, CA08.4, CA08.2)
+  ✓ provedor sem o ticker abre a cotacao manual (CA08.10, CA08.11)
+  ✓ filtro, ordenacao, rodape e estado na URL (CA08.13, CA08.14, CA08.15, CA08.17)
+  ✓ abre o ativo pelo ticker, sem diferenciar maiusculas (CA08.18)
+
+  5 passed (8.7s)
+```
+
+Uma armadilha de teste que vale registrar: `private.js` e `dashboard.js` têm `await` no topo do módulo, então os botões da carteira só ganham o listener depois que a tabela renderizou. O E2E espera o KPI de ativos mudar de `—` antes de clicar em "Novo ativo".
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto, instale e suba a stack:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investflow-origins
+   pnpm install
+   pnpm db:start
+   supabase status -o env   # preencha o .env
+   pnpm db:reset
+   ```
+
+2. Suba o Vite, cadastre um CDB e um ativo com ticker inventado (`XPTO3`), registre aportes e experimente editar, excluir, informar o saldo e a cotação manual:
+
+   ```bash title="Terminal"
+   pnpm dev
+   ```
+
+3. Rode as suítes:
+
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
+
+</Steps>
+
+## Conceitos abordados
+
+- Fato imutável versus estado derivado
+- Tipos de lançamento e o cálculo do preço médio
+- Policy de escrita para o dono do dado
+- `history.replaceState` e estado de tela na URL
+- Fallback explícito quando um serviço externo falha
+
+## Exercício
+
+Escreva o cenário Gherkin e o teste de integração para um quarto tipo de lançamento, `bonus` (bonificação em cotas: aumenta a quantidade sem alterar o custo). Explique o que muda no preço médio.
+
+## Desafio
+
+Hoje o ticker automático da renda fixa leva um sufixo aleatório. Proponha uma regra determinística (por exemplo, nome + emissor + vencimento) e discuta o que acontece com a `unique (user_id, ticker)` quando duas aplicações têm o mesmo nome.
+
+## Perguntas de revisão
+
+1. Por que `update` zera o resultado realizado?
+2. O que garante que outra conta não edite meu lançamento, se o serviço só faz `update … eq('id')`?
+3. Por que a cotação manual passou a exigir uma migration, e não só uma chamada a mais no front?
+4. Por que o valor padrão de um filtro não aparece na URL?
+
+## Referências
+
+- [MDN: History.replaceState()](https://developer.mozilla.org/en-US/docs/Web/API/History/replaceState)
+- [Supabase: policies de `insert` e `with check`](https://supabase.com/docs/guides/database/postgres/row-level-security#insert-policies)
+- [PostgREST: filtros `eq` e `ilike`](https://postgrest.org/en/stable/references/api/tables_views.html#operators)
+
+## Próxima etapa
+
+Em [Proventos e movimentações](../dividends/), a carteira ganha a segunda fonte de retorno: o histórico de proventos de cada ativo, o direito pela data ex e o extrato do que entrou e saiu.

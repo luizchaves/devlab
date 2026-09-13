@@ -4,6 +4,7 @@ import { getSession } from '../services/auth.js';
 
 initTheme();
 
+// #region session
 // 1. Verificação de sessão para links da landing page
 async function checkAuth() {
   // O SDK devolve { data: { session } }: a sessao esta um nivel abaixo de data.
@@ -30,6 +31,8 @@ async function checkAuth() {
     }
   }
 }
+
+// #endregion
 
 // 2. Simulador Interativo de Juros Compostos em tempo real
 function setupSimulator() {

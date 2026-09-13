@@ -14,12 +14,14 @@ export function getSystemTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+// #region effective
 export function getEffectiveTheme(preference) {
   const pref = preference || getStoredTheme();
   if (pref === 'dark') return 'dark';
   if (pref === 'light') return 'light';
   return getSystemTheme();
 }
+// #endregion
 
 export function getCurrentTheme() {
   return getStoredTheme();
@@ -81,6 +83,7 @@ export function setTheme(preference) {
   applyTheme(preference);
 }
 
+// #region toggle
 export function toggleTheme() {
   const current = getStoredTheme();
   let next = 'light';
@@ -91,6 +94,7 @@ export function toggleTheme() {
   setTheme(next);
   return next;
 }
+// #endregion
 
 export function initTheme() {
   const pref = getStoredTheme();

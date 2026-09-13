@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase-client.js';
 export const ALLOWED_AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 export const MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2 MB
 
+// #region validate
 /**
  * Validação de imagem de avatar no cliente.
  */
@@ -17,6 +18,7 @@ export function validateAvatar(file) {
   }
   return null;
 }
+// #endregion
 
 /**
  * Busca o perfil do usuário autenticado no banco de dados (public.profiles)
@@ -108,6 +110,7 @@ export async function updateProfile({ fullName, avatarUrl }) {
   return { data, error: null };
 }
 
+// #region upload
 /**
  * Faz upload do avatar para o bucket 'avatars' no Supabase Storage e
  * atualiza o perfil com a URL pública gerada.
@@ -159,6 +162,7 @@ export async function uploadAvatar({ userId, file }) {
     error: null,
   };
 }
+// #endregion
 
 /**
  * Remove a foto de perfil definindo avatar_url como null.

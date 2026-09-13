@@ -67,6 +67,9 @@ function updatePrivacyButtons(root) {
   }
 }
 
+// #region mask
+// Dois criterios: os KPIs conhecidos pelo nome e qualquer texto que pareca
+// dinheiro (R$ 1.234,56). O segundo alcanca tabelas e legendas sem marcacao.
 function markKnownPrivateElements(root) {
   if (typeof document === 'undefined') return;
   const scope = root || document;
@@ -117,6 +120,9 @@ function unmaskElement(el) {
   delete el.dataset.privateOriginalTitle;
 }
 
+// #endregion
+
+// #region apply
 export function applyPrivacyMask(root) {
   if (typeof document === 'undefined' || applying) return;
 
@@ -134,6 +140,7 @@ export function applyPrivacyMask(root) {
 
   applying = false;
 }
+// #endregion
 
 function scheduleMask() {
   if (scheduled || applying) return;
@@ -148,6 +155,7 @@ function scheduleMask() {
   });
 }
 
+// #region init
 export function initPrivacyMask(root) {
   if (typeof document === 'undefined') return;
 
@@ -172,3 +180,4 @@ export function initPrivacyMask(root) {
     });
   }
 }
+// #endregion

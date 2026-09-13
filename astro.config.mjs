@@ -2073,6 +2073,22 @@ export default defineConfig({
                       link: '/courses/npm/practice/investflow/origins/',
                     },
                     {
+                      label: '8. Lançamentos e Cotação Manual',
+                      link: '/courses/npm/practice/investflow/ledger/',
+                    },
+                    {
+                      label: '9. Proventos e Movimentações',
+                      link: '/courses/npm/practice/investflow/dividends/',
+                    },
+                    {
+                      label: '10. Dólar e Cripto',
+                      link: '/courses/npm/practice/investflow/international/',
+                    },
+                    {
+                      label: '11. Perfil e Experiência',
+                      link: '/courses/npm/practice/investflow/experience/',
+                    },
+                    {
                       label: 'Próximos passos',
                       link: '/courses/npm/practice/investflow/next-steps/',
                     },

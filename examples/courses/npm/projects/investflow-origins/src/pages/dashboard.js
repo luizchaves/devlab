@@ -60,6 +60,7 @@ function dividendsOf(asset) {
   return includeDividends ? (dividendsByAsset.get(asset.id) ?? 0) : 0;
 }
 
+// #region with-dividends
 /** Resumo do ativo com lucro e rentabilidade ajustados pelos proventos, quando ativados. */
 function summarizeWithDividends(asset) {
   const s = summarize(asset, { usdRate: currentUsdRate });
@@ -68,7 +69,11 @@ function summarizeWithDividends(asset) {
   const returnPct = gainBRL == null || s.costBRL === 0 ? null : gainBRL / s.costBRL;
   return { ...s, dividendsBRL, gainBRL, returnPct };
 }
+// #endregion
 
+// #region organize
+// Ativo sem lancamento conta como ativo (acabou de ser cadastrado); zerado e
+// o que ja teve posicao e hoje esta em zero.
 function isAssetActive(asset) {
   const s = summarize(asset);
   return s.quantity > 0.00000001 || (asset.transactions?.length ?? 0) === 0;
@@ -155,6 +160,7 @@ function sortAssets(assets, key, direction) {
 
   return [...assets].sort(compare);
 }
+// #endregion
 
 const ICONS = {
   neutral:
@@ -271,6 +277,7 @@ function renderRow(asset) {
   return tr;
 }
 
+// #region footer
 /** Rodapé com o valor total e a rentabilidade ponderada das posições exibidas. */
 function renderFooter(assets) {
   const footer = document.querySelector('[data-assets-footer]');
@@ -319,6 +326,7 @@ function renderFooter(assets) {
     </tr>`;
   footer.hidden = false;
 }
+// #endregion
 
 function renderTable() {
   const filtered = filterAssets(currentAssets, currentFilter);
@@ -515,6 +523,9 @@ for (const btn of form.querySelectorAll('button[data-currency-option]')) {
   btn.addEventListener('click', () => setCurrency(btn.dataset.currencyOption));
 }
 
+// #region currency
+// Ticker so de letras (VT, AAPL, BND) e o padrao dos EUA; com digito (PETR4,
+// HGLG11) e o da B3. E so uma sugestao: o botao BRL/USD continua valendo.
 function autoDetectCurrency() {
   if (form.dataset.mode !== 'create') return;
   const rawTicker = form.elements.ticker.value.trim().toUpperCase();
@@ -528,6 +539,8 @@ function autoDetectCurrency() {
     setCurrency('BRL');
   }
 }
+
+// #endregion
 
 form.elements.ticker.addEventListener('input', autoDetectCurrency);
 form.elements.category.addEventListener('change', () => {

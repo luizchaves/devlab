@@ -47,6 +47,9 @@ export async function getAssetByTicker(ticker) {
 }
 // #endregion
 
+// #region ticker
+// Renda fixa nao tem codigo de bolsa: sem ticker, o sistema inventa um
+// (RF-NOME-XXXXX), unico por dono, para a unique (user_id, ticker) valer.
 function normalizeTicker(ticker, category, name) {
   if (ticker?.trim()) return ticker.trim().toUpperCase();
   if (category === 'renda_fixa') {
@@ -61,6 +64,7 @@ function normalizeTicker(ticker, category, name) {
   }
   return (ticker ?? '').trim().toUpperCase();
 }
+// #endregion
 
 // #region create
 export async function createAsset({

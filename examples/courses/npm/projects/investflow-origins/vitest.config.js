@@ -31,7 +31,7 @@ export default defineConfig({
         test: {
           name: 'build',
           environment: 'node',
-          include: ['tests/build/**/*.test.js'],
+          include: ['tests/deploy/**/*.test.js'],
         },
       },
     ],

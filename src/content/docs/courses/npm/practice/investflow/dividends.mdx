@@ -1,0 +1,460 @@
+---
+title: "InvestFlow: Proventos e movimentações"
+description: "Nona sprint do InvestFlow: histórico de proventos por ativo com RLS pelo dono, direito pela data ex, yield on cost e retorno total, a página de proventos com matriz ano × mês, os proventos dentro da rentabilidade e o extrato de aportes e resgates."
+course: npm
+project: investflow-static
+sidebar:
+  label: "9. Proventos e movimentações"
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+import FileTree from '@components/FileTree.astro';
+import Mermaid from '@components/Mermaid.astro';
+import ProjectLinks from '@components/ProjectLinks.astro';
+import SourceCode from '@components/SourceCode.astro';
+
+Etapa **9 de 11** · Nível **Avançado** · Eventos por ativo · Data ex · Retorno total
+
+A matriz da Sprint 6 e a linha de evolução da Sprint 7 medem uma coisa só: a variação do preço. Para ações, FIIs e ETFs existe uma segunda fonte de retorno, os **proventos**, e ela obedece a uma regra que não está em nenhuma tabela da carteira: recebe quem tinha a posição **antes da data ex**. Esta sprint grava os eventos de provento de cada ativo, aplica essa regra sobre as transações e mostra o resultado em três lugares (a página de proventos, a aba do ativo e, opcionalmente, dentro da rentabilidade). No mesmo movimento, o extrato de aportes e resgates ganha uma página própria.
+
+<Aside type="note" title="Tópicos conceituais associados">
+  Consulte [Fetch](../../../../web-api/http/fetch/) e [CORS](../../../../web-api/http/cors/) para o crawler que roda no navegador e o limite que ele encontra, e [relacionamentos](../../../../expressjs/persistence/relations/) para a policy que passa pelo ativo em vez de repetir `user_id`.
+</Aside>
+
+## Objetivo
+
+Acrescentar uma tabela de eventos e derivar dela três leituras novas, sem alterar as tabelas de fatos. Ao final da etapa, o leitor deve ser capaz de:
+
+- Modelar uma tabela de eventos por ativo cuja policy herda o dono do ativo.
+- Implementar a regra da data ex como função pura sobre transações e eventos.
+- Separar retorno de preço e retorno de proventos, e somá-los só quando a pessoa pedir.
+- Construir um extrato (KPIs, gráfico de barras e tabela) a partir das mesmas transações.
+
+## Requisitos, histórias e critérios
+
+**Épico EP09 · Proventos & Movimentações** › **Features FE10 · Proventos e FE11 · Movimentações**
+
+| Requisito | Recorte da etapa | Estado ao final |
+| --------- | ---------------- | --------------- |
+| RF11 | Histórico de proventos por ativo, idempotente. | atendido |
+| RF12 | Total, últimos 12 meses, média, YoC, matriz e maiores pagadores. | atendido |
+| RF13 | Proventos dentro de lucro, matriz e evolução, por escolha. | atendido |
+| RF14 | Extrato de aportes e resgates com KPIs e gráfico. | atendido |
+| RNF01 | `dividends_history` com RLS pelo dono do ativo. | atendido |
+
+### US21 · Registrar os proventos de cada ativo · RF11
+
+> **Como** investidor,
+> **quero** que o histórico de proventos de cada ativo seja buscado e guardado,
+> **para** saber quanto cada ação ou FII pagou sem digitar evento por evento.
+
+```gherkin
+Cenário: CA09.1 - Tabela e RLS
+  Dado um FII da conta A
+  Quando a conta A grava um evento e a conta B tenta gravar outro no mesmo ativo
+  Então o da conta A entra, o da conta B é recusado, e B não lê nenhum
+
+Cenário: CA09.2 - Só categorias elegíveis
+  Quando sincronizo um CDB
+  Então recebo "categoria sem proventos por cota" e o provedor não é consultado
+
+Cenário: CA09.3 - Idempotente
+  Quando sincronizo o mesmo ativo duas vezes
+  Então continua uma linha por data ex
+
+Cenário: CA09.4 - Falha não apaga
+  Dado o provedor fora do ar
+  Quando sincronizo
+  Então recebo um erro e o histórico já gravado continua igual
+```
+
+### US22 · Ver o que recebi de proventos · RF12
+
+> **Como** investidor,
+> **quero** ver quanto recebi de proventos no total, por mês e por ativo,
+> **para** medir a renda passiva da carteira e o retorno total de cada posição.
+
+```gherkin
+Cenário: CA09.5 - Direito pela data ex
+  Dada uma compra de 100 cotas em 10/01
+  Quando os eventos têm data ex em 05/01, 27/02 e 31/03
+  Então só os dois últimos são creditados (100 × R$ 1,10 cada)
+
+Cenário: CA09.6 - KPIs de proventos
+  Quando abro dividends.html
+  Então vejo total recebido, últimos 12 meses, média mensal e yield on cost médio
+  E o filtro por ativo vale para os KPIs e para o extrato
+
+Cenário: CA09.7 - Matriz e maiores pagadores
+  Quando troco para a visão de matriz
+  Então a matriz ano × mês soma o mesmo total do extrato, e o ativo aparece entre os maiores pagadores
+
+Cenário: CA09.8 - Aba e retorno total
+  Então a aba Proventos aparece em um FII e não aparece em um CDB
+  E o retorno total soma valorização, realizado e proventos
+```
+
+### US23 · Incluir os proventos na rentabilidade · RF13
+
+> **Como** investidor,
+> **quero** escolher se lucro, rentabilidade e evolução consideram os proventos,
+> **para** comparar a valorização pura com o retorno total sem misturar as duas leituras.
+
+```gherkin
+Cenário: CA09.9 - Toggle na carteira
+  Quando escolho "Com proventos"
+  Então lucro e rentabilidade de cada ativo somam os proventos recebidos
+  E a URL passa a ter ?dividends=true
+
+Cenário: CA09.10 - Provento na matriz
+  Quando um mês tem provento
+  Então ele entra no valor e no retorno daquele mês
+
+Cenário: CA09.11 - Série Valor + Proventos
+  Quando ativo o toggle no gráfico
+  Então uma terceira linha acumula os proventos pagos até cada mês
+```
+
+### US24 · Acompanhar aportes e resgates · RF14
+
+> **Como** investidor,
+> **quero** um extrato de tudo que entrou e saiu da carteira,
+> **para** conferir o fluxo de caixa dos investimentos e localizar cada comprovante.
+
+```gherkin
+Cenário: CA09.12 - KPIs de fluxo
+  Quando abro movements.html
+  Então vejo aportado líquido, total de compras, total de vendas e a contagem
+
+Cenário: CA09.13 - Barras por mês
+  Quando escolho a janela "2 anos"
+  Então o gráfico agrupa os aportes por mês nessa janela, e a URL guarda ?range=2y
+
+Cenário: CA09.14 - Extrato com comprovante
+  Então cada linha traz ativo, tipo, quantidade, preço, total, data e o botão do comprovante quando há anexo
+
+Cenário: CA09.15 - Registrar pela página
+  Quando registro uma compra pelo diálogo da página
+  Então o lançamento entra no ativo escolhido e os KPIs mudam
+```
+
+### Tasks da etapa
+
+As nove tasks seguem os dados: primeiro a tabela e quem a preenche, depois o cálculo, as telas, os toggles e o extrato.
+
+<Steps>
+
+1. **TK09-1 · Migration `dividends_history`** com RLS pelo dono do ativo.
+2. **TK09-2 · Crawler de proventos** em `services/dividends.js`: Yahoo `events=div`, candidatos com `.SA`, `upsert` idempotente.
+3. **TK09-3 · `lib/dividends.js`**: `calculateDividends()`, `dividendYieldOnCost()`, `totalReturn()` e `buildDividendsMatrix()`.
+4. **TK09-4 · `dividends.html` e `pages/dividends.js`**: KPIs, gráfico, matriz, maiores pagadores e extrato.
+5. **TK09-5 · Aba Proventos e retorno total** em `asset.html`.
+6. **TK09-6 · Toggles**: "Com proventos" na carteira, `withDividends()` na matriz e a série "Valor + Proventos".
+7. **TK09-7 · `lib/bar-chart.js`**: barras por mês em SVG.
+8. **TK09-8 · `movements.html` e `pages/movements.js`**: KPIs, gráfico, extrato e diálogo.
+9. **TK09-9 · Testes da sprint**.
+
+</Steps>
+
+## Dos eventos ao provento recebido
+
+O provento é um evento do **ativo** (valor por cota, data ex, data de pagamento). O que a pessoa recebeu é uma derivação: para cada evento, a posição que ela tinha na véspera da data ex, vezes o valor por cota. Nada disso é gravado; a tabela guarda só o evento.
+
+<Mermaid title="O que se grava e o que se deriva">
+{`
+flowchart LR
+  Y["Yahoo Finance<br/>events=div"] -->|"crawler (upsert)"| D[("dividends_history<br/>asset_id · rate · ex_date · payment_date")]
+  T[("transactions")] --> C["calculateDividends()<br/>posição antes da data ex × rate"]
+  D --> C
+  C --> P["dividends.html<br/>KPIs · matriz · maiores pagadores"]
+  C --> A["asset.html<br/>aba Proventos · retorno total"]
+  C --> R["dashboard · analytics<br/>toggle Com proventos"]
+`}
+</Mermaid>
+
+## Estrutura da aplicação
+
+O delta é uma migration, uma lib de cálculo, um serviço, uma lib de gráfico e duas páginas novas. A tela do ativo, a carteira e a matriz ganham o toggle.
+
+<ProjectLinks path="examples/courses/npm/projects/investflow-origins" devcontainer="investflow-origins" />
+
+<FileTree>
+{`
+  investflow-origins/
+  ├── supabase/migrations/
+  │   └── 20260912000013_dividends_history.sql   TK09-1: eventos por ativo, RLS pelo dono do ativo
+  ├── src/
+  │   ├── lib/
+  │   │   ├── dividends.js                 TK09-3: calculateDividends(), YoC, totalReturn(), matriz
+  │   │   ├── dividends.test.js
+  │   │   ├── bar-chart.js                 TK09-7: scaleBars() e renderBarChart()
+  │   │   └── returns.js                   TK09-6: withDividends()
+  │   ├── services/
+  │   │   ├── dividends.js                 TK09-2: getDividends(), listAllDividends(), fetchAndSyncDividends()
+  │   │   └── origins.js                   TK09-6: attachCumulativeDividends() e a terceira série
+  │   └── pages/
+  │       ├── dividends.js                 TK09-4: KPIs, gráfico, matriz, maiores pagadores, extrato
+  │       ├── movements.js                 TK09-8: KPIs de fluxo, barras por mês, extrato, diálogo
+  │       ├── asset.js                     TK09-5: aba Proventos e card de retorno total
+  │       └── dashboard.js                 TK09-6: summarizeWithDividends()
+  ├── pages/dividends.html · pages/movements.html   novas
+  └── tests/
+      ├── integration/dividends.test.js    RLS e idempotência
+      └── e2e/dividends.spec.js            as duas páginas e os toggles
+`}
+</FileTree>
+
+## O que muda nesta etapa?
+
+| Antes (Sprint 8) | Agora (Sprint 9) |
+| ---------------- | ---------------- |
+| Retorno é só variação de preço | Proventos por ativo, creditados pela data ex |
+| Nenhuma leitura de renda passiva | `dividends.html`: total, 12 meses, média, YoC, matriz ano × mês e maiores pagadores |
+| Tela do ativo com aportes | + aba Proventos e retorno total (valorização + realizado + proventos) |
+| Matriz e evolução ignoram proventos | Toggle "Com proventos" na carteira, na matriz e no gráfico |
+| Aportes só dentro de cada ativo | `movements.html`: extrato consolidado com KPIs de fluxo e barras por mês |
+
+## Descrição das tarefas
+
+Abaixo estão detalhadas as tarefas de implementação desta etapa, com orientações e os trechos de código do projeto.
+
+### TK09-1 · Migration `dividends_history`
+
+A tabela não tem `user_id`: o dono é o dono do ativo, e as quatro policies fazem `exists` em `assets`. A `unique (asset_id, ex_date)` é o que torna a sincronização idempotente, e o teste `CA09.3` prova que o `insert` repetido recebe `23505`.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/supabase/migrations/20260912000013_dividends_history.sql"
+  title="supabase/migrations/20260912000013_dividends_history.sql"
+  region="dividends_history"
+/>
+
+### TK09-2 · Crawler de proventos
+
+O crawler roda no navegador, com a sessão do dono: por isso a tabela precisa aceitar escrita do `authenticated`. Ele tenta o ticker com `.SA` primeiro quando há dígito (B3), converte cada evento em uma linha e grava tudo com `upsert` na chave única. Categoria sem provento por cota nem chega ao provedor.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/dividends.js"
+  title="src/services/dividends.js"
+  region="sync"
+/>
+
+Os testes de unidade substituem `fetch`: um provedor que responde, um fora do ar e um que devolve 404 para todos os candidatos. Em nenhum caso de falha o `upsert` é chamado.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/services/dividends.test.js"
+  title="src/services/dividends.test.js"
+  region="mock"
+/>
+
+### TK09-3 · `lib/dividends.js`
+
+A regra da data ex está em uma comparação: `transaction_date < ex_date`. Compra na data ex não recebe; venda na data ex ainda recebe. A função é pura, ordena transações e eventos, e devolve os itens creditados com a quantidade que tinha direito.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/dividends.js"
+  title="src/lib/dividends.js"
+  region="calculate"
+/>
+
+Yield on cost e retorno total são duas divisões sobre os mesmos números. O retorno total soma a valorização (`value - cost`), o realizado das vendas e os proventos; sem cotação, o percentual fica nulo.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/dividends.js"
+  title="src/lib/dividends.js"
+  region="yoc"
+/>
+
+### TK09-4 · `dividends.html`
+
+Os KPIs saem do mesmo array de itens creditados: total, últimos doze meses, média mensal e yield on cost médio (proventos sobre o total comprado). O filtro por ativo é aplicado antes, e por isso vale para KPIs, gráfico, matriz e extrato ao mesmo tempo.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/dividends.js"
+  title="src/pages/dividends.js"
+  region="kpis"
+/>
+
+A matriz ano × mês é a mesma ideia da matriz de rentabilidade, com soma em vez de composição: `buildDividendsMatrix()` devolve anos, células, totais por ano, por mês e o total geral.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/dividends.js"
+  title="src/lib/dividends.js"
+  region="matrix"
+/>
+
+### TK09-5 · Aba Proventos e retorno total
+
+Na tela do ativo, a aba só existe para categoria elegível; para um CDB, a função esconde a aba e o card de retorno total e força a aba de lançamentos. É a mesma `calculateDividends()`, agora com o câmbio quando o ativo é em dólar (Sprint 10).
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/asset.js"
+  title="src/pages/asset.js"
+  region="dividends"
+/>
+
+### TK09-6 · Proventos dentro da rentabilidade
+
+Três lugares, uma escolha da pessoa. Na carteira, `summarizeWithDividends()` soma ao lucro os proventos recebidos daquele ativo quando o toggle está ligado, e o estado fica em `?dividends=true`.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/dashboard.js"
+  title="src/pages/dashboard.js"
+  region="with-dividends"
+/>
+
+Na matriz mensal, `withDividends()` soma o provento do mês ao valor e ao retorno daquele mês; na evolução, `attachCumulativeDividends()` acumula até cada mês e `toSeries()` desenha a terceira linha.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/returns.js"
+  title="src/lib/returns.js"
+  region="evolution"
+/>
+
+### TK09-7 · `lib/bar-chart.js`
+
+Como o treemap e as linhas, o gráfico de barras é SVG escrito à mão: `scaleBars()` é pura (recebe rótulos e valores, devolve retângulos proporcionais ao máximo) e a renderização é outra função. Uma lista vazia devolve uma mensagem, não uma exceção.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/lib/bar-chart.js"
+  title="src/lib/bar-chart.js"
+  region="scale"
+/>
+
+### TK09-8 · `movements.html`
+
+O extrato consolida as transações de todos os ativos. Os KPIs de fluxo são três somas e uma contagem sobre a lista filtrada; o gráfico agrupa compras por mês na janela escolhida; a tabela reaproveita o botão de comprovante da Sprint 5.
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/src/pages/movements.js"
+  title="src/pages/movements.js"
+  region="kpis"
+/>
+
+### TK09-9 · Testes da sprint
+
+| Camada | O que prova | Critérios |
+| ------ | ----------- | --------- |
+| Unidade | data ex, elegibilidade, YoC, retorno total, matriz; crawler com `fetch` simulado (sucesso, fora do ar, 404); `withDividends()`; `scaleBars()`; a série acumulada | CA09.2, CA09.3, CA09.4, CA09.5, CA09.6, CA09.7, CA09.8, CA09.10, CA09.11, CA09.13 |
+| Integração | RLS pelo dono do ativo (B não lê nem grava); `upsert` repetido deixa uma linha por data ex e o `insert` duplicado recebe `23505` | CA09.1, CA09.3 |
+| E2E | três eventos semeados com a chave de serviço, dois creditados; `dividends.html` com KPIs, matriz e maiores pagadores; toggle na carteira; `movements.html` com KPIs, janela, extrato e registro | CA09.5 a CA09.9, CA09.12 a CA09.15 |
+
+<SourceCode
+  path="examples/courses/npm/projects/investflow-origins/tests/integration/dividends.test.js"
+  title="tests/integration/dividends.test.js"
+  region="rls"
+/>
+
+## Decisões de desenho
+
+| Decisão | Regra | Razão |
+| ------- | ----- | ----- |
+| Evento no ativo, recebimento derivado | `dividends_history` guarda só valor por cota e datas. | Editar uma compra antiga muda automaticamente o que foi recebido; nada fica desatualizado. |
+| `<`, não `<=` | `transaction_date < ex_date`. | É a regra do mercado: quem compra na data ex já compra sem o direito. |
+| Toggle, não padrão | Proventos entram no lucro só quando a pessoa pede. | Valorização e renda respondem a perguntas diferentes; somar por padrão esconderia uma queda de preço. |
+| Crawler no navegador | `fetchAndSyncDividends()` roda com a sessão do dono. | Zero código privilegiado para uma leitura pública; o custo é depender do CORS do provedor, registrado em [Próximos passos](../next-steps/). |
+
+<Aside type="caution" title="Dica de IA: Peça a regra da data ex explicitamente">
+  Um assistente que "calcula dividendos" tende a multiplicar a posição **atual** pelo valor por cota. O resultado credita proventos de antes da compra. Descreva a regra e peça o teste que a prova.
+
+  **Prompt:** *"Escreva `calculateDividends(transactions, events)`: para cada evento, a posição com direito é a soma das transações com `transaction_date < ex_date` (compra na data ex não recebe; venda na data ex ainda recebe). Escreva os três testes: posição antes da data ex, compra na data ex, posição zerada antes da data ex."*
+</Aside>
+
+## Testando
+
+```bash title="Terminal"
+pnpm test
+```
+
+```txt title="Output" frame="terminal"
+ ✓ |unit| src/lib/dividends.test.js (12 tests)
+ ✓ |unit| src/services/dividends.test.js (4 tests)
+   ✓ CA09.2: categoria sem proventos por cota nao consulta o provedor
+   ✓ CA09.3: grava os eventos por upsert em (asset_id, ex_date)
+   ✓ CA09.4: provedor fora do ar devolve erro sem tocar no banco
+   ✓ CA09.4: ticker desconhecido em todos os candidatos vira aviso, nao erro
+ ✓ |unit| src/lib/bar-chart.test.js (4 tests)
+ ✓ |integration| tests/integration/dividends.test.js (2 tests)
+   ✓ CA09.1: dividends_history e lida e escrita so pelo dono do ativo
+   ✓ CA09.3: repetir a carga deixa uma linha por data ex
+ ✓ (as demais suítes das Sprints 2 a 11)
+
+ Test Files  35 passed (35)
+      Tests  216 passed (216)
+```
+
+```bash title="Terminal"
+pnpm test:e2e tests/e2e/dividends.spec.js
+```
+
+```txt title="Output" frame="terminal"
+  ✓ a aba Proventos aparece so em ativo elegivel e credita pela data ex (CA09.8, CA09.5)
+  ✓ dividends.html: KPIs, matriz e maiores pagadores (CA09.6, CA09.7)
+  ✓ o toggle "Com proventos" entra no lucro da carteira (CA09.9)
+  ✓ movements.html: KPIs de fluxo, extrato e registro pela pagina (CA09.12, CA09.13, CA09.14, CA09.15)
+
+  4 passed (7.3s)
+```
+
+O E2E não clica em "Sincronizar": ele semeia os três eventos com a chave de serviço e deixa a regra da data ex para a tela. Testar o crawler de verdade dependeria do provedor externo responder no momento do teste, e isso não é uma prova repetível.
+
+## Executando
+
+<Steps>
+
+1. Entre no projeto, instale e suba a stack:
+
+   ```bash title="Terminal"
+   cd examples/courses/npm/projects/investflow-origins
+   pnpm install
+   pnpm db:start
+   supabase status -o env   # preencha o .env
+   pnpm db:reset
+   ```
+
+2. Suba o Vite, cadastre um FII com histórico de proventos (por exemplo `HGLG11`), registre uma compra com data de alguns meses atrás e clique em **Sincronizar proventos** na aba do ativo ou em `dividends.html`:
+
+   ```bash title="Terminal"
+   pnpm dev
+   ```
+
+3. Rode as suítes:
+
+   ```bash title="Terminal"
+   pnpm test
+   pnpm test:e2e
+   ```
+
+</Steps>
+
+## Conceitos abordados
+
+- Tabela de eventos e policy herdada do registro pai
+- Regra da data ex como função pura
+- Yield on cost e retorno total
+- Upsert idempotente por chave natural
+- Gráfico de barras em SVG sem biblioteca
+
+## Exercício
+
+Acrescente ao extrato de proventos a coluna "cotas com direito" e escreva o cenário Gherkin que a valida com uma venda parcial entre duas datas ex.
+
+## Desafio
+
+Mova o crawler para uma Edge Function chamada pelo botão (mesmo desenho da `update-quotes`). Liste o que muda na policy de `dividends_history` quando o `authenticated` deixa de precisar de `insert`.
+
+## Perguntas de revisão
+
+1. Por que `dividends_history` não tem `user_id`?
+2. O que acontece com o provento creditado se a pessoa editar a data de uma compra para depois da data ex?
+3. Por que o retorno total precisa do resultado realizado além da valorização e dos proventos?
+4. Por que o E2E semeia os eventos em vez de clicar em "Sincronizar"?
+
+## Referências
+
+- [B3: data ex e data com](https://www.b3.com.br/pt_br/produtos-e-servicos/negociacao/renda-variavel/acoes/glossario/)
+- [Supabase: policies com `exists`](https://supabase.com/docs/guides/database/postgres/row-level-security#policies-with-joins)
+- [MDN: SVG `<rect>`](https://developer.mozilla.org/en-US/docs/Web/SVG/Element/rect)
+
+## Próxima etapa
+
+Em [Dólar e cripto](../international/), a carteira sai do real: moeda por ativo, tabela de câmbio, cripto cotada em dólar e a função aprendendo a não consultar o provedor com o mercado fechado.

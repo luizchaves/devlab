@@ -55,6 +55,7 @@ function cleanUrlsPlugin() {
   };
 }
 
+// #region pages
 // Aplicacao multipagina: cada HTML em pages/ e uma entrada do build.
 export default defineConfig({
   plugins: [tailwindcss(), cleanUrlsPlugin()],
@@ -78,3 +79,4 @@ export default defineConfig({
     },
   },
 });
+// #endregion

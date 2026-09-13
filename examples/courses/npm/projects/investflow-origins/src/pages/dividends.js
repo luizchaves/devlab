@@ -107,6 +107,7 @@ function populateAssetSelect() {
 }
 
 // 3. KPIs
+// #region kpis
 function renderKPIs() {
   const kpi = (name, text) => {
     const el = document.querySelector(`[data-kpi="${name}"]`);
@@ -139,6 +140,7 @@ function renderKPIs() {
     .reduce((sum, t) => sum + Number(t.quantity) * Number(t.price), 0);
   kpi('avg-yoc', formatPct(totalBuys > 0 ? totalDivs / totalBuys : 0));
 }
+// #endregion
 
 // 4. Gráficos e Matriz Comparativa
 function updateDividendsRangeButtons() {

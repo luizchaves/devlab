@@ -304,6 +304,7 @@ export type LastQuoteInfo = {
   isClosing?: boolean;
 };
 
+// #region should-fetch
 /**
  * Avalia se e necessario consultar a fonte externa de cotacoes.
  * Evita chamadas de rede desnecessarias quando o valor de fechamento ja e o
@@ -359,4 +360,5 @@ export function shouldFetchFromProvider(
 
   return true;
 }
+// #endregion
 // #endregion

@@ -722,6 +722,7 @@ function drawMatrix() {
   });
 }
 
+// #region render-evolution
 async function renderEvolution() {
   const { data } = await portfolioEvolution(currentAsset.id);
   let rows = totalsByMonth(data ?? []);
@@ -795,7 +796,7 @@ document.querySelector('[data-currency-toggle-group]')?.addEventListener('click'
 // #endregion
 // #endregion
 
-// #region create / edit transaction
+// #region transaction-dialog
 function updateTransactionFields() {
   const isBuy = form.elements.type.value === 'buy';
   const isUpdate = form.elements.type.value === 'update';
@@ -914,7 +915,7 @@ form.addEventListener('submit', async (event) => {
 });
 // #endregion
 
-// #region price update
+// #region price-update
 const priceFixedField = priceForm.querySelector('[data-price-fixed-field]');
 const priceVariableField = priceForm.querySelector('[data-price-variable-field]');
 
@@ -1076,7 +1077,7 @@ priceForm.addEventListener('submit', async (event) => {
 });
 // #endregion
 
-// #region table actions & receipt
+// #region table-actions
 document.querySelector('[data-transactions]').addEventListener('click', async (event) => {
   const editBtn = event.target.closest('[data-edit-transaction]');
   if (editBtn) {

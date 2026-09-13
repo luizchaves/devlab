@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
     userId = data.user.id;
   }
 
+  // #region scope
   // 2. O que atualizar? Usuario comum atualiza so a propria carteira. A chave de
   //    servico, usada pelo agendamento, continua global. Um `asset_id` no corpo
   //    restringe a um unico ativo (botao "Atualizar" da pagina do ativo).
@@ -58,6 +59,7 @@ Deno.serve(async (req) => {
 
   const { data: assets, error } = await query;
   if (error) return json({ error: error.message }, 500);
+  // #endregion
 
   // 3. Verificar cotacoes existentes no banco para evitar consultas externas
   //    desnecessarias quando o valor de fechamento ja for o vigente (fora do horario de pregao).

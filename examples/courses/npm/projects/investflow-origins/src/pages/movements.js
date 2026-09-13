@@ -97,6 +97,7 @@ function filteredTransactions() {
   return allTransactions.filter((t) => selectedAssetId === 'all' || t.asset_id === selectedAssetId);
 }
 
+// #region kpis
 // 3. KPIs
 function renderKPIs() {
   const kpi = (name, text) => {
@@ -121,6 +122,7 @@ function renderKPIs() {
     `${transactions.length} ${transactions.length === 1 ? 'lançamento' : 'lançamentos'}`
   );
 }
+// #endregion
 
 // 4. Gráfico de aportes por mês
 function updateRangeButtons() {

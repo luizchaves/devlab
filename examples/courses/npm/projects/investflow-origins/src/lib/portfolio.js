@@ -105,6 +105,7 @@ export function summarizeInBRL(asset, { rateMap = new Map(), latestRate = 1 } = 
 }
 // #endregion
 
+// #region flows
 /**
  * Fluxo liquido de aportes por mes ('AAAA-MM' -> compras menos vendas), em reais
  * pelo cambio do mes quando o ativo e em USD. E o fluxo que a matriz de

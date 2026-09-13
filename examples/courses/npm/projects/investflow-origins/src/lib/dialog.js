@@ -1,3 +1,6 @@
+// #region backdrop
+// Um clique cujo alvo e o proprio <dialog> so pode ter caido no fundo: o
+// conteudo do dialogo e um filho e responderia como alvo.
 const backdropCloseDialogs = new WeakSet();
 
 export function closeDialogOnBackdropClick(dialog) {
@@ -11,3 +14,4 @@ export function closeDialogOnBackdropClick(dialog) {
     }
   });
 }
+// #endregion
