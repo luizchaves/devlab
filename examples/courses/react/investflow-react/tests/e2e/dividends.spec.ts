@@ -118,8 +118,9 @@ test.describe('proventos e movimentações', () => {
     const form = page.locator('[data-transaction-form]');
     const cdb = await form.locator('[name=assetId] option', { hasText: 'CDB E2E' }).getAttribute('value');
     await form.getByLabel('Ativo').selectOption(cdb!);
-    await form.getByLabel('Quantidade').fill('1000');
-    await form.getByLabel('Preço unitário').fill('1');
+    // CDB é renda fixa: o diálogo pede o valor aplicado, não quantidade e preço (CA14.1).
+    await expect(form.getByLabel('Quantidade')).toHaveCount(0);
+    await form.getByLabel(/Valor aplicado/).fill('1000');
     await form.getByLabel('Data').fill('2026-05-05');
     await form.getByRole('button', { name: 'Registrar' }).click();
     await expect(form).toBeHidden();

@@ -39,8 +39,13 @@ async function addTransaction(page: Page, ticker: string, quantity: string, pric
   await page.locator(`tr[data-ticker="${ticker}"] a`).click();
   await page.locator('[data-new-transaction]').click();
   const tx = page.locator('[data-transaction-form]');
-  await tx.getByLabel('Quantidade').fill(quantity);
-  await tx.getByLabel(/Preço unitário/).fill(price);
+  // Renda fixa pede só o valor (CA14.1); os demais, quantidade e preço.
+  if ((await tx.getAttribute('data-mode')) === 'balance') {
+    await tx.getByLabel(/Valor aplicado/).fill(String(Number(quantity) * Number(price)));
+  } else {
+    await tx.getByLabel('Quantidade').fill(quantity);
+    await tx.getByLabel(/Preço unitário/).fill(price);
+  }
   await tx.getByLabel('Data').fill(date);
   await tx.getByRole('button', { name: 'Registrar' }).click();
   await expect(tx).toBeHidden();

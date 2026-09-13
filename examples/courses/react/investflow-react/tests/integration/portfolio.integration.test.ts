@@ -196,3 +196,23 @@ describe('edição e exclusão de lançamentos', () => {
     expect(summarize(reloaded).quantity).toBe(100);
   });
 });
+
+describe('renda fixa pelo valor e rendimento', () => {
+  it('CA14.1, CA14.2 — a aplicação grava o valor como quantidade com preço 1 e guarda o rendimento contratado', async () => {
+    const { ana } = await createAccounts();
+    actAs(ana);
+    const { asset } = await createAsset({ ticker: 'CDB-INTER', name: 'CDB Inter', category: 'renda_fixa' });
+
+    const response = await postTransaction(jsonRequest('POST', { assetId: asset.id, type: 'buy', quantity: 1250.5, price: 1, transactionDate: '2026-01-10', yieldRate: 12.5 }));
+    const { transaction } = await response.json();
+    expect(response.status).toBe(201);
+    expect(transaction).toMatchObject({ quantity: 1250.5, price: 1, yieldRate: 12.5 });
+
+    const { asset: reloaded } = await (await getAsset(new Request('http://localhost'), params(asset.id))).json();
+    expect(reloaded.transactions[0].yieldRate).toBe(12.5);
+    expect(summarize(reloaded).value).toBe(1250.5);
+
+    const without = await (await postTransaction(jsonRequest('POST', { assetId: asset.id, type: 'buy', quantity: 100, price: 1, transactionDate: '2026-02-10' }))).json();
+    expect(without.transaction.yieldRate).toBeNull();
+  });
+});

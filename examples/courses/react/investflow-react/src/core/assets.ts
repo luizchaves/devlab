@@ -42,6 +42,11 @@ export const transactionSchema = z.object({
   quantity: z.coerce.number().positive('Quantidade precisa ser maior que zero.'),
   price: z.coerce.number().min(0, 'Preço não pode ser negativo.'),
   transactionDate: isoDate,
+  /** Rendimento contratado em % a.a., opcional (renda fixa, CA14.2). Vazio vira `null`. */
+  yieldRate: z.preprocess(
+    (value) => (value === '' || value == null ? null : value),
+    z.coerce.number().min(0, 'Rendimento não pode ser negativo.').max(1000, 'Rendimento fora do intervalo.').nullable()
+  ),
 });
 
 export type TransactionInput = z.input<typeof transactionSchema>;

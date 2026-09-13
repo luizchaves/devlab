@@ -8,6 +8,7 @@ const tx = (type: TransactionFact['type'], quantity: number, price: number, tran
   quantity,
   price,
   transactionDate,
+  yieldRate: null,
   receiptPath: null,
 });
 

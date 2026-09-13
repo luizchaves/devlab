@@ -29,7 +29,9 @@ raiz do DevLab.
     horizontal; tabela nova usa `hideBelow` nas colunas não essenciais; botão de ação tem
     pelo menos 44 px em telas de toque; cada página nova entra em
     `tests/e2e/responsive.mobile.spec.ts`.
-11. **Banco e arquivos na stack local do Supabase**: Prisma cuida das migrações
+11. **Campo de dinheiro é `MoneyInput` (RNF08)**: nunca `type="number"` para valores
+    monetários; a máscara pt-BR mora em `core/money-mask.ts` e o componente entrega número.
+12. **Banco e arquivos na stack local do Supabase**: Prisma cuida das migrações
     (`prisma/migrations`); a pasta `supabase/` só tem o `config.toml`. Storage é acessado
     com a service role, só no servidor.
 

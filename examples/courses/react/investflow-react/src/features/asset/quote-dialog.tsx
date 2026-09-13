@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { BALANCE_CATEGORIES, type AssetWithTransactions } from '@/core/portfolio';
 import { useManualQuote } from '@/features/portfolio/queries';
 import { ApiError } from '@/lib/http';
@@ -27,22 +28,22 @@ const today = () => new Date().toISOString().slice(0, 10);
  */
 export function QuoteDialog({ open, onOpenChange, asset, warning }: Props) {
   const byBalance = BALANCE_CATEGORIES.includes(asset.category);
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState<number | null>(null);
   const [quoteDate, setQuoteDate] = useState(today());
   const [error, setError] = useState<string | null>(null);
   const mutation = useManualQuote(asset.id);
 
   const close = () => {
     onOpenChange(false);
-    setValue('');
+    setValue(null);
     setQuoteDate(today());
     setError(null);
   };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const amount = Number(value);
-    if (value === '' || Number.isNaN(amount) || amount < 0) {
+    const amount = value;
+    if (amount === null || amount < 0) {
       setError(byBalance ? 'Informe um saldo maior ou igual a zero.' : 'Informe um valor maior ou igual a zero.');
       return;
     }
@@ -65,7 +66,7 @@ export function QuoteDialog({ open, onOpenChange, asset, warning }: Props) {
           </p>
         )}
         <Field label={byBalance ? 'Saldo atual (R$)' : `Cotação (${asset.currency === 'USD' ? 'US$' : 'R$'})`} error={error ?? undefined}>
-          {(c) => <Input {...c} name={byBalance ? 'currentBalance' : 'currentPrice'} type="number" inputMode="decimal" min={0} step="any" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />}
+          {(c) => <MoneyInput {...c} name={byBalance ? 'currentBalance' : 'currentPrice'} decimals={byBalance ? 2 : 4} value={value} onValueChange={setValue} autoFocus />}
         </Field>
         <Field label="Data">
           {(c) => <Input {...c} name="quoteDate" type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} />}

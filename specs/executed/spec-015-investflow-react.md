@@ -282,6 +282,11 @@ one per phase), registered in the sidebar, in the React guide index and in
 check:links, check:doc-lines). No slides or mind maps, matching the vanilla InvestFlow
 pages, which have none either.
 
+Post-delivery additions (2026-09-13, requested by the author): **RNF08**, money inputs with
+the pt-BR mask (`core/money-mask.ts`, `MoneyInput`, CA13.1–CA13.3), and **RF03.7**, fixed
+income entered by amount and contracted yield (`Transaction.yieldRate`, `projectedBalance`,
+CA14.1–CA14.3). Suite after them: 135 Vitest, 2 build, 37 Playwright.
+
 Deviations from the plan: Phase 3b (RNF07) was added at the author's request; the
 `ExchangeRate` model arrived in Phase 3 instead of Phase 9 because the quote run writes it;
 the build test folder is `tests/deploy/` (the DevLab glob ignores `build/`); dependencies

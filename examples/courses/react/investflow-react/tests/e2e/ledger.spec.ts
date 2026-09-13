@@ -32,12 +32,16 @@ async function createAsset(page: Page, { ticker, name, category }: { ticker: str
   await expect(form).toBeHidden();
 }
 
-async function addTransaction(page: Page, { type = 'buy', quantity, price, date }: { type?: string; quantity: string; price: string; date: string }) {
+async function addTransaction(page: Page, { type = 'buy', quantity, price, date, amount }: { type?: string; quantity?: string; price?: string; date: string; amount?: string }) {
   await page.locator('[data-new-transaction]').click();
   const tx = page.locator('[data-transaction-form]');
   await tx.getByLabel('Tipo').selectOption(type);
-  await tx.getByLabel('Quantidade').fill(quantity);
-  await tx.getByLabel(/Preço unitário/).fill(price);
+  if (amount) {
+    await tx.getByLabel(/Valor (aplicado|resgatado)/).fill(amount);
+  } else {
+    await tx.getByLabel('Quantidade').fill(quantity!);
+    await tx.getByLabel(/Preço unitário/).fill(price!);
+  }
   await tx.getByLabel('Data').fill(date);
   await tx.getByRole('button', { name: 'Registrar' }).click();
   await expect(tx).toBeHidden();
@@ -90,7 +94,7 @@ test.describe('lançamentos, saldo e organização', () => {
     await signIn(page);
     await createAsset(page, { ticker: 'CDB-INTER', name: 'CDB Inter', category: 'renda_fixa' });
     await page.locator('tr[data-ticker="CDB-INTER"] a').click();
-    await addTransaction(page, { quantity: '1', price: '1080', date: '2026-01-05' });
+    await addTransaction(page, { amount: '1080', date: '2026-01-05' });
 
     // Zera XPTO3 para ter um ativo encerrado na carteira.
     await page.goto('/dashboard');

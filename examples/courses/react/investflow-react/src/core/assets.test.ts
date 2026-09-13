@@ -47,3 +47,13 @@ describe('transactionSchema', () => {
     expect(zero.success).toBe(false);
   });
 });
+
+describe('transactionSchema · rendimento', () => {
+  it('CA14.2 — o rendimento é opcional, vazio vira null e negativo é recusado', () => {
+    const base = { assetId: 'a1', type: 'buy', quantity: 1000, price: 1, transactionDate: '2026-01-10' };
+    expect(transactionSchema.parse({ ...base, yieldRate: '' }).yieldRate).toBeNull();
+    expect(transactionSchema.parse({ ...base }).yieldRate).toBeNull();
+    expect(transactionSchema.parse({ ...base, yieldRate: '12,5'.replace(',', '.') }).yieldRate).toBe(12.5);
+    expect(transactionSchema.safeParse({ ...base, yieldRate: -1 }).success).toBe(false);
+  });
+});

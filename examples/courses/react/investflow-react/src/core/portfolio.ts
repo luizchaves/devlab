@@ -10,6 +10,8 @@ export type TransactionFact = {
   quantity: number;
   price: number;
   transactionDate: string;
+  /** Rendimento contratado em % a.a. (renda fixa); `null` nos demais. */
+  yieldRate: number | null;
   receiptPath: string | null;
 };
 
@@ -246,5 +248,27 @@ export function summarizeInBRL(asset: Pick<AssetWithTransactions, 'transactions'
   const byBalance = BALANCE_CATEGORIES.includes(asset.category);
   const value = byBalance ? cost : asset.currentPrice == null ? null : quantity * asset.currentPrice * (isUsd ? latestRate : 1);
   return { cost, value, unrealized: value == null ? null : value - cost, returnPct: value == null || cost === 0 ? null : (value - cost) / cost };
+}
+// #endregion
+
+// #region projected-balance
+/**
+ * Saldo estimado de um ativo por saldo (renda fixa) pelo rendimento contratado:
+ * o custo atual capitaliza, à taxa do último lançamento que a informou, do
+ * último lançamento até a data de referência (CA14.3). Sem taxa, devolve `null`.
+ */
+export function projectedBalance(transactions: TransactionFact[], referenceDate = new Date()): { balance: number; yieldRate: number; since: string } | null {
+  if (transactions.length === 0) return null;
+  const sorted = [...transactions].sort((a, b) => a.transactionDate.localeCompare(b.transactionDate));
+  const withRate = sorted.filter((t) => t.yieldRate != null && t.yieldRate > 0);
+  const latestRate = withRate.at(-1)?.yieldRate;
+  if (latestRate == null) return null;
+
+  const since = sorted[sorted.length - 1].transactionDate;
+  const cost = costAt(transactions, since);
+  if (cost <= 0) return null;
+
+  const days = Math.max(0, (referenceDate.getTime() - new Date(`${since}T12:00:00`).getTime()) / 86_400_000);
+  return { balance: cost * (1 + latestRate / 100) ** (days / 365), yieldRate: latestRate, since };
 }
 // #endregion

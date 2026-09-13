@@ -78,7 +78,7 @@ src/server/          Prisma, NextAuth, senha, guards, ativos, lançamentos, seed
 src/server/quotes/   provedores (yahoo, fake), a rodada de cotações e a cotação manual
 src/server/storage.ts, receipts.ts   cliente do Supabase Storage (service role) e os comprovantes
 src/features/        componentes, hooks (React Query) e ações de cada tela
-src/components/ui/   primitivas (Button, Input, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
+src/components/ui/   primitivas (Button, Input, MoneyInput, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
 src/components/      Providers, AppShell, Money, CommandPalette, ExchangeProvider; charts/ (Treemap, LineChart, BarChart em SVG puro)
 src/store/           Zustand: preferências
 tests/integration/   rotas e serviços contra o schema `integration` do Postgres

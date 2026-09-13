@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { investmentDuration, summarize, totals, type AssetWithTransactions, type TransactionFact } from './portfolio';
+import { investmentDuration, projectedBalance, summarize, totals, type AssetWithTransactions, type TransactionFact } from './portfolio';
 
 const tx = (
   type: TransactionFact['type'],
   quantity: number,
   price: number,
   transactionDate: string
-): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, receiptPath: null });
+): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, receiptPath: null });
 
 const asset = (overrides: Partial<AssetWithTransactions> = {}): AssetWithTransactions => ({
   id: 'a1',
@@ -112,5 +112,30 @@ describe('investmentDuration', () => {
 
   it('sem lançamentos devolve traço', () => {
     expect(investmentDuration([])).toMatchObject({ text: '—', days: 0 });
+  });
+});
+
+describe('projectedBalance', () => {
+  it('CA14.3 — capitaliza o saldo pelo rendimento contratado desde o último lançamento', () => {
+    const today = new Date('2027-01-10T12:00:00');
+    const withRate = [{ ...tx('buy', 1000, 1, '2026-01-10'), yieldRate: 12 }];
+    const projected = projectedBalance(withRate, today)!;
+
+    expect(projected.yieldRate).toBe(12);
+    expect(projected.since).toBe('2026-01-10');
+    expect(projected.balance).toBeCloseTo(1120, 0); // um ano a 12% a.a.
+  });
+
+  it('sem rendimento informado, ou sem saldo, não estima', () => {
+    expect(projectedBalance([tx('buy', 1000, 1, '2026-01-10')])).toBeNull();
+    expect(projectedBalance([])).toBeNull();
+  });
+
+  it('um saldo atualizado recomeça a capitalização da data do saldo, com a última taxa conhecida', () => {
+    const today = new Date('2026-07-01T12:00:00');
+    const projected = projectedBalance([{ ...tx('buy', 1000, 1, '2026-01-01'), yieldRate: 10 }, tx('update', 1050, 1, '2026-06-01')], today)!;
+    expect(projected.since).toBe('2026-06-01');
+    expect(projected.balance).toBeGreaterThan(1050);
+    expect(projected.balance).toBeLessThan(1060);
   });
 });

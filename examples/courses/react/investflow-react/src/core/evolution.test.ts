@@ -6,7 +6,7 @@ import type { TransactionFact } from './portfolio';
 import type { AssetWithQuotes } from './returns';
 import { fitText, layout } from './treemap';
 
-const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, receiptPath: null });
+const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, receiptPath: null });
 
 const petr: AssetWithQuotes = {
   id: 'a1', ticker: 'PETR4', name: 'Petrobras', category: 'acoes', currency: 'BRL', issuer: 'Petrobras', broker: { id: 'b1', name: 'XP' }, currentPrice: 33,

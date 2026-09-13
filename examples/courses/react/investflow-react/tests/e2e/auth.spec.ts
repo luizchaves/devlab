@@ -22,7 +22,8 @@ test.describe('landing e conta', () => {
 
     await expect(page.getByRole('link', { name: 'Entrar' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Criar conta' })).toBeVisible();
-    await expect(page.locator('#sim-initial')).toHaveValue('10000');
+    // CA13.1: o simulador também usa a máscara de milhar.
+    await expect(page.locator('#sim-initial')).toHaveValue('10.000');
     await expect(page.locator('#sim-result-total')).toContainText('R$');
 
     // O simulador é interativo só depois da hidratação: repete até o React responder.

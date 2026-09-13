@@ -79,7 +79,8 @@ test.describe('cotações (provedor fake)', () => {
 
     await page.locator('[data-update-price]').click();
     const priceForm = page.locator('[data-price-form]');
-    await priceForm.getByLabel(/Saldo atual/).fill('1250.5');
+    await priceForm.getByLabel(/Saldo atual/).fill('1250,5');
+    await expect(priceForm.getByLabel(/Saldo atual/)).toHaveValue('1.250,5');
     await priceForm.getByRole('button', { name: 'Salvar' }).click();
     await expect(priceForm).toBeHidden();
 

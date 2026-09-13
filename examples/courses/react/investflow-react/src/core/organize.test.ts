@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { filterAssets, footerTotals, isAssetActive } from './organize';
 import type { AssetWithTransactions, TransactionFact } from './portfolio';
 
-const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, receiptPath: null });
+const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, receiptPath: null });
 const asset = (id: string, transactions: TransactionFact[], currentPrice: number | null = 40): AssetWithTransactions => ({ id, ticker: id, name: id, category: 'acoes', currency: 'BRL', issuer: null, broker: null, currentPrice, transactions, dividends: [] });
 
 const open = asset('OPEN', [tx('buy', 10, 30, '2026-01-10')]);

@@ -24,6 +24,7 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | RF04 comprovantes | bucket privado `receipts` (5 MB, PDF/PNG/JPG) declarado em `supabase/config.toml`; `core/file-validation.ts`; `server/receipts.ts`; `POST`/`GET /api/transactions/[id]/receipt` com URL assinada de 60 s | 4 ✓ |
 | RF06, RF07 analytics e admin | `core/returns.ts` (série mensal, matriz, distribuição, no lugar das views SQL), `server/analytics.ts`, `server/admin.ts`; `/analytics`, `/admin`, `/api/analytics`, `/api/admin/metrics` | 5 ✓ |
 | RF09, RF10 origem e evolução | `core/origins.ts`, `core/treemap.ts`, `core/evolution.ts`, `core/line-chart.ts`; `/origins`, gráfico em `/analytics` e na tela do ativo, modo e janela em `?mode=&range=` | 6 ✓ |
+| RF03.7 renda fixa pelo valor e rendimento | `Transaction.yieldRate`; formulário por saldo (valor + % a.a., sem quantidade); `projectedBalance` e o KPI "Saldo estimado hoje" | 7 ✓ |
 | RF03.2–RF03.6 lançamentos e organização | edição e exclusão de lançamento, resgate total, `core/organize.ts` (filtro e rodapé), ordenação do TanStack Table com `sortUndefined: 'last'`, `lib/url-state.ts` | 7 ✓ |
 | RF11–RF14 proventos e movimentações | `Dividend`, `/dividends`, `/movements` | 8 |
 | RF15–RF17 dólar e cripto | `ExchangeRate`, moeda por ativo | 9 |
@@ -37,4 +38,5 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | RNF04 arquivos privados | bucket privado; download por rota autenticada |
 | RNF05 admin agregado | `/api/admin/*` devolve só totais |
 | RNF06 publicação | `next build`, cabeçalhos de segurança em `next.config.ts` |
+| **RNF08 máscara monetária** (novo nesta versão) | todo campo de dinheiro usa `MoneyInput` sobre `core/money-mask.ts`: milhar com ponto e decimal com vírgula ao digitar, número sem separadores no envio (CA13.1–CA13.3) |
 | **RNF07 design responsivo** (novo nesta versão) | mobile-first: sem rolagem horizontal (CA12.1), barra com menu acessível em telas estreitas (CA12.2), tabelas com colunas essenciais e as demais por breakpoint (CA12.3), diálogos e formulários na largura da tela com alvos de toque de 44 px (CA12.4); provado pelo projeto Playwright `mobile` |

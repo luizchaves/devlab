@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import { DEFAULT_SIMULATION, simulate, type SimulationInput } from '@/core/simulator';
 import { formatMoney } from '@/lib/format';
 
@@ -24,10 +25,10 @@ export function Simulator() {
     <div className="grid gap-8 lg:grid-cols-2">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Valor inicial (R$)">
-          {(c) => <Input {...c} id="sim-initial" type="number" min={0} step={500} value={input.initial} onChange={update('initial')} />}
+          {(c) => <MoneyInput {...c} id="sim-initial" decimals={0} value={input.initial} onValueChange={(value) => setInput((current) => ({ ...current, initial: value ?? 0 }))} />}
         </Field>
         <Field label="Aporte mensal (R$)">
-          {(c) => <Input {...c} id="sim-monthly" type="number" min={0} step={100} value={input.monthly} onChange={update('monthly')} />}
+          {(c) => <MoneyInput {...c} id="sim-monthly" decimals={0} value={input.monthly} onValueChange={(value) => setInput((current) => ({ ...current, monthly: value ?? 0 }))} />}
         </Field>
         <Field label="Taxa anual (%)">
           {(c) => <Input {...c} id="sim-rate" type="number" min={0} max={100} step={0.5} value={input.annualRate} onChange={update('annualRate')} />}

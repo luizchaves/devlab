@@ -9,7 +9,7 @@ import { AlertDialog } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useExchange } from '@/components/exchange-provider';
-import { CATEGORY_LABELS, investmentDuration, summarize, summarizeInBRL, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
+import { BALANCE_CATEGORIES, CATEGORY_LABELS, investmentDuration, projectedBalance, summarize, summarizeInBRL, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
 import { isQuotable } from '@/core/quotes';
 import { useAsset, useDeleteTransaction, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
@@ -45,6 +45,8 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
   const withDividends = useMemo(() => summarizeWithDividends(asset), [asset]);
   const dividendItems = useMemo(() => receivedDividends(asset), [asset]);
   const [{ tab }, setTab] = useUrlState({ tab: 'ledger' });
+  const byBalance = BALANCE_CATEGORIES.includes(asset.category);
+  const projected = useMemo(() => (byBalance ? projectedBalance(asset.transactions) : null), [asset.transactions, byBalance]);
   const duration = useMemo(() => investmentDuration(asset.transactions), [asset.transactions]);
   const positive = (position.unrealized ?? 0) >= 0;
 
@@ -107,9 +109,15 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
         <Kpi label="Preço médio" sub={isUsd ? `≈ ${(position.averagePrice * exchange.latest).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : undefined}>
           <Money value={position.averagePrice} currency={asset.currency} data-kpi="averagePrice" />
         </Kpi>
-        <Kpi label="Cotação atual">
-          <Money value={asset.currentPrice} currency={asset.currency} data-kpi="currentPrice" />
-        </Kpi>
+        {byBalance ? (
+          <Kpi label="Saldo estimado hoje" sub={projected ? `${projected.yieldRate.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% a.a. desde ${formatDate(projected.since)}` : 'Informe o rendimento na aplicação'} subAttribute="projectedSub">
+            <Money value={projected?.balance ?? null} data-kpi="projectedBalance" />
+          </Kpi>
+        ) : (
+          <Kpi label="Cotação atual">
+            <Money value={asset.currentPrice} currency={asset.currency} data-kpi="currentPrice" />
+          </Kpi>
+        )}
         <Kpi label="Total investido" sub={inBRL ? `≈ ${inBRL.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} pelo câmbio de cada compra` : undefined}>
           <Money value={position.cost} currency={asset.currency} data-kpi="cost" />
         </Kpi>
@@ -163,6 +171,7 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
           <TransactionsTable
             transactions={asset.transactions}
             currency={asset.currency}
+            byBalance={byBalance}
             onEdit={(transaction) => setTxDialog({ open: true, transaction })}
             onDelete={setDeleting}
           />

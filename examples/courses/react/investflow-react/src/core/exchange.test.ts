@@ -30,7 +30,7 @@ describe('tabela de câmbio', () => {
   });
 });
 
-const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, receiptPath: null });
+const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, receiptPath: null });
 
 describe('ativo em dólar', () => {
   const aapl: AssetWithQuotes = {
