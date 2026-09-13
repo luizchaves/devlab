@@ -1,15 +1,18 @@
 'use client';
 
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { Money } from '@/components/money';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { CATEGORY_LABELS, investmentDuration, summarize, type AssetWithTransactions } from '@/core/portfolio';
-import { useAsset } from '@/features/portfolio/queries';
+import { isQuotable } from '@/core/quotes';
+import { useAsset, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
 import { formatPercent } from '@/lib/format';
+import { QuoteDialog } from './quote-dialog';
 import { TransactionFormDialog } from './transaction-form-dialog';
 import { TransactionsTable } from './transactions-table';
 
@@ -18,9 +21,29 @@ import { TransactionsTable } from './transactions-table';
 export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransactions }) {
   const { data: asset = initialAsset } = useAsset(initialAsset.id, initialAsset);
   const [open, setOpen] = useState(false);
+  const [quoteDialog, setQuoteDialog] = useState<{ open: boolean; warning: string | null }>({ open: false, warning: null });
+  const updateQuotes = useUpdateQuotes();
   const position = useMemo(() => summarize(asset), [asset]);
   const duration = useMemo(() => investmentDuration(asset.transactions), [asset.transactions]);
   const positive = (position.unrealized ?? 0) >= 0;
+
+  // Ativo cotado busca no provedor (CA08.9); sem resposta, ou ativo por saldo, abre o diálogo manual (CA08.10).
+  const refreshQuote = async () => {
+    if (!isQuotable(asset)) {
+      setQuoteDialog({ open: true, warning: null });
+      return;
+    }
+    try {
+      const summary = await updateQuotes.mutateAsync({ assetId: asset.id });
+      if (summary.updated > 0) {
+        toast.success(`Cotação de ${asset.ticker} atualizada.`);
+        return;
+      }
+    } catch {
+      // cai no diálogo manual com o aviso
+    }
+    setQuoteDialog({ open: true, warning: `Não foi possível buscar a cotação de ${asset.ticker}. Informe o valor manualmente.` });
+  };
 
   return (
     <section className="grid gap-6" data-asset>
@@ -43,9 +66,14 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
             <strong data-field="issuer">{asset.issuer ?? '—'}</strong>
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} data-new-transaction>
-          <Plus className="size-4" aria-hidden /> Novo lançamento
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={refreshQuote} pending={updateQuotes.isPending} data-update-price>
+            <RefreshCw className="size-4" aria-hidden /> {isQuotable(asset) ? 'Atualizar cotação' : 'Atualizar saldo'}
+          </Button>
+          <Button onClick={() => setOpen(true)} data-new-transaction>
+            <Plus className="size-4" aria-hidden /> Novo lançamento
+          </Button>
+        </div>
       </header>
 
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -78,6 +106,7 @@ export function AssetDetail({ initialAsset }: { initialAsset: AssetWithTransacti
       </div>
 
       <TransactionFormDialog key={asset.transactions.length} open={open} onOpenChange={setOpen} asset={asset} />
+      <QuoteDialog open={quoteDialog.open} onOpenChange={(next) => setQuoteDialog((s) => ({ ...s, open: next }))} asset={asset} warning={quoteDialog.warning} />
     </section>
   );
 }

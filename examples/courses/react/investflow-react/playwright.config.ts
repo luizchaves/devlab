@@ -20,6 +20,7 @@ export default defineConfig({
       DATABASE_URL: databaseUrlFor('e2e'),
       AUTH_SECRET: 'e2e-secret',
       AUTH_URL: 'http://localhost:3100',
+      QUOTES_PROVIDER: 'fake',
     },
   },
   use: {

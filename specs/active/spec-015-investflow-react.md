@@ -1,6 +1,6 @@
 # Spec 015 — InvestFlow React: Rebuilding the BaaS Product with Next.js
 
-Status: **In progress** (Phases 0, 1 and 2 done)
+Status: **In progress** (Phases 0 to 3 done)
 Date: 2026-09-13
 Related: `docs/TODO.md` → `[TASK-016.11]`
 
@@ -187,7 +187,7 @@ layers green.
   Table; asset form and transaction form in Base UI dialogs; asset detail page.
 - CA03.1–CA03.15 covered; RNF01 ownership tests.
 
-### Phase 3 · Quotes (RF04.1, RF05, RF05.1, RF18)
+### Phase 3 · Quotes (RF04.1, RF05, RF05.1, RF18) — done
 
 - `Quote` and `QuoteRun` models; `POST /api/quotes/update`; providers `fake`, `yahoo`;
   auto-fetch on create/edit of quotable assets; manual quote dialog; market calendar.
@@ -267,3 +267,7 @@ requested list: `@prisma/adapter-pg` + `pg` (Prisma 7 requires a driver adapter)
 
 Phase 2: 48 Vitest tests (13 unit, 10 browser, 15 integration) and 10 Playwright tests
 green. CA03.14 (no real data in the seed) stays a review rule, as in the vanilla project.
+
+Phase 3: 71 Vitest tests (27 unit, 10 browser, 24 integration) and 14 Playwright tests
+green. The `ExchangeRate` model arrived here because the quote run writes the USD/BRL
+rate of the day (CA10.13); the portfolio only reads it in Phase 9.

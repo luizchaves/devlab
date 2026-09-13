@@ -51,7 +51,7 @@ export default defineConfig({
           include: ['tests/integration/**/*.integration.test.ts'],
           globalSetup: ['tests/integration/global-setup.ts'],
           setupFiles: ['tests/integration/setup.ts'],
-          env: { DATABASE_URL: databaseUrlFor('integration'), AUTH_SECRET: 'test-secret' },
+          env: { DATABASE_URL: databaseUrlFor('integration'), AUTH_SECRET: 'test-secret', QUOTES_PROVIDER: 'fake' },
           fileParallelism: false,
         },
       },

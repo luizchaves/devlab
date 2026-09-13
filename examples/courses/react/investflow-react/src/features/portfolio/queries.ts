@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssetInput, TransactionInput } from '@/core/assets';
 import type { AssetWithTransactions, TransactionFact } from '@/core/portfolio';
+import type { ManualQuoteInput, RunSummary } from '@/core/quotes';
 import { api } from '@/lib/http';
 
 // #region keys
@@ -72,6 +73,27 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: (input: TransactionInput) =>
       api<{ transaction: TransactionFact }>('/api/transactions', { method: 'POST', body: JSON.stringify(input) }).then((r) => r.transaction),
+    onSuccess: invalidate,
+  });
+}
+// #endregion
+
+// #region quotes
+/** Rodada de cotações: a carteira inteira ou um ativo só (`assetId`). */
+export function useUpdateQuotes() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: (input: { assetId?: string } = {}) =>
+      api<RunSummary>('/api/quotes/update', { method: 'POST', body: JSON.stringify(input) }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useManualQuote(assetId: string) {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: (input: ManualQuoteInput) =>
+      api<{ kind: 'price' | 'balance' }>(`/api/assets/${assetId}/quote`, { method: 'POST', body: JSON.stringify(input) }),
     onSuccess: invalidate,
   });
 }

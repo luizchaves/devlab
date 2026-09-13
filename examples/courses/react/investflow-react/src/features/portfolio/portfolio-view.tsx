@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertDialog } from '@/components/ui/alert-dialog';
@@ -9,7 +9,7 @@ import { totals, type AssetWithTransactions } from '@/core/portfolio';
 import { AssetFormDialog } from './asset-form-dialog';
 import { AssetsTable } from './assets-table';
 import { PortfolioKpis } from './portfolio-kpis';
-import { useAssets, useDeleteAsset } from './queries';
+import { useAssets, useDeleteAsset, useUpdateQuotes } from './queries';
 
 // #region view
 /**
@@ -19,9 +19,21 @@ import { useAssets, useDeleteAsset } from './queries';
 export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTransactions[] }) {
   const { data: assets = [] } = useAssets(initialAssets);
   const remove = useDeleteAsset();
+  const updateQuotes = useUpdateQuotes();
   const [dialog, setDialog] = useState<{ mode: 'create' } | { mode: 'edit'; asset: AssetWithTransactions } | null>(null);
   const [deleting, setDeleting] = useState<AssetWithTransactions | null>(null);
   const summary = useMemo(() => totals(assets), [assets]);
+
+  const refreshQuotes = async () => {
+    try {
+      const summary = await updateQuotes.mutateAsync({});
+      const failed = summary.failed.map((f) => f.ticker);
+      if (failed.length) toast.warning(`${summary.updated} atualizado(s); sem cotação: ${failed.join(', ')}.`);
+      else toast.success(`${summary.updated} cotação(ões) atualizada(s).`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar as cotações.');
+    }
+  };
 
   const confirmDelete = async () => {
     if (!deleting) return;
@@ -41,9 +53,14 @@ export function PortfolioView({ initialAssets }: { initialAssets: AssetWithTrans
           <h1 className="text-2xl font-bold">Carteira</h1>
           <p className="text-sm text-slate-500">Seus ativos, posições e resultado.</p>
         </div>
-        <Button onClick={() => setDialog({ mode: 'create' })} data-new-asset>
-          <Plus className="size-4" aria-hidden /> Novo ativo
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={refreshQuotes} pending={updateQuotes.isPending} data-update-quotes>
+            <RefreshCw className="size-4" aria-hidden /> Atualizar cotações
+          </Button>
+          <Button onClick={() => setDialog({ mode: 'create' })} data-new-asset>
+            <Plus className="size-4" aria-hidden /> Novo ativo
+          </Button>
+        </div>
       </header>
 
       <PortfolioKpis totals={summary} />

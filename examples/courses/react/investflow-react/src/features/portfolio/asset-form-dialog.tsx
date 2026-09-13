@@ -10,7 +10,8 @@ import { Select } from '@/components/ui/select';
 import { assetSchema, suggestCurrency, type AssetInput } from '@/core/assets';
 import { CATEGORIES, CATEGORY_LABELS, type AssetWithTransactions } from '@/core/portfolio';
 import { ApiError } from '@/lib/http';
-import { useCreateAsset, useUpdateAsset } from './queries';
+import { isQuotable } from '@/core/quotes';
+import { useCreateAsset, useUpdateAsset, useUpdateQuotes } from './queries';
 
 type AssetFormDialogProps = {
   open: boolean;
@@ -44,6 +45,7 @@ export function AssetFormDialog({ open, onOpenChange, asset }: AssetFormDialogPr
   const create = useCreateAsset();
   const update = useUpdateAsset(asset?.id ?? '');
   const mutation = asset ? update : create;
+  const updateQuotes = useUpdateQuotes();
 
   const set = <K extends keyof AssetInput>(key: K, value: AssetInput[K]) => {
     setValues((current) => {
@@ -74,9 +76,18 @@ export function AssetFormDialog({ open, onOpenChange, asset }: AssetFormDialogPr
     }
 
     try {
-      await mutation.mutateAsync(parsed.data);
+      const saved = await mutation.mutateAsync(parsed.data);
       toast.success(asset ? 'Ativo atualizado.' : 'Ativo cadastrado.');
       close();
+      // Ativo cotável já busca a cotação (CA04.4); se o provedor falhar, o ativo continua salvo (CA04.5).
+      if (isQuotable(saved)) {
+        updateQuotes
+          .mutateAsync({ assetId: saved.id })
+          .then((summary) => {
+            if (summary.updated === 0) toast.warning(`Cotação de ${saved.ticker} não foi atualizada. Informe o valor na tela do ativo.`);
+          })
+          .catch(() => toast.warning(`Cotação de ${saved.ticker} não foi atualizada.`));
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) setErrors({ ticker: error.message });
       else if (error instanceof ApiError && Object.keys(error.fieldErrors).length) setErrors(error.fieldErrors);

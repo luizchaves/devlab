@@ -51,6 +51,8 @@ duas podem subir ao mesmo tempo.
 | `/api/me` | perfil da sessão | 1 |
 | `/api/assets`, `/api/assets/[id]` | carteira do dono da sessão (`GET`, `POST`, `PATCH`, `DELETE`) | 2 |
 | `/api/transactions`, `/api/transactions/[id]` | lançamentos de compra, venda e saldo | 2 |
+| `POST /api/quotes/update` | rodada de cotações (carteira ou `assetId`), com calendário de mercado e resumo em `QuoteRun` | 3 |
+| `POST /api/assets/[id]/quote` | cotação manual (`price`) ou saldo manual (`balance`, vira lançamento `update`) | 3 |
 
 ## Estrutura
 
@@ -59,6 +61,7 @@ app/                 rotas: (public) landing e conta, (private) telas com barra 
 prisma/              schema, migrations, seed
 src/core/            regras puras (simulador, posição, validação): sem React, sem banco
 src/server/          Prisma, NextAuth, senha, guards, ativos, lançamentos, seed: só roda no servidor
+src/server/quotes/   provedores (yahoo, fake), a rodada de cotações e a cotação manual
 src/features/        componentes, hooks (React Query) e ações de cada tela
 src/components/ui/   primitivas (Button, Input, Select, Field, Badge, Dialog, AlertDialog) com CVA e Base UI
 src/components/      Providers, AppShell, Money, CommandPalette
@@ -87,6 +90,9 @@ do backlog do InvestFlow.
 
 ## Variáveis de ambiente
 
-Veja `.env.example`. `DATABASE_URL` aceita `?schema=`: os testes usam `integration` e `e2e`
+Veja `.env.example`. `QUOTES_PROVIDER` escolhe o provedor de cotações: `fake` (tabela fixa,
+usada nos testes) ou `yahoo` (endpoint público do Yahoo Finance, sem token; tickers da B3
+recebem `.SA`). A rodada só consulta o provedor quando o calendário de mercado diz que pode
+haver preço novo (`src/core/market-calendar.ts`). `DATABASE_URL` aceita `?schema=`: os testes usam `integration` e `e2e`
 no mesmo Postgres, recriados a cada execução. Só variáveis `NEXT_PUBLIC_*` chegam ao
 navegador; a service role do Supabase e o `AUTH_SECRET` ficam no servidor.
