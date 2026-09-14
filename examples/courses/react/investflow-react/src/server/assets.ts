@@ -13,7 +13,7 @@ const assetInclude = {
   broker: { select: { id: true, name: true } },
   transactions: {
     orderBy: [{ transactionDate: 'asc' }, { createdAt: 'asc' }],
-    select: { id: true, type: true, quantity: true, price: true, transactionDate: true, yieldRate: true, receiptPath: true },
+    select: { id: true, type: true, quantity: true, price: true, transactionDate: true, yieldRate: true, yieldIndex: true, receiptPath: true },
   },
   dividends: { orderBy: { exDate: 'desc' }, select: { id: true, rate: true, exDate: true, paymentDate: true } },
 } satisfies Prisma.AssetInclude;
@@ -41,6 +41,7 @@ export function toAssetDto(row: AssetRow): AssetWithTransactions {
       price: Number(t.price),
       transactionDate: isoDate(t.transactionDate),
       yieldRate: decimal(t.yieldRate),
+      yieldIndex: t.yieldIndex,
       receiptPath: t.receiptPath,
     })),
     dividends: row.dividends.map((d) => ({ id: d.id, rate: Number(d.rate), exDate: isoDate(d.exDate), paymentDate: isoDate(d.paymentDate) })),

@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select';
 import { transactionSchema, type TransactionInput } from '@/core/assets';
 import { validateReceipt } from '@/core/file-validation';
 import { BALANCE_CATEGORIES, summarize, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
+import { YIELD_INDEX_LABELS, YIELD_INDEXES, type YieldIndex } from '@/core/yield';
 import { ApiError } from '@/lib/http';
 import { useCreateTransaction, useUpdateTransaction, useUploadReceipt } from '@/features/portfolio/queries';
 
@@ -28,6 +29,7 @@ type Values = {
   /** Ativo por saldo: o valor aplicado, resgatado ou o saldo (vira quantidade com preço 1). */
   amount: number | null;
   yieldRate: number | null;
+  yieldIndex: YieldIndex;
   transactionDate: string;
 };
 type FieldErrors = Partial<Record<keyof Values | 'receipt', string>>;
@@ -42,10 +44,11 @@ function initialValues(byBalance: boolean, transaction?: TransactionFact | null)
       price: transaction.price,
       amount: transaction.quantity * transaction.price,
       yieldRate: transaction.yieldRate,
+      yieldIndex: transaction.yieldIndex,
       transactionDate: transaction.transactionDate,
     };
   }
-  return { type: 'buy', quantity: '', price: byBalance ? 1 : null, amount: null, yieldRate: null, transactionDate: today() };
+  return { type: 'buy', quantity: '', price: byBalance ? 1 : null, amount: null, yieldRate: null, yieldIndex: 'fixed', transactionDate: today() };
 }
 
 const AMOUNT_LABEL: Record<Values['type'], string> = { buy: 'Valor aplicado (R$)', sell: 'Valor resgatado (R$)', update: 'Saldo atual (R$)' };
@@ -54,7 +57,8 @@ const AMOUNT_LABEL: Record<Values['type'], string> = { buy: 'Valor aplicado (R$)
 /**
  * Lançamento novo ou editado (CA03.9, CA08.1). Ativo cotado pede quantidade e
  * preço; ativo por saldo (renda fixa, fundos) pede o valor em reais, que vira
- * quantidade com preço 1, e o rendimento contratado em % a.a. (CA14.1, CA14.2).
+ * quantidade com preço 1, e o rendimento contratado com seu indexador:
+ * prefixado, % do CDI, % da SELIC ou IPCA + (CA14.1, CA14.2, CA14.4).
  * Na venda, "resgate total" preenche a quantidade disponível (CA08.3).
  */
 export function TransactionFormDialog({ open, onOpenChange, asset, transaction }: Props) {
@@ -93,7 +97,7 @@ export function TransactionFormDialog({ open, onOpenChange, asset, transaction }
     // Ativo por saldo: o valor em reais é a quantidade, e o preço é 1 (CA08.7).
     const candidate = byBalance
       ? { ...values, quantity: values.amount ?? '', price: 1, assetId: asset.id }
-      : { ...values, price: values.price ?? '', yieldRate: null, assetId: asset.id };
+      : { ...values, price: values.price ?? '', yieldRate: null, yieldIndex: 'fixed', assetId: asset.id };
     const parsed = transactionSchema.safeParse(candidate);
     const fieldErrors: FieldErrors = {};
     if (!parsed.success) {
@@ -110,9 +114,9 @@ export function TransactionFormDialog({ open, onOpenChange, asset, transaction }
     }
 
     try {
-      const { type, quantity, price, transactionDate, yieldRate } = parsed.data;
+      const { type, quantity, price, transactionDate, yieldRate, yieldIndex } = parsed.data;
       const saved = transaction
-        ? await update.mutateAsync({ id: transaction.id, type, quantity, price, transactionDate, yieldRate })
+        ? await update.mutateAsync({ id: transaction.id, type, quantity, price, transactionDate, yieldRate, yieldIndex })
         : await create.mutateAsync(parsed.data);
       if (receipt) await upload.mutateAsync({ transactionId: saved.id, file: receipt });
       toast.success(transaction ? 'Lançamento atualizado.' : receipt ? 'Lançamento registrado com comprovante.' : 'Lançamento registrado.');
@@ -144,12 +148,23 @@ export function TransactionFormDialog({ open, onOpenChange, asset, transaction }
           </label>
         )}
         {byBalance ? (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Field label={AMOUNT_LABEL[values.type]} error={errors.amount}>
               {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
             </Field>
-            <Field label="Rendimento (% a.a.)" hint="Opcional: a taxa contratada, para estimar o saldo." error={errors.yieldRate}>
-              {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder="12,5" />}
+            <Field label="Rendimento" hint="Opcional: o indexador contratado, para estimar o saldo." error={errors.yieldIndex}>
+              {(c) => (
+                <Select {...c} name="yieldIndex" value={values.yieldIndex} onChange={(e) => set('yieldIndex', e.target.value as YieldIndex)}>
+                  {YIELD_INDEXES.map((index) => (
+                    <option key={index} value={index}>
+                      {YIELD_INDEX_LABELS[index].option}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label={YIELD_INDEX_LABELS[values.yieldIndex].rate} error={errors.yieldRate}>
+              {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder={YIELD_INDEX_LABELS[values.yieldIndex].placeholder} />}
             </Field>
           </div>
         ) : (

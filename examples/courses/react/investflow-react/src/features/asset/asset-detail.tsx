@@ -11,6 +11,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { useExchange } from '@/components/exchange-provider';
 import { BALANCE_CATEGORIES, CATEGORY_LABELS, investmentDuration, projectedBalance, summarize, summarizeInBRL, type AssetWithTransactions, type TransactionFact } from '@/core/portfolio';
 import { isQuotable } from '@/core/quotes';
+import { formatYield } from '@/core/yield';
 import { useAsset, useDeleteTransaction, useUpdateQuotes } from '@/features/portfolio/queries';
 import { cn } from '@/lib/cn';
 import { formatDate, formatPercent } from '@/lib/format';
@@ -110,7 +111,7 @@ export function AssetDetail({ initialAsset, evolution }: { initialAsset: AssetWi
           <Money value={position.averagePrice} currency={asset.currency} data-kpi="averagePrice" />
         </Kpi>
         {byBalance ? (
-          <Kpi label="Saldo estimado hoje" sub={projected ? `${projected.yieldRate.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% a.a. desde ${formatDate(projected.since)}` : 'Informe o rendimento na aplicação'} subAttribute="projectedSub">
+          <Kpi label="Saldo estimado hoje" sub={projected ? `${formatYield(projected.yieldIndex, projected.yieldRate)}${projected.yieldIndex === 'fixed' ? '' : ` (≈ ${projected.effectiveRate.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% a.a.)`} desde ${formatDate(projected.since)}` : 'Informe o rendimento na aplicação'} subAttribute="projectedSub">
             <Money value={projected?.balance ?? null} data-kpi="projectedBalance" />
           </Kpi>
         ) : (

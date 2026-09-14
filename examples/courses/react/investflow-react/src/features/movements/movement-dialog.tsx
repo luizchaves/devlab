@@ -10,15 +10,16 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { Select } from '@/components/ui/select';
 import { transactionSchema } from '@/core/assets';
 import { BALANCE_CATEGORIES, type AssetWithTransactions } from '@/core/portfolio';
+import { YIELD_INDEX_LABELS, YIELD_INDEXES, type YieldIndex } from '@/core/yield';
 import { useCreateTransaction } from '@/features/portfolio/queries';
 import { ApiError } from '@/lib/http';
 
-type Values = { assetId: string; type: 'buy' | 'sell'; quantity: string; price: number | null; amount: number | null; yieldRate: number | null; transactionDate: string };
+type Values = { assetId: string; type: 'buy' | 'sell'; quantity: string; price: number | null; amount: number | null; yieldRate: number | null; yieldIndex: YieldIndex; transactionDate: string };
 
 // #region dialog
 /** Registrar uma movimentação pela página, escolhendo o ativo (CA09.15). */
 export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; onOpenChange: (open: boolean) => void; assets: AssetWithTransactions[] }) {
-  const [values, setValues] = useState<Values>({ assetId: assets[0]?.id ?? '', type: 'buy', quantity: '', price: null, amount: null, yieldRate: null, transactionDate: new Date().toISOString().slice(0, 10) });
+  const [values, setValues] = useState<Values>({ assetId: assets[0]?.id ?? '', type: 'buy', quantity: '', price: null, amount: null, yieldRate: null, yieldIndex: 'fixed', transactionDate: new Date().toISOString().slice(0, 10) });
   const [errors, setErrors] = useState<Partial<Record<keyof Values, string>>>({});
   const create = useCreateTransaction();
   const set = <K extends keyof Values>(key: K, value: Values[K]) => setValues((c) => ({ ...c, [key]: value }));
@@ -30,7 +31,7 @@ export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; 
     event.preventDefault();
     // Ativo por saldo: valor em reais vira quantidade com preço 1 (CA14.1).
     const parsed = transactionSchema.safeParse(
-      byBalance ? { ...values, quantity: values.amount ?? '', price: 1 } : { ...values, price: values.price ?? '', yieldRate: null }
+      byBalance ? { ...values, quantity: values.amount ?? '', price: 1 } : { ...values, price: values.price ?? '', yieldRate: null, yieldIndex: 'fixed' }
     );
     if (!parsed.success) {
       const fieldErrors: typeof errors = {};
@@ -74,12 +75,23 @@ export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; 
           )}
         </Field>
         {byBalance ? (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Field label={values.type === 'sell' ? 'Valor resgatado (R$)' : 'Valor aplicado (R$)'} error={errors.amount}>
               {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
             </Field>
-            <Field label="Rendimento (% a.a.)" hint="Opcional." error={errors.yieldRate}>
-              {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder="12,5" />}
+            <Field label="Rendimento" hint="Opcional." error={errors.yieldIndex}>
+              {(c) => (
+                <Select {...c} name="yieldIndex" value={values.yieldIndex} onChange={(e) => set('yieldIndex', e.target.value as YieldIndex)}>
+                  {YIELD_INDEXES.map((index) => (
+                    <option key={index} value={index}>
+                      {YIELD_INDEX_LABELS[index].option}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label={YIELD_INDEX_LABELS[values.yieldIndex].rate} error={errors.yieldRate}>
+              {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder={YIELD_INDEX_LABELS[values.yieldIndex].placeholder} />}
             </Field>
           </div>
         ) : (

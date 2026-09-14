@@ -1,3 +1,5 @@
+import { effectiveAnnualRate, REFERENCE_RATES, type ReferenceRates, type YieldIndex } from './yield';
+
 // #region types
 export type AssetCategory = 'renda_fixa' | 'acoes' | 'fiis' | 'etfs' | 'fi_infra' | 'fundos' | 'cripto';
 export type Currency = 'BRL' | 'USD';
@@ -10,8 +12,10 @@ export type TransactionFact = {
   quantity: number;
   price: number;
   transactionDate: string;
-  /** Rendimento contratado em % a.a. (renda fixa); `null` nos demais. */
+  /** Rendimento contratado (renda fixa); `null` nos demais. O que o número significa depende de `yieldIndex`. */
   yieldRate: number | null;
+  /** Indexador do rendimento: prefixado (% a.a.), `% do CDI` ou `IPCA +`. */
+  yieldIndex: YieldIndex;
   receiptPath: string | null;
 };
 
@@ -252,23 +256,33 @@ export function summarizeInBRL(asset: Pick<AssetWithTransactions, 'transactions'
 // #endregion
 
 // #region projected-balance
+export type ProjectedBalance = {
+  balance: number;
+  yieldRate: number;
+  yieldIndex: YieldIndex;
+  /** Taxa anual que de fato capitaliza: a própria, em prefixado; derivada das referências, nos demais. */
+  effectiveRate: number;
+  since: string;
+};
+
 /**
  * Saldo estimado de um ativo por saldo (renda fixa) pelo rendimento contratado:
- * o custo atual capitaliza, à taxa do último lançamento que a informou, do
- * último lançamento até a data de referência (CA14.3). Sem taxa, devolve `null`.
+ * o custo atual capitaliza, à taxa efetiva do último lançamento que a informou,
+ * do último lançamento até a data de referência (CA14.3). `% do CDI` e `IPCA +`
+ * usam as taxas de referência de `core/yield.ts` (CA14.4). Sem taxa, `null`.
  */
-export function projectedBalance(transactions: TransactionFact[], referenceDate = new Date()): { balance: number; yieldRate: number; since: string } | null {
+export function projectedBalance(transactions: TransactionFact[], referenceDate = new Date(), reference: ReferenceRates = REFERENCE_RATES): ProjectedBalance | null {
   if (transactions.length === 0) return null;
   const sorted = [...transactions].sort((a, b) => a.transactionDate.localeCompare(b.transactionDate));
-  const withRate = sorted.filter((t) => t.yieldRate != null && t.yieldRate > 0);
-  const latestRate = withRate.at(-1)?.yieldRate;
-  if (latestRate == null) return null;
+  const latest = sorted.filter((t) => t.yieldRate != null && t.yieldRate > 0).at(-1);
+  if (latest?.yieldRate == null) return null;
 
   const since = sorted[sorted.length - 1].transactionDate;
   const cost = costAt(transactions, since);
   if (cost <= 0) return null;
 
+  const effectiveRate = effectiveAnnualRate(latest.yieldIndex, latest.yieldRate, reference);
   const days = Math.max(0, (referenceDate.getTime() - new Date(`${since}T12:00:00`).getTime()) / 86_400_000);
-  return { balance: cost * (1 + latestRate / 100) ** (days / 365), yieldRate: latestRate, since };
+  return { balance: cost * (1 + effectiveRate / 100) ** (days / 365), yieldRate: latest.yieldRate, yieldIndex: latest.yieldIndex, effectiveRate, since };
 }
 // #endregion

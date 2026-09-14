@@ -20,7 +20,7 @@ export async function setManualQuote(userId: string, assetId: string, input: z.o
 
   if (BALANCE_CATEGORIES.includes(asset.category)) {
     if (input.balance == null) throw new HttpError(400, 'Informe o saldo.');
-    await createTransaction(userId, { assetId: asset.id, type: 'update', quantity: input.balance, price: 1, transactionDate: quoteDate, yieldRate: null });
+    await createTransaction(userId, { assetId: asset.id, type: 'update', quantity: input.balance, price: 1, transactionDate: quoteDate, yieldRate: null, yieldIndex: 'fixed' });
     return { kind: 'balance' as const, quoteDate };
   }
 

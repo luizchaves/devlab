@@ -56,4 +56,11 @@ describe('transactionSchema · rendimento', () => {
     expect(transactionSchema.parse({ ...base, yieldRate: '12,5'.replace(',', '.') }).yieldRate).toBe(12.5);
     expect(transactionSchema.safeParse({ ...base, yieldRate: -1 }).success).toBe(false);
   });
+
+  it('CA14.4 — o indexador é prefixado por padrão e aceita só os conhecidos', () => {
+    const base = { assetId: 'a1', type: 'buy', quantity: 1000, price: 1, transactionDate: '2026-01-10', yieldRate: 100 };
+    expect(transactionSchema.parse(base).yieldIndex).toBe('fixed');
+    expect(transactionSchema.parse({ ...base, yieldIndex: 'selic' }).yieldIndex).toBe('selic');
+    expect(transactionSchema.safeParse({ ...base, yieldIndex: 'poupanca' }).success).toBe(false);
+  });
 });

@@ -6,7 +6,7 @@ const tx = (
   quantity: number,
   price: number,
   transactionDate: string
-): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, receiptPath: null });
+): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, yieldIndex: 'fixed', receiptPath: null });
 
 const asset = (overrides: Partial<AssetWithTransactions> = {}): AssetWithTransactions => ({
   id: 'a1',
@@ -124,6 +124,19 @@ describe('projectedBalance', () => {
     expect(projected.yieldRate).toBe(12);
     expect(projected.since).toBe('2026-01-10');
     expect(projected.balance).toBeCloseTo(1120, 0); // um ano a 12% a.a.
+  });
+
+  it('CA14.4 — pós-fixado capitaliza pela taxa efetiva derivada da referência', () => {
+    const today = new Date('2027-01-10T12:00:00');
+    const reference = { cdi: 10, selic: 12, ipca: 4 };
+    const cdi = projectedBalance([{ ...tx('buy', 1000, 1, '2026-01-10'), yieldRate: 110, yieldIndex: 'cdi' }], today, reference)!;
+    const ipca = projectedBalance([{ ...tx('buy', 1000, 1, '2026-01-10'), yieldRate: 6, yieldIndex: 'ipca' }], today, reference)!;
+
+    expect(cdi).toMatchObject({ yieldIndex: 'cdi', yieldRate: 110 });
+    expect(cdi.effectiveRate).toBeCloseTo(11);
+    expect(cdi.balance).toBeCloseTo(1110, 0);
+    expect(ipca.effectiveRate).toBeCloseTo(10.24);
+    expect(ipca.balance).toBeCloseTo(1102.4, 0);
   });
 
   it('sem rendimento informado, ou sem saldo, não estima', () => {

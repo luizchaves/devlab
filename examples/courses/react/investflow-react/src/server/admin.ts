@@ -15,7 +15,7 @@ export async function adminMetrics(): Promise<AdminMetrics> {
     prisma.asset.findMany({
       include: {
         broker: { select: { id: true, name: true } },
-        transactions: { select: { id: true, type: true, quantity: true, price: true, transactionDate: true, yieldRate: true, receiptPath: true } },
+        transactions: { select: { id: true, type: true, quantity: true, price: true, transactionDate: true, yieldRate: true, yieldIndex: true, receiptPath: true } },
         dividends: { select: { id: true, rate: true, exDate: true, paymentDate: true } },
       },
     }),

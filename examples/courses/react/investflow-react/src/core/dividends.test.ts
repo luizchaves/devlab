@@ -3,7 +3,7 @@ import { buildDividendsMatrix, cumulativeDividends, dividendsByMonth, dividendsS
 import { monthlyMovements, movementKpis, movements } from './movements';
 import type { TransactionFact } from './portfolio';
 
-const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, receiptPath: null });
+const tx = (type: TransactionFact['type'], quantity: number, price: number, transactionDate: string): TransactionFact => ({ id: `${type}-${transactionDate}`, type, quantity, price, transactionDate, yieldRate: null, yieldIndex: 'fixed', receiptPath: null });
 
 const hglg: AssetWithDividends = {
   id: 'a1', ticker: 'HGLG11', name: 'CSHG Logística', category: 'fiis', currency: 'BRL', issuer: null, broker: null, currentPrice: 162.3,

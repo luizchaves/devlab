@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CATEGORIES } from './portfolio';
+import { YIELD_INDEXES } from './yield';
 
 // #region schemas
 const tickerSchema = z
@@ -47,6 +48,8 @@ export const transactionSchema = z.object({
     (value) => (value === '' || value == null ? null : value),
     z.coerce.number().min(0, 'Rendimento não pode ser negativo.').max(1000, 'Rendimento fora do intervalo.').nullable()
   ),
+  /** A que a taxa se refere: prefixado, % do CDI ou IPCA + (CA14.4). */
+  yieldIndex: z.enum(YIELD_INDEXES, { message: 'Indexador inválido.' }).default('fixed'),
 });
 
 export type TransactionInput = z.input<typeof transactionSchema>;

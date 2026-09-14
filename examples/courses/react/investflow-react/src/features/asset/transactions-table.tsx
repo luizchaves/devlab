@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { Money } from '@/components/money';
 import { Button } from '@/components/ui/button';
 import type { Currency, TransactionFact } from '@/core/portfolio';
+import { formatYield } from '@/core/yield';
 import { ReceiptLink } from '@/features/movements/receipt-link';
 import { formatDate } from '@/lib/format';
 
@@ -73,7 +74,7 @@ export function TransactionsTable({ transactions, currency, byBalance = false, o
               </td>
               {byBalance ? (
                 <td className="hidden px-3 py-2.5 text-right md:table-cell" data-yield-rate>
-                  {t.yieldRate == null ? '—' : `${t.yieldRate.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% a.a.`}
+                  {t.yieldRate == null ? '—' : formatYield(t.yieldIndex, t.yieldRate)}
                 </td>
               ) : (
                 <>

@@ -4,9 +4,9 @@ import { prisma } from './prisma';
 import { isoDate } from './serialize';
 import { HttpError } from './session';
 
-const select = { id: true, type: true, quantity: true, price: true, transactionDate: true, yieldRate: true, receiptPath: true } as const;
+const select = { id: true, type: true, quantity: true, price: true, transactionDate: true, yieldRate: true, yieldIndex: true, receiptPath: true } as const;
 
-function toDto(row: { id: string; type: TransactionFact['type']; quantity: unknown; price: unknown; transactionDate: Date; yieldRate: unknown; receiptPath: string | null }): TransactionFact {
+function toDto(row: { id: string; type: TransactionFact['type']; quantity: unknown; price: unknown; transactionDate: Date; yieldRate: unknown; yieldIndex: TransactionFact['yieldIndex']; receiptPath: string | null }): TransactionFact {
   return {
     id: row.id,
     type: row.type,
@@ -14,6 +14,7 @@ function toDto(row: { id: string; type: TransactionFact['type']; quantity: unkno
     price: Number(row.price),
     transactionDate: isoDate(row.transactionDate),
     yieldRate: row.yieldRate == null ? null : Number(row.yieldRate),
+    yieldIndex: row.yieldIndex,
     receiptPath: row.receiptPath,
   };
 }
@@ -36,6 +37,7 @@ export async function createTransaction(userId: string, input: TransactionData):
       price: input.price,
       transactionDate: new Date(`${input.transactionDate}T00:00:00Z`),
       yieldRate: input.yieldRate,
+      yieldIndex: input.yieldIndex,
     },
     select,
   });
@@ -60,6 +62,7 @@ export async function updateTransaction(
       price: input.price,
       transactionDate: new Date(`${input.transactionDate}T00:00:00Z`),
       yieldRate: input.yieldRate,
+      yieldIndex: input.yieldIndex,
     },
     select,
   });

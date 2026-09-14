@@ -36,11 +36,15 @@ test.describe('comprovantes', () => {
 
     await page.locator('[data-new-transaction]').click();
     const form = page.locator('[data-transaction-form]');
-    // Renda fixa pede o valor aplicado (CA14.1) e o rendimento contratado (CA14.2), com a máscara pt-BR (CA13.1).
+    // Renda fixa pede o valor aplicado (CA14.1) e o rendimento contratado com o
+    // indexador (CA14.2, CA14.4), com a máscara pt-BR (CA13.1).
     await expect(form.getByLabel('Quantidade')).toHaveCount(0);
     await form.getByLabel(/Valor aplicado/).fill('1000');
     await expect(form.getByLabel(/Valor aplicado/)).toHaveValue('1.000');
-    await form.getByLabel(/Rendimento/).fill('12,5');
+    await form.getByLabel('Rendimento').selectOption('ipca');
+    await expect(form.getByLabel(/Juros acima do IPCA/)).toBeVisible();
+    await form.getByLabel('Rendimento').selectOption('fixed');
+    await form.getByLabel(/Taxa \(% a\.a\.\)/).fill('12,5');
     await form.getByLabel('Data').fill('2026-03-01');
     await form.getByLabel(/Comprovante/).setInputFiles({ name: 'nota.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 nota de corretagem') });
     await form.getByRole('button', { name: 'Registrar' }).click();
