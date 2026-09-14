@@ -449,6 +449,7 @@ export default defineConfig({
             { label: 'Node.js e Express.js', link: '/courses/lp2-ctii-jp/topics/node-express/' },
             { label: 'Dados e Autenticação', link: '/courses/lp2-ctii-jp/topics/data-auth/' },
             { label: 'Recursos da Aplicação', link: '/courses/lp2-ctii-jp/topics/app-features/' },
+            { label: 'Avaliações do Projeto', link: '/courses/lp2-ctii-jp/project/' },
           ],
         },
         {
