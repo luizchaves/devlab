@@ -38,5 +38,5 @@ os reescreve; a tabela abaixo diz apenas **como** cada bloco é atendido aqui.
 | RNF04 arquivos privados | bucket privado; download por rota autenticada |
 | RNF05 admin agregado | `/api/admin/*` devolve só totais |
 | RNF06 publicação | `next build`, cabeçalhos de segurança em `next.config.ts` |
-| **RNF08 máscara monetária** (novo nesta versão) | todo campo de dinheiro usa `MoneyInput` sobre `core/money-mask.ts`: milhar com ponto e decimal com vírgula ao digitar, número sem separadores no envio e casas completadas ao sair do campo (CA13.1 a CA13.4) |
+| **RNF08 máscara monetária** (novo nesta versão) | todo campo de dinheiro usa `MoneyInput` sobre `core/money-mask.ts`: milhar com ponto e decimal com vírgula ao digitar, número sem separadores no envio, casas completadas ao sair do campo e máscara de centavos (`0,00`, dígitos pela direita) nos valores em reais (CA13.1 a CA13.5) |
 | **RNF07 design responsivo** (novo nesta versão) | mobile-first: sem rolagem horizontal (CA12.1), barra com menu acessível em telas estreitas (CA12.2), tabelas com colunas essenciais e as demais por breakpoint (CA12.3), diálogos e formulários na largura da tela com alvos de toque de 44 px (CA12.4); provado pelo projeto Playwright `mobile` |

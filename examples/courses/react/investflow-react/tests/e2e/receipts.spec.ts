@@ -39,8 +39,9 @@ test.describe('comprovantes', () => {
     // Renda fixa pede o valor aplicado (CA14.1) e o rendimento contratado com o
     // indexador (CA14.2, CA14.4), com a máscara pt-BR (CA13.1).
     await expect(form.getByLabel('Quantidade')).toHaveCount(0);
-    await form.getByLabel(/Valor aplicado/).fill('1000');
-    await expect(form.getByLabel(/Valor aplicado/)).toHaveValue('1.000');
+    await expect(form.getByLabel(/Valor aplicado/)).toHaveValue('0,00');
+    await form.getByLabel(/Valor aplicado/).fill('100000');
+    await expect(form.getByLabel(/Valor aplicado/)).toHaveValue('1.000,00');
     await form.getByLabel('Rendimento').selectOption('ipca');
     await expect(form.getByLabel(/IPCA \+ \(% a\.a\.\)/)).toBeVisible();
     await form.getByLabel('Rendimento').selectOption('fixed');
@@ -77,7 +78,7 @@ test.describe('comprovantes', () => {
 
     await page.locator('[data-new-transaction]').click();
     const form = page.locator('[data-transaction-form]');
-    await form.getByLabel(/Valor aplicado/).fill('10');
+    await form.getByLabel(/Valor aplicado/).fill('1000');
     await form.getByLabel(/Comprovante/).setInputFiles({ name: 'virus.exe', mimeType: 'application/x-msdownload', buffer: Buffer.from('MZ') });
     await form.getByRole('button', { name: 'Registrar' }).click();
 

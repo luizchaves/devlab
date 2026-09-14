@@ -26,6 +26,19 @@ export function maskMoney(raw: string, { decimals = 2 }: MaskOptions = {}): stri
   return `${whole},${fraction}`;
 }
 
+/**
+ * Máscara de centavos, a dos caixas eletrônicos: o campo começa em `0,00` e os
+ * dígitos entram pela direita (`1` → `0,01`, `100` → `1,00`, `10000` → `100,00`),
+ * sempre com as casas completas. Vírgula e ponto digitados são ignorados.
+ */
+export function maskCents(raw: string, { decimals = 2 }: MaskOptions = {}): string {
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '').slice(-15);
+  const padded = digits.padStart(decimals + 1, '0');
+  const integer = padded.slice(0, padded.length - decimals);
+  const fraction = padded.slice(padded.length - decimals);
+  return maskMoney(decimals > 0 ? `${integer},${fraction}` : integer, { decimals });
+}
+
 /** `"1.234,56"` → `1234.56`; texto vazio ou só separadores → `null`. */
 export function parseMoney(text: string): number | null {
   const normalized = text.replace(/\./g, '').replace(',', '.').trim();

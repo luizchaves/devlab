@@ -150,7 +150,7 @@ export function TransactionFormDialog({ open, onOpenChange, asset, transaction }
         {byBalance ? (
           <>
           <Field label={AMOUNT_LABEL[values.type]} error={errors.amount}>
-            {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
+            {(c) => <MoneyInput {...c} name="amount" cents value={values.amount} onValueChange={(value) => set('amount', value)} />}
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Rendimento" hint="Opcional: para estimar o saldo." error={errors.yieldIndex}>

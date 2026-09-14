@@ -66,7 +66,7 @@ export function QuoteDialog({ open, onOpenChange, asset, warning }: Props) {
           </p>
         )}
         <Field label={byBalance ? 'Saldo atual (R$)' : `Cotação (${asset.currency === 'USD' ? 'US$' : 'R$'})`} error={error ?? undefined}>
-          {(c) => <MoneyInput {...c} name={byBalance ? 'currentBalance' : 'currentPrice'} decimals={byBalance ? 2 : 4} value={value} onValueChange={setValue} autoFocus />}
+          {(c) => <MoneyInput {...c} name={byBalance ? 'currentBalance' : 'currentPrice'} decimals={byBalance ? 2 : 4} cents={byBalance} value={value} onValueChange={setValue} autoFocus />}
         </Field>
         <Field label="Data">
           {(c) => <Input {...c} name="quoteDate" type="date" value={quoteDate} onChange={(e) => setQuoteDate(e.target.value)} />}

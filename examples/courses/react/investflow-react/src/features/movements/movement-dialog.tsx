@@ -77,7 +77,7 @@ export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; 
         {byBalance ? (
           <>
           <Field label={values.type === 'sell' ? 'Valor resgatado (R$)' : 'Valor aplicado (R$)'} error={errors.amount}>
-            {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
+            {(c) => <MoneyInput {...c} name="amount" cents value={values.amount} onValueChange={(value) => set('amount', value)} />}
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Rendimento" hint="Opcional." error={errors.yieldIndex}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoneyInput, maskMoney, parseMoney } from './money-mask';
+import { formatMoneyInput, maskCents, maskMoney, parseMoney } from './money-mask';
 
 describe('máscara monetária', () => {
   it('CA13.1 — agrupa o milhar com ponto enquanto a pessoa digita', () => {
@@ -24,6 +24,17 @@ describe('máscara monetária', () => {
     expect(parseMoney('0,5')).toBe(0.5);
     expect(parseMoney('')).toBeNull();
     expect(parseMoney('abc')).toBeNull();
+  });
+
+  it('CA13.5 — a máscara de centavos começa em 0,00 e recebe os dígitos pela direita', () => {
+    expect(maskCents('')).toBe('0,00');
+    expect(maskCents('1')).toBe('0,01');
+    expect(maskCents('100')).toBe('1,00');
+    expect(maskCents('10000')).toBe('100,00');
+    expect(maskCents('125050')).toBe('1.250,50');
+    expect(maskCents('1.250,5')).toBe('125,05');
+    expect(maskCents('0,0')).toBe('0,00');
+    expect(parseMoney(maskCents('10000'))).toBe(100);
   });
 
   it('CA13.4 — formata um número com as casas completas e volta ao mesmo número', () => {

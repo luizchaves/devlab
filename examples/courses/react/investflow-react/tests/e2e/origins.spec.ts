@@ -41,7 +41,8 @@ async function addTransaction(page: Page, ticker: string, quantity: string, pric
   const tx = page.locator('[data-transaction-form]');
   // Renda fixa pede só o valor (CA14.1); os demais, quantidade e preço.
   if ((await tx.getAttribute('data-mode')) === 'balance') {
-    await tx.getByLabel(/Valor aplicado/).fill(String(Number(quantity) * Number(price)));
+    // Máscara de centavos: o valor entra em centavos, sem separador (CA13.5).
+    await tx.getByLabel(/Valor aplicado/).fill((Number(quantity) * Number(price)).toFixed(2).replace('.', ''));
   } else {
     await tx.getByLabel('Quantidade').fill(quantity);
     await tx.getByLabel(/Preço unitário/).fill(price);

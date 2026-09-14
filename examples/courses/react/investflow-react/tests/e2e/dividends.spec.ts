@@ -120,7 +120,8 @@ test.describe('proventos e movimentações', () => {
     await form.getByLabel('Ativo').selectOption(cdb!);
     // CDB é renda fixa: o diálogo pede o valor aplicado, não quantidade e preço (CA14.1).
     await expect(form.getByLabel('Quantidade')).toHaveCount(0);
-    await form.getByLabel(/Valor aplicado/).fill('1000');
+    // Máscara de centavos: os dígitos entram pela direita (CA13.5).
+    await form.getByLabel(/Valor aplicado/).fill('100000');
     await form.getByLabel('Data').fill('2026-05-05');
     await form.getByRole('button', { name: 'Registrar' }).click();
     await expect(form).toBeHidden();
