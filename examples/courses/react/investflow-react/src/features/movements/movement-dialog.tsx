@@ -75,10 +75,11 @@ export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; 
           )}
         </Field>
         {byBalance ? (
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={values.type === 'sell' ? 'Valor resgatado (R$)' : 'Valor aplicado (R$)'} error={errors.amount}>
-              {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
-            </Field>
+          <>
+          <Field label={values.type === 'sell' ? 'Valor resgatado (R$)' : 'Valor aplicado (R$)'} error={errors.amount}>
+            {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Rendimento" hint="Opcional." error={errors.yieldIndex}>
               {(c) => (
                 <Select {...c} name="yieldIndex" value={values.yieldIndex} onChange={(e) => set('yieldIndex', e.target.value as YieldIndex)}>
@@ -94,6 +95,7 @@ export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; 
               {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder={YIELD_INDEX_LABELS[values.yieldIndex].placeholder} />}
             </Field>
           </div>
+          </>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Quantidade" error={errors.quantity}>

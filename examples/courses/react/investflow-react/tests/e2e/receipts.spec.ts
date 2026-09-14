@@ -42,7 +42,7 @@ test.describe('comprovantes', () => {
     await form.getByLabel(/Valor aplicado/).fill('1000');
     await expect(form.getByLabel(/Valor aplicado/)).toHaveValue('1.000');
     await form.getByLabel('Rendimento').selectOption('ipca');
-    await expect(form.getByLabel(/Juros acima do IPCA/)).toBeVisible();
+    await expect(form.getByLabel(/IPCA \+ \(% a\.a\.\)/)).toBeVisible();
     await form.getByLabel('Rendimento').selectOption('fixed');
     await form.getByLabel(/Taxa \(% a\.a\.\)/).fill('12,5');
     await form.getByLabel('Data').fill('2026-03-01');

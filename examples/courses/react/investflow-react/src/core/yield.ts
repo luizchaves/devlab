@@ -9,7 +9,7 @@ export const YIELD_INDEX_LABELS: Record<YieldIndex, { option: string; rate: stri
   fixed: { option: 'Prefixado', rate: 'Taxa (% a.a.)', placeholder: '12' },
   cdi: { option: '% do CDI', rate: 'Percentual do CDI', placeholder: '100' },
   selic: { option: '% da SELIC', rate: 'Percentual da SELIC', placeholder: '100' },
-  ipca: { option: 'IPCA +', rate: 'Juros acima do IPCA (% a.a.)', placeholder: '6' },
+  ipca: { option: 'IPCA +', rate: 'IPCA + (% a.a.)', placeholder: '6' },
 };
 
 /**

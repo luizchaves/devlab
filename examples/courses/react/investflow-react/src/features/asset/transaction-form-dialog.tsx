@@ -148,11 +148,12 @@ export function TransactionFormDialog({ open, onOpenChange, asset, transaction }
           </label>
         )}
         {byBalance ? (
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={AMOUNT_LABEL[values.type]} error={errors.amount}>
-              {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
-            </Field>
-            <Field label="Rendimento" hint="Opcional: o indexador contratado, para estimar o saldo." error={errors.yieldIndex}>
+          <>
+          <Field label={AMOUNT_LABEL[values.type]} error={errors.amount}>
+            {(c) => <MoneyInput {...c} name="amount" value={values.amount} onValueChange={(value) => set('amount', value)} />}
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Rendimento" hint="Opcional: para estimar o saldo." error={errors.yieldIndex}>
               {(c) => (
                 <Select {...c} name="yieldIndex" value={values.yieldIndex} onChange={(e) => set('yieldIndex', e.target.value as YieldIndex)}>
                   {YIELD_INDEXES.map((index) => (
@@ -167,6 +168,7 @@ export function TransactionFormDialog({ open, onOpenChange, asset, transaction }
               {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder={YIELD_INDEX_LABELS[values.yieldIndex].placeholder} />}
             </Field>
           </div>
+          </>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Quantidade" error={errors.quantity}>
