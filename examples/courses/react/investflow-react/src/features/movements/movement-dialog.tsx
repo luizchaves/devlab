@@ -92,7 +92,7 @@ export function MovementDialog({ open, onOpenChange, assets }: { open: boolean; 
               )}
             </Field>
             <Field label={YIELD_INDEX_LABELS[values.yieldIndex].rate} error={errors.yieldRate}>
-              {(c) => <MoneyInput {...c} name="yieldRate" value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder={YIELD_INDEX_LABELS[values.yieldIndex].placeholder} />}
+              {(c) => <MoneyInput {...c} name="yieldRate" minDecimals={0} value={values.yieldRate} onValueChange={(value) => set('yieldRate', value)} placeholder={YIELD_INDEX_LABELS[values.yieldIndex].placeholder} />}
             </Field>
           </div>
           </>

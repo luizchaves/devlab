@@ -26,11 +26,19 @@ describe('máscara monetária', () => {
     expect(parseMoney('abc')).toBeNull();
   });
 
-  it('formata um número para preencher o campo e volta ao mesmo número', () => {
-    expect(formatMoneyInput(1250.5)).toBe('1.250,5');
-    expect(formatMoneyInput(6400)).toBe('6.400');
+  it('CA13.4 — formata um número com as casas completas e volta ao mesmo número', () => {
+    expect(formatMoneyInput(1250.5)).toBe('1.250,50');
+    expect(formatMoneyInput(6400)).toBe('6.400,00');
     expect(formatMoneyInput(0.25)).toBe('0,25');
     expect(formatMoneyInput(null)).toBe('');
     expect(parseMoney(formatMoneyInput(1234.56))).toBe(1234.56);
+  });
+
+  it('CA13.4 — preço com quatro casas mostra ao menos duas; percentual e inteiro não completam', () => {
+    expect(formatMoneyInput(30.5, { decimals: 4 })).toBe('30,50');
+    expect(formatMoneyInput(30.1234, { decimals: 4 })).toBe('30,1234');
+    expect(formatMoneyInput(12, { minDecimals: 0 })).toBe('12');
+    expect(formatMoneyInput(12.5, { minDecimals: 0 })).toBe('12,5');
+    expect(formatMoneyInput(1500, { decimals: 0 })).toBe('1.500');
   });
 });

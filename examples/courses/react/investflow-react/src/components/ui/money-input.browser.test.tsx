@@ -42,9 +42,20 @@ describe('MoneyInput', () => {
   it('acompanha um valor definido por fora, como o resgate total', async () => {
     render(<Harness initial={6400} />);
     const input = page.getByLabelText('Preço');
-    await expect.element(input).toHaveValue('6.400');
+    await expect.element(input).toHaveValue('6.400,00');
 
     await page.getByRole('button', { name: 'Preencher 300' }).click();
-    await expect.element(input).toHaveValue('300');
+    await expect.element(input).toHaveValue('300,00');
+  });
+
+  it('CA13.4 — ao sair do campo completa as casas decimais, sem mudar o número', async () => {
+    render(<Harness />);
+    const input = page.getByLabelText('Preço');
+
+    await userEvent.fill(input, '100');
+    await expect.element(input).toHaveValue('100');
+    await userEvent.tab();
+    await expect.element(input).toHaveValue('100,00');
+    await expect.element(page.getByTestId('value')).toHaveTextContent('100');
   });
 });

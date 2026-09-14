@@ -4,7 +4,12 @@
  * separa decimal. `maskMoney` recebe o que a pessoa digitou e devolve o texto
  * formatado; `parseMoney` transforma o texto em número. As duas são puras.
  */
-export type MaskOptions = { decimals?: number };
+export type MaskOptions = {
+  /** Casas decimais aceitas ao digitar. */
+  decimals?: number;
+  /** Casas decimais sempre exibidas ao formatar um número (`100` → `100,00`); no máximo `decimals`. */
+  minDecimals?: number;
+};
 
 const group = (digits: string) => digits.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
@@ -29,11 +34,15 @@ export function parseMoney(text: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-/** Número → texto no formato da máscara, para preencher o campo a partir de um valor. */
-export function formatMoneyInput(value: number | null | undefined, { decimals = 2 }: MaskOptions = {}): string {
+/**
+ * Número → texto no formato da máscara, para preencher o campo a partir de um
+ * valor. Completa as casas até `minDecimals` (duas, em dinheiro: `100` →
+ * `100,00`) e descarta zeros além delas (`30,5000` → `30,50`).
+ */
+export function formatMoneyInput(value: number | null | undefined, { decimals = 2, minDecimals = Math.min(2, decimals) }: MaskOptions = {}): string {
   if (value == null || Number.isNaN(value)) return '';
-  const fixed = value.toFixed(decimals).replace('.', ',');
-  const trimmed = decimals > 0 ? fixed.replace(/,?0+$/, '') : fixed;
-  return maskMoney(trimmed, { decimals });
+  const [integer, fraction = ''] = value.toFixed(decimals).split('.');
+  const kept = fraction.replace(/0+$/, '').padEnd(Math.min(minDecimals, decimals), '0');
+  return maskMoney(kept ? `${integer},${kept}` : integer, { decimals });
 }
 // #endregion
